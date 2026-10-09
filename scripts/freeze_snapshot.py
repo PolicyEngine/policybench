@@ -1495,6 +1495,16 @@ STATED_HOURS_INPUT = "weekly_hours_worked_before_lsr"
 # inherited conventions through latest_final.py and pinning its sales-tax
 # table alongside the modules.
 UPGRADE_SUPPORT_MODULES = {"latest_final.py", "r19_irs_sales_tax_2025.json"}
+# Where each pinned module's bytes are committed: the conventions, composer,
+# adapter and latest_final.py under the 2026-09-28 fixes, the sales-tax table
+# under the 2026-09-22 ones. An entry without a path (the 2026-09-29 form)
+# names a 2026-09-28 fix.
+UPGRADE_FIXES_DIR = "reference_audit/2026-09-28/fixes"
+UPGRADE_MODULE_PATHS = {
+    "r19_irs_sales_tax_2025.json": (
+        "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
+    ),
+}
 UPGRADE_BUILDER = (
     "reference_audit/2026-10-09-engine-upgrade/scripts/"
     "build_references_upgrade.py; households from "
@@ -1539,6 +1549,9 @@ def read_reference_engine_setup() -> dict[str, int]:
                 f"engine_upgrade fix_modules[{index}] needs a nonempty string module"
             )
     modules = [entry["module"] for entry in fix_modules]
+    twice = sorted({m for m in modules if modules.count(m) > 1})
+    if twice:
+        raise SystemExit(f"engine_upgrade fix_modules lists {twice} more than once")
     conventions = [m for m in modules if m.startswith(CONVENTION_MODULE_PREFIX)]
     others = sorted(set(modules) - set(conventions))
     expected = {CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}
@@ -1558,10 +1571,69 @@ def read_reference_engine_setup() -> dict[str, int]:
     )
     if STATED_HOURS_INPUT not in builder and not inherited_builder:
         raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
+    verify_fix_module_pins(fix_modules, upgrades[:-1] if inherited_builder else [])
     return {
         "convention_count": len(conventions),
         "output_scope_adapter_count": len(OUTPUT_SCOPE_ADAPTERS),
     }
+
+
+def committed_sha256(path: str) -> str | None:
+    """The sha256 of a file's bytes as committed at HEAD, or None."""
+    shown = subprocess.run(
+        ["git", "show", f"HEAD:{path}"], cwd=ROOT, check=False, capture_output=True
+    )
+    return sha256_bytes(shown.stdout) if shown.returncode == 0 else None
+
+
+def verify_fix_module_pins(fix_modules: list[dict], earlier: list[dict]) -> None:
+    """Each module the final engine_upgrade revision pins is the file its path
+    names, at the bytes committed there, so the published reproduction pin is
+    the one that ran: the path is the module's (UPGRADE_MODULE_PATHS, else
+    under UPGRADE_FIXES_DIR) and the sha256 the committed file's. A later
+    upgrade that inherits the conventions (``earlier``, the upgrades before
+    it) also keeps the earlier upgrades' modules at their earlier pins, and
+    their convention set."""
+    for entry in fix_modules:
+        module = entry["module"]
+        expected = UPGRADE_MODULE_PATHS.get(module, f"{UPGRADE_FIXES_DIR}/{module}")
+        path = entry.get("path", expected)
+        if path != expected:
+            raise SystemExit(
+                f"engine_upgrade fix_modules {module} names path {path!r}, "
+                f"not {expected}"
+            )
+        pinned = entry.get("sha256")
+        if not isinstance(pinned, str) or pinned != committed_sha256(path):
+            raise SystemExit(
+                f"engine_upgrade fix_modules {module} pins sha256 {pinned!r}, not the "
+                f"bytes committed at {path}"
+            )
+    pins = {entry["module"]: entry["sha256"] for entry in fix_modules}
+    for previous in earlier:
+        before = previous.get("fix_modules")
+        if not isinstance(before, list) or not all(
+            isinstance(item, dict) and isinstance(item.get("module"), str)
+            for item in before
+        ):
+            raise SystemExit("an earlier engine_upgrade's fix_modules are malformed")
+        for item in before:
+            if pins.get(item["module"]) != item.get("sha256"):
+                raise SystemExit(
+                    f"engine_upgrade fix_modules {item['module']} is not the earlier "
+                    "upgrade's pin it inherits"
+                )
+        inherited = {
+            item["module"]
+            for item in before
+            if item["module"].startswith(CONVENTION_MODULE_PREFIX)
+        }
+        latest = {m for m in pins if m.startswith(CONVENTION_MODULE_PREFIX)}
+        if inherited != latest:
+            raise SystemExit(
+                "the engine_upgrade conventions are not the earlier upgrade's: "
+                f"{sorted(inherited ^ latest)}"
+            )
 
 
 def read_household_dataset() -> dict[str, str]:

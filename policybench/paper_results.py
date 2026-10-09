@@ -1754,12 +1754,6 @@ class PaperResults:
         return count_word(self.engine_upgrade_new_exclusion_count)
 
     @property
-    def engine_upgrade_rechecked_count(self) -> int:
-        """Excluded outputs the last upgrade moved that stay excluded."""
-        last = self.last_engine_upgrade
-        return 0 if last is None else last.rechecked_count
-
-    @property
     def excluded_outputs_by_engine_version(self) -> dict[str, int]:
         """Excluded outputs by the policyengine-us version behind the value
         each keeps (the version its exclusion was decided on), oldest first."""

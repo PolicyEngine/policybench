@@ -655,6 +655,16 @@ def test_module_dependencies_are_found_transitively():
     assert build.module_dependencies("b.json", files.__getitem__) == []
 
 
+def test_a_module_whose_closure_cannot_be_established_is_refused():
+    """The delta review's case: c13v3_upstream_plus_r30.py loads six siblings
+    through _HERE / f"{name}.py"; pinning only the wrapper would let a loaded
+    sibling change unseen, so the builder refuses it."""
+    with pytest.raises(build.Refusal, match="cannot be established"):
+        build.module_dependencies("c13v3_upstream_plus_r30.py", build.committed_fix)
+    with pytest.raises(build.Refusal, match="cannot be established"):
+        build.audit_module_pins(["c13v3_upstream_plus_r30.py"])
+
+
 def test_the_committed_modules_siblings_are_the_ones_they_load():
     """On the real fixes: r01, r02 and r03's v2 modules each load a sibling."""
     deps = {
@@ -1212,7 +1222,9 @@ def test_narratives_rewrite_only_the_changed_rows(tmp_path):
 def _value_narrator(mention: str = ""):
     def completion(**kwargs):
         value = float(
-            kwargs["messages"][0]["content"].split("REFERENCE VALUE: ")[1].split("\n")[0]
+            kwargs["messages"][0]["content"]
+            .split("REFERENCE VALUE: ")[1]
+            .split("\n")[0]
         )
         return _Response(f"PolicyEngine gives ${narratives.money(value)}.{mention}")
 
@@ -1310,6 +1322,28 @@ def test_reuse_refuses_a_narratives_file_from_another_build(tmp_path):
     assert narratives.reusable_narratives(tmp_path / "a", tmp_path / "a", text_a)
     with pytest.raises(build.Refusal, match="is not --reuse-from's narratives"):
         narratives.reusable_narratives(tmp_path / "a", tmp_path / "a", EXPLANATIONS)
+
+
+@pytest.mark.parametrize("stated", ["nan", "inf", "-inf", "", "n/a"])
+def test_reuse_refuses_a_source_value_that_is_not_a_finite_number(tmp_path, stated):
+    """The delta review's case: abs(nan - x) > 1e-6 is false, so a source
+    narrative row whose reference_value reads "nan" would pass a bare
+    comparison and its (possibly stale) text be reused."""
+    computed, actions = _full()
+    del actions["new_exclusions"][0]
+    computed[("scenario_006", "local_income_tax")] = 0.0
+    _write(tmp_path / "a", computed, actions)
+    text_a, _ = narratives.write_narratives(
+        tmp_path / "a", EXPLANATIONS, _scenarios(), completion=_value_narrator()
+    )
+    rows = {(f[1], f[2]): (f, raw) for f, raw in narratives.parse_rows(text_a)[1]}
+    fields, raw = rows[("scenario_002", F)]
+    edited = raw.replace(f",{fields[3]},", f",{stated},", 1)
+    assert edited != raw
+    with pytest.raises(build.Refusal, match="is not --reuse-from's narratives"):
+        narratives.reusable_narratives(
+            tmp_path / "a", tmp_path / "a", text_a.replace(raw, edited)
+        )
 
 
 def test_a_narrative_that_omits_the_value_is_retried_then_refused(tmp_path):
@@ -1492,9 +1526,7 @@ def test_the_draft_aims_a_drifted_record_at_its_fix_modules_evidence():
     computed[("scenario_003", "snap")] = 2600.0
     base = _base()
     release, ruled = _release(base)
-    kwargs = dict(
-        engine_version="9.9.9", date=DATE, spec_sha256="spec", precise=True
-    )
+    kwargs = dict(engine_version="9.9.9", date=DATE, spec_sha256="spec", precise=True)
     args = (
         _cells(computed),
         release,

@@ -194,8 +194,8 @@ AUDIT_FIXES_REL = "reference_audit/2026-09-22/fixes"
 AUDIT_FIXES = ROOT / AUDIT_FIXES_REL
 EVIDENCE_KIND = "regeneration_evidence"
 # A fix module loads a sibling as Path(__file__).with_name("<file>"); those
-# siblings run too, so they are pinned with it (module_dependencies).
-LOCAL_DEPENDENCY = re.compile(r"with_name\(\s*['\"]([^'\"]+)['\"]\s*\)")
+# siblings run too, so they are pinned with it (module_dependencies, from
+# policybench.fix_module_closure, which refuses any other way of loading one).
 TARGET_RECORD = "record"
 TARGET_FIX_MODULES = "fix_modules"
 YEAR = 2026
@@ -1281,14 +1281,15 @@ def compute_outputs(system, scenarios, programs, build_situation) -> dict[Key, f
 
 def module_dependencies(name: str, read) -> list[str]:
     """The sibling files a fix module loads, transitively, in discovery order;
-    ``read(file)`` gives a file's bytes (as committed at BASE_COMMIT)."""
-    found, queue = [], [name]
-    while queue:
-        for dep in LOCAL_DEPENDENCY.findall(read(queue.pop(0)).decode()):
-            if dep != name and dep not in found:
-                found.append(dep)
-                queue.append(dep)
-    return found
+    ``read(file)`` gives a file's bytes (as committed at BASE_COMMIT). Refuses
+    a module whose closure cannot be established
+    (policybench.fix_module_closure)."""
+    from policybench.fix_module_closure import ClosureError, dependency_closure
+
+    try:
+        return dependency_closure(name, read)
+    except ClosureError as error:
+        raise Refusal(str(error)) from None
 
 
 def committed_fix(name: str) -> bytes:

@@ -1424,15 +1424,19 @@ def _rehearsal_tree():
         pytest.skip("needs the local 2.37.2 rehearsal build")
     frame = pd.read_csv(REHEARSAL_BUILD / "reference_outputs.csv")
     return Tree(
-        sidecar=json.loads((REHEARSAL_BUILD / "reference_outputs.csv.meta.json").read_text()),
-        exclusions=json.loads((REHEARSAL_BUILD / "reference_exclusions.json").read_text())[
-            "exclusions"
-        ],
+        sidecar=json.loads(
+            (REHEARSAL_BUILD / "reference_outputs.csv.meta.json").read_text()
+        ),
+        exclusions=json.loads(
+            (REHEARSAL_BUILD / "reference_exclusions.json").read_text()
+        )["exclusions"],
         references={
             (row.scenario_id, row.variable): float(row.value)
             for row in frame.itertuples(index=False)
         },
-        manifest=json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text()),
+        manifest=json.loads(
+            (ROOT / "paper/snapshot/20260501/manifest.json").read_text()
+        ),
         pins=tomllib.loads((ROOT / "pyproject.toml").read_text())["project"][
             "dependencies"
         ],
@@ -1499,7 +1503,9 @@ def test_a_ruled_record_must_name_its_ruling():
         results.ruled_records
 
 
-@pytest.mark.parametrize("n, word", [(0, "no"), (7, "seven"), (10, "ten"), (11, "11"), (1234, "1,234")])
+@pytest.mark.parametrize(
+    "n, word", [(0, "no"), (7, "seven"), (10, "ten"), (11, "11"), (1234, "1,234")]
+)
 def test_a_count_reads_as_a_word_up_to_ten(n, word):
     from policybench.paper_results import count_word
 

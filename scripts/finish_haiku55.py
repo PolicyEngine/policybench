@@ -1014,7 +1014,8 @@ def triage_items(upgrade, spec: dict | None = None) -> list[dict]:
     require(
         isinstance(items, list)
         and all(isinstance(i, dict) and set(i) == TRIAGE_ITEM_KEYS for i in items),
-        f"the spec's triage_adjudications must be items with {sorted(TRIAGE_ITEM_KEYS)}",
+        "the spec's triage_adjudications must be items with "
+        f"{sorted(TRIAGE_ITEM_KEYS)}",
     )
     keys = [spec_key(item) for item in items]
     require(len(set(keys)) == len(keys), f"a triage decision is listed twice: {keys}")
@@ -3377,24 +3378,81 @@ TARGET_KEYS = {
         "value_with_modules",
     },
 }
-# A fix module loads a sibling as Path(__file__).with_name("<file>"): the
-# builder's module_dependencies, re-derived here from the committed bytes.
-LOCAL_DEPENDENCY = re.compile(r"with_name\(\s*['\"]([^'\"]+)['\"]\s*\)")
 
 
 def committed_dependencies(names: list[str]) -> list[str]:
     """The siblings the named fix modules load, transitively, as committed at
-    BASE_COMMIT, in the builder's order."""
+    BASE_COMMIT, in the builder's order: the builder's module_dependencies
+    (policybench.fix_module_closure), re-derived here from the committed
+    bytes. Raises ClosureError for a module that loads local files any way
+    but Path(__file__).with_name("<file>")."""
+    from policybench.fix_module_closure import dependency_closure
+
     found: list[str] = []
     for name in names:
-        queue = [name]
-        while queue:
-            text = base_commit_blob(AUDIT_FIXES / queue.pop(0)).decode()
-            for dep in LOCAL_DEPENDENCY.findall(text):
-                if dep not in names and dep not in found:
-                    found.append(dep)
-                    queue.append(dep)
+        read = lambda file: base_commit_blob(AUDIT_FIXES / file)  # noqa: E731
+        for dep in dependency_closure(name, read):
+            if dep not in names and dep not in found:
+                found.append(dep)
     return found
+
+
+def regeneration_action_problems(
+    key: tuple[str, str], record: dict, entry, action
+) -> list[str]:
+    """Where a revision's regenerated_exclusions entry departs from the one
+    reviewed action that asks for it. The builder copies the action's
+    tolerance, upstream and basis, checks its alternative_value against the
+    record, and expands its target: a record target to the record's value, a
+    fix_modules target to the evidence's for the action's modules and
+    evidence file. So the gates hold the build to what was reviewed, not to
+    what the revision says was asked."""
+    if not isinstance(action, dict):
+        return [f"{key}: the build's actions do not regenerate it exactly once"]
+    if not isinstance(entry, dict):
+        return [f"{key}: the build's revision does not list it exactly once"]
+    problems = []
+    tolerance = action.get("tolerance")
+    if not _number(tolerance) or not 0 <= tolerance <= REGENERATION_TOLERANCE:
+        return [f"{key}: the action's tolerance {tolerance!r} is not in [0, $1]"]
+    if not (_number(entry.get("tolerance")) and entry["tolerance"] == tolerance):
+        problems.append(
+            f"{key}: the revision's tolerance {entry.get('tolerance')!r} is not the "
+            f"action's {tolerance!r}"
+        )
+    if not _same(
+        action.get("alternative_value"), record.get("alternative_value"), 1e-6
+    ):
+        problems.append(f"{key}: the action's alternative_value is not the record's")
+    for field in ("upstream", "basis"):
+        if entry.get(field) != action.get(field):
+            problems.append(f"{key}: the revision's {field} is not the action's")
+    asked = action.get("target", {"kind": "record"})
+    built = entry.get("target")
+    if (
+        not isinstance(asked, dict)
+        or not isinstance(built, dict)
+        or (asked.get("kind") != built.get("kind"))
+    ):
+        problems.append(f"{key}: the revision's target is not the kind the action asks")
+    elif asked.get("kind") == "fix_modules":
+        ref = asked.get("evidence")
+        modules = built.get("modules")
+        names = (
+            [m.get("module") for m in modules if isinstance(m, dict)]
+            if isinstance(modules, list)
+            else None
+        )
+        if (
+            names != asked.get("modules")
+            or not isinstance(ref, dict)
+            or ref.get("path") != built.get("evidence")
+            or ref.get("sha256") != built.get("evidence_sha256")
+        ):
+            problems.append(
+                f"{key}: the revision's fix modules or evidence are not the action's"
+            )
+    return problems
 
 
 def regeneration_target_problems(
@@ -3433,7 +3491,9 @@ def regeneration_target_problems(
         ):
             problems.append(f"{key}: the record target is not the record's")
     else:
-        problems.extend(_fix_modules_target_problems(key, target, value, engine))
+        problems.extend(
+            _fix_modules_target_problems(key, target, value, engine, tolerance)
+        )
     if not regeneration_lands(variable, value, float(target["value"])) or (
         abs(value - float(target["value"])) > tolerance
     ):
@@ -3445,13 +3505,21 @@ def regeneration_target_problems(
 
 
 def _fix_modules_target_problems(
-    key: tuple[str, str], target: dict, value: float, engine: str
+    key: tuple[str, str],
+    target: dict,
+    value: float,
+    engine: str,
+    tolerance: float = REGENERATION_TOLERANCE,
 ) -> list[str]:
     from policybench.paper_results import moves_beyond_tolerance
 
     variable = key[1]
     path = target["evidence"]
-    if not isinstance(path, str) or Path(path).is_absolute() or ".." in Path(path).parts:
+    if (
+        not isinstance(path, str)
+        or Path(path).is_absolute()
+        or ".." in Path(path).parts
+    ):
         return [f"{key}: the evidence path {path!r} is not in the checkout"]
     file = ROOT / path
     if not file.is_file() or digest(file) != target["evidence_sha256"]:
@@ -3478,12 +3546,20 @@ def _fix_modules_target_problems(
     ):
         return [*problems, f"{key}: the target lists no fix modules"]
     names = [m["module"] for m in modules]
+    from policybench.fix_module_closure import ClosureError
+
+    try:
+        closure = committed_dependencies(names)
+    except ClosureError as error:
+        return [*problems, f"{key}: {error}"]
     expected = []
-    for dep in committed_dependencies(names):
+    for dep in closure:
         expected.append(
             {
                 "module": dep,
-                "sha256": hashlib.sha256(base_commit_blob(AUDIT_FIXES / dep)).hexdigest(),
+                "sha256": hashlib.sha256(
+                    base_commit_blob(AUDIT_FIXES / dep)
+                ).hexdigest(),
             }
         )
     if target["dependencies"] != expected or any(
@@ -3504,7 +3580,9 @@ def _fix_modules_target_problems(
     items = [
         item
         for item in doc.get("items", [])
-        if isinstance(item, dict) and spec_key(item) == key and item.get("modules") == names
+        if isinstance(item, dict)
+        and spec_key(item) == key
+        and item.get("modules") == names
     ]
     if len(items) != 1:
         return [*problems, f"{key}: {path} has {len(items)} items for {names}"]
@@ -3521,8 +3599,14 @@ def _fix_modules_target_problems(
             f"{key}: on {doc['engine']} the modules do not move it, so the evidence "
             "shows no defect"
         )
+    # On the build's engine the modules move it by no more than the
+    # regeneration's tolerance, as the builder requires.
     after = target["value_with_modules"]
-    if not _number(after) or not regeneration_lands(variable, float(after), value):
+    if (
+        not _number(after)
+        or not regeneration_lands(variable, float(after), value)
+        or abs(float(after) - value) > tolerance
+    ):
         problems.append(
             f"{key}: on {engine} the audited fix still moves it: {value} -> {after}"
         )
@@ -3902,11 +3986,21 @@ def upgrade_exclusion_records(
             for item in (revision or {}).get("regenerated_exclusions", [])
             if isinstance(item, dict) and spec_key(item) == key
         ]
-        target = entries[0].get("target") if len(entries) == 1 else None
-        tolerance = entries[0].get("tolerance") if len(entries) == 1 else None
+        actions = [
+            item
+            for item in plan.get("regenerated_exclusions", [])
+            if isinstance(item, dict) and spec_key(item) == key
+        ]
+        entry = entries[0] if len(entries) == 1 else None
+        action = actions[0] if len(actions) == 1 else None
+        bound = regeneration_action_problems(key, record, entry, action)
+        if bound:
+            problems.extend(bound)
+            continue
+        # The reviewed action's tolerance, which the revision restates.
         problems.extend(
             regeneration_target_problems(
-                key, record, target, values[key], engine, tolerance
+                key, record, entry["target"], values[key], engine, action["tolerance"]
             )
         )
     order = [key for key in map(spec_key, doc["exclusions"]) if key in base]

@@ -42,6 +42,7 @@ import argparse
 import csv
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -321,13 +322,17 @@ def reusable_narratives(
         rows.setdefault((fields[1], fields[2]), []).append(fields)
     # The CSV must be the earlier build's narratives: each output that build
     # changed appears once, for the US, with no error, at that build's value.
+    # Each value must parse to a finite number: abs(nan - x) > 1e-6 is false,
+    # so a "nan" would pass a bare comparison.
     wrong = sorted(
         key
         for key, inputs in writer_inputs(earlier).items()
         if len(rows.get(key, [])) != 1
         or rows[key][0][0] != "us"
         or rows[key][0][6] != ""
-        or abs(float(rows[key][0][3]) - float(inputs[0])) > 1e-6
+        or (stated := finite(rows[key][0][3])) is None
+        or (value := finite(inputs[0])) is None
+        or abs(stated - value) > 1e-6
     )
     if wrong:
         raise Refusal(
@@ -342,6 +347,15 @@ def reusable_narratives(
         for key, inputs in current.items()
         if before.get(key) == inputs and (then == now or number not in narratives[key])
     }
+
+
+def finite(text) -> float | None:
+    """A value's text as a finite float, or None (unparsable, nan or inf)."""
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
 
 
 def main(argv: list[str] | None = None) -> None:

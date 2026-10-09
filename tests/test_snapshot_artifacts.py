@@ -4,6 +4,7 @@ import calendar
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pandas as pd
@@ -960,20 +961,66 @@ def test_reference_refresh_date_is_the_generation_date_not_the_snapshot_date():
     assert refresh["date"] <= refresh["snapshot_date"]
 
 
+UPGRADE_FIXES = "reference_audit/2026-09-28/fixes"
+REAL_CONVENTIONS = sorted(
+    path.name for path in (ROOT / UPGRADE_FIXES).glob("latest_c_*.py")
+)
+SUPPORT_PATHS = {
+    "latest_final.py": f"{UPGRADE_FIXES}/latest_final.py",
+    "r19_irs_sales_tax_2025.json": (
+        "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
+    ),
+}
+
+
+def _committed_pin(path: str) -> str:
+    """The sha256 of a file as committed at HEAD."""
+    shown = subprocess.run(
+        ["git", "show", f"HEAD:{path}"], cwd=ROOT, check=True, capture_output=True
+    )
+    return hashlib.sha256(shown.stdout).hexdigest()
+
+
+def _pinned(module: str, *, path: str | None = None) -> dict:
+    """A fix_modules entry pinning a real committed module: the 2026-09-29
+    form (no path) unless ``path`` is given, as a later upgrade writes it."""
+    entry = {"module": module}
+    if path is not None:
+        entry["path"] = path
+    entry["sha256"] = _committed_pin(path or f"{UPGRADE_FIXES}/{module}")
+    return entry
+
+
 def _MOCK_engine_upgrade(convention_count=9, **changes):
-    """A MOCK sidecar revision, never evidence of a real engine build."""
+    """A MOCK sidecar revision, never evidence of a real engine build. Its
+    modules are real committed conventions at their real pins, as many as
+    the test needs, so the freeze's pin checks see committed bytes."""
+    assert len(REAL_CONVENTIONS) == 9
     return {
         "kind": "engine_upgrade",
         "fix_modules": [
-            {"module": f"latest_c_MOCK_{index}.py"} for index in range(convention_count)
+            _pinned(module) for module in REAL_CONVENTIONS[:convention_count]
         ]
         + [
-            {"module": "latest_conventions.py"},
-            {"module": "latest_md_local_output_scope.py"},
+            _pinned("latest_conventions.py"),
+            _pinned("latest_md_local_output_scope.py"),
         ],
         "builder": "MOCK builder: weekly_hours_worked_before_lsr",
         **changes,
     }
+
+
+def _MOCK_later_upgrade():
+    """A MOCK later upgrade in the real builder's form: the inherited modules
+    with their paths, plus latest_final.py and the sales-tax table."""
+    from scripts import freeze_snapshot
+
+    latest = _MOCK_engine_upgrade(builder=freeze_snapshot.UPGRADE_BUILDER)
+    latest["fix_modules"] = [
+        _pinned(entry["module"], path=f"{UPGRADE_FIXES}/{entry['module']}")
+        for entry in latest["fix_modules"]
+    ] + [_pinned(name, path=path) for name, path in SUPPORT_PATHS.items()]
+    return latest
 
 
 @pytest.mark.parametrize("previous_count", [0, 1, 3])
@@ -1129,7 +1176,9 @@ def test_MOCK_engine_setup_checks_the_known_upgrade_builder(
     latest = _MOCK_engine_upgrade(
         builder=freeze_snapshot.UPGRADE_BUILDER + builder_suffix
     )
-    latest["fix_modules"] += [{"module": name} for name in support_modules]
+    latest["fix_modules"] += [
+        _pinned(name, path=SUPPORT_PATHS[name]) for name in support_modules
+    ]
     sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
     sidecar.write_text(json.dumps({"revisions": [previous, latest]}))
     monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
@@ -1144,6 +1193,123 @@ def test_MOCK_engine_setup_checks_the_known_upgrade_builder(
             match="unexpected engine_upgrade fix_modules|names no stated-hours alias",
         ):
             freeze_snapshot.read_reference_engine_setup()
+
+
+def _zero_pin(module):
+    def change(revisions):
+        for entry in revisions[-1]["fix_modules"]:
+            if entry["module"] == module:
+                entry["sha256"] = "0" * 64
+
+    return change
+
+
+def _move(module, path):
+    def change(revisions):
+        for entry in revisions[-1]["fix_modules"]:
+            if entry["module"] == module:
+                entry["path"] = path
+
+    return change
+
+
+def _duplicate(module):
+    def change(revisions):
+        entries = revisions[-1]["fix_modules"]
+        entries.append(next(dict(e) for e in entries if e["module"] == module))
+
+    return change
+
+
+def _drift_earlier(module):
+    """The earlier upgrade's pin differs: the later one no longer inherits it."""
+
+    def change(revisions):
+        for entry in revisions[0]["fix_modules"]:
+            if entry["module"] == module:
+                entry["sha256"] = "1" * 64
+
+    return change
+
+
+def _drop_earlier_convention(revisions):
+    revisions[0]["fix_modules"] = [
+        e for e in revisions[0]["fix_modules"] if e["module"] != REAL_CONVENTIONS[0]
+    ]
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (None, None),
+        # The delta review's case: an all-zero convention hash.
+        (_zero_pin(REAL_CONVENTIONS[0]), "pins sha256 '0000"),
+        (_zero_pin("latest_final.py"), "pins sha256 '0000"),
+        (_zero_pin("r19_irs_sales_tax_2025.json"), "pins sha256 '0000"),
+        (
+            _move(
+                "r19_irs_sales_tax_2025.json",
+                f"{UPGRADE_FIXES}/r19_irs_sales_tax_2025.json",
+            ),
+            "names path",
+        ),
+        (
+            _move(
+                "latest_final.py", "reference_audit/2026-09-22/fixes/latest_final.py"
+            ),
+            "names path",
+        ),
+        (
+            _move(
+                REAL_CONVENTIONS[1], f"{UPGRADE_FIXES}/../fixes/{REAL_CONVENTIONS[1]}"
+            ),
+            "names path",
+        ),
+        (_duplicate(REAL_CONVENTIONS[2]), "more than once"),
+        (_duplicate("latest_final.py"), "more than once"),
+        (_drift_earlier(REAL_CONVENTIONS[3]), "not the earlier upgrade's pin"),
+        (_drop_earlier_convention, "conventions are not the earlier upgrade's"),
+    ],
+)
+def test_MOCK_a_later_upgrades_pins_are_its_committed_bytes(
+    tmp_path, monkeypatch, change, message
+):
+    """MOCK revisions of real committed modules: a later upgrade's convention
+    entries must be the earlier upgrade's pins, and every entry, the two
+    support files included, the bytes committed at its path, each once."""
+    from scripts import freeze_snapshot
+
+    revisions = [_MOCK_engine_upgrade(), _MOCK_later_upgrade()]
+    if change is not None:
+        change(revisions)
+    sidecar = tmp_path / "MOCK_reference_outputs.csv.meta.json"
+    sidecar.write_text(json.dumps({"revisions": revisions}))
+    monkeypatch.setattr(freeze_snapshot, "REFERENCE_META_SOURCE", sidecar)
+    if message is None:
+        assert freeze_snapshot.read_reference_engine_setup() == {
+            "convention_count": 9,
+            "output_scope_adapter_count": 1,
+        }
+    else:
+        with pytest.raises(SystemExit, match=re.escape(message)):
+            freeze_snapshot.read_reference_engine_setup()
+
+
+def test_the_published_upgrades_pins_are_their_committed_bytes():
+    """On the release's own sidecar: every engine_upgrade revision's modules,
+    at their (stated or implied) paths, are the committed bytes."""
+    from scripts import freeze_snapshot
+
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    run_label = manifest["source_run_labels"]["us"]
+    run_dir = ROOT / manifest["source_run_artifacts"][run_label]["path"]
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrades = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
+    for index, upgrade in enumerate(upgrades):
+        inherits = upgrade.get("builder") == freeze_snapshot.UPGRADE_BUILDER
+        freeze_snapshot.verify_fix_module_pins(
+            upgrade["fix_modules"], upgrades[:index] if inherits else []
+        )
 
 
 def test_MOCK_reference_refresh_reads_the_latest_bundle_and_timestamp(

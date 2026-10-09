@@ -831,9 +831,9 @@ def test_the_installed_record_is_the_one_the_live_stage_holds():
     staged = stage / BUNDLE / "us" / EXCLUSIONS
     if not staged.is_file():
         pytest.skip("no live stage in this checkout")
-    installed = json.loads((stage / "stage.json").read_text()).get(
-        "exclusions_installed"
-    ) or {}
+    installed = (
+        json.loads((stage / "stage.json").read_text()).get("exclusions_installed") or {}
+    )
     if installed.get("spec_sha256") != sha(driver.ROOT / driver.SPEC_PATH):
         pytest.skip("the 2.15.17 fallback stage was installed under an earlier spec")
     receipt = {"files": {str(BUNDLE / "us" / EXCLUSIONS): sha(staged)}}

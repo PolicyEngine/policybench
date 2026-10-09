@@ -23,7 +23,9 @@ that misstate a figure or the mechanism behind the change:
 - **scenario_076 Idaho.** It gave federal AGI as $163,220, not $164,220, so its
   arithmetic did not reach the taxable income it stated.
 - **scenario_082 New York.** It applied a 29% rate to $3,000, which gives $870, not
-  the $880.61 it stated. The engine's applicable percentage is 29.35%.
+  the $880.61 it stated. The engine's applicable percentage is about 29.354%, read at
+  New York AGI ($117,585.15). The child credit's phase-out reads federal AGI
+  ($117,652.65; `ny_ctc_post_2024_phase_out` uses `adjusted_gross_income`).
 
 Every figure in the corrections is the engine's, from the build's trace or
 computed on policyengine-us 2.37.2 with the pinned conventions.

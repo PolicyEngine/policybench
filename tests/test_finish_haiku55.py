@@ -3501,7 +3501,9 @@ def scope(monkeypatch):
         state.calls.append(("export_full_run", Path(run_dir), kwargs))
         return {"countries": {"us": {"modelStats": copy.deepcopy(state.stats)}}}
 
-    def export_payload(bundle, base, exclusions=None, *, require_failure_annotations=True):
+    def export_payload(
+        bundle, base, exclusions=None, *, require_failure_annotations=True
+    ):
         state.calls.append(
             ("export_payload", Path(bundle), base, Path(exclusions).read_bytes())
         )
@@ -4904,6 +4906,19 @@ def explanations_with(base: bytes, values: dict) -> bytes:
     return buffer.getvalue().encode()
 
 
+def _asked_target(target: dict) -> dict:
+    """The action's form of an expanded target, as build_references_upgrade.py
+    reads it: a record target is its kind; a fix_modules target names its
+    modules and evidence file."""
+    if target["kind"] != "fix_modules":
+        return {"kind": target["kind"]}
+    return {
+        "kind": "fix_modules",
+        "modules": [m["module"] for m in target["modules"]],
+        "evidence": {"path": target["evidence"], "sha256": target["evidence_sha256"]},
+    }
+
+
 def write_build(
     root: Path,
     base_files: dict,
@@ -4971,6 +4986,7 @@ def write_build(
                 "tolerance": 1.0,
                 "upstream": "MOCK upstream fix",
                 "basis": "MOCK basis.",
+                **({"target": _asked_target(targets[k])} if k in targets else {}),
             }
             for k in sorted(regenerated)
         ],
@@ -5035,6 +5051,8 @@ def write_build(
                 ),
                 "regenerated": float(v),
                 "tolerance": 1.0,
+                "upstream": "MOCK upstream fix",
+                "basis": "MOCK basis.",
                 "record": records[k],
             }
             for k, v in sorted(regenerated.items())
@@ -5557,6 +5575,30 @@ def test_every_scored_move_beyond_a_dollar_needs_an_approval(upgrade_spec, tmp_p
         load(build)
 
 
+AZ_018 = ("scenario_018", STATE_TAX)
+
+
+def _set_regeneration(build, key, *, action=None, revision=None) -> None:
+    """MOCK: edit one regeneration's action and/or revision entry, and point
+    the revision's provenance at the edited actions."""
+
+    def edit(items, fields):
+        for item in items:
+            if driver.spec_key(item) == key:
+                item.update(fields)
+
+    if action is not None:
+        edit_json(
+            build.actions, lambda plan: edit(plan["regenerated_exclusions"], action)
+        )
+    if revision is not None:
+        edit_json(
+            build.built / META_NAME,
+            lambda meta: edit(last_revision(meta)["regenerated_exclusions"], revision),
+        )
+    _rebind_actions(build)
+
+
 @pytest.mark.parametrize("tolerance, ok", [(1.0, True), (0.01, True), (0.001, False)])
 def test_a_regeneration_lands_within_its_own_tolerance(
     upgrade_spec, tmp_path, tolerance, ok
@@ -5564,13 +5606,12 @@ def test_a_regeneration_lands_within_its_own_tolerance(
     """MOCK: AZ 018 regenerates at 1,137.30 against its record's 1,137.302246;
     a regeneration whose action allows $0.001 is held to it."""
     build = real_build(tmp_path)
-
-    def tighten(meta):
-        for item in last_revision(meta)["regenerated_exclusions"]:
-            if driver.spec_key(item) == ("scenario_018", STATE_TAX):
-                item["tolerance"] = tolerance
-
-    edit_json(build.built / META_NAME, tighten)
+    _set_regeneration(
+        build,
+        AZ_018,
+        action={"tolerance": tolerance},
+        revision={"tolerance": tolerance},
+    )
     if ok:
         load(build)
     else:
@@ -5578,16 +5619,128 @@ def test_a_regeneration_lands_within_its_own_tolerance(
             load(build)
 
 
-def test_a_regeneration_tolerance_above_a_dollar_is_refused(upgrade_spec, tmp_path):
+def test_the_actions_tolerance_binds_not_the_revisions(upgrade_spec, tmp_path):
+    """MOCK, the delta review's case: the reviewed action allows AZ 018 $0.001,
+    the revision keeps $1 and the provenance names the actions. The build is
+    refused: the revision does not restate its action."""
     build = real_build(tmp_path)
-    edit_json(
-        build.built / META_NAME,
-        lambda meta: last_revision(meta)["regenerated_exclusions"][0].update(
-            tolerance=1.5
-        ),
-    )
-    with pytest.raises(SystemExit, match="tolerance 1.5 is not in"):
+    _set_regeneration(build, AZ_018, action={"tolerance": 0.001})
+    with pytest.raises(SystemExit, match="tolerance 1.0 is not the action's 0.001"):
         load(build)
+
+
+@pytest.mark.parametrize(
+    "action, revision, problem",
+    [
+        ({"tolerance": 1.5}, {"tolerance": 1.5}, "tolerance 1.5 is not in"),
+        ({"tolerance": float("nan")}, {}, "tolerance nan is not in"),
+        ({"tolerance": "1"}, {}, "tolerance '1' is not in"),
+        ({}, {"tolerance": 0.5}, "tolerance 0.5 is not the action's 1.0"),
+        ({}, {"upstream": "MOCK other fix"}, "revision's upstream is not the action's"),
+        ({}, {"basis": "MOCK other basis."}, "revision's basis is not the action's"),
+        ({"alternative_value": 1.0}, {}, "alternative_value is not the record's"),
+        (
+            {"target": {"kind": "fix_modules"}},
+            {},
+            "target is not the kind the action asks",
+        ),
+    ],
+)
+def test_a_regeneration_must_restate_its_reviewed_action(
+    upgrade_spec, tmp_path, action, revision, problem
+):
+    build = real_build(tmp_path)
+    _set_regeneration(build, AZ_018, action=action, revision=revision)
+    with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+def test_a_regeneration_needs_exactly_one_action(upgrade_spec, tmp_path):
+    build = real_build(tmp_path)
+
+    def drop(plan):
+        plan["regenerated_exclusions"] = [
+            item
+            for item in plan["regenerated_exclusions"]
+            if driver.spec_key(item) != AZ_018
+        ]
+
+    edit_json(build.actions, drop)
+    _rebind_actions(build)
+    with pytest.raises(SystemExit, match="do not regenerate it exactly once|names"):
+        load(build)
+
+
+def _evidence_target(key, modules, *, after_offset: float) -> tuple[dict, float]:
+    """A fix_modules target from the committed 2.37.2 evidence, as the builder
+    writes it, with the modules moving the build's value by ``after_offset``
+    on a later engine. Returns the target and the build's value."""
+    path = "reference_audit/2026-10-09-engine-upgrade/evidence/pe2.37.2.json"
+    doc = json.loads((REPO / path).read_text())
+    (item,) = [
+        i for i in doc["items"] if driver.spec_key(i) == key and i["modules"] == modules
+    ]
+
+    def pin(name):
+        blob = driver.base_commit_blob(driver.AUDIT_FIXES / name)
+        return {"module": name, "sha256": hashlib.sha256(blob).hexdigest()}
+
+    value = float(item["corrected_value"])
+    return {
+        "kind": "fix_modules",
+        "value": value,
+        "engine": doc["engine"],
+        "engine_value": float(item["engine_value"]),
+        "modules": [pin(m) for m in modules],
+        "dependencies": [pin(d) for d in driver.committed_dependencies(modules)],
+        "evidence": path,
+        "evidence_sha256": sha(REPO / path),
+        "value_with_modules": value + after_offset,
+    }, value
+
+
+def test_a_target_module_whose_closure_cannot_be_established_is_refused():
+    """The delta review's case: a fix_modules target naming
+    c13v3_upstream_plus_r30.py, which loads its siblings through
+    _HERE / f"{name}.py", is refused, not pinned without them."""
+    from policybench.fix_module_closure import ClosureError
+
+    with pytest.raises(ClosureError, match="cannot be established"):
+        driver.committed_dependencies(["c13v3_upstream_plus_r30.py"])
+    key = ("scenario_003", "federal_income_tax_before_refundable_credits")
+    target, value = _evidence_target(
+        key, ["r01_ira_compensation_v2.py"], after_offset=0
+    )
+    target["modules"].append(
+        {"module": "c13v3_upstream_plus_r30.py", "sha256": "0" * 64}
+    )
+    problems = driver.regeneration_target_problems(
+        key, {}, target, value, "policyengine-us 2.99.0", 1.0
+    )
+    assert any(
+        "c13v3_upstream_plus_r30.py loads cannot be established" in p for p in problems
+    )
+
+
+@pytest.mark.parametrize("tolerance, ok", [(1.0, True), (0.25, False)])
+def test_module_inertness_uses_the_regenerations_tolerance(tolerance, ok):
+    """Committed evidence: on 2.37.2 the IRA compensation fix moves scenario
+    003's federal tax. On a later engine it moves the build's value by $0.50:
+    inert within $1, not within the action's $0.25."""
+    key = ("scenario_003", "federal_income_tax_before_refundable_credits")
+    target, value = _evidence_target(
+        key, ["r01_ira_compensation_v2.py"], after_offset=0.5
+    )
+    problems = driver.regeneration_target_problems(
+        key, {}, target, value, "policyengine-us 2.99.0", tolerance
+    )
+    if ok:
+        assert problems == []
+    else:
+        assert problems == [
+            f"{key}: on policyengine-us 2.99.0 the audited fix still moves it: "
+            f"{value} -> {value + 0.5}"
+        ]
 
 
 def test_a_regenerated_record_off_its_alternative_is_refused(upgrade_spec, tmp_path):
@@ -6847,7 +7000,9 @@ def test_a_triage_decision_affirms_a_regenerated_reference(
     rejudged = RULED_CASES | {WI_042_CASE}
     base = driver.base_adjudications()
     assert (
-        driver.verify_adjudication_changes(base, entries, rejudged, [], upgraded.cases, **gate)
+        driver.verify_adjudication_changes(
+            base, entries, rejudged, [], upgraded.cases, **gate
+        )
         == 0
     )
     # Without the triage item the gate refuses the entry as a kept decision.
@@ -6865,7 +7020,9 @@ def test_a_triage_decision_affirms_a_regenerated_reference(
     edited = copy.deepcopy(entries)
     next(e for e in edited if driver.case_id(e) == WI_042_CASE)["reasoning"] = "x"
     with pytest.raises(SystemExit, match="triage decision's entry"):
-        driver.verify_adjudication_changes(base, edited, rejudged, [], upgraded.cases, **gate)
+        driver.verify_adjudication_changes(
+            base, edited, rejudged, [], upgraded.cases, **gate
+        )
     with pytest.raises(SystemExit, match="did not re-open"):
         driver.verify_adjudication_changes(
             base, entries, RULED_CASES, [], upgraded.cases, **gate
