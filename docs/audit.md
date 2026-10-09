@@ -132,12 +132,19 @@ exact and never toward a wrong cluster, even when its rounded key misses.
     whose search results list a blocked URL or name PolicyEngine or
     PolicyBench.
   - The Codex runner works from an empty directory and rejects a stage 1
-    whose log shows a read of derivation-bearing paths. It refuses a Codex
-    home holding `AGENTS.override.md` or `AGENTS.md`, whose instructions
-    Codex would load outside the audited events. Codex's event log
-    records a search's query but not its results, so this runner cannot
-    check what a search returned; the prompt's request is its only guard
-    there.
+    whose log shows a read of derivation-bearing paths. Codex also adds text
+    to a session that produces no event, so the runner keeps the lane's
+    configuration from the judge: each call skips the lane's `config.toml`
+    (`--ignore-user-config`, which drops `developer_instructions`,
+    `model_instructions_file` and configured MCP servers), runs with
+    memories off, and gets a fresh, empty `HOME`, so no user skills reach it.
+    The runner refuses a Codex home holding `AGENTS.override.md` or
+    `AGENTS.md`, or any skill but the bundled `.system` ones. It does not
+    control what Codex bundles, an administrator's `/etc/codex`, or apps and
+    plugins enabled on the ChatGPT account; calling one of those is an MCP
+    tool event, which the audit rejects. Codex's event log records a
+    search's query but not its results, so this runner cannot check what a
+    search returned; the prompt's request is its only guard there.
 - **Stage 2, reconcile.** A fresh call gets the frozen stage-1 JSON (bound by
   its sha256) and only now the engine derivation. It returns a verdict:
   `reference_holds`, `reference_wrong`, `definition_mismatch` or
@@ -155,11 +162,16 @@ naming a stage-1 error. Its rules:
 - A verdict counts only with a sidecar bound to the current stage 1.
 - A case without one is listed as missing, and the command then exits
   non-zero unless `--allow-missing` is given.
-- Each `--adversary-dir` needs its own label (`LABEL=DIR`). A repeated label
-  is refused, because one judge's verdicts would overwrite another's. The
-  label is letters, digits, `.`, `_` or `-`, and the directory is everything
-  after the first `=`, so a directory may contain `=`. A bare `DIR` is
-  labeled with its last path component.
+- Each `--adversary-dir` needs its own label (`LABEL=DIR`), which names its
+  files (`adversary_<label>_<table>.csv`). A repeated label is refused,
+  because one judge's verdicts would overwrite another's; so are two labels
+  that differ only in case, which share files on a case-insensitive file
+  system, and the label `merged`, which the merged table uses. The label is
+  letters, digits, `.`, `_` or `-`, and the directory is everything after
+  the first `=`, so a directory may contain `=`; an empty directory is
+  refused. A bare `DIR` is labeled with its last path component. A relative
+  bare `DIR` whose text before an `=` would pass as a label (`adv=2`) reads
+  as `LABEL=DIR`, so pass it as `./adv=2`.
 - A directory without `cases.jsonl` is refused, so a mistyped path cannot
   pass as a judge with no cases.
 

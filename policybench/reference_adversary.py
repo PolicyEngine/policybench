@@ -1897,10 +1897,12 @@ def check_login(
 ) -> dict:
     """The Claude login a runner may judge with, or ``ValueError`` saying why not.
 
-    The same rule as ``scripts/run_audit_claude.sh``: a first-party
+    Stricter than ``scripts/run_audit_claude.sh``'s rule: a first-party
     subscription login (a lane token or a claude.ai login) that is not the
     desktop login's account, unless the desktop login is explicitly opted in,
-    in which case it must be exactly the desktop's own claude.ai login.
+    in which case it must be exactly the desktop's own claude.ai login. Unlike
+    that script, it also refuses a token lane whose declared account
+    (AUDIT_ACCOUNT) is the desktop login's.
     """
 
     def parse(text: str) -> dict:
@@ -1947,7 +1949,8 @@ def check_login(
     else:
         if token and method != "oauth_token":
             raise ValueError(f"a lane token is set but the CLI logs in by {method!r}")
-        if method == "oauth_token" and not declared:
+        if method == "oauth_token" and not _declared_email(declared):
+            # "claude:" or blank space declares no account either.
             raise ValueError(
                 "a token login reports no account; set AUDIT_ACCOUNT to the lane's"
             )

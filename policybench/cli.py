@@ -652,7 +652,8 @@ def main():
         required=True,
         metavar="LABEL=DIR",
         help="One judge's adversary directory, optionally labeled LABEL=DIR, "
-        "where LABEL is letters, digits, '.', '_' or '-' (repeatable)",
+        "where LABEL is letters, digits, '.', '_' or '-' and not 'merged' "
+        "(repeatable; pass a bare directory containing '=' as ./NAME=...)",
     )
     adversary_collect_parser.add_argument("--output-dir", required=True)
     adversary_collect_parser.add_argument(
@@ -1502,6 +1503,10 @@ def main():
             label, separator, directory = spec.partition("=")
             if not (separator and re.fullmatch(r"[A-Za-z0-9._-]+", label)):
                 label, directory = Path(spec).name, spec
+            if not directory:
+                raise SystemExit(
+                    f"adversary-collect: {spec!r} names no directory after '='"
+                )
             specs.append((label, directory))
         absent = [
             directory
@@ -1514,14 +1519,25 @@ def main():
                 f"adversary-collect: no cases.jsonl in {', '.join(absent)}; "
                 "not a prepared adversary directory"
             )
-        labels = [label for label, _ in specs]
-        repeated = sorted({label for label in labels if labels.count(label) > 1})
+        # Each label names its judge's files, adversary_<label>_<table>.csv. A
+        # repeated label would overwrite one judge's files with another's, and
+        # so would two that differ only in case on a case-insensitive file
+        # system (macOS by default); "merged" would collide with the merged
+        # table.
+        folded = [label.casefold() for label, _ in specs]
+        repeated = sorted(
+            {label for label, _ in specs if folded.count(label.casefold()) > 1}
+        )
         if repeated:
-            # A repeated label would overwrite one judge's verdicts and files
-            # with another's, dropping its cases from the queue.
             raise SystemExit(
                 f"adversary-collect: judge label(s) {', '.join(repeated)} given "
-                "more than once; label each directory (LABEL=DIR) uniquely"
+                "more than once (labels ignore case); label each directory "
+                "(LABEL=DIR) uniquely"
+            )
+        if "merged" in folded:
+            raise SystemExit(
+                "adversary-collect: the judge label 'merged' is reserved for "
+                "the merged table; label that directory otherwise (LABEL=DIR)"
             )
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

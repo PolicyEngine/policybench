@@ -11,11 +11,22 @@
 #
 # Run it inside a Subfleet lane, so that every judge call bills to the lane's
 # ChatGPT subscription. Never with an API key: every codex call gets an
-# allowlisted environment (PATH, HOME, user, locale, temp dir and CODEX_HOME),
-# so no API key, base URL or provider switch reaches it, and the runner
-# refuses to start unless `codex login status` reports a ChatGPT login. It
-# also refuses a Codex home that holds an AGENTS.md or AGENTS.override.md,
-# whose instructions could reach the judge outside the audited tool events.
+# allowlisted environment (PATH, user, locale, temp dir and CODEX_HOME, plus a
+# HOME of its own), so no API key, base URL or provider switch reaches it, and
+# the runner refuses to start unless `codex login status` reports a ChatGPT
+# login.
+#
+# Instructions that reach the judge outside its tool events: Codex adds text
+# to a session from its home and the user's, and the event-log audit below
+# cannot see any of it. So each judge call
+#   - skips the lane's config.toml (--ignore-user-config; auth still comes
+#     from CODEX_HOME), and with it developer_instructions,
+#     model_instructions_file and the MCP servers it would configure;
+#   - runs with memories off (--disable memories);
+#   - gets a fresh, empty HOME, so no user skills ($HOME/.agents/skills) and no
+#     user shell profile reach it;
+# and the runner refuses a Codex home holding AGENTS.override.md or
+# AGENTS.md (global instructions) or any skill but the bundled .system ones.
 # Give each judge its own adversary directory: stage 1 and the verdict of a
 # case must come from the same runner.
 #
@@ -33,9 +44,10 @@
 # Resumable: a second run over a finished directory makes no judge call.
 #
 # Each call is
-#   codex --search exec --json --sandbox read-only --skip-git-repo-check \
-#     --ephemeral --color never -C <empty temp dir> [-m AUDIT_MODEL] \
-#     -c model_reasoning_effort=<effort> --output-schema <schema> -o <out> -
+#   codex --search exec --json --ignore-user-config --disable memories \
+#     --sandbox read-only --skip-git-repo-check --ephemeral --color never \
+#     -C <empty temp dir> [-m AUDIT_MODEL] -c model_reasoning_effort=<effort> \
+#     --output-schema <schema> -o <out> -
 # run from that empty directory with the prompt on stdin. --search (a
 # top-level flag; codex-cli 0.159.0 rejects it after exec) gives the judge
 # live web search.
@@ -60,7 +72,10 @@
 # query but not its results, so a search result that lists a PolicyEngine or
 # GitHub page cannot be detected (the prompt asks the judge to exclude those
 # domains); and a call the provider refuses fails only its own case, so a
-# refused lane fails every remaining call before the run ends.
+# refused lane fails every remaining call before the run ends. Context the
+# runner does not control: the skills and instructions Codex bundles, an
+# administrator's /etc/codex, and apps or plugins enabled on the ChatGPT
+# account (a call to one is an MCP tool event, which the audit rejects).
 #
 # Provenance: beside stage1.json and verdict.json the runner writes
 # stage1.meta.json and verdict.meta.json with the runner, the stage, the model
@@ -147,14 +162,25 @@ SCHEMA1="$ADV_DIR/schema_stage1.json"
 SCHEMAV="$ADV_DIR/schema_verdict.json"
 
 # Never an API key (see the header): only these variables reach codex, the
-# Claude runner's locale set included.
-CODEX_ENV=()
-for var in PATH HOME USER LOGNAME LANG LC_ALL LC_CTYPE TMPDIR CODEX_HOME; do
+# Claude runner's locale set included. CODEX_HOME is always set, because each
+# call gets a HOME of its own (codex_child).
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+CODEX_ENV=("CODEX_HOME=$CODEX_HOME_DIR")
+for var in PATH USER LOGNAME LANG LC_ALL LC_CTYPE TMPDIR; do
   eval "value=\${$var-}"
   [ -n "$value" ] && CODEX_ENV+=("$var=$value")
 done
-codex_child() { env -i "${CODEX_ENV[@]}" "$CODEX_BIN" "$@"; }
-CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+# Each call's HOME is a fresh empty directory, removed afterwards: Codex lists
+# the skills under $HOME/.agents/skills in every session, and the judge's
+# shell would read the user's profile.
+codex_child() {
+  local child_home rc
+  child_home=$(mktemp -d "${TMPDIR:-/tmp}/pb-adversary-home.XXXXXX") || return 1
+  env -i "${CODEX_ENV[@]}" "HOME=$child_home" "$CODEX_BIN" "$@"
+  rc=$?
+  rm -rf "$child_home"
+  return "$rc"
+}
 # Codex loads global instructions from its home: AGENTS.override.md, else
 # AGENTS.md. Either could carry engine material past the event-log audit.
 for agents in AGENTS.override.md AGENTS.md; do
@@ -163,6 +189,15 @@ for agents in AGENTS.override.md AGENTS.md; do
     exit 1
   }
 done
+# Codex lists every skill's name and description in each session. A lane's
+# home holds only the bundled ones, under skills/.system.
+if [ -d "$CODEX_HOME_DIR/skills" ]; then
+  extra=$(ls -A "$CODEX_HOME_DIR/skills" | grep -vxF .system)
+  [ -n "$extra" ] && {
+    echo "$CODEX_HOME_DIR/skills holds skills other than the bundled .system ones ($(printf '%s' "$extra" | tr '\n' ' ')): they could reach the judge; use a lane home without them" >&2
+    exit 1
+  }
+fi
 LOGIN=$(cd / && codex_child login status </dev/null 2>&1 | head -n 1)
 case "$LOGIN" in
   "Logged in using ChatGPT"*) ;;
@@ -216,6 +251,8 @@ judge_stage() {
   fi
   ( cd "$work" && codex_child --search exec \
       --json \
+      --ignore-user-config \
+      --disable memories \
       --sandbox read-only \
       --skip-git-repo-check \
       --ephemeral \

@@ -416,7 +416,7 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 
   Each of the four confirmed verification files gives a fix specification and YAML tests with hand-computed expectations.
 - **scenario_013 SNAP's effective date.** The $240 reference holds only if Arizona's 200% limit took effect in March 2026, and no run confirmed that date from a primary source (see [Search results from blocked sources](#search-results-from-blocked-sources)). An independent check of the DES manual's revision history would settle it.
-- **Codex runner blinding.** Codex's event log records a search's query but not its results, so the Codex runner cannot make the Claude runner's search-result check. The prompt's `blocked_domains` request is its only guard.
+- **Codex runner blinding.** No run here used the Codex runner. Codex's event log records a search's query but not its results, so the Codex runner cannot make the Claude runner's search-result check. The prompt's `blocked_domains` request is its only guard. Codex also adds instructions to a session without an event. The runner skips the lane's `config.toml`, turns memories off, gives each call an empty `HOME`, and refuses a Codex home with `AGENTS.md`, `AGENTS.override.md` or its own skills. It does not control what Codex bundles, an administrator's `/etc/codex`, or apps and plugins enabled on the ChatGPT account.
 - **Household scope for future runs.** The methodology choice for future runs is queued for Max as d1029, because the definitions admit both readings:
   - either state the scope in both income tax definitions and filter out households whose dependents must file;
   - or build the dependent's own return as a second tax unit.

@@ -1493,8 +1493,10 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
         "account": None,
         "org": None,
     }
-    with pytest.raises(ValueError, match="AUDIT_ACCOUNT"):
-        check_login(lane, "", token=True, declared="", **common)
+    # A declaration that names no account, bare or after a provider prefix.
+    for declared in ("", " ", "claude:", "claude: "):
+        with pytest.raises(ValueError, match="reports no account"):
+            check_login(lane, "", token=True, declared=declared, **common)
     api = json.dumps(
         {"loggedIn": True, "authMethod": "api_key", "apiProvider": "firstParty"}
     )
@@ -1519,6 +1521,9 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
         check_login(
             lane, desktop, token=True, declared="claude:max@example.org", **common
         )
+    # A prefix alone declares nothing, so it cannot pass the desktop check.
+    with pytest.raises(ValueError, match="reports no account"):
+        check_login(lane, desktop, token=True, declared="claude:", **common)
     assert check_login(lane, desktop, token=True, declared="lane@x", **common)
     assert check_login(lane, desktop, token=True, declared="claude:lane@x", **common)
 
@@ -1580,6 +1585,40 @@ def test_collect_cli_refuses_a_repeated_judge_label(tmp_path: Path, cases):
     assert not out.exists()
 
 
+@pytest.mark.parametrize(
+    "labels, message",
+    [
+        (("claude", "Claude"), "Claude, claude given more than once"),
+        (("claude", "merged"), "'merged' is reserved"),
+        (("claude", "MERGED"), "'merged' is reserved"),
+    ],
+)
+def test_collect_cli_refuses_labels_whose_files_would_collide(
+    tmp_path: Path, cases, labels, message
+):
+    # Per-judge files are adversary_<label>_<table>.csv: labels differing only
+    # in case share files on a case-insensitive file system, and "merged"
+    # shares the merged table's.
+    argv = []
+    for index, label in enumerate(labels):
+        prepare_adversary(tmp_path / f"adv{index}", cases)
+        argv += ["--adversary-dir", f"{label}={tmp_path / f'adv{index}'}"]
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit, match=message):
+        _collect_cli(*argv, "--output-dir", str(out))
+    assert not out.exists()
+
+
+def test_collect_cli_refuses_a_label_without_a_directory(tmp_path: Path, cases):
+    prepare_adversary(tmp_path / "adv", cases)
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit, match="'claude=' names no directory"):
+        _collect_cli(
+            "--adversary-dir", "claude=", "--output-dir", str(out), "--allow-missing"
+        )
+    assert not out.exists()
+
+
 def test_collect_refuses_a_directory_that_was_never_prepared(tmp_path: Path, cases):
     prepare_adversary(tmp_path / "adv", cases)
     with pytest.raises(FileNotFoundError, match="no cases.jsonl"):
@@ -1597,24 +1636,32 @@ def test_collect_refuses_a_directory_that_was_never_prepared(tmp_path: Path, cas
     assert not out.exists()
 
 
-def test_collect_cli_splits_a_label_at_the_first_equals_sign(tmp_path: Path, cases):
+def test_collect_cli_splits_a_label_at_the_first_equals_sign(
+    tmp_path: Path, cases, monkeypatch
+):
     # A directory may contain "=": LABEL=DIR splits at the first one, and a
-    # bare DIR whose text before "=" is a path, not a label, stays whole.
+    # bare DIR whose text before "=" is a path, not a label, stays whole. A
+    # relative bare DIR such as adv=3 reads as LABEL=DIR, so it is passed as
+    # ./adv=3.
     labeled = tmp_path / "run=1" / "adv"
     bare = tmp_path / "adv=2"
-    for directory in (labeled, bare):
+    relative = tmp_path / "adv=3"
+    for directory in (labeled, bare, relative):
         prepare_adversary(directory, cases)
+    monkeypatch.chdir(tmp_path)
     out = tmp_path / "out"
     _collect_cli(
         "--adversary-dir",
         f"claude={labeled}",
         "--adversary-dir",
         str(bare),
+        "--adversary-dir",
+        "./adv=3",
         "--output-dir",
         str(out),
         "--allow-missing",
     )
-    for label in ("claude", "adv=2"):
+    for label in ("claude", "adv=2", "adv=3"):
         missing = pd.read_csv(out / f"adversary_{label}_missing.csv")
         assert sorted(missing["case_id"]) == sorted(case.case_id for case in cases)
 
