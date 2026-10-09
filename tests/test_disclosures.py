@@ -269,14 +269,16 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # Release 20261006: release 20260930's counts (7,860 annotated, 7,856
     # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
     # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
-    # below full bounded score. The app's summarizeAuditUniverse recomputes
-    # the same counts from the payload (app/tests/auditUniverse.test.ts).
+    # below full bounded score (7,527, 7,523 and 2,072). Release 20261009
+    # adds Claude Haiku 5.5's rows and moves the scored outputs. The app's
+    # summarizeAuditUniverse recomputes the same counts from the payload
+    # (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 7_527,
-        "exact_misses": 7_523,
-        "annotated_exact_misses": 7_523,
+        "annotated": 7_507,
+        "exact_misses": 7_503,
+        "annotated_exact_misses": 7_503,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_072,
+        "unannotated_below_full_bounded_score": 2_115,
     }
 
     for path in (
@@ -598,14 +600,16 @@ def _paper_engine_times() -> tuple[str, str]:
     timing = json.loads(
         (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
     )
-    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][r.policyengine_us_version]
+    # The record is the 2026-09-29 move's, whatever upgrades follow it.
+    engine = r.september_upgrade.engine_version
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine]
     read_at = timing["pypi"]["read_at_utc"]
     return (
         "the newest release when it began sweeping the references that day "
         f"(uploaded {uploaded[11:16]} UTC)",
         f"policyengine-us {timing['pypi']['newest_at_read']}, the newest release "
         f"when PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC, "
-        f"gives the same value as {r.policyengine_us_version}",
+        f"gives the same value as {engine}",
     )
 
 
@@ -621,13 +625,20 @@ def _html_text() -> str:
 
 
 def _abstract_exclusion_sentence() -> str:
-    counts = (r.engine_defect_exclusion_count, r.unlisted_input_exclusion_count)
+    counts = (
+        r.engine_defect_exclusion_count,
+        r.unlisted_input_exclusion_count,
+        r.later_law_exclusion_count,
+    )
+    # The three classes are the whole exclusion record.
     assert sum(counts) == r.excluded_output_count
     return (
         "PolicyBench excludes from scoring, for every model, the "
         f"{counts[0]} outputs whose references rest on engine defects the audits "
-        f"found and upstream has not fixed, and the {counts[1]} whose references "
-        "depend on an input the prompt does not state."
+        f"found and upstream has not fixed, the {counts[1]} whose references "
+        "depend on an input the prompt does not state, and "
+        f"{r.later_law_exclusion_count_word} whose references rest on an amount a "
+        "state published after the freeze."
     )
 
 
@@ -788,9 +799,30 @@ def test_newest_engine_claims_are_anchored_to_a_time():
             assert any(phrase in window for phrase in anchored), (path.name, window)
 
 
+OCTOBER_TIMING = (
+    ROOT / "reference_audit/2026-10-09-engine-upgrade/verification/sweep_timing.json"
+)
+
+
+def _publication_check_sentence(timing: dict, engine: str) -> str:
+    """How a surface states the publication check sweep_timing.py recorded."""
+    read_at = timing["pypi"]["read_at_utc"]
+    when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
+    check = timing["publication_check"]
+    assert check["engine"] == timing["pypi"]["newest_at_read"]
+    if check["engine"] == engine:
+        return f"policyengine-us {engine} was still the newest release when {when}."
+    assert check["same"] == check["outputs"], check["differ"]
+    return (
+        f"policyengine-us {check['engine']}, the newest release when {when}, gives "
+        f"the same value as {engine} for all {check['outputs']:,} outputs under the "
+        "same conventions and adapter."
+    )
+
+
 def test_card_states_the_engines_behind_scored_and_excluded_references():
     """The card's engine sentences, rebuilt from the sidecar, the exclusion
-    record and the publication-check sweep."""
+    record and each move's timing record and publication check."""
     run_dir = (
         ROOT
         / "paper/snapshot/20260501/runs"
@@ -801,52 +833,72 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
     )
     engine = upgrade["engine_version"].removeprefix("policyengine-us ")
-    previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
     exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
         "exclusions"
     ]
-    by_engine = Counter(
-        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    groups = ", ".join(
+        f"{count} computed with policyengine-us {version}"
+        if index == 0
+        else f"{count} with {version}"
+        for index, (version, count) in enumerate(_engine_groups(exclusions))
     )
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    # The move to the current engine: its sweep's timing record.
+    assert OCTOBER_TIMING.is_file(), (
+        "record the sweep with reference_audit/2026-10-09-engine-upgrade/scripts/"
+        "sweep_timing.py and state its times in the card"
+    )
+    october = json.loads(OCTOBER_TIMING.read_text())
+    assert october["reference_sweep"]["engine"] == engine
+    uploaded_now = october["pypi"]["wheel_uploaded_at_utc"][engine]
+    assert (
+        "PolicyBench computes each scored US reference by running "
+        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
+        "release when PolicyBench began sweeping the references on "
+        f"{october['reference_sweep']['first_output_at_utc'][:10]} (uploaded "
+        f"{uploaded_now[11:16]} UTC)."
+    ) in card
+    assert _publication_check_sentence(october, engine) in card
+    recheck = len(upgrade["excluded_outputs_rechecked"])
+    assert (
+        f"The {len(exclusions)} excluded outputs keep the values they were decided "
+        f"on ({groups}), and PolicyBench re-reviewed the {recheck} of them that "
+        f"move on {engine}; all {recheck} stay excluded."
+    ) in card
+    # The 2026-09-29 move: the timing record's upload time of its engine, and
+    # when PolicyBench read PyPI for that publication check.
     with (ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv").open(
         newline=""
     ) as source:
         rows = list(csv.DictReader(source))
     (check,) = {row["engine"] for row in rows}
-    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
-    assert (
-        "PolicyBench computes each scored US reference by running "
-        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
-        "release when PolicyBench began sweeping the references on 2026-09-29"
-    ) in card
-    assert (
-        f"The {len(exclusions)} excluded outputs keep the values they were decided "
-        f"on ({by_engine[previous]} computed with policyengine-us {previous}, "
-        f"{by_engine[engine]} with {engine}), and PolicyBench re-reviewed the "
-        f"{len(upgrade['excluded_outputs_rechecked'])} of them that move on {engine}"
-    ) in card
-    # The card's two times are the timing record's: the reference engine's
-    # PyPI upload, and when PolicyBench read PyPI for the check.
     timing = json.loads(
         (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
     )
-    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine]
+    september = timing["reference_sweep"]["engine"]
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][september]
     read_at = timing["pypi"]["read_at_utc"]
     assert timing["pypi"]["newest_at_read"] == check
     assert (
-        "the newest release when PolicyBench began sweeping the references on "
-        f"{timing['reference_sweep']['first_output_at_utc'][:10]} (uploaded "
-        f"{uploaded[11:16]} UTC)."
+        f"on {timing['reference_sweep']['first_output_at_utc'][:10]}, to "
+        f"policyengine-us {september}, the newest release when it began sweeping "
+        f"the references that day (uploaded {uploaded[11:16]} UTC)."
     ) in card
     assert (
         f"policyengine-us {check}, the newest release when PolicyBench checked "
-        f"PyPI on {read_at[:10]} at {read_at[11:16]} UTC, gives the same value as "
-        f"{engine} for all {len(rows):,} outputs under the same conventions and "
+        f"PyPI on {read_at[:10]} at {read_at[11:16]} UTC, gave the same value as "
+        f"{september} for all {len(rows):,} outputs under the same conventions and "
         "adapter."
     ) in card
     # No other clock time appears in the card.
+    october_read = october["pypi"]["read_at_utc"]
     assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
-        {f"{uploaded[11:16]} UTC", f"{read_at[11:16]} UTC"}
+        {
+            f"{uploaded[11:16]} UTC",
+            f"{read_at[11:16]} UTC",
+            f"{uploaded_now[11:16]} UTC",
+            f"{october_read[11:16]} UTC",
+        }
     )
 
 

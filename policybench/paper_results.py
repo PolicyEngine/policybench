@@ -71,6 +71,47 @@ SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 
+# How the paper names each engine defect an upgrade can fix, after the audits'
+# own statements of them (reference_audit/2026-09-22/root_causes.json and
+# reference_audit/2026-10-05-reference-adversary/proposed_changes.json). An
+# upgrade that restores an output whose root cause has no name here stops the
+# render, so a new fix is named before it is published.
+ROOT_CAUSE_LABELS = {
+    "az_standard_deduction_indexing": "Arizona's standard deduction indexing",
+    "oh_medical_deduction_premiums": (
+        "Ohio's medical deduction for health insurance premiums"
+    ),
+    "co_sales_tax_refund_surplus": "Colorado's 2026 sales tax refund",
+    "ny_cdcc_606_c2": "New York's 2026 child and dependent care credit",
+    "r01_ira_compensation": (
+        "the IRA deduction's compensation limit and a dependent's contributions"
+    ),
+    "r02_ira_219g": "the IRA deduction's active-participant phase-out",
+    "r03_estate_income": "estate income in gross income",
+    "r05_nj_worker_ui": "New Jersey's worker unemployment and workforce contributions",
+    "r06_wi_act15_before_refundable": (
+        "Wisconsin's retirement income exclusion before refundable credits"
+    ),
+    "r07_idaho_health_premiums": "Idaho's subtraction for health insurance premiums",
+    "r08_eitc_earned_income_deferrals": (
+        "elective deferrals in the earned income behind the EITC"
+    ),
+    "r11_ca_itemized_conformity": "California's itemized deduction conformity",
+    "r22_ma_part_a_loss_offset": "Massachusetts's Part A capital loss offset",
+    "r30_snap_heat_and_eat_sua": "the heat-and-eat SNAP utility allowance",
+    "r32_wi_capital_gain_distributions": (
+        "Wisconsin's capital gain subtraction for distributions"
+    ),
+}
+# The same for the cause of a scored reference an upgrade changes.
+CHANGE_CAUSE_LABELS = {
+    "id_permanent_building_fund_tax": (
+        "Idaho's $10 permanent building fund tax (Idaho Code 63-3082), which "
+        "policyengine-us now counts in state income tax"
+    ),
+}
+UPSTREAM_PR = re.compile(r"policyengine-us#(\d+)")
+
 # The 2026-10-05 review of release dashboard-data-20260930. Each of its three
 # audits recomputed every output on the reference engine under readings of an
 # input the prompt never states. Each entry names the sweep's CSV, the column
@@ -130,6 +171,13 @@ NUMBER_WORDS = {
     9: "nine",
     10: "ten",
 }
+
+
+def _series(parts: list[str]) -> str:
+    """'a', 'a and b', or 'a, b and c'."""
+    if len(parts) <= 2:
+        return " and ".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
 def count_word(n: int) -> str:
@@ -1463,6 +1511,10 @@ class PaperResults:
         return sum(self.excluded_outputs_by_root_cause.values())
 
     @property
+    def later_law_exclusion_count_word(self) -> str:
+        return count_word(self.later_law_exclusion_count)
+
+    @property
     def excluded_output_households_fmt(self) -> str:
         return f"{len({e['scenario_id'] for e in self.reference_exclusions}):,}"
 
@@ -1744,6 +1796,85 @@ class PaperResults:
     @property
     def engine_upgrade_restored_count_word(self) -> str:
         return count_word(self.engine_upgrade_restored_count)
+
+    @property
+    def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
+        """The defects behind the outputs the last upgrade returned to scoring:
+        each one's name, how many outputs it restores and the upstream pull
+        requests its regenerated_exclusions entries name (not the related
+        ones), in the sidecar's order. A record with several root causes names
+        each."""
+        last = self.last_engine_upgrade
+        fixes: dict[str, tuple[int, list[str]]] = {}
+        for entry in [] if last is None else last.revision["regenerated_exclusions"]:
+            causes = entry["record"]["root_cause"].split("+")
+            unnamed = [c for c in causes if c not in ROOT_CAUSE_LABELS]
+            if unnamed:
+                raise ValueError(f"no paper name for the root causes {unnamed}")
+            label = " and ".join(ROOT_CAUSE_LABELS[c] for c in causes)
+            prs = UPSTREAM_PR.findall(entry["upstream"].split("; related")[0])
+            if not prs:
+                raise ValueError(f"{_key(entry)} names no upstream pull request")
+            count, known = fixes.get(label, (0, []))
+            fixes[label] = (count + 1, known + [p for p in prs if p not in known])
+        return [(label, count, prs) for label, (count, prs) in fixes.items()]
+
+    @property
+    def engine_upgrade_restored_sentence(self) -> str:
+        """One sentence naming the fixes behind the restored outputs."""
+        parts = []
+        for label, count, prs in self.engine_upgrade_restored_fixes:
+            numbers = ", ".join(f"#{pr}" for pr in prs)
+            outputs = "" if count == 1 else f"; {count_word(count)} outputs"
+            parts.append(f"{label} (policyengine-us {numbers}{outputs})")
+        if not parts:
+            return ""
+        return f"The restored outputs take the upstream fixes for {_series(parts)}."
+
+    @property
+    def engine_upgrade_scored_change_sentence(self) -> str:
+        """One sentence naming what the last upgrade changed in the scored
+        references beyond the tolerance."""
+        last = self.last_engine_upgrade
+        changes = [] if last is None else last.partition["scored_changes"]
+        parts = []
+        for change in changes:
+            cause = change["cause"]
+            if cause not in CHANGE_CAUSE_LABELS:
+                raise ValueError(f"no paper name for the change cause {cause!r}")
+            prs = UPSTREAM_PR.findall(change["basis"])
+            numbers = f" (policyengine-us #{prs[-1]})" if prs else ""
+            part = f"{CHANGE_CAUSE_LABELS[cause]}{numbers}"
+            if part not in parts:
+                parts.append(part)
+        if not parts:
+            return ""
+        noun = "reference follows" if len(changes) == 1 else "references follow"
+        return f"The changed scored {noun} {_series(parts)}."
+
+    @property
+    def engine_upgrade_new_exclusion_sentence(self) -> str:
+        """One sentence naming the inputs behind the outputs the last upgrade
+        removed from scoring."""
+        last = self.last_engine_upgrade
+        if last is None or not last.partition["new_exclusions"]:
+            return ""
+        added = {_key(change) for change in last.partition["new_exclusions"]}
+        inputs = []
+        for record in self.reference_exclusions:
+            if _key(record) in added:
+                text = record.get("unlisted_input")
+                if not text:
+                    raise ValueError(f"{_key(record)} names no unlisted input")
+                if text not in inputs:
+                    inputs.append(text)
+        count = len(added)
+        noun = "output that leaves" if count == 1 else "outputs that leave"
+        verb = "depends" if count == 1 else "depend"
+        return (
+            f"The {count_word(count)} {noun} scoring {verb} on an input no prompt "
+            f"states: {_series(inputs)}."
+        )
 
     @property
     def engine_upgrade_scored_change_count_word(self) -> str:

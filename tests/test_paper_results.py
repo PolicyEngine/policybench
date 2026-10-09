@@ -1560,3 +1560,93 @@ def test_a_count_reads_as_a_word_up_to_ten(n, word):
     from policybench.paper_results import count_word
 
     assert count_word(n) == word
+
+
+def test_the_upgrade_sentences_name_what_the_sidecar_records():
+    """The paper names the last upgrade's fixes, change and new exclusions
+    from the sidecar: every restored output is counted once under its root
+    cause's name with the upstream pull request its entry names, every scored
+    change beyond the tolerance under its cause's, and every new exclusion
+    under its record's unlisted input."""
+    from policybench.paper_results import CHANGE_CAUSE_LABELS, ROOT_CAUSE_LABELS
+
+    last = r.last_engine_upgrade
+    fixes = r.engine_upgrade_restored_fixes
+    entries = last.revision["regenerated_exclusions"]
+    assert sum(count for _, count, _ in fixes) == len(entries)
+    assert len(entries) == r.engine_upgrade_restored_count
+    sentence = r.engine_upgrade_restored_sentence
+    for entry in entries:
+        for cause in entry["record"]["root_cause"].split("+"):
+            assert ROOT_CAUSE_LABELS[cause] in sentence
+        primary = entry["upstream"].split("; related")[0]
+        numbers = re.findall(r"policyengine-us#(\d+)", primary)
+        assert numbers and all(f"#{n}" in sentence for n in numbers)
+    for label, count, prs in fixes:
+        assert f"{label} (policyengine-us #{prs[0]}" in sentence
+    changes = last.partition["scored_changes"]
+    assert len(changes) == r.engine_upgrade_scored_change_count
+    for change in changes:
+        assert CHANGE_CAUSE_LABELS[change["cause"]] in (
+            r.engine_upgrade_scored_change_sentence
+        )
+    added = {
+        (c["scenario_id"], c["variable"]) for c in last.partition["new_exclusions"]
+    }
+    records = [
+        e for e in r.reference_exclusions if (e["scenario_id"], e["variable"]) in added
+    ]
+    assert len(records) == r.engine_upgrade_new_exclusion_count == len(added)
+    for record in records:
+        assert record["unlisted_input"] in r.engine_upgrade_new_exclusion_sentence
+    paper = (ROOT / "paper/index.qmd").read_text()
+    for accessor in (
+        "engine_upgrade_restored_sentence",
+        "engine_upgrade_scored_change_sentence",
+        "engine_upgrade_new_exclusion_sentence",
+    ):
+        assert f"`{{python}} r.{accessor}`" in paper
+        assert f"{{r.{accessor}}}" in paper
+    assert "RELEASE AUTHOR" not in paper
+
+
+def test_every_engine_defect_still_excluded_has_a_paper_name():
+    """An upgrade that restores any engine-defect record can be described:
+    each root cause behind one has a name (an unnamed one stops the render)."""
+    from policybench.paper_results import ROOT_CAUSE_LABELS
+
+    for record in r.reference_exclusions:
+        if record["reason_code"] == "reference_engine_defect":
+            for cause in record["root_cause"].split("+"):
+                assert cause in ROOT_CAUSE_LABELS, cause
+
+
+def test_an_unnamed_root_cause_or_change_stops_the_sentence():
+    """MOCK edits of the frozen sidecar: a restored record whose root cause,
+    or a scored change whose cause, the paper has no name for is refused."""
+    results = PaperResults()
+    results.reference_revisions = deepcopy(r.reference_revisions)
+    last = results.reference_revisions[-1]
+    last["regenerated_exclusions"][0]["record"]["root_cause"] = "MOCK_unnamed_cause"
+    with pytest.raises(ValueError, match="no paper name for the root causes"):
+        results.engine_upgrade_restored_sentence
+    results = PaperResults()
+    results.reference_revisions = deepcopy(r.reference_revisions)
+    last = results.reference_revisions[-1]
+    last["regenerated_exclusions"][0]["upstream"] = "to be filed"
+    with pytest.raises(ValueError, match="names no upstream pull request"):
+        results.engine_upgrade_restored_sentence
+
+
+@given(st.lists(st.text("abc", min_size=1, max_size=4), max_size=6))
+def test_a_series_keeps_every_part_in_order(parts):
+    from policybench.paper_results import _series
+
+    text = _series(parts)
+    if not parts:
+        assert text == ""
+    position = 0
+    for part in parts:
+        position = text.index(part, position) + len(part)
+    assert text.count(" and ") == (1 if len(parts) >= 2 else 0)
+    assert text.count(", ") == max(0, len(parts) - 2)
