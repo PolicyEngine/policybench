@@ -276,12 +276,41 @@ def test_a_rebuild_that_changes_older_record_text_is_refused(layout, edit):
     assert {name: (snapshot / name).read_bytes() for name in old} == before
 
 
-def test_the_committed_records_pass_their_own_guard():
-    """The installed snapshot records compare equal to themselves under the
-    guard, which checks each listed audit exclusion against final_actions.json,
-    and the guard blanks exactly the upgrade's three new exclusions' notes."""
-    sidecar = json.loads((install.SNAPSHOT / install.SIDECAR).read_text())
-    exclusions = json.loads((install.SNAPSHOT / install.EXCLUSIONS).read_text())
+# The merge of PR #182 on main, whose tree holds release 20260929: the
+# release this installer built. Later releases rewrite the working tree's
+# snapshot, so the guard is checked on what that release committed.
+RELEASE_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
+
+
+def _release_snapshot(root: Path) -> Path:
+    """Release 20260929's committed reference files, under ``root``."""
+    import subprocess
+
+    snapshot = root / install.SNAPSHOT.relative_to(install.ROOT)
+    snapshot.mkdir(parents=True)
+    for name in (install.CSV, *install.RECORDS):
+        path = (install.SNAPSHOT / name).relative_to(install.ROOT).as_posix()
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{RELEASE_COMMIT}:{path}"],
+            capture_output=True,
+        )
+        if shown.returncode:
+            pytest.fail(
+                f"cannot read {path} at {RELEASE_COMMIT[:12]}; fetch full history "
+                f"(git fetch --unshallow): {shown.stderr.decode().strip()}"
+            )
+        (snapshot / name).write_bytes(shown.stdout)
+    return snapshot
+
+
+def test_the_committed_records_pass_their_own_guard(tmp_path):
+    """Release 20260929's committed records compare equal to themselves under
+    the guard, which checks each listed audit exclusion against
+    final_actions.json, and the guard blanks exactly the upgrade's three new
+    exclusions' notes."""
+    snapshot = _release_snapshot(tmp_path)
+    sidecar = json.loads((snapshot / install.SIDECAR).read_text())
+    exclusions = json.loads((snapshot / install.EXCLUSIONS).read_text())
     added = install._added_exclusions(sidecar, exclusions)
     decided = {
         (e["scenario_id"], e["variable"]): e["decided_on"]
@@ -290,4 +319,4 @@ def test_the_committed_records_pass_their_own_guard():
     upgrade = install._upgrade(sidecar)
     assert upgrade is not None and len(added) == 3
     assert {decided[key] for key in added} == {upgrade["date"]}
-    install.check_build(install.SNAPSHOT, install.SNAPSHOT)
+    install.check_build(snapshot, snapshot)

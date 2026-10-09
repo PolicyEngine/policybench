@@ -23,10 +23,13 @@ RUN_DIR = (
 # dashboard-data-20260922c, after its fix merged, the output is regenerated).
 AUDIT_DATES = ("2026-09-22", "2026-09-24")
 # Records later audits added: the 2026-09-29 engine upgrade
-# (reference_audit/2026-09-28) and the 2026-10-05 audits of the state income
+# (reference_audit/2026-09-28), the 2026-10-05 audits of the state income
 # tax in SALT, the Medicare Part B premium and state payroll components
-# (reference_audit/2026-10-05, -medicare-part-b and -payroll).
-LATER_DATES = ("2026-09-29", "2026-10-05")
+# (reference_audit/2026-10-05, -medicare-part-b and -payroll), the 2026-10-06
+# rulings on the reference adversary's and the Louisiana audit's records
+# (d1022, d994), and the 2026-10-09 engine upgrade's Indiana county records
+# (reference_audit/2026-10-09-engine-upgrade).
+LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06", "2026-10-09")
 R33 = "r33_snap_child_support_treatment"
 # policyengine-us#9586, squash-merged on 2026-09-24.
 R33_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
@@ -59,13 +62,30 @@ def _revisions() -> list[dict]:
 
 
 def _superseded() -> dict[tuple[str, str], dict]:
-    """Outputs the 2026-09-29 engine upgrade changed after this wave."""
+    """Outputs an engine upgrade changed after this wave, with the first
+    upgrade's change (whose previous value is the wave's)."""
+    first: dict[tuple[str, str], dict] = {}
+    for r in _all_revisions():
+        if r["kind"] == "engine_upgrade":
+            for c in r["changed"]:
+                first.setdefault((c["scenario_id"], c["variable"]), c)
+    return first
+
+
+def _regenerated_by_upgrade() -> dict[tuple[str, str], dict]:
+    """Records a later engine upgrade removed because its engine fixes the
+    defect (the revision's regenerated_exclusions, each with the record)."""
     return {
-        (c["scenario_id"], c["variable"]): c
+        (e["scenario_id"], e["variable"]): e["record"]
         for r in _all_revisions()
         if r["kind"] == "engine_upgrade"
-        for c in r["changed"]
+        for e in r.get("regenerated_exclusions", [])
     }
+
+
+def _records_ever() -> list[dict]:
+    """Every exclusion record the release carries or a later upgrade removed."""
+    return _exclusions() + list(_regenerated_by_upgrade().values())
 
 
 def _causes() -> dict[str, dict]:
@@ -158,7 +178,7 @@ def test_every_regeneration_names_a_committed_fix():
     # Outputs the wave saw excluded, and those excluded only by a later record.
     excluded_then = {
         (e["scenario_id"], e["variable"])
-        for e in _exclusions()
+        for e in _records_ever()
         if e["decided_on"] <= AUDIT_DATES[-1]
     }
     excluded_later = {
@@ -167,6 +187,9 @@ def test_every_regeneration_names_a_committed_fix():
         if e["decided_on"] > AUDIT_DATES[-1]
     }
     assert set(excluded_later) == excluded - excluded_then
+    # An output the wave saw excluded that a later engine upgrade regenerated
+    # is scored at that upgrade's value, not the wave's.
+    restored = set(_regenerated_by_upgrade())
     superseded_by_exclusion = set()
     swept = {}
     for row in _moves():
@@ -190,7 +213,9 @@ def test_every_regeneration_names_a_committed_fix():
             assert causes[source]["upstream_fixed"] is True
             assert causes[source]["upstream"].startswith("fixed in ")
         changed = {(c["scenario_id"], c["variable"]): c for c in revision["changed"]}
-        superseded = _superseded()
+        # An upgrade's change to an output the wave saw excluded is that
+        # upgrade's regeneration (restored above), not a replaced wave value.
+        superseded = {k: c for k, c in _superseded().items() if k not in restored}
         for key, change in changed.items():
             if key in superseded:
                 # The engine upgrade replaced this value; it records it as the
@@ -208,6 +233,7 @@ def test_every_regeneration_names_a_committed_fix():
                 continue
             # Otherwise it is scored.
             assert key not in excluded, key
+            assert key not in restored, key
         # Each source regenerates exactly the outputs its sweep moves that were
         # scored when the wave decided.
         moved = {
@@ -216,9 +242,17 @@ def test_every_regeneration_names_a_committed_fix():
             if k not in excluded_then or k in superseded
         }
         assert moved == set(changed), source
-    scenario_022 = ("scenario_022", "federal_income_tax_before_refundable_credits")
-    assert superseded_by_exclusion == {scenario_022}
-    assert excluded_later[scenario_022]["decided_on"] == "2026-10-05"
+    # The 2026-10-05 SALT audit's scenario_022 federal income tax, and two
+    # 2026-10-06 ruled records: Louisiana's scenario_051 (d994) and
+    # Missouri's scenario_093 scope cell (d1022).
+    later = {
+        ("scenario_022", "federal_income_tax_before_refundable_credits"): "2026-10-05",
+        ("scenario_051", "state_income_tax_before_refundable_credits"): "2026-10-06",
+        ("scenario_093", "state_income_tax_before_refundable_credits"): "2026-10-06",
+    }
+    assert superseded_by_exclusion == set(later)
+    for key, date in later.items():
+        assert excluded_later[key]["decided_on"] == date, key
 
 
 def test_every_convention_and_upstream_fix_has_a_revision():
@@ -267,9 +301,12 @@ def test_every_new_exclusion_has_a_qualifying_move_of_its_class():
 
 
 def test_no_qualifying_move_is_left_unresolved():
-    """A defect or unlisted-input move is excluded, or regenerated by its fix."""
+    """A defect or unlisted-input move is excluded, or regenerated by its fix:
+    in this wave, or by a later engine upgrade whose engine fixes it (its
+    regenerated_exclusions, gated by that upgrade's driver)."""
     causes = _causes()
     excluded = {(e["scenario_id"], e["variable"]) for e in _exclusions()}
+    restored = _regenerated_by_upgrade()
     regenerated_by = {}
     for revision in _revisions():
         for change in revision["changed"]:
@@ -286,6 +323,10 @@ def test_no_qualifying_move_is_left_unresolved():
         if f"{key[0]}:{key[1]}" in cause.get("not_confirmed", {}):
             continue
         if key in excluded:
+            continue
+        if key in restored:
+            # The record this wave wrote, removed when the engine fixed it.
+            assert row["root_cause"] in restored[key]["root_cause"].split("+"), key
             continue
         assert cause.get("upstream_fixed"), (row["root_cause"], key)
         assert row["root_cause"] in regenerated_by.get(key, set()), (
@@ -326,11 +367,13 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     adjudicated_on = {
         (e["scenario_id"], e["variable"]): e["adjudicated_on"] for e in adjudications
     }
-    # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade, and
-    # records dated 2026-10-05 to the 2026-10-05 audits: four and eight.
+    # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade,
+    # records dated 2026-10-05 to the 2026-10-05 audits, 2026-10-06 to that
+    # day's rulings (less the ones the 2026-10-09 upgrade regenerated) and
+    # 2026-10-09 to that upgrade's county records.
     later = [e for e in _exclusions() if e["decided_on"] in LATER_DATES]
     assert Counter(e["decided_on"] for e in later) == Counter(
-        {"2026-09-29": 4, "2026-10-05": 8}
+        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, "2026-10-09": 2}
     )
     for entry in later:
         key = (entry["scenario_id"], entry["variable"])

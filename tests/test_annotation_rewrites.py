@@ -4,7 +4,11 @@ reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json corrects the t
 that explained scenario_031's head Medicaid reference with a Medicare Part B premium
 the engine never subtracts. A later release that rebuilds the annotation files from
 an older base must carry these rewrites (or supersede the ledger), or these tests
-fail.
+fail. A later release that re-judges the case supersedes the rewrites of the text
+its new verdict writes (row annotations and the case note), and records the
+re-judging in its committed judge provenance; the rewritten reference
+explanation, which no verdict writes, stays in force, and the corrected error
+must not return.
 """
 
 from __future__ import annotations
@@ -21,6 +25,10 @@ KEYS = {
     "us_case_notes.csv": ("scenario_id", "variable"),
     "us_case_reference_explanations.csv": ("scenario_id", "variable"),
 }
+# Later releases' committed judge provenance: the cases each re-judged.
+LATER_JUDGE_PROVENANCE = (ROOT / "docs" / "haiku55" / "judge_provenance.json",)
+# The files a verdict writes; a re-judged case's new verdict replaces them.
+VERDICT_FILES = {"us_audit_row_annotations.csv", "us_case_notes.csv"}
 FIELDS = {
     "us_audit_row_annotations.csv": "annotation",
     "us_case_notes.csv": "case_annotation",
@@ -42,7 +50,18 @@ def _rows(name: str) -> list[dict]:
         return list(csv.DictReader(source))
 
 
+def _rejudged() -> set[tuple[str, str]]:
+    """(scenario, output) of every case a later release re-judged."""
+    cases = set()
+    for path in LATER_JUDGE_PROVENANCE:
+        for verdict in json.loads(path.read_text())["verdicts"]:
+            _, scenario, variable = verdict["case_id"].split("__", 2)
+            cases.add((scenario, variable))
+    return cases
+
+
 def test_every_rewrite_is_in_force():
+    rejudged = _rejudged()
     for name, key_columns in KEYS.items():
         items = [item for item in _rewrites() if item["file"] == name]
         rows = _rows(name)
@@ -52,7 +71,30 @@ def test_every_rewrite_is_in_force():
         for item in items:
             key = tuple(item[c] for c in key_columns)
             assert len(index.get(key, [])) == 1, (name, key)
+            if name in VERDICT_FILES and key[:2] in rejudged:
+                continue  # the later verdict's text supersedes the rewrite
             assert index[key][0][FIELDS[name]] == item["new"], (name, key)
+
+
+def test_a_rejudged_case_keeps_the_rewritten_explanation_and_drops_the_error():
+    """scenario_031's case was re-judged after the rewrites (the Claude Haiku
+    5.5 release). The judge read the rewritten reference explanation, which
+    stays in force; its new text no longer explains the reference with the
+    Medicare Part B premium the engine never subtracts."""
+    rejudged = _rejudged()
+    cases = {(item["scenario_id"], item["variable"]) for item in _rewrites()}
+    assert cases == {("scenario_031", "head_medicaid_eligible")}
+    assert cases <= rejudged
+    explanation = [i for i in _rewrites() if i["file"] not in VERDICT_FILES]
+    assert explanation
+    for name in VERDICT_FILES:
+        for row in _rows(name):
+            if (row["scenario_id"], row["variable"]) in cases:
+                text = row[FIELDS[name]]
+                assert "Part B" not in text and "premium" not in text.lower(), (
+                    name,
+                    row.get("model"),
+                )
 
 
 def test_no_rewritten_text_survives_anywhere():

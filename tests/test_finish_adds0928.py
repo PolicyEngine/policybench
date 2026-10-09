@@ -785,8 +785,10 @@ def test_unchanged_snapshot_has_no_revision(reference_snapshot):
     assert driver.reference_revision() is None
 
 
-def test_the_committed_snapshot_is_still_the_22c_base():
-    # Until the reference revision is committed, the pins describe this checkout.
+def test_the_committed_snapshot_is_still_the_22c_base(release_checkout):
+    # On release 20260929's committed checkout, the snapshot's revision is the
+    # engine upgrade this driver installed (later upgrades follow it in the
+    # working tree).
     assert driver.reference_revision() is None or (
         driver.reference_revision()["kind"] == "engine_upgrade"
     )
