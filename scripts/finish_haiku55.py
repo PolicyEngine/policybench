@@ -34,7 +34,7 @@ BASE_TAG = "dashboard-data-20261006"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_haiku55.py and the design note read it from here.
 RELEASE_TAG = "dashboard-data-20261009"
-BASE_SHA256 = "1780d2ec37f90b654265f8c7a191ba57f5ec5c4d28624bf9d2e2de8a48d2f871"
+BASE_SHA256 = "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462"
 BASE_MODELS = 46
 BASE_OUTPUTS = 1984
 BASE_EXCLUSIONS = 64
@@ -138,9 +138,8 @@ JUDGE_PROMPT_NUDGE = (
     "[structured-output-enforce] You MUST call the StructuredOutput tool to "
     "complete this request. Call this tool now."
 )
-# A commit whose tree holds release 20261006 (PR #202's head; replaced by its
-# merge on main before the freeze).
-BASE_COMMIT = "8b831f2cfaa071eb850ed85d4f29f874a1671e8d"
+# The merge of PR #202 on main, whose tree holds release 20261006.
+BASE_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 # Release 20261006's references. Prepare stages them unchanged; the release's
 # ten new exclusion records are added after triage (see EXCLUSION_SPEC).
 BASE_REFERENCE_SHA256 = {
@@ -151,7 +150,7 @@ BASE_REFERENCE_SHA256 = {
         "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b"
     ),
     "reference_exclusions.json": (
-        "31e9e3cdd78bfa0296d5f88d5ee52eb22f9520c0ed902d9e04630a6df2a08d9a"
+        "92741dfd047298eacb79a0dadeb7e4965e3c6f986beab0341b12ff8f5b023815"
     ),
     "scenarios.csv": (
         "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"

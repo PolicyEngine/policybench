@@ -168,7 +168,7 @@ def test_the_addition_is_haiku55_alone_on_a_47_model_board():
     assert driver.NEW_EXCLUSIONS == 10 and driver.RELEASE_EXCLUSIONS == 74
     assert driver.RELEASE_SCORED == 1910
     assert driver.BASE_TAG == "dashboard-data-20261006"
-    assert driver.BASE_COMMIT == "8b831f2cfaa071eb850ed85d4f29f874a1671e8d"
+    assert driver.BASE_COMMIT == "9ce4ade8382962a9134860c23f56d92509b5e57f"
     assert driver.SEED_RELEASE_COMMIT == "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
     assert set(driver.BASE_REFERENCE_SHA256) == set(driver.REFERENCE_FILES)
     assert driver.JUDGE_MODEL == "claude-opus-5-5"
@@ -774,7 +774,7 @@ def test_release_20261006s_manifest_pins_its_predictions():
 
 
 def test_base_commit_blob_names_the_missing_history():
-    with pytest.raises(SystemExit, match="cannot read .* at base commit 8b831f2cfaa0"):
+    with pytest.raises(SystemExit, match="cannot read .* at base commit 9ce4ade83829"):
         driver.base_commit_blob(Path("no/such/file.csv"))
 
 

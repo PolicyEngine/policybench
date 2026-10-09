@@ -2,7 +2,7 @@
   "note": "Inputs of the release after dashboard-data-20261006, read by scripts/finish_haiku55.py. The release folds Claude Haiku 5.5 onto release dashboard-data-20261006 and installs Max's rulings of 2026-10-06: d1022 (the reference adversary's eight confirmed or ambiguous cells) and d994 (the two Louisiana cells). Ten outputs leave scoring for every model; the references, the incumbents' predictions and every earlier exclusion's value stay as they were.",
   "release_tag": "dashboard-data-20261009",
   "base_tag": "dashboard-data-20261006",
-  "base_sha256": "1780d2ec37f90b654265f8c7a191ba57f5ec5c4d28624bf9d2e2de8a48d2f871",
+  "base_sha256": "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462",
   "decided_on": "2026-10-06",
   "rulings": {
     "d1022": "exclude the reference-adversary's confirmed cells: engine defects in scenario_018 (AZ) and scenario_025 (OH) state income tax and scenario_043 (CO) and scenario_082 (NY) state refundable credits, and the dependent-return scope cells in scenario_123 (PA) and scenario_093 (MO) federal and state income tax; regenerate the four defect cells in a later release once fixed policyengine-us versions land (PolicyEngine/policyengine-us#9928, #9925, #9946, #9948); scenario_026 refuted (Max 2026-10-06, 'approve')",

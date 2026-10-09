@@ -43,14 +43,14 @@ The base is pinned in `scripts/finish_haiku55.py`. On 2026-10-08 I recomputed ea
 
 | Item | Value |
 |---|---|
-| Base tag, payload sha256 | `dashboard-data-20261006`, `1780d2ec…f871` (127,218,158 bytes). The `data.json.gz` committed at `BASE_COMMIT` rewraps to it, and the pointer at that commit names it. |
+| Base tag, payload sha256 | `dashboard-data-20261006`, `aa34e5c9…d462` (127,225,036 bytes). The `data.json.gz` committed at `BASE_COMMIT` rewraps to it, and the pointer at that commit names it. |
 | Models, outputs, exclusions, scored | 46, 1,984, 64 and 1,920 (every `modelStats` row has `n` 1,920) |
 | `reference_outputs.csv` | `e8bbba8f…2466` |
 | `reference_outputs.csv.meta.json` | `816fef53…1a4b` |
-| `reference_exclusions.json` | `31e9e3cd…8d9a` |
+| `reference_exclusions.json` | `92741dfd…3815` |
 | `scenarios.csv` | `71b16212…858a` |
 | `scenarios.csv.meta.json` | `03a66e90…aebb` |
-| `BASE_COMMIT` | `8b831f2c…`, PR #202's head when the driver was written ("Record the reviewed head", 2026-10-08). It is not on main. |
+| `BASE_COMMIT` | `9ce4ade8…`, the squash merge of PR #202 on main (2026-10-09). |
 | `SEED_RELEASE_COMMIT` | `8b4c0ca1…`, the merge of PR #187 (release 20260930). Its annotations rendered the seed's prompts. |
 | Grounding | `b1e4a9bc…b55c`, the main clone's `results/local/unified_audit/grounding.csv` |
 | Seed digest | `c780af63…8430` (`docs/haiku55/seed_digest.csv`, 674 judged cases) |
@@ -369,15 +369,6 @@ The planned tests state these as properties, alongside the example tests above.
 
 These are as of 2026-10-09 00:45 UTC. Remove each line when it is done.
 
-- **The base moved.** PR #202 is open and has been frozen again twice since `BASE_COMMIT`:
-  - first at `d4de1f5e` (exclusion record `68ce01cd…0553`);
-  - then at `1054e273`, "the round-3 record edits" (exclusion record `92741dfd…3815`). The PR's head is now `5e9ee75f` ("Record the reviewed head", pushed 00:31 UTC), which holds the same record.
-
-  The published asset and the pointer at `5e9ee75f` are now `aa34e5c9…d462` (127,225,036 bytes, uploaded 00:18 UTC), not the `1780d2ec…f871` that this driver pins. Between `8b831f2c` and `5e9ee75f`, the records change only in the wording of two scenario_081 outputs:
-  - payroll_tax: its exclusion record's `alternative_reading`, its adjudication reasoning, its case note and its 31 row annotations;
-  - federal income tax: its exclusion record's `note`.
-
-  The payload, the pointer, the manifest and 20261006's `spec.json` change to match. The reference values, scenarios, predictions and reference explanations do not change, so no prompt changes and the nine reworded cases stay the nine. To re-pin, change `BASE_COMMIT` (to #202's merge on main), `BASE_SHA256` and the exclusion pin in the driver, and `base_sha256` in the spec. Then run `install-exclusions` again. The stage's staged adjudication record still holds scenario_081 payroll_tax's old reasoning. That case is re-opened, so the adjudication gate will refuse the record against the new base unless the record is refreshed or the change is listed as an amendment.
 - **scenario_051's gate fails as committed.** `ruled_adjudication_problems` rebuilds scenario_051's expected entry from release 20261006's judge fields, not the restated ones. So once the restate script has run, triage refuses the entry ("differs from the ruling's entry"). I reproduced this in memory on 2026-10-09 UTC. The minimal case is a restatement that only moves `judge_rejudged_on` and appends one `judge_previous` item. The one-line fix (take `JUDGE_FIELDS` from the staged entry) passes in memory and still refuses a hand-edited decision or reasoning.
 - **A re-export after the freeze is refused as committed.** `export` requires the committed exclusion record to be release 20261006's (`verify_reference_pins(SNAPSHOT, …)` without the release's sha), and the freeze replaces that record with this release's. I reproduced the refusal on a scratch copy. The fix should accept the release's committed record only once the live pointer names this release, as `resolve_live_base` decides a re-export: accepting it whenever it is present breaks the draft F test `test_export_accepts_only_the_release_exclusion_record`, which refuses that record before the freeze.
 - **The restate script cannot run again after `adjudicate-exclusions`.** The nine new entries name their current verdicts and carry no `judge_previous`, so `restate_entries` stops on each ("the record does not name the seed verdict it replaces"); I ran this on a scratch entry. A case re-judged after that step (one triage sets aside as hedged, say) therefore cannot be restated, and `adjudicate-exclusions` refuses a second run. Judge every case before the step. If a re-judge is needed later, the staged record must first be put back to release 20261006's (the bytes prepare staged, from git at `BASE_COMMIT`), then restate, `adjudicate-exclusions` and triage run again. That path is untested.
