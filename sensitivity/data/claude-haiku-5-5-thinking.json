@@ -1,0 +1,21 @@
+{
+  "model": "claude-haiku-5.5",
+  "sensitivity_model_id": "claude-haiku-5.5-thinking",
+  "condition": "answer tool declared, tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto), whole scenario; the board row forces the tool, which leaves Claude's extended thinking off",
+  "run_date": "2026-10-08",
+  "release": null,
+  "source": "results/local/haiku55-stage/auto-run (run_state treatment_fingerprint: answer_contract tool, tool_choice_mode auto, thinking provider_default); the model column renamed claude-haiku-5.5-thinking",
+  "assets": {
+    "sensitivity-claude-haiku-5-5-thinking-predictions.csv.gz": {
+      "sha256": "b3ba8bb5bc3469eeac84ca8185fe9c52cd5ad793e84e7787625e1b44dd44218e",
+      "bytes": 171655
+    }
+  },
+  "board": null,
+  "sensitivity": {
+    "cost_usd": 0.2702,
+    "cost_per_household": 0.002702
+  },
+  "delta_exact": null,
+  "scored_against": null
+}
