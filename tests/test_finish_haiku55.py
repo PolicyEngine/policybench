@@ -5069,7 +5069,10 @@ def _real_baseline_files() -> tuple:
 
 
 def upgrade_spec_dict(regenerated=MOCK_REGENERATED_RULED) -> dict:
+    """The real spec with MOCK regenerations, and without the real county
+    decisions: a mock build decides its own new exclusions (upgraded_added)."""
     spec = real_spec()
+    spec.pop("upgrade_adjudications", None)
     spec["regenerated_by_upgrade"] = {
         "note": "MOCK: the d1022 engine-defect records the upgrade regenerates.",
         "outputs": [list(key) for key in sorted(regenerated)],
@@ -6985,6 +6988,8 @@ def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypa
         added=frozenset(),
     )
     monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
+    # MOCK: the upgrade excludes nothing new, so it decides nothing new.
+    monkeypatch.setattr(driver, "upgrade_decisions", lambda u: [])
     checked, given = [], []
     monkeypatch.setattr(
         driver, "verify_recorded_drops", lambda *a: checked.append(a[1])

@@ -7,7 +7,8 @@
   "rulings": {
     "d1022": "exclude the reference-adversary's confirmed cells: engine defects in scenario_018 (AZ) and scenario_025 (OH) state income tax and scenario_043 (CO) and scenario_082 (NY) state refundable credits, and the dependent-return scope cells in scenario_123 (PA) and scenario_093 (MO) federal and state income tax; regenerate the four defect cells in a later release once fixed policyengine-us versions land (PolicyEngine/policyengine-us#9928, #9925, #9946, #9948); scenario_026 refuted (Max 2026-10-06, 'approve')",
     "d994": "exclude scenario_051 and scenario_077 Louisiana state income tax; keep the published-amounts convention (no change to Idaho 076, SNAP 008/038/109, Maryland 068); version 2 states indexed amounts in the prompt (Max 2026-10-06, 'approve')",
-    "d1029": "open (household scope for version 2); the d1022 exclusions of scenario_123 and scenario_093 stand until it is decided"
+    "d1029": "open (household scope for version 2); the d1022 exclusions of scenario_123 and scenario_093 stand until it is decided",
+    "2026-10-09": "move the references to the policyengine-us release that fixes the engine defects behind PolicyBench's exclusions before the Claude Haiku 5.5 launch, and regenerate the cells it fixes instead of excluding them (Max 2026-10-09, to the US + core hub: 'ok lets try to fix these all today before the haiku launch', then 'yes i want to wait for hte fixed engine'); this brings d1022's later regeneration of the four defect cells into this release"
   },
   "proposals": [
     {
@@ -193,5 +194,45 @@
       "source": "merged 2026-10-09; regenerating the reference waits for a release with an engine bump (d1022)"
     }
   ],
-  "adjudications_written_on": "2026-10-09"
+  "adjudications_written_on": "2026-10-09",
+  "regenerated_by_upgrade": {
+    "note": "With --step install-references, the ruled records the build regenerates: d1022's four engine-defect cells, each fixed upstream (AZ 018 PolicyEngine/policyengine-us#9928, OH 025 #10020, CO 043 #9946, NY 082 #9948). Every other ruled record stays excluded. Read only with an upgrade installed.",
+    "outputs": [
+      [
+        "scenario_018",
+        "state_income_tax_before_refundable_credits"
+      ],
+      [
+        "scenario_025",
+        "state_income_tax_before_refundable_credits"
+      ],
+      [
+        "scenario_043",
+        "state_refundable_credits"
+      ],
+      [
+        "scenario_082",
+        "state_refundable_credits"
+      ]
+    ]
+  },
+  "upgrade_adjudications": [
+    {
+      "scenario_id": "scenario_015",
+      "variable": "local_income_tax",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "reference_verdict": "unlisted_input",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state."
+    },
+    {
+      "scenario_id": "scenario_067",
+      "variable": "local_income_tax",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "reference_verdict": "unlisted_input",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state."
+    }
+  ],
+  "upgrade_adjudications_written_on": "2026-10-09"
 }

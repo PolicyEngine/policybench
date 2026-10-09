@@ -154,8 +154,9 @@ def _idaho_building_fund(cell: Cell, engine: str, date: str) -> dict:
                 "Idaho's $10 permanent building fund tax counts in state income "
                 f"tax: on {engine}, state_income_tax_before_refundable_credits adds "
                 "id_pbf ($10 for a filer liable for it, id_pbf_liable; Idaho Form 40 "
-                "instructions) to Idaho income tax before refundable credits. The "
-                "US hub's sweep dates the change to policyengine-us 2.30.0."
+                "instructions; Idaho Code 63-3082) to Idaho income tax before "
+                "refundable credits, since policyengine-us 2.30.0 "
+                "(PolicyEngine/policyengine-us#9810)."
             ),
         },
         "call": (
