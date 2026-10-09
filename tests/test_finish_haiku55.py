@@ -5436,7 +5436,8 @@ EXCLUSION_TAMPERS = {
                 ]
             ),
         ),
-        "regenerated at 284.74",
+        # The revision lists no regeneration of it, so it has no audited target.
+        "names no audited target",
     ),
     "the_tail_moved": (
         lambda b: _edit_record(
@@ -6539,6 +6540,173 @@ def test_adjudicate_exclusions_refuses_a_record_deciding_a_regenerated_output(
     assert path.read_text() == text
 
 
+# MOCK: the decisions on the two county outputs the mock build newly excludes.
+MOCK_UPGRADE_ITEMS = [
+    {
+        "scenario_id": key[0],
+        "variable": key[1],
+        "adjudicated_failure_source": "prompt_ambiguity",
+        "reference_verdict": "unlisted_input",
+        "adjudicated_failure_subtype": "state_local_rule",
+        "reasoning": "MOCK: the reference depends on the household's county.",
+    }
+    for key in sorted(MOCK_NEW)
+]
+MOCK_NEW_CASES = frozenset(driver.output_case(key) for key in MOCK_NEW)
+
+
+@pytest.fixture
+def upgraded_added(tmp_path, monkeypatch, upgrade_spec):
+    """MOCK: the default real-base build (the d1022 cells regenerated, the two
+    Indiana county outputs newly excluded), with the spec deciding the county
+    outputs and a bound verdict on each of their cases."""
+    monkeypatch.setitem(upgrade_spec, "adjudications_written_on", WRITTEN_ON)
+    monkeypatch.setitem(
+        upgrade_spec, "upgrade_adjudications", copy.deepcopy(MOCK_UPGRADE_ITEMS)
+    )
+    monkeypatch.setitem(upgrade_spec, "upgrade_adjudications_written_on", MOCK_DATE)
+    build = real_build(tmp_path / "build")
+    upgrade = load(build)
+    stage = tmp_path / "stage"
+    cases = _all_verdicts(
+        _ruled_verdicts(stage / "audit" / "cases"),
+        base_adjudication_record()["adjudications"],
+    )
+    for case in sorted(MOCK_NEW_CASES):
+        directory = cases / case
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "prompt.md").write_text(f"Classify {case}.\n")
+        write_verdict(
+            directory, _verdict([NEW]), judged_at_utc=f"{MOCK_DATE}T19:00:00+00:00"
+        )
+    (stage / "stage.json").write_text(json.dumps({"files": {}}))
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
+    return SimpleNamespace(upgrade=upgrade, stage=stage, cases=cases, spec=upgrade_spec)
+
+
+def test_adjudicate_exclusions_decides_the_outputs_the_upgrade_excludes(
+    upgraded_added,
+):
+    """The two county outputs get new entries built from the spec's items,
+    their build records and their bound verdicts, dated by the records; the
+    date conventions name the upgrade's wave; the record excludes exactly the
+    build's 72 records, and triage's gate accepts it."""
+    from policybench.adjudications import excluded_case_keys, parse_adjudications
+    from policybench.reference_exclusions import exclusion_keys
+
+    path = _write_stage_record(upgraded_added.stage, base_adjudication_record())
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded_added.stage))
+    written = json.loads(path.read_text())
+    entries = parse_adjudications(written, path)
+    by_case = {driver.case_id(entry): entry for entry in entries}
+    for item in MOCK_UPGRADE_ITEMS:
+        entry = by_case[driver.output_case(driver.spec_key(item))]
+        assert entry["excluded_from_scoring"] is True
+        assert entry["adjudicated_on"] == MOCK_DATE
+        assert entry["reference_verdict"] == "unlisted_input"
+        assert entry["reference_basis"] == "county_fips"
+        assert entry["reasoning"] == item["reasoning"]
+        assert entry["judged_on_utc"] == MOCK_DATE
+    # The county entries follow the ruled ones.
+    assert [driver.case_id(e) for e in entries[-2:]] == sorted(MOCK_NEW_CASES)
+    conventions = written["date_conventions"]
+    assert "2026-10-05, 2026-10-06 or 2026-10-09)." in conventions
+    assert (
+        "The 2026-10-09 wave's decisions exclude the outputs the references' engine "
+        "upgrade moved onto an input the prompt does not state, and were written on "
+        "2026-10-09 UTC." in conventions
+    )
+    built = json.loads(upgraded_added.upgrade.exclusions_text)["exclusions"]
+    assert len(built) == 72
+    assert excluded_case_keys(entries) == exclusion_keys(built)
+    added = driver.upgrade_decisions(upgraded_added.upgrade)
+    with mock.patch.object(
+        driver, "base_adjudication_record", base_adjudication_record
+    ):
+        staged = driver.stage_adjudications(
+            path,
+            RULED_CASES | MOCK_NEW_CASES,
+            [],
+            upgraded_added.cases,
+            regenerated=upgraded_added.upgrade.regenerated_ruled,
+            dropped=upgraded_added.upgrade.dropped_cases,
+            added=added,
+        )
+        assert len(staged) == len(entries)
+        # Without the upgrade's decisions the gate refuses the record.
+        with pytest.raises(SystemExit):
+            driver.stage_adjudications(
+                path,
+                RULED_CASES | MOCK_NEW_CASES,
+                [],
+                upgraded_added.cases,
+                regenerated=upgraded_added.upgrade.regenerated_ruled,
+                dropped=upgraded_added.upgrade.dropped_cases,
+            )
+
+
+@pytest.mark.parametrize(
+    "edit, message",
+    [
+        (lambda entry: entry.update(reasoning="MOCK: other words."), "upgrade's entry"),
+        (lambda entry: entry.update(adjudicated_on="2026-10-06"), "upgrade's entry"),
+        (lambda entry: entry.update(judge_reference_suspect=True), "upgrade's"),
+        (None, "no staged decision"),
+    ],
+)
+def test_the_gate_holds_the_upgrades_decisions_to_their_items(
+    upgraded_added, edit, message
+):
+    from policybench.adjudications import parse_adjudications
+
+    path = _write_stage_record(upgraded_added.stage, base_adjudication_record())
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded_added.stage))
+    record = json.loads(path.read_text())
+    case = sorted(MOCK_NEW_CASES)[0]
+    index = next(
+        i for i, e in enumerate(record["adjudications"]) if driver.case_id(e) == case
+    )
+    if edit is None:
+        del record["adjudications"][index]
+    else:
+        edit(record["adjudications"][index])
+    entries = parse_adjudications(record, path)
+    with pytest.raises(SystemExit, match=message):
+        driver.verify_adjudication_changes(
+            driver.base_adjudications(),
+            entries,
+            RULED_CASES | MOCK_NEW_CASES,
+            [],
+            upgraded_added.cases,
+            regenerated=upgraded_added.upgrade.regenerated_ruled,
+            dropped=upgraded_added.upgrade.dropped_cases,
+            added=driver.upgrade_decisions(upgraded_added.upgrade),
+        )
+
+
+def test_the_spec_must_decide_exactly_the_upgrades_new_exclusions(upgraded_added):
+    upgrade = upgraded_added.upgrade
+    spec = copy.deepcopy(upgraded_added.spec)
+    assert [driver.spec_key(i) for i, _ in driver.upgrade_decisions(upgrade, spec)] == (
+        sorted(MOCK_NEW)
+    )
+    for items in (MOCK_UPGRADE_ITEMS[:1], MOCK_UPGRADE_ITEMS * 2, []):
+        spec["upgrade_adjudications"] = copy.deepcopy(items)
+        with pytest.raises(SystemExit, match="must decide exactly"):
+            driver.upgrade_decisions(upgrade, spec)
+    # Without an upgrade the items are not read.
+    assert driver.upgrade_decisions(None, spec) == []
+
+
+def test_the_upgrades_wave_needs_its_written_day(upgraded_added, monkeypatch):
+    monkeypatch.delitem(upgraded_added.spec, "upgrade_adjudications_written_on")
+    path = _write_stage_record(upgraded_added.stage, base_adjudication_record())
+    text = path.read_text()
+    with pytest.raises(SystemExit, match="upgrade_adjudications_written_on"):
+        driver.adjudicate_exclusions(SimpleNamespace(stage_dir=upgraded_added.stage))
+    assert path.read_text() == text
+
+
 @pytest.fixture
 def decided(upgraded):
     """The staged record adjudicate-exclusions writes on the upgraded stage."""
@@ -6814,6 +6982,7 @@ def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypa
     upgrade = SimpleNamespace(
         regenerated_ruled=frozenset(MOCK_REGENERATED_RULED),
         dropped_cases=frozenset({WI_042_CASE}),
+        added=frozenset(),
     )
     monkeypatch.setattr(driver, "stage_upgrade", lambda stage_dir: upgrade)
     checked, given = [], []
@@ -6833,6 +7002,7 @@ def test_triage_holds_the_record_to_the_installed_upgrade(triage_stage, monkeypa
         {
             "regenerated": frozenset(MOCK_REGENERATED_RULED),
             "dropped": frozenset({WI_042_CASE}),
+            "added": [],
         }
     ]
 

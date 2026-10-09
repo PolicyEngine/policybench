@@ -898,9 +898,14 @@ def install_exclusions(args) -> None:
 
 
 def exclusion_entry(
-    base: dict | None, item: dict, record: dict, case_dir: Path
+    base: dict | None,
+    item: dict,
+    record: dict,
+    case_dir: Path,
+    adjudicated_on: str | None = None,
 ) -> dict:
-    """The adjudication of one ruled output.
+    """The adjudication of one ruled output (or, with ``adjudicated_on`` its
+    record's day, one output an engine upgrade newly excludes).
 
     A new entry carries the case's bound Opus 5.5 verdict (in this release's
     audit tree) as its judge fields, in release 20261006's entry order. An
@@ -921,7 +926,7 @@ def exclusion_entry(
     decision = {
         "adjudicated_failure_source": source,
         "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
-        "adjudicated_on": load_spec()["decided_on"],
+        "adjudicated_on": adjudicated_on or load_spec()["decided_on"],
         "adjudicator": "developer",
         "excluded_from_scoring": True,
         "reference_verdict": verdict_kind,
@@ -963,7 +968,10 @@ def exclusion_entry(
 
 
 def exclusion_adjudications(
-    record: dict, cases_dir: Path, regenerated: frozenset = frozenset()
+    record: dict,
+    cases_dir: Path,
+    regenerated: frozenset = frozenset(),
+    added: list[tuple[dict, dict]] | tuple = (),
 ) -> dict:
     """``record`` (the staged adjudication record) with the ruled outputs
     decided: an existing entry is restated in place, a new one appended in the
@@ -971,6 +979,9 @@ def exclusion_adjudications(
 
     ``regenerated`` names the ruled outputs an installed engine upgrade
     regenerated (spec_regenerated); they are scored again, so none is decided.
+    ``added`` (upgrade_decisions) decides the outputs the upgrade newly
+    excludes, each appended after the ruled ones and dated by its record; the
+    date conventions then name that wave too.
     """
     import copy
 
@@ -1007,27 +1018,122 @@ def exclusion_adjudications(
             )
         else:
             appended.append(exclusion_entry(None, item, records[k], case_dir))
+    for item, upgraded in added:
+        k = spec_key(item)
+        require(
+            k not in by_key,
+            f"{k}: the engine upgrade newly excludes an output that already has a "
+            "decision; restating one is not supported",
+        )
+        appended.append(
+            exclusion_entry(
+                None,
+                item,
+                upgraded,
+                cases_dir / f"us__{k[0]}__{k[1]}",
+                adjudicated_on=upgraded["decided_on"],
+            )
+        )
     out["adjudications"] = out["adjudications"] + appended
-    out["date_conventions"] = release_date_conventions(out["date_conventions"])
+    out["date_conventions"] = release_date_conventions(
+        out["date_conventions"], upgrade_wave(added)
+    )
     return out
 
 
-def release_date_conventions(conventions: str) -> str:
+def release_date_conventions(conventions: str, wave: str | None = None) -> str:
     """Release 20261006's date conventions with the 2026-10-06 wave named; the
-    one definition the adjudicate step writes and the record gate expects."""
+    one definition the adjudicate step writes and the record gate expects.
+
+    ``wave`` is the UTC day of an installed engine upgrade whose newly excluded
+    outputs are decided (upgrade_wave); it is named as a wave too, with the day
+    the spec says its decisions were written (upgrade_adjudications_written_on).
+    """
     require(
         conventions.count(DATE_CONVENTIONS_BASE) == 1
         and conventions.count(DATE_CONVENTIONS_ANCHOR) == 1,
         "the record's date conventions are not release 20261006's",
     )
-    written = load_spec()["adjudications_written_on"]
-    conventions = conventions.replace(DATE_CONVENTIONS_BASE, DATE_CONVENTIONS_WAVES)
-    return conventions.replace(
-        DATE_CONVENTIONS_ANCHOR,
-        DATE_CONVENTIONS_ANCHOR
-        + " The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 "
-        f"(17:11 UTC) and were written on {written} UTC.",
+    spec = load_spec()
+    written = spec["adjudications_written_on"]
+    waves = DATE_CONVENTIONS_WAVES
+    sentence = (
+        " The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 "
+        f"(17:11 UTC) and were written on {written} UTC."
     )
+    if wave is not None:
+        upgrade_written = spec.get("upgrade_adjudications_written_on")
+        require(
+            isinstance(upgrade_written, str) and upgrade_written.strip(),
+            f"{SPEC_PATH} names no upgrade_adjudications_written_on, the UTC day "
+            "the engine upgrade's decisions were written",
+        )
+        waves = waves.replace(" or 2026-10-06)", f", 2026-10-06 or {wave})")
+        sentence += (
+            f" The {wave} wave's decisions exclude the outputs the references' "
+            "engine upgrade moved onto an input the prompt does not state, and "
+            f"were written on {upgrade_written} UTC."
+        )
+    conventions = conventions.replace(DATE_CONVENTIONS_BASE, waves)
+    return conventions.replace(
+        DATE_CONVENTIONS_ANCHOR, DATE_CONVENTIONS_ANCHOR + sentence
+    )
+
+
+def upgrade_decisions(upgrade, spec: dict | None = None) -> list[tuple[dict, dict]]:
+    """The (spec item, build record) pairs that decide the outputs an installed
+    engine upgrade newly excludes, in (scenario_id, variable) order.
+
+    docs/haiku55/spec.json's upgrade_adjudications holds one item per such
+    output, in the spec adjudications' shape (classes and reasoning); each
+    record is the build's, computed on the build's engine and decided on its
+    revision's day. Without an upgrade, or one that excludes nothing new, none;
+    the spec may then name none either.
+    """
+    spec = load_spec() if spec is None else spec
+    items = spec.get("upgrade_adjudications", [])
+    require(
+        isinstance(items, list) and all(isinstance(i, dict) for i in items),
+        "the spec's upgrade_adjudications is not a list of items",
+    )
+    if upgrade is None:
+        return []
+    added = upgrade.added
+    keys = [spec_key(item) for item in items]
+    if not added:
+        require(
+            not keys,
+            f"the spec's upgrade_adjudications names {sorted(keys)}, but the engine "
+            "upgrade newly excludes nothing",
+        )
+        return []
+    require(
+        len(set(keys)) == len(keys) and set(keys) == set(added),
+        "the spec's upgrade_adjudications must decide exactly the outputs the "
+        f"engine upgrade newly excludes: {sorted(added)}, not {sorted(keys)}",
+    )
+    records = {
+        spec_key(record): record
+        for record in json.loads(upgrade.exclusions_text)["exclusions"]
+    }
+    pairs = []
+    for item in sorted(items, key=spec_key):
+        record = records[spec_key(item)]
+        require(
+            record["engine_version"] == upgrade.engine_version
+            and record["decided_on"] == upgrade.revision["date"],
+            f"{spec_key(item)}: the build's record is not decided on its engine and "
+            "day",
+        )
+        pairs.append((item, record))
+    return pairs
+
+
+def upgrade_wave(added) -> str | None:
+    """The day the upgrade's newly excluded outputs were decided, if any."""
+    days = {record["decided_on"] for _, record in added}
+    require(len(days) <= 1, f"the upgrade's new records name several days: {days}")
+    return next(iter(days), None)
 
 
 def adjudicate_exclusions(args) -> None:
@@ -1045,7 +1151,9 @@ def adjudicate_exclusions(args) -> None:
     record = json.loads(path.read_text())
     upgrade = stage_upgrade(args.stage_dir)
     regenerated = frozenset() if upgrade is None else upgrade.regenerated_ruled
+    added = upgrade_decisions(upgrade)
     keys = {spec_key(item) for item in load_spec()["adjudications"]}
+    keys |= {spec_key(item) for item, _ in added}
     require(
         not any(
             entry.get("excluded_from_scoring") and spec_key(entry) in keys - regenerated
@@ -1063,7 +1171,7 @@ def adjudicate_exclusions(args) -> None:
         "BASE_COMMIT), then restate and decide again",
     )
     staged = exclusion_adjudications(
-        record, args.stage_dir / "audit" / "cases", regenerated
+        record, args.stage_dir / "audit" / "cases", regenerated, added
     )
     dropped: list[dict] = []
     if upgrade is not None:
@@ -1077,7 +1185,8 @@ def adjudicate_exclusions(args) -> None:
     path.write_text(record_text(staged))
     decided = len(keys - regenerated)
     print(
-        f"Decided {decided} ruled outputs in {path}"
+        f"Decided {decided} ruled outputs ({len(added)} the upgrade excludes) in "
+        f"{path}"
         + (f"; dropped {len(dropped)} regenerated decisions" if upgrade else "")
     )
 
@@ -1087,7 +1196,7 @@ def record_text(record: dict) -> str:
     return json.dumps(record, indent=2, ensure_ascii=False) + "\n"
 
 
-def verify_record_form(text: str, base: dict) -> None:
+def verify_record_form(text: str, base: dict, wave: str | None = None) -> None:
     """The staged record's bytes are exactly its parsed content, and its top
     level other than the entries is release 20261006's.
 
@@ -1104,7 +1213,7 @@ def verify_record_form(text: str, base: dict) -> None:
     )
     expected = {k: v for k, v in base.items() if k != "adjudications"}
     expected["date_conventions"] = release_date_conventions(
-        expected["date_conventions"]
+        expected["date_conventions"], wave
     )
     require(
         record_text({k: v for k, v in record.items() if k != "adjudications"})
@@ -1270,6 +1379,7 @@ def ruled_adjudication_problems(
     after: dict[str, dict],
     cases_dir: Path,
     regenerated: frozenset = frozenset(),
+    added: list[tuple[dict, dict]] | tuple = (),
 ) -> list[str]:
     """Where the staged decisions on the ten ruled outputs are not exactly what
     exclusion_entry builds: a new one from its case's bound verdict, and
@@ -1278,7 +1388,10 @@ def ruled_adjudication_problems(
 
     A ruled output an installed engine upgrade regenerated (``regenerated``)
     is scored again: no staged decision may exclude it, and any other decision
-    on it is an ordinary re-opened case's (verify_adjudication_changes)."""
+    on it is an ordinary re-opened case's (verify_adjudication_changes). Each
+    output the upgrade newly excludes (``added``, upgrade_decisions) must have
+    exactly the new entry exclusion_entry builds from its item, its build
+    record and its case's bound verdict, dated by the record."""
     from restate_gpt61sol_adjudications import JUDGE_FIELDS
 
     spec = load_spec()
@@ -1321,6 +1434,22 @@ def ruled_adjudication_problems(
             expected, ensure_ascii=False
         ):
             problems.append(f"{case}: differs from the ruling's entry")
+    for item, record in added:
+        k = spec_key(item)
+        case = f"us__{k[0]}__{k[1]}"
+        if case in before:
+            problems.append(f"{case}: release 20261006 already decides it")
+            continue
+        if case not in after:
+            problems.append(f"{case}: no staged decision")
+            continue
+        expected = exclusion_entry(
+            None, item, record, cases_dir / case, adjudicated_on=record["decided_on"]
+        )
+        if json.dumps(after[case], ensure_ascii=False) != json.dumps(
+            expected, ensure_ascii=False
+        ):
+            problems.append(f"{case}: differs from the upgrade's entry")
     return problems
 
 
@@ -1333,6 +1462,7 @@ def verify_adjudication_changes(
     *,
     regenerated: frozenset = frozenset(),
     dropped: frozenset[str] = frozenset(),
+    added: list[tuple[dict, dict]] | tuple = (),
 ) -> int:
     """A staged record differs from 20261006's only where it has a reason to.
 
@@ -1347,7 +1477,8 @@ def verify_adjudication_changes(
     With an engine upgrade installed, ``regenerated`` names the ruled outputs
     it regenerated (no longer decided as ruled) and ``dropped`` the cases of
     the release 20261006 records it regenerated: exactly those decisions must
-    be gone, and every other one stays.
+    be gone, and every other one stays. ``added`` (upgrade_decisions) decides
+    the outputs it newly excludes, gated as the ruled outputs are.
     """
     from restate_gpt61sol_adjudications import JUDGE_FIELDS
 
@@ -1362,13 +1493,15 @@ def verify_adjudication_changes(
 
     before = {case_id(entry): entry for entry in base}
     after = {case_id(entry): entry for entry in staged}
-    ruled = ruled_adjudication_problems(before, after, cases_dir, regenerated)
+    ruled = ruled_adjudication_problems(
+        before, after, cases_dir, regenerated, added
+    )
     require(not ruled, f"Staged adjudications of the ruled outputs: {ruled[:8]}")
     ruled_cases = {
         f"us__{k[0]}__{k[1]}"
         for k in (spec_key(item) for item in load_spec()["adjudications"])
         if k not in regenerated
-    }
+    } | {f"us__{k[0]}__{k[1]}" for k in (spec_key(item) for item, _ in added)}
     stray = sorted(dropped - set(before))
     require(
         not stray,
@@ -1432,13 +1565,14 @@ def stage_adjudications(
     *,
     regenerated: frozenset = frozenset(),
     dropped: frozenset[str] = frozenset(),
+    added: list[tuple[dict, dict]] | tuple = (),
 ) -> list[dict]:
     """The staged record, with its listed reasoning amendments applied.
 
     Checked in memory against release 20261006's record (from git) and the
     stage's verdicts; written back only when an amendment was not applied yet.
-    ``regenerated`` and ``dropped`` describe an installed engine upgrade
-    (verify_adjudication_changes).
+    ``regenerated``, ``dropped`` and ``added`` describe an installed engine
+    upgrade (verify_adjudication_changes).
     """
     from freeze_snapshot import verify_adjudications_keep_judge_verdicts
 
@@ -1447,7 +1581,8 @@ def stage_adjudications(
     base_record = base_adjudication_record()
     base = base_adjudications()
     current = path.read_text()
-    verify_record_form(current, base_record)
+    wave = upgrade_wave(added)
+    verify_record_form(current, base_record, wave)
     record = json.loads(current)
     grouped = _record_amendments(amendments)
     original = {case_id(entry): entry for entry in base}
@@ -1462,7 +1597,7 @@ def stage_adjudications(
                 )
                 applied = True
     text = record_text(record)
-    verify_record_form(text, base_record)
+    verify_record_form(text, base_record, wave)
     entries = parse_adjudications(json.loads(text), path)
     verify_adjudication_changes(
         base,
@@ -1472,6 +1607,7 @@ def stage_adjudications(
         cases_dir,
         regenerated=regenerated,
         dropped=dropped,
+        added=added,
     )
     verify_restatements(base, entries, rejudged, cases_dir)
     verify_adjudications_keep_judge_verdicts(entries, cases_dir)
@@ -2603,6 +2739,7 @@ def triage(args, bundle) -> None:
         audit / "cases",
         regenerated=frozenset() if upgrade is None else upgrade.regenerated_ruled,
         dropped=frozenset() if upgrade is None else upgrade.dropped_cases,
+        added=upgrade_decisions(upgrade),
     )
     rows, cases, _ = apply_adjudications(rows, cases, decisions)
     amend_annotations(rows, cases, amendments)
