@@ -44,6 +44,6 @@ tests/test_snapshot_artifacts.py::test_frozen_impact_summaries_score_the_scored_
     predictions = pd.read_csv(run_dir / "predictions.csv.gz")
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-1662 passed, 9 skipped, 11 warnings in 783.15s (0:13:03)
-.venv/bin/python -m pytest -q --tb=short -p no:cacheprovider  435.47s user 82.79s system 65% cpu 13:12.10 total
+1662 passed, 9 skipped, 11 warnings in 683.47s (0:11:23)
+.venv/bin/python -m pytest -q --tb=short -p no:cacheprovider  413.47s user 71.45s system 69% cpu 11:33.95 total
 PYTEST_EXIT=0
