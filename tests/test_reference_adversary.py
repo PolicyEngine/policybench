@@ -1514,7 +1514,13 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
     # compared: a lane token for the desktop's own account is refused.
     with pytest.raises(ValueError, match="is the desktop login's account"):
         check_login(lane, desktop, token=True, declared=" Max@Example.org", **common)
+    # Lanes also declare the account with a provider prefix.
+    with pytest.raises(ValueError, match="is the desktop login's account"):
+        check_login(
+            lane, desktop, token=True, declared="claude:max@example.org", **common
+        )
     assert check_login(lane, desktop, token=True, declared="lane@x", **common)
+    assert check_login(lane, desktop, token=True, declared="claude:lane@x", **common)
 
 
 # --- Command line ----------------------------------------------------------------
@@ -1572,6 +1578,45 @@ def test_collect_cli_refuses_a_repeated_judge_label(tmp_path: Path, cases):
             str(out),
         )
     assert not out.exists()
+
+
+def test_collect_refuses_a_directory_that_was_never_prepared(tmp_path: Path, cases):
+    prepare_adversary(tmp_path / "adv", cases)
+    with pytest.raises(FileNotFoundError, match="no cases.jsonl"):
+        collect_adversary(tmp_path / "typo")
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit, match="no cases.jsonl in .*typo"):
+        _collect_cli(
+            "--adversary-dir",
+            f"claude={tmp_path / 'adv'}",
+            "--adversary-dir",
+            f"codex={tmp_path / 'typo'}",
+            "--output-dir",
+            str(out),
+        )
+    assert not out.exists()
+
+
+def test_collect_cli_splits_a_label_at_the_first_equals_sign(tmp_path: Path, cases):
+    # A directory may contain "=": LABEL=DIR splits at the first one, and a
+    # bare DIR whose text before "=" is a path, not a label, stays whole.
+    labeled = tmp_path / "run=1" / "adv"
+    bare = tmp_path / "adv=2"
+    for directory in (labeled, bare):
+        prepare_adversary(directory, cases)
+    out = tmp_path / "out"
+    _collect_cli(
+        "--adversary-dir",
+        f"claude={labeled}",
+        "--adversary-dir",
+        str(bare),
+        "--output-dir",
+        str(out),
+        "--allow-missing",
+    )
+    for label in ("claude", "adv=2"):
+        missing = pd.read_csv(out / f"adversary_{label}_missing.csv")
+        assert sorted(missing["case_id"]) == sorted(case.case_id for case in cases)
 
 
 def test_collect_cli_fails_on_missing_verdicts_unless_allowed(tmp_path: Path, cases):

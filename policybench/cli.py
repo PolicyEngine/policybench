@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -650,7 +651,8 @@ def main():
         action="append",
         required=True,
         metavar="LABEL=DIR",
-        help="One judge's adversary directory, optionally labeled (repeatable)",
+        help="One judge's adversary directory, optionally labeled LABEL=DIR, "
+        "where LABEL is letters, digits, '.', '_' or '-' (repeatable)",
     )
     adversary_collect_parser.add_argument("--output-dir", required=True)
     adversary_collect_parser.add_argument(
@@ -1495,8 +1497,23 @@ def main():
 
         specs = []
         for spec in args.adversary_dir:
-            label, _, directory = spec.rpartition("=")
-            specs.append((label or Path(directory).name, directory))
+            # LABEL=DIR splits at the first "=", so a directory may contain
+            # "="; text before it that is not a label is part of a bare DIR.
+            label, separator, directory = spec.partition("=")
+            if not (separator and re.fullmatch(r"[A-Za-z0-9._-]+", label)):
+                label, directory = Path(spec).name, spec
+            specs.append((label, directory))
+        absent = [
+            directory
+            for _, directory in specs
+            if not (Path(directory) / "cases.jsonl").is_file()
+        ]
+        if absent:
+            # A mistyped directory would otherwise collect as an empty judge.
+            raise SystemExit(
+                f"adversary-collect: no cases.jsonl in {', '.join(absent)}; "
+                "not a prepared adversary directory"
+            )
         labels = [label for label, _ in specs]
         repeated = sorted({label for label in labels if labels.count(label) > 1})
         if repeated:

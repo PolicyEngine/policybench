@@ -1126,11 +1126,17 @@ def collect_adversary(adversary_dir: Path | str) -> dict[str, pd.DataFrame]:
     stage 1 (the sidecar must name the current stage 1's sha256, so a verdict
     is never taken as bound by default). ``inconsistent`` lists one
     row per problem :func:`verdict_problems` finds, and a stage 1 and verdict
-    from different runners; those cases stay in ``verdicts`` too.
+    from different runners; those cases stay in ``verdicts`` too. Raises
+    ``FileNotFoundError`` for a directory without ``cases.jsonl``.
     """
     import pandas as pd
 
     adversary_dir = Path(adversary_dir)
+    if not (adversary_dir / "cases.jsonl").is_file():
+        # A mistyped directory would otherwise collect as a judge with no cases.
+        raise FileNotFoundError(
+            f"{adversary_dir}: no cases.jsonl; not a prepared adversary directory"
+        )
     manifest = _load_manifest(adversary_dir)
     cases_root = adversary_dir / "cases"
     rows: list[dict] = []
@@ -1870,6 +1876,16 @@ def finalize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _declared_email(declared: str) -> str:
+    """The account an AUDIT_ACCOUNT names, without a provider prefix.
+
+    Lanes declare either a bare email or one with a provider prefix
+    ("claude:lane@example.org"); an email has no ":", so the account is what
+    follows the last one.
+    """
+    return declared.rpartition(":")[2].strip().lower()
+
+
 def check_login(
     status_text: str,
     desktop_text: str,
@@ -1938,7 +1954,7 @@ def check_login(
         if (
             method == "oauth_token"
             and desktop.get("loggedIn") is True
-            and declared.strip().lower()
+            and _declared_email(declared)
             == str(desktop.get("email") or "").strip().lower()
         ):
             raise ValueError(

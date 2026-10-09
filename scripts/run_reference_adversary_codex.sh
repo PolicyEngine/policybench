@@ -14,8 +14,8 @@
 # allowlisted environment (PATH, HOME, user, locale, temp dir and CODEX_HOME),
 # so no API key, base URL or provider switch reaches it, and the runner
 # refuses to start unless `codex login status` reports a ChatGPT login. It
-# also refuses a Codex home that holds an AGENTS.md, whose instructions could
-# reach the judge outside the audited tool events.
+# also refuses a Codex home that holds an AGENTS.md or AGENTS.override.md,
+# whose instructions could reach the judge outside the audited tool events.
 # Give each judge its own adversary directory: stage 1 and the verdict of a
 # case must come from the same runner.
 #
@@ -155,10 +155,14 @@ for var in PATH HOME USER LOGNAME LANG LC_ALL LC_CTYPE TMPDIR CODEX_HOME; do
 done
 codex_child() { env -i "${CODEX_ENV[@]}" "$CODEX_BIN" "$@"; }
 CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
-[ -e "$CODEX_HOME_DIR/AGENTS.md" ] && {
-  echo "$CODEX_HOME_DIR/AGENTS.md exists: its instructions could reach the judge; use a lane home without one" >&2
-  exit 1
-}
+# Codex loads global instructions from its home: AGENTS.override.md, else
+# AGENTS.md. Either could carry engine material past the event-log audit.
+for agents in AGENTS.override.md AGENTS.md; do
+  [ -e "$CODEX_HOME_DIR/$agents" ] && {
+    echo "$CODEX_HOME_DIR/$agents exists: its instructions could reach the judge; use a lane home without one" >&2
+    exit 1
+  }
+done
 LOGIN=$(cd / && codex_child login status </dev/null 2>&1 | head -n 1)
 case "$LOGIN" in
   "Logged in using ChatGPT"*) ;;
