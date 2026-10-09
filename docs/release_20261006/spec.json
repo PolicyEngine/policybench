@@ -75,7 +75,7 @@
       "variable": "federal_income_tax_before_refundable_credits",
       "field": "note",
       "replace": "The output also moves under an engine defect: policyengine-us 2.15.17 leaves the household's Massachusetts paid family and medical leave contributions ($805.01) out of SALT, though they are deductible state income taxes (Rev. Rul. 2025-4). With them the output is $26,739.07 under the withholding estimate and $26,798.11 under the liability.",
-      "with": "The output would also move if the employer deducted the employee share of the household's Massachusetts paid family and medical leave premium, which the law allows but does not require (this household's payroll tax output is excluded on that ground; reference_audit/2026-10-05-payroll): policyengine-us 2.15.17 leaves any such contributions out of SALT, though Rev. Rul. 2025-4 treats them as deductible state income taxes. With the largest share the employer may deduct ($805.01), the output is $26,739.07 under the withholding estimate and $26,798.11 under the liability.",
+      "with": "The output would also move if the employer deducted the employee share of the household's Massachusetts paid family and medical leave premium, which the law allows but does not require (this household's payroll tax output is excluded on that ground; reference_audit/2026-10-05-payroll): policyengine-us 2.15.17 leaves any such contributions out of SALT, though Rev. Rul. 2025-4 treats them as deductible state income taxes. With the largest share Massachusetts's published 2026 rates let the employer deduct ($805.01), the output is $26,739.07 under the withholding estimate and $26,798.11 under the liability.",
       "source": "reference_audit/2026-10-05-payroll/README.md, release step 11: the Massachusetts paid leave share is an optional employer pass-through"
     },
     {
@@ -109,6 +109,14 @@
       "replace": "counts the largest share the employer may deduct (ma_employee_paid_leave_contribution $805.01)",
       "with": "counts the largest share Massachusetts's published 2026 rates let the employer deduct (ma_employee_paid_leave_contribution $805.01)",
       "source": "reference_audit/2026-10-05-payroll/README.md, 'Massachusetts, Acts 2026 c. 101': a literal reading of the act's s. 45 would let a large employer deduct up to 0.772% ($1,351.02) for 2026, while the Department's rates page kept the 0.46% maximum, so the record names the published rates (independent review of the release, 2026-10-08)"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "payroll_tax",
+      "field": "alternative_reading",
+      "replace": "which may deduct up to 100 percent of the family and 40 percent of the medical contribution from wages (s. 6(c))",
+      "with": "which may deduct part of the contribution from wages (s. 6(c)): under the Department of Family and Medical Leave's published 2026 rates, up to 100 percent of the family and 40 percent of the medical contribution, though Acts 2026 c. 101 ss. 25-26 and 45 can be read to swap those caps for 2026",
+      "source": "reference_audit/2026-10-05-payroll/README.md, 'Massachusetts, Acts 2026 c. 101' (independent re-review of the release, 2026-10-08)"
     }
   ],
   "rule": {

@@ -24,7 +24,7 @@ This release retains the existing convention and every reference value, and the 
 - `spec.json`. It holds:
   - the base (tag, commit 8b4c0ca1, payload sha256 and bytes);
   - the three proposal files and the outputs each ruling names;
-  - five edits to records, each with its source;
+  - six edits to records, each with its source;
   - the rule and derivation text;
   - the eight adjudications' subtypes and reasoning;
   - the judge-evidence waves.
@@ -80,7 +80,7 @@ $PY scripts/freeze_snapshot.py --rendered-only
 
 ## Invariants (tests/test_release_20261006.py)
 
-1. The frozen exclusion record is `build_exclusions(release 20260930's record, spec)`, byte for byte: the base records unchanged except the five edits, plus the eight ruled records before the audit's trailing scenario_023 record.
+1. The frozen exclusion record is `build_exclusions(release 20260930's record, spec)`, byte for byte: the base records unchanged except the six edits, plus the eight ruled records before the audit's trailing scenario_023 record.
 2. The adjudication record is release 20260930's plus eight entries. Each keeps the judge verdict the evidence file binds, and its reference basis is its record's unlisted input.
 3. The committed annotation files rebuild byte for byte from release 20260930's: #197's ledger, then the release rewrites, then every adjudication.
 4. References and predictions are release 20260930's.
