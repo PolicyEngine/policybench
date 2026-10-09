@@ -199,6 +199,7 @@ def with_second_upgrade(tree: Tree) -> Tree:
         alternative_value=MOCK_RECHECKED_VALUES[MOCK_LATER_RECORD],
         engine_version=f"policyengine-us {MOCK_PREVIOUS_ENGINE}",
         decided_on=MOCK_LATER_RECORD_DATE,
+        decision="d1022",
         note="MOCK: invented for tests/second_engine_upgrade.py.",
     )
     exclusions = [

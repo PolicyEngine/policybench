@@ -1404,3 +1404,103 @@ def test_review_sweep_partition_is_exact_and_disjoint(case):
             name = "scored_within_tolerance"
         expected[name][(sweep, scenario_id, variable)] += 1
     assert {name: Counter(keys) for name, keys in partition.items()} == expected
+
+
+# --- The 2026-10-06 rulings and the second upgrade, on real builds -------------
+
+REHEARSAL_BUILD = ROOT / "results/local/rehearsal-2372/build"
+
+
+def _rehearsal_tree():
+    """The 2.37.2 rehearsal build's reference records (local only): a real
+    second upgrade, as build_references_upgrade.py writes it."""
+    import tomllib
+
+    import pandas as pd
+
+    from tests.second_engine_upgrade import Tree
+
+    if not (REHEARSAL_BUILD / "reference_outputs.csv.meta.json").is_file():
+        pytest.skip("needs the local 2.37.2 rehearsal build")
+    frame = pd.read_csv(REHEARSAL_BUILD / "reference_outputs.csv")
+    return Tree(
+        sidecar=json.loads((REHEARSAL_BUILD / "reference_outputs.csv.meta.json").read_text()),
+        exclusions=json.loads((REHEARSAL_BUILD / "reference_exclusions.json").read_text())[
+            "exclusions"
+        ],
+        references={
+            (row.scenario_id, row.variable): float(row.value)
+            for row in frame.itertuples(index=False)
+        },
+        manifest=json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text()),
+        pins=tomllib.loads((ROOT / "pyproject.toml").read_text())["project"][
+            "dependencies"
+        ],
+    )
+
+
+def test_the_rulings_and_the_second_upgrade_count_on_the_rehearsal_build():
+    """On the real 2.37.2 build: the 2026-10-06 rulings decided ten records
+    (eight under d1022, two under d994) on 2.15.17; the upgrade regenerated
+    four of them (the adversary's engine defects) and keeps six; it restores
+    seven excluded outputs in all, changes one scored reference beyond the
+    tolerance, newly excludes two and rechecks 22."""
+    from tests.second_engine_upgrade import paper_results_for
+
+    results = paper_results_for(_rehearsal_tree())
+    assert results.ruling_date == "2026-10-06"
+    assert results.ruled_exclusion_count == 10
+    assert results.ruled_exclusion_count_word == "ten"
+    assert results.ruled_decision_count("d1022") == 8
+    assert results.ruled_decision_count_word("d994") == "two"
+    assert results.ruled_regenerated_count == 4
+    assert results.ruled_kept_count == 6
+    assert results.ruled_exclusion_engine_version == "2.15.17"
+    regenerated = {
+        record["root_cause"]
+        for record in results.ruled_records
+        if (record["scenario_id"], record["variable"])
+        not in {(e["scenario_id"], e["variable"]) for e in results.reference_exclusions}
+    }
+    assert regenerated == {
+        "az_standard_deduction_indexing",
+        "oh_medical_deduction_premiums",
+        "co_sales_tax_refund_surplus",
+        "ny_cdcc_606_c2",
+    }
+    last = results.last_engine_upgrade
+    assert (last.previous_engine_version, last.engine_version) == ("2.15.17", "2.37.2")
+    assert results.engine_upgrade_restored_count_word == "seven"
+    assert results.engine_upgrade_scored_change_count_word == "one"
+    assert results.engine_upgrade_new_exclusion_count_word == "two"
+    assert results.engine_upgrade_rechecked_count == 22
+
+
+def test_a_ruled_record_must_name_its_ruling():
+    from tests.second_engine_upgrade import paper_results_for, release_20261006
+
+    tree = release_20261006()
+    unnamed = {
+        **tree.exclusions[0],
+        "scenario_id": "scenario_999",
+        "decided_on": "2026-10-06",
+    }
+    unnamed.pop("decision", None)
+    results = paper_results_for(
+        type(tree)(
+            sidecar=tree.sidecar,
+            exclusions=[*tree.exclusions, unnamed],
+            references=tree.references,
+            manifest=tree.manifest,
+            pins=tree.pins,
+        )
+    )
+    with pytest.raises(ValueError, match="name no ruling"):
+        results.ruled_records
+
+
+@pytest.mark.parametrize("n, word", [(0, "no"), (7, "seven"), (10, "ten"), (11, "11"), (1234, "1,234")])
+def test_a_count_reads_as_a_word_up_to_ten(n, word):
+    from policybench.paper_results import count_word
+
+    assert count_word(n) == word

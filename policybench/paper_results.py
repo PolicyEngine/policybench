@@ -78,6 +78,9 @@ RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 # columns holding the readings and checks it ran. The records the review added
 # carry ``decided_on`` = REVIEW_DATE.
 REVIEW_DATE = "2026-10-05"
+# The day Max ruled on the reference adversary's records (d1022) and the
+# Louisiana records (d994); each such record names its ruling in ``decision``.
+RULING_DATE = "2026-10-06"
 REVIEW_SWEEPS: dict[str, tuple[Path, str, tuple[str, ...]]] = {
     # State income tax in the federal SALT deduction
     # (reference_audit/2026-10-05/README.md).
@@ -127,6 +130,11 @@ NUMBER_WORDS = {
     9: "nine",
     10: "ten",
 }
+
+
+def count_word(n: int) -> str:
+    """A count as the paper writes it: a word up to ten, digits above."""
+    return NUMBER_WORDS.get(n, f"{n:,}")
 
 
 def moves_beyond_tolerance(variable: str, before: float, after: float) -> bool:
@@ -1734,6 +1742,24 @@ class PaperResults:
         return 0 if last is None else last.restored_count
 
     @property
+    def engine_upgrade_restored_count_word(self) -> str:
+        return count_word(self.engine_upgrade_restored_count)
+
+    @property
+    def engine_upgrade_scored_change_count_word(self) -> str:
+        return count_word(self.engine_upgrade_scored_change_count)
+
+    @property
+    def engine_upgrade_new_exclusion_count_word(self) -> str:
+        return count_word(self.engine_upgrade_new_exclusion_count)
+
+    @property
+    def engine_upgrade_rechecked_count(self) -> int:
+        """Excluded outputs the last upgrade moved that stay excluded."""
+        last = self.last_engine_upgrade
+        return 0 if last is None else last.rechecked_count
+
+    @property
     def excluded_outputs_by_engine_version(self) -> dict[str, int]:
         """Excluded outputs by the policyengine-us version behind the value
         each keeps (the version its exclusion was decided on), oldest first."""
@@ -1927,6 +1953,73 @@ class PaperResults:
     @property
     def review_new_exclusion_count_word(self) -> str:
         return NUMBER_WORDS[self.review_new_exclusion_count]
+
+    @cached_property
+    def ruled_records(self) -> list[dict]:
+        """The records the 2026-10-06 rulings decided, in (scenario, variable)
+        order: those in the exclusion record, and those a later engine upgrade
+        regenerated, whose removed record its regenerated_exclusions keep."""
+        current = [
+            record
+            for record in self.reference_exclusions
+            if record.get("decided_on") == RULING_DATE
+        ]
+        removed = [
+            entry["record"]
+            for upgrade in self.engine_upgrades
+            for entry in upgrade.revision.get("regenerated_exclusions", [])
+            if entry.get("record", {}).get("decided_on") == RULING_DATE
+        ]
+        records = sorted(current + removed, key=_key)
+        unnamed = [_key(record) for record in records if not record.get("decision")]
+        if unnamed:
+            raise ValueError(f"2026-10-06 records name no ruling: {unnamed}")
+        return records
+
+    @property
+    def ruling_date(self) -> str:
+        return RULING_DATE
+
+    @property
+    def ruled_exclusion_count(self) -> int:
+        return len(self.ruled_records)
+
+    @property
+    def ruled_exclusion_count_word(self) -> str:
+        return count_word(self.ruled_exclusion_count)
+
+    def ruled_decision_count(self, decision: str) -> int:
+        """Records one ruling (d1022 or d994) decided."""
+        return sum(record["decision"] == decision for record in self.ruled_records)
+
+    def ruled_decision_count_word(self, decision: str) -> str:
+        return count_word(self.ruled_decision_count(decision))
+
+    @property
+    def ruled_regenerated_count(self) -> int:
+        """Ruled records a later engine upgrade regenerated."""
+        current = {_key(record) for record in self.reference_exclusions}
+        return sum(_key(record) not in current for record in self.ruled_records)
+
+    @property
+    def ruled_regenerated_count_word(self) -> str:
+        return count_word(self.ruled_regenerated_count)
+
+    @property
+    def ruled_kept_count(self) -> int:
+        return self.ruled_exclusion_count - self.ruled_regenerated_count
+
+    @property
+    def ruled_kept_count_word(self) -> str:
+        return count_word(self.ruled_kept_count)
+
+    @property
+    def ruled_exclusion_engine_version(self) -> str:
+        """policyengine-us version the ruled records were computed on."""
+        versions = {record["engine_version"] for record in self.ruled_records}
+        if len(versions) != 1:
+            raise ValueError(f"the 2026-10-06 records name several engines: {versions}")
+        return engine_version_number(versions.pop())
 
     @property
     def review_exclusion_engine_version(self) -> str:
