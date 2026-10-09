@@ -234,17 +234,5 @@
       "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state."
     }
   ],
-  "upgrade_adjudications_written_on": "2026-10-09",
-  "triage_adjudications": [
-    {
-      "scenario_id": "scenario_064",
-      "variable": "state_income_tax_before_refundable_credits",
-      "adjudicated_failure_source": "llm_error",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-10-09",
-      "reference_verdict": "affirmed",
-      "reference_basis": "2025 Wisconsin Schedule WD, line 28; policyengine-us gov.states.wi.tax.income.additions.capital_loss.limit",
-      "reasoning": "The judge's reference hypothesis rests on a $500 Wisconsin limit on net capital losses. The 2025 Wisconsin Schedule WD limits a net capital loss to the smaller of the loss, $3,000 ($1,500 married filing separately) or Wisconsin ordinary income (line 28), and policyengine-us applies that $3,000 limit, so this joint return's $18,235 net capital loss adds nothing back to Wisconsin AGI. The regenerated reference stands; Claude Opus 5.5's answer applied a $500 limit."
-    }
-  ]
+  "upgrade_adjudications_written_on": "2026-10-09"
 }

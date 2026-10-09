@@ -443,9 +443,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:29:29.449067+00:00",
-   "prompt_sha256": "e5f9c3426b0cda4be510ba43e1f0dc9148ab6dec15e32704631da000ef5f70d2",
-   "verdict_sha256": "9fdc69a9a287df5ba8155a962b9c174f73f460f55a05928e40921f663d5185a1"
+   "judged_at_utc": "2026-10-09T18:32:52.788727+00:00",
+   "prompt_sha256": "d5f7f7e6ab5051bfdc5df27a613778e29adfa743d628b5734bdef3488a634e84",
+   "verdict_sha256": "6a2f8b3a2424f0eecb3af8a0fa6fffe2947c3102d7f7317fb1d7e14b303f8b23"
   },
   {
    "case_id": "us__scenario_020__federal_income_tax_before_refundable_credits",
@@ -638,9 +638,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:31:22.432921+00:00",
-   "prompt_sha256": "e00e7ce10d4f32d7981d96047c22ca2b9ed0d7336da9f81e5ef1945e46d66ee9",
-   "verdict_sha256": "2d77da2d10cf79702e7fa3e15de0b4fa5450c1a0ab6b725f4f4ba43e1df9b152"
+   "judged_at_utc": "2026-10-09T18:34:40.933531+00:00",
+   "prompt_sha256": "3c4b71b102f038ff3c9d164e0795d1f108ac0250c783458de52d06980a6d2c33",
+   "verdict_sha256": "4bbe08e82d808c0817e5c8f5048e0101441f63bd6492fefceabe73cb34c02fe9"
   },
   {
    "case_id": "us__scenario_026__child1_medicaid_eligible",
@@ -1132,9 +1132,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:32:44.090621+00:00",
-   "prompt_sha256": "4ed3f2a920aea1196cb3a314f02848fbf7b2474f1ff498763062bbd38d02cfe3",
-   "verdict_sha256": "3f9557f03e6f43636c1cdd4dcf7e02032f399e6ea24e1dc33b97e751f1e9450e"
+   "judged_at_utc": "2026-10-09T18:35:59.628502+00:00",
+   "prompt_sha256": "2c1730aa22455590cf03526bfbed9a6a0c2a33f2cc903dd5205adc5761f6ef62",
+   "verdict_sha256": "0cd1b0396319c8b5a12847afc235374257820dc3047bc1d043db973483b5c867"
   },
   {
    "case_id": "us__scenario_040__payroll_tax",
@@ -1223,9 +1223,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:33:18.249282+00:00",
-   "prompt_sha256": "21a10434fcf0c35bc9dd7ba2d1e10860eacfec594252767bb2be2e28a8667336",
-   "verdict_sha256": "d4ea87983a45686b25365662c7e50e0e0ff939c351a5fd17b3e2b0e998f085c5"
+   "judged_at_utc": "2026-10-09T18:36:41.899985+00:00",
+   "prompt_sha256": "5c453100bf56dbb03a7662fb321ddfbf2ceaaf4e1b1d12b77840c5ea3731774d",
+   "verdict_sha256": "e06651bfa881e21214841a6e66a01ab869c72e2edf245d51613e28ed9a236996"
   },
   {
    "case_id": "us__scenario_045__federal_income_tax_before_refundable_credits",
@@ -1639,9 +1639,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:35:48.592879+00:00",
-   "prompt_sha256": "590f6f9b34e3def892ea8a317ce53f977b6a7c4e96960439e10afebab8d0fcf6",
-   "verdict_sha256": "3cea3c2a2b4b2ee86adb0de6d44bfc9d11bb8b965f57472e26567371b465d83e"
+   "judged_at_utc": "2026-10-09T18:39:02.951106+00:00",
+   "prompt_sha256": "f6c40913c583a53a403540c8ef1a88bf37caac15612749479af8928364f38150",
+   "verdict_sha256": "0fb38f969bee9b4bf2758fc10bc89a32b680793d3ada65e895537222cd1887d8"
   },
   {
    "case_id": "us__scenario_064__payroll_tax",
@@ -1665,9 +1665,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:41:45.092438+00:00",
-   "prompt_sha256": "00e1f8c0d9be721acde7de113eaf1bbedfac0a92643f2ff10175eab13855bc06",
-   "verdict_sha256": "03c2169363c02688bac672569d73ece7c86d71e700ef3717c4817d1e093347ba"
+   "judged_at_utc": "2026-10-09T18:42:31.489604+00:00",
+   "prompt_sha256": "543d9f6397bbcf2d5967b0061382e3d0484d007ad9806ce15f9f7a198b34db93",
+   "verdict_sha256": "512cb0c25fe525da266ef7444c5db3e55effe5e499a861eb99c620f97620e0bb"
   },
   {
    "case_id": "us__scenario_066__federal_refundable_credits",
@@ -1912,9 +1912,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:45:33.076358+00:00",
-   "prompt_sha256": "deda91c487702cd2cb011b6310239f0913e298b1c2958b1dfb664dc9bdca6995",
-   "verdict_sha256": "c60d82b9cb0e4d375e34421b34a8f282e7b51f78430b671922e7631b7572e7e0"
+   "judged_at_utc": "2026-10-09T18:44:13.267676+00:00",
+   "prompt_sha256": "d37ad790c66a0ba9491f8f1e8a5bc247b854d6077cea89abf6ead32bdff41f22",
+   "verdict_sha256": "8e4680ae3a223014470cb19b74e864522c20ae9e4a3217b126068bb5a868960e"
   },
   {
    "case_id": "us__scenario_076__state_refundable_credits",
@@ -2159,9 +2159,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-09T15:47:25.930152+00:00",
-   "prompt_sha256": "684db8b3f10ce52e893e3742921d199856f51bd06230acd12b8b4baeb2ea44c5",
-   "verdict_sha256": "7dfb69d357f4937c31db4be3023ca6a11f06c1620a9c2cc47179b00708ad0292"
+   "judged_at_utc": "2026-10-09T18:45:31.318601+00:00",
+   "prompt_sha256": "141fa5db88c2fbaaf8d18919093c599fd4b6a84c89b20e126b2d633c1501f604",
+   "verdict_sha256": "8e7c0a866779e881e325fa6d21d217158fd3cf3c9a04ff62c852bf8469659845"
   },
   {
    "case_id": "us__scenario_083__payroll_tax",
