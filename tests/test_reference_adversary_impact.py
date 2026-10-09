@@ -9,6 +9,7 @@ sha256. It never reads the working tree's run, which later releases rewrite
 
 from __future__ import annotations
 
+import ast
 import difflib
 import gzip
 import importlib.util
@@ -17,9 +18,15 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from functools import cache
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT = ROOT / "reference_audit/2026-10-05-reference-adversary"
@@ -107,6 +114,83 @@ def test_the_pins_cover_every_file_the_script_reads(tmp_path):
     (inputs / "stray").write_text("left over\n")
     impact.pass_inputs(inputs)
     assert not (inputs / "stray").exists()
+
+
+def test_the_payload_pin_matches_the_engine_side_scripts_pins():
+    """The engine-side scripts pin the same payload (read without importing them)."""
+    for name in ("definition_conformance.py", "publication_sources.py"):
+        tree = ast.parse((AUDIT / "scripts" / name).read_text())
+        pins = [
+            node.value.value
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and [target.id for target in node.targets] == ["PAYLOAD_SHA256"]
+        ]
+        assert pins == [impact.RUN_SHA256["data.json.gz"]], name
+
+
+@cache
+def _pinned_bytes(name: str) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{PASS_COMMIT}:{impact.RUN_PATH}/{name}"],
+        capture_output=True,
+        check=True,
+    ).stdout
+
+
+@st.composite
+def _edits(draw) -> tuple[str, str, int, int]:
+    """One pinned run file and one change to its bytes: flip, cut or extend."""
+    name = draw(st.sampled_from(sorted(impact.RUN_SHA256)))
+    kind = draw(st.sampled_from(["flip", "truncate", "append"]))
+    position = draw(st.integers(0, len(_pinned_bytes(name)) - 1))
+    return name, kind, position, draw(st.integers(1, 255))
+
+
+@settings(max_examples=40, deadline=None)
+@given(_edits())
+def test_any_changed_byte_in_a_pinned_input_is_refused_unwritten(edit):
+    """Invariant: git_input writes a file only if its bytes are the pinned bytes."""
+    name, kind, position, byte = edit
+    original = _pinned_bytes(name)
+    if kind == "flip":
+        changed = bytearray(original)
+        changed[position] ^= byte
+        tampered = bytes(changed)
+    elif kind == "truncate":
+        tampered = original[:position]
+    else:
+        tampered = original + bytes([byte])
+    shown = SimpleNamespace(
+        run=lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 0, stdout=tampered, stderr=b""
+        )
+    )
+    with tempfile.TemporaryDirectory() as directory:
+        target = Path(directory) / name
+        with mock.patch.object(impact, "subprocess", shown):
+            with pytest.raises(SystemExit, match="not the pinned"):
+                impact.git_input(
+                    PASS_COMMIT,
+                    f"{impact.RUN_PATH}/{name}",
+                    impact.RUN_SHA256[name],
+                    target,
+                )
+            assert not target.exists()
+            # The unchanged bytes pass the same check.
+            unchanged = SimpleNamespace(
+                run=lambda *args, **kwargs: subprocess.CompletedProcess(
+                    args[0], 0, stdout=original, stderr=b""
+                )
+            )
+            with mock.patch.object(impact, "subprocess", unchanged):
+                impact.git_input(
+                    PASS_COMMIT,
+                    f"{impact.RUN_PATH}/{name}",
+                    impact.RUN_SHA256[name],
+                    target,
+                )
+        assert target.read_bytes() == original
 
 
 @pytest.mark.parametrize(
