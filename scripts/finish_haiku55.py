@@ -789,6 +789,16 @@ def build_release_exclusions(base: dict, spec: dict) -> dict:
         not existing & {spec_key(record) for record in new},
         "a ruled output is already excluded",
     )
+    by_key = {spec_key(record): record for record in new}
+    for edit in spec.get("record_edits", []):
+        record = by_key.get(spec_key(edit))
+        require(record is not None, f"no ruled record for edit {spec_key(edit)}")
+        text = record[edit["field"]]
+        require(
+            text == edit["replace"],
+            f"{spec_key(edit)} {edit['field']} is not the text the edit replaces",
+        )
+        record[edit["field"]] = edit["with"]
     doc["exclusions"] = doc["exclusions"][:-1] + new + [tail]
     insert = spec["derivation_insert"]
     require(
@@ -924,7 +934,7 @@ def exclusion_entry(
     return entry
 
 
-def exclusion_adjudications(record: dict, entries: list[dict], cases_dir: Path) -> dict:
+def exclusion_adjudications(record: dict, cases_dir: Path) -> dict:
     """``record`` (the staged adjudication record) with the ruled outputs
     decided: an existing entry is restated in place, a new one appended in the
     spec's order, and the date conventions name the 2026-10-06 wave."""
@@ -993,7 +1003,7 @@ def adjudicate_exclusions(args) -> None:
         ),
         "the ruled outputs are already decided in the staged record",
     )
-    staged = exclusion_adjudications(record, [], args.stage_dir / "audit" / "cases")
+    staged = exclusion_adjudications(record, args.stage_dir / "audit" / "cases")
     parse_adjudications(staged, path)
     path.write_text(record_text(staged))
     print(f"Decided {NEW_EXCLUSIONS} ruled outputs in {path}")
@@ -1207,7 +1217,7 @@ def ruled_adjudication_problems(
             # wrote. Outside the judge fields it must be 20261006's entry.
             staged = after[case]
             pre = {
-                name: base.get(name, value)
+                name: value if name in JUDGE_FIELDS else base[name]
                 for name, value in staged.items()
                 if name in base or name in JUDGE_FIELDS
             }
@@ -1783,7 +1793,8 @@ def reworded_since_seed() -> frozenset[str]:
         )
         frame = pd.read_csv(io.BytesIO(result.stdout), dtype=str, keep_default_na=False)
         return {
-            (row.scenario_id, row.variable): tuple(row) for row in frame.itertuples()
+            (row.scenario_id, row.variable): tuple(row)
+            for row in frame.itertuples(index=False)
         }
 
     before = explanations(SEED_RELEASE_COMMIT)
@@ -2487,10 +2498,13 @@ def build_payload(
 def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
     if not args.partial:
-        verify_reference_pins(SNAPSHOT, "committed reference")
+        # After the freeze the pointer and committed record are this release's.
+        release = release_exclusions_sha256()
+        frozen = live_pointer()["tag"] == RELEASE_TAG
         verify_reference_pins(
-            bundle / "us", "staged reference", release_exclusions_sha256()
+            SNAPSHOT, "committed reference", release if frozen else None
         )
+        verify_reference_pins(bundle / "us", "staged reference", release)
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
         verify_judge_provenance(

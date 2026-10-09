@@ -158,5 +158,39 @@
       "reasoning": "The frozen reference is 3,070.06; the alternative is 4,451.56. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     }
   ],
-  "snapshot_date": "2026-10-09"
+  "snapshot_date": "2026-10-09",
+  "record_edits": [
+    {
+      "scenario_id": "scenario_018",
+      "variable": "state_income_tax_before_refundable_credits",
+      "field": "upstream",
+      "replace": "to be filed",
+      "with": "PolicyEngine/policyengine-us#9928",
+      "source": "merged 2026-10-09; regenerating the reference waits for a release with an engine bump (d1022)"
+    },
+    {
+      "scenario_id": "scenario_025",
+      "variable": "state_income_tax_before_refundable_credits",
+      "field": "upstream",
+      "replace": "to be filed",
+      "with": "PolicyEngine/policyengine-us#10020; related: PolicyEngine/policyengine-us#9925",
+      "source": "#9925 (merged 2026-10-09) fixes a related double count; #10020 (open) counts the premiums this record names"
+    },
+    {
+      "scenario_id": "scenario_043",
+      "variable": "state_refundable_credits",
+      "field": "upstream",
+      "replace": "to be filed",
+      "with": "PolicyEngine/policyengine-us#9946",
+      "source": "merged 2026-10-09; regenerating the reference waits for a release with an engine bump (d1022)"
+    },
+    {
+      "scenario_id": "scenario_082",
+      "variable": "state_refundable_credits",
+      "field": "upstream",
+      "replace": "to be filed",
+      "with": "PolicyEngine/policyengine-us#9948",
+      "source": "merged 2026-10-09; regenerating the reference waits for a release with an engine bump (d1022)"
+    }
+  ]
 }
