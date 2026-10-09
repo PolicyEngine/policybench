@@ -1,0 +1,58 @@
+{
+  "ambiguity": "The prompt does not say what \"financial assistance\" is. If it means public assistance payments, school grants or scholarships, or \"support money,\" Form 538-S counts it, gross household income becomes $50,312, and the credit is $0 (the consensus answer). If it were TANF, the head would be ineligible outright. Those readings conflict with the prompt's rules that benefit receipt may not be inferred and that student status defaults to false. They are also weaker than reading it as voluntary private help, which the regulation excludes as a gift. Separately, I could not open the OTC's 2026 legislative summary PDF, so I could not directly confirm that no 2026 law changed the $40 amount or the $20,000 limit.",
+  "citations": [
+    {
+      "pinpoint": "Definition of Gross Household Income",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "\"Gross Household Income\" does not include gifts, or income that is considered deferred.",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Income limits, tax year 2005 and subsequent years",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "For those taxpayers that can claim no allowable personal exemption other than themselves or their spouse, Gross Household Income cannot exceed Twenty Thousand Dollars ($20,000.00).",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Credit amount",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "The credit is forty dollars ($40.00) multiplied by the number of allowable personal exemptions",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Instructions, total gross household income",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "includes, but is not limited to, public assistance payments, support money (example: child support), workmen's compensation, school grants or scholarships",
+      "source": "Oklahoma Tax Commission, Form 538-S Claim for Credit/Refund of Sales Tax (2025), instructions (text taken from a search-result excerpt; the PDF would not open)",
+      "url": "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/538-S.pdf"
+    },
+    {
+      "pinpoint": "Summary of HB 2764",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "Reduces the top personal income tax rate from 4.75% to 4.5% beginning in tax year 2026",
+      "source": "Oklahoma State Senate press release on HB 2764 (2025 tax plan)",
+      "url": "https://oksenate.gov/press-releases/oklahoma-legislature-sends-comprehensive-tax-cuts-and-modernization-plan-governor"
+    },
+    {
+      "pinpoint": "Overview",
+      "pre_freeze": true,
+      "published": "2025-12-18",
+      "quote": "a rebate of $40 per household member",
+      "source": "Oklahoma Policy Institute, Sales Tax Relief Credit (secondary source, used only to check the 2026 amount)",
+      "url": "https://okpolicy.org/sales-tax-relief-credit/"
+    }
+  ],
+  "computation": "1) Which Oklahoma credits are refundable: the Sales Tax Relief Credit (68 O.S. \u00a7 5011, claimed on Form 538-S) and the Oklahoma earned income credit, which is 5% of the federal EITC.\n2) Earned income credit: the head has no wages or self-employment income, so the federal EITC is $0. A 21-year-old with no child also falls below the age-25 minimum for the federal childless EITC. 5% \u00d7 $0 = $0.\n3) Sales Tax Relief Credit eligibility (OAC 710:50-15-96): the head lives in Oklahoma all year. Facts left unlisted default to false, so the head did not receive TANF, is not an inmate, is not an alien with temporary status, and is not anyone else's dependent. The head is 21, has no dependents and no disability, so the lower limit applies: gross household income cannot exceed $20,000.\n4) Gross household income: the regulation defines it as \"the gross income of every type received by all persons occupying the same household,\" taxable or not, and says it \"does not include gifts, or income that is considered deferred.\" Taxable interest of $312 counts. Bank and stock balances are assets, not income. The prompt does not call the $50,000 \"financial assistance\" a public benefit, a scholarship or support owed under a legal obligation. Benefit receipt may not be inferred, and student status defaults to false. In income surveys, \"financial assistance\" normally means voluntary help from relatives or friends outside the household, which is a gift. Gifts are excluded, so gross household income is $312, well under $20,000.\n5) Credit = $40 \u00d7 allowable personal exemptions = $40 \u00d7 1 (single filer) = $40.\n6) Is the rule still in force for 2026: the $40 amount and the $20,000/$50,000 limits have applied since tax year 2005. HB 2764 (2025) changed only income tax rates and brackets for 2026. SB 72 (2025, which would raise the credit to $200) and SB 227 (which would repeal it) were bills; I found no sign either was enacted. The Oklahoma Policy Institute page, updated 2025-12-18, still describes the credit as $40 with $20,000/$50,000 limits. I could not open the OTC's 2026 legislative summary PDF, so I could not confirm directly that no 2026 law changed the credit.\nTotal Oklahoma refundable credits = $40 + $0 = $40.",
+  "confidence": "medium",
+  "definition_reading": "The household is one person filing one Oklahoma resident return. I read \"total refundable state individual income tax credits\" as all refundable Oklahoma credits on that return: the Sales Tax Relief Credit (Form 538-S) plus the refundable earned income credit. The EITC is $0. The Sales Tax Relief Credit is $40 for one exemption, because the $50,000 \"financial assistance\" is read as private help, which is a gift and excluded from gross household income.",
+  "independent_answer": 40,
+  "law_supports": "reference"
+}

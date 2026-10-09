@@ -1,0 +1,58 @@
+{
+  "ambiguity": "If calendar 2026 is computed month by month with the law actually in force, October\u2013December 2026 fall under the FY2027 COLA ($808 maximum for 3, $217 standard deduction). That COLA was published about 2026-08-21, after the freeze. That reading gives 9\u00d7$505 + 3\u00d7$531 = $6,138, which matches neither the reference nor the consensus. No reading supports the consensus $6,068.40, because 7 CFR 273.10(e)(2)(ii)(A) requires whole-dollar rounding either way.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(A)",
+      "pre_freeze": true,
+      "published": "in force; longstanding",
+      "quote": "If 30 percent of the household's net income ends in cents, the State agency shall round in one of the following ways: (1) The State agency shall round the 30 percent of net income up to the nearest higher dollar; or (2) ... the State agency shall round the allotment down to the nearest lower dollar.",
+      "source": "7 CFR 273.10 (Code of Federal Regulations, USDA FNS SNAP regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(1)(i)",
+      "pre_freeze": true,
+      "published": "in force; longstanding",
+      "quote": "Multiply the total gross monthly earned income by 20 percent and subtract that amount from the total gross income",
+      "source": "7 CFR 273.10 (Code of Federal Regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Maximum allotments and standard deduction tables (48 States & DC); read via search-result summary because the PDF returned 403",
+      "pre_freeze": true,
+      "published": "2025 (effective 2025-10-01)",
+      "quote": "the standard deduction for household sizes 1 through 3 is $209 a month ... maximum allotment for a household size of 3 in the 48 States and D.C. is $785",
+      "source": "USDA FNS, SNAP \u2014 Fiscal Year 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "Expanded (200%) categorical eligibility criteria; resource test; read via search-result summary because the PDF would not parse",
+      "pre_freeze": true,
+      "published": "2024-10",
+      "quote": "the income of the household is at or below the 200% maximum allowable gross income limit ... the household automatically passes the resource test",
+      "source": "NC DHHS Food and Nutrition Services Manual, FNS 220 Categorical Eligibility",
+      "url": "https://policies.ncdhhs.gov/wp-content/uploads/FNS-220-Categorical-Eligibility-10.2024.pdf"
+    },
+    {
+      "pinpoint": "Self-employment, allowable costs of doing business (315.28); read via search-result summary",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Deductions from self-employment income must be allowable (reasonable to the cost of doing business).",
+      "source": "NC DHHS Food and Nutrition Services Manual, FNS 315 Special Budgeting Income (self-employment)",
+      "url": "https://policies.ncdhhs.gov/wp-content/uploads/fns-315-special-budgeting-income.pdf"
+    },
+    {
+      "pinpoint": "Maximum allotment for size 3; standard deduction for sizes 1\u20133 (read via secondary summary)",
+      "pre_freeze": false,
+      "published": "2026-08-21 (effective 2026-10-01)",
+      "quote": "The standard deduction for household sizes 1 through 3 will increase to $217 ... 3 $808",
+      "source": "USDA FNA, SNAP \u2014 Fiscal Year 2027 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    }
+  ],
+  "computation": "1) SNAP household = Head (40) + Child 1 (10) + Child 2 (2) = 3 people, all living together.\n2) Income: The only income is $17,100 of self-employment income. NC subtracts only actual allowable business costs (FNS 315), and none are listed, so countable gross = $17,100/12 = $1,425/month. WIC is not counted as income.\n3) Eligibility: NC expanded (200% FPL) categorical eligibility lets the household pass the resource test automatically, so the $14,000 bank balance is disregarded. $1,425 is under 200% FPL and also under the 130% gross limit for 3 (about $2,888 in FY2026).\n4) Net income (7 CFR 273.10(e)(1)(i)): the 20% earned-income deduction is $285, leaving $1,140. The FY2026 standard deduction for 1\u20133 people is $209, leaving $931. There is no medical deduction because no one is elderly or disabled, so the children's medical/OTC costs and Head's OTC costs don't count. There is no dependent-care or child-support deduction and no shelter or utility deduction, because no rent or utilities are listed.\n5) Allotment (7 CFR 273.10(e)(2)(ii)(A)): the FY2026 maximum for 3 people is $785. 30% \u00d7 $931 = $279.30. Under option (1) it rounds up to $280, so 785 \u2212 280 = $505. Under option (2), 785 \u2212 279.30 = $505.70 rounds down to $505. Either way the benefit is $505/month.\n6) Annual: $505 \u00d7 12 = $6,060.\nThe consensus figure of $6,068.40 skips the mandatory whole-dollar rounding.\nPublication timing: The FY2026 COLA (max $785, standard deduction $209, effective 10/1/2025\u20139/30/2026) was published before the 2026-07-03 freeze. The FY2027 COLA (max $808, standard deduction $217 for 1\u20133 people, effective 10/1/2026) is dated about 2026-08-21, after the freeze. Before the freeze, only FY2026 amounts had been published. Applying FY2027 to Oct\u2013Dec 2026: net income = 1425 \u2212 285 \u2212 217 = 923; 30% = 276.90, rounded to 277; 808 \u2212 277 = $531. Calendar-year total = 9\u00d7505 + 3\u00d7531 = $6,138.",
+  "confidence": "high",
+  "definition_reading": "The output is the annual SNAP allotment for the single 3-person SNAP household (Head plus two children): the monthly allotment under federal rules as NC applies them, times 12. I used the parameters published as of the 2026-07-03 freeze (FY2026 COLA) for all 12 months. All three people are in one SNAP household, so only one benefit is covered.",
+  "independent_answer": 6060,
+  "law_supports": "reference"
+}

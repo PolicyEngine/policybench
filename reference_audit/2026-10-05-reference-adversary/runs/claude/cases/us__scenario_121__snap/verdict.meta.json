@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.44126020000000005,
+  "duration_ms": 76769,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T04:05:22.200914+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "5ed3444605e291efc7225d3fc02fb5e25345b2598f77adaf055367d16a536384",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "17b48bbef226362e22b8a0224bfcd09299ccb1dbd9260952cf21c8c6914e10cd",
+  "session_id": "b865043b-3854-4681-849b-d8d1fc1d9e28",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "1e580d655092156ea2fde85e80e9aed370af96feec2baecafc09f3688582dd22",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/271.2",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.ssa.gov/oact/cola/sga.html",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://ballotpedia.s3.amazonaws.com/images/c/c4/Snap-cola-fy26memo-Aug13-2025-2.pdf"
+    ],
+    "searches": [
+      "SSA 2026 substantial gainful activity amount non-blind $1,690 per month",
+      "FNS SNAP FY 2026 cost-of-living adjustment maximum allotment one person $298 gross income limit $1,696",
+      "South Carolina DSS SNAP income limits October 1, 2025 household of 1 $1,696 gross"
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "ambiguity": "There is one second reading. Head is a disabled surviving spouse receiving Social Security at 61, an age at which old-age benefits are not payable because they require age 62. A reader could infer that the payments are actually widow(er)'s benefits based on disability, paid for 24 or more months. Under 426(b)(2)(A)(iii) and 426(e), that would give Medicare eligibility, so the flag would be 1. That reading needs inferences the prompt rules out: the 24-month duration, an SSA disability determination, and a benefit type other than the listed \"retirement income.\" Separately, reading \"is disabled\" alone as qualifying, as the consensus did, has no support in the statute.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7426(b)(1)-(2)(A)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "Every individual who\u2014(1) has not attained age 65, and (2)(A) is entitled to, and has for 24 calendar months been entitled to, (i) disability insurance benefits under section 423 of this title or (ii) child's insurance benefits under section 402(d) of this title by reason of a disability or (iii) widow's insurance benefits under section 402(e) of this title or widower's insurance benefits under section 402(f) of this title by reason of a disability",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226), Entitlement to hospital insurance benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7426(a)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "Every individual who\u2014(1) has attained age 65, and (2)(A) is entitled to monthly",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7426(e)(1)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "For purposes of determining entitlement to hospital insurance benefits under subsection (b) in the case of widows and widowers described in paragraph (2)(A)(iii) thereof\u2014(i) the term 'age 60' ... shall be deemed to read 'age 65'",
+      "source": "42 U.S. Code \u00a7 426 (Social Security Act \u00a7226)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7406.12(a)",
+      "pre_freeze": true,
+      "published": "current CFR (in force before 2026)",
+      "quote": "An individual under age 65 is entitled to hospital insurance benefits if, for 25 months, he or she has been\u2014",
+      "source": "42 CFR \u00a7 406.12, Individual under age 65 who is entitled to social security or railroad retirement disability benefits",
+      "url": "https://www.law.cornell.edu/cfr/text/42/406.12"
+    },
+    {
+      "pinpoint": "\u00a7402(a); \u00a7402(e)(1)(B)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "has attained age 62",
+      "source": "42 U.S. Code \u00a7 402 (Social Security Act \u00a7202)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/402"
+    },
+    {
+      "pinpoint": "Medicare basics overview",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Medicare is health insurance for people 65 or older who meet citizenship or residency requirements. You may be eligible to get Medicare earlier if you have a disability, End-Stage Renal Disease (ESRD), or ALS",
+      "source": "Medicare.gov, Get started with Medicare (CMS)",
+      "url": "https://www.medicare.gov/basics/get-started-with-medicare"
+    }
+  ],
+  "computation": "1. Age route, 42 U.S.C. 426(a): Part A entitlement requires that the person \"has attained age 65.\" Head is 61, so this route does not apply. Premium Part A under \u00a71818 also has an age-65 requirement, so it does not apply either.\n2. Disability route, 42 U.S.C. 426(b) and 42 CFR 406.12: a person under 65 qualifies only after being entitled to Social Security disability benefits for 24 calendar months, with coverage starting in the 25th month. The benefits can be paid as an insured worker (SSDI under \u00a7423), as a disabled adult child (\u00a7402(d)), or as a disabled widow(er) (\u00a7402(e)/(f)). The prompt lists no Social Security disability benefits, so under its conventions that amount is 0. It also says nothing about any 24 months of entitlement, and an unlisted status is treated as false. The only Social Security income listed is \"Social Security retirement income.\" The flag \"is disabled\" alone does not create Medicare entitlement. The statute requires entitlement to disability-based benefits for 24 months, not just having a disability.\n3. Disabled-widow special rules, 426(e)(1)\u2013(2): these let a disabled surviving spouse aged 60\u201364 count as entitled to widow(er)'s benefits \"based on a disability.\" They still depend on the 24-month entitlement in 426(b)(2)(A)(iii). The prompt states neither an SSA disability determination nor a 24-month period, and it says not to infer benefit receipt.\n4. ESRD (\u00a7426-1) and ALS (\u00a7426(h)): neither condition is listed, so both are false.\n5. Result: Head is not eligible for Medicare, so the flag is 0. Medicare eligibility rules are permanent statute and regulation, so no 2026-specific parameter is involved.",
+  "confidence": "medium",
+  "definition_reading": "I read \"eligible for Medicare\" as entitlement to Medicare (Part A) under SSA \u00a7226: age 65 or older, or under 65 with 24 months of entitlement to Social Security disability-based benefits, or ESRD, or ALS. The output covers only Head. Head is 61, has no Social Security disability benefits listed, and has no stated 24-month entitlement period, ESRD or ALS. Under the prompt's conventions, unlisted benefit receipt and statuses are zero or false. So Head is not eligible, and the flag is 0.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}

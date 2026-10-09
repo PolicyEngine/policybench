@@ -1,0 +1,65 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.6756678,
+  "duration_ms": 186318,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:16:10.482177+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "0f47256b9a41d0d8e764801949862c7dcded61873361c9d21c187c64f12a0ab1",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "72f06af0ff10d2c1f82a513ea159a9aadd687b6c5e2244142b14767947452fb0",
+  "session_id": "8309742c-bb15-4853-b8cf-8a5025903466",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.revisor.mn.gov/statutes/cite/124D.111",
+      "https://www.revisor.mn.gov/statutes/cite/124D.111",
+      "https://www.revisor.mn.gov/statutes/cite/124D.111",
+      "https://www.cbsnews.com/minnesota/news/free-school-lunch-program-bill-budget-cuts/",
+      "https://education.mn.gov/mdeprod/idcplg?IdcService=GET_FILE&dDocName=prod083811&RevisionSelectionMethod=latestReleased&Rendition=primary",
+      "https://education.mn.gov/mdeprod/idcplg?IdcService=GET_FILE&dDocName=PROD081146&RevisionSelectionMethod=latestReleased&Rendition=primary",
+      "https://www.mprnews.org/story/2026/09/22/minnesotas-universal-school-meals-program-draws-more-students-eases-family-costs",
+      "https://www.federalregister.gov/documents/2025/03/13/2025-03821/child-nutrition-programs-income-eligibility-guidelines",
+      "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml",
+      "https://www.federalregister.gov/documents/full_text/xml/2025/03/13/2025-03821.xml"
+    ],
+    "searches": [
+      "Minnesota free school meals program 2026 legislative session universal meals change",
+      "Minnesota Department of Education free school meals program 2026-27 all students no cost",
+      "Minnesota legislature 2026 session school meals universal free lunch kept OR cut final education bill May 2026",
+      "\"universal school meals\" Minnesota 2026 session ends",
+      "Child Nutrition Programs Income Eligibility Guidelines July 1, 2025 through June 30, 2026 Federal Register free meals 130 percent",
+      "Child Nutrition Programs Income Eligibility Guidelines July 1, 2026 through June 30, 2027",
+      "2026 HHS poverty guidelines 48 contiguous states household of 3"
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.5811888000000001,
+  "duration_ms": 146938,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:44:36.249365+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "aa244804ec6321a5cde10b9fa4cc96fdb45f4cbae79345d6b4073ab24ad43e60",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "11632607ccc1d8bb66867cfaac96e459a5f7ef5a7c183bdeae3f19c402dc75b0",
+  "session_id": "f3cd0bba-f0d8-4a63-8428-c2f9c9fb046d",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "e61bb0baaf6966f9a2023b19dfc441bf54719a72207c384278ad8b539bc48145",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.html",
+      "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.pdf",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17052",
+      "https://leginfo.legislature.ca.gov/faces/billNavClient.xhtml?bill_id=202520260AB398",
+      "https://www.ftb.ca.gov/file/personal/credits/caleitc/eligibility-and-credit-information.html",
+      "https://www.law.cornell.edu/uscode/text/26/32"
+    ],
+    "searches": [
+      "2025 CalEITC table no qualifying children 22,501 22,550 credit FTB 3514",
+      "FTB 2026 tax year indexing CalEITC earned income limit inflation June 2026 3.4%",
+      "2026 Budget Act California earned income tax credit adjustment factor 85 percent 2026 taxable year",
+      "AB 398 2025 California earned income tax credit bill status minimum credit",
+      "2026-27 California budget CalEITC change trailer bill 2026 young child tax credit"
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "ambiguity": "There are two other readings. First, the output could mean only the federal NSLP free-meal tier: income at or below 130% of the poverty line, or categorical eligibility through SNAP, TANF or FDPIR receipt. On that reading the household, at about 156% of the poverty line with no SNAP or TANF, is federally reduced-price only and the answer is 0, the consensus value. But the definition asks about free meal support the household actually receives, and Minnesota law makes the meal free to the student, so I think the federal-tier-only reading is the weaker one. Second, the prompt never says the child is enrolled in school, and Minnesota's compulsory attendance age is 7. Every model treated the 6-year-old as a school-age student, and I do the same. If the child were treated as not enrolled, the answer would be 0 under either reading.",
+  "citations": [
+    {
+      "pinpoint": "Subd. 1c(d)(2)",
+      "pre_freeze": true,
+      "published": "2025 (as amended by 1Sp2025 c 10 art 9 ss 1-4)",
+      "quote": "provide to all students at no cost up to two federally reimbursable meals per school day, with a maximum of one free breakfast and one free lunch.",
+      "source": "Minnesota Statutes \u00a7 124D.111 (2025 Minnesota Statutes), Free school meals program",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Subd. 1c(b)",
+      "pre_freeze": true,
+      "published": "2025 (as amended by 1Sp2025 c 10 art 9 ss 1-4)",
+      "quote": "must participate in the free school meals program.",
+      "source": "Minnesota Statutes \u00a7 124D.111 (2025 Minnesota Statutes)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Subd. 1d",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "the difference between the applicable federal reimbursement rate at that school site for a free meal ... and the actual federal reimbursement received by the participating school.",
+      "source": "Minnesota Statutes \u00a7 124D.111 (2025 Minnesota Statutes), Free school meals program aid amount",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Supplementary information / income eligibility chart",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively, and by rounding the result upward to the next whole dollar.",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines (July 1, 2026 - June 30, 2027), Federal Register doc. 2026-06842",
+      "url": "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml"
+    },
+    {
+      "pinpoint": "Income eligibility chart, 48 contiguous states, household size 3",
+      "pre_freeze": true,
+      "published": "2025-03-13",
+      "quote": "Free Meals (130%): $34,645 ... Reduced Price Meals (185%): $49,303 (household of 3)",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines (July 1, 2025 - June 30, 2026), Federal Register doc. 2025-03821",
+      "url": "https://www.federalregister.gov/documents/full_text/xml/2025/03/13/2025-03821.xml"
+    },
+    {
+      "pinpoint": "48 contiguous states table, household of 3",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "3 ... $27,320",
+      "source": "HHS, Annual Update of the HHS Poverty Guidelines (2026)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "computation": "1) Household size for school meals is 3: the head, the spouse and the 6-year-old child. Countable gross income is $29,000 in wages plus $13,664 in Social Security, for $42,664.\n2) Federal NSLP income test: free meals are capped at 130% of the poverty guideline and reduced-price meals at 185%. The FNS guidelines are the poverty guideline times 1.30 or 1.85, rounded up. For SY2025-26 (2025 guideline), the household-of-3 limits are $34,645 (free) and $49,303 (reduced). For SY2026-27, the 2026 HHS guideline for 3 is $27,320, so the limits are $35,516 and $50,542. $42,664 is about 156% of the 2026 guideline. That is above the free limit and below the reduced-price limit, so on the federal income test alone the child falls in the reduced-price category.\n3) Federal categorical (direct-certification) route: none applies. No SNAP, TANF or FDPIR receipt is listed. SNAP works out to $0: monthly gross is about $3,555; after the $209 standard deduction and the 20% earned-income deduction, net income is about $2,863; 30% of that (about $859) exceeds the $785 maximum allotment for 3, and there is no rent. MFIP/TANF fails because the $11,300 in assets exceeds MFIP's $10,000 limit, and income is also high.\n4) Minnesota law decides the answer. Minn. Stat. \u00a7 124D.111, subd. 1c, requires every school in the National School Lunch Program to join the state free school meals program, or the federal Community Eligibility Provision (CEP) if it qualifies. Participating schools must \"provide to all students at no cost\" one breakfast and one lunch per school day. Under subd. 1d, the state pays the gap between the federal free rate and the federal reimbursement the school actually receives, so a child in the reduced-price or paid category still eats free. The 2025 version (amended 1Sp2025 c 10) keeps this. A 2025 bill (HF 2201) would have capped free lunch at 500% of the poverty line; I found no record that it passed. Even under that cap, this household at about 156% would still get free meals.\n5) The 6-year-old is school-age, so the household receives positive free school meal support in tax year 2026, in both SY2025-26 and SY2026-27. Result: 1.",
+  "confidence": "high",
+  "definition_reading": "I read the output as whether the household receives free (no-cost) school meals for its school-age child in Minnesota during 2026, counting the free tier and not reduced-price. Minn. Stat. \u00a7 124D.111, subd. 1c, requires NSLP schools to serve breakfast and lunch to all students at no cost. So the 6-year-old receives free meals and the output is 1, even though the federal income test alone (about 156% of the poverty line) would place the child in the reduced-price tier.",
+  "independent_answer": 1,
+  "law_supports": "reference"
+}

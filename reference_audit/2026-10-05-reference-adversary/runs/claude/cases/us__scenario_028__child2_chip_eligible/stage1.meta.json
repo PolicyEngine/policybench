@@ -1,0 +1,72 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.0371644000000002,
+  "duration_ms": 191316,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:01:44.929453+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "8cb9c5ea33f05701efa349b764c49612b0b5ecad2226a759546ae9066565bcbb",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "81c9fd7764f8998fc82ddcc107439a3b43598b7a3e3c655bbe95c307801c9442",
+  "session_id": "e6e97ec1-bc2a-411f-9bb7-c3e2eebf7abb",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/uscode/text/42/1397jj",
+      "https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-D/part-457/subpart-C/section-457.310",
+      "https://www.law.cornell.edu/cfr/text/42/457.310",
+      "https://www.pa.gov/agencies/dhs/resources/chip/faq-chip/faq-about-chip",
+      "https://www.pa.gov/agencies/dhs/resources/chip/about-chip/what-is-chip",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/1921/0/0284..HTM",
+      "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/docs/publications/documents/2023-medicaid-state-plan/chip-current-state-plan.pdf",
+      "https://www.medicaid.gov/sites/default/files/CHIP/Downloads/PA/PA-19-0001-CHIP.pdf",
+      "https://www.capbluecross.com/wps/portal/cap/home/shop/chip/eligibility",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/chip/eligibility-and-benefits/documents/2026-03-01-chip-fpig.pdf",
+      "https://www.pa.gov/agencies/dhs/resources/chip/eligibility-and-benefits",
+      "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/chip/eligibility-and-benefits/documents/chip-enrollment-and-benefits-handbook.pdf",
+      "https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/chip/eligibility-and-benefits/documents/2026-03-01-chip-income-guideline-chart.pdf",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/PDF/1921/0/0284..PDF",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2013/0/0074..HTM",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2013/0/0074..HTM",
+      "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2013/0/0074..HTM"
+    ],
+    "searches": [
+      "Pennsylvania CHIP eligibility \"not covered\" private health insurance 40 P.S. 991.2311 eligible child",
+      "Insurance Company Law Article XXIII \"Section 2311\" eligibility children's health insurance \"health insurance plan\" \"self-insured plan\" Pennsylvania",
+      "\"Comprehensive Health Care for Uninsured Children\" \"2303-A\" OR \"2302-A\" eligibility \"not covered by a health insurance plan\"",
+      "Pennsylvania CHIP income guidelines 2026 free CHIP low cost family of 4 pa.gov dhs",
+      "pa.gov CHIP \"income guidelines\" 2026 chip-fpig",
+      "Pennsylvania 40 P.S. 991.2301-A definitions \"uninsured\" child \"health insurance coverage\" CHIP statute eligibility"
+    ]
+  }
+}

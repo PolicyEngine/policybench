@@ -1,0 +1,78 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.8802442,
+  "duration_ms": 1667230,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:42:08.527890+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "e4473b1b2122f214adf8b7583acaa4a574018d6794c20bcb421bba6241b856d6",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "b32480119709658b967077e4b55132e16fffdee98d6c844c1f35a519c4685ee2",
+  "session_id": "4198231f-cec7-486a-a0f2-bc1487aac85e",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-339.8/",
+      "https://lis.virginia.gov/bill-details/20261/HB372/text/HB372",
+      "https://law.justia.com/codes/virginia/title-58-1/chapter-3/section-58-1-339-8/",
+      "https://www.tax.virginia.gov/low-income-individuals-credit",
+      "https://www.tax.virginia.gov/news/virginias-new-refundable-earned-income-tax-credit-what-you-need-know",
+      "https://www.tax.virginia.gov/sites/default/files/inline-files/2026-legislative-summary.pdf",
+      "https://www.tax.virginia.gov/sites/default/files/inline-files/2025-legislative-summary.pdf",
+      "https://www.tax.virginia.gov/laws-rules-decisions/legislative-summaries/26-82",
+      "https://budget.lis.virginia.gov/amendment/2025/1/HB1600/Introduced/CR/4-14/3c/",
+      "https://taxcreditsforworkersandfamilies.com/state/virginia/",
+      "https://budget.lis.virginia.gov/amendment/2025/1/HB1600/Introduced/CR/4-14/3c/",
+      "https://budget.lis.virginia.gov/amendment/2025/1/HB1600/Introduced/CR/4-14/3c/",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title26-section32&num=0&edition=prelim",
+      "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/pdf/USCODE-2024-title26-subtitleA-chap1-subchapA-partIV-subpartC-sec32.pdf",
+      "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/pdf/USCODE-2024-title26-subtitleA-chap1-subchapA-partIV-subpartC-sec32.pdf",
+      "https://codes.findlaw.com/us/title-26-internal-revenue-code/26-usc-sect-32.html",
+      "https://law.lis.virginia.gov/vacode/58.1-339.8/",
+      "https://law.lis.virginia.gov/vacode/58.1-339.8/",
+      "https://prd-tax.virginiainteractive.org/news/virginias-new-refundable-earned-income-tax-credit-what-you-need-know",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.currentfederaltaxdevelopments.com/blog/2025/10/9/2026-inflation-adjustments-for-tax-professionals-revenue-procedure-2025-32-analysis"
+    ],
+    "searches": [
+      "Virginia Code 58.1-339.8 refundable earned income tax credit 20 percent taxable years",
+      "Virginia 2026 refundable earned income tax credit 20 percent federal EITC tax.virginia.gov",
+      "Virginia refundable EITC 20 percent \"January 1, 2025\" \"January 1, 2027\" Chapter 2025 Acts of Assembly",
+      "Rev. Proc. 2025-32 earned income credit 2026 no qualifying children earned income amount maximum credit investment income",
+      "26 U.S.C. 32(b)(1) \"No qualifying children\" \"7.65\" credit percentage phaseout percentage",
+      "Virginia refundable earned income tax credit extended through taxable year 2029 2026 General Assembly 20 percent"
+    ]
+  }
+}

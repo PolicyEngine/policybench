@@ -1,0 +1,50 @@
+{
+  "ambiguity": "There is no real ambiguity in the definition. The models' $3,255.03 comes from using the 2025 rate schedule, which SB 392 superseded before the freeze. Two smaller variations exist. If the $14,717 of ESI premiums were treated as a pre-tax reduction of wages, taxable income would fall to $70,211 and tax to about $2,418. Nothing in the prompt supports that, since gross wages are given as listed. Using a $50-bracket tax table, as on the actual form, would give about $3,092.07, a difference of cents.",
+  "citations": [
+    {
+      "pinpoint": "\u00a711-21-4j(a), rate schedule for single, head of household, joint returns and estates/trusts; top bracket",
+      "pre_freeze": true,
+      "published": "2026-03-14 (passed); signed 2026-03-31; effective 2026-06-12",
+      "quote": "For taxable years beginning on and after January 1, 2026, the tax imposed by \u00a711-21-3 ... Over $60,000 $1,950.50 plus 4.58% of excess over $60,000",
+      "source": "West Virginia Legislature, Enrolled Committee Substitute for Senate Bill 392 (2026 Regular Session), W. Va. Code \u00a711-21-4j",
+      "url": "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392"
+    },
+    {
+      "pinpoint": "Effective date and 2026 Tax Rate Schedule",
+      "pre_freeze": true,
+      "published": "2026 (before 2026-06-12, per its 'will be codified' wording)",
+      "quote": "Effective June 12, 2026, W. Va. Code \u00a7 11-21-4j will be codified to reflect a 5% income tax cut for all West Virginians retroactive to January 1, 2026.",
+      "source": "West Virginia Tax Division, 2026 Income Tax Rate Cut",
+      "url": "https://tax.wv.gov/Individuals/Pages/PersonalIncomeTaxReductionBill.aspx"
+    },
+    {
+      "pinpoint": "\u00a711-21-12(a)",
+      "pre_freeze": true,
+      "published": "in force for 2026 (current code)",
+      "quote": "The West Virginia adjusted gross income of a resident individual means his or her federal adjusted gross income as defined in the laws of the United States for the taxable year with the modifications specified in this section.",
+      "source": "W. Va. Code \u00a711-21-12",
+      "url": "https://code.wvlegislature.gov/11-21-12/"
+    },
+    {
+      "pinpoint": "\u00a711-21-16(a)",
+      "pre_freeze": true,
+      "published": "in force for 2026 (current code)",
+      "quote": "with respect to any taxable year beginning on or after January 1, 1987, said exemption shall be $2,000.",
+      "source": "W. Va. Code \u00a711-21-16",
+      "url": "https://code.wvlegislature.gov/11-21-16/"
+    },
+    {
+      "pinpoint": "\u00a75301(a)(1)",
+      "pre_freeze": true,
+      "published": "in force for 2026",
+      "quote": "such payments made to, or on account of, a beneficiary shall be exempt from taxation",
+      "source": "38 U.S.C. \u00a75301",
+      "url": "https://www.law.cornell.edu/uscode/text/38/5301"
+    }
+  ],
+  "computation": "1) Federal AGI. The spouse's wages of $88,928 are taxable. VA benefits of $76,176 (head) and $18,480 (spouse) are exempt under 38 U.S.C. \u00a75301(a)(1). Child support paid, health premiums and medical costs are not above-the-line deductions. Nothing tells us the $14,717 of ESI premiums is a pre-tax reduction of the listed gross wages, so federal AGI is $88,928.\n2) WV AGI. Under W. Va. Code \u00a711-21-12(a), WV AGI is federal AGI with modifications. None of the decreasing modifications in \u00a711-21-12(c) applies: there is no Social Security, military retirement, public pension, senior or disabled status, or U.S. obligation interest. WV AGI is $88,928.\n3) Exemptions. \u00a711-21-16(a) gives $2,000 per exemption, and a joint return has 2, so $4,000. WV taxable income is 88,928 \u2212 4,000 = $84,928.\n4) Rates. SB 392 (2026 Regular Session) enacted \u00a711-21-4j, which sets new rates for taxable years beginning on and after January 1, 2026. It passed on March 14, 2026, was signed on March 31, 2026 and took effect June 12, 2026, retroactive to January 1, 2026. All of this happened before the 2026-07-03 freeze. On the joint/single schedule, income over $60,000 is taxed at $1,950.50 plus 4.58% of the excess over $60,000. Tax = 1,950.50 + 0.0458 \u00d7 24,928 = 1,950.50 + 1,141.70 = $3,092.20.\n5) Nonrefundable credits. None apply. There are no dependents, so the WV child and dependent care credit does not apply. Income is far above the Family Tax Credit and low-income exclusion limits. There is no senior credit. Tax after nonrefundable credits and before refundable credits is $3,092.20.\n6) Comparison. The consensus figure of $3,255.03 applies the 2025 schedule (2.22%, 2.96%, 3.33%, 4.44%, 4.82%), which SB 392 replaced for 2026. The reference of $3,092.19 matches the SB 392 schedule within $0.01, which is float rounding. Married filing separately would cost more: the spouse would owe about $3,583 on the MFS schedule. The 2026 IT-140 tax table was not published before the freeze. Had it been, a $50-bracket table would give about $3,092.07, still about the same as the reference.",
+  "confidence": "high",
+  "definition_reading": "This is a single married-filing-jointly WV resident return, which is the cheaper status. The output is the WV personal income tax under \u00a711-21-3, using the 2026 rates in \u00a711-21-4j, after any nonrefundable WV credits (none apply) and before refundable credits. It contains no local tax. Taxable income is $84,928: the spouse's $88,928 wages less two $2,000 exemptions. The VA benefits are excluded federally, so they never enter WV AGI.",
+  "independent_answer": 3092.2,
+  "law_supports": "reference"
+}

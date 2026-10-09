@@ -1,0 +1,88 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.5047636,
+  "duration_ms": 412020,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:50:28.338466+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "b0a43c189e9ed419c2115df5f7153c29fca687dd41a1ac04924c9a1d60fe6564",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "5ccae33476e1e73983520f99bdd59da73edde6b83e7cfa4ac0ffec9cf4d26ec1",
+  "session_id": "c082d521-2372-4116-8f93-09d8e494daa5",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs",
+      "https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs",
+      "https://dbmefaapolicy.azdes.gov/FAA5/NA_Medical_Expenses_and_Deduction.html",
+      "https://des.az.gov/digital-library/nutrition-assistance-na-medical-expense-deduction-english",
+      "https://des.az.gov/na",
+      "https://www.snapscreener.com/guides/arizona",
+      "https://des.az.gov/ESAP",
+      "https://az.db101.org/az/programs/income_support/food_support/program2.htm",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://frac.org/wp-content/uploads/SNAP-SMD-National-Report-1.pdf",
+      "https://digitalgovernmenthub.org/wp-content/uploads/2025/09/snap-stateOptionsReport-17edition-1.pdf",
+      "https://www.fna.usda.gov/snap/waivers/state-options-report",
+      "https://web.archive.org/web/2026/https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs",
+      "https://dbmefaapolicy.azdes.gov/FAA5/NA_Medical_Expenses_and_Deduction.htm",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.ssa.gov/oact/cola/SSI.html",
+      "https://www.fns.usda.gov/snap/allotment/COLA",
+      "https://www.ssa.gov/news/en/cola/factsheets/2026.html",
+      "https://www.fna.usda.gov/snap/allotment/COLA",
+      "https://www.publicnow.com/view/FCC4C4B63E9116B346D946AAFFBBFAF9C0245CA3",
+      "https://www.ssa.gov/news/en/press/releases/2025-10-24.html",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://www.law.cornell.edu/cfr/text/20/416.1124",
+      "https://www.law.cornell.edu/cfr/text/7/273.9"
+    ],
+    "searches": [
+      "Arizona Nutrition Assistance standard medical deduction elderly disabled $35",
+      "SNAP FY 2026 cost-of-living adjustment maximum allotment standard deduction 48 states",
+      "Arizona DES Nutrition Assistance \"standard medical deduction\" $195 policy manual",
+      "Arizona SNAP standard medical deduction $145 \"$180\" elderly disabled medical expenses between $35",
+      "FNS SNAP standard medical deduction states list Arizona amount",
+      "\"standard medical deduction\" Arizona \"$145\" nutrition assistance",
+      "SNAP FY 2027 cost-of-living adjustments maximum allotment standard deduction October 1, 2026 memo",
+      "Arizona nutrition assistance standard medical deduction $160 \"$195\" effective October 1 2026",
+      "fns.usda.gov SNAP standard medical deduction demonstration project states amounts chart",
+      "dbmefaapolicy.azdes.gov standard medical deduction SMD $180 $35 disregard $145",
+      "Arizona SNAP \"standard medical deduction\" households elderly disabled all Nutrition Assistance households not only ESAP",
+      "SSA 2026 SSI federal payment standard individual $994 couple $1,491 COLA 2.8%",
+      "SNAP FY 2026 cost-of-living adjustments maximum allotments standard deduction $209",
+      "SNAP FY 2027 cost-of-living adjustments maximum allotments standard deduction",
+      "FY 2027 SNAP maximum allotment household of two $562 48 states"
+    ]
+  }
+}

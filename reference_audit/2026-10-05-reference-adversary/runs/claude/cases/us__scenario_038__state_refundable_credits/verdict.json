@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "R.S. 47:297.8(A)(2)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "For tax years beginning on or after January 1, 2019, through December 31, 2030, there shall be a credit against the tax imposed by this Chapter for individuals in an amount equal to five percent of the federal earned income tax credit",
+      "source": "Louisiana Revised Statutes, Title 47, \u00a7297.8 (Earned income tax credit)",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "R.S. 47:297.8(B)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "If the credit against Louisiana income tax for resident individuals exceeds the amount of such individual's tax liability for the taxable year, then such excess tax credit shall constitute an overpayment",
+      "source": "Louisiana Revised Statutes, Title 47, \u00a7297.8 (Earned income tax credit)",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "Section 4, Earned Income Credit table, two qualifying children",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Earned Income Amount $18,290; Maximum Amount of Credit $7,316; Threshold Phaseout Amount (Married Filing Jointly) $31,160",
+      "source": "IRS Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "Bill history/status",
+      "pre_freeze": true,
+      "published": "2025-04-14",
+      "quote": "Pending Senate Revenue and Fiscal Affairs",
+      "source": "Louisiana Legislature, SB 149 (2025 Regular Session) bill status",
+      "url": "https://legis.la.gov/legis/BillInfo.aspx?s=25RS&b=SB149&sbi=y"
+    },
+    {
+      "pinpoint": "Bill history/status",
+      "pre_freeze": true,
+      "published": "2026-03-30",
+      "quote": "Repeals the state tax levied on the net income of individuals and estates and trusts ... Pending House Ways and Means",
+      "source": "Louisiana Legislature, HB 253 (2026 Regular Session) bill status",
+      "url": "https://legis.la.gov/legis/BillInfo.aspx?s=26RS&b=HB253&sbi=y"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 365.8,
+  "reference_value": 365.8,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "For 2026, Louisiana R.S. 47:297.8(A)(2) gives a credit of 5% of the federal EITC, and subsection (B) makes it refundable. The household files jointly with two qualifying children. Its earned income (wages plus self-employment income less half of SE tax, about $21,896) is above the $18,290 earned income amount and below the $31,160 joint phase-out threshold, so the federal EITC is the $7,316 maximum under Rev. Proc. 2025-32. 5% \u00d7 $7,316 = $365.80, which is what the engine computed. The repeal bills (2025 SB 149 and HB 642, and 2026 HB 253, which would have repealed the income tax) were never enacted. No child care expenses are listed, so the other refundable Louisiana credits are $0. The consensus answer of 0 wrongly assumes Louisiana has no refundable EITC.",
+  "verdict": "reference_holds"
+}

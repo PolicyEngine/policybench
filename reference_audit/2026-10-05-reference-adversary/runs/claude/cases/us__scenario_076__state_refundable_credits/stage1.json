@@ -1,0 +1,58 @@
+{
+  "ambiguity": "One could argue that only the part of the grocery credit above Idaho tax liability is \"refundable.\" That part is $0 here, because this household's Idaho tax far exceeds $465. But the statute makes the whole credit refundable: the unused balance is paid out as a refund. The definition asks for refundable credits, not refunds in excess of liability, so the full $465 counts. The receipt-based credit of up to $250 per person does not apply, because no food sales tax receipts are listed.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 63-3024A(1)",
+      "pre_freeze": true,
+      "published": "2025-03",
+      "quote": "For tax year 2025 and each year thereafter, the credit is one hundred fifty-five dollars ($155).",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds (am. 2025, ch. 56, sec. 1)",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1), refund of unused credit",
+      "pre_freeze": true,
+      "published": "2025-03",
+      "quote": "If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1), persons covered",
+      "pre_freeze": true,
+      "published": "2025-03",
+      "quote": "a credit against taxes due under the Idaho income tax act for the taxpayer, the taxpayer's spouse, and each dependent",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "Credit amount",
+      "pre_freeze": true,
+      "published": "2026-02-19",
+      "quote": "$155 per person or up to $250 if you submit receipts for sales tax paid for food",
+      "source": "Idaho State Tax Commission, Idaho Food Tax Credit page",
+      "url": "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3029L",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "two hundred five dollars ($205)",
+      "source": "Idaho Code \u00a7 63-3029L, Child Tax Credit",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3029l/"
+    },
+    {
+      "pinpoint": "Bill status history",
+      "pre_freeze": true,
+      "published": "2026-02-12",
+      "quote": "Reported Printed; Filed in the Office of the Chief Clerk",
+      "source": "Idaho Legislature, 2026 House Bill 633",
+      "url": "https://legislature.idaho.gov/sessioninfo/2026/legislation/h0633/"
+    }
+  ],
+  "computation": "1. Idaho's food tax credit (grocery credit) under Idaho Code \u00a7 63-3024A is allowed for the taxpayer, the spouse and each dependent. As amended by 2025 ch. 56 (HB 231), the credit is $155 per person \"for tax year 2025 and each year thereafter.\" That law was in force before the 2026-07-03 freeze, so it covers tax year 2026.\n2. The credit is refundable. The statute says: \"If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.\"\n3. The credit has no income limit. It is only prorated for months of SNAP receipt or incarceration, and denied for unlawful residence. None of these facts is listed, so all are false. The household would not qualify for SNAP anyway, with over $170k of income.\n4. The household is a single head with 2 dependent children, all Idaho residents. That makes 3 people \u00d7 $155 = $465.\n5. A receipt-based credit of up to $250 per person is available, but no food purchase receipts or sales tax amounts are listed, so they are treated as 0 and the standard $155 applies.\n6. No other refundable Idaho credit applies:\n   - The Idaho child tax credit (\u00a7 63-3029L, $205 per child) is expressly nonrefundable. It would also sunset for years beginning on or after 2026-01-01 unless extended. Either way, it does not count as a refundable credit.\n   - Idaho treats child care through a deduction, not a refundable credit.\n   - The Parental Choice credit needs qualifying education expenses, and none are listed.\n7. 2026 HB 633, which would have repealed the grocery credit and exempted food from sales tax, was only introduced and printed (2/11\u20132/12/2026). It was not enacted.\n\nTotal refundable state credits = $465.",
+  "confidence": "high",
+  "definition_reading": "I read the output as the sum of all refundable Idaho individual income tax credits for the household's one tax unit: a single head of household with two dependent children. In Idaho, the only refundable credit these facts trigger is the food tax (grocery) credit under \u00a7 63-3024A. It is $155 for each of the 3 people, or $465. The credit has no income phase-out, so the consensus view that it phases out at high income is wrong.",
+  "independent_answer": 465,
+  "law_supports": "reference"
+}

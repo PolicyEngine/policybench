@@ -1,0 +1,50 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.1294138,
+  "duration_ms": 315215,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T21:22:42.338098+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "3d484a6a13df1f865717dbd5ed71b326a9e3b5feb25d2ab58f4a33af55072691",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "f195bf298f303274ead658469d64de27bc82213ff43d147291511628791999d9",
+  "session_id": "90b1015f-cc06-4412-8dd1-343dba07f418",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "33f66e93b9a58c448106073b6adebac7d174e6c9cf46df826e0a249dd070c2ba",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392"
+    ],
+    "searches": []
+  }
+}

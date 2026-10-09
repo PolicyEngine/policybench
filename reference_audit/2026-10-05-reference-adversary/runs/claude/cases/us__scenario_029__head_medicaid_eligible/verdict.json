@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Expansion Adults, household size 1",
+      "pre_freeze": true,
+      "published": "2026-04-01",
+      "quote": "$1,848 ... $22,176 (effective: 4/1/2026)",
+      "source": "Oklahoma Health Care Authority, SoonerCare and Insure Oklahoma Income Guidelines - 2026",
+      "url": "https://oklahoma.gov/ohca/individuals/mysoonercare/apply-for-soonercare-online/eligibility/income-guidelines.html"
+    },
+    {
+      "pinpoint": "\u00a7 435.603(g)",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "the agency must not\u2014(1) Apply any assets or resources test; or (2) Apply any income or expense disregards",
+      "source": "42 CFR 435.603 (Application of modified adjusted gross income)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "\u00a7 435.603(e)",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "income calculated using the same financial methodologies used to determine modified adjusted gross income as defined in section 36B(d)(2)(B) of the Code",
+      "source": "42 CFR 435.603 (Application of modified adjusted gross income)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "\u00a7 435.119(b)(1)-(3)",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "Are age 19 or older and under age 65; (2) Are not pregnant; (3) Are not entitled to or enrolled for Medicare benefits under part A or B",
+      "source": "42 CFR 435.119 (Coverage for individuals age 19 or older and under age 65 at or below 133 percent FPL)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.119"
+    },
+    {
+      "pinpoint": "OAC 317:35-6-50",
+      "pre_freeze": true,
+      "published": "2013-07-01",
+      "quote": "all income included in Modified Adjusted Gross Income in Section 36B of the Internal Revenue Code is included in the MAGI calculation for SoonerCare eligibility",
+      "source": "Oklahoma Administrative Code (OHCA)",
+      "url": "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/soonercare-for-pregnant-women-and-families-with-children/countable-income-for-magi/countable-sources-of-income.html"
+    },
+    {
+      "pinpoint": "\u00a7 102(a)",
+      "pre_freeze": true,
+      "published": "1954-08-16",
+      "quote": "Gross income does not include the value of property acquired by gift, bequest, devise, or inheritance.",
+      "source": "26 U.S.C. \u00a7 102",
+      "url": "https://www.law.cornell.edu/uscode/text/26/102"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 1,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Oklahoma expanded Medicaid, so the head, a 21-year-old who is not pregnant, not disabled and not on Medicare, falls in the expansion-adult group. That group uses a MAGI income test with no asset test, and having employer coverage does not bar eligibility. The head's MAGI is $312 of taxable interest. The $50,000 of 'financial assistance' is not a taxable source in IRC 36B MAGI. $312 is far below OHCA's 2026 limit for one person of $22,176 a year (effective 4/1/2026). The engine found MAGI of about $312 (0.02 times FPL) and adult-group eligibility, which matches the law. The consensus value of 0 rests on wrongly counting the $50,000 as income, applying an asset test, or saying Oklahoma did not expand.",
+  "verdict": "reference_holds"
+}

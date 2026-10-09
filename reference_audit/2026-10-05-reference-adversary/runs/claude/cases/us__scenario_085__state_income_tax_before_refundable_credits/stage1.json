@@ -1,0 +1,50 @@
+{
+  "ambiguity": "There is one other reading. If the $27,426 of Social Security survivor benefits (or the 1099-R retirement distributions) were counted in eligibility income, forgiveness would be lost and the answer would be $51.42, the consensus. Some unofficial secondary sources say this, but PA DOR says Social Security benefits and qualified retirement payments are excluded. Separately, the head's \"40 usual weekly hours\" with $0 wages could be read to mean they have not \"retired from service.\" If so, the pension and 401(k) distributions would become taxable compensation and also count in eligibility income, giving about ($1,675 + $20,720 + $1,560) \u00d7 3.07% \u2248 $735. That reading requires inferring facts the prompt does not give, and neither the reference nor the consensus uses it.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 302(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "a tax upon each dollar of income received by that resident during that resident's taxable year at the rate of three and seven hundredths per cent",
+      "source": "Pennsylvania Tax Reform Code of 1971, 72 P.S. \u00a7 7302 (Imposition of tax)",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7302/"
+    },
+    {
+      "pinpoint": "\u00a7 304(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "If the poverty income of the claimant during an entire taxable year is six thousand five hundred dollars ($6,500) or less ... the claimant shall be entitled to a refund or forgiveness of any moneys which have been paid over to (or would except for the provisions of this act be payable to) the Commonwealth",
+      "source": "Pennsylvania Tax Reform Code of 1971, 72 P.S. \u00a7 7304 (Special tax provisions for poverty)",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7304/"
+    },
+    {
+      "pinpoint": "\u00a7 301(o.2) 'Poverty income' exclusions; also \u00a7 301(d)(iii) compensation exclusion",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "payments commonly recognized as old age or retirement benefits paid to persons retired from service after reaching a specific age or after a stated period of employment",
+      "source": "Pennsylvania Tax Reform Code of 1971, 72 P.S. \u00a7 7301 (Definitions)",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7301/"
+    },
+    {
+      "pinpoint": "Eligibility income section",
+      "pre_freeze": null,
+      "published": "",
+      "quote": "Taxpayers do not have to include qualified retirement payments, Social Security benefits, unemployment, child support, military combat pay, hazardous duty pay or public assistance in eligibility income.",
+      "source": "Pennsylvania Department of Revenue, Tax Forgiveness (Personal Income Tax)",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax/tax-forgiveness"
+    },
+    {
+      "pinpoint": "Poverty (eligibility) income definition; inclusions/exclusions; Eligibility Income Table 1",
+      "pre_freeze": null,
+      "published": "",
+      "quote": "Tax forgiveness is a credit that allows eligible taxpayers to reduce all or part of their Pennsylvania personal income tax liability.",
+      "source": "Pennsylvania Department of Revenue, PA Personal Income Tax Guide \u2013 Tax Forgiveness",
+      "url": "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/tax-forgiveness"
+    }
+  ],
+  "computation": "1) PA-taxable income. PA taxes each class of income at a flat 3.07% (72 P.S. \u00a7 7302). Wages are unlisted, so they are $0. The $1,675 of interest is taxable in the interest class. Social Security survivor benefits are not one of PA's taxable income classes. The $20,720 private pension and $1,560 of 401(k) distributions go to a 67-year-old. They are excluded from compensation as \"old age or retirement benefits paid to persons retired from service after reaching a specific age\" (72 P.S. \u00a7 7301(d)). The $7,568 of IRA distributions after age 59\u00bd are likewise not taxable under PA DOR practice. So PA taxable income is $1,675, and tax before credits is $1,675 \u00d7 0.0307 = $51.42. Everyone agrees on this step.\n2) Tax Forgiveness (Schedule SP, 72 P.S. \u00a7 7304). This is a credit that reduces PA tax liability, and the prompt says to assume filing and take-up. Eligibility (poverty) income is PA-taxable income plus certain nontaxable items. By statute (72 P.S. \u00a7 7301(o.2)), it excludes \"payments commonly recognized as old age or retirement benefits paid to persons retired from service after reaching a specific age.\" PA DOR's Tax Forgiveness page says \"Taxpayers do not have to include qualified retirement payments, Social Security benefits ... in eligibility income.\" The PIT Guide adds back only 1099-R distributions with code 4 (death benefit), and no such facts are given here. So eligibility income is $1,675 of interest plus $0 = $1,675.\n3) The head is unmarried with no dependents, so the 100% forgiveness threshold is $6,500 (statutory and not indexed, so it applies unchanged in 2026). Since $1,675 \u2264 $6,500, 100% of the tax is forgiven and $51.42 becomes $0. No other PA nonrefundable credits apply.\nResult: state income tax after nonrefundable credits and before refundable credits is $0. The 3.07% rate and the $6,500 threshold were both in statute long before 2026-07-03, and nothing published for 2026 changes them.",
+  "confidence": "high",
+  "definition_reading": "For a single PA resident tax unit, this means PA personal income tax (3.07% on PA-taxable income classes) after nonrefundable credits. PA Tax Forgiveness (Schedule SP) is one of those credits: it reduces liability and is not refundable. Local earned-income tax is excluded. Here the gross PA tax of $51.42 on interest is fully forgiven, so the output is $0.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}

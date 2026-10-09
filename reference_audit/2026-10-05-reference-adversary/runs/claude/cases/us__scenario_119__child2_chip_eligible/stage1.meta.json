@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.316515,
+  "duration_ms": 70060,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:54:12.375945+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "b03fc51dcc1e8a197beb5690e9d1e3abcc7fc5e3a39896e4babaebefae40c39f",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "ed434d00067da60ffcac95010ccacf3facb8eac79427e83e1421b157e38a8edb",
+  "session_id": "a08283db-741e-4274-b435-d96558845fd0",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/42/457.310",
+      "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/",
+      "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/",
+      "https://www.law.cornell.edu/cfr/text/42/457.310",
+      "https://www.law.cornell.edu/uscode/text/42/1397jj",
+      "https://www.federalregister.gov/documents/2026/01/15/2026-00755/annual-update-of-the-hhs-poverty-guidelines",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://www.dmas.virginia.gov/for-applicants/populations-served/for-children/famis/"
+    ],
+    "searches": [
+      "2026 HHS poverty guidelines family of 3 48 contiguous states Federal Register",
+      "Virginia FAMIS eligibility children uninsured \"health insurance\" DMAS coverva"
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "ambiguity": "If \"is disabled\" plus \"disability benefits\" is read as qualifying SNAP disability (for example, assuming the benefits are Social Security disability), the gross test is waived and the uncapped medical deduction applies. Counting $30,000 other medical plus the $2,200 household-paid premiums gives net income of about $41/month and an allotment of $285, or $3,420/yr. Adding the $400 OTC costs if practitioner-approved gives $295/month, or $3,540/yr. Only if the $8,389 employer-sponsored insurance premiums are also treated as paid by Head does net income reach $0, giving $298 \u00d7 12 = $3,576 (the consensus). The prompt suggests those premiums are not out-of-pocket, because \"health insurance premiums excluding Medicare Part B\" totals only $2,200. Separately, Head's wages (~$2,139/month) exceed the 2026 SSDI earnings limit (~$1,690/month, not confirmed on ssa.gov), which makes Social Security disability receipt unlikely. FY2027 amounts for Oct\u2013Dec 2026 were not published before the freeze.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 2012(j)",
+      "pre_freeze": true,
+      "published": "current code (in force 2026)",
+      "quote": "'Elderly or disabled member' means a member of a household who\u2014 (1) is sixty years of age or older; ... (3) receives disability or blindness payments under title I, II, X, XIV, or XVI of the Social Security Act ... or receives disability retirement benefits from a governmental agency because of a disability considered permanent under section 221(i)",
+      "source": "7 U.S.C. 2012 (Food and Nutrition Act of 2008, definitions)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2012"
+    },
+    {
+      "pinpoint": "Definition of 'Elderly or disabled member', paras (1)-(2)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "(2) Receives supplemental security income benefits under title XVI of the Social Security Act or disability or blindness payments under titles I, II, X, XIV, or XVI of the Social Security Act",
+      "source": "7 CFR 271.2 (USDA FNS SNAP definitions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/271.2"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(a) introductory text",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "Households which do not contain an elderly or disabled member shall meet both the net income eligibility standards and the gross income eligibility standards for SNAP.",
+      "source": "7 CFR 273.9 (Income and deductions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(d)(3) Excess medical deduction",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "That portion of medical expenses in excess of $35 per month, excluding special diets, incurred by any household member who is elderly or disabled",
+      "source": "7 CFR 273.9 (Income and deductions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7 273.10(e)(2)(ii)(A)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "the household's monthly allotment shall be equal to the maximum SNAP allotment for the household's size reduced by 30 percent of the household's net monthly income",
+      "source": "7 CFR 273.10 (Determining household eligibility and benefit levels)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Maximum allotments and deductions, 48 States and DC",
+      "pre_freeze": true,
+      "published": "2025 (effective 2025-10-01)",
+      "quote": "The standard deduction for household sizes 1 through 3 increased to $209 a month for the 48 States and D.C.",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo (fetch returned 403; figures taken from search-result text quoting the memo)",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "Gross income limits, household of 1, effective Oct 1, 2025",
+      "pre_freeze": true,
+      "published": "2025-10-01 (effective date per search result)",
+      "quote": "1 person: $1,696 gross monthly income, $298 maximum monthly allotment",
+      "source": "South Carolina DSS SNAP income guidance (fetched page did not show the FY2026 table; FY2026 figures from search snippet)",
+      "url": "https://dss.sc.gov/news/update-to-snap-income-reminder/"
+    }
+  ],
+  "computation": "1) Monthly gross income: wages 25,665/12 = 2,138.75. Disability benefits 13,044/12 = 1,087. Child support received 1,200/12 = 100; support payments are unearned income under 7 CFR 273.9(b). Total gross = 3,325.75/month.\n2) Elderly or disabled member: 7 U.S.C. 2012(j) and 7 CFR 271.2 define this by age 60+ or by receipt of specific benefits: SSI; Social Security Act Title I/II/X/XIV/XVI disability payments; permanent governmental disability retirement; VA total disability; RRA disability annuity; disability-based Medicaid or general assistance. The head is 53. The prompt lists generic \"disability benefits\" with no source and says not to infer unlisted benefit receipt, so none of the qualifying benefit receipts is established. A general \"is disabled\" status does not meet the SNAP definition. Result: no elderly or disabled member.\n3) Gross test: under 7 CFR 273.9(a), households without an elderly or disabled member must meet both the gross and net standards. The FY2026 (10/1/2025) one-person gross limit is $1,696 (130% FPL). South Carolina's BBCE removes the asset test but does not raise the 130% gross limit; this comes from secondary sources, as the official SC DSS documents could not be read. 3,325.75 > 1,696, so the household is ineligible.\n4) Net test, for completeness: the medical deduction is limited to elderly or disabled members (7 CFR 273.9(d)(3)). Net = 3,325.75 \u2212 427.75 (20% earned income) \u2212 209 (FY2026 standard deduction for 1\u20133 persons) = 2,689. This exceeds the $1,305 net limit; no shelter costs are listed.\n5) SNAP = $0/year.\nPeriod note: FY2026 values cover Jan\u2013Sep 2026. FY2027 COLA values for Oct\u2013Dec 2026 were not published before the 2026-07-03 freeze (the COLA is issued around August). This does not change $0.\nAlternative, if the head is treated as SNAP-disabled: no gross test. Medical = (30,000 + 2,200 premiums)/12 \u2212 35 = 2,648.33. Net = 3,325.75 \u2212 427.75 \u2212 209 \u2212 2,648.33 = 40.67. 30% = 12.20, rounded up to 13 (7 CFR 273.10(e)(2)(ii)(A)). Allotment = 298 \u2212 13 = 285/month = $3,420/yr. Adding $400 OTC (only if practitioner-approved): net 7.33, allotment 295, $3,540/yr. Adding the $8,389 ESI premiums as out-of-pocket as well: net 0, allotment 298, $3,576/yr (the consensus).",
+  "confidence": "medium",
+  "definition_reading": "Annual SNAP benefit for the single-person SC household (Head only), summed over calendar 2026 and assuming take-up. The deciding question is whether Head is an \"elderly or disabled member\" under 7 U.S.C. 2012(j) and 7 CFR 271.2. That definition requires age 60+ or receipt of specific SSA, VA, RRA, governmental-retirement or Medicaid disability benefits. The prompt lists only a generic \"disability benefits\" amount and an \"is disabled\" flag, and forbids inferring unlisted benefit receipt. So Head is not shown to be a SNAP-disabled member, the 130% gross income test applies ($3,325.75 vs $1,696), and the benefit is $0.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}

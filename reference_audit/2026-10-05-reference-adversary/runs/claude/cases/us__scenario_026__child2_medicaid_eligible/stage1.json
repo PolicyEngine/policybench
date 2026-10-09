@@ -1,0 +1,90 @@
+{
+  "ambiguity": "\"Under PolicyEngine rules\" could be read as meaning a simplified model that applies NC's 211% child limit without the uninsured condition. Under that reading, MAGI of $82,301 is 212.8% of the 2026 FPL, or 207.8% after the 5-point disregard. That is within 211%, giving 1 (the reference). The law makes the 133\u2013211% group depend on the child having no group health coverage, so the stated employer-sponsored insurance gives 0. I could not extract the text of NC's 2023 SPA or eligibility manual, which were PDFs. That NC uses 42 CFR 435.229 for this group is inferred from the 435.118 income cap, the CMS description \"new Medicaid eligibility group for certain children,\" and search summaries of NC's 2026 CHIP compliance supplement, which describe an uninsured requirement for 133\u2013211% FPL.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7435.229(b)",
+      "pre_freeze": true,
+      "published": "2016-11-30",
+      "quote": "The agency may provide Medicaid to individuals under age 19 ... who meet the definition of an optional targeted low-income child in \u00a7 435.4",
+      "source": "42 CFR 435.229 Optional targeted low-income children",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.229"
+    },
+    {
+      "pinpoint": "\"Optional targeted low-income child\" (2) No other coverage",
+      "pre_freeze": true,
+      "published": "2016-11-30",
+      "quote": "An optional targeted low-income child is not covered under a group health plan or health insurance coverage",
+      "source": "42 CFR 435.4 Definitions",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.4"
+    },
+    {
+      "pinpoint": "(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification",
+      "quote": "is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "42 U.S.C. 1397jj (SSA \u00a72110)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "(u)(2)(B)",
+      "pre_freeze": true,
+      "published": "current codification",
+      "quote": "a targeted low-income child as defined in section 1397jj(b)(1) of this title (determined without regard to that portion of subparagraph (C) of such section concerning eligibility for medical assistance under this subchapter)",
+      "source": "42 U.S.C. 1396d (SSA \u00a71905)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1396d"
+    },
+    {
+      "pinpoint": "\u00a7435.118(c) maximum income standard, age 6-18",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "the higher of\u2014(i) 133 percent FPL; (ii) The highest effective income level for each age group in effect under the Medicaid State plan ... as of March 23, 2010 or December 31, 2013",
+      "source": "42 CFR 435.118 Infants and children under age 19",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "\u00a7435.603(d)(4)",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "a state must subtract an amount equivalent to 5 percentage points of the Federal poverty level for the applicable family size only to determine the eligibility of an individual ... under the eligibility group with the highest income standard",
+      "source": "42 CFR 435.603 Application of MAGI",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "item (3)",
+      "pre_freeze": true,
+      "published": "as amended through S.L. 2026-1",
+      "quote": "Children through the age of 18 with family incomes equal to or less than two hundred eleven percent (211%) of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. 108A-54.3A",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "Overview",
+      "pre_freeze": true,
+      "published": "2023-07-28 (effective 2023-04-01)",
+      "quote": "transition its separate NC Health Choice Children's Health Insurance Program to the NC Medicaid Program; adopt a new Medicaid eligibility group for certain children under age 19; and align the income standard for all children under age 19 at 211 percent",
+      "source": "CMS Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    },
+    {
+      "pinpoint": "2026 guidelines table, 5 persons",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "$38,680",
+      "source": "HHS ASPE Poverty Guidelines (2026, 48 states & DC; Federal Register 2026-01-15)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "Children ages 0 through 18, family of 5",
+      "pre_freeze": null,
+      "published": "2026 (exact date not shown)",
+      "quote": "A child ages 0 through 18 may be eligible if the family income is $6,802/month or less.",
+      "source": "NC Medicaid Eligibility page (NCDHHS)",
+      "url": "https://medicaid.ncdhhs.gov/eligibility"
+    }
+  ],
+  "computation": "1) MAGI household for Child 2 (age 11): parents file jointly and claim 3 children, so household size is 5 (42 CFR 435.603(f)). 2) MAGI: spouse wages $85,209 minus traditional 401(k) $2,778 (excluded from W-2 wages) minus traditional IRA deduction $130 (fully deductible because joint income is far below the active-participant phase-out) = $82,301. The overtime-premium deduction under OBBBA is not an above-the-line deduction, so it does not lower AGI or MAGI. I did not assume the head's $21,208 ESI premium is paid pre-tax: the head has no wages, and the prompt says not to infer. No other income is listed. 3) 2026 HHS poverty guideline for 5 people (published 2026-01-15, before the freeze) is $38,680. $82,301 / $38,680 = 212.8% FPL. NC's posted 211% limit for a family of 5 is $6,802 a month. The household's MAGI is $6,858 a month. 4) NC statute G.S. 108A-54.3A(3) covers children through age 18 up to 211% FPL. Under federal law, the only Medicaid group NC can use for ages 6\u201318 above 133% is 42 CFR 435.229, the optional targeted low-income child (OTLIC) group (SSA 1902(a)(10)(A)(ii)(XIV)). That is because 435.118 caps ages 6\u201318 at the higher of 133% or the state's 2010/2013 level, and NC's level was below 133%. CMS approved NC SPA 23-0009, effective 2023-04-01, to adopt \"a new Medicaid eligibility group for certain children under age 19\" at 211%. Under 42 CFR 435.4 and 42 U.S.C. 1396d(u)(2)(B) / 1397jj(b)(1)(C), an OTLIC must not be covered under a group health plan. The prompt states that Child 2 has employer-sponsored insurance, so Child 2 is not an OTLIC. 5) The highest group left for an insured child is 435.118, at 133% FPL. With the 5-point disregard (435.603(d)(4)), the limit is 138%, or $53,378. MAGI of 212.8% exceeds it, so Child 2 is not eligible. The answer stays 0 even if the ESI premium were pre-tax (MAGI $61,093, 158% FPL) or the overtime premium were deducted (192.7%). 6) For contrast, if Child 2 were uninsured: 212.8% \u2212 5 = 207.8%, which is within 211%, so eligible from April 2026 under the 2026 FPL. Under the 2025 FPL used for January\u2013March ($37,650), it is 218.6% \u2212 5 = 213.6%, which is over the limit. So the reference value of 1 follows only if the uninsured condition is ignored.",
+  "confidence": "medium",
+  "definition_reading": "I read the output as whether Child 2 (age 11, NC, MAGI household of 5) meets the eligibility rules of any NC Medicaid group, including CHIP-funded Medicaid-expansion groups, regardless of enrollment. Coverage at 133\u2013211% FPL for ages 6\u201318 is the optional targeted low-income child group, which requires that the child not be covered by a group health plan. The prompt states that Child 2 has employer-sponsored insurance. The only other group is the 133% (138% with the disregard) group, and income is far above it. So Child 2 is not eligible.",
+  "independent_answer": 0,
+  "law_supports": "consensus"
+}

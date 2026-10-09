@@ -1,0 +1,74 @@
+{
+  "ambiguity": "There are two ways the answer could differ. (1) Timing of the Oct\u2013Dec 2026 values: if the FY2027 COLA, published 2026-08-21 after the freeze, is used for those months, the minimum benefit rises to $25 and the annual amount is 9\u00d7$24 + 3\u00d7$25 = $291. With law frozen at 2026-07-03 it stays $288. (2) Which premiums count as medical expenses: ESI premiums, and whether the duplicated $2,600 line counts twice. This changes net income from about $1,048 to $1,747/month, but every reading leaves the household on the $24 minimum. Even if Head is not treated as disabled, Michigan's 200% FPL categorical eligibility still gives the minimum. Neither point supports $0.",
+  "citations": [
+    {
+      "pinpoint": "Definition of 'Elderly or disabled member', para. (2)",
+      "pre_freeze": true,
+      "published": "current eCFR (in force throughout 2026)",
+      "quote": "Receives supplemental security income benefits under title XVI of the Social Security Act or disability or blindness payments under titles I, II, X, XIV, or XVI of the Social Security Act",
+      "source": "7 CFR 271.2 Definitions (SNAP)",
+      "url": "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-271/section-271.2"
+    },
+    {
+      "pinpoint": "\u00a7 2017(a), minimum allotment proviso",
+      "pre_freeze": true,
+      "published": "in force 2026",
+      "quote": "for households of 1 and 2 persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member",
+      "source": "Food and Nutrition Act of 2008, 7 U.S.C. 2017(a)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "\u00a7 273.10(e)(2)(ii)(C)",
+      "pre_freeze": true,
+      "published": "current eCFR (in force throughout 2026)",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit. The minimum benefit is 8 percent of the maximum allotment for a household of one, rounded to the nearest whole dollar.",
+      "source": "7 CFR 273.10 Determining household eligibility and benefit levels",
+      "url": "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10"
+    },
+    {
+      "pinpoint": "BEM 213, FAP categorical eligibility (BPB 2026-003)",
+      "pre_freeze": true,
+      "published": "2026-02-01",
+      "quote": "One and two member categorical FAP groups that exceed the gross and/or 100 percent net income limit, but whose gross income is at or below 200 percent of the poverty level, and all other FAP eligibility requirements are automatically eligible for the minimum benefit amount.",
+      "source": "Michigan DHHS Bridges Eligibility Manual, BEM 213 Categorical Eligibility",
+      "url": "https://mdhhs-pres-prod.michigan.gov/olmweb/exf/BP/Public/BEM/213.pdf"
+    },
+    {
+      "pinpoint": "RFT 250, one-person 200% categorical gross limit",
+      "pre_freeze": true,
+      "published": "2025-10-01",
+      "quote": "One person: $2,610",
+      "source": "Michigan DHHS Reference Tables, RFT 250 FAP Income Limits",
+      "url": "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/RF/Public/RFT/250.pdf"
+    },
+    {
+      "pinpoint": "48 States and DC tables: maximum allotment, minimum benefit, standard deduction",
+      "pre_freeze": true,
+      "published": "2025-08 (effective 2025-10-01 to 2026-09-30)",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $24",
+      "source": "USDA FNS, SNAP Fiscal Year 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "48 States and DC minimum benefit (effective 2026-10-01)",
+      "pre_freeze": false,
+      "published": "2026-08-21",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $25",
+      "source": "USDA FNS, SNAP Fiscal Year 2027 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    },
+    {
+      "pinpoint": "Asset limit change effective 3-1-2024",
+      "pre_freeze": true,
+      "published": "2024-03-01",
+      "quote": "there is a $4,500 asset limit if household income is more than 200% of the federal poverty level",
+      "source": "Michigan DHHS, FAP Asset Limit changes (asset test eliminated for groups at or below 200% FPL)",
+      "url": "https://www.michigan.gov/mdhhs/-/media/Project/Websites/mdhhs/Assistance-Programs/Food-Assistance/Asset-Limit-changes-FAP.pdf"
+    }
+  ],
+  "computation": "1) SNAP household: one person (Head, 57). Head receives Social Security disability (Title II), so under 7 CFR 271.2 Head is an 'elderly or disabled member' (Michigan calls this SDV).\n2) Monthly gross unearned income: SSDI $22,646/12 = $1,887.17, plus pension $3,108/12 = $259.00, for a total of $2,146.17. There is no earned income.\n3) Michigan broad-based categorical eligibility (BEM 213; RFT 250 effective 10-1-2025): the 200% FPL limit for one person is $2,610/month. $2,146.17 is at or below it, so the group is categorically eligible. Since 3-1-2024 Michigan has no FAP asset test for groups at or below 200% FPL. Even under the federal limit for elderly/disabled households ($4,500 for FY2026), the assets of $1,800 bank + $1,800 stock = $3,600 pass.\n4) Net income (FY2026 COLA): standard deduction for 1\u20133 persons is $209. There are no shelter costs: only a mortgage balance is listed, with no payment, tax, rent or utility bill. The medical deduction for the disabled member depends on which premiums count:\n   (a) Only $2,600 premiums + $100 OTC: $225/mo \u2212 $35 = $190. Michigan's standard medical deduction, if it applies, is about the same size. Net income is about $1,747, above the 100% FPL net limit of $1,305.\n   (b) Also counting ESI premiums of $5,789: medical is about $707/mo, excess $672. Net income is about $1,265, below $1,305.\n   (c) Also counting the duplicated $2,600 line: net income is about $1,048.\n5) Benefit = maximum allotment ($298 for one person, FY2026) \u2212 30% of net income. This is negative in every case: 298 \u2212 0.3\u00d71,048 = \u221216, and the other cases are lower. So the computed allotment is $0.\n6) Minimum benefit: 7 U.S.C. 2017(a) and 7 CFR 273.10(e)(2)(ii)(C) give eligible one- and two-person households 8% of the one-person thrifty food plan. That is $24 for FY2026. Michigan BEM 213 also says one- and two-member categorical groups that exceed the 100% net limit but are at or below 200% gross are 'automatically eligible for the minimum benefit amount.' So the result is $24/month whichever medical reading is used, and even with no disability status.\n7) Annual: $24 \u00d7 12 = $288.\nFreeze note: the FY2026 values ($298 maximum, $24 minimum, $209 standard deduction, $1,305 net limit, $2,610 200% limit) were published in Aug\u2013Oct 2025, before the freeze. The FY2027 COLA for Oct\u2013Dec 2026 ($306 maximum, $25 minimum, $217 standard deduction) came out in a USDA memo dated 2026-08-21, after the 2026-07-03 freeze. Under pre-freeze law, $24/month for all 12 months gives $288. Using the post-freeze FY2027 minimum for Oct\u2013Dec would give 9\u00d724 + 3\u00d725 = $291.",
+  "confidence": "high",
+  "definition_reading": "I read this as the annual SNAP allotment for the single one-person SNAP household (Head) over calendar 2026, using the Michigan FAP rules and federal SNAP parameters in force before the 2026-07-03 freeze. Head is categorically eligible, since gross income of about $2,146/month is at or below Michigan's 200% FPL limit of $2,610. As a one-person household, Head gets at least the $24/month minimum benefit even though the computed allotment is $0. That gives 12 \u00d7 $24 = $288. The consensus answer of $0 ignores the minimum-benefit rule for one- and two-person households and Michigan's categorical eligibility.",
+  "independent_answer": 288,
+  "law_supports": "reference"
+}

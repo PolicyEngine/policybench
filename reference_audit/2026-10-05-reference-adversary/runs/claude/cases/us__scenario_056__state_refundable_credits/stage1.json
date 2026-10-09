@@ -1,0 +1,66 @@
+{
+  "ambiguity": "1) The consensus answer of 0 assumes NJ follows the federal 25-to-64 age rule, or that the NJ credit is 40% of a federal EITC that is $0. NJ statute explicitly covers filers aged 18 or older who are age-ineligible federally, so this reading is not reasonable. 2) 'Predicated on the federal maximum amount' could in principle be read as 40% of the federal no-child credit the Head would get if age-eligible: 7.65% x about $4,033 earned income = about $308.55, times 40% = about $123. The Division of Taxation reads it as a fixed yearly amount ($260 for TY2025 = 40% of the $649 maximum), which gives $265.60 for 2026. 3) Form rounding to whole dollars would give $266. 4) A hyper-literal reading of the prompt would treat an unlisted 'has valid SSN' as false, which makes the credit $0. Normal practice assumes the filer has a valid SSN. 5) If the $12,000 of 'financial assistance' were NJ-taxable, gross income would exceed $10,000. Even then the $11,949 property tax deduction beats the $50 credit, so the total would still be $265.60.",
+  "citations": [
+    {
+      "pinpoint": "N.J.S.A. 54A:4-7, paragraph (4) of the eligibility subsection",
+      "pre_freeze": true,
+      "published": "2021-02-22",
+      "quote": "Calculation of the New Jersey earned income tax credit available to individuals pursuant to this paragraph shall be predicated on the federal maximum amount for taxpayers with no qualifying child for each taxable year beginning on and after January 1, 2020.",
+      "source": "N.J.S.A. 54A:4-7 (existing statutory text as reproduced in Assembly Bill A5345, 219th Legislature, which inserted the age-18 paragraph)",
+      "url": "https://pub.njleg.gov/bills/2020/A9999/5345_I1.HTM"
+    },
+    {
+      "pinpoint": "Section 1, N.J.S.A. 54A:4-7 paragraph (4) (unbracketed existing text)",
+      "pre_freeze": true,
+      "published": "2024-01-09",
+      "quote": "A resident individual who is at least 18 years of age or older, but cannot claim a qualifying child as defined under section 152 of the federal Internal Revenue Code of 1986",
+      "source": "Senate Bill S1557 (2024 session), showing current-law text of N.J.S.A. 54A:4-7",
+      "url": "https://pub.njleg.gov/Bills/2024/S2000/1557_I1.HTM"
+    },
+    {
+      "pinpoint": "Eligibility: '18 years old without a dependent'",
+      "pre_freeze": true,
+      "published": "2025-12-03",
+      "quote": "Your NJEITC is a specific amount designated yearly; you do not need to calculate a federal EITC to determine your New Jersey percentage. ... For Tax Year 2025, the amount is $260.",
+      "source": "NJ Division of Taxation, NJ Earned Income Tax Credit - Know NJEITC",
+      "url": "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml"
+    },
+    {
+      "pinpoint": "How much is the NJEITC",
+      "pre_freeze": true,
+      "published": "2025-12-03",
+      "quote": "For 2025, the NJEITC amount is 40% of the federal credit amount.",
+      "source": "NJ Division of Taxation, NJ Earned Income Tax Credit - Calculate NJEITC",
+      "url": "https://nj.gov/treasury/taxation/eitc/howmucheitc.shtml"
+    },
+    {
+      "pinpoint": "Section 1, N.J.S.A. 54A:4-7 credit percentage schedule",
+      "pre_freeze": true,
+      "published": "2026-01-13",
+      "quote": "40% for taxable years beginning on or after January 1, 2020",
+      "source": "Senate Bill S2198 (2026 session), showing current-law text of N.J.S.A. 54A:4-7",
+      "url": "https://pub.njleg.gov/Bills/2026/S2500/2198_I1.HTM"
+    },
+    {
+      "pinpoint": "Section 4.06, Earned income credit table, No Qualifying Children column",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "Maximum Amount of Credit: $664 ... Threshold Phaseout Amount (All other filing statuses): $10,860 ... Completed Phaseout Amount: $19,540",
+      "source": "IRS Rev. Proc. 2025-32 (as quoted in analysis of the Rev. Proc.; original at https://www.irs.gov/pub/irs-drop/rp-25-32.pdf)",
+      "url": "https://www.currentfederaltaxdevelopments.com/blog/2025/10/9/2026-inflation-adjustments-for-tax-professionals-revenue-procedure-2025-32-analysis"
+    },
+    {
+      "pinpoint": "Eligibility",
+      "pre_freeze": true,
+      "published": "2026-03-23",
+      "quote": "Residents with gross income of $20,000 or less ($10,000 if filing status is single or married/CU partner, filing separate return) are eligible for a property tax credit only if they were 65 years or older or blind or disabled on the last day of the tax year.",
+      "source": "NJ Division of Taxation, Property Tax Deduction/Credit for Homeowners and Renters (GIT-3W/NJIT35 page)",
+      "url": "https://www.nj.gov/treasury/taxation/njit35.shtml"
+    }
+  ],
+  "computation": "1) Filer: Head is 20, unmarried and files as single. No qualifying child and no other person is listed, so no one else can claim the Head as a dependent. Earned income is $4,340 of self-employment net profit (after the half-SE-tax deduction, about $4,033). Alimony is $1,499. The $12,000 of financial assistance is not earned income. Investment income is $0. Federal AGI is far below the $19,540 no-child completed-phaseout amount for 2026 (Rev. Proc. 2025-32 \u00a74.06); the $9,915 HSA deduction makes it negative.\n2) Federal EITC: the Head is $0 because they are under the federal 25-to-64 age range for filers without children. That is the only federal criterion the Head fails.\n3) NJ EITC under N.J.S.A. 54A:4-7, paragraph for residents 18 or older who cannot claim a qualifying child and are ineligible for the federal credit due to age: the Head (20) qualifies. The statute says the credit for these filers 'shall be predicated on the federal maximum amount for taxpayers with no qualifying child'. The Division of Taxation applies this as a fixed yearly amount: 'Your NJEITC is a specific amount designated yearly; you do not need to calculate a federal EITC'. For TY2025 that was $260, which is 40% x $649 rounded. The 40% rate applies to taxable years beginning on or after 1/1/2020 and was still current law in the 2026-session bill text. For 2026 the federal no-child maximum is $664 (Rev. Proc. 2025-32, published 2025-10-09, before the freeze). NJ EITC = 0.40 x $664 = $265.60. The NJ-1040 form would show $266 after whole-dollar rounding. As of 2026-07-03, NJ had not published a TY2026 dollar figure; the TY2025 figure was $260. The 2026 figure follows mechanically from the statute and the federal maximum that had been published.\n4) NJ property tax credit ($50, refundable): NJ gross income is alimony $1,499 + net profit $4,340 = $5,839. That is at or below the $10,000 single threshold, and the Head is not 65 or older, blind or disabled, so the Head is not eligible. Result: $0.\n5) Other NJ refundable credits are $0. The NJ Child Tax Credit and NJ child and dependent care credit need children or care costs, and there are none.\nTotal refundable NJ credits = $265.60 + $0 = $265.60.",
+  "confidence": "high",
+  "definition_reading": "The household has one tax unit: the Head, filing single on an NJ-1040. 'Total refundable state individual income tax credits' means the NJ refundable credits on that return: the NJ EITC, the NJ Child Tax Credit, the NJ child and dependent care credit, and the $50 property tax credit. Of these, only the NJ EITC applies. It is the statutory amount for childless filers aged 18 or older who are ineligible for the federal credit only because of age: 40% of the federal no-child maximum, $664, which gives $265.60.",
+  "independent_answer": 265.6,
+  "law_supports": "reference"
+}

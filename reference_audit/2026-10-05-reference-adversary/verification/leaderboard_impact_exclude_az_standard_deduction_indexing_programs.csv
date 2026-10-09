@@ -1,0 +1,2 @@
+variable,exact_published,exact_proposed,exact_delta,score_published,score_proposed,score_delta,n_published,n_proposed,n_delta
+state_income_tax_before_refundable_credits,64.30738119312437,65.06393861892585,0.7565574258014749,84.20508644142654,84.2395786775687,0.034492236142156685,3956,3910,-46

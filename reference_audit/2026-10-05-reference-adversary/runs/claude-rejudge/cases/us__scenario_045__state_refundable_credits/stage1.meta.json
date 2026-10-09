@@ -1,0 +1,73 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.987558,
+  "duration_ms": 1608629,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:14:51.059403+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "a8d5ec5a5dbc0e99176c603fc1d68e70a3861952d0757fee0f12836a6de0be22",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "fcb17848103ec59e95e40f101d630e548f7a60095c060634a02d9134c91fed18",
+  "session_id": "6414d65b-7b74-4ae1-aa2c-8750e1e0fa7c",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2024/MI-1040CR-Instructions.pdf?rev=82cc0535eb2b4cb2a9bb35e99e803e1d&hash=984BF2B14BF1A8252329AD64393ADC39",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-508",
+      "https://www.legislature.mi.gov/documents/mcl/pdf/mcl-206-508.pdf",
+      "https://renderpdf.legislature.mi.gov/Laws/MCL?objectName=mcl-206-508",
+      "https://legislature.mi.gov/Laws/MCL?objectName=MCL-206-510",
+      "https://www.michigan.gov/taxes/property/homestead-property-tax-credit-claim-mi-1040cr-adjustment-or-denial-homeowners-checklist/health-insurance-premiums-and-total-household-resources",
+      "https://law.justia.com/codes/michigan/chapter-206/statute-act-281-of-1967/division-281-1967-ix/section-206-508/",
+      "https://www.semcoenergygas.com/wp-content/uploads/2025-Home-Heating-credit-instructions.pdf",
+      "https://www.romuluslibrary.org/wp-content/uploads/2026/01/MI-1040CR2.pdf",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR.pdf",
+      "https://zeus-milenia.legislature.mi.gov/Laws/MCL?objectName=MCL-206-522"
+    ],
+    "searches": [
+      "Michigan MI-1040CR instructions 2025 total household resources medical insurance premiums renters 23% rent",
+      "MCL 206.510 \"total household resources\" means premiums medical insurance",
+      "MCL 206.508 homestead property tax credit 23% of gross rent 3.2% total household resources 60% statute text",
+      "MI-1040CR line \"medical insurance\" premiums \"pretax\" OR \"pre-tax\" total household resources \"Do not include\" employer",
+      "\"206.520\" \"23% of the gross rent\" tax years after the 2017 tax year",
+      "Michigan Income Tax Act 206.522 \"60% of the amount by which the property taxes\" \"3.2% of the claimant's total household resources\"",
+      "Michigan homestead property tax credit 2025 maximum credit $1,900 total household resources $71,500 phase-out begins renters 23%",
+      "MCL 206.520 credit \"exceeds the tax liability\" \"excess shall be refunded\" homestead property tax credit",
+      "\"total household resources\" Michigan statute \"paid in premiums\" \"accident or health insurance\" 206.508 OR 206.510",
+      "Michigan Health Insurance Premiums and Total Household Resources \"pre-tax\" employer homestead credit Treasury",
+      "2025 Michigan home heating credit standard allowance 1 exemption income ceiling total household resources table",
+      "2026 Michigan homestead property tax credit maximum credit total household resources limit tax year 2026"
+    ]
+  }
+}

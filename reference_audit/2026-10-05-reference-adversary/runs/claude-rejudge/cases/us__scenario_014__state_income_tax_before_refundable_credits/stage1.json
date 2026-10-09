@@ -1,0 +1,50 @@
+{
+  "ambiguity": "The definition itself has no real second reading. The one issue is which rate table governs 2026. If SB 392 is ignored and the 2025 \u00a711-21-4i rates (2.22% to 4.82%) are applied, the tax is $3,255.03, the consensus answer. But SB 392 was enacted before the freeze and applies to taxable years beginning January 1, 2026, so that reading is legally wrong. If the official 2026 tax tables use income bands, the result could differ from the exact formula by a few dollars.",
+  "citations": [
+    {
+      "pinpoint": "\u00a711-21-4j applicability clause and rate table",
+      "pre_freeze": true,
+      "published": "2026-03-14",
+      "quote": "shall apply for all taxable years beginning on and after January 1, 2026 ... Over $60,000 ... $1,950.50 plus 4.58% of excess over $60,000",
+      "source": "West Virginia Legislature, Enrolled Committee Substitute for SB 392 (2026 Regular Session), adding W. Va. Code \u00a711-21-4j",
+      "url": "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392"
+    },
+    {
+      "pinpoint": "Rate schedule for individuals, married filing jointly, head of household",
+      "pre_freeze": true,
+      "published": "2026-04-07",
+      "quote": "Over $60,000, $1,950.50 plus 4.58% of excess",
+      "source": "Thomson Reuters Tax & Accounting News, 'West Virginia Cuts Personal Income Tax Rates'",
+      "url": "https://tax.thomsonreuters.com/news/west-virginia-cuts-personal-income-tax-rates/"
+    },
+    {
+      "pinpoint": "\u00a711-21-16(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "said exemption shall be $2,000",
+      "source": "W. Va. Code \u00a711-21-16 (Personal exemptions)",
+      "url": "https://code.wvlegislature.gov/11-21-16/"
+    },
+    {
+      "pinpoint": "\u00a711-21-12(a)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "his or her federal adjusted gross income as defined in the laws of the United States for the taxable year with the modifications specified in this section",
+      "source": "W. Va. Code \u00a711-21-12 (West Virginia adjusted gross income of resident individual)",
+      "url": "https://code.wvlegislature.gov/11-21-12/"
+    },
+    {
+      "pinpoint": "\u00a75301(a)(1)",
+      "pre_freeze": true,
+      "published": "",
+      "quote": "such payments made to, or on account of, a beneficiary shall be exempt from taxation",
+      "source": "38 U.S.C. \u00a75301",
+      "url": "https://www.law.cornell.edu/uscode/text/38/5301"
+    }
+  ],
+  "computation": "1) Federal AGI. The spouse's wages are $88,928. Both people's veterans benefits ($76,176 and $18,480) are exempt from taxation under 38 U.S.C. \u00a75301(a)(1), so they are not in federal gross income. No other income is listed, so federal AGI is $88,928.\n2) West Virginia AGI. W. Va. Code \u00a711-21-12(a) starts from federal AGI. None of the West Virginia modifications apply. Veterans benefits are already out of federal AGI, and the military-retirement subtraction does not apply. West Virginia AGI is $88,928.\n3) Exemptions. Under \u00a711-21-16, each exemption is worth $2,000. A joint return for head and spouse with no dependents has 2 exemptions, or $4,000. West Virginia has no itemized deductions for medical costs or child support.\n4) Taxable income is $88,928 \u2212 $4,000 = $84,928.\n5) 2026 rates. SB 392 (2026 session) adds W. Va. Code \u00a711-21-4j, which cuts every rate by 5%. It passed March 14, 2026, was signed March 31, 2026, takes effect June 12, 2026, and applies to taxable years beginning on or after January 1, 2026. This was all before the July 3, 2026 freeze. The brackets are the same for single, head of household and married filing jointly: 2.11% up to $10k; 2.81% from $10k to $25k; 3.16% from $25k to $40k; 4.22% from $40k to $60k; 4.58% over $60k.\nTax = $1,950.50 + 4.58% \u00d7 ($84,928 \u2212 $60,000) = $1,950.50 + $1,141.70 = $3,092.20.\n6) Nonrefundable credits. The family tax credit under \u00a711-21-22 is for low-income households and does not reach a two-person household with $88,928 of AGI. The senior citizen credit does not apply at ages 41 and 38. No other credits apply. Result: about $3,092.20.\nThe reference is $3,092.19, which comes from float32 rounding of $3,092.2024. The consensus answer of $3,255.03 uses the 2025 rates from \u00a711-21-4i (2.22% up to 4.82%), which SB 392 replaced for 2026. The 2026 official tax tables, which may use income bands, had not been published before the freeze. Any difference from banding would be a few dollars at most.",
+  "confidence": "high",
+  "definition_reading": "This is West Virginia personal income tax for the single joint return of head and spouse, after nonrefundable credits (there are none here) and before refundable credits. That is the tax computed on taxable income of $84,928 at the 2026 rates in \u00a711-21-4j.",
+  "independent_answer": 3092.2,
+  "law_supports": "reference"
+}

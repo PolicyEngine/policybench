@@ -1,0 +1,57 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.3288572,
+  "duration_ms": 85873,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:26:15.897830+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "fca332ed6b9288c5bc4a178deb2e765fffec414624f0c7c8bc369cc61a6ef79f",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "1706aeb55a5dc6b39f4ff9553ce75b5e52a90ee4eb12e620458289d9619234f6",
+  "session_id": "5de1eaa6-71ce-4c3e-b7f7-c179cf1a58dc",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "1870576e78ad1bfc230cd936450559e15cd3fce5ce1cdb873e001390a46d36b3",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-2003/",
+      "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf",
+      "https://tax.colorado.gov/income-tax-topics-state-sales-tax-refund",
+      "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Sales_Tax_Refund_Nov_2025.pdf",
+      "https://www.coloradopolitics.com/2026/01/05/no-tabor-refunds-this-year-as-colorado-gov-polis-warns-of-tight-fiscal-outlook/"
+    ],
+    "searches": [
+      "Colorado June 2026 revenue forecast TABOR cap FY 2025-26 below Referendum C no refund",
+      "Colorado 2025 tax year state sales tax refund amounts single filer $19 AGI $52,000"
+    ]
+  }
+}

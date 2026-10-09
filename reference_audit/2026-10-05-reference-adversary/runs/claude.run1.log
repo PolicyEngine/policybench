@@ -1,0 +1,11 @@
+reference adversary: 52 cases | parallel=4 model=opus effort=xhigh runner=claude (2.1.284 (Claude Code))
+login: {"account": null, "method": "oauth_token", "org": null} in /Users/maxghenis/.claude-judge-lanes/claude-9 (declared: max@thesisinstitute.org)
+[ok] us__scenario_007__state_refundable_credits stage 1
+[ok] us__scenario_014__state_income_tax_before_refundable_credits stage 1
+[ok] us__scenario_014__state_income_tax_before_refundable_credits stage 2
+[ok] us__scenario_007__state_refundable_credits stage 2
+[ok] us__scenario_013__state_refundable_credits stage 1
+[ok] us__scenario_013__state_refundable_credits stage 2
+[ok] us__scenario_013__snap stage 1
+[ok] us__scenario_013__snap stage 2
+er (pid 91820) stopped after batch 1 to switch to the rolling pool; us__scenario_013__snap stage 2 left to finish in its own subshell (pid 98427)

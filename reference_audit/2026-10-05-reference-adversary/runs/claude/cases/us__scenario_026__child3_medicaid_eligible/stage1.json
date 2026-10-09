@@ -1,0 +1,98 @@
+{
+  "ambiguity": "The definition says \"under PolicyEngine rules.\" If that is read as income limits only, ignoring the child's employer coverage, the answer could change: MAGI of $82,301 against the 2026 poverty line ($38,680) is 212.8% FPL, or 207.8% after the 5% disregard. That is within 211%, giving 1, the reference value. Even on that reading, NC moves to the new poverty line only on April 1 (G.S. 108A-54.3A(b)). Using the 2025 line ($37,650) for January\u2013March gives 213.6% after the disregard, which fails, so an income-only reading gives 1 for April\u2013December and 0 for January\u2013March. I also could not read NC SPA NC-23-0009 directly to confirm that the 133\u2013211% band for ages 6\u201318 uses the optional targeted low-income children group (435.229). I inferred it from the federal caps in 435.118 and 435.222 and from CMS's \"new Medicaid eligibility group for certain children\" summary.",
+  "citations": [
+    {
+      "pinpoint": "(a)(3); (b)",
+      "pre_freeze": true,
+      "published": "version effective until 2026-10-01, as amended through S.L. 2026-1",
+      "quote": "Children through the age of 18 with family incomes equal to or less than two hundred eleven percent (211%) of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A (Eligibility categories and income thresholds)",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "(b) and introductory clause of (a)",
+      "pre_freeze": true,
+      "published": "version effective until 2026-10-01",
+      "quote": "The applicable federal poverty guidelines for the eligibility categories in subsection (a) of this section shall be updated annually on April 1 immediately following publication of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "Table, household of 5",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "5 | $38,680",
+      "source": "HHS ASPE, 2026 Poverty Guidelines (48 contiguous states)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "(d)(4)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "a state must subtract an amount equivalent to 5 percentage points of the Federal poverty level for the applicable family size only to determine the eligibility of an individual for medical assistance under the eligibility group with the highest income standard",
+      "source": "42 CFR 435.603 (MAGI-based methodologies)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "(c)(2)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "The maximum income standard for each age group is the higher of ... 133 percent FPL ... [or] the highest effective income level ... under the Medicaid State plan ... as of March 23, 2010 or December 31, 2013",
+      "source": "42 CFR 435.118 (Infants and children under age 19)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "(b), (c)(3)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "The agency may provide Medicaid to individuals under age 19 ... who meet the definition of an optional targeted low-income child in \u00a7 435.4",
+      "source": "42 CFR 435.229 (Optional targeted low-income children)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.229"
+    },
+    {
+      "pinpoint": "(c)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "The income standard established under this section may not exceed the higher of the State's AFDC payment standard in effect as of July 16, 1996, or the State's highest effective income level",
+      "source": "42 CFR 435.222 (Reasonable classifications of individuals under 21)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.222"
+    },
+    {
+      "pinpoint": "(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current U.S. Code",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "42 U.S.C. 1397jj (SSA \u00a7 2110)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "(u)(2)(B)",
+      "pre_freeze": true,
+      "published": "current U.S. Code",
+      "quote": "a targeted low-income child as defined in section 1397jj(b)(1) of this title (determined without regard to that portion of subparagraph (C) of such section concerning eligibility for medical assistance under this subchapter)",
+      "source": "42 U.S.C. 1396d (SSA \u00a7 1905)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1396d"
+    },
+    {
+      "pinpoint": "Summary",
+      "pre_freeze": true,
+      "published": "2023-07-31",
+      "quote": "adopt a new Medicaid eligibility group for certain children under age 19; and align the income standard for all children under age 19 at 211 percent of the federal poverty level",
+      "source": "CMS, Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    },
+    {
+      "pinpoint": "North Carolina row",
+      "pre_freeze": true,
+      "published": "2023-12-01",
+      "quote": "North Carolina | 211% | 211% | 211% | N/A",
+      "source": "CMS, Medicaid, CHIP & BHP Eligibility Levels",
+      "url": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels"
+    }
+  ],
+  "computation": "1) Household MAGI (42 CFR 435.603(e), via IRC 36B(d)(2)(B)): the spouse's wages are $85,209 (overtime included). Traditional 401(k) deferrals of $2,778 are left out of gross income. The traditional IRA deduction of $130 is above the line; at about $82k joint MAGI it falls below the 2026 phase-out for an active participant. Roth contributions do not reduce income. The OBBBA qualified-overtime deduction (IRC 225) is taken below the line, so it does not change AGI or MAGI. The head has no earnings, and nothing says the head's employer-insurance premiums are taken pre-tax from the spouse's wages, so I do not infer that. MAGI = 85,209 - 2,778 - 130 = $82,301. Household size is 5.\n\n2) Poverty line: the HHS 2026 guideline for 5 people is $38,680 (published 2026-01-15, before the freeze). Under G.S. 108A-54.3A(b), NC adopts the new guidelines on April 1. So January\u2013March 2026 uses the 2025 figure of $37,650, and April\u2013December uses $38,680. 82,301 / 38,680 = 212.8% FPL; 82,301 / 37,650 = 218.6% FPL.\n\n3) Income standard: G.S. 108A-54.3A(a)(3) covers children through age 18 up to 211% FPL. CMS lists NC children ages 6\u201318 at 211%. The 5% disregard (42 CFR 435.603(d)(4)) applies to the group with the highest standard, so the effective cutoff is 216%. On income alone the child qualifies from April to December (212.8 - 5 = 207.8% \u2264 211%) but not from January to March (218.6 - 5 = 213.6% > 211%).\n\n4) Eligibility group: the regular children's group (42 CFR 435.118(c)(2)) is capped at the higher of 133% FPL or the state's Medicaid level as of 2010/2013. NC's level for ages 6\u201318 was 133%. The reasonable-classification group (435.222(c)) has a similar cap. The only Medicaid group that can reach 211% for ages 6\u201318 is the optional targeted low-income children group (435.229(c)(3)). Its cap counts the CHIP-plan level, which was NC Health Choice at 200%, or 211% after MAGI conversion. CMS describes SPA NC-23-0009 as adopting \"a new Medicaid eligibility group for certain children under age 19,\" which fits this group. I could not read the SPA itself, so this step is an inference.\n\n5) Insurance condition: an optional targeted low-income child must be a targeted low-income child under 42 U.S.C. 1397jj(b)(1). Part (C) of that definition requires that the child not be \"covered under a group health plan or under health insurance coverage\" (42 U.S.C. 1396d(u)(2)(B); 42 CFR 435.4). Child 3 \"has employer-sponsored insurance\" all year, so Child 3 is not an optional targeted low-income child. The state-employee exception in 1397jj(b)(5) doesn't apply because it isn't listed, so it counts as false.\n\n6) The 133% group then decides the case: 212.8% FPL is far above 133% (138% with the disregard). Child 3 is not Medicaid-eligible, and NC has no separate CHIP. Result = 0.",
+  "confidence": "medium",
+  "definition_reading": "This is a person-level flag for Child 3, a 9-year-old in a 5-person tax unit in NC in 2026. The question is whether the child meets the rules for any NC Medicaid group, including the CHIP-funded Medicaid expansion, since NC has no separate CHIP. Enrollment doesn't matter. The stated fact that Child 3 \"has employer-sponsored insurance\" counts as actual group health coverage for the whole year.",
+  "independent_answer": 0,
+  "law_supports": "consensus"
+}

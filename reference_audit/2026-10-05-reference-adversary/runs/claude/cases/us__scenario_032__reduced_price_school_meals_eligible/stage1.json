@@ -1,0 +1,66 @@
+{
+  "ambiguity": "A second reasonable reading treats the output as the federal NSLP/SBP income tier, which matches the variable name 'reduced_price_school_meals_eligible'. Under that reading the answer is 1: income of $42,664 is between 130% ($35,516) and 185% ($50,542) of the 2026 FPG for 3, and Minnesota schools still collect applications and claim this child as reduced-price for federal reimbursement. The 25 consensus models used this reading and ignored Minnesota's universal free meals. Whether a PolicyEngine-specific model of Minnesota's universal free meals is what drives the engine's 0 cannot be checked from the law. Separately, if the child were treated as not attending school (no attendance input was listed), the answer would be 0 under either reading.",
+  "citations": [
+    {
+      "pinpoint": "Subd. 1c(b), (d)(2)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "provide to all students at no cost up to two federally reimbursable meals per school day, with a maximum of one free breakfast and one free lunch.",
+      "source": "Minnesota Statutes 2025, section 124D.111 (School meals policy; Free school meals program)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Subd. 1d (Free school meals program aid amount)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "The state aid equals the difference between the applicable federal reimbursement rate at that school site for a free meal, as determined annually by the United States Department of Agriculture, and the actual federal reimbursement received by the participating school for the breakfast or lunch served to the student.",
+      "source": "Minnesota Statutes 2025, section 124D.111",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Definitions of 'Free meal' and 'Reduced price meal'",
+      "pre_freeze": true,
+      "published": "current regulation (long-standing)",
+      "quote": "Free meal means a meal for which neither the child nor any member of his family pays or is required to work in the school or in the school's food service.",
+      "source": "7 CFR 245.2 (Determining Eligibility for Free and Reduced Price Meals and Free Milk in Schools \u2014 Definitions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/245.2"
+    },
+    {
+      "pinpoint": "Guidelines paragraph and income definition; effective July 1, 2026\u2013June 30, 2027",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively, and by rounding the result upward to the next whole dollar.",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines, Federal Register Doc. 2026-06842 (91 FR 17932)",
+      "url": "https://www.federalregister.gov/documents/full_text/text/2026/04/09/2026-06842.txt"
+    },
+    {
+      "pinpoint": "Definition of income, item (4)",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "\"Income,\" as used here, means income before any deductions such as income taxes, Social Security taxes, or insurance premiums ... (4) Social Security",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines, Federal Register Doc. 2026-06842",
+      "url": "https://www.federalregister.gov/documents/full_text/text/2026/04/09/2026-06842.txt"
+    },
+    {
+      "pinpoint": "48 contiguous states table, household size 3 ($27,320)",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "For families/households with more than 8 persons, add $5,680 for each additional person.",
+      "source": "HHS ASPE, 2026 Poverty Guidelines",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "Income guidelines and application paragraphs",
+      "pre_freeze": false,
+      "published": "2026-08-17",
+      "quote": "schools must still collect Applications for Educational Benefits to determine eligibility categories and receive the correct federal and state reimbursements.",
+      "source": "Minnesota Department of Education, 'USDA Announces New Income Guidelines for Free and Reduced-Price Benefits Eligibility' (GovDelivery bulletin)",
+      "url": "https://content.govdelivery.com/accounts/MNMDE/bulletins/42447e2"
+    }
+  ],
+  "computation": "1) Household size is 3: the head, the 18-year-old spouse and the 6-year-old child. Income for school meals is gross cash income before deductions and expressly includes \"Social Security\" (FR notice 2026-06842). Income = $29,000 wages + $13,664 Social Security dependent benefits = $42,664, or about $3,555 a month. The $50 energy subsidy is LIHEAP-type aid and is not counted; counting it would give $42,714 and change nothing.\n2) The 2026 HHS poverty guideline for 3 in the 48 states is $27,320 (ASPE, Jan 15, 2026). Under the 2026-27 IEGs (\u00d71.30 and \u00d71.85, rounded up), the free limit is $35,516 and the reduced-price limit is $50,542. The household is at about 156% of FPG. The 2025-26 IEGs, which cover Jan\u2013Jun 2026, are based on the $26,650 guideline and give $34,645 and $49,303, so the result is the same band. Monthly, MDE's limits for a household of 3 work out to about $2,960 (free) and $4,212 (reduced-price), and $3,555 falls between them.\n3) No categorical route to free meals: SNAP comes to $0. Under Minnesota's broad-based categorical eligibility the household passes the 165% FPG gross test, but net income is about $3,555 \u2212 $483 earned-income deduction \u2212 $209 standard deduction \u2248 $2,863 with no excess shelter cost. 30% of that is about $859, which is more than the $785 maximum allotment for 3, and the minimum benefit applies only to households of 1\u20132. There is no TANF/MFIP either. So under federal NSLP/SBP rules the child is certified in the REDUCED-PRICE tier, which is what the consensus applied.\n4) Minnesota law is the deciding step. Minn. Stat. 124D.111 subd. 1c makes every NSLP school join the state free school meals program and \"provide to all students at no cost\" one breakfast and one lunch a day. Subd. 1d has the state pay the gap between the federal free rate and the federal reimbursement actually received, so for a reduced-price-certified child the state covers the reduced-price copay. Under 7 CFR 245.2, a meal \"for which neither the child nor any member of his family pays\" is a free meal. The program was in force for SY 2025-26 and 2026-27 (2025 Minnesota Statutes; MDE 2026 bulletins).\nSo the meal support this household actually receives in 2026 is free meals, with the reduced-price tier existing only as a federal reimbursement category. The definition says \"free meals do not count as 1\", so reduced-price support = 0.",
+  "confidence": "medium",
+  "definition_reading": "I read 'positive annual reduced-price school meal support for the household (free meals do not count as 1)' as the meal benefit the household actually receives. The 6-year-old is presumed to attend a Minnesota public school that participates in NSLP. Federally the household's income (~156% FPG) puts the child in the reduced-price tier. But Minn. Stat. 124D.111 requires every participating school to serve all students breakfast and lunch at no cost, with the state paying the reduced-price copay. Those meals are 'free meals' under 7 CFR 245.2, so the household's support is free meals and reduced-price support is 0.",
+  "independent_answer": 0,
+  "law_supports": "both_readings"
+}

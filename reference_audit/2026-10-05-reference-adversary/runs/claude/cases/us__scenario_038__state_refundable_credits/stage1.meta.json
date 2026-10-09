@@ -1,0 +1,64 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.9149573999999998,
+  "duration_ms": 144701,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:21:17.961885+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "3976cf19c5f638a46519dc666596f6e25bc0ecc0fbbef66129fa87e7c0d99fd6",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "efdcdba2c725ed77378d4884ddd13bf1a7a8025867ba64ffd00ffe4d4dd51aac",
+  "session_id": "f7be07e1-7167-4ef7-8e2a-676fb3663948",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://law.justia.com/codes/louisiana/revised-statutes/title-47/rs-47-297-8/",
+      "https://www.legis.la.gov/legis/Law.aspx?d=453085",
+      "https://www.legis.la.gov/legis/Law.aspx?d=453085",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/irb/2025-45_IRB",
+      "https://dam.ldr.la.gov/taxforms/IT540i-WEB-2025.pdf",
+      "https://dam.ldr.la.gov/taxforms/IT540WEB-BC-2025-F.pdf",
+      "https://dam.ldr.la.gov/taxforms/IT540i%20WEB%20(2024)D18%20INSTRUCTIONS.pdf",
+      "https://www.law.cornell.edu/uscode/text/26/32"
+    ],
+    "searches": [
+      "Louisiana R.S. 47:297.8 earned income tax credit refundable five percent",
+      "Rev. Proc. 2025-32 earned income credit 2026 maximum amount two qualifying children 7,316",
+      "legis.la.gov Law.aspx RS 47:297.8 earned income tax credit",
+      "irs.gov Rev. Proc. 2025-32 earned income amount threshold phaseout amount 2026 married filing jointly",
+      "Louisiana 2025 IT-540 instructions Louisiana earned income credit refundable line",
+      "Louisiana 2026 regular session earned income tax credit bill repeal or increase",
+      "Louisiana SB 149 2025 Seabaugh repeal earned income tax credit status failed"
+    ]
+  }
+}

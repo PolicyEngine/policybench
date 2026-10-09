@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "FAP categorical eligibility; gross income at or below 200 percent; SDV groups",
+      "pre_freeze": true,
+      "published": "2026-02-01",
+      "quote": "Groups which contain an SDV member and whose gross income is above 200 percent are not categorically eligible.",
+      "source": "Michigan DHHS Bridges Eligibility Manual BEM 213, Categorical Eligibility (BPB 2026-003)",
+      "url": "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/BP/Public/BEM/213.pdf"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(a)",
+      "pre_freeze": true,
+      "published": "current CFR (in force for FY2026)",
+      "quote": "Households which are categorically eligible as defined in \u00a7 273.2(j)(2) or 273.2(j)(4) do not have to meet either the gross or net income eligibility standards.",
+      "source": "Code of Federal Regulations, 7 CFR 273.9 Income and deductions",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7 273.10(e)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current CFR (in force for FY2026)",
+      "quote": "the household's monthly allotment shall be equal to the maximum SNAP allotment for the household's size reduced by 30 percent of the household's net monthly income",
+      "source": "Code of Federal Regulations, 7 CFR 273.10 Determining household eligibility and benefit levels",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "\u00a7 2017(a)",
+      "pre_freeze": true,
+      "published": "current U.S. Code",
+      "quote": "for households of one and two persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member, as determined by the Secretary under section 2012 of this title, rounded to the nearest whole dollar increment.",
+      "source": "7 U.S.C. 2017 (Food and Nutrition Act of 2008 \u00a7 8)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "Minimum benefit, 48 States and D.C.",
+      "pre_freeze": true,
+      "published": "2025-08 (effective 2025-10-01)",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $24.",
+      "source": "USDA Food and Nutrition Service, SNAP Fiscal Year 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "Minimum benefit, 48 States and D.C.",
+      "pre_freeze": false,
+      "published": "2026-08-21 (effective 2026-10-01)",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $25.",
+      "source": "USDA Food and Nutrition Service, SNAP Fiscal Year 2027 Cost-of-Living Adjustments memo (post-freeze; cited only to show the Oct\u2013Dec 2026 change is later law)",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 288,
+  "reference_value": 288,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The reference of $288 holds. The household is one disabled person, an SSDI recipient, with gross income of about $2,146 a month. That is below 200% of poverty (about $2,608), so Michigan's broad-based categorical eligibility applies (BEM 213), and under 7 CFR 273.9(a) the household need not meet the gross or net income limits, and no asset test applies. With no shelter costs, 30% of net income (about $527 with the engine's $1,755 net income) exceeds the $298 maximum allotment, so the computed benefit is $0. But eligible one-person households get the minimum benefit, which is $24 a month in FY2026, so $24 \u00d7 12 = $288. The consensus answer of $0 comes from applying a net income limit, a 130% gross income limit, or an asset limit that categorically eligible households do not face.",
+  "verdict": "reference_holds"
+}
