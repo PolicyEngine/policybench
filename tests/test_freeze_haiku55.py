@@ -510,7 +510,7 @@ def freeze_preflight(tmp_path, monkeypatch):
     app.mkdir(parents=True)
     # The live pointer and version list as release 20261006 left them.
     (app / "data.artifact.json").write_bytes(base_blob(Path(release.POINTER)))
-    (app / "data.versions.json").write_bytes(head_blob(Path(release.VERSIONS)))
+    (app / "data.versions.json").write_bytes(base_blob(Path(release.VERSIONS)))
     return stage, payload, receipt
 
 
@@ -1838,7 +1838,7 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
         json.dumps(pointer, indent=2, sort_keys=True) + "\n"
     )
     versions = json.loads((root / release.VERSIONS).read_text())
-    previous = json.loads(head_blob(Path(release.VERSIONS)))
+    previous = json.loads(base_blob(Path(release.VERSIONS)))
     live = _live_version(versions)
     assert live["snapshotLabel"] == "Snapshot 2026-10-09"
     assert live["description"].endswith(" - 47 models")
@@ -3104,7 +3104,7 @@ def test_optional_live_stage_upgrade_bindings_are_read_only(stage):
 
 
 def head_versions() -> dict:
-    return json.loads(head_blob(Path(release.VERSIONS)))
+    return json.loads(base_blob(Path(release.VERSIONS)))
 
 
 def test_the_version_description_counts_the_releases_exclusions():

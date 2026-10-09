@@ -671,6 +671,40 @@ def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
         assert sentence in text, sentence
 
 
+def _engine_groups(exclusions) -> list[tuple[str, int]]:
+    """Excluded outputs by the engine version of their value, oldest first."""
+    by_engine = Counter(
+        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    )
+    return sorted(
+        by_engine.items(), key=lambda item: tuple(int(p) for p in item[0].split("."))
+    )
+
+
+def test_the_apps_recheck_constant_is_the_frozen_sidecars():
+    """app/src/lib/referenceEngine.ts's ENGINE_UPGRADE_RECHECK names the last
+    engine upgrade's engine and how many excluded outputs it re-reviewed,
+    which the payload does not carry."""
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
+    source = (ROOT / "app/src/lib/referenceEngine.ts").read_text()
+    block = re.search(
+        r"ENGINE_UPGRADE_RECHECK = \{\s*engineVersion: \"([\d.]+)\",\s*rechecked: "
+        r"(\d+),\s*\}",
+        source,
+    )
+    assert block, "ENGINE_UPGRADE_RECHECK not found"
+    assert block.group(1) == upgrade["engine_version"].removeprefix("policyengine-us ")
+    assert int(block.group(2)) == len(upgrade["excluded_outputs_rechecked"])
+
+
 def test_live_version_description_states_the_reference_engines():
     """The dataset selector's one-line description of the live board names the
     engine behind each scored reference and the engines behind the excluded
@@ -689,17 +723,28 @@ def test_live_version_description_states_the_reference_engines():
     exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
         "exclusions"
     ]
-    by_engine = Counter(
-        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    groups = _engine_groups(exclusions)
+    # Every excluded value comes from an engine the references have run on.
+    lineage = {
+        version.removeprefix("policyengine-us ")
+        for r in sidecar["revisions"]
+        if r["kind"] == "engine_upgrade"
+        for version in (r["engine_version"], r["previous_engine_version"])
+    }
+    assert {version for version, _ in groups} <= lineage
+    assert previous in lineage
+    clauses = ", ".join(
+        f"{count} from policyengine-us {version}"
+        if index == 0
+        else f"{count} from {version}"
+        for index, (version, count) in enumerate(groups)
     )
-    assert set(by_engine) == {previous, engine}
     versions = json.loads(VERSIONS.read_text())
     live = next(v for v in versions["versions"] if v["id"] == versions["default"])
     assert live["description"].startswith(
         f"Scored reference outputs from policyengine-us {engine} (the "
         f"{len(exclusions)} excluded outputs keep the values they were decided "
-        f"on: {by_engine[previous]} from policyengine-us {previous}, "
-        f"{by_engine[engine]} from {engine}, and the "
+        f"on: {clauses}, and the "
         f"{len(upgrade['excluded_outputs_rechecked'])} that move on {engine} were "
         "re-reviewed and stay excluded); "
     )

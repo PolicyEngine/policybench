@@ -6,7 +6,8 @@
  * regardless); Claude Fable 5.1 rejects forced tool calls and answers as JSON,
  * reasoning in both runs, so its comparison is one of transport. Claude Opus
  * 5.5 and Claude Sonnet 5.5 reject forced calls the same way and have no auto
- * re-run. Scores are
+ * re-run. Claude Haiku 5.5 accepts forced calls, so its board row is a
+ * forced-tool row like Claude Opus 5's. Scores are
  * the pinned three-decimal measurements from sensitivity/data/*.json; round
  * only for display. Each entry's "would rank" is derived from the live board
  * rows at render time, never typed by hand.
@@ -35,7 +36,7 @@ const FORCED_TOOL =
 
 export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
   "claude-fable-5": {
-    autoExact: 92.817,
+    autoExact: 93.173,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -43,14 +44,14 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-opus-5": {
-    autoExact: 91.252,
+    autoExact: 91.551,
     boardTreatment: FORCED_TOOL,
     autoTreatment: "re-run with tool_choice: auto",
     thinkingSuppressedOnBoard: true,
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-sonnet-5": {
-    autoExact: 86.076,
+    autoExact: 86.307,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -58,13 +59,20 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-fable-5.1": {
-    autoExact: 93.037,
+    autoExact: 93.545,
     boardTreatment:
       "rejects forced tool calls, so its row answers as a JSON object and reasons at the provider default",
     autoTreatment:
       "re-run with the answer tool declared under tool_choice: auto (it reasons in both runs, so this compares transports)",
     thinkingSuppressedOnBoard: false,
     noteHref: "/notes/2026-09-01-claude-fable-5-1-added",
+  },
+  "claude-haiku-5.5": {
+    autoExact: 90.386,
+    boardTreatment: FORCED_TOOL,
+    autoTreatment: "re-run with tool_choice: auto",
+    thinkingSuppressedOnBoard: true,
+    noteHref: SENSITIVITY_DOC_HREF,
   },
 };
 

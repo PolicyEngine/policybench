@@ -3,19 +3,35 @@
   "sensitivity_model_id": "claude-haiku-5.5-thinking",
   "condition": "answer tool declared, tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto), whole scenario; the board row forces the tool, which leaves Claude's extended thinking off",
   "run_date": "2026-10-08",
-  "release": null,
+  "release": "dashboard-data-20261009",
   "source": "results/local/haiku55-stage/auto-run (run_state treatment_fingerprint: answer_contract tool, tool_choice_mode auto, thinking provider_default); the model column renamed claude-haiku-5.5-thinking",
   "assets": {
     "sensitivity-claude-haiku-5-5-thinking-predictions.csv.gz": {
       "sha256": "b3ba8bb5bc3469eeac84ca8185fe9c52cd5ad793e84e7787625e1b44dd44218e",
       "bytes": 171655
+    },
+    "sensitivity-claude-haiku-5-5-thinking-by-variable.csv.gz": {
+      "sha256": "2af99d111d8aa8f73c2c0d7ef24f3b7384b751ad5aafd4bd263d0ded62294abd",
+      "bytes": 927
     }
   },
-  "board": null,
+  "board": {
+    "exact": 80.95,
+    "within1pct": 82.022,
+    "score": 87.078,
+    "n": 1915,
+    "n_parsed": 1915
+  },
   "sensitivity": {
+    "exact": 90.386,
+    "within1pct": 91.755,
+    "score": 94.807,
+    "would_rank": 11,
+    "n": 1984,
+    "n_parsed": 1984,
     "cost_usd": 0.2702,
     "cost_per_household": 0.002702
   },
-  "delta_exact": null,
-  "scored_against": null
+  "delta_exact": 9.436,
+  "scored_against": "the frozen 47-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the sixty-nine outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,915 scored outputs); exact, within-1% and the bounded score all on that universe"
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import registryJson from "../src/data.versions.json";
+import paperSnapshot from "../src/paperSnapshot.json";
 import {
   isLivePointerRef,
   parseDataVersionRegistry,
@@ -93,7 +94,7 @@ describe("parseDataVersionRegistry", () => {
     expect(
       registry.versions.find((version) => version.id === registry.default)
         ?.snapshotLabel,
-    ).toBe("Snapshot 2026-09-30");
+    ).toBe(`Snapshot ${paperSnapshot.snapshotDate}`);
   });
 });
 

@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 17
+    "run_state": 18
   },
   "models": {
     "claude-fable-5": {
@@ -106,6 +106,63 @@
       "request_shape": "1 output/request",
       "request_timeout_seconds": 120,
       "shared_completion_budget_tokens": null,
+      "tool_choice": "forced"
+    },
+    "claude-haiku-5.5": {
+      "answer_contract": "tool",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "4a7373791a5f9df6e4c775b8aade37ecd58df87bd8b99f238889f1afe744621c",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "haiku55-runs/haiku55",
+        "source_predictions_sha256": "27a5e48f44ad875f6d0901571b91c06c67045a7a6841f95a5ab56ecf0cfc8344",
+        "source_rows_sha256": "4a7373791a5f9df6e4c775b8aade37ecd58df87bd8b99f238889f1afe744621c",
+        "treatment_fingerprint": {
+          "answer_contract": "tool",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "claude-haiku-5-5",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 300,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": "forced"
+        }
+      },
+      "provider_id": "claude-haiku-5-5",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
     "claude-opus-4.7": {
@@ -1528,7 +1585,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "cddd01812ad6d6311502ef997f93634f70c28fda",
+  "registry_commit": "462b27f4268801580f0cc34c372177fe5b758ff9",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

@@ -15,8 +15,8 @@ import type { ReferenceExclusion } from "../types";
  * the frozen sidecar.
  */
 export const ENGINE_UPGRADE_RECHECK = {
-  engineVersion: "2.15.17",
-  rechecked: 19,
+  engineVersion: "2.37.2",
+  rechecked: 22,
 };
 
 function compareVersions(a: string, b: string): number {

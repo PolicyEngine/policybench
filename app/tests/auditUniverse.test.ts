@@ -18,16 +18,17 @@ describe("audit universe", () => {
     expect(AUDIT_SELECTION_RULE).toBe(
       "rows whose legacy threshold score is below 1",
     );
-    // Release 20261006: the counts tests/test_disclosures.py recomputes
-    // from the frozen annotations and payload (release 20260930's less the
-    // 368 scored rows on the eight outputs it excludes).
+    // Release 20261009: the counts tests/test_disclosures.py recomputes
+    // from the frozen annotations and payload (47 models; the ten outputs
+    // ruled on 2026-10-06 and the two Indiana county outputs leave scoring,
+    // the outputs the engine upgrade regenerates return to it).
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 7_527,
-      legacyThresholdRowCount: 7_527,
-      exactMissCount: 7_523,
-      annotatedExactMissCount: 7_523,
+      annotatedRowCount: 7_507,
+      legacyThresholdRowCount: 7_507,
+      exactMissCount: 7_503,
+      annotatedExactMissCount: 7_503,
       annotatedExactHitCount: 4,
-      unannotatedBelowFullBoundedScoreCount: 2_072,
+      unannotatedBelowFullBoundedScoreCount: 2_115,
     });
   });
 });

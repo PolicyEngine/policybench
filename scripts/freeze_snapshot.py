@@ -1578,10 +1578,18 @@ def read_reference_engine_setup() -> dict[str, int]:
     }
 
 
+# The repository this script is committed in: where the fix modules' bytes
+# are read, even when a test points ROOT at a scratch copy.
+SOURCE_REPOSITORY = Path(__file__).resolve().parents[1]
+
+
 def committed_sha256(path: str) -> str | None:
     """The sha256 of a file's bytes as committed at HEAD, or None."""
     shown = subprocess.run(
-        ["git", "show", f"HEAD:{path}"], cwd=ROOT, check=False, capture_output=True
+        ["git", "show", f"HEAD:{path}"],
+        cwd=SOURCE_REPOSITORY,
+        check=False,
+        capture_output=True,
     )
     return sha256_bytes(shown.stdout) if shown.returncode == 0 else None
 

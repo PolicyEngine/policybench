@@ -13,6 +13,7 @@ import {
   servingSensitivityFor,
 } from "../src/lib/servingSensitivity";
 import fable51Summary from "../../sensitivity/data/claude-fable-5-1-thinking.json";
+import haiku55Summary from "../../sensitivity/data/claude-haiku-5-5-thinking.json";
 import augustSummary from "../../sensitivity/data/claude-thinking-2026-08.json";
 import { wouldRank } from "../src/lib/wouldRank";
 import rawData from "../src/data-summary.json";
@@ -37,10 +38,11 @@ function renderFable5Chip(): string {
 }
 
 describe("serving sensitivity", () => {
-  test("covers exactly the four Claude rows whose request shape changed", () => {
+  test("covers exactly the five Claude rows with an auto re-run", () => {
     expect(Object.keys(SERVING_SENSITIVITY).sort()).toEqual([
       "claude-fable-5",
       "claude-fable-5.1",
+      "claude-haiku-5.5",
       "claude-opus-5",
       "claude-sonnet-5",
     ]);
@@ -59,11 +61,11 @@ describe("serving sensitivity", () => {
         wouldRank: rank,
       }),
     );
-    expect(rank).toBe(6);
-    expect(html).toContain("auto 92.8 · #6");
+    expect(rank).toBe(5);
+    expect(html).toContain("auto 93.2 · #5");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
-    expect(html).toContain("would rank #6");
-    expect(html).toContain("(+7.9 against its 84.9% on the unfiltered board)");
+    expect(html).toContain("would rank #5");
+    expect(html).toContain("(+8.0 against its 85.1% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
     expect(html).toContain("issues/139");
   });
@@ -80,14 +82,34 @@ describe("serving sensitivity", () => {
         wouldRank: rank,
       }),
     );
-    // 93.037 ranks above GPT-6 Luna's 93.021 though both display as 93.0:
-    // the would-rank comes from the unrounded score.
+    // The would-rank comes from the unrounded score: 93.545 sits between
+    // Claude Sonnet 5.5's 93.575 and GPT-6 Luna's 93.141.
     expect(rank).toBe(5);
-    expect(html).toContain("auto 93.0 · #5");
-    expect(html).toContain("(+1.0 against its 92.1% on the unfiltered board)");
+    expect(html).toContain("auto 93.5 · #5");
+    expect(html).toContain("(+1.2 against its 92.4% on the unfiltered board)");
     expect(html).toContain("rejects forced tool calls");
     expect(html).toContain("compares transports");
     expect(html).toContain('href="/notes/2026-09-01-claude-fable-5-1-added"');
+  });
+
+  test("Haiku 5.5 is a forced-tool row whose thinking was off on the board", () => {
+    const sensitivity = servingSensitivityFor("claude-haiku-5.5")!;
+    const board = rows.find((row) => row.model === "claude-haiku-5.5")!;
+    const rank = wouldRank(sensitivity.autoExact, rows);
+    const html = renderToStaticMarkup(
+      createElement(ServingSensitivityChip, {
+        modelLabel: "Claude Haiku 5.5",
+        boardExact: board.exact ?? board.score,
+        sensitivity,
+        wouldRank: rank,
+      }),
+    );
+    expect(rank).toBe(haiku55Summary.sensitivity.would_rank);
+    expect(rank).toBe(11);
+    expect(html).toContain("auto 90.4 · #11");
+    expect(html).toContain("switches Claude&#x27;s extended thinking off");
+    expect(html).toContain("(+9.4 against its 80.9% on the unfiltered board)");
+    expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
   });
 
   test("the leaderboard keeps the scores in one place and marks the rows", () => {
@@ -112,21 +134,24 @@ describe("serving sensitivity", () => {
     expect(SERVING_SENSITIVITY["claude-fable-5.1"].autoExact).toBe(
       fable51Summary.sensitivity.exact,
     );
+    expect(SERVING_SENSITIVITY["claude-haiku-5.5"].autoExact).toBe(
+      haiku55Summary.sensitivity.exact,
+    );
     for (const run of Object.values(augustSummary.runs)) {
       expect(SERVING_SENSITIVITY[run.model].autoExact).toBe(run.sensitivity.exact);
     }
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 93.037 − 92.070 = 0.967.
+    // The pinned Fable 5.1 pair on the frozen board: 93.545 − 92.370 = 1.175.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
-    ).toBe("+1.0");
+    ).toBe("+1.2");
     expect(formatDelta(80.775, 80.8)).toBe("−0.0");
     const fable5 = Object.values(augustSummary.runs).find(
       (run) => run.model === "claude-fable-5",
     )!;
-    expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+7.9");
+    expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+8.0");
   });
 
   test("the open panel stays inside the viewport, horizontally and vertically", () => {
