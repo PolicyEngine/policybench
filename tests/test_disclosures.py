@@ -812,11 +812,18 @@ def _publication_check_sentence(timing: dict, engine: str) -> str:
     assert check["engine"] == timing["pypi"]["newest_at_read"]
     if check["engine"] == engine:
         return f"policyengine-us {engine} was still the newest release when {when}."
-    assert check["same"] == check["outputs"], check["differ"]
+    if check["same"] == check["outputs"]:
+        return (
+            f"policyengine-us {check['engine']}, the newest release when {when}, "
+            f"gives the same value as {engine} for all {check['outputs']:,} outputs "
+            "under the same conventions and adapter."
+        )
+    # A newer release may move outputs the release excludes; never a scored one.
+    assert check["scored_same"] == check["scored_outputs"], check["scored_differ"]
     return (
         f"policyengine-us {check['engine']}, the newest release when {when}, gives "
-        f"the same value as {engine} for all {check['outputs']:,} outputs under the "
-        "same conventions and adapter."
+        f"the same value as {engine} for all {check['scored_outputs']:,} scored "
+        "outputs under the same conventions and adapter"
     )
 
 

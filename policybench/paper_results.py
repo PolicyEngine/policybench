@@ -1846,10 +1846,20 @@ class PaperResults:
                 f"gives the same value as {engine} for all {check['outputs']:,} "
                 "outputs under the same conventions and adapter."
             )
+        elif check["scored_same"] == check["scored_outputs"]:
+            moved = len(check["excluded_differ"])
+            checked = (
+                f"policyengine-us {check['engine']}, the newest release when {when}, "
+                f"gives the same value as {engine} for all "
+                f"{check['scored_outputs']:,} scored outputs under the same "
+                f"conventions and adapter, and moves {count_word(moved)} of the "
+                "excluded outputs, which keep the values they were decided on."
+            )
         else:
             raise ValueError(
-                f"policyengine-us {check['engine']} moves {check['differ']}; state "
-                "what the publication check found before publishing"
+                f"policyengine-us {check['engine']} moves scored outputs "
+                f"{check['scored_differ']}; state what the publication check found "
+                "before publishing"
             )
         return (
             f"policyengine-us {engine} was the newest release when PolicyBench began "

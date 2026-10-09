@@ -83,9 +83,31 @@ def test_compare_counts_the_outputs_that_differ(tmp_path):
         "outputs": 2,
         "same": 1,
         "differ": ["s2|v"],
+        "scored_outputs": 2,
+        "scored_same": 1,
+        "scored_differ": ["s2|v"],
+        "excluded_differ": [],
         "max_abs_delta": 0.5,
     }
     assert [r["same"] for r in rows] == [True, False]
+    # The same move on an output the release excludes touches no scored one.
+    _, excluded = timing.compare(
+        timing.read_computed(a),
+        timing.read_computed(b),
+        "2.38.4",
+        "2.39.0",
+        frozenset({("s2", "v")}),
+    )
+    assert (excluded["scored_outputs"], excluded["scored_same"]) == (1, 1)
+    assert excluded["scored_differ"] == [] and excluded["excluded_differ"] == ["s2|v"]
+    with pytest.raises(timing.Refusal, match="do not cover"):
+        timing.compare(
+            timing.read_computed(a),
+            timing.read_computed(b),
+            "x",
+            "y",
+            frozenset({("s9", "v")}),
+        )
 
 
 def test_compare_refuses_other_outputs_or_non_finite_values(tmp_path):

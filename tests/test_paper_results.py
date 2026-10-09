@@ -1702,7 +1702,28 @@ def test_the_upgrade_timing_sentence_states_the_timing_record(tmp_path, monkeypa
         f"2026-10-10 at 08:15 UTC, gives the same value as {engine} for all 1,984 "
         "outputs under the same conventions and adapter."
     )
-    moved = {"engine": "9.9.9", "outputs": 1984, "same": 1983, "differ": ["s|v"]}
+    fixes = {
+        "engine": "9.9.9",
+        "outputs": 1984,
+        "same": 1982,
+        "differ": ["a|v", "b|v"],
+        "scored_outputs": 1915,
+        "scored_same": 1915,
+        "scored_differ": [],
+        "excluded_differ": ["a|v", "b|v"],
+    }
+    later = _with_timing(tmp_path, monkeypatch, _MOCK_october_timing(fixes))
+    assert later.engine_upgrade_timing_sentence.endswith(
+        f"gives the same value as {engine} for all 1,915 scored outputs under the "
+        "same conventions and adapter, and moves two of the excluded outputs, "
+        "which keep the values they were decided on."
+    )
+    moved = {
+        **fixes,
+        "scored_same": 1914,
+        "scored_differ": ["s|v"],
+        "excluded_differ": ["a|v"],
+    }
     with pytest.raises(ValueError, match="state what the publication check found"):
         _with_timing(
             tmp_path, monkeypatch, _MOCK_october_timing(moved)

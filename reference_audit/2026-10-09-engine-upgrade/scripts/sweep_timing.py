@@ -18,12 +18,14 @@ Two steps, each writing into this audit's verification/ directory:
       release newer than it was uploaded before its first output.
 
   sweep_timing.py check --computed <reference computed.csv>
+                        --exclusions <the build's reference_exclusions.json>
                         --check-computed <computed.csv on the newest release>
                         --check-venv <venv>
       Reads PyPI again. When a newer release is out, compares every output the
       newest release computes under the same conventions with the reference
-      engine's (publication_check_<version>.csv) and records the result; when
-      the reference engine is still the newest, records that.
+      engine's (publication_check_<version>.csv) and records the result,
+      counting scored and excluded outputs apart; when the reference engine is
+      still the newest, records that.
 
 Times are UTC. Birth times are macOS st_birthtime.
 """
@@ -152,8 +154,12 @@ def compare(
     check: dict[tuple[str, str], tuple[str, float]],
     reference_engine: str,
     check_engine: str,
+    excluded: frozenset[tuple[str, str]] = frozenset(),
 ) -> tuple[list[dict], dict]:
-    """Every output on both engines, and whether the values are the same."""
+    """Every output on both engines, and whether the values are the same.
+    ``excluded`` names the outputs the release does not score: a newer release
+    that fixes a defect behind one moves its value without touching a scored
+    reference, so the summary counts scored and excluded outputs apart."""
     if set(reference) != set(check):
         raise Refusal(
             "the two sweeps cover different outputs: "
@@ -177,13 +183,26 @@ def compare(
                 "value": repr(after),
                 "delta": repr(delta),
                 "same": abs(delta) <= SAME,
+                "scored": key not in excluded,
             }
         )
+    unknown = sorted(excluded - set(reference))
+    if unknown:
+        raise Refusal(f"excluded outputs the sweeps do not cover: {unknown[:5]}")
     differ = [r for r in rows if not r["same"]]
+    scored = [r for r in rows if r["scored"]]
+
+    def names(found: list[dict]) -> list[str]:
+        return [f"{r['scenario_id']}|{r['variable']}" for r in found]
+
     return rows, {
         "outputs": len(rows),
         "same": len(rows) - len(differ),
-        "differ": [f"{r['scenario_id']}|{r['variable']}" for r in differ],
+        "differ": names(differ),
+        "scored_outputs": len(scored),
+        "scored_same": sum(r["same"] for r in scored),
+        "scored_differ": names([r for r in differ if r["scored"]]),
+        "excluded_differ": names([r for r in differ if not r["scored"]]),
         "max_abs_delta": max((abs(float(r["delta"])) for r in rows), default=0.0),
     }
 
@@ -265,8 +284,14 @@ def check(args) -> dict:
         )
     check_path = Path(args.check_computed)
     installed = dist_info(Path(args.check_venv), latest)
+    record = json.loads(Path(args.exclusions).read_text())["exclusions"]
+    excluded = frozenset((e["scenario_id"], e["variable"]) for e in record)
     rows, summary = compare(
-        read_computed(Path(args.computed)), read_computed(check_path), engine, latest
+        read_computed(Path(args.computed)),
+        read_computed(check_path),
+        engine,
+        latest,
+        excluded,
     )
     out = VERIFICATION / f"publication_check_{latest.replace('.', '_')}.csv"
     digest = write_rows(out, rows)
@@ -291,6 +316,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--first-output", required=True)
     c = sub.add_parser("check")
     c.add_argument("--computed", required=True)
+    c.add_argument("--exclusions", required=True)
     c.add_argument("--check-computed")
     c.add_argument("--check-venv")
     args = parser.parse_args(argv)
