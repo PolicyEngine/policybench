@@ -257,6 +257,22 @@ def record_basis(record: dict) -> str:
     )
 
 
+def upstream_for(record: dict, key, upstreams: dict | None) -> str:
+    """The upstream fix a regeneration names: the output's own entry in
+    ``upstreams``, else each of its root causes' (joined with "; "), else the
+    record's own upstream."""
+    if not upstreams:
+        return record.get("upstream", "")
+    own = upstreams.get("outputs", {}).get(f"{key[0]}|{key[1]}")
+    if own:
+        return own
+    causes = str(record.get("root_cause", "")).split("+")
+    fixes = [upstreams.get("root_causes", {}).get(cause) for cause in causes]
+    if causes and all(fixes):
+        return "; ".join(dict.fromkeys(fixes))
+    return record.get("upstream", "")
+
+
 def draft_actions(
     cells: list[Cell],
     release: dict,
@@ -269,6 +285,7 @@ def draft_actions(
     spec_sha256: str,
     precise: bool,
     evidence: dict | None = None,
+    upstreams: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     """The draft actions file and the judgment calls, one per moved output.
 
@@ -371,7 +388,7 @@ def draft_actions(
                     continue
                 if on_target:
                     regenerated.add(k)
-                    upstream = record.get("upstream", "")
+                    upstream = upstream_for(record, k, upstreams)
                     actions["regenerated_exclusions"].append(
                         {
                             "scenario_id": k[0],
@@ -505,6 +522,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--engine")
     parser.add_argument("--date")
     parser.add_argument("--evidence", help="a committed evidence file, repo-relative")
+    parser.add_argument("--upstreams", help="upstreams.json: the fix each regeneration names")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     evidence = None
@@ -528,6 +546,7 @@ def main(argv: list[str] | None = None) -> None:
         spec_sha256=spec_sha,
         precise=computed is not None,
         evidence=evidence,
+        upstreams=json.loads(Path(args.upstreams).read_text()) if args.upstreams else None,
     )
     Path(args.out).write_text(json.dumps(actions, indent=2) + "\n")
     print_calls(calls)

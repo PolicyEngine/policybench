@@ -1586,3 +1586,38 @@ def test_the_cells_table_must_be_against_20261006(tmp_path):
     assert cell.new == 1000.0 and cell.state == "IN"
     with pytest.raises(build.Refusal, match="not the table's"):
         drafting.read_cells(path, board, {("scenario_001", S): 1000.5})
+
+
+def test_a_regeneration_names_the_upstream_fix_the_map_gives():
+    upstreams = {
+        "outputs": {"scenario_064|state": "PolicyEngine/policyengine-us#9801"},
+        "root_causes": {"r02": "#10032", "r11": "#10034"},
+    }
+    record = {"root_cause": "r02+r11", "upstream": "to be filed"}
+    assert drafting.upstream_for(record, ("scenario_005", "state"), upstreams) == (
+        "#10032; #10034"
+    )
+    assert drafting.upstream_for(record, ("scenario_064", "state"), upstreams) == (
+        "PolicyEngine/policyengine-us#9801"
+    )
+    # A root cause the map lacks keeps the record's own upstream.
+    partial = {"root_cause": "r02+r99", "upstream": "PolicyEngine/policyengine-us#1"}
+    assert drafting.upstream_for(partial, ("s", "v"), upstreams) == (
+        "PolicyEngine/policyengine-us#1"
+    )
+    assert drafting.upstream_for(record, ("s", "v"), None) == "to be filed"
+
+
+def test_the_committed_upstream_map_names_every_pending_root_cause():
+    """Every 20261006 engine-defect root cause behind an output the 2026-10-09
+    fixes target maps to a fix (MA 081's r22 stays excluded for its second
+    reason, so it needs none)."""
+    upstreams = json.loads((UPGRADE / "upstreams.json").read_text())
+    base = build.load_base()
+    causes = {
+        part
+        for record in base.exclusions["exclusions"]
+        if record["reason_code"] == build.ENGINE_DEFECT
+        for part in record["root_cause"].split("+")
+    }
+    assert causes - set(upstreams["root_causes"]) == {"r22_ma_part_a_loss_offset"}

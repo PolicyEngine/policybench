@@ -1,0 +1,20 @@
+{
+  "note": "The upstream policyengine-us fix each regeneration names (actions_from_cells.py --upstreams). An output's own entry wins over its root cause's; a record with several root causes names each one's fix. #9801 and #9633 are the merges evidence/upstream_bisect.md names; the rest are the 2026-10-09 fix pull requests, each pre-checked against evidence/pe2.37.2.json (scripts/check_against_evidence.py).",
+  "outputs": {
+    "scenario_064|federal_income_tax_before_refundable_credits": "PolicyEngine/policyengine-us#9801",
+    "scenario_064|state_income_tax_before_refundable_credits": "PolicyEngine/policyengine-us#9801",
+    "scenario_039|state_income_tax_before_refundable_credits": "PolicyEngine/policyengine-us#9633"
+  },
+  "root_causes": {
+    "r01_ira_compensation": "PolicyEngine/policyengine-us#10032",
+    "r02_ira_219g": "PolicyEngine/policyengine-us#10032",
+    "r03_estate_income": "PolicyEngine/policyengine-us#10027",
+    "r05_nj_worker_ui": "PolicyEngine/policyengine-us#10031",
+    "r06_wi_act15_before_refundable": "PolicyEngine/policyengine-us#10026",
+    "r07_idaho_health_premiums": "PolicyEngine/policyengine-us#10023",
+    "r08_eitc_earned_income_deferrals": "PolicyEngine/policyengine-us#10030",
+    "r11_ca_itemized_conformity": "PolicyEngine/policyengine-us#10034",
+    "r30_snap_heat_and_eat_sua": "PolicyEngine/policyengine-us#10033",
+    "r32_wi_capital_gain_distributions": "PolicyEngine/policyengine-us#10026"
+  }
+}
