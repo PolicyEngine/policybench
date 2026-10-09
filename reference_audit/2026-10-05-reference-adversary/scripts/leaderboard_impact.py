@@ -3,13 +3,13 @@
 Reads the pass's inputs from git, never from the working tree: the frozen run
 (payload, predictions, references, scenarios, exclusions) as commit PASS_COMMIT
 (release dashboard-data-20260930, #187) holds it, and proposed_changes.json as
-PROPOSALS_COMMIT (#200) holds it. Later releases rewrite the working tree's run
-(dashboard-data-20261006, #202, rewrote its payload and exclusions), and scoring
-those would regenerate different evidence into this pass's verification files.
-Each file is staged under ``<scratch>/pass_inputs`` and must match its pinned
-sha256, or the script stops before scoring anything. The scoring code is the
-checkout's; ``published`` below stops the script if that code no longer scores
-the pinned run as the pinned payload records.
+RECORDS_COMMIT (#200) holds it, both pinned in pass_inputs.py. Later releases
+rewrite the working tree's run (dashboard-data-20261006, #202, rewrote its payload
+and exclusions), and scoring those would regenerate different evidence into this
+pass's verification files. Each file is staged under ``<scratch>/pass_inputs`` and
+must match its pinned sha256, or the script stops before scoring anything. The
+scoring code is the checkout's; ``published`` below stops the script if that code
+no longer scores the pinned run as the pinned payload records.
 
 Copies the staged run to scratch directories and never writes the snapshot. Each
 copy is scored with ``python -m policybench.cli analyze``, the command the freeze
@@ -35,7 +35,7 @@ Every variant is measured against ``published``.
     reference_audit/2026-10-05-reference-adversary/scripts/leaderboard_impact.py \\
     --scratch <dir>
 
-The checkout needs PASS_COMMIT and PROPOSALS_COMMIT in its history (a shallow
+The checkout needs PASS_COMMIT and RECORDS_COMMIT in its history (a shallow
 clone needs ``git fetch --unshallow``). ``--out-dir`` writes the verification
 files elsewhere; tests/test_reference_adversary_impact.py regenerates them that
 way and requires the committed ones byte for byte.
@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import json
 import os
 import shutil
@@ -55,37 +54,13 @@ from pathlib import Path
 
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
 OUT_DIR = HERE / "verification"
-# The pass's inputs, pinned by commit and sha256.
-PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
-RUN_PATH = (
-    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
-RUN_SHA256 = {
-    "data.json.gz": "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18",
-    "predictions.csv.gz": (
-        "ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12"
-    ),
-    "reference_outputs.csv": (
-        "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466"
-    ),
-    "reference_outputs.csv.meta.json": (
-        "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b"
-    ),
-    "reference_exclusions.json": (
-        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2"
-    ),
-    "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
-    "scenarios.csv.meta.json": (
-        "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
-    ),
-}
-PROPOSALS_COMMIT = "4db91b5f10581947f60a07f899e0ec2867b0405e"
-PROPOSALS_PATH = "reference_audit/2026-10-05-reference-adversary/proposed_changes.json"
-PROPOSALS_SHA256 = "3a6e5920a2d02e94e1df52c95c1def2739f3eb21b1fb67fc74a7d68219a749bf"
-PROPOSALS_NAME = Path(PROPOSALS_PATH).name
+PROPOSALS_NAME = Path(pass_inputs.PROPOSALS_PATH).name
 # Copied into each variant and scored; data.json.gz is only compared against.
 RUN_FILES = (
     "predictions.csv.gz",
@@ -109,39 +84,16 @@ EXACT_PAYLOAD_KEYS = ("programStats", "heatmap", "globalWeights", "failureModes"
 RANKED = ("exact", "within1pct", "score")
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def git_input(commit: str, path: str, pinned: str, target: Path) -> Path:
-    """Write ``path`` as ``commit`` holds it to ``target``, refusing any other bytes."""
-    result = subprocess.run(
-        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
-        capture_output=True,
-    )
-    if result.returncode:
-        raise SystemExit(
-            f"cannot read {path} at {commit[:12]}; fetch full history "
-            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
-        )
-    digest = hashlib.sha256(result.stdout).hexdigest()
-    if digest != pinned:
-        raise SystemExit(
-            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
-        )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(result.stdout)
-    return target
-
-
-def pass_inputs(target: Path) -> Path:
+def stage_inputs(target: Path) -> Path:
     """Stage the pass's run bundle under ``target/run`` and its proposals beside it."""
     if target.exists():
         shutil.rmtree(target)
-    for name, pinned in RUN_SHA256.items():
-        git_input(PASS_COMMIT, f"{RUN_PATH}/{name}", pinned, target / "run" / name)
-    git_input(
-        PROPOSALS_COMMIT, PROPOSALS_PATH, PROPOSALS_SHA256, target / PROPOSALS_NAME
+    pass_inputs.stage_run(target / "run")
+    pass_inputs.git_input(
+        pass_inputs.RECORDS_COMMIT,
+        pass_inputs.PROPOSALS_PATH,
+        pass_inputs.PROPOSALS_SHA256,
+        target / PROPOSALS_NAME,
     )
     return target
 
@@ -247,7 +199,9 @@ def stage(source: Path, target: Path, records: dict[str, list[dict]] | None) -> 
             )
         meta_path = target / "reference_outputs.csv.meta.json"
         meta = json.loads(meta_path.read_text())
-        meta["reference_csv_sha256"] = sha256(target / "reference_outputs.csv")
+        meta["reference_csv_sha256"] = pass_inputs.sha256(
+            target / "reference_outputs.csv"
+        )
         meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     return target
 
@@ -273,7 +227,7 @@ def analyze(run_dir: Path) -> dict:
             "--app-data-output",
             str(dashboard),
             "--reference-digest",
-            sha256(run_dir / "reference_outputs.csv"),
+            pass_inputs.sha256(run_dir / "reference_outputs.csv"),
         ],
         cwd=ROOT,
         env=env,
@@ -413,11 +367,11 @@ def main() -> None:
     args = parser.parse_args()
     scratch = Path(args.scratch).resolve()
     out_dir = Path(args.out_dir)
-    # stage() and pass_inputs() delete and rewrite scratch/<name>; never inside
+    # stage() and stage_inputs() delete and rewrite scratch/<name>; never inside
     # the repository.
     if scratch == ROOT.resolve() or scratch.is_relative_to(ROOT.resolve()):
         parser.error(f"--scratch must be outside the repository ({ROOT})")
-    inputs = pass_inputs(scratch / "pass_inputs")
+    inputs = stage_inputs(scratch / "pass_inputs")
     source = inputs / "run"
     plan = variants(inputs / PROPOSALS_NAME)
     unknown = sorted(set(args.only or ()) - set(plan))

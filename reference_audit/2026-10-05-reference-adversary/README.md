@@ -46,25 +46,52 @@ PolicyBench's diagnosis judge (`docs/audit.md`) explains why models miss. Its pr
 
 Inputs:
 
-- The frozen run and its annotations, as release dashboard-data-20260930 committed them at `8b4c0ca1` (#187). Release dashboard-data-20261006 (#202) later rewrote the working tree's payload, exclusion record and annotations, so reproducing the pass needs each file below as `8b4c0ca1` holds it, with that sha256. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+- The pass read the frozen run and its annotations as release dashboard-data-20260930 committed them at `8b4c0ca1` (#187). Later commits rewrote several of the working tree's copies: release dashboard-data-20261006 (#202) the run's payload, exclusion record and annotations, and #204 one of the reference system's convention modules. So every script in `scripts/` reads the inputs below only through `scripts/pass_inputs.py`. It writes `git show <commit>:<path>` to scratch and stops (SystemExit) unless the bytes match the pinned sha256, and each script stages everything it reads before it computes or writes anything. No script reads the working tree's copy. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
 
-  | Input at `8b4c0ca1` | sha256 | Read by |
+  | Input | Commit | sha256 | Read by |
+  |---|---|---|---|
+  | `<run>/data.json.gz`, the payload | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` | `consensus-flags`, `adversary-prepare`, `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
+  | `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` | `leaderboard_impact.py` |
+  | `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
+  | `<run>/reference_outputs.csv.meta.json` | `8b4c0ca1` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` | `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
+  | `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` | `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
+  | `<run>/scenarios.csv` | `8b4c0ca1` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `leaderboard_impact.py` |
+  | `<run>/scenarios.csv.meta.json` | `8b4c0ca1` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` | `leaderboard_impact.py` |
+  | `annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_case_reference_explanations.csv` | `8b4c0ca1` | `6cccc5586815f2ecc4f1b527e79e141f858d0e75cc30b3a867d107909cbb38c4` | `adversary-prepare` |
+  | `policybench/benchmark_specs.json`, the output definitions | `8b4c0ca1` | `ce233f8cbb0549b33469b5929fc6df3cd5d064c727529afafe26ff2da7970cc5` | `definition_conformance.py` |
+  | `reference_audit/2026-10-05-payroll/program_classification.json`, #194's classification of state paid-leave programs | `049f4f09` | `282cbf25ce9110a3c5c51873b7ca0e89f1f5ed38592b0c5b51d393f08000089a` | `definition_conformance.py` |
+  | `reference_audit/2026-10-05-reference-adversary/proposed_changes.json` | `4db91b5f` | `3a6e5920a2d02e94e1df52c95c1def2739f3eb21b1fb67fc74a7d68219a749bf` | `leaderboard_impact.py` |
+  | `reference_audit/2026-10-05-reference-adversary/verification/definition_conformance.json` | `4db91b5f` | `05e503f1b291c505b90182395c4afb88844dcb45fb2952c004ca09d4273894a0` | `build_proposals.py` |
+
+- The reference system is policyengine-us 2.15.17 plus `latest_final`, built from the convention modules below as `8b4c0ca1` held them. They are read by `definition_conformance.py`, `publication_sources.py` and `engine_probe.py`, and each worker process stages its own copy. `latest_final` loads `latest_conventions` (the nine `latest_c_*` modules) and `latest_md_local_output_scope`. #204 later rewrote `latest_alt_snap_mortgage_residence.py`, which `latest_final` does not load, but `verification/definition_conformance.json` records every module's sha256.
+
+  | Module | Commit | sha256 |
   |---|---|---|
-  | `<run>/data.json.gz`, the payload | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` | `consensus-flags`, `adversary-prepare`, `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
-  | `<run>/predictions.csv.gz` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` | `leaderboard_impact.py` |
-  | `<run>/reference_outputs.csv` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
-  | `<run>/reference_outputs.csv.meta.json` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` | `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
-  | `<run>/reference_exclusions.json` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` | `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
-  | `<run>/scenarios.csv` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `leaderboard_impact.py` |
-  | `<run>/scenarios.csv.meta.json` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` | `leaderboard_impact.py` |
-  | `annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_case_reference_explanations.csv` | `6cccc5586815f2ecc4f1b527e79e141f858d0e75cc30b3a867d107909cbb38c4` | `adversary-prepare` |
+  | `reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json` | `8b4c0ca1` | `7cf93799aad6a8c3a6fc70e7df4acc6043202a1ecc083f2c3101f76b87a85eae` |
+  | `reference_audit/2026-09-28/fixes/alt_conventions_r25.py` | `8b4c0ca1` | `0f77fdd44e758581f7e563b0f7b70c4d4359a833b08a4ac45a614c380938775e` |
+  | `reference_audit/2026-09-28/fixes/latest_alt_r02_ira_219g.py` | `8b4c0ca1` | `3e71bab1db867988544e6f87f6dda4dc7c719d51320fbbb7558cd574a0374f6e` |
+  | `reference_audit/2026-09-28/fixes/latest_alt_salt_refund_no_prior_benefit.py` | `8b4c0ca1` | `d8a314093466caf5fe0a226f1060acba2e4364c4b87befbd80639ebf41cc4a2c` |
+  | `reference_audit/2026-09-28/fixes/latest_alt_snap_mortgage_residence.py` | `8b4c0ca1` | `00cd13886a8c3d03c4e84944d35f7e8a1448af26838e8bc0761b914b887c70cd` |
+  | `reference_audit/2026-09-28/fixes/latest_alt_unlisted_hours_40.py` | `8b4c0ca1` | `5e6538a903112243ad85051ccba26b6133bdfbd5b9e5ba3dfa81ba690c061b32` |
+  | `reference_audit/2026-09-28/fixes/latest_c_ca_hold_2025.py` | `8b4c0ca1` | `f19a47b9583032a0602a31e52f995eee824a427a76e87a9d4257d6682a016fa2` |
+  | `reference_audit/2026-09-28/fixes/latest_c_id_hold_2025.py` | `8b4c0ca1` | `39fb99292691600cd273a1c6ef3c90847453e21e4d7b872603bcaac71727f8a5` |
+  | `reference_audit/2026-09-28/fixes/latest_c_irs_sales_tax_2025.py` | `8b4c0ca1` | `7f7fd235b29c45d1d5cceded0c3391aceb38740518dfda770e3aebcc3003228e` |
+  | `reference_audit/2026-09-28/fixes/latest_c_md_2026.py` | `8b4c0ca1` | `8111c77ffd2e43d434d083994a7e8506ba42461a0845b33ac47ce0df988c2c76` |
+  | `reference_audit/2026-09-28/fixes/latest_c_mi_published_2026.py` | `8b4c0ca1` | `787cf837422e0bdf331a8e01a6fa8e8f2e3b78c35c248a4da83f3b2dbfa9ef9e` |
+  | `reference_audit/2026-09-28/fixes/latest_c_mn_published_2026.py` | `8b4c0ca1` | `02a8ccc1fce71485fc9411d4a55f33226de4c8de09cf6375f99866b79da70522` |
+  | `reference_audit/2026-09-28/fixes/latest_c_mo_published_2026.py` | `8b4c0ca1` | `0474524c83a7eb0c8440abf06bbeee38d4394e08260464d0dacb195ed3a8d916` |
+  | `reference_audit/2026-09-28/fixes/latest_c_snap_hold_fy2026.py` | `8b4c0ca1` | `3a8709ef36582af2248e460136db618fd319d490b7aeed94adbd6143ad9c07dd` |
+  | `reference_audit/2026-09-28/fixes/latest_c_wi_published_2026.py` | `8b4c0ca1` | `4edf4c714c05d300e6fa32c4b56879aad8aa0de1d9ddd9a77987eefe3b06acce` |
+  | `reference_audit/2026-09-28/fixes/latest_conventions.py` | `8b4c0ca1` | `4155ed4a0be72c907815b33e2b3603cf0b5ea3eca351ad7509f8bd9ea5bb8ddb` |
+  | `reference_audit/2026-09-28/fixes/latest_final.py` | `8b4c0ca1` | `dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e` |
+  | `reference_audit/2026-09-28/fixes/latest_map_stated_hours.py` | `8b4c0ca1` | `b210e780a31cfa0a3a0da2c49a8068ee14f00029b3ed39c00be67a1e917eda21` |
+  | `reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py` | `8b4c0ca1` | `53a6de3cd9b149467e5d86a5bb1fcc258e859478a7c16b7d3df951c713e423dd` |
+  | `reference_audit/2026-09-28/fixes/latest_state_conventions.py` | `8b4c0ca1` | `56e62e399d20ba8c8d9c5dc9bc7ea6681e74d2b529fa38561dbc8e8b2a90b442` |
 
-- `proposed_changes.json` as #200 merged it at `4db91b5f`, sha256 `3a6e5920a2d02e94e1df52c95c1def2739f3eb21b1fb67fc74a7d68219a749bf`, read by `leaderboard_impact.py`.
 - Who checks the pins:
-  - `leaderboard_impact.py` stages every input it reads from git and stops on any sha256 mismatch before scoring.
-  - `definition_conformance.py` and `publication_sources.py` stop when the working tree's payload is not `1e029aaa…`, but read their other inputs from the working tree unchecked.
-  - `engine_probe.py` and `build_proposals.py` check no input's sha256.
-  - `tests/test_consensus.py` and `tests/test_reference_adversary.py` read the payload and the explanations from `8b4c0ca1`. `tests/test_reference_adversary_impact.py` checks the impact script's pins and that it ignores the working tree's run and proposals.
+  - `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `build_proposals.py` and `leaderboard_impact.py` stage every input above that they read, and stop on any sha256 mismatch before they compute or write anything. `pass_inputs.py` is the only file that holds a pin.
+  - `tests/test_reference_adversary_inputs.py` checks that each commit holds its pinned bytes, that the committed evidence records the same hashes, and that this table lists each pin with the scripts that stage it. It also checks that any changed byte is refused and that each script refuses #202's run before it computes or writes. An audit hook (`tests/working_tree_fence.py`) fails any open of the working tree's copy of a pinned input while the scripts stage and read their inputs, and in every process, workers included, of the slow regenerations below. `tests/test_reference_adversary_impact.py` checks the impact script the same way, from a checkout whose working-tree run and proposals are junk.
+  - `consensus-flags` and `adversary-prepare` read the payload and annotations at the paths they are given, and record the payload's path and sha256 in their output. `tests/test_consensus.py` and `tests/test_reference_adversary.py` read the payload and the explanations from `8b4c0ca1`.
 - Top 5 by the payload's `modelStats` order: gpt-6-sol, claude-opus-5.5, gpt-5.6-sol, gpt-6-luna and claude-sonnet-5.5.
 - `consensus_flags.json` holds the default run, and `consensus_flags_prototype.json` reproduces the 2026-10-05 prototype.
 - `verification/flags_table.md` lists all 61 cells, each with its cluster, its exact-model count and whether the prototype flagged it.
@@ -459,18 +486,20 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 | `verification/leaderboard_impact*` | Leaderboard impact of each alternative |
 | `verification/pytest_*.txt` | Test runs: after the rebase, the rolling-pool change, and the final run (391 passed) |
 | `proposed_changes.json` | Exclusion and regeneration records per root cause, and the rulings |
-| `scripts/` | The scripts that wrote the files above |
+| `scripts/` | The scripts that wrote the files above, and `pass_inputs.py`, which pins and stages their inputs |
 
-The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_impact.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
+The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_inputs.py`, `test_reference_adversary_impact.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
 
 ## Reproduce
 
-Every step reads the pass's inputs (the table under [Flag parameters](#flag-parameters)) as commit `8b4c0ca1` (release dashboard-data-20260930) committed them, not today's, which release dashboard-data-20261006 (#202) rewrote. `scripts/leaderboard_impact.py` stages its own inputs from git, so it runs from any checkout that has `8b4c0ca1` and `4db91b5f` in its history. The commands below read the payload and annotations at the paths they are given. `definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `build_proposals.py` read the working tree's `<run>/`. So first restore every file in the table (the run directory and the run's annotations directory) from `8b4c0ca1`, and put today's back when done:
+The scripts in `scripts/` stage the pass's inputs from git (the tables under [Flag parameters](#flag-parameters)), so they run from any checkout that has `8b4c0ca1`, `049f4f09` and `4db91b5f` in its history, whatever its working tree's run, convention modules and records hold. The code they run is the checkout's. A shallow clone needs `git fetch --unshallow`. Each script's docstring gives its command.
+
+The CLI steps read the payload and annotations at the paths they are given and record the payload's path in their output (`consensus_flags.json` `source`). So they need the working tree's run and annotations as `8b4c0ca1` committed them, not today's, which release dashboard-data-20261006 (#202) rewrote. Restore both from `8b4c0ca1` first, and put today's back when done:
 
 ```bash
 run=paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace
 git restore --source 8b4c0ca1 -- "$run" "annotations/${run##*/}"
-# ... the steps below ...
+# ... the CLI steps below ...
 git restore -- "$run" "annotations/${run##*/}"
 ```
 
@@ -505,10 +534,34 @@ uv run python reference_audit/2026-10-05-reference-adversary/scripts/search_expo
 
 Preparing `runs/claude` today reproduces its `cases.jsonl` and derivations byte for byte. Each stage-1 prompt then differs from the committed one in one line, because the source rule now asks for `blocked_domains`. The re-judge's preparation reproduces `runs/claude-rejudge`'s inputs byte for byte.
 
-The scripts in `scripts/` regenerate the verification files; each script's docstring gives its command. `definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need the policyengine-us 2.15.17 environment.
-
-`tests/test_reference_adversary_impact.py` regenerates the `verification/leaderboard_impact*` files into a scratch directory and requires the committed ones byte for byte. The test takes about five minutes, so it is marked slow and CI deselects it:
+`definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need the policyengine-us 2.15.17 environment, which `uv sync --locked --extra dev --python 3.12` provides. Write their output to scratch and compare it with the committed files:
 
 ```bash
-OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_adversary_impact.py
+a=reference_audit/2026-10-05-reference-adversary
+export OPENBLAS_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.
+uv run python $a/scripts/definition_conformance.py --out-dir <scratch>
+uv run python $a/scripts/publication_sources.py --out-dir <scratch>
+uv run python $a/scripts/engine_probe.py scenario_043 \
+  --variables co_sales_tax_refund co_refundable_credits co_eitc co_tabor_cash_back state_refundable_credits \
+  --parameters gov.states.co.tax.income.credits.sales_tax_refund.amount.flat_amount_enabled \
+    gov.states.co.tax.income.credits.sales_tax_refund.amount.amount \
+  --out <scratch>/co_sales_tax_refund_scenario_043.json
+uv run python $a/scripts/leaderboard_impact.py --scratch <scratch> --out-dir <scratch>/impact
+uv run python $a/scripts/build_proposals.py --out <scratch>/proposed_changes.json
+```
+
+Each committed probe records its own arguments: `scenario_id`, `period`, the keys of `variables` and `parameters`, and `counterfactual.set`. `build_proposals.py` never writes the committed `proposed_changes.json`, which `leaderboard_impact.py` and the Haiku 5.5 release pin at `3a6e5920…`. It refuses that path for `--out`.
+
+The tests regenerate every one of these outputs into scratch and require the committed file byte for byte:
+
+- `build_proposals.py`: `proposed_changes.json`, in the fast suite.
+- `definition_conformance.py`: both files, except two lines of `definition_conformance.json`: `run.seconds`, the wall time, and `run.script_sha256`, the script's own sha256. The committed file records `33ce4c3e…`, the script as #200 merged it; the test requires a regeneration to record the current script's hash.
+- `publication_sources.py`: both files, except `meta.seconds`.
+- `engine_probe.py`: all 8 probes, from the arguments each records.
+- `leaderboard_impact.py`: all 23 `verification/leaderboard_impact*` files.
+
+The engine-side regenerations take about 15 minutes on a loaded machine, so they are marked slow and CI deselects them:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_adversary_inputs.py tests/test_reference_adversary_impact.py
 ```

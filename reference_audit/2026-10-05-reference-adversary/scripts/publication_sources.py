@@ -58,7 +58,16 @@ outputs by rounded value) from both an unrecorded household simulation and the
 recorded per-output simulations, and refuses to report if any scored reference does
 not reproduce.
 
-Run from a policybench checkout with the policyengine-us 2.15.17 venv:
+Every input is the pass's, staged from git by pass_inputs.py and checked against its
+pinned sha256 before any system is built: the frozen run's payload, references,
+reference sidecar, exclusion record and scenarios as release dashboard-data-20260930
+(8b4c0ca1) committed them, and latest_final with its parts as 8b4c0ca1 held them (each
+worker stages its own copy). The working tree's run, which later releases rewrite
+(#202 rewrote its payload and exclusion record), is never read. The report names each
+input by its repository path.
+
+Run from a policybench checkout with the policyengine-us 2.15.17 venv (the checkout
+needs 8b4c0ca1 in its history):
 
   PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> \\
     <triage>/.venv-pe21517/bin/python \\
@@ -87,18 +96,21 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[3]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+# The frozen run's files main reads, staged from git.
+RUN_FILES = (
+    "data.json.gz",
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "reference_exclusions.json",
+    "scenarios.csv",
 )
-AUDIT_0928 = ROOT / "reference_audit/2026-09-28"
-AUDIT_0922 = ROOT / "reference_audit/2026-09-22"
 YEAR = 2026
 TOLERANCE = 1e-3
 BINARY_SUFFIXES = ("_eligible",)
 RENAME = {"partnership_se_income": "partnership_self_employment_net_earnings"}
-PAYLOAD_SHA256 = "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18"
 SCORED_CELLS = 1928
 SKIP_PREFIXES = ("gov.abolitions.",)
 SCALE_COMPONENTS = ("threshold", "rate", "amount", "average_rate", "base")
@@ -125,13 +137,11 @@ def _jsonable(value):
 
 
 def _assemble_fixes() -> Path:
-    """latest_final and its parts, plus the sales tax table the IRS module reads."""
+    """latest_final and its parts, plus the sales tax table the IRS module reads,
+    staged from git (pass_inputs.FIXES_SHA256)."""
     target = Path(tempfile.mkdtemp(prefix="publication_sources_fixes_"))
     atexit.register(shutil.rmtree, target, True)
-    for path in (AUDIT_0928 / "fixes").glob("*.py"):
-        shutil.copy2(path, target / path.name)
-    shutil.copy2(AUDIT_0922 / "fixes/r19_irs_sales_tax_2025.json", target)
-    return target
+    return pass_inputs.stage_fixes(target)
 
 
 def _load_reform(fix_dir: Path):
@@ -736,13 +746,19 @@ def _parameter_fact(ref: Tree, plain: Tree, name: str, instant: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _scored_cells_from_payload() -> tuple[set, str]:
+def stage_inputs(target: Path) -> Path:
+    """Stage the run's files main reads under ``target``, each refused unless it
+    matches its pin."""
+    return pass_inputs.stage_run(target, RUN_FILES)
+
+
+def _scored_cells_from_payload(path: Path) -> tuple[set, str]:
     from policybench.consensus import file_sha256, load_us_payload
 
-    path = RUN / "data.json.gz"
     sha = file_sha256(path)
-    if sha != PAYLOAD_SHA256:
-        raise SystemExit(f"{path}: sha256 {sha} is not the frozen {PAYLOAD_SHA256}")
+    pinned = pass_inputs.RUN_SHA256["data.json.gz"]
+    if sha != pinned:
+        raise SystemExit(f"{path}: sha256 {sha} is not the frozen {pinned}")
     payload = load_us_payload(path)
     scored = set()
     for sid, outputs in payload["scenarioPredictions"].items():
@@ -782,6 +798,9 @@ def main() -> None:
         return
 
     started = time.time()
+    run = Path(tempfile.mkdtemp(prefix="publication_sources_inputs_"))
+    atexit.register(shutil.rmtree, run, True)
+    stage_inputs(run)
     install_build_hooks()
     BUILD["label"] = "plain"
 
@@ -789,24 +808,24 @@ def main() -> None:
     from policybench.spec import expand_programs_for_scenario
 
     out_dir = Path(args.out_dir)
-    meta = json.loads((RUN / "reference_outputs.csv.meta.json").read_text())
+    meta = json.loads((run / "reference_outputs.csv.meta.json").read_text())
     programs = meta["programs"]
     if isinstance(programs, str):
         programs = ast.literal_eval(programs)
-    reference = pd.read_csv(RUN / "reference_outputs.csv")
+    reference = pd.read_csv(run / "reference_outputs.csv")
     indexed = reference.set_index(["scenario_id", "variable"])["value"]
-    exclusions = json.loads((RUN / "reference_exclusions.json").read_text())[
+    exclusions = json.loads((run / "reference_exclusions.json").read_text())[
         "exclusions"
     ]
     excluded = {(e["scenario_id"], e["variable"]) for e in exclusions}
-    scored, payload_sha = _scored_cells_from_payload()
+    scored, payload_sha = _scored_cells_from_payload(run / "data.json.gz")
     by_exclusion = {key for key in indexed.index if key not in excluded}
     if scored != by_exclusion or len(scored) != SCORED_CELLS:
         raise SystemExit(
             f"scored cells: payload {len(scored)}, reference rows minus exclusions "
             f"{len(by_exclusion)}, expected {SCORED_CELLS}"
         )
-    scenarios = pd.read_csv(RUN / "scenarios.csv")
+    scenarios = pd.read_csv(run / "scenarios.csv")
     if args.scenarios:
         scenarios = scenarios[scenarios["scenario_id"].isin(args.scenarios)]
 
@@ -988,9 +1007,9 @@ def main() -> None:
         "policyengine_core": version("policyengine-core"),
         "reference_system": "policyengine-us 2.15.17 + latest_final "
         "(reference_audit/2026-09-28/fixes)",
-        "payload": str((RUN / "data.json.gz").relative_to(ROOT)),
+        "payload": f"{pass_inputs.RUN_PATH}/data.json.gz",
         "payload_sha256": payload_sha,
-        "reference_outputs": str((RUN / "reference_outputs.csv").relative_to(ROOT)),
+        "reference_outputs": f"{pass_inputs.RUN_PATH}/reference_outputs.csv",
         "scenarios": int(len(results)),
         "outputs_recomputed": checked,
         "scored_cells_recomputed": n_scored,

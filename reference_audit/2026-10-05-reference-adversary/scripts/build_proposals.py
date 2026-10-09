@@ -1,4 +1,4 @@
-"""Write proposed_changes.json: the exclusion and regeneration records this pass proposes.
+"""Build proposed_changes.json: the exclusion and regeneration records this pass proposes.
 
 Verification (verification/independent/*.md) found four engine defects behind four scored
 references and one definition-scope ambiguity behind four more. Each root cause gets an
@@ -17,22 +17,43 @@ Values:
   from verification/definition_conformance.json (the engine with the dependent as the head of
   their own tax unit).
 
-  python reference_audit/2026-10-05-reference-adversary/scripts/build_proposals.py
+Every input is the pass's, staged from git by pass_inputs.py and checked against its pinned
+sha256 before anything is built: the frozen run's references and exclusion record as release
+dashboard-data-20260930 (8b4c0ca1) committed them, and verification/definition_conformance.json
+as #200 merged it (4db91b5f). The working tree's run, which later releases rewrite (#202
+rewrote its exclusion record), is never read.
+
+The committed proposed_changes.json is pinned at sha256 PROPOSED_SHA256 below:
+leaderboard_impact.py reads it at that hash, and the Haiku 5.5 release pins it too. So the
+script never writes it. It writes to --out, which must be another path, and a regeneration is
+checked by comparing the two:
+
+  python reference_audit/2026-10-05-reference-adversary/scripts/build_proposals.py \\
+    --out <scratch>/proposed_changes.json
+  cmp <scratch>/proposed_changes.json \\
+    reference_audit/2026-10-05-reference-adversary/proposed_changes.json
 """
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
+import sys
+import tempfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
-OUT = HERE / "proposed_changes.json"
+# The committed records, which the script never writes.
+PROPOSED = HERE / "proposed_changes.json"
+PROPOSED_SHA256 = pass_inputs.PROPOSALS_SHA256
+# The frozen run's files the script reads, staged from git.
+RUN_FILES = ("reference_outputs.csv", "reference_exclusions.json")
+CONFORMANCE_NAME = Path(pass_inputs.CONFORMANCE_PATH).name
 DRAFTED = "2026-10-06"
 ENGINE = "policyengine-us 2.15.17"
 STATE_TAX = "state_income_tax_before_refundable_credits"
@@ -215,23 +236,36 @@ ROOT_CAUSES = {
 }
 
 
-def frozen_references() -> dict[tuple[str, str], float]:
-    with (RUN / "reference_outputs.csv").open() as handle:
+def stage_inputs(target: Path) -> Path:
+    """Stage the run's files under ``target/run`` and the conformance scan beside them,
+    each refused unless it matches its pin."""
+    pass_inputs.stage_run(target / "run", RUN_FILES)
+    pass_inputs.git_input(
+        pass_inputs.RECORDS_COMMIT,
+        pass_inputs.CONFORMANCE_PATH,
+        pass_inputs.CONFORMANCE_SHA256,
+        target / CONFORMANCE_NAME,
+    )
+    return target
+
+
+def frozen_references(run: Path) -> dict[tuple[str, str], float]:
+    with (run / "reference_outputs.csv").open() as handle:
         return {
             (row["scenario_id"], row["variable"]): float(row["value"])
             for row in csv.DictReader(handle)
         }
 
 
-def excluded() -> set[tuple[str, str]]:
-    record = json.loads((RUN / "reference_exclusions.json").read_text())
+def excluded(run: Path) -> set[tuple[str, str]]:
+    record = json.loads((run / "reference_exclusions.json").read_text())
     return {(e["scenario_id"], e["variable"]) for e in record["exclusions"]}
 
 
-def household_scope_values() -> dict[tuple[str, str], float]:
+def household_scope_values(inputs: Path) -> dict[tuple[str, str], float]:
     """Reference plus the dependent's own return, from the conformance scan."""
-    scan = json.loads((HERE / "verification/definition_conformance.json").read_text())
-    frozen = frozen_references()
+    scan = json.loads((inputs / CONFORMANCE_NAME).read_text())
+    frozen = frozen_references(inputs / "run")
     values = {}
     for row in scan["household_scope_records"]:
         for output in (STATE_TAX, FED_TAX):
@@ -240,10 +274,11 @@ def household_scope_values() -> dict[tuple[str, str], float]:
     return values
 
 
-def main() -> None:
-    frozen = frozen_references()
-    already = excluded()
-    scope = household_scope_values()
+def build(inputs: Path) -> dict:
+    """The records, from the inputs ``stage_inputs`` staged under ``inputs``."""
+    frozen = frozen_references(inputs / "run")
+    already = excluded(inputs / "run")
+    scope = household_scope_values(inputs)
     out = {
         "schema_version": 1,
         "status": {
@@ -342,8 +377,28 @@ def main() -> None:
             "exclusions": exclusions,
             "regenerations": regenerations,
         }
-    OUT.write_text(json.dumps(out, indent=2) + "\n")
-    print(f"wrote {OUT.relative_to(ROOT)}")
+    return out
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument(
+        "--out",
+        required=True,
+        help="where to write the records; never the committed proposed_changes.json",
+    )
+    args = parser.parse_args()
+    out = Path(args.out)
+    if out.resolve() == PROPOSED.resolve():
+        parser.error(
+            f"{PROPOSED.relative_to(ROOT)} is pinned at sha256 {PROPOSED_SHA256}; "
+            "write elsewhere and compare"
+        )
+    with tempfile.TemporaryDirectory(prefix="build_proposals_inputs_") as scratch:
+        records = build(stage_inputs(Path(scratch)))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(records, indent=2) + "\n")
+    print(f"wrote {out}")
 
 
 if __name__ == "__main__":

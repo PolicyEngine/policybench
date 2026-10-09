@@ -3,13 +3,14 @@
 ``reference_audit/2026-10-05-reference-adversary/scripts/leaderboard_impact.py``
 reads the frozen run as PASS_COMMIT (release dashboard-data-20260930, #187)
 committed it and the proposals as #200 merged them, each checked against its
-sha256. It never reads the working tree's run, which later releases rewrite
-(#202 did). CI checks out full history, so git holds every pinned input.
+sha256 by the shared ``scripts/pass_inputs.py``. It never reads the working
+tree's run, which later releases rewrite (#202 did). The pins themselves, and the
+refusal of any changed byte, are tested in tests/test_reference_adversary_inputs.py.
+CI checks out full history, so git holds every pinned input.
 """
 
 from __future__ import annotations
 
-import ast
 import difflib
 import gzip
 import importlib.util
@@ -18,20 +19,17 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
-from functools import cache
 from pathlib import Path
-from types import SimpleNamespace
-from unittest import mock
 
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT = ROOT / "reference_audit/2026-10-05-reference-adversary"
 SCRIPT = AUDIT / "scripts/leaderboard_impact.py"
 VERIFICATION = AUDIT / "verification"
+sys.path.insert(0, str(SCRIPT.parent))
+import pass_inputs as pins  # noqa: E402
+
 # The pins tests/test_consensus.py and tests/test_reference_adversary.py hold.
 PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 FROZEN_SHA256 = "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18"
@@ -63,11 +61,11 @@ def _tampered_checkout(path: Path) -> Path:
         ["git", "clone", "--quiet", "--shared", "--no-checkout", str(ROOT), str(path)],
         check=True,
     )
-    for name in impact.RUN_SHA256:
-        junk = path / impact.RUN_PATH / name
+    for name in pins.RUN_SHA256:
+        junk = path / pins.RUN_PATH / name
         junk.parent.mkdir(parents=True, exist_ok=True)
         junk.write_bytes(b"not the pass's input\n")
-    proposals = path / impact.PROPOSALS_PATH
+    proposals = path / pins.PROPOSALS_PATH
     proposals.parent.mkdir(parents=True, exist_ok=True)
     proposals.write_text('{"root_causes": {}}\n')
     return path
@@ -90,107 +88,30 @@ def _argv(monkeypatch, tmp_path: Path) -> Path:
 
 
 def test_the_pins_cover_every_file_the_script_reads(tmp_path):
-    assert impact.PASS_COMMIT == PASS_COMMIT
-    assert impact.RUN_SHA256["data.json.gz"] == FROZEN_SHA256
-    assert set(impact.RUN_SHA256) == {*impact.RUN_FILES, "data.json.gz"}
+    assert pins.PASS_COMMIT == PASS_COMMIT
+    assert pins.RUN_SHA256["data.json.gz"] == FROZEN_SHA256
+    assert set(pins.RUN_SHA256) == {*impact.RUN_FILES, "data.json.gz"}
 
-    inputs = impact.pass_inputs(tmp_path / "pass_inputs")
+    inputs = impact.stage_inputs(tmp_path / "pass_inputs")
     staged = sorted(
         path.relative_to(inputs).as_posix()
         for path in inputs.rglob("*")
         if path.is_file()
     )
     assert staged == sorted(
-        [f"run/{name}" for name in impact.RUN_SHA256] + [impact.PROPOSALS_NAME]
+        [f"run/{name}" for name in pins.RUN_SHA256] + [impact.PROPOSALS_NAME]
     )
-    for name, pinned in impact.RUN_SHA256.items():
-        assert impact.sha256(inputs / "run" / name) == pinned
-    assert impact.sha256(inputs / impact.PROPOSALS_NAME) == impact.PROPOSALS_SHA256
+    for name, pinned in pins.RUN_SHA256.items():
+        assert pins.sha256(inputs / "run" / name) == pinned
+    assert pins.sha256(inputs / impact.PROPOSALS_NAME) == pins.PROPOSALS_SHA256
     # The README's frozen run: 46 models, 1,928 scored cells.
     payload = json.loads(gzip.decompress((inputs / "run/data.json.gz").read_bytes()))
     assert len(payload["modelStats"]) == 46
     assert {row["n"] for row in payload["modelStats"]} == {1928}
 
     (inputs / "stray").write_text("left over\n")
-    impact.pass_inputs(inputs)
+    impact.stage_inputs(inputs)
     assert not (inputs / "stray").exists()
-
-
-def test_the_payload_pin_matches_the_engine_side_scripts_pins():
-    """The engine-side scripts pin the same payload (read without importing them)."""
-    for name in ("definition_conformance.py", "publication_sources.py"):
-        tree = ast.parse((AUDIT / "scripts" / name).read_text())
-        pins = [
-            node.value.value
-            for node in tree.body
-            if isinstance(node, ast.Assign)
-            and [target.id for target in node.targets] == ["PAYLOAD_SHA256"]
-        ]
-        assert pins == [impact.RUN_SHA256["data.json.gz"]], name
-
-
-@cache
-def _pinned_bytes(name: str) -> bytes:
-    return subprocess.run(
-        ["git", "-C", str(ROOT), "show", f"{PASS_COMMIT}:{impact.RUN_PATH}/{name}"],
-        capture_output=True,
-        check=True,
-    ).stdout
-
-
-@st.composite
-def _edits(draw) -> tuple[str, str, int, int]:
-    """One pinned run file and one change to its bytes: flip, cut or extend."""
-    name = draw(st.sampled_from(sorted(impact.RUN_SHA256)))
-    kind = draw(st.sampled_from(["flip", "truncate", "append"]))
-    position = draw(st.integers(0, len(_pinned_bytes(name)) - 1))
-    return name, kind, position, draw(st.integers(1, 255))
-
-
-@settings(max_examples=40, deadline=None)
-@given(_edits())
-def test_any_changed_byte_in_a_pinned_input_is_refused_unwritten(edit):
-    """Invariant: git_input writes a file only if its bytes are the pinned bytes."""
-    name, kind, position, byte = edit
-    original = _pinned_bytes(name)
-    if kind == "flip":
-        changed = bytearray(original)
-        changed[position] ^= byte
-        tampered = bytes(changed)
-    elif kind == "truncate":
-        tampered = original[:position]
-    else:
-        tampered = original + bytes([byte])
-    shown = SimpleNamespace(
-        run=lambda *args, **kwargs: subprocess.CompletedProcess(
-            args[0], 0, stdout=tampered, stderr=b""
-        )
-    )
-    with tempfile.TemporaryDirectory() as directory:
-        target = Path(directory) / name
-        with mock.patch.object(impact, "subprocess", shown):
-            with pytest.raises(SystemExit, match="not the pinned"):
-                impact.git_input(
-                    PASS_COMMIT,
-                    f"{impact.RUN_PATH}/{name}",
-                    impact.RUN_SHA256[name],
-                    target,
-                )
-            assert not target.exists()
-            # The unchanged bytes pass the same check.
-            unchanged = SimpleNamespace(
-                run=lambda *args, **kwargs: subprocess.CompletedProcess(
-                    args[0], 0, stdout=original, stderr=b""
-                )
-            )
-            with mock.patch.object(impact, "subprocess", unchanged):
-                impact.git_input(
-                    PASS_COMMIT,
-                    f"{impact.RUN_PATH}/{name}",
-                    impact.RUN_SHA256[name],
-                    target,
-                )
-        assert target.read_bytes() == original
 
 
 @pytest.mark.parametrize(
@@ -206,19 +127,19 @@ def test_any_changed_byte_in_a_pinned_input_is_refused_unwritten(edit):
         ("PASS_COMMIT", "0" * 40, "cannot read"),
     ],
 )
-def test_pass_inputs_refuse_anything_but_the_pinned_bytes(
+def test_staged_inputs_refuse_anything_but_the_pinned_bytes(
     tmp_path, monkeypatch, attribute, value, message
 ):
-    monkeypatch.setattr(impact, attribute, value)
+    monkeypatch.setattr(pins, attribute, value)
     with pytest.raises(SystemExit, match=re.escape(message)):
-        impact.pass_inputs(tmp_path / "pass_inputs")
+        impact.stage_inputs(tmp_path / "pass_inputs")
 
 
 def test_a_refused_input_stops_the_script_before_it_scores(tmp_path, monkeypatch):
     def analyze(run_dir):
         raise AssertionError(f"scored {run_dir} after its inputs were refused")
 
-    monkeypatch.setattr(impact, "PASS_COMMIT", RELEASE_20261006_COMMIT)
+    monkeypatch.setattr(pins, "PASS_COMMIT", RELEASE_20261006_COMMIT)
     monkeypatch.setattr(impact, "analyze", analyze)
     out = _argv(monkeypatch, tmp_path)
     with pytest.raises(SystemExit, match=f"not the pinned {FROZEN_SHA256}"):
@@ -229,13 +150,15 @@ def test_a_refused_input_stops_the_script_before_it_scores(tmp_path, monkeypatch
 def test_the_script_scores_only_the_staged_inputs(tmp_path, monkeypatch):
     """Run from a checkout whose working-tree run is junk, every variant still
     starts from the pinned bytes and the full set of evidence files is written."""
-    monkeypatch.setattr(impact, "ROOT", _tampered_checkout(tmp_path / "checkout"))
+    checkout = _tampered_checkout(tmp_path / "checkout")
+    monkeypatch.setattr(pins, "ROOT", checkout)
+    monkeypatch.setattr(impact, "ROOT", checkout)
     scored: dict[str, dict[str, str]] = {}
     published: dict = {}
 
     def analyze(run_dir: Path) -> dict:
         scored[run_dir.name] = {
-            name: impact.sha256(run_dir / name) for name in impact.RUN_FILES
+            name: pins.sha256(run_dir / name) for name in impact.RUN_FILES
         }
         if not published:
             payload = run_dir.parent / "pass_inputs/run/data.json.gz"
@@ -249,7 +172,7 @@ def test_the_script_scores_only_the_staged_inputs(tmp_path, monkeypatch):
     out = _argv(monkeypatch, tmp_path)
     impact.main()
 
-    pinned = {name: impact.RUN_SHA256[name] for name in impact.RUN_FILES}
+    pinned = {name: pins.RUN_SHA256[name] for name in impact.RUN_FILES}
     assert scored.pop("published") == pinned
     exclusions = {"reference_exclusions.json"}
     regenerations = {"reference_outputs.csv", "reference_outputs.csv.meta.json"}

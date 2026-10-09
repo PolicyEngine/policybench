@@ -14,6 +14,16 @@ reproduces its published reference, and then reports:
 It is the engine-evidence probe for the reference adversary's non-holding
 verdicts; it reads no verdict and changes no reference.
 
+Every input is the pass's, staged from git by pass_inputs.py and checked against
+its pinned sha256 before the reference system is built: the frozen run's
+scenarios, references and exclusion record as release dashboard-data-20260930
+(8b4c0ca1) committed them, and latest_final with its parts as 8b4c0ca1 held them.
+The working tree's run, which later releases rewrite (#202 rewrote its exclusion
+record), is never read. Each committed probe records its own arguments
+(``scenario_id``, ``period``, the ``variables`` and ``parameters`` keys and
+``counterfactual.set``), and tests/test_reference_adversary_inputs.py regenerates
+every probe from them.
+
   OPENBLAS_NUM_THREADS=1 PYTHONPATH=. <2.15.17 venv>/bin/python \\
     reference_audit/2026-10-05-reference-adversary/scripts/engine_probe.py \\
     scenario_018 --variables az_standard_deduction az_taxable_income \\
@@ -24,10 +34,13 @@ verdicts; it reads no verdict and changes no reference.
 from __future__ import annotations
 
 import argparse
+import atexit
 import copy
 import importlib.util
 import json
+import shutil
 import sys
+import tempfile
 from importlib.metadata import version
 from pathlib import Path
 
@@ -35,8 +48,19 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
 YEAR = 2026
 INSTANT = "2026-01-01"
+# The frozen run's files the probe reads, staged from git.
+RUN_FILES = ("scenarios.csv", "reference_outputs.csv", "reference_exclusions.json")
+
+
+def stage_inputs(target: Path) -> Path:
+    """Stage the run's files the probe reads under ``target``, each refused unless it
+    matches its pin."""
+    return pass_inputs.stage_run(target, RUN_FILES)
 
 
 def _conformance():
@@ -164,8 +188,11 @@ def main() -> None:
     parser.add_argument("--out")
     args = parser.parse_args()
 
+    run = Path(tempfile.mkdtemp(prefix="engine_probe_inputs_"))
+    atexit.register(shutil.rmtree, run, True)
+    stage_inputs(run)
     conformance = _conformance()
-    scenarios = pd.read_csv(conformance.RUN / "scenarios.csv")
+    scenarios = pd.read_csv(run / "scenarios.csv")
     rows = scenarios[scenarios["scenario_id"] == args.scenario_id]
     if rows.empty:
         raise SystemExit(f"no {args.scenario_id} in the frozen run")
@@ -176,8 +203,8 @@ def main() -> None:
     system = conformance._system()
     sim = conformance._simulation(situation)
 
-    reference = pd.read_csv(conformance.RUN / "reference_outputs.csv")
-    exclusions = json.loads((conformance.RUN / "reference_exclusions.json").read_text())
+    reference = pd.read_csv(run / "reference_outputs.csv")
+    exclusions = json.loads((run / "reference_exclusions.json").read_text())
     excluded = {
         (record["scenario_id"], record["variable"])
         for record in (
