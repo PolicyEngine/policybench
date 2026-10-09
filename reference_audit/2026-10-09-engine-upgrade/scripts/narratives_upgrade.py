@@ -15,8 +15,8 @@ text must also state the value.
 --reuse-from <earlier build dir> --reuse-explanations <its narratives CSV> keeps
 an earlier build's narrative for an output whose writer inputs are the same in
 both builds: the value, the change's cause and grounding, the PolicyEngine
-variable and the trace, byte for byte. The narrative must also not name the
-earlier engine's version. Judges' prompts render the narrative, so a reused one
+variable and the trace, byte for byte. On another engine the narrative must
+also not name the earlier engine's version. Judges' prompts render the narrative, so a reused one
 keeps a case's verdict through a rebuild on a newer engine. The reused rows are
 listed beside --out (<out>.reused.json) with both builds' sidecar sha256.
 
@@ -43,6 +43,7 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -77,11 +78,29 @@ def money(value: float) -> str:
     return f"{value:,.2f}".removesuffix(".00")
 
 
-def required(item: dict) -> list[str]:
+# A dollar amount as a narrative writes it: "$1,916.61", "$0", "-$12.50".
+DOLLARS = re.compile(r"(-)?\$\s?(\d[\d,]*(?:\.\d+)?)")
+
+
+def required(item: dict) -> list[float]:
     """What the narrative must state: the new amount; nothing for a flag."""
     if item["variable"].endswith("_eligible"):
         return []
-    return [money(float(item["regenerated"]))]
+    return [float(item["regenerated"])]
+
+
+def states_amount(text: str, value: float) -> bool:
+    """Whether ``text`` states ``value`` as a dollar amount, to the cent. A
+    bare number does not count: for a $0 reference, "2026" states nothing."""
+    for sign, number in DOLLARS.findall(text):
+        amount = float(number.replace(",", "")) * (-1 if sign else 1)
+        if abs(amount - value) <= 0.005 + 1e-9:
+            return True
+    return False
+
+
+def missing_amounts(item: dict, text: str) -> list[str]:
+    return [money(v) for v in required(item) if not states_amount(text, v)]
 
 
 def engine_note(engine: str) -> str:
@@ -238,13 +257,16 @@ def write_narratives(
         else:
             text = write(item)
             for _ in range(RETRIES):
-                missing = [f for f in required(item) if f not in text]
+                missing = missing_amounts(item, text)
                 if not missing:
                     break
                 text = write(
-                    item, f" The narrative must state the value {', '.join(missing)}."
+                    item,
+                    " The narrative must state the value "
+                    + ", ".join(f"${m}" for m in missing)
+                    + ".",
                 )
-        missing = [f for f in required(item) if f not in text]
+        missing = missing_amounts(item, text)
         if missing:
             raise Refusal(f"{key[0]} {key[1]}: the narrative omits {missing}")
         rewrites[key] = (item["regenerated"], n_lines, text)
@@ -294,11 +316,31 @@ def reusable_narratives(
         for key, inputs in writer_inputs(earlier).items()
     }
     _, body = parse_rows(earlier_explanations_text)
-    narratives = {(fields[1], fields[2]): fields[5] for fields, _ in body}
+    rows: dict = {}
+    for fields, _ in body:
+        rows.setdefault((fields[1], fields[2]), []).append(fields)
+    # The CSV must be the earlier build's narratives: each output that build
+    # changed appears once, for the US, with no error, at that build's value.
+    wrong = sorted(
+        key
+        for key, inputs in writer_inputs(earlier).items()
+        if len(rows.get(key, [])) != 1
+        or rows[key][0][0] != "us"
+        or rows[key][0][6] != ""
+        or abs(float(rows[key][0][3]) - float(inputs[0])) > 1e-6
+    )
+    if wrong:
+        raise Refusal(
+            "--reuse-explanations is not --reuse-from's narratives: "
+            f"{[f'{k[0]}|{k[1]}' for k in wrong[:5]]}"
+        )
+    narratives = {key: found[0][5] for key, found in rows.items()}
+    # A narrative naming the earlier engine is stale on another engine, and
+    # still true on the same one.
     return {
         key: narratives[key]
         for key, inputs in current.items()
-        if before.get(key) == inputs and number not in narratives[key]
+        if before.get(key) == inputs and (then == now or number not in narratives[key])
     }
 
 

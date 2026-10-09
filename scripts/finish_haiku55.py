@@ -3371,15 +3371,39 @@ TARGET_KEYS = {
         "engine",
         "engine_value",
         "modules",
+        "dependencies",
         "evidence",
         "evidence_sha256",
         "value_with_modules",
     },
 }
+# A fix module loads a sibling as Path(__file__).with_name("<file>"): the
+# builder's module_dependencies, re-derived here from the committed bytes.
+LOCAL_DEPENDENCY = re.compile(r"with_name\(\s*['\"]([^'\"]+)['\"]\s*\)")
+
+
+def committed_dependencies(names: list[str]) -> list[str]:
+    """The siblings the named fix modules load, transitively, as committed at
+    BASE_COMMIT, in the builder's order."""
+    found: list[str] = []
+    for name in names:
+        queue = [name]
+        while queue:
+            text = base_commit_blob(AUDIT_FIXES / queue.pop(0)).decode()
+            for dep in LOCAL_DEPENDENCY.findall(text):
+                if dep not in names and dep not in found:
+                    found.append(dep)
+                    queue.append(dep)
+    return found
 
 
 def regeneration_target_problems(
-    key: tuple[str, str], record: dict, target, value: float, engine: str
+    key: tuple[str, str],
+    record: dict,
+    target,
+    value: float,
+    engine: str,
+    tolerance: float = REGENERATION_TOLERANCE,
 ) -> list[str]:
     """Why a regenerated output's audited target does not hold, re-derived
     from what the build cites (the builder's regeneration_target).
@@ -3401,6 +3425,8 @@ def regeneration_target_problems(
     if not _number(target["value"]):
         return [f"{key}: the target's value is not a number"]
     problems = []
+    if not _number(tolerance) or not 0 <= tolerance <= REGENERATION_TOLERANCE:
+        return [f"{key}: the regeneration's tolerance {tolerance!r} is not in [0, $1]"]
     if kind == "record":
         if not _same(target["value"], float(record["alternative_value"])) or (
             target["engine"] != record["engine_version"]
@@ -3408,11 +3434,12 @@ def regeneration_target_problems(
             problems.append(f"{key}: the record target is not the record's")
     else:
         problems.extend(_fix_modules_target_problems(key, target, value, engine))
-    if not regeneration_lands(variable, value, float(target["value"])):
+    if not regeneration_lands(variable, value, float(target["value"])) or (
+        abs(value - float(target["value"])) > tolerance
+    ):
         problems.append(
-            f"{key}: regenerated at {value}, not within "
-            f"${REGENERATION_TOLERANCE:g} of its audited target {target['value']} "
-            f"({kind})"
+            f"{key}: regenerated at {value}, not within ${tolerance:g} of its "
+            f"audited target {target['value']} ({kind})"
         )
     return problems
 
@@ -3451,6 +3478,21 @@ def _fix_modules_target_problems(
     ):
         return [*problems, f"{key}: the target lists no fix modules"]
     names = [m["module"] for m in modules]
+    expected = []
+    for dep in committed_dependencies(names):
+        expected.append(
+            {
+                "module": dep,
+                "sha256": hashlib.sha256(base_commit_blob(AUDIT_FIXES / dep)).hexdigest(),
+            }
+        )
+    if target["dependencies"] != expected or any(
+        doc["modules"].get(item["module"]) != item["sha256"] for item in expected
+    ):
+        problems.append(
+            f"{key}: the target and evidence do not pin the siblings its modules load "
+            f"as committed at {BASE_COMMIT[:12]}: {[i['module'] for i in expected]}"
+        )
     for entry in modules:
         name = entry["module"]
         committed = hashlib.sha256(base_commit_blob(AUDIT_FIXES / name)).hexdigest()
@@ -3861,8 +3903,11 @@ def upgrade_exclusion_records(
             if isinstance(item, dict) and spec_key(item) == key
         ]
         target = entries[0].get("target") if len(entries) == 1 else None
+        tolerance = entries[0].get("tolerance") if len(entries) == 1 else None
         problems.extend(
-            regeneration_target_problems(key, record, target, values[key], engine)
+            regeneration_target_problems(
+                key, record, target, values[key], engine, tolerance
+            )
         )
     order = [key for key in map(spec_key, doc["exclusions"]) if key in base]
     if order != [key for key in map(spec_key, base_doc["exclusions"]) if key in built]:
@@ -3991,6 +4036,23 @@ def load_build(
     require(
         not off,
         f"the build's actions approve moves the build did not make: {off[:8]}",
+    )
+    # Every scored reference the build moves beyond the exact-match tolerance
+    # needs an approval: a regenerated or newly excluded output has its own
+    # record, and a move within $1 none.
+    from policybench.paper_results import moves_beyond_tolerance
+
+    unapproved = sorted(
+        key
+        for key, new in changed.items()
+        if key not in regenerated_base | regenerated_ruled | added
+        and moves_beyond_tolerance(key[1], base_values[key], new)
+        and key not in approved
+    )
+    require(
+        not unapproved,
+        "the build moves scored references beyond the tolerance without an "
+        f"approval in its actions: {unapproved[:8]}",
     )
     rechecked = {
         spec_key(item): item for item in revision.get("excluded_outputs_rechecked", [])

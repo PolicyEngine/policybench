@@ -144,8 +144,8 @@ In the re-opened cases, the new verdicts' text replaces the corrected text. Revi
 
 Sources:
 - `docs/haiku55/spec.json`;
-- `reference_audit/2026-10-05-reference-adversary/proposed_changes.json` (sha256 `678234fd…60d6`);
-- `reference_audit/2026-10-05-louisiana/proposed_exclusions.json` (sha256 `69d56da5…5eb2`).
+- `reference_audit/2026-10-05-reference-adversary/proposed_changes.json` (sha256 `3a6e5920…49bf`, as #200 merged it in 4db91b5f);
+- `reference_audit/2026-10-05-louisiana/proposed_exclusions.json` (sha256 `a78120cd…2545`).
 
 Values are rounded to cents; the records hold them in full. "Income tax" means the `…_income_tax_before_refundable_credits` output.
 

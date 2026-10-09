@@ -601,7 +601,9 @@ def _module_target(**target):
     return entry
 
 
-def _module_plan(value=2600.0, after=2600.1, evidence=None, pins=None, entry=None):
+def _module_plan(
+    value=2600.0, after=2600.1, evidence=None, pins=None, entry=None, deps=None
+):
     computed = _unchanged()
     computed[("scenario_003", "snap")] = value
     base = _base()
@@ -616,7 +618,71 @@ def _module_plan(value=2600.0, after=2600.1, evidence=None, pins=None, entry=Non
         evidence={EVIDENCE["path"]: evidence or _evidence()},
         module_pins={MODULE: "p" * 64} if pins is None else pins,
         module_values={(("scenario_003", "snap"), (MODULE,)): after},
+        module_deps=deps,
     )
+
+
+def test_a_fix_modules_target_pins_the_siblings_its_modules_load():
+    """r02_ira_219g_v2.py runs r02_ira_219g.py: the evidence must pin that
+    sibling at the bytes committed at the base, and the target records it."""
+    sibling = "r_fix.py"
+    deps = {MODULE: [sibling]}
+    missing = _module_plan(deps=deps, pins={MODULE: "p" * 64, sibling: "s" * 64})
+    assert any("does not pin the siblings" in p for p in missing.problems)
+    doc = _evidence()
+    doc["modules"][sibling] = "s" * 64
+    plan = _module_plan(
+        deps=deps, evidence=doc, pins={MODULE: "p" * 64, sibling: "s" * 64}
+    )
+    assert plan.problems == []
+    (regenerated,) = plan.regenerated
+    assert regenerated["target"]["dependencies"] == [
+        {"module": sibling, "sha256": "s" * 64}
+    ]
+    stale = _module_plan(
+        deps=deps, evidence=doc, pins={MODULE: "p" * 64, sibling: "t" * 64}
+    )
+    assert any("does not pin the siblings" in p for p in stale.problems)
+
+
+def test_module_dependencies_are_found_transitively():
+    files = {
+        "a_v2.py": b"x = Path(__file__).with_name('a.py')",
+        "a.py": b'y = Path(__file__).with_name( "b.json" )',
+        "b.json": b"{}",
+    }
+    assert build.module_dependencies("a_v2.py", files.__getitem__) == ["a.py", "b.json"]
+    assert build.module_dependencies("b.json", files.__getitem__) == []
+
+
+def test_the_committed_modules_siblings_are_the_ones_they_load():
+    """On the real fixes: r01, r02 and r03's v2 modules each load a sibling."""
+    deps = {
+        m: build.module_dependencies(m, build.committed_fix)
+        for m in (
+            "r01_ira_compensation_v2.py",
+            "r02_ira_219g_v2.py",
+            "r03_estate_income__qbi_false_v2.py",
+            "r07_idaho_health_premiums_v2.py",
+        )
+    }
+    assert deps["r01_ira_compensation_v2.py"] == ["r01_ira_compensation.py"]
+    assert deps["r02_ira_219g_v2.py"] == ["r02_ira_219g.py"]
+    assert deps["r03_estate_income__qbi_false_v2.py"][0] == "r03_estate_income_v2.py"
+    assert deps["r07_idaho_health_premiums_v2.py"] == []
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"after": float("nan")}, "still moves"),
+        ({"evidence": _evidence(corrected=float("nan"))}, "not finite"),
+        ({"value": float("nan"), "after": 2600.0}, "non-finite"),
+    ],
+)
+def test_a_non_finite_value_is_refused(kwargs, message):
+    problems = _module_plan(**kwargs).problems
+    assert any(message in p for p in problems), problems
 
 
 def test_a_record_target_misses_a_drifted_output():
@@ -640,6 +706,7 @@ def test_a_fix_modules_target_regenerates_a_drifted_output(tmp_path):
         "engine": PRE_FIX,
         "engine_value": 3100.0,
         "modules": [{"module": MODULE, "sha256": "p" * 64}],
+        "dependencies": [],
         "evidence": EVIDENCE["path"],
         "evidence_sha256": EVIDENCE["sha256"],
         "value_with_modules": 2600.1,
@@ -1194,6 +1261,55 @@ def test_a_rebuild_reuses_the_narratives_whose_writer_inputs_are_unchanged(tmp_p
         completion=_value_narrator(" On policyengine-us 9.9.9."),
     )
     assert narratives.reusable_narratives(tmp_path / "b", tmp_path / "a", named) == {}
+    # On the same engine it is still true, so a rebuild there keeps it.
+    same = narratives.reusable_narratives(tmp_path / "a", tmp_path / "a", named)
+    assert set(same) == {
+        ("scenario_001", S),
+        ("scenario_002", F),
+        ("scenario_004", S),
+        ("scenario_002", S),
+    }
+
+
+@pytest.mark.parametrize(
+    "text, value, ok",
+    [
+        ("Refundable credits are $0.00.", 0.0, True),
+        ("Refundable credits are $0.", 0.0, True),
+        ("In tax year 2026 the household gets nothing.", 0.0, False),
+        ("Tax is $1,916.61 after credits.", 1916.606201, True),
+        ("Tax is $1,916 after credits.", 1916.606201, False),
+        ("The refund is -$12.50.", -12.5, True),
+        ("It owes $2,116.61 before a $200 credit.", 1916.61, False),
+    ],
+)
+def test_a_narrative_states_its_amount_as_dollars_to_the_cent(text, value, ok):
+    assert narratives.states_amount(text, value) is ok
+
+
+@SETTINGS
+@given(cents=st.integers(min_value=0, max_value=10**9))
+def test_a_formatted_amount_is_always_recognized(cents):
+    value = cents / 100
+    assert narratives.states_amount(f"PolicyEngine gives ${value:,.2f}.", value)
+    assert narratives.states_amount(
+        f"PolicyEngine gives ${narratives.money(value)}.", value
+    )
+
+
+def test_reuse_refuses_a_narratives_file_from_another_build(tmp_path):
+    """The base explanations are not build A's narratives: their changed rows
+    carry the old values, so reusing from them is refused."""
+    computed, actions = _full()
+    del actions["new_exclusions"][0]
+    computed[("scenario_006", "local_income_tax")] = 0.0
+    _write(tmp_path / "a", computed, actions)
+    text_a, _ = narratives.write_narratives(
+        tmp_path / "a", EXPLANATIONS, _scenarios(), completion=_value_narrator()
+    )
+    assert narratives.reusable_narratives(tmp_path / "a", tmp_path / "a", text_a)
+    with pytest.raises(build.Refusal, match="is not --reuse-from's narratives"):
+        narratives.reusable_narratives(tmp_path / "a", tmp_path / "a", EXPLANATIONS)
 
 
 def test_a_narrative_that_omits_the_value_is_retried_then_refused(tmp_path):

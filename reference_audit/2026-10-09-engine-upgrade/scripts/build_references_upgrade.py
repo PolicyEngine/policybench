@@ -148,6 +148,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -191,6 +193,9 @@ SALES_TAX_SOURCE = ROOT / SALES_TAX_REL
 AUDIT_FIXES_REL = "reference_audit/2026-09-22/fixes"
 AUDIT_FIXES = ROOT / AUDIT_FIXES_REL
 EVIDENCE_KIND = "regeneration_evidence"
+# A fix module loads a sibling as Path(__file__).with_name("<file>"); those
+# siblings run too, so they are pinned with it (module_dependencies).
+LOCAL_DEPENDENCY = re.compile(r"with_name\(\s*['\"]([^'\"]+)['\"]\s*\)")
 TARGET_RECORD = "record"
 TARGET_FIX_MODULES = "fix_modules"
 YEAR = 2026
@@ -506,6 +511,7 @@ def regeneration_target(
     evidence: dict[str, dict],
     module_pins: dict[str, str],
     module_values: dict[tuple[Key, tuple[str, ...]], float],
+    module_deps: dict[str, list[str]] | None = None,
 ) -> tuple[dict | None, list[str]]:
     """The audited corrected value a regenerated output must land on, and how
     it is known (the entry's target), or the problems that stop it. Pure."""
@@ -561,6 +567,22 @@ def regeneration_target(
         return None, problems
     item = items[0]
     before, corrected = float(item["engine_value"]), float(item["corrected_value"])
+    dependencies = []
+    for m in modules:
+        for d in (module_deps or {}).get(m, []):
+            if d not in modules and d not in dependencies:
+                dependencies.append(d)
+    unpinned = [
+        d for d in dependencies if d not in module_pins or doc["modules"].get(d) != module_pins[d]
+    ]
+    if unpinned:
+        problems.append(
+            f"regenerated {k}: the evidence does not pin the siblings its modules "
+            f"load, as committed: {unpinned}"
+        )
+    if not (math.isfinite(before) and math.isfinite(corrected)):
+        problems.append(f"regenerated {k}: the evidence's values are not finite")
+        return None, problems
     if not beyond(variable, before, corrected):
         problems.append(
             f"regenerated {k}: on {doc['engine']} the modules move it only "
@@ -569,7 +591,9 @@ def regeneration_target(
     after = module_values.get((k, modules))
     if after is None:
         problems.append(f"regenerated {k}: the modules were not applied on {engine}")
-    elif abs(after - value) > tolerance or beyond(variable, value, after):
+    elif not math.isfinite(after) or abs(after - value) > tolerance or beyond(
+        variable, value, after
+    ):
         problems.append(
             f"regenerated {k}: the audited fix still moves it on {engine}: "
             f"{value!r} -> {after!r}"
@@ -582,6 +606,7 @@ def regeneration_target(
         "engine": doc["engine"],
         "engine_value": before,
         "modules": [{"module": m, "sha256": module_pins[m]} for m in modules],
+        "dependencies": [{"module": d, "sha256": module_pins[d]} for d in dependencies],
         "evidence": ref["path"],
         "evidence_sha256": ref["sha256"],
         "value_with_modules": after,
@@ -598,6 +623,7 @@ def plan_upgrade(
     evidence: dict[str, dict] | None = None,
     module_pins: dict[str, str] | None = None,
     module_values: dict[tuple[Key, tuple[str, ...]], float] | None = None,
+    module_deps: dict[str, list[str]] | None = None,
 ) -> Plan:
     """Decide every output's value and record; never raise on a move, collect
     every problem instead. Pure: no engine, no files. A "fix_modules" target
@@ -670,6 +696,9 @@ def plan_upgrade(
         if k not in computed:
             continue
         value, old = float(computed[k]), board[k]
+        if not math.isfinite(value):
+            plan.problems.append(f"{k}: the engine gives a non-finite value {value!r}")
+            continue
         moves = beyond(k[1], old, value)
         if k in excluded:
             for name, entries in (("approved", approved), ("new_exclusions", added)):
@@ -680,6 +709,8 @@ def plan_upgrade(
                 entry = regenerated[k]
                 alternative = float(record["alternative_value"])
                 tolerance = float(entry.get("tolerance", -1))
+                if not math.isfinite(tolerance):
+                    tolerance = -1.0
                 if record["reason_code"] != ENGINE_DEFECT:
                     plan.problems.append(
                         f"regenerated {k} is {record['reason_code']}, not an engine "
@@ -709,6 +740,7 @@ def plan_upgrade(
                     evidence=evidence,
                     module_pins=module_pins,
                     module_values=module_values,
+                    module_deps=module_deps,
                 )
                 if problems:
                     plan.problems.extend(problems)
@@ -819,7 +851,9 @@ def plan_upgrade(
                     f"approved {k} does not move: {old!r} -> {value!r}"
                 )
                 continue
-            if abs(value - float(entry["value"])) > APPROVED_TOL:
+            if not math.isfinite(float(entry["value"])) or (
+                abs(value - float(entry["value"])) > APPROVED_TOL
+            ):
                 plan.problems.append(
                     f"approved {k}: engine {value!r} != approved {entry['value']!r}"
                 )
@@ -1245,12 +1279,33 @@ def compute_outputs(system, scenarios, programs, build_situation) -> dict[Key, f
     return computed
 
 
+def module_dependencies(name: str, read) -> list[str]:
+    """The sibling files a fix module loads, transitively, in discovery order;
+    ``read(file)`` gives a file's bytes (as committed at BASE_COMMIT)."""
+    found, queue = [], [name]
+    while queue:
+        for dep in LOCAL_DEPENDENCY.findall(read(queue.pop(0)).decode()):
+            if dep != name and dep not in found:
+                found.append(dep)
+                queue.append(dep)
+    return found
+
+
+def committed_fix(name: str) -> bytes:
+    """An audited fix file as committed at BASE_COMMIT."""
+    return git_blob(BASE_COMMIT, f"{AUDIT_FIXES_REL}/{name}")
+
+
 def audit_module_pins(names, fixes_dir: Path = AUDIT_FIXES) -> dict[str, str]:
-    """Each named audited fix module's sha256: the bytes committed at
-    BASE_COMMIT under reference_audit/2026-09-22/fixes, and nothing else."""
+    """Each named audited fix module's sha256, and each sibling it loads
+    (module_dependencies): the bytes committed at BASE_COMMIT under
+    reference_audit/2026-09-22/fixes, and nothing else."""
+    names = sorted(set(names))
+    for name in list(names):
+        names += [d for d in module_dependencies(name, committed_fix) if d not in names]
     pins = {}
     for name in sorted(set(names)):
-        if Path(name).name != name or not name.endswith(".py"):
+        if Path(name).name != name or not name.endswith((".py", ".json")):
             raise Refusal(f"a fix module is a file name ending in .py, not {name!r}")
         path = Path(fixes_dir) / name
         committed = sha256_bytes(git_blob(BASE_COMMIT, f"{AUDIT_FIXES_REL}/{name}"))
@@ -1532,9 +1587,9 @@ def main(argv: list[str] | None = None) -> None:
         for entry in targets
         if isinstance(entry["target"].get("evidence"), dict)
     }
-    module_pins = audit_module_pins(
-        [m for entry in targets for m in target_modules(entry)]
-    )
+    named = sorted({m for entry in targets for m in target_modules(entry)})
+    module_pins = audit_module_pins(named)
+    module_deps = {m: module_dependencies(m, committed_fix) for m in named}
     module_values = module_values_on(
         final,
         scenarios,
@@ -1550,6 +1605,7 @@ def main(argv: list[str] | None = None) -> None:
         evidence=evidence,
         module_pins=module_pins,
         module_values=module_values,
+        module_deps=module_deps,
     )
     if plan.problems:
         raise Refusal("refusing to write references:\n  " + "\n  ".join(plan.problems))

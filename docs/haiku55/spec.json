@@ -13,7 +13,7 @@
   "proposals": [
     {
       "path": "reference_audit/2026-10-05-reference-adversary/proposed_changes.json",
-      "sha256": "678234fddf9463d3fde4ccf784e7938cb02a734e1533efded135adef4e9760d6",
+      "sha256": "3a6e5920a2d02e94e1df52c95c1def2739f3eb21b1fb67fc74a7d68219a749bf",
       "records": "root_causes.*.exclusions",
       "outputs": [
         [
@@ -52,7 +52,7 @@
     },
     {
       "path": "reference_audit/2026-10-05-louisiana/proposed_exclusions.json",
-      "sha256": "69d56da5a5391f88546d40ab824bc54f0f9434fcdd3c3b733893902796685eb2",
+      "sha256": "a78120cd71110e823b0d7dafcffc5582d300408491335eb935e02112a5702545",
       "records": "exclusions",
       "outputs": [
         [

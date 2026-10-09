@@ -2061,6 +2061,8 @@ def test_the_stage_holds_the_installed_release_exclusions():
     installed = receipt.get("exclusions_installed")
     if installed is None:
         pytest.skip("install-exclusions has not run on this stage")
+    if installed.get("spec_sha256") != driver.digest(driver.ROOT / driver.SPEC_PATH):
+        pytest.skip("the 2.15.17 fallback stage was installed under an earlier spec")
     assert installed["sha256"] == release_sha() == driver.release_exclusions_sha256()
     assert installed["base_sha256"] == driver.BASE_REFERENCE_SHA256[EXCLUSIONS_NAME]
     assert installed["records"] == driver.RELEASE_EXCLUSIONS
@@ -5032,6 +5034,7 @@ def write_build(
                     },
                 ),
                 "regenerated": float(v),
+                "tolerance": 1.0,
                 "record": records[k],
             }
             for k, v in sorted(regenerated.items())
@@ -5530,6 +5533,60 @@ def test_an_exclusion_record_other_than_the_releases_is_refused(
     change, problem = EXCLUSION_TAMPERS[tamper]
     change(build)
     with pytest.raises(SystemExit, match=problem):
+        load(build)
+
+
+def _rebind_actions(build: SimpleNamespace) -> None:
+    """MOCK: point the build's revision provenance at its (edited) actions."""
+    edit_json(
+        build.built / META_NAME,
+        lambda meta: last_revision(meta)["provenance"].update(
+            actions_sha256=sha(build.actions)
+        ),
+    )
+
+
+def test_every_scored_move_beyond_a_dollar_needs_an_approval(upgrade_spec, tmp_path):
+    """MOCK: the build moves ID 076 by $10; without its approval in the
+    actions (and the provenance rebound to match), the build is refused."""
+    build = real_build(tmp_path)
+    load(build)
+    edit_json(build.actions, lambda plan: plan.update(approved=[]))
+    _rebind_actions(build)
+    with pytest.raises(SystemExit, match="without an approval"):
+        load(build)
+
+
+@pytest.mark.parametrize("tolerance, ok", [(1.0, True), (0.01, True), (0.001, False)])
+def test_a_regeneration_lands_within_its_own_tolerance(
+    upgrade_spec, tmp_path, tolerance, ok
+):
+    """MOCK: AZ 018 regenerates at 1,137.30 against its record's 1,137.302246;
+    a regeneration whose action allows $0.001 is held to it."""
+    build = real_build(tmp_path)
+
+    def tighten(meta):
+        for item in last_revision(meta)["regenerated_exclusions"]:
+            if driver.spec_key(item) == ("scenario_018", STATE_TAX):
+                item["tolerance"] = tolerance
+
+    edit_json(build.built / META_NAME, tighten)
+    if ok:
+        load(build)
+    else:
+        with pytest.raises(SystemExit, match=r"not within \$0.001"):
+            load(build)
+
+
+def test_a_regeneration_tolerance_above_a_dollar_is_refused(upgrade_spec, tmp_path):
+    build = real_build(tmp_path)
+    edit_json(
+        build.built / META_NAME,
+        lambda meta: last_revision(meta)["regenerated_exclusions"][0].update(
+            tolerance=1.5
+        ),
+    )
+    with pytest.raises(SystemExit, match="tolerance 1.5 is not in"):
         load(build)
 
 
