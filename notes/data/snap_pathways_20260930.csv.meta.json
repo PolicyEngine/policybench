@@ -6,7 +6,7 @@
     "alt_conventions_r25.py": "0f77fdd44e758581f7e563b0f7b70c4d4359a833b08a4ac45a614c380938775e",
     "latest_alt_r02_ira_219g.py": "3e71bab1db867988544e6f87f6dda4dc7c719d51320fbbb7558cd574a0374f6e",
     "latest_alt_salt_refund_no_prior_benefit.py": "d8a314093466caf5fe0a226f1060acba2e4364c4b87befbd80639ebf41cc4a2c",
-    "latest_alt_snap_mortgage_residence.py": "00cd13886a8c3d03c4e84944d35f7e8a1448af26838e8bc0761b914b887c70cd",
+    "latest_alt_snap_mortgage_residence.py": "5e701f8fa1b31bfeed882a0bc5160faa4ee1d2b5a67974f9d9dc60e6f6638053",
     "latest_alt_unlisted_hours_40.py": "5e6538a903112243ad85051ccba26b6133bdfbd5b9e5ba3dfa81ba690c061b32",
     "latest_c_ca_hold_2025.py": "f19a47b9583032a0602a31e52f995eee824a427a76e87a9d4257d6682a016fa2",
     "latest_c_id_hold_2025.py": "39fb99292691600cd273a1c6ef3c90847453e21e4d7b872603bcaac71727f8a5",
@@ -484,6 +484,6 @@
       }
     }
   },
-  "generated_at_utc": "2026-10-05T12:54:30.665476+00:00",
+  "generated_at_utc": "2026-10-09T12:23:57.014680+00:00",
   "script": "scripts/snap_pathways_20260930.py"
 }
