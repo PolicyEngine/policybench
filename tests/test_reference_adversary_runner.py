@@ -598,7 +598,8 @@ def test_codex_runner_keeps_the_lane_config_and_user_home_from_the_judge(
     for call in calls:
         args = call["args"]
         assert "--ignore-user-config" in args
-        assert args[args.index("--disable") + 1] == "memories"
+        disabled = {args[i + 1] for i, arg in enumerate(args) if arg == "--disable"}
+        assert disabled == {"memories", "hooks", "plugins", "apps"}
         assert call["env"]["CODEX_HOME"] == str(codex_home)
         home = call["env"]["HOME"]
         assert Path(home).resolve() != user_home.resolve()
@@ -631,17 +632,45 @@ def test_codex_runner_defaults_codex_home_to_the_users(tmp_path: Path):
         assert call["env"]["CODEX_HOME"] == str(user_home / ".codex")
 
 
-def test_codex_runner_refuses_a_codex_home_with_its_own_skills(tmp_path: Path):
+@pytest.mark.parametrize(
+    "name, shown",
+    [
+        ("engine", "engine"),
+        (".hidden", ".hidden"),
+        ("..engine", "..engine"),
+        # Names that line-based parsing would drop or read as .system.
+        ("\n", "$'\\n'"),
+        (".system\n.system", "$'.system\\n.system'"),
+    ],
+)
+def test_codex_runner_refuses_a_codex_home_with_its_own_skills(
+    tmp_path: Path, name, shown
+):
     # Codex lists every skill's name and description in each session; a
     # lane's home holds only the bundled ones under skills/.system.
     adversary, bin_dir, env = _setup(tmp_path, "codex")
     skills = Path(env["CODEX_HOME"]) / "skills"
     (skills / ".system").mkdir(parents=True)
-    (skills / "engine").mkdir()
-    (skills / "engine" / "SKILL.md").write_text("Read the derivation.")
+    (skills / name).mkdir()
+    (skills / name / "SKILL.md").write_text("Read the derivation.")
     result = _run("codex", adversary, env, tmp_path)
     assert result.returncode == 1
-    assert "skills other than the bundled .system ones (engine)" in result.stderr
+    assert f"skills other than the bundled .system ones ({shown})" in result.stderr
+    assert _calls(bin_dir) == []
+
+
+def test_codex_runner_refuses_a_skills_system_that_is_not_its_directory(
+    tmp_path: Path,
+):
+    # .system must be the bundled directory itself, not a link elsewhere.
+    adversary, bin_dir, env = _setup(tmp_path, "codex")
+    skills = Path(env["CODEX_HOME"]) / "skills"
+    skills.mkdir()
+    (tmp_path / "elsewhere").mkdir()
+    (skills / ".system").symlink_to(tmp_path / "elsewhere")
+    result = _run("codex", adversary, env, tmp_path)
+    assert result.returncode == 1
+    assert "skills other than the bundled .system ones (.system)" in result.stderr
     assert _calls(bin_dir) == []
 
 

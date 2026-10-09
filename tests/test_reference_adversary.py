@@ -7,6 +7,7 @@ import copy
 import gzip
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pandas as pd
@@ -53,8 +54,30 @@ from policybench.reference_adversary import (
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "policybench/reference_adversary.py"
 RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
-FROZEN_PAYLOAD = ROOT / "paper/snapshot/20260501/runs" / RUN / "data.json.gz"
-FROZEN_ANNOTATIONS = ROOT / "annotations" / RUN
+# The pass ran on release dashboard-data-20260930's payload and annotations, as
+# #187 committed them. Later releases rewrite the working tree's (#202 did), so
+# the tests read them from git; CI checks out full history.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+PAYLOAD_PATH = f"paper/snapshot/20260501/runs/{RUN}/data.json.gz"
+EXPLANATIONS_PATH = f"annotations/{RUN}/us_case_reference_explanations.csv"
+
+
+def _pass_input(path: str, directory: Path) -> Path:
+    """``path`` as PASS_COMMIT holds it, written into ``directory``."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{PASS_COMMIT}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {path} at {PASS_COMMIT[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / Path(path).name
+    target.write_bytes(result.stdout)
+    return target
+
 
 TAX = "state_income_tax_before_refundable_credits"
 MEDICAID = "head_medicaid_eligible"
@@ -1743,13 +1766,15 @@ def test_the_pipeline_writes_only_inside_the_adversary_dir(
 # --- The frozen run ---------------------------------------------------------------
 
 
-@pytest.mark.skipif(not FROZEN_PAYLOAD.exists(), reason="frozen payload absent")
-def test_frozen_run_cases_are_blind_in_stage1():
+def test_frozen_run_cases_are_blind_in_stage1(tmp_path: Path):
     from policybench.consensus import consensus_report, load_us_payload
 
-    payload = load_us_payload(FROZEN_PAYLOAD)
+    frozen_payload = _pass_input(PAYLOAD_PATH, tmp_path)
+    payload = load_us_payload(frozen_payload)
     report = consensus_report(payload)
-    derivations = load_derivations(FROZEN_ANNOTATIONS)
+    derivations = load_derivations(
+        _pass_input(EXPLANATIONS_PATH, tmp_path / "annotations").parent
+    )
     cases = build_adversary_cases(payload, report["flags"], derivations=derivations)
     assert len(cases) == report["flagged_cells"] == 61
     for case in cases:
@@ -1762,7 +1787,7 @@ def test_frozen_run_cases_are_blind_in_stage1():
     (cluster,) = tax.consensus
     assert cluster["answer"] == 4452.0 and cluster["n_models"] == 32
     # The frozen payload wraps the same derivation text for the fallback.
-    with gzip.open(FROZEN_PAYLOAD) as handle:
+    with gzip.open(frozen_payload) as handle:
         raw = json.load(handle)
     cell = raw["scenarioPredictions"]["scenario_123"][TAX]
     assert next(iter(cell.values()))["referenceExplanation"]

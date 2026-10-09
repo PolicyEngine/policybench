@@ -136,15 +136,16 @@ exact and never toward a wrong cluster, even when its rounded key misses.
     to a session that produces no event, so the runner keeps the lane's
     configuration from the judge: each call skips the lane's `config.toml`
     (`--ignore-user-config`, which drops `developer_instructions`,
-    `model_instructions_file` and configured MCP servers), runs with
-    memories off, and gets a fresh, empty `HOME`, so no user skills reach it.
-    The runner refuses a Codex home holding `AGENTS.override.md` or
-    `AGENTS.md`, or any skill but the bundled `.system` ones. It does not
-    control what Codex bundles, an administrator's `/etc/codex`, or apps and
-    plugins enabled on the ChatGPT account; calling one of those is an MCP
-    tool event, which the audit rejects. Codex's event log records a
-    search's query but not its results, so this runner cannot check what a
-    search returned; the prompt's request is its only guard there.
+    `model_instructions_file` and configured MCP servers), turns the
+    memories, hooks, plugins and apps features off, and gets a fresh, empty
+    `HOME`, so no user skills reach it. The runner refuses a Codex home
+    holding `AGENTS.override.md` or `AGENTS.md`, or any skills entry but the
+    bundled `.system` directory. It does not control what Codex bundles, an
+    administrator's `/etc/codex`, or a feature those flags leave on; calling
+    an app or MCP server is an MCP tool event, which the audit rejects.
+    Codex's event log records a search's query but not its results, so this
+    runner cannot check what a search returned; the prompt's request is its
+    only guard there.
 - **Stage 2, reconcile.** A fresh call gets the frozen stage-1 JSON (bound by
   its sha256) and only now the engine derivation. It returns a verdict:
   `reference_holds`, `reference_wrong`, `definition_mismatch` or

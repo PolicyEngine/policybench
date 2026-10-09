@@ -46,7 +46,7 @@ PolicyBench's diagnosis judge (`docs/audit.md`) explains why models miss. Its pr
 
 Inputs:
 
-- Payload: `data.json.gz`, sha256 `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18`.
+- Payload: `data.json.gz` of release dashboard-data-20260930, as committed at `8b4c0ca1` (#187), sha256 `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18`. Release dashboard-data-20261006 (#202) later rewrote the working tree's payload and annotations; the tests and the Reproduce steps read the pass's inputs from `8b4c0ca1`.
 - Top 5 by the payload's `modelStats` order: gpt-6-sol, claude-opus-5.5, gpt-5.6-sol, gpt-6-luna and claude-sonnet-5.5.
 - `consensus_flags.json` holds the default run, and `consensus_flags_prototype.json` reproduces the 2026-10-05 prototype.
 - `verification/flags_table.md` lists all 61 cells, each with its cluster, its exact-model count and whether the prototype flagged it.
@@ -416,7 +416,7 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 
   Each of the four confirmed verification files gives a fix specification and YAML tests with hand-computed expectations.
 - **scenario_013 SNAP's effective date.** The $240 reference holds only if Arizona's 200% limit took effect in March 2026, and no run confirmed that date from a primary source (see [Search results from blocked sources](#search-results-from-blocked-sources)). An independent check of the DES manual's revision history would settle it.
-- **Codex runner blinding.** No run here used the Codex runner. Codex's event log records a search's query but not its results, so the Codex runner cannot make the Claude runner's search-result check. The prompt's `blocked_domains` request is its only guard. Codex also adds instructions to a session without an event. The runner skips the lane's `config.toml`, turns memories off, gives each call an empty `HOME`, and refuses a Codex home with `AGENTS.md`, `AGENTS.override.md` or its own skills. It does not control what Codex bundles, an administrator's `/etc/codex`, or apps and plugins enabled on the ChatGPT account.
+- **Codex runner blinding.** No run here used the Codex runner. Codex's event log records a search's query but not its results, so the Codex runner cannot make the Claude runner's search-result check. The prompt's `blocked_domains` request is its only guard. Codex also adds instructions to a session without an event. The runner skips the lane's `config.toml`, turns the memories, hooks, plugins and apps features off, gives each call an empty `HOME`, and refuses a Codex home with `AGENTS.md`, `AGENTS.override.md` or its own skills. It does not control what Codex bundles, an administrator's `/etc/codex`, or a feature those flags leave on.
 - **Household scope for future runs.** The methodology choice for future runs is queued for Max as d1029, because the definitions admit both readings:
   - either state the scope in both income tax definitions and filter out households whose dependents must file;
   - or build the dependent's own return as a second tax unit.
@@ -446,6 +446,8 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
 
 ## Reproduce
+
+`<run>/data.json.gz` and `annotations/<run>/` must hold the pass's inputs as commit `8b4c0ca1` (release dashboard-data-20260930) committed them, not today's, which release dashboard-data-20261006 (#202) rewrote. A worktree at `8b4c0ca1` has them, or `git show 8b4c0ca1:<path>` each file.
 
 ```bash
 uv run policybench consensus-flags --payload <run>/data.json.gz \

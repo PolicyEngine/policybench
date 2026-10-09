@@ -7,6 +7,8 @@ import gzip
 import hashlib
 import json
 import math
+import subprocess
+import tempfile
 from dataclasses import fields, replace
 from decimal import ROUND_HALF_UP, Decimal
 from functools import cache
@@ -32,11 +34,14 @@ from policybench.consensus import (
 from policybench.spec import metric_type_for_output
 
 ROOT = Path(__file__).resolve().parents[1]
-RUN_DIR = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+# The payload the pass ran on: release dashboard-data-20260930's, as #187
+# committed it. Later releases rewrite the working tree's payload (#202 did),
+# so the tests read it from git; CI checks out full history.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+PAYLOAD_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/"
+    "data.json.gz"
 )
-FROZEN_PAYLOAD = RUN_DIR / "data.json.gz"
 FROZEN_SHA256 = "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18"
 TOP_FIVE = [
     "gpt-6-sol",
@@ -725,8 +730,25 @@ def test_params_round_trip_and_prototype():
 
 
 @cache
+def _frozen_payload() -> Path:
+    """The pass's payload, written from PASS_COMMIT to a scratch file."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{PASS_COMMIT}:{PAYLOAD_PATH}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {PAYLOAD_PATH} at {PASS_COMMIT[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    path = Path(tempfile.mkdtemp(prefix="pb-pass-payload-")) / "data.json.gz"
+    path.write_bytes(result.stdout)
+    return path
+
+
+@cache
 def _frozen() -> dict:
-    return load_us_payload(FROZEN_PAYLOAD)
+    return load_us_payload(_frozen_payload())
 
 
 @cache
@@ -743,7 +765,7 @@ def _frozen_by_cell(rounding: str, binary_outputs: str = "skip") -> dict:
 
 
 def test_frozen_payload_is_the_pinned_one():
-    assert file_sha256(FROZEN_PAYLOAD) == FROZEN_SHA256
+    assert file_sha256(_frozen_payload()) == FROZEN_SHA256
     assert ranked_models(_frozen())[:5] == TOP_FIVE
     assert len(PROTOTYPE_CELLS) == 41
 
@@ -752,7 +774,7 @@ def test_prototype_params_flag_the_41_cells():
     report = consensus_report(
         _frozen(),
         PROTOTYPE_PARAMS,
-        source=str(FROZEN_PAYLOAD.relative_to(ROOT)),
+        source=f"{PASS_COMMIT[:8]}:{PAYLOAD_PATH}",
         source_sha256=FROZEN_SHA256,
     )
     assert set(report) == REPORT_KEYS

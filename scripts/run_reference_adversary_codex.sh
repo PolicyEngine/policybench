@@ -22,7 +22,8 @@
 #   - skips the lane's config.toml (--ignore-user-config; auth still comes
 #     from CODEX_HOME), and with it developer_instructions,
 #     model_instructions_file and the MCP servers it would configure;
-#   - runs with memories off (--disable memories);
+#   - runs with the memories, hooks, plugins and apps features off
+#     (--disable, as codex-cli 0.159.0's `codex features list` names them);
 #   - gets a fresh, empty HOME, so no user skills ($HOME/.agents/skills) and no
 #     user shell profile reach it;
 # and the runner refuses a Codex home holding AGENTS.override.md or
@@ -45,6 +46,7 @@
 #
 # Each call is
 #   codex --search exec --json --ignore-user-config --disable memories \
+#     --disable hooks --disable plugins --disable apps \
 #     --sandbox read-only --skip-git-repo-check --ephemeral --color never \
 #     -C <empty temp dir> [-m AUDIT_MODEL] -c model_reasoning_effort=<effort> \
 #     --output-schema <schema> -o <out> -
@@ -73,9 +75,10 @@
 # GitHub page cannot be detected (the prompt asks the judge to exclude those
 # domains); and a call the provider refuses fails only its own case, so a
 # refused lane fails every remaining call before the run ends. Context the
-# runner does not control: the skills and instructions Codex bundles, an
-# administrator's /etc/codex, and apps or plugins enabled on the ChatGPT
-# account (a call to one is an MCP tool event, which the audit rejects).
+# runner does not control: the skills and instructions Codex bundles
+# (skills/.system is not inspected), an administrator's /etc/codex, and any
+# feature the flags above do not turn off (a call to an app or MCP server is
+# an MCP tool event, which the audit rejects).
 #
 # Provenance: beside stage1.json and verdict.json the runner writes
 # stage1.meta.json and verdict.meta.json with the runner, the stage, the model
@@ -87,7 +90,8 @@
 # commands.
 #
 # Environment: AUDIT_PARALLEL (positive integer, default 4), AUDIT_MODEL
-# (default: the lane's), AUDIT_REASONING_EFFORT or AUDIT_EFFORT (default high),
+# (default: Codex's own, since the lane's config.toml is skipped),
+# AUDIT_REASONING_EFFORT or AUDIT_EFFORT (default high),
 # AUDIT_PYTHON (an interpreter with policybench and jsonschema),
 # AUDIT_CODEX_BIN (default codex), AUDIT_ONLY (space-separated case ids).
 # Portable to bash 3.2.
@@ -190,14 +194,20 @@ for agents in AGENTS.override.md AGENTS.md; do
   }
 done
 # Codex lists every skill's name and description in each session. A lane's
-# home holds only the bundled ones, under skills/.system.
-if [ -d "$CODEX_HOME_DIR/skills" ]; then
-  extra=$(ls -A "$CODEX_HOME_DIR/skills" | grep -vxF .system)
-  [ -n "$extra" ] && {
-    echo "$CODEX_HOME_DIR/skills holds skills other than the bundled .system ones ($(printf '%s' "$extra" | tr '\n' ' ')): they could reach the judge; use a lane home without them" >&2
-    exit 1
-  }
-fi
+# home holds only the bundled ones, in the directory skills/.system. Every
+# other entry is refused, whatever its name (globs, not `ls` output, so a
+# name with a newline is one entry).
+for entry in "$CODEX_HOME_DIR"/skills/* "$CODEX_HOME_DIR"/skills/.[!.]* \
+    "$CODEX_HOME_DIR"/skills/..?*; do
+  { [ -e "$entry" ] || [ -L "$entry" ]; } || continue
+  if [ "$entry" = "$CODEX_HOME_DIR/skills/.system" ] && [ -d "$entry" ] \
+      && [ ! -L "$entry" ]; then
+    continue
+  fi
+  printf '%s holds skills other than the bundled .system ones (%q): they could reach the judge; use a lane home without them\n' \
+    "$CODEX_HOME_DIR/skills" "${entry##*/}" >&2
+  exit 1
+done
 LOGIN=$(cd / && codex_child login status </dev/null 2>&1 | head -n 1)
 case "$LOGIN" in
   "Logged in using ChatGPT"*) ;;
@@ -253,6 +263,9 @@ judge_stage() {
       --json \
       --ignore-user-config \
       --disable memories \
+      --disable hooks \
+      --disable plugins \
+      --disable apps \
       --sandbox read-only \
       --skip-git-repo-check \
       --ephemeral \
