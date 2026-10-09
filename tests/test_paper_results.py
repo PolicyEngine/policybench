@@ -32,6 +32,11 @@ from policybench.paper_results import (
     r,
 )
 from policybench.reference_exclusions import load_reference_exclusions
+from tests.second_engine_upgrade import (
+    paper_results_for,
+    release_20261006,
+    with_second_upgrade,
+)
 
 
 def test_frozen_roster_has_46_display_names_and_release_dates():
@@ -426,50 +431,65 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
         assert stats["n"] == 1920
 
 
-def test_engine_upgrade_counts_come_from_the_reference_sidecar():
+# The reference records, as committed and with a synthetic second upgrade
+# (tests/second_engine_upgrade.py, mock data): the upgrade accessors must hold
+# for any number of upgrades, keyed to the last, while every fact of the
+# 2026-09-29 upgrade stays pinned to that revision.
+RESULTS = {
+    "working_tree": lambda: r,
+    "second_upgrade": lambda: _second_upgrade_results(),
+}
+
+
+@functools.cache
+def _second_upgrade_results() -> PaperResults:
+    return paper_results_for(with_second_upgrade(release_20261006()))
+
+
+@pytest.fixture(params=sorted(RESULTS))
+def results(request) -> PaperResults:
+    return RESULTS[request.param]()
+
+
+def test_engine_upgrade_counts_come_from_the_reference_sidecar(results):
     """The September 29 move to policyengine-us 2.15.17, as the reference
-    sidecar's engine_upgrade revision records it (reference_audit/2026-09-28/
-    README.md tabulates the same changes)."""
-    assert r.policyengine_us_version == "2.15.17"
-    assert r.previous_policyengine_us_version == "1.755.4"
-    assert r.policyengine_version == "6.1.2"
-    # The revision and the rebuild carry the upgrade's UTC day.
+    sidecar's 2026-09-29 engine_upgrade revision records it (reference_audit/
+    2026-09-28/README.md tabulates the same changes), whatever upgrades
+    follow it."""
+    upgrade = results.september_upgrade
+    assert results.engine_upgrades[0] is upgrade
+    assert results.engine_upgrade_on("2026-09-29") is upgrade
+    assert results.engine_upgrade_to("2.15.17") is upgrade
+    assert upgrade.engine_version == "2.15.17"
+    assert upgrade.previous_engine_version == "1.755.4"
+    assert upgrade.date == "2026-09-29"
+    assert results.policyengine_version == "6.1.2"
+    assert results.publication_check_policyengine_us_version == "2.17.0"
+    # Every changed output lands in exactly one of the groups.
     assert (
-        r.engine_upgrade_revision["date"]
-        == r.engine_upgrade_date
-        == r.reference_rebuilt_date
-        == "2026-09-29"
-    )
-    assert r.publication_check_policyengine_us_version == "2.17.0"
-    # Every changed output lands in exactly one of the three groups.
-    assert (
-        r.engine_upgrade_scored_change_count
-        + r.engine_upgrade_within_tolerance_count
-        + r.engine_upgrade_new_exclusion_count
-        == len(r.engine_upgrade_revision["changed"])
+        upgrade.scored_change_count
+        + upgrade.within_tolerance_count
+        + upgrade.new_exclusion_count
+        + upgrade.restored_count
+        == len(upgrade.changes)
         == 9
     )
-    # Excluded outputs keep the values they were decided on: 52 on 1.755.4,
-    # and on 2.15.17 the three this upgrade added, the audit's
-    # (final_actions.json audit_exclusions: scenario_023 head Medicaid) and
-    # the 2026-10-05 review's eight.
-    assert r.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 12}
-    assert r.excluded_outputs_on_previous_engine_count == 52
-    assert r.excluded_outputs_on_reference_engine_count == 12
-    assert r.excluded_output_count == 64
     # Four scored references move beyond the exact-match tolerance: 008 NJ
     # and 082 NY refundable credits, 013 AZ SNAP and 028 PA reduced-price
     # meals (a 0/1 flag, so any change counts).
-    assert r.engine_upgrade_scored_change_count == 4
+    assert upgrade.scored_change_count == 4
     # 078 and 117 state income tax move by under $1.
-    assert r.engine_upgrade_within_tolerance_count == 2
+    assert upgrade.within_tolerance_count == 2
     # 033, 078 and 117 federal income tax leave scoring.
-    assert r.engine_upgrade_new_exclusion_count == 3
-    assert r.engine_upgrade_rechecked_count == 19
-    changes = {
-        (change["scenario_id"], change["variable"]): change
-        for change in r.engine_upgrade_revision["changed"]
-    }
+    assert upgrade.new_exclusion_count == 3
+    assert upgrade.restored_count == 0
+    assert upgrade.rechecked_count == 19
+    # Excluded when the upgrade began: release 20260922c's 52, all on 1.755.4;
+    # once it was decided, also the three above and the audit's (final_
+    # actions.json audit_exclusions: scenario_023 head Medicaid).
+    assert len(upgrade.excluded_before) == 52
+    assert len(upgrade.excluded) == 56
+    changes = {(c["scenario_id"], c["variable"]): c for c in upgrade.changes}
     assert {
         key: (change["previous"], change["regenerated"])
         for key, change in changes.items()
@@ -489,6 +509,152 @@ def test_engine_upgrade_counts_come_from_the_reference_sidecar():
         ("scenario_028", "reduced_price_school_meals_eligible"): (1.0, 0.0),
         ("scenario_082", "state_refundable_credits"): (650.5, 667.0),
     }
+    rechecked = upgrade.rechecked[0]
+    assert upgrade.rechecked_value(rechecked) == rechecked["value_on_2_15_17"]
+
+
+def test_engine_upgrade_accessors_follow_the_last_upgrade(results):
+    """The engine_upgrade_* accessors, the reference engine and the previous
+    engine come from the sidecar's last upgrade and its own
+    previous_engine_version, the engine the upgrade before it moved to."""
+    upgrades = results.engine_upgrades
+    last = upgrades[-1]
+    assert results.last_engine_upgrade is last
+    assert results.engine_upgrade_count == len(upgrades)
+    assert results.engine_upgrade_revision is last.revision
+    assert results.reference_revisions[-1] is last.revision
+    assert results.policyengine_us_version == last.engine_version
+    assert results.previous_policyengine_us_version == last.previous_engine_version
+    for before, after in zip(upgrades, upgrades[1:]):
+        assert after.previous_engine_version == before.engine_version
+    # The revision and the rebuild carry the last upgrade's UTC day.
+    assert (
+        results.engine_upgrade_date
+        == last.date
+        == last.revision["date"]
+        == results.reference_rebuilt_date
+    )
+    assert results.engine_upgrade_partition == last.partition
+    assert results.engine_upgrade_scored_change_count == last.scored_change_count
+    assert results.engine_upgrade_within_tolerance_count == (
+        last.within_tolerance_count
+    )
+    assert results.engine_upgrade_new_exclusion_count == last.new_exclusion_count
+    assert results.engine_upgrade_restored_count == last.restored_count
+    assert results.engine_upgrade_rechecked_count == len(
+        last.revision["excluded_outputs_rechecked"]
+    )
+    assert sum(len(group) for group in last.partition.values()) == len(
+        last.revision["changed"]
+    )
+    # Excluded outputs keep the values they were decided on, each on an
+    # engine the references were on; the counts cover every record.
+    by_engine = results.excluded_outputs_by_engine_version
+    chain = [upgrades[0].previous_engine_version] + [u.engine_version for u in upgrades]
+    assert set(by_engine) <= set(chain)
+    assert list(by_engine) == [v for v in chain if v in by_engine]
+    assert sum(by_engine.values()) == results.excluded_output_count
+    assert results.excluded_outputs_on_reference_engine_count == by_engine.get(
+        last.engine_version, 0
+    )
+    assert results.excluded_outputs_on_previous_engine_count == by_engine.get(
+        last.previous_engine_version, 0
+    )
+
+
+def test_each_upgrade_changes_no_output_it_kept_excluded(results):
+    """Rule 5: an output excluded before an upgrade and after it keeps the
+    value it was decided on, so no upgrade lists it as changed; an output an
+    upgrade restores was excluded before it and is not after."""
+    for upgrade in results.engine_upgrades:
+        kept = upgrade.excluded_before & upgrade.excluded
+        assert not kept & {(c["scenario_id"], c["variable"]) for c in upgrade.changes}
+        assert upgrade.restored <= upgrade.excluded_before - upgrade.excluded
+
+
+def test_the_release_on_2_15_17_counts_excluded_outputs_by_engine():
+    """Release 20261006, the last on policyengine-us 2.15.17, read from git:
+    52 excluded outputs keep 1.755.4 values, and 12 keep 2.15.17 values (the
+    three the upgrade added, the audit's scenario_023 head Medicaid and the
+    2026-10-05 review's eight)."""
+    base = _release_20261006()
+    assert base.policyengine_us_version == "2.15.17"
+    assert base.last_engine_upgrade.revision == r.september_upgrade.revision
+    assert base.excluded_output_count == 64
+    assert base.excluded_outputs_by_engine_version == {"1.755.4": 52, "2.15.17": 12}
+    assert base.excluded_outputs_on_previous_engine_count == 52
+    assert base.excluded_outputs_on_reference_engine_count == 12
+    assert base.excluded_outputs_by_engine_version_phrase == (
+        "52 computed with policyengine-us 1.755.4, 12 with 2.15.17"
+    )
+    # The 2026-10-05 review's counts rebuild from the release's own records.
+    assert base.review_scored_before_count == 1928
+    assert base.excluded_before_review_keys == r.excluded_before_review_keys
+
+
+def test_the_second_upgrade_fixture_partitions_by_its_own_records():
+    """On the synthetic second upgrade (mock data), the last upgrade's groups
+    are its own: a scored move, a move within the tolerance, a new exclusion on
+    the new engine and a restored 1.755.4 exclusion. The 2026-09-29 upgrade's
+    groups do not move, though a record decided after it now excludes one of
+    its scored changes and the restored record has left the record."""
+    from tests import second_engine_upgrade as mock
+
+    results = _second_upgrade_results()
+    last = results.last_engine_upgrade
+    assert results.engine_upgrade_count == 2
+    assert results.policyengine_us_version == mock.MOCK_ENGINE
+    assert results.previous_policyengine_us_version == "2.15.17"
+
+    def keys(group):
+        return [(c["scenario_id"], c["variable"]) for c in last.partition[group]]
+
+    assert keys("scored_changes") == [mock.MOCK_SCORED]
+    assert keys("within_tolerance") == [mock.MOCK_WITHIN]
+    assert keys("new_exclusions") == [mock.MOCK_NEW_EXCLUSION]
+    assert keys("restored") == [mock.MOCK_RESTORED]
+    assert last.restored == {mock.MOCK_RESTORED}
+    assert mock.MOCK_RESTORED in last.excluded_before
+    assert mock.MOCK_RESTORED not in last.excluded
+    assert mock.MOCK_LATER_RECORD in last.excluded_before & last.excluded
+    assert results.engine_upgrade_rechecked_count == 2
+    assert {
+        (rec["scenario_id"], rec["variable"]): last.rechecked_value(rec)
+        for rec in last.rechecked
+    } == mock.MOCK_RECHECKED_VALUES
+    # Three engines behind the excluded outputs' values: the restored 1.755.4
+    # record leaves, the 2026-10-06 record joins 2.15.17's, and the new
+    # exclusion is on the new engine.
+    assert results.excluded_outputs_by_engine_version == {
+        "1.755.4": 51,
+        "2.15.17": 13,
+        mock.MOCK_ENGINE: 1,
+    }
+    assert results.excluded_outputs_by_engine_version_phrase == (
+        f"51 computed with policyengine-us 1.755.4, 13 with 2.15.17, "
+        f"1 with {mock.MOCK_ENGINE}"
+    )
+    assert results.excluded_outputs_on_previous_engine_count == 13
+    assert results.excluded_outputs_on_reference_engine_count == 1
+    september = results.september_upgrade
+    assert september.partition == r.september_upgrade.partition
+    assert september.excluded == r.september_upgrade.excluded
+    assert september.excluded_before == r.september_upgrade.excluded_before
+    # The 2026-10-05 review's counts read the record and the references as
+    # they stood at the review.
+    assert results.review_exclusion_keys == r.review_exclusion_keys
+    assert results.excluded_before_review_keys == r.excluded_before_review_keys
+    assert results.review_scored_before_count == r.review_scored_before_count
+    assert results.review_sweep_partition == r.review_sweep_partition
+    assert results.references_as_of(REVIEW_DATE) == release_20261006().references
+    assert r.references_as_of(REVIEW_DATE) == release_20261006().references
+
+
+def test_engine_upgrade_lookups_refuse_a_missing_or_ambiguous_upgrade():
+    with pytest.raises(ValueError, match="no engine_upgrade revision dated"):
+        r.engine_upgrade_on("2026-01-01")
+    with pytest.raises(ValueError, match="no engine_upgrade revision to"):
+        r.engine_upgrade_to("9.9.9")
 
 
 def test_disability_section_counts_come_from_the_frozen_scenarios():
@@ -567,32 +733,312 @@ def _upgrade_revisions(draw):
             max_size=3,
         )
     )
-    return changes, excluded
+    others = sorted(set(keys) - excluded)
+    restored = draw(st.sets(st.sampled_from(others)) if others else st.just(set()))
+    return changes, excluded, restored
 
 
 @settings(max_examples=300, deadline=None)
 @given(_upgrade_revisions())
 def test_engine_upgrade_partition_is_exact_and_disjoint(revision):
     """Invariant: every change lands in exactly one group; new exclusions are
-    the changes to excluded outputs; a scored change lies beyond the
-    exact-match tolerance ($1, or any change of a 0/1 flag) and a within-
-    tolerance change inside it."""
+    the changes to excluded outputs, restorations the changes to outputs the
+    upgrade returned to scoring; a scored change lies beyond the exact-match
+    tolerance ($1, or any change of a 0/1 flag) and a within-tolerance change
+    inside it."""
     from policybench.paper_results import partition_engine_upgrade_changes
 
-    changes, excluded = revision
-    partition = partition_engine_upgrade_changes(changes, excluded)
-    assert set(partition) == {"scored_changes", "within_tolerance", "new_exclusions"}
+    changes, excluded, restored = revision
+    partition = partition_engine_upgrade_changes(changes, excluded, restored)
+    assert set(partition) == {
+        "scored_changes",
+        "within_tolerance",
+        "new_exclusions",
+        "restored",
+    }
     placed = [id(change) for group in partition.values() for change in group]
     assert sorted(placed) == sorted(id(change) for change in changes)
     assert len(placed) == len(set(placed)) == len(changes)
     for change in partition["new_exclusions"]:
         assert (change["scenario_id"], change["variable"]) in excluded
+    for change in partition["restored"]:
+        assert (change["scenario_id"], change["variable"]) in restored
     for name in ("scored_changes", "within_tolerance"):
         for change in partition[name]:
-            assert (change["scenario_id"], change["variable"]) not in excluded
+            key = (change["scenario_id"], change["variable"])
+            assert key not in excluded and key not in restored
             moved = abs(change["regenerated"] - change["previous"])
             limit = 1 if change["variable"] in _AMOUNT_OUTPUTS else 0
             assert (moved > limit) == (name == "scored_changes")
+    # Without restorations the partition is the three groups it always was.
+    if not restored:
+        assert partition["restored"] == []
+        assert partition == partition_engine_upgrade_changes(changes, excluded)
+
+
+def test_engine_upgrade_partition_refuses_an_output_both_excluded_and_restored():
+    from policybench.paper_results import partition_engine_upgrade_changes
+
+    change = {
+        "scenario_id": "scenario_001",
+        "variable": "snap",
+        "previous": 0.0,
+        "regenerated": 10.0,
+    }
+    key = ("scenario_001", "snap")
+    with pytest.raises(ValueError, match="both excluded and restored"):
+        partition_engine_upgrade_changes([change], {key}, {key})
+
+
+_DAY = st.integers(min_value=1, max_value=28)
+
+
+def _day(n: int) -> str:
+    return f"2026-10-{n:02d}"
+
+
+@st.composite
+def _exclusion_histories(draw):
+    """A random reference history: engine upgrades on distinct days, exclusion
+    records decided on any day, some of them removed by a later upgrade that
+    lists the removed record, and convention revisions in between. Returns the
+    sidecar revisions, the exclusion record left at the end, and for each
+    upgrade the outputs excluded just before it and once it was decided."""
+    days = sorted(draw(st.sets(_DAY, min_size=1, max_size=4)))
+    outputs = draw(
+        st.lists(
+            st.integers(min_value=0, max_value=60).map(
+                lambda n: (f"scenario_{n:03d}", "snap")
+            ),
+            unique=True,
+            max_size=25,
+        )
+    )
+    records = []
+    for key in outputs:
+        decided = draw(_DAY)
+        later = [i for i, day in enumerate(days) if day > decided]
+        removed_by = draw(st.sampled_from([None, *later]))
+        record = {
+            "scenario_id": key[0],
+            "variable": key[1],
+            "decided_on": _day(decided),
+        }
+        records.append((record, removed_by))
+    revisions = []
+    for index, day in enumerate(days):
+        if draw(st.booleans()):
+            revisions.append({"kind": "convention", "date": _day(day), "changed": []})
+        revisions.append(
+            {
+                "kind": "engine_upgrade",
+                "date": _day(day),
+                "engine_version": f"policyengine-us 2.{index + 1}.0",
+                "previous_engine_version": f"policyengine-us 2.{index}.0",
+                "excluded_outputs_rechecked": [],
+                "regenerated_exclusions": [
+                    {
+                        "scenario_id": record["scenario_id"],
+                        "variable": record["variable"],
+                        "record": record,
+                    }
+                    for record, removed_by in records
+                    if removed_by == index
+                ],
+                "changed": [],
+            }
+        )
+    current = [record for record, removed_by in records if removed_by is None]
+    truth = []
+    for index, day in enumerate(days):
+        date = _day(day)
+        before = {
+            (rec["scenario_id"], rec["variable"])
+            for rec, removed_by in records
+            if rec["decided_on"] < date and (removed_by is None or removed_by >= index)
+        }
+        after = {
+            (rec["scenario_id"], rec["variable"])
+            for rec, removed_by in records
+            if rec["decided_on"] <= date and (removed_by is None or removed_by > index)
+        }
+        restored = {
+            (rec["scenario_id"], rec["variable"])
+            for rec, removed_by in records
+            if removed_by == index
+        }
+        truth.append((before, after, restored))
+    return revisions, current, truth
+
+
+@settings(max_examples=300, deadline=None)
+@given(_exclusion_histories())
+def test_each_upgrade_sees_the_exclusion_record_as_it_stood(history):
+    """Invariant: from the sidecar and the exclusion record left at the end,
+    each upgrade recovers the outputs excluded just before it and once it was
+    decided, whatever later upgrades restored and whatever later records
+    added; a record decided after an upgrade never counts at that upgrade."""
+    from policybench.paper_results import engine_upgrades_from
+
+    revisions, current, truth = history
+    upgrades = engine_upgrades_from(revisions, current)
+    assert [u.revision for u in upgrades] == [
+        rev for rev in revisions if rev["kind"] == "engine_upgrade"
+    ]
+    for upgrade, (before, after, restored) in zip(upgrades, truth, strict=True):
+        assert upgrade.excluded_before == before
+        assert upgrade.excluded == after
+        assert upgrade.restored == restored
+        assert upgrade.restored <= upgrade.excluded_before - upgrade.excluded
+
+
+def test_an_upgrade_that_changes_an_output_it_kept_excluded_is_refused():
+    """Rule 5: an excluded output keeps the value it was decided on, so an
+    upgrade whose changed list moves an output excluded before and after it is
+    refused rather than counted as a new exclusion."""
+    from policybench.paper_results import engine_upgrades_from
+
+    record = {
+        "scenario_id": "scenario_001",
+        "variable": "snap",
+        "decided_on": "2026-09-22",
+    }
+    change = {
+        "scenario_id": "scenario_001",
+        "variable": "snap",
+        "previous": 10.0,
+        "regenerated": 20.0,
+    }
+    revision = {
+        "kind": "engine_upgrade",
+        "date": "2026-09-29",
+        "engine_version": "policyengine-us 2.15.17",
+        "previous_engine_version": "policyengine-us 1.755.4",
+        "changed": [change],
+    }
+    (upgrade,) = engine_upgrades_from([revision], [record])
+    with pytest.raises(ValueError, match="changes outputs it kept excluded"):
+        upgrade.partition
+    # Decided on the upgrade's day, the same change is a new exclusion.
+    (upgrade,) = engine_upgrades_from(
+        [revision], [{**record, "decided_on": "2026-09-29"}]
+    )
+    assert upgrade.partition["new_exclusions"] == [change]
+
+
+def test_engine_upgrades_refuse_a_broken_engine_chain():
+    from policybench.paper_results import engine_upgrades_from
+
+    revisions = [
+        {
+            "kind": "engine_upgrade",
+            "date": "2026-09-29",
+            "engine_version": "policyengine-us 2.15.17",
+            "previous_engine_version": "policyengine-us 1.755.4",
+            "changed": [],
+        },
+        {
+            "kind": "engine_upgrade",
+            "date": "2026-10-09",
+            "engine_version": "policyengine-us 2.37.2",
+            "previous_engine_version": "policyengine-us 2.17.0",
+            "changed": [],
+        },
+    ]
+    with pytest.raises(ValueError, match="does not start from"):
+        engine_upgrades_from(revisions, [])
+
+
+@st.composite
+def _reference_histories(draw):
+    """Initial references and dated revisions that each change some of them,
+    with the references after each date."""
+    keys = [(f"scenario_{n:03d}", "snap") for n in range(8)]
+    values = {key: draw(st.floats(0, 1e5, allow_nan=False)) for key in keys}
+    days = sorted(draw(st.lists(_DAY, min_size=1, max_size=5)))
+    snapshots = {_day(0): dict(values)}
+    revisions = []
+    for day in days:
+        changed = []
+        for key in draw(st.lists(st.sampled_from(keys), unique=True, max_size=4)):
+            regenerated = draw(st.floats(0, 1e5, allow_nan=False))
+            changed.append(
+                {
+                    "scenario_id": key[0],
+                    "variable": key[1],
+                    "previous": values[key],
+                    "regenerated": regenerated,
+                }
+            )
+            values[key] = regenerated
+        revisions.append(
+            {"kind": "engine_upgrade", "date": _day(day), "changed": changed}
+        )
+        snapshots[_day(day)] = dict(values)
+    return revisions, values, snapshots
+
+
+@settings(max_examples=200, deadline=None)
+@given(_reference_histories())
+def test_references_as_of_undo_every_later_revision(history):
+    """Invariant: the references as of a date are the current references with
+    every later revision's changes undone, newest first; as of the last
+    revision's date they are the current references."""
+    from policybench.paper_results import references_as_of
+
+    revisions, current, snapshots = history
+    for date, snapshot in snapshots.items():
+        assert references_as_of(current, revisions, date) == snapshot
+
+
+def test_references_as_of_refuse_a_revision_the_references_do_not_match():
+    from policybench.paper_results import references_as_of
+
+    key = ("scenario_000", "snap")
+    revision = {
+        "kind": "engine_upgrade",
+        "date": "2026-10-09",
+        "changed": [
+            {
+                "scenario_id": key[0],
+                "variable": key[1],
+                "previous": 1.0,
+                "regenerated": 2.0,
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="does not end at"):
+        references_as_of({key: 3.0}, [revision], "2026-10-05")
+
+
+_VERSIONS = st.tuples(st.integers(0, 3), st.integers(0, 200), st.integers(0, 30)).map(
+    lambda parts: ".".join(map(str, parts))
+)
+
+
+@settings(max_examples=300, deadline=None)
+@given(st.dictionaries(_VERSIONS, st.integers(1, 2000), max_size=5))
+def test_excluded_outputs_by_engine_phrase_names_each_engine_once(counts):
+    """Invariant: the phrase has one clause per engine, oldest release first by
+    version number (not string order), whose counts are the given ones; only
+    the first clause names policyengine-us."""
+    from policybench.paper_results import engine_version_count_phrase
+
+    phrase = engine_version_count_phrase(counts)
+    if not counts:
+        assert phrase == ""
+        return
+    clauses = phrase.split(", ")
+    parsed = [
+        re.fullmatch(r"([\d,]+) computed with policyengine-us ([\d.]+)", clauses[0])
+    ]
+    parsed += [re.fullmatch(r"([\d,]+) with ([\d.]+)", c) for c in clauses[1:]]
+    assert all(parsed), clauses
+    versions = [m.group(2) for m in parsed]
+    assert versions == sorted(counts, key=lambda v: tuple(map(int, v.split("."))))
+    assert [int(m.group(1).replace(",", "")) for m in parsed] == [
+        counts[v] for v in versions
+    ]
 
 
 # --- The 2026-10-05 review of release dashboard-data-20260930 -----------------
@@ -603,13 +1049,13 @@ def test_engine_upgrade_partition_is_exact_and_disjoint(revision):
 BASE_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 
 
-def _git_blob(path: str) -> bytes:
+def _git_blob(path: str, commit: str = BASE_COMMIT) -> bytes:
     result = subprocess.run(
-        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path}"],
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
         capture_output=True,
     )
     assert result.returncode == 0, (
-        f"cannot read {path} at {BASE_COMMIT[:12]} (fetch full history): "
+        f"cannot read {path} at {commit[:12]} (fetch full history): "
         f"{result.stderr.decode().strip()}"
     )
     return result.stdout
@@ -630,6 +1076,40 @@ def _release_20260930() -> PaperResults:
     annotation_dir = base.manifest["audit_annotation_artifacts"]["path"]
     rows = _git_blob(f"{annotation_dir}/us_audit_row_annotations.csv").decode()
     base._audit_rows = list(csv.DictReader(io.StringIO(rows)))
+    return base
+
+
+# Release dashboard-data-20261006's commit (#202): the last release whose
+# references are on policyengine-us 2.15.17, before the next release moves them.
+RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+
+
+@functools.cache
+def _release_20261006() -> PaperResults:
+    """PaperResults over release 20261006's reference records, read from git
+    at its commit: manifest, sidecar revisions, exclusions and references."""
+    run = f"paper/snapshot/20260501/runs/{r.us_run_label}"
+
+    def blob(path: str) -> bytes:
+        return _git_blob(path, RELEASE_20261006_COMMIT)
+
+    base = PaperResults()
+    base.manifest = json.loads(blob("paper/snapshot/20260501/manifest.json"))
+    base.reference_revisions = json.loads(
+        blob(f"{run}/reference_outputs.csv.meta.json")
+    )["revisions"]
+    with tempfile.TemporaryDirectory() as scratch:
+        record = Path(scratch) / "reference_exclusions.json"
+        record.write_bytes(blob(f"{run}/reference_exclusions.json"))
+        base.reference_exclusions = load_reference_exclusions(record)
+    # Parsed with pandas, as paper_results parses the frozen references (its
+    # float parser differs from float() in the last place for three values,
+    # which the review sweeps' exact baseline checks would refuse).
+    rows = pd.read_csv(io.BytesIO(blob(f"{run}/reference_outputs.csv")))
+    base.frozen_references = {
+        (row.scenario_id, row.variable): float(row.value)
+        for row in rows.itertuples(index=False)
+    }
     return base
 
 
@@ -729,7 +1209,9 @@ def test_the_review_sweeps_move_exactly_the_records_the_review_added():
     assert r.review_sweep_count_word == "three"
     assert r.review_new_exclusion_count == len(r.review_adjudications) == 8
     assert r.review_new_exclusion_count_word == "eight"
-    assert r.review_exclusion_engine_version == r.policyengine_us_version
+    # The review ran on the engine the 2026-09-29 upgrade moved to, the
+    # reference engine then, whatever engine later releases move to.
+    assert r.review_exclusion_engine_version == r.september_upgrade.engine_version
     assert set(r.review_newly_excluded_moved_outputs) == r.review_exclusion_keys
     assert r.review_sweep_partition["scored_beyond_tolerance"] == []
     assert r.review_sweep_partition["scored_within_tolerance"] == []
