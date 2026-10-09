@@ -159,5 +159,5 @@ Rendering PDF[39m[22m
 Output created: out/pdf/index.pdf
 
 Rendered paper assets into app/public/paper
-.venv/bin/python paper/render_paper.py  45.60s user 6.30s system 70% cpu 1:13.58 total
+.venv/bin/python paper/render_paper.py  37.84s user 3.50s system 87% cpu 47.360 total
 RENDER_EXIT=0

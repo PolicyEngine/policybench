@@ -25,16 +25,16 @@
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/annotations/us_case_notes.csv": "660d0da57ffc08d1a99f35efdbfdc62373ce1055b58c3bc933c9f2d082106ebf",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/annotations/us_case_reference_explanations.csv": "18787448808ec4fdbfbe092d385e6ad7329d4d7d919658f1bcc743f63b53afbe",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/predictions.csv": "1b54740314da057e909c46924b75fa2be5421fa5876a4e72864a891f4f791ac3",
-    "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/reference_exclusions.json": "68ce01cda56f15c526ec03ad3e86418a5413b29bd6ed71e8c4ca49dade290553",
+    "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/reference_exclusions.json": "92741dfd047298eacb79a0dadeb7e4965e3c6f986beab0341b12ff8f5b023815",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/reference_outputs.csv": "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/reference_outputs.csv.meta.json": "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
     "publish/us_full_run_20260612_policyengine_4_16_1_populace/us/scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
   },
   "models": 46,
-  "payload_bytes": 127224818,
-  "payload_sha256": "f03441f64316997de843e82c27272442c794148a121c25e1343fbddbe38574a0",
+  "payload_bytes": 127225036,
+  "payload_sha256": "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462",
   "release_tag": "dashboard-data-20261006",
   "rewrites_sha256": "b4081cc7b8b460f693190c1b106aaff83d0804fa301242893b46dc060ee676e2",
-  "spec_sha256": "c79eee1d8a92f4135e328bbe5b2f79293350e232fa7b6e9eacdbd963bb95c215"
+  "spec_sha256": "e1f9ca48f2c961f3d1f10ea0a838db08918ac816199391ad2bdc415e9dcd329e"
 }
