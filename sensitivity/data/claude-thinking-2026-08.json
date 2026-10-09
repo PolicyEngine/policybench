@@ -1,8 +1,8 @@
 {
-  "release": "dashboard-data-20261006",
+  "release": "dashboard-data-20260930",
   "run_dates": "2026-08",
   "condition": "tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto); Fable 5 and Sonnet 5 also whole-scenario (POLICYBENCH_CHUNK_OVERRIDE=none)",
-  "scored_against": "the frozen 46-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the sixty-four outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,920 scored outputs); per-variable rates likewise on the scored outputs",
+  "scored_against": "the frozen 46-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the fifty-six outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,928 scored outputs); per-variable rates likewise on the scored outputs",
   "runs": {
     "claude-fable-5-thinking": {
       "model": "claude-fable-5",
@@ -13,26 +13,26 @@
           "bytes": 221318
         },
         "sensitivity-claude-fable-5-thinking-by-variable.csv.gz": {
-          "sha256": "b932bf60a04a68c0ffe314c814d22a388abb34cc3c7d6afb33af81d83b1496e3",
-          "bytes": 865
+          "sha256": "ee3db1a37faf1648a0c21cd1fb1993b40a8a104a0bfefa52a9836b6a6ea1631a",
+          "bytes": 845
         }
       },
       "board": {
-        "exact": 84.892,
-        "within1pct": 85.316,
-        "score": 92.973,
-        "n": 1920,
-        "n_parsed": 1920
+        "exact": 83.625,
+        "within1pct": 84.042,
+        "score": 92.873,
+        "n": 1928,
+        "n_parsed": 1928
       },
       "sensitivity": {
-        "exact": 92.817,
-        "within1pct": 93.613,
-        "score": 96.857,
-        "would_rank": 6,
+        "exact": 91.521,
+        "within1pct": 92.531,
+        "score": 96.761,
+        "would_rank": 7,
         "n": 1984,
         "n_parsed": 1984
       },
-      "delta_exact": 7.925
+      "delta_exact": 7.896
     },
     "claude-opus-5-thinking": {
       "model": "claude-opus-5",
@@ -43,26 +43,26 @@
           "bytes": 186361
         },
         "sensitivity-claude-opus-5-thinking-by-variable.csv.gz": {
-          "sha256": "c7da011913fcd10ae82c31d8f2532831a0681f06095713de7948726097dd70d1",
-          "bytes": 874
+          "sha256": "d8a52ab7c80008ab518dc5ea1437413a161db190def86c8e11c268152b50d995",
+          "bytes": 845
         }
       },
       "board": {
-        "exact": 85.223,
-        "within1pct": 86.201,
-        "score": 93.192,
-        "n": 1920,
-        "n_parsed": 1920
+        "exact": 84.03,
+        "within1pct": 85.007,
+        "score": 93.104,
+        "n": 1928,
+        "n_parsed": 1928
       },
       "sensitivity": {
-        "exact": 91.252,
-        "within1pct": 92.819,
-        "score": 96.226,
-        "would_rank": 9,
+        "exact": 90.013,
+        "within1pct": 91.849,
+        "score": 96.18,
+        "would_rank": 10,
         "n": 1984,
         "n_parsed": 1984
       },
-      "delta_exact": 6.029
+      "delta_exact": 5.983
     },
     "claude-sonnet-5-thinking": {
       "model": "claude-sonnet-5",
@@ -73,26 +73,26 @@
           "bytes": 219240
         },
         "sensitivity-claude-sonnet-5-thinking-by-variable.csv.gz": {
-          "sha256": "b77ececefb4aed4d9c68bbcca0ed7c721b5105566d6e22f044415a3dcb498ebf",
-          "bytes": 992
+          "sha256": "f460a942e6b713b7f20d737131a470fcf6c2aa2e15ba4032337d55a98ff1990d",
+          "bytes": 968
         }
       },
       "board": {
-        "exact": 73.794,
-        "within1pct": 75.814,
-        "score": 82.569,
-        "n": 1920,
-        "n_parsed": 1920
+        "exact": 72.642,
+        "within1pct": 74.663,
+        "score": 82.49,
+        "n": 1928,
+        "n_parsed": 1928
       },
       "sensitivity": {
-        "exact": 86.076,
-        "within1pct": 89.026,
-        "score": 94.651,
+        "exact": 84.803,
+        "within1pct": 87.737,
+        "score": 94.564,
         "would_rank": 20,
         "n": 1984,
         "n_parsed": 1928
       },
-      "delta_exact": 12.282
+      "delta_exact": 12.161
     }
   }
 }
