@@ -157,17 +157,48 @@ SUPERSEDED_RELEASES = {
     # October 5 BBCE note's facts are still recomputed, from the snapshot its
     # commit holds (RELEASE_20260930_COMMIT).
     "dashboard-data-20260930": "2026-09-30",
+    # Superseded by dashboard-data-20261009, which adds Claude Haiku 5.5 and
+    # moves the references to the policyengine-us release that fixes engine
+    # defects behind exclusions. Its note's facts are still recomputed, from
+    # the snapshot its commit holds (RELEASE_20261006_COMMIT).
+    "dashboard-data-20261006": "2026-09-30",
 }
-CURRENT_RELEASE_SNAPSHOT = "2026-09-30"
+# The frozen release's board snapshot is its manifest's snapshot date.
+CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
+    "snapshot_date"
+]
 # The commit that froze each superseded release whose notes' facts are
-# recomputed from git: the merges of #182 and #187.
+# recomputed from git: the merges of #182, #187 and #202.
 RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 RELEASE_20260930 = "dashboard-data-20260930"
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 RELEASE_COMMITS = {
     "dashboard-data-20260929": RELEASE_20260929_COMMIT,
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
+    "dashboard-data-20261006": RELEASE_20261006_COMMIT,
 }
+
+
+def _paper_snapshot(release: str) -> dict:
+    """app/src/paperSnapshot.json as ``release`` left it: at its commit when
+    it is superseded, this checkout's while it is the frozen release."""
+    import subprocess
+
+    if release not in RELEASE_COMMITS:
+        return _load_json(ROOT / "app/src/paperSnapshot.json")
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{RELEASE_COMMITS[release]}:app/src/paperSnapshot.json",
+        ],
+        capture_output=True,
+    )
+    assert shown.returncode == 0, shown.stderr.decode()
+    return json.loads(shown.stdout)
 
 
 def _release_root(release: str) -> Path:
@@ -4497,7 +4528,7 @@ def test_release_20261006_note() -> None:
     assert RELEASE_20260930.endswith(previous_end.replace("-", ""))
     assert last_answer.year == date.fromisoformat(start).year == 2026
     # The paper page states the same window.
-    assert _load_json(ROOT / "app/src/paperSnapshot.json")["responseWindow"] == (
+    assert _paper_snapshot(RELEASE_20261006)["responseWindow"] == (
         f"{facts['responseStart']} and {facts['responseEnd']}, {last_answer.year}"
     )
     # scenario_031's Medicaid text: the ledger's rewrites are the payload's

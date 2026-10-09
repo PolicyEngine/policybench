@@ -39,10 +39,10 @@ from tests.second_engine_upgrade import (
 )
 
 
-def test_frozen_roster_has_46_display_names_and_release_dates():
+def test_frozen_roster_has_47_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 46
+    assert len(roster) == 47
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -93,52 +93,57 @@ def test_app_release_dates_mirror_the_paper_registry():
 def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # Release 20260930's 652 (Kimi K2.6 390, GLM-5.2 133) less the eight on
     # the outputs the 2026-10-05 review excluded (seven Kimi K2.6, one GLM-5.2;
-    # test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone).
+    # test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone): 644
+    # in release 20261006. Release 20261009's exclusions take some out and
+    # the outputs its engine upgrade regenerates bring others back; Claude
+    # Haiku 5.5 parsed every answer.
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 383,
-            "glm-5.2": 132,
-            "glm-5.3": 71,
+            "kimi-k2.6": 381,
+            "glm-5.2": 134,
+            "glm-5.3": 73,
             "kimi-k3": 58,
         }
     )
-    assert r.parse_contract_failure_count == 644
-    assert r.parse_contract_failure_count_fmt == "644"
-    # 644 of the 46-model board's 88,320 scored answers (46 x 1,920).
-    assert r.n_canonical_rows == 88_320
+    assert r.parse_contract_failure_count == 646
+    assert r.parse_contract_failure_count_fmt == "646"
+    # 646 of the 47-model board's 90,005 scored answers (47 x 1,915).
+    assert r.n_canonical_rows == 90_005
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
 def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # Release 20260930's counts (7,860 annotated, 7,856 misses, 2,107
     # unannotated) less the 333 annotated misses and the 35 exact hits on the
-    # eight outputs the 2026-10-05 review excluded.
-    assert r.audit_annotated_row_count == 7_527
-    assert r.audit_annotated_row_count_fmt == "7,527"
+    # eight outputs the 2026-10-05 review excluded: 7,527, 7,523 and 2,072 in
+    # release 20261006. Release 20261009 adds Claude Haiku 5.5's rows and
+    # moves the scored outputs.
+    assert r.audit_annotated_row_count == 7_507
+    assert r.audit_annotated_row_count_fmt == "7,507"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_523
-    assert r.exact_match_miss_count_fmt == "7,523"
-    assert r.annotated_exact_miss_count == 7_523
-    assert r.annotated_exact_miss_count_fmt == "7,523"
+    assert r.exact_match_miss_count == 7_503
+    assert r.exact_match_miss_count_fmt == "7,503"
+    assert r.annotated_exact_miss_count == 7_503
+    assert r.annotated_exact_miss_count_fmt == "7,503"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_072
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,072"
+    assert r.unannotated_below_full_bounded_score_count == 2_115
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,115"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """644 scored rows never parsed a number (rows on excluded outputs are outside
-    every count); 60 more parsed a number but carry no explanation.
+    """646 scored rows never parsed a number (rows on excluded outputs are outside
+    every count); 59 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
         "grok-4.3": 55,
-        "kimi-k2.6": 4,
+        "kimi-k2.6": 3,
         "claude-haiku-4.5": 1,
     }
-    assert r.explanation_missing_count_fmt == "60"
-    assert r.contract_violation_count_fmt == "704"
+    assert r.explanation_missing_count_fmt == "59"
+    assert r.contract_violation_count_fmt == "705"
     assert r.explanation_missing_breakdown_fmt == (
-        "Grok 4.3 (55), Kimi K2.6 (4), and Claude Haiku 4.5 (1)"
+        "Grok 4.3 (55), Kimi K2.6 (3), and Claude Haiku 4.5 (1)"
     )
 
 
@@ -226,19 +231,19 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
             "completion ceiling",
         ],
     }
-    # GPT-6.1 Sol's supervised run fingerprints all four fields, and its
-    # reasoning setup and timeouts.
+    # GPT-6.1 Sol's and Claude Haiku 5.5's supervised runs fingerprint all
+    # four fields, and their reasoning setup and timeouts.
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 17,
-        "request shape": 17,
-        "tool choice": 16,
-        "completion ceiling": 17,
+        "answer contract": 18,
+        "request shape": 18,
+        "tool choice": 17,
+        "completion ceiling": 18,
     }
-    assert summary == {"registry": 29, "run_state": 17}
+    assert summary == {"registry": 29, "run_state": 18}
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for 17 rows; tool choice for 16 rows; reasoning "
-        "setup and timeouts for seven rows. Reasoning setup and timeouts for the "
+        "and completion ceiling for 18 rows; tool choice for 17 rows; reasoning "
+        "setup and timeouts for eight rows. Reasoning setup and timeouts for the "
         "other ten fingerprinted rows, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -250,23 +255,23 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 16
-    del fable_evidence["legacy_tool_choice_label"]
     assert results.serving_evidence_pinned_counts["tool choice"] == 17
+    del fable_evidence["legacy_tool_choice_label"]
+    assert results.serving_evidence_pinned_counts["tool choice"] == 18
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 16
+    assert results.serving_evidence_pinned_counts["answer contract"] == 17
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     table = r.federal_state_joint_accuracy.set_index("Model")
 
     assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 93.8, 93.8]
-    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 91.8, 91.8]
+    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 92.8, 92.8]
     assert table.loc["GPT-6 Astra"].tolist() == [100.0, 88.7, 88.7]
-    assert table.loc["GPT-6 Sol"].tolist() == [99.0, 87.6, 87.6]
-    assert table.loc["Grok 4.7"].tolist() == [99.0, 87.6, 87.6]
-    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 86.6, 86.6]
-    assert table.loc["GPT-6.1 Sol"].tolist() == [99.0, 92.8, 92.8]
+    assert table.loc["GPT-6 Sol"].tolist() == [99.0, 88.7, 88.7]
+    assert table.loc["Grok 4.7"].tolist() == [99.0, 88.7, 88.7]
+    assert table.loc["GPT-5.6 Sol"].tolist() == [99.0, 87.6, 87.6]
+    assert table.loc["GPT-6.1 Sol"].tolist() == [99.0, 93.8, 93.8]
     assert r.joint_credit_accuracy_exceptions == [
         "Claude Fable 5.1",
         "GPT-6.1 Sol",
@@ -327,43 +332,49 @@ def test_judge_provenance_is_frozen_in_the_manifest():
     # and GPT-5.6 Sol 314 on 20260922c, 132 and 303 on 20260929) because
     # Claude Opus 5.5 re-judged their cases: after the reference revisions,
     # and on 2026-09-30 for the 134 cases GPT-6.1 Sol joined (16 of them Opus
-    # 5's, 5 GPT-5.6 Sol's). A re-judged case with an adjudication keeps the
-    # replaced verdict under judge_previous.
-    assert prov["by_judge"]["claude-opus-5"]["cases"] == 116
+    # 5's, 5 GPT-5.6 Sol's), and again on 2026-10-08 and 2026-10-09 for the
+    # cases Claude Haiku 5.5 re-opened (116, 260 and 298 in release 20261006).
+    # A re-judged case with an adjudication keeps the replaced verdict under
+    # judge_previous.
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 94
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 260
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 314
     assert "2026-09-30" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 298
-    assert r.audit_case_count_fmt == "674"
-    assert r.audit_opus_judged_case_count_fmt == "116"
-    assert r.audit_opus55_judged_case_count_fmt == "260"
-    assert r.audit_sol_judged_case_count_fmt == "298"
+    assert "2026-10-09" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 269
+    assert r.audit_case_count_fmt == "677"
+    assert r.audit_opus_judged_case_count_fmt == "94"
+    assert r.audit_opus55_judged_case_count_fmt == "314"
+    assert r.audit_sol_judged_case_count_fmt == "269"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
     table = r.federal_state_joint_accuracy
     joint = table["Joint within 10%"].tolist()
     assert joint == sorted(joint, reverse=True)
-    # Ties break by model id: gpt-6-astra before gpt-6-luna, gpt-6-sol before
-    # grok-4.7.
+    # Ties break by model id: claude-fable-5.1 before gpt-6.1-sol, and
+    # gpt-6-astra before gpt-6-sol before grok-4.7.
+    tied = table[table["Joint within 10%"] == 93.8]["Model"].tolist()
+    assert tied == ["Claude Fable 5.1", "GPT-6.1 Sol"]
     tied = table[table["Joint within 10%"] == 88.7]["Model"].tolist()
-    assert tied == ["GPT-6 Astra", "GPT-6 Luna"]
-    tied = table[table["Joint within 10%"] == 87.6]["Model"].tolist()
-    assert tied == ["GPT-6 Sol", "Grok 4.7"]
+    assert tied == ["GPT-6 Astra", "GPT-6 Sol", "Grok 4.7"]
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # Release 20260930's 56 outputs in 39 households plus the 2026-10-05
     # review's eight (in scenario_022, 032, 043, 081, 082 and 114; 022, 081
-    # and 082 already had one).
-    assert r.excluded_output_count == 64
-    assert r.excluded_output_phrase == "64 outputs"
-    assert r.excluded_output_households_phrase == "42 households"
-    assert r.unlisted_input_exclusion_count == 36
-    assert r.engine_defect_exclusion_count == 28
+    # and 082 already had one): 64 in 42 households in release 20261006.
+    # Release 20261009 adds the six ruled records its engine upgrade keeps
+    # and the two Indiana county records, and returns three of the September
+    # 22 engine-defect outputs to scoring.
+    assert r.excluded_output_count == 69
+    assert r.excluded_output_phrase == "69 outputs"
+    assert r.excluded_output_households_phrase == "47 households"
+    assert r.unlisted_input_exclusion_count == 42
+    assert r.engine_defect_exclusion_count == 25
     assert r.engine_defect_root_cause_count == 11
     assert r.snap_engine_defect_exclusion_count == 1
-    assert r.engine_defect_unflagged_count == 8
+    assert r.engine_defect_unflagged_count == 7
     # The September 22 regenerations, made on policyengine-us 1.755.4; the
     # engine upgrade's own changes are counted separately below.
     assert r.regenerated_reference_count == 26
@@ -399,16 +410,19 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert by_input[f"{salt}; also {part_b}"] == 1
     assert by_input[part_b] == 1
     assert by_input[payroll] == 4
-    assert r.scored_outputs_per_model_fmt == "1,920"
+    assert by_input["county of residence (Indiana county income tax)"] == 2
+    assert r.scored_outputs_per_model_fmt == "1,915"
     assert r.total_outputs_per_model_fmt == "1,984"
     # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
-    # rows on the review's eight outputs.
-    assert r.excluded_output_annotation_row_count == 2444
+    # rows on the review's eight outputs (2,444 in release 20261006), moved by
+    # release 20261009's exclusions, regenerations and Claude Haiku 5.5's rows.
+    assert r.excluded_output_annotation_row_count == 2729
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
-    assert r.prompt_ambiguity_row_count == 1145
+    # 1,145 in release 20261006.
+    assert r.prompt_ambiguity_row_count == 1447
     assert (
-        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 63
+        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 61
     )
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
@@ -428,7 +442,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1920
+        assert stats["n"] == 1915
 
 
 # The reference records, as committed and with a synthetic second upgrade
@@ -1113,6 +1127,35 @@ def _release_20261006() -> PaperResults:
     return base
 
 
+@functools.cache
+def _release_20261006_full() -> PaperResults:
+    """PaperResults over every release 20261006 artifact these tests read,
+    from git at its commit: the reference records (_release_20261006) and its
+    manifest, payload, serving configuration, row annotations and
+    adjudication record. Its own differential tests run on it, since the
+    working tree holds a later release."""
+    base = _release_20261006()
+    run = f"paper/snapshot/20260501/runs/{r.us_run_label}"
+
+    def blob(path: str) -> bytes:
+        return _git_blob(path, RELEASE_20261006_COMMIT)
+
+    base.dashboard = json.loads(gzip.decompress(blob(f"{run}/data.json.gz")))
+    base.serving_config = json.loads(
+        blob("paper/snapshot/20260501/model_serving_config.json")
+    )
+    annotation_dir = base.manifest["audit_annotation_artifacts"]["path"]
+    rows = blob(f"{annotation_dir}/us_audit_row_annotations.csv").decode()
+    base._audit_rows = list(csv.DictReader(io.StringIO(rows)))
+    record = json.loads(blob(f"{annotation_dir}/us_adjudications.json"))
+    base.review_adjudications = [
+        entry
+        for entry in record["adjudications"]
+        if entry.get("adjudicated_on") == REVIEW_DATE
+    ]
+    return base
+
+
 def test_release_20260930s_own_counts_rebuild_from_git():
     """The counts these tests pinned for release 20260930, recomputed from its
     committed artifacts rather than from the working tree."""
@@ -1143,7 +1186,9 @@ def test_release_20260930s_own_counts_rebuild_from_git():
 def test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone():
     """Differential: each count the paper renders is release 20260930's,
     computed from its own committed files, moved by exactly the rows on the
-    outputs the review excluded."""
+    outputs the review excluded. Release 20261006's own files, from git: the
+    working tree holds a later release."""
+    r = _release_20261006_full()
     base = _release_20260930()
     review = r.review_exclusion_keys
     assert len(review) == 8
@@ -1288,7 +1333,9 @@ def test_the_review_records_quote_their_sweeps_values():
 
 def test_no_judge_had_flagged_the_reviews_outputs():
     """The paper says no judge flagged the eight: each adjudication keeps a
-    judge verdict of a model error with no reference-suspect flag."""
+    judge verdict of a model error with no reference-suspect flag, in release
+    20261006, which recorded them (a later re-judge may reclassify a case)."""
+    r = _release_20261006_full()
     assert r.review_judge_flagged_count == 0
     assert {(e["scenario_id"], e["variable"]) for e in r.review_adjudications} == (
         r.review_exclusion_keys
@@ -1336,9 +1383,12 @@ def test_the_paper_dates_the_response_window_from_the_last_answer():
     assert freeze_snapshot.model_response_window(predictions, start) == (
         r.model_response_date
     )
-    assert end == "2026-09-29"
-    assert r.snapshot_date == "2026-09-30"
-    assert _release_20260930().model_response_date.endswith(r.snapshot_date)
+    # The last answer predates the freeze; release 20260930, before the
+    # window was derived, ended it on its snapshot date (2026-09-30), and
+    # release 20261006 on its last answer (2026-09-29).
+    assert end <= r.snapshot_date
+    assert _release_20260930().model_response_date.endswith("2026-09-30")
+    assert _release_20261006_full().model_response_date.endswith("2026-09-29")
 
 
 def _review_moves():
