@@ -305,9 +305,23 @@ def test_pass_inputs_stage_exactly_the_pinned_bytes(audit, tmp_path):
     assert not (inputs / "stray").exists()
 
 
+def _constants(path: Path) -> dict:
+    """``path``'s module-level literal assignments, read without importing it."""
+    found = {}
+    for node in ast.parse(path.read_text()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name):
+                try:
+                    found[target.id] = ast.literal_eval(node.value)
+                except (ValueError, TypeError, SyntaxError):
+                    pass
+    return found
+
+
 def test_the_pins_agree_across_the_scripts_and_with_the_adversary():
-    """Every script pins a shared input to the same commit and bytes, and the
-    payload is the one the reference adversary's scripts pin."""
+    """Every script pins a shared input to the same commit and bytes, and the run
+    is the one the reference adversary pins."""
     pins: dict[str, set] = {}
     for module in MODULES.values():
         for path, pin in module.INPUTS.items():
@@ -315,16 +329,20 @@ def test_the_pins_agree_across_the_scripts_and_with_the_adversary():
     assert {path: len(found) for path, found in pins.items() if len(found) > 1} == {}
     assert pins[f"{RUN_PATH}/data.json.gz"] == {(PASS_COMMIT, FROZEN_SHA256)}
 
+    # The adversary's scripts/pass_inputs.py (PolicyEngine/policybench#207) pins
+    # its whole run; before it, two of its scripts pin the payload alone.
     scripts = ROOT / "reference_audit/2026-10-05-reference-adversary/scripts"
-    for name in ("definition_conformance.py", "publication_sources.py"):
-        tree = ast.parse((scripts / name).read_text())
-        found = [
-            node.value.value
-            for node in tree.body
-            if isinstance(node, ast.Assign)
-            and [target.id for target in node.targets] == ["PAYLOAD_SHA256"]
-        ]
-        assert found == [FROZEN_SHA256], name
+    if (scripts / "pass_inputs.py").exists():
+        adversary = _constants(scripts / "pass_inputs.py")
+        assert adversary["PASS_COMMIT"] == PASS_COMMIT
+        assert adversary["RUN_PATH"] == RUN_PATH
+        assert set(adversary["RUN_SHA256"]) == RUN_FILES
+        for name, pinned in adversary["RUN_SHA256"].items():
+            assert pins[f"{RUN_PATH}/{name}"] == {(PASS_COMMIT, pinned)}, name
+    else:
+        for name in ("definition_conformance.py", "publication_sources.py"):
+            found = _constants(scripts / name).get("PAYLOAD_SHA256")
+            assert found == FROZEN_SHA256, name
 
 
 def test_the_salt_records_are_one_file_pinned_four_ways():
