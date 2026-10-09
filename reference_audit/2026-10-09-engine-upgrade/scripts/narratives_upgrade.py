@@ -12,6 +12,14 @@ twice, then refused. --hand-corrected takes a JSON object
 {"scenario_id|variable": text} that replaces the writer for a listed output; its
 text must also state the value.
 
+--reuse-from <earlier build dir> --reuse-explanations <its narratives CSV> keeps
+an earlier build's narrative for an output whose writer inputs are the same in
+both builds: the value, the change's cause and grounding, the PolicyEngine
+variable and the trace, byte for byte. The narrative must also not name the
+earlier engine's version. Judges' prompts render the narrative, so a reused one
+keeps a case's verdict through a rebuild on a newer engine. The reused rows are
+listed beside --out (<out>.reused.json) with both builds' sidecar sha256.
+
 The rows rewritten are exactly the sidecar's last revision's changed list (a
 reference that changed by more than EPS); each gets the new reference_value,
 trace_lines and explanation, and an empty error. Judge prompts render a case's
@@ -164,10 +172,12 @@ def write_narratives(
     *,
     completion,
     hand_corrected: dict | None = None,
+    reuse: dict | None = None,
 ) -> tuple[str, list[tuple]]:
     """The explanations CSV with every changed output's narrative rewritten,
     and the rewritten rows. ``completion`` is litellm.completion (mocked in
-    tests)."""
+    tests). ``reuse`` maps an output to the earlier narrative reusable_narratives
+    found for it; the writer is not called for those."""
     from policybench.case_reference_explanations import (
         MAX_TOKENS,
         REFERENCE_MODEL,
@@ -192,6 +202,7 @@ def write_narratives(
     records = {(e["scenario_id"], e["variable"]): e for e in exclusions["exclusions"]}
     note = engine_note(upgrade["engine_version"])
     hand_corrected = hand_corrected or {}
+    reuse = reuse or {}
     by_id = scenarios.set_index("scenario_id", drop=False)
 
     def write(item: dict, extra: str = "") -> str:
@@ -222,6 +233,8 @@ def write_narratives(
         listed = f"{key[0]}|{key[1]}"
         if listed in hand_corrected:
             text = hand_corrected[listed]
+        elif key in reuse:
+            text = reuse[key]
         else:
             text = write(item)
             for _ in range(RETRIES):
@@ -242,6 +255,53 @@ def write_narratives(
     return rewrite_explanations(explanations_text, rewrites), results
 
 
+def writer_inputs(references: Path) -> dict:
+    """Each changed output's narrative-writer inputs in a build, by output:
+    value, cause, grounding, PolicyEngine variable and trace."""
+    meta = json.loads((references / "reference_outputs.csv.meta.json").read_text())
+    traces = json.loads((references / "reference_traces.json").read_text())
+    exclusions = json.loads((references / "reference_exclusions.json").read_text())
+    records = {(e["scenario_id"], e["variable"]): e for e in exclusions["exclusions"]}
+    inputs = {}
+    for item in meta["revisions"][-1]["changed"]:
+        key = (item["scenario_id"], item["variable"])
+        traced = traces[f"{key[0]}|{key[1]}"]
+        inputs[key] = (
+            repr(float(item["regenerated"])),
+            item["cause"],
+            grounding_for(item, records),
+            traced["pe_variable"],
+            traced["trace"],
+        )
+    return inputs
+
+
+def reusable_narratives(
+    references: Path, earlier: Path, earlier_explanations_text: str
+) -> dict:
+    """The earlier build's narratives for outputs whose writer inputs both
+    builds share and whose narrative does not name the earlier engine."""
+    def engine(path: Path) -> str:
+        meta = json.loads((path / "reference_outputs.csv.meta.json").read_text())
+        return meta["revisions"][-1]["engine_version"]
+
+    now, then = engine(references), engine(earlier)
+    number = then.removeprefix("policyengine-us ")
+    current = writer_inputs(references)
+    # The groundings name their build's engine; that name may differ, nothing else.
+    before = {
+        key: (*inputs[:2], inputs[2].replace(then, now), *inputs[3:])
+        for key, inputs in writer_inputs(earlier).items()
+    }
+    _, body = parse_rows(earlier_explanations_text)
+    narratives = {(fields[1], fields[2]): fields[5] for fields, _ in body}
+    return {
+        key: narratives[key]
+        for key, inputs in current.items()
+        if before.get(key) == inputs and number not in narratives[key]
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     import pandas as pd
 
@@ -250,7 +310,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--explanations", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--hand-corrected")
+    parser.add_argument("--reuse-from")
+    parser.add_argument("--reuse-explanations")
     args = parser.parse_args(argv)
+    if bool(args.reuse_from) != bool(args.reuse_explanations):
+        parser.error("--reuse-from and --reuse-explanations go together")
     os.environ.pop("OPENAI_API_KEY", None)
     if not os.environ.get("ANTHROPIC_API_KEY"):
         raise Refusal(
@@ -265,14 +329,41 @@ def main(argv: list[str] | None = None) -> None:
     hand = (
         json.loads(Path(args.hand_corrected).read_text()) if args.hand_corrected else {}
     )
+    reuse = {}
+    if args.reuse_from:
+        reuse = reusable_narratives(
+            Path(args.references),
+            Path(args.reuse_from),
+            Path(args.reuse_explanations).read_text(),
+        )
+        reuse = {k: v for k, v in reuse.items() if f"{k[0]}|{k[1]}" not in hand}
     text, results = write_narratives(
         Path(args.references),
         Path(args.explanations).read_text(),
         scenarios,
         completion=litellm.completion,
         hand_corrected=hand,
+        reuse=reuse,
     )
     Path(args.out).write_text(text)
+    if args.reuse_from:
+        sidecar = "reference_outputs.csv.meta.json"
+        Path(args.out + ".reused.json").write_text(
+            json.dumps(
+                {
+                    "reused": [f"{k[0]}|{k[1]}" for k in sorted(reuse)],
+                    "from_sidecar_sha256": sha256_bytes(
+                        (Path(args.reuse_from) / sidecar).read_bytes()
+                    ),
+                    "into_sidecar_sha256": sha256_bytes(
+                        (Path(args.references) / sidecar).read_bytes()
+                    ),
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        print(f"reused {len(reuse)} narratives from {args.reuse_from}")
     for scenario_id, variable, value, _, narrative in results:
         print(f"--- {scenario_id} {variable} ({value:,.2f})\n{narrative}\n")
     print(f"rewrote {len(results)} narratives -> {args.out}")

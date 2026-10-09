@@ -1142,6 +1142,60 @@ def test_narratives_rewrite_only_the_changed_rows(tmp_path):
     assert '1010.0,2,"PolicyEngine gives $1,010."' in text
 
 
+def _value_narrator(mention: str = ""):
+    def completion(**kwargs):
+        value = float(
+            kwargs["messages"][0]["content"].split("REFERENCE VALUE: ")[1].split("\n")[0]
+        )
+        return _Response(f"PolicyEngine gives ${narratives.money(value)}.{mention}")
+
+    return completion
+
+
+def test_a_rebuild_reuses_the_narratives_whose_writer_inputs_are_unchanged(tmp_path):
+    """Build A on 9.9.9, build B on 9.9.10 with one approved value moved: B
+    reuses A's narratives for every changed output whose value, cause,
+    grounding (the engine's name aside), variable and trace are A's, and only
+    those; a narrative that names A's engine is written again."""
+    computed, actions = _full()
+    del actions["new_exclusions"][0]
+    computed[("scenario_006", "local_income_tax")] = 0.0
+    _write(tmp_path / "a", computed, actions)
+    text_a, _ = narratives.write_narratives(
+        tmp_path / "a", EXPLANATIONS, _scenarios(), completion=_value_narrator()
+    )
+    later = copy.deepcopy(actions)
+    later["engine"] = "policyengine-us 9.9.10"
+    later["approved"][0]["value"] = 1020.0
+    moved = dict(computed)
+    moved[("scenario_001", S)] = 1020.0
+    _write(tmp_path / "b", moved, later)
+    reuse = narratives.reusable_narratives(tmp_path / "b", tmp_path / "a", text_a)
+    assert set(reuse) == {("scenario_002", F), ("scenario_004", S), ("scenario_002", S)}
+    calls = []
+
+    def counting(**kwargs):
+        calls.append(kwargs)
+        return _value_narrator()(**kwargs)
+
+    text_b, results = narratives.write_narratives(
+        tmp_path / "b", EXPLANATIONS, _scenarios(), completion=counting, reuse=reuse
+    )
+    assert len(calls) == 1 and "1020.0" in calls[0]["messages"][0]["content"]
+    rows_a = {(f[1], f[2]): f for f, _ in narratives.parse_rows(text_a)[1]}
+    rows_b = {(f[1], f[2]): f for f, _ in narratives.parse_rows(text_b)[1]}
+    for key in reuse:
+        assert rows_b[key] == rows_a[key]
+    # A narrative that names the earlier engine is not reused.
+    named, _ = narratives.write_narratives(
+        tmp_path / "a",
+        EXPLANATIONS,
+        _scenarios(),
+        completion=_value_narrator(" On policyengine-us 9.9.9."),
+    )
+    assert narratives.reusable_narratives(tmp_path / "b", tmp_path / "a", named) == {}
+
+
 def test_a_narrative_that_omits_the_value_is_retried_then_refused(tmp_path):
     calls = []
 
