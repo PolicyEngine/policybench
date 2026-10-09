@@ -125,6 +125,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "claude-opus-5": "2026-07-24",
   "claude-sonnet-5.5": "2026-09-28",
   "claude-sonnet-5": "2026-06-30",
+  "claude-haiku-5.5": "2026-10-07",
   "claude-opus-4.8": "2026-05-28",
   "claude-opus-4.7": "2026-04-16",
   "claude-haiku-4.5": "2025-10-15",

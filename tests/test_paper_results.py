@@ -49,6 +49,12 @@ def test_frozen_roster_has_46_display_names_and_release_dates():
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
 
 
+def test_claude_haiku_5_5_release_date_is_recorded():
+    """Claude Haiku 5.5's model overview says "Released October 7, 2026",
+    and the Models API lists claude-haiku-5-5 with created_at 2026-10-07."""
+    assert MODEL_RELEASE_DATES["claude-haiku-5.5"] == "2026-10-07"
+
+
 def test_app_release_dates_mirror_the_paper_registry():
     """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
     update both together); every runnable model has a date, and the two
