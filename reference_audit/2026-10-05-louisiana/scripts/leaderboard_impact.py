@@ -34,7 +34,7 @@ runs, and every option is compared with ``keep``.
 Its standard output is ``verification/leaderboard_impact.log``. The checkout needs
 PASS_COMMIT and AUDIT_COMMIT in its history (a shallow clone needs
 ``git fetch --unshallow``). ``--out-dir`` writes the verification files elsewhere;
-tests/test_reference_audit_impact.py regenerates them that way and requires the
+tests/test_reference_audit_pins.py regenerates them that way and requires the
 committed ones, and the log, byte for byte.
 """
 

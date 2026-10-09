@@ -40,7 +40,7 @@ AUDIT_COMMIT and does not need #191's closed branch.
 
 The checkout needs PASS_COMMIT and AUDIT_COMMIT in its history (a shallow clone needs
 ``git fetch --unshallow``). ``--out-dir`` writes the verification files elsewhere;
-tests/test_reference_audit_impact.py regenerates them that way and requires the
+tests/test_reference_audit_pins.py regenerates them that way and requires the
 committed ones byte for byte.
 """
 
