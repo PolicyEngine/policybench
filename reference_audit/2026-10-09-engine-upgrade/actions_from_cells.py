@@ -13,7 +13,11 @@ decided silently: each moved output is classified by
 
   status          scored, excluded in 20261006, or ruled in the release;
   audited target  whether the new value lands within $1 of its record's
-                  corrected value (alternative_value), and the hub's own column;
+                  corrected value (alternative_value) or, with --evidence, of
+                  the corrected value the record's fix modules give on a
+                  pre-fix engine (a "fix_modules" target, which the builder
+                  also checks the modules leave unchanged on the new engine);
+                  and the hub's own column;
   reason          engine defect, unlisted input, or a ruled reason (later law,
                   household scope);
 
@@ -33,7 +37,9 @@ kept_exclusions_from_release lists every ruled output that is not regenerated.
 
   PYTHONPATH=<checkout> python actions_from_cells.py \\
     --cells ~/reviews/policybench-pe-upgrade-2026-10-09/cells_pe2.37.1.csv \\
-    [--computed <build>/computed.csv] [--date YYYY-MM-DD] --out actions.draft.json
+    [--computed <build>/computed.csv] [--date YYYY-MM-DD] \\
+    [--evidence reference_audit/2026-10-09-engine-upgrade/evidence/pe<ver>.json] \\
+    --out actions.draft.json
 """
 
 from __future__ import annotations
@@ -53,12 +59,16 @@ sys.path.insert(0, str(HERE / "scripts"))
 from build_references_upgrade import (  # noqa: E402
     ENGINE_DEFECT,
     PREVIOUS_ENGINE,
+    ROOT,
+    TARGET_FIX_MODULES,
     UNNAMED_UPSTREAM,
     Refusal,
     beyond,
     key_of,
     load_base,
+    load_evidence,
     release_record,
+    sha256,
 )
 
 UNLISTED = "reference_depends_on_unlisted_input"
@@ -257,8 +267,17 @@ def draft_actions(
     date: str,
     spec_sha256: str,
     precise: bool,
+    evidence: dict | None = None,
 ) -> tuple[dict, list[dict]]:
-    """The draft actions file and the judgment calls, one per moved output."""
+    """The draft actions file and the judgment calls, one per moved output.
+
+    ``evidence`` is {"ref": {path, sha256}, "doc": the loaded evidence file}:
+    a pre-fix engine's values for engine-defect outputs without and with
+    their fix modules."""
+    evidence_items = {}
+    if evidence is not None:
+        for item in evidence["doc"]["items"]:
+            evidence_items[key_of(item)] = item
     engine = f"policyengine-us {engine_version}"
     ver_key = "value_on_2_15_17"
     records = {key_of(r): r for r in release["exclusions"]}
@@ -302,10 +321,31 @@ def draft_actions(
             source = "20261006" if k in base_excluded else "the release's ruling"
             kept_value = cell.previous
             if record["reason_code"] == ENGINE_DEFECT:
+
+                def lands(aim: float) -> bool:
+                    return abs(cell.new - aim) <= TARGET_TOL and not beyond(
+                        cell.variable, aim, cell.new
+                    )
+
                 target = float(record["alternative_value"])
-                on_target = abs(cell.new - target) <= TARGET_TOL and not beyond(
-                    cell.variable, target, cell.new
-                )
+                target_spec = {"kind": "record"}
+                target_text = f"the corrected value {money(target)} the "
+                target_text += f"{record['decided_on']} record computed"
+                item = evidence_items.get(k)
+                if not lands(target) and item is not None:
+                    target = float(item["corrected_value"])
+                    target_spec = {
+                        "kind": TARGET_FIX_MODULES,
+                        "modules": list(item["modules"]),
+                        "evidence": dict(evidence["ref"]),
+                    }
+                    target_text = (
+                        f"the corrected value {money(target)} its fix modules "
+                        f"({' + '.join(item['modules'])}) give on "
+                        f"{evidence['doc']['engine']}, which still has the defect "
+                        f"({money(float(item['engine_value']))} without them)"
+                    )
+                on_target = lands(target)
                 second = second_reason(record)
                 if on_target and second:
                     reason = (
@@ -335,17 +375,16 @@ def draft_actions(
                         {
                             "scenario_id": k[0],
                             "variable": k[1],
-                            "alternative_value": target,
+                            "alternative_value": float(record["alternative_value"]),
                             "tolerance": TARGET_TOL,
                             "upstream": upstream,
                             "basis": (
                                 f"An engine defect fixed upstream ({upstream}) is "
                                 f"regenerated with the fix: {engine} gives "
-                                f"{money(cell.new)}, within $1 of the corrected value "
-                                f"{money(target)} the {record['decided_on']} "
-                                f"record computed ({record['root_cause']}: "
-                                f"{record['defect']})."
+                                f"{money(cell.new)}, within $1 of {target_text} "
+                                f"({record['root_cause']}: {record['defect']})."
                             ),
+                            "target": target_spec,
                         }
                     )
                     hub = cell.audited_target
@@ -464,8 +503,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--computed")
     parser.add_argument("--engine")
     parser.add_argument("--date")
+    parser.add_argument("--evidence", help="a committed evidence file, repo-relative")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
+    evidence = None
+    if args.evidence:
+        ref = {"path": args.evidence, "sha256": sha256(ROOT / args.evidence)}
+        evidence = {"ref": ref, "doc": load_evidence(ref)}
     engine_version = args.engine or engine_from_path(Path(args.cells))
     date = args.date or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
     base = load_base()
@@ -482,6 +526,7 @@ def main(argv: list[str] | None = None) -> None:
         date=date,
         spec_sha256=spec_sha,
         precise=computed is not None,
+        evidence=evidence,
     )
     Path(args.out).write_text(json.dumps(actions, indent=2) + "\n")
     print_calls(calls)

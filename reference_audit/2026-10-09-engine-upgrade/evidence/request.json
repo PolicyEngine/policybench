@@ -1,0 +1,177 @@
+{
+  "items": [
+    {
+      "scenario_id": "scenario_003",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r01_ira_compensation_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_005",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_005",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py",
+        "r11_ca_itemized_conformity_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_007",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r07_idaho_health_premiums_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_008",
+      "variable": "payroll_tax",
+      "modules": [
+        "r05_nj_worker_ui_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_022",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r11_ca_itemized_conformity_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_039",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r03_estate_income__qbi_false_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_042",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r06_wi_act15_before_refundable_v2.py",
+        "r32_wi_capital_gain_distributions.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_049",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_052",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_053",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r07_idaho_health_premiums_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_080",
+      "variable": "snap",
+      "modules": [
+        "r30_snap_heat_and_eat_sua.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_082",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_091",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r32_wi_capital_gain_distributions.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_099",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_099",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py",
+        "r11_ca_itemized_conformity_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_100",
+      "variable": "federal_refundable_credits",
+      "modules": [
+        "r08_eitc_earned_income_deferrals_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_100",
+      "variable": "state_refundable_credits",
+      "modules": [
+        "r08_eitc_earned_income_deferrals_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_110",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py",
+        "r03_estate_income__qbi_false_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_110",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py",
+        "r03_estate_income__qbi_false_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_119",
+      "variable": "federal_refundable_credits",
+      "modules": [
+        "r08_eitc_earned_income_deferrals_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_119",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r08_eitc_earned_income_deferrals_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_120",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    },
+    {
+      "scenario_id": "scenario_120",
+      "variable": "state_income_tax_before_refundable_credits",
+      "modules": [
+        "r02_ira_219g_v2.py"
+      ]
+    }
+  ]
+}

@@ -4904,6 +4904,7 @@ def write_build(
     added=None,
     rechecked=None,
     engine=MOCK_ENGINE,
+    targets=None,
 ) -> SimpleNamespace:
     """MOCK: a reference build in the shape build_references_upgrade.py writes.
 
@@ -4911,9 +4912,12 @@ def write_build(
     ``added`` maps outputs to new exclusion records (frozen at the new value),
     ``rechecked`` maps kept excluded outputs to their mock-engine values. The
     build's exclusion record is ``release_doc`` less the regenerated records,
-    with the added ones before the trailing audit record.
+    with the added ones before the trailing audit record. Each regeneration's
+    audited target is ``targets[key]``, or by default its record's
+    alternative_value (a "record" target), as the builder states it.
     """
     approved, regenerated = dict(approved or {}), dict(regenerated or {})
+    targets = dict(targets or {})
     added, rechecked = dict(added or {}), dict(rechecked or {})
     base_values = driver.reference_values(base_files[CSV_NAME])
     records = {driver.spec_key(r): r for r in release_doc["exclusions"]}
@@ -5009,6 +5013,14 @@ def write_build(
             {
                 "scenario_id": k[0],
                 "variable": k[1],
+                "target": targets.get(
+                    k,
+                    {
+                        "kind": "record",
+                        "value": float(records[k]["alternative_value"]),
+                        "engine": records[k]["engine_version"],
+                    },
+                ),
                 "regenerated": float(v),
                 "removed_record": records[k],
             }
@@ -5474,7 +5486,7 @@ def test_an_exclusion_record_other_than_the_releases_is_refused(
 def test_a_regenerated_record_off_its_alternative_is_refused(upgrade_spec, tmp_path):
     """WI 042's record says $0; the build regenerates it at $1.50."""
     regenerated = {**MOCK_REGENERATED_RULED, WI_042: 1.5}
-    with pytest.raises(SystemExit, match=r"not within \$1 of its record's"):
+    with pytest.raises(SystemExit, match=r"not within \$1 of its audited target"):
         load(real_build(tmp_path, regenerated=regenerated))
 
 

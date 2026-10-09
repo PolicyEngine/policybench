@@ -561,6 +561,185 @@ def test_only_an_engine_defect_is_regenerated():
     assert "not an engine defect" in problem
 
 
+# --- A fix-modules target: a record decided on an older engine ----------------
+#
+# scenario_003 snap's record was decided on 1.755.4 (frozen 3000, corrected
+# 2500). Other engine changes have since moved the output, so its
+# alternative_value is stale: the audited fix module, run on a pre-fix engine,
+# gives the target instead.
+
+PRE_FIX = "policyengine-us 9.9.8"
+MODULE = "r_fix_v2.py"
+EVIDENCE = {"path": "evidence/pre_fix.json", "sha256": "e" * 64}
+
+
+def _evidence(engine_value=3100.0, corrected=2600.3, engine=PRE_FIX, pin="p" * 64):
+    return {
+        "kind": build.EVIDENCE_KIND,
+        "engine": engine,
+        "modules": {MODULE: pin},
+        "items": [
+            {
+                "scenario_id": "scenario_003",
+                "variable": "snap",
+                "modules": [MODULE],
+                "engine_value": engine_value,
+                "corrected_value": corrected,
+            }
+        ],
+    }
+
+
+def _module_target(**target):
+    entry = _regenerate("scenario_003", "snap", 2500.0)
+    entry["target"] = {
+        "kind": "fix_modules",
+        "modules": [MODULE],
+        "evidence": dict(EVIDENCE),
+        **target,
+    }
+    return entry
+
+
+def _module_plan(value=2600.0, after=2600.1, evidence=None, pins=None, entry=None):
+    computed = _unchanged()
+    computed[("scenario_003", "snap")] = value
+    base = _base()
+    release, ruled = _release(base)
+    actions = _actions(regenerated_exclusions=[entry or _module_target()])
+    return build.plan_upgrade(
+        base,
+        release,
+        ruled,
+        actions,
+        computed,
+        evidence={EVIDENCE["path"]: evidence or _evidence()},
+        module_pins={MODULE: "p" * 64} if pins is None else pins,
+        module_values={(("scenario_003", "snap"), (MODULE,)): after},
+    )
+
+
+def test_a_record_target_misses_a_drifted_output():
+    computed = _unchanged()
+    computed[("scenario_003", "snap")] = 2600.0
+    actions = _actions(
+        regenerated_exclusions=[_regenerate("scenario_003", "snap", 2500.0)]
+    )
+    (problem,) = _problems(computed, actions)
+    assert "misses its audited target" in problem and "(record)" in problem
+
+
+def test_a_fix_modules_target_regenerates_a_drifted_output(tmp_path):
+    plan = _module_plan()
+    assert plan.problems == []
+    (regenerated,) = plan.regenerated
+    target = regenerated["target"]
+    assert target == {
+        "kind": "fix_modules",
+        "value": 2600.3,
+        "engine": PRE_FIX,
+        "engine_value": 3100.0,
+        "modules": [{"module": MODULE, "sha256": "p" * 64}],
+        "evidence": EVIDENCE["path"],
+        "evidence_sha256": EVIDENCE["sha256"],
+        "value_with_modules": 2600.1,
+    }
+    assert regenerated["audited_alternative_value"] == 2500.0
+    assert regenerated["regenerated"] == 2600.0
+    assert plan.new_values[("scenario_003", "snap")] == 2600.0
+
+
+def test_a_record_target_is_the_default_and_names_its_engine():
+    computed = _unchanged()
+    computed[("scenario_002", F)] = 300.4
+    actions = _actions(regenerated_exclusions=[_regenerate("scenario_002", F, 300.0)])
+    (regenerated,) = _plan(computed, actions)[2].regenerated
+    assert regenerated["target"] == {
+        "kind": "record",
+        "value": 300.0,
+        "engine": "policyengine-us 1.755.4",
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"evidence": _evidence(engine=ENGINE)}, "it must come from one"),
+        (
+            {"evidence": _evidence(engine="policyengine-us 10.0.0")},
+            "not an engine older",
+        ),
+        ({"pins": {MODULE: "q" * 64}}, "ran other bytes"),
+        ({"pins": {}}, "unknown fix modules"),
+        ({"evidence": _evidence(corrected=3100.5)}, "shows no defect"),
+        ({"after": 2590.0}, "still moves it"),
+        ({"value": 2610.0, "after": 2610.0}, "misses its audited target"),
+        (
+            {"entry": _module_target(modules=["other.py"]), "pins": {"other.py": "0"}},
+            "has 0 items",
+        ),
+        ({"entry": _module_target(modules=[])}, "names no modules"),
+        ({"entry": _module_target(extra=1)}, "takes kind, modules and evidence"),
+        (
+            {"entry": _module_target(evidence={"path": "x", "sha256": "0"})},
+            "evidence is not loaded",
+        ),
+        ({"entry": _module_target(kind="guess")}, "unknown target kind"),
+    ],
+)
+def test_a_fix_modules_target_refuses(kwargs, message):
+    problems = _module_plan(**kwargs).problems
+    assert problems and any(message in p for p in problems), problems
+
+
+def test_a_record_target_takes_no_other_fields():
+    computed = _unchanged()
+    computed[("scenario_002", F)] = 300.0
+    entry = _regenerate("scenario_002", F, 300.0)
+    entry["target"] = {"kind": "record", "modules": [MODULE]}
+    (problem,) = _problems(computed, _actions(regenerated_exclusions=[entry]))
+    assert "takes no other fields" in problem
+
+
+@SETTINGS
+@given(
+    effect=st.floats(min_value=1.01, max_value=5e3) | st.floats(-5e3, -1.01),
+    drift=st.floats(min_value=-5e3, max_value=5e3),
+    landing=st.floats(min_value=-3.0, max_value=3.0),
+    leftover=st.floats(min_value=-3.0, max_value=3.0),
+)
+def test_a_fix_modules_regeneration_needs_a_landing_and_nothing_left_to_fix(
+    effect, drift, landing, leftover
+):
+    """On the pre-fix engine the module moves the output by ``effect``; the new
+    engine lands ``landing`` from the corrected value, and the module, applied
+    again there, moves it by ``leftover``. It regenerates exactly when both
+    are within $1."""
+    before = 3000.0 + drift
+    corrected = before + effect
+    value = corrected + landing
+    plan = _module_plan(
+        value=value,
+        after=value + leftover,
+        evidence=_evidence(engine_value=before, corrected=corrected),
+    )
+    ok = abs(landing) <= 1.0 and abs(leftover) <= 1.0
+    assert (plan.problems == []) == ok, plan.problems
+    if ok:
+        assert plan.new_values.get(("scenario_003", "snap"), 3000.0) in (value, 3000.0)
+        assert [r["target"]["value"] for r in plan.regenerated] == [corrected]
+
+
+def test_the_derivation_names_the_audited_corrected_value(tmp_path):
+    computed, actions = _full()
+    _, _, written = _write(tmp_path, computed, actions)
+    derivation = written.exclusions["derivation"]
+    assert "within $1 of its audited corrected value" in derivation or (
+        "each landing within $1 of its audited corrected value" in derivation
+    )
+    assert "record's corrected value" not in derivation
+
+
 @SETTINGS
 @given(delta=st.floats(min_value=-1.0, max_value=1.0))
 def test_a_new_exclusion_on_an_output_that_does_not_move_is_refused(delta):
@@ -1133,6 +1312,56 @@ def test_the_draft_keeps_an_on_target_record_that_names_a_second_reason():
     (entry,) = actions["excluded_rechecked"]
     assert "names a second reason" in entry["reason"]
     assert calls[0]["placed_in"] == "excluded_rechecked"
+
+
+def test_the_draft_aims_a_drifted_record_at_its_fix_modules_evidence():
+    """scenario_003 snap misses its record's 1.755.4 corrected value; with
+    evidence it is drafted against the modules' pre-fix corrected value, and
+    the builder accepts the draft once the modules leave it unchanged."""
+    computed = _unchanged()
+    computed[("scenario_003", "snap")] = 2600.0
+    base = _base()
+    release, ruled = _release(base)
+    kwargs = dict(
+        engine_version="9.9.9", date=DATE, spec_sha256="spec", precise=True
+    )
+    args = (
+        _cells(computed),
+        release,
+        ruled,
+        {build.key_of(r) for r in base.exclusions["exclusions"]},
+        {},
+    )
+    without, _ = drafting.draft_actions(*args, **kwargs)
+    assert without["regenerated_exclusions"] == []
+    assert "$100.00 from the record's" in without["excluded_rechecked"][0]["reason"]
+    doc = _evidence()
+    actions, calls = drafting.draft_actions(
+        *args, **kwargs, evidence={"ref": dict(EVIDENCE), "doc": doc}
+    )
+    (entry,) = actions["regenerated_exclusions"]
+    assert entry["target"] == {
+        "kind": "fix_modules",
+        "modules": [MODULE],
+        "evidence": EVIDENCE,
+    }
+    assert entry["alternative_value"] == 2500.0
+    assert "$2,600.30 its fix modules (r_fix_v2.py) give on" in entry["basis"]
+    assert [c["placed_in"] for c in calls] == ["regenerated_exclusions"]
+    cleared = {k: v for k, v in actions.items() if k not in ("draft", "review")}
+    entry["upstream"] = "PolicyEngine/policyengine-us#1"
+    plan = build.plan_upgrade(
+        base,
+        release,
+        ruled,
+        cleared,
+        computed,
+        evidence={EVIDENCE["path"]: doc},
+        module_pins={MODULE: "p" * 64},
+        module_values={(("scenario_003", "snap"), (MODULE,)): 2600.0},
+    )
+    assert plan.problems == []
+    assert [r["target"]["kind"] for r in plan.regenerated] == ["fix_modules"]
 
 
 def test_a_regeneration_must_name_its_upstream_fix():

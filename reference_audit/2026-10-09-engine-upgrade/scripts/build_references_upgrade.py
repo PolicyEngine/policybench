@@ -59,12 +59,30 @@ ACTIONS FILE (JSON; every list optional except where a move needs it):
                     outputs allowed to move; the engine must give value within
                     APPROVED_TOL (half a cent).
   regenerated_exclusions  [{scenario_id, variable, alternative_value,
-                    tolerance, upstream, basis}]: excluded outputs (in
+                    tolerance, upstream, basis, target}]: excluded outputs (in
                     20261006's record or the release's ruled records) whose
                     reference_engine_defect the new engine fixes. alternative_value
-                    must be the record's audited corrected value; tolerance is at
-                    most $1; the engine must land within it (a flag must equal
-                    it); upstream must name the fix ("to be filed" does not).
+                    must be the record's; tolerance is at most $1; upstream must
+                    name the fix ("to be filed" does not). The engine must land
+                    within the tolerance of the audited corrected value (a flag
+                    must equal it), which target says how to know:
+                      {"kind": "record"} (the default): the record's
+                        alternative_value. Right when nothing else in the engine
+                        has moved the output since the record was decided.
+                      {"kind": "fix_modules", "modules": [file, ...],
+                       "evidence": {"path", "sha256"}}: the record's audited fix
+                        modules (reference_audit/2026-09-22/fixes, the bytes
+                        committed at BASE_COMMIT), on a recent engine that still
+                        has the defect. The evidence file (--evidence-request
+                        mode, on that engine) gives the output there without and
+                        with the modules; they must move it beyond the tolerance
+                        (the defect was there), and the corrected value is the
+                        target. On the new engine the builder applies the modules
+                        again: they must move it by no more than the tolerance
+                        (nothing is left to fix). A record decided on an older
+                        engine needs this kind once other engine changes have
+                        moved the output, because its alternative_value no longer
+                        includes them.
                     The record is removed and the output scored at the engine
                     value.
   new_exclusions    [complete exclusion record]: scored outputs the new engine
@@ -108,6 +126,16 @@ Run (PYTHONPATH is the checkout; the fixes directory needs the sales tax tables)
     <venv with policyengine-us X.Y.Z>/bin/python \\
     reference_audit/2026-10-09-engine-upgrade/scripts/build_references_upgrade.py \\
       --actions <actions.json> --out-dir <dir> [--fixes-dir <dir>] [--allow-draft]
+
+EVIDENCE MODE (on a pre-fix engine, for "fix_modules" targets):
+
+  ... build_references_upgrade.py --evidence-request <request.json> \\
+      --evidence-out <evidence.json> [--fixes-dir <dir>]
+
+The request is {"items": [{scenario_id, variable, modules: [file, ...]}]}. The
+evidence file names the installed engine and every module's sha256, and gives
+each item's engine_value (the pinned conventions alone) and corrected_value
+(the conventions plus the modules, applied after them).
 """
 
 from __future__ import annotations
@@ -158,6 +186,13 @@ FIX_ENTRY = "latest_final"
 SALES_TAX_TABLES = "r19_irs_sales_tax_2025.json"
 SALES_TAX_REL = f"reference_audit/2026-09-22/fixes/{SALES_TAX_TABLES}"
 SALES_TAX_SOURCE = ROOT / SALES_TAX_REL
+# The audited root-cause fix modules (2026-09-22): a "fix_modules" target
+# applies them after the conventions.
+AUDIT_FIXES_REL = "reference_audit/2026-09-22/fixes"
+AUDIT_FIXES = ROOT / AUDIT_FIXES_REL
+EVIDENCE_KIND = "regeneration_evidence"
+TARGET_RECORD = "record"
+TARGET_FIX_MODULES = "fix_modules"
 YEAR = 2026
 EPS = 1e-6
 FROZEN_TOL = 1e-3
@@ -247,6 +282,15 @@ def engine_number(engine: str) -> str:
     if not engine.startswith(prefix):
         raise Refusal(f"engine must read 'policyengine-us X.Y.Z', not {engine!r}")
     return engine.removeprefix(prefix)
+
+
+def engine_older(older: str, newer: str) -> bool:
+    """Whether one 'policyengine-us X.Y.Z' release precedes another."""
+
+    def parts(engine: str) -> tuple[int, ...]:
+        return tuple(int(p) for p in engine_number(engine).split("."))
+
+    return parts(older) < parts(newer)
 
 
 def beyond(variable: str, before: float, after: float) -> bool:
@@ -442,15 +486,126 @@ def validate_actions(actions: dict, *, allow_draft: bool = False) -> None:
             seen.setdefault(k, name)
 
 
+def target_modules(entry: dict) -> tuple[str, ...]:
+    """The fix modules a regeneration's target names (none for a record)."""
+    target = entry.get("target") or {}
+    modules = target.get("modules") if isinstance(target, dict) else None
+    if isinstance(modules, list) and all(isinstance(m, str) for m in modules):
+        return tuple(modules)
+    return ()
+
+
+def regeneration_target(
+    k: Key,
+    entry: dict,
+    record: dict,
+    value: float,
+    tolerance: float,
+    *,
+    engine: str,
+    evidence: dict[str, dict],
+    module_pins: dict[str, str],
+    module_values: dict[tuple[Key, tuple[str, ...]], float],
+) -> tuple[dict | None, list[str]]:
+    """The audited corrected value a regenerated output must land on, and how
+    it is known (the entry's target), or the problems that stop it. Pure."""
+    target = entry.get("target", {"kind": TARGET_RECORD})
+    if not isinstance(target, dict):
+        return None, [f"regenerated {k}: target is not an object"]
+    kind = target.get("kind")
+    if kind == TARGET_RECORD:
+        if set(target) != {"kind"}:
+            return None, [f"regenerated {k}: a record target takes no other fields"]
+        return {
+            "kind": TARGET_RECORD,
+            "value": float(record["alternative_value"]),
+            "engine": record["engine_version"],
+        }, []
+    if kind != TARGET_FIX_MODULES:
+        return None, [f"regenerated {k}: unknown target kind {kind!r}"]
+    modules = target_modules(entry)
+    problems = []
+    if set(target) != {"kind", "modules", "evidence"}:
+        problems.append(f"regenerated {k}: a fix_modules target takes kind, modules "
+                        "and evidence")
+    if not modules or len(set(modules)) != len(modules):
+        problems.append(f"regenerated {k}: the target names no modules, or one twice")
+    unpinned = [m for m in modules if m not in module_pins]
+    if unpinned:
+        problems.append(f"regenerated {k}: unknown fix modules {unpinned}")
+    ref = target.get("evidence")
+    doc = evidence.get(ref.get("path")) if isinstance(ref, dict) else None
+    if doc is None:
+        problems.append(f"regenerated {k}: the target's evidence is not loaded")
+    if problems:
+        return None, problems
+    variable = k[1]
+    if not engine_older(doc["engine"], engine):
+        problems.append(
+            f"regenerated {k}: the evidence is computed on {doc['engine']}, not an "
+            f"engine older than {engine}; it must come from one that still has the "
+            "defect"
+        )
+    stale = [m for m in modules if doc["modules"].get(m) != module_pins[m]]
+    if stale:
+        problems.append(f"regenerated {k}: the evidence ran other bytes of {stale}")
+    items = [
+        item
+        for item in doc["items"]
+        if key_of(item) == k and tuple(item["modules"]) == modules
+    ]
+    if len(items) != 1:
+        problems.append(
+            f"regenerated {k}: the evidence has {len(items)} items for {list(modules)}"
+        )
+        return None, problems
+    item = items[0]
+    before, corrected = float(item["engine_value"]), float(item["corrected_value"])
+    if not beyond(variable, before, corrected):
+        problems.append(
+            f"regenerated {k}: on {doc['engine']} the modules move it only "
+            f"{before!r} -> {corrected!r}, so the evidence shows no defect"
+        )
+    after = module_values.get((k, modules))
+    if after is None:
+        problems.append(f"regenerated {k}: the modules were not applied on {engine}")
+    elif abs(after - value) > tolerance or beyond(variable, value, after):
+        problems.append(
+            f"regenerated {k}: the audited fix still moves it on {engine}: "
+            f"{value!r} -> {after!r}"
+        )
+    if problems:
+        return None, problems
+    return {
+        "kind": TARGET_FIX_MODULES,
+        "value": corrected,
+        "engine": doc["engine"],
+        "engine_value": before,
+        "modules": [{"module": m, "sha256": module_pins[m]} for m in modules],
+        "evidence": ref["path"],
+        "evidence_sha256": ref["sha256"],
+        "value_with_modules": after,
+    }, []
+
+
 def plan_upgrade(
     base: Base,
     release: dict,
     ruled: set[Key],
     actions: dict,
     computed: dict[Key, float],
+    *,
+    evidence: dict[str, dict] | None = None,
+    module_pins: dict[str, str] | None = None,
+    module_values: dict[tuple[Key, tuple[str, ...]], float] | None = None,
 ) -> Plan:
     """Decide every output's value and record; never raise on a move, collect
-    every problem instead. Pure: no engine, no files."""
+    every problem instead. Pure: no engine, no files. A "fix_modules" target
+    reads its evidence (loaded and pinned by the caller), the modules' pins and
+    their values on the new engine from the keyword arguments."""
+    evidence = evidence or {}
+    module_pins = module_pins or {}
+    module_values = module_values or {}
     plan = Plan()
     engine = actions["engine"]
     date = actions["date"]
@@ -544,14 +699,28 @@ def plan_upgrade(
                         f"{MAX_REGENERATION_TOL}]"
                     )
                     continue
+                target, problems = regeneration_target(
+                    k,
+                    entry,
+                    record,
+                    value,
+                    tolerance,
+                    engine=engine,
+                    evidence=evidence,
+                    module_pins=module_pins,
+                    module_values=module_values,
+                )
+                if problems:
+                    plan.problems.extend(problems)
+                    continue
                 # A flag must equal its target; an amount must land within the
                 # tolerance, which is at most the exact-match $1.
-                if abs(value - alternative) > tolerance or beyond(
-                    k[1], alternative, value
-                ):
+                aim = target["value"]
+                if abs(value - aim) > tolerance or beyond(k[1], aim, value):
                     plan.problems.append(
                         f"regenerated {k} misses its audited target: engine "
-                        f"{value!r}, target {alternative!r} +/- {tolerance}"
+                        f"{value!r}, target {aim!r} +/- {tolerance} "
+                        f"({target['kind']})"
                     )
                     continue
                 if not str(entry.get("basis", "")).strip():
@@ -577,6 +746,7 @@ def plan_upgrade(
                         "kept_value": old,
                         f"value_on_{engine_number(engine).replace('.', '_')}": value,
                         "audited_alternative_value": alternative,
+                        "target": target,
                         "regenerated": value,
                         "tolerance": tolerance,
                         "upstream": entry["upstream"],
@@ -726,14 +896,14 @@ def upgrade_sentence(plan: Plan, actions: dict) -> str:
     if n == 1:
         parts.append(
             " The new engine fixes the defect behind one excluded output, which"
-            " lands within $1 of its record's corrected value, so its record was"
+            " lands within $1 of its audited corrected value, so its record was"
             " removed and the output is scored again (the reference sidecar's second"
             " engine_upgrade revision lists it under regenerated_exclusions)."
         )
     elif n:
         parts.append(
             f" The new engine fixes the defects behind {words(n)} excluded outputs,"
-            " each landing within $1 of its record's corrected value, so their"
+            " each landing within $1 of its audited corrected value, so their"
             " records were removed and the outputs are scored again (the reference"
             " sidecar's second engine_upgrade revision lists them under"
             " regenerated_exclusions)."
@@ -1075,6 +1245,183 @@ def compute_outputs(system, scenarios, programs, build_situation) -> dict[Key, f
     return computed
 
 
+def audit_module_pins(names, fixes_dir: Path = AUDIT_FIXES) -> dict[str, str]:
+    """Each named audited fix module's sha256: the bytes committed at
+    BASE_COMMIT under reference_audit/2026-09-22/fixes, and nothing else."""
+    pins = {}
+    for name in sorted(set(names)):
+        if Path(name).name != name or not name.endswith(".py"):
+            raise Refusal(f"a fix module is a file name ending in .py, not {name!r}")
+        path = Path(fixes_dir) / name
+        committed = sha256_bytes(git_blob(BASE_COMMIT, f"{AUDIT_FIXES_REL}/{name}"))
+        if not path.is_file() or sha256(path) != committed:
+            raise Refusal(
+                f"{path} is not {AUDIT_FIXES_REL}/{name} as committed at "
+                f"{BASE_COMMIT[:12]}"
+            )
+        pins[name] = committed
+    return pins
+
+
+def fix_module_parts(names, fixes_dir: Path = AUDIT_FIXES) -> tuple[list, list]:
+    """The Reform classes and household patches of the named fix modules, in
+    order (sweep.py's fix interface: a module defines reform, patch or both)."""
+    reforms, patches = [], []
+    for name in names:
+        module = load_module(
+            f"upgrade_fix_{Path(name).stem}", Path(fixes_dir) / name
+        )
+        reform = getattr(module, "reform", None)
+        patch = getattr(module, "patch", None)
+        if reform is None and patch is None:
+            raise Refusal(f"{name} defines neither reform nor patch")
+        if reform is not None:
+            reforms.append(reform)
+        if patch is not None:
+            patches.append(patch)
+    return reforms, patches
+
+
+def corrected_system(final, reforms):
+    """The pinned conventions, then each fix module's reform, as one system."""
+    from policyengine_core.reforms import Reform
+    from policyengine_us import CountryTaxBenefitSystem
+
+    parts = (final.reform, *reforms)
+
+    class corrected(Reform):
+        def apply(self):
+            for part in parts:
+                part.apply(self)
+
+    return CountryTaxBenefitSystem(reform=corrected)
+
+
+def compute_items(system, scenarios, keys, build_situation, patches=()) -> dict:
+    """The named outputs on a system, households built as compute_outputs
+    builds them and then edited by each patch in order."""
+    from policyengine_us import Simulation
+
+    from policybench.ground_truth import _extract_person_value, _pe_variable_for_output
+    from policybench.scenarios import scenario_from_dict
+
+    by_id = scenarios.set_index("scenario_id")
+    out = {}
+    for scenario_id in sorted({k[0] for k in keys}):
+        scenario = scenario_from_dict(
+            json.loads(by_id.loc[scenario_id, "scenario_json"])
+        )
+        situation = build_situation(scenario)
+        for patch in patches:
+            situation = patch(copy.deepcopy(situation), scenario)
+        sim = Simulation(tax_benefit_system=system, situation=situation)
+        for k in sorted(k for k in keys if k[0] == scenario_id):
+            pe_variable = _pe_variable_for_output(k[1], "us")
+            out[k] = float(
+                _extract_person_value(sim.calculate(pe_variable, YEAR), scenario, k[1])
+            )
+    return out
+
+
+def module_values_on(final, scenarios, requests, build_situation) -> dict:
+    """Each (output, modules) request's value with the conventions and the
+    modules applied, one system per module list."""
+    values = {}
+    by_modules: dict[tuple[str, ...], list[Key]] = {}
+    for k, modules in requests:
+        by_modules.setdefault(tuple(modules), []).append(k)
+    for modules, keys in sorted(by_modules.items()):
+        reforms, patches = fix_module_parts(modules)
+        system = corrected_system(final, reforms)
+        for k, value in compute_items(
+            system, scenarios, keys, build_situation, patches
+        ).items():
+            values[(k, modules)] = value
+    return values
+
+
+def load_evidence(ref: dict) -> dict:
+    """An evidence file a target names, at its pinned sha256."""
+    if not isinstance(ref, dict) or set(ref) != {"path", "sha256"}:
+        raise Refusal(f"a target's evidence is {{path, sha256}}, not {ref!r}")
+    path = ROOT / ref["path"]
+    if not path.is_file() or sha256(path) != ref["sha256"]:
+        raise Refusal(f"{ref['path']} is missing or not the evidence its sha256 pins")
+    doc = json.loads(path.read_text())
+    if not isinstance(doc, dict) or doc.get("kind") != EVIDENCE_KIND:
+        raise Refusal(f"{ref['path']} is not {EVIDENCE_KIND}")
+    engine_number(doc.get("engine", ""))
+    if not isinstance(doc.get("modules"), dict) or not isinstance(
+        doc.get("items"), list
+    ):
+        raise Refusal(f"{ref['path']} lacks its modules or items")
+    return doc
+
+
+def write_evidence(request_path: Path, out_path: Path, fixes_dir: Path) -> dict:
+    """Evidence mode: each requested output on the installed engine, with the
+    pinned conventions alone and with its fix modules after them."""
+    from importlib.metadata import version
+
+    import pandas as pd
+
+    request = json.loads(Path(request_path).read_text())
+    items = request.get("items") if isinstance(request, dict) else None
+    if not isinstance(items, list) or not items:
+        raise Refusal("an evidence request is {\"items\": [...]} with one or more")
+    base = load_base()
+    board = base.reference.values()
+    requests = []
+    for item in items:
+        k, modules = key_of(item), tuple(item.get("modules") or ())
+        if k not in board or not modules:
+            raise Refusal(f"evidence request {k}: not a reference, or no modules")
+        requests.append((k, modules))
+    if len(set(requests)) != len(requests):
+        raise Refusal("an evidence request names an item twice")
+    pins = audit_module_pins([m for _, modules in requests for m in modules])
+    fix_module_pins(base.meta, fixes_dir)
+    harness_pinned = harness_pin()
+    harness = load_module("upgrade_sweep_harness", HARNESS)
+    final = load_module(f"upgrade_{FIX_ENTRY}", fixes_dir / f"{FIX_ENTRY}.py")
+
+    from policyengine_us import CountryTaxBenefitSystem
+
+    scenarios = pd.read_csv(io.StringIO(base.scenarios_csv))
+    plain = compute_items(
+        CountryTaxBenefitSystem(reform=final.reform),
+        scenarios,
+        [k for k, _ in requests],
+        harness.build_situation,
+    )
+    corrected = module_values_on(final, scenarios, requests, harness.build_situation)
+    doc = {
+        "kind": EVIDENCE_KIND,
+        "engine": f"policyengine-us {version('policyengine-us')}",
+        "policyengine_core": version("policyengine-core"),
+        "computed_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "builder_sha256": sha256(Path(__file__)),
+        "harness_sha256": harness_pinned["sha256"],
+        "conventions": f"{FIXES_REL}/{FIX_ENTRY}.py",
+        "base_commit": BASE_COMMIT,
+        "modules": pins,
+        "items": [
+            {
+                "scenario_id": k[0],
+                "variable": k[1],
+                "modules": list(modules),
+                "engine_value": plain[k],
+                "corrected_value": corrected[(k, modules)],
+            }
+            for k, modules in requests
+        ],
+    }
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(dump_record(doc))
+    return doc
+
+
 def trace_outputs(system, scenarios, items, build_situation) -> dict:
     import types
 
@@ -1109,13 +1456,34 @@ def main(argv: list[str] | None = None) -> None:
     import pandas as pd
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--actions", required=True)
-    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--actions")
+    parser.add_argument("--out-dir")
     parser.add_argument("--fixes-dir", default=str(FIXES))
     parser.add_argument("--computed-csv")
     parser.add_argument("--regenerated-at")
     parser.add_argument("--allow-draft", action="store_true")
+    parser.add_argument("--evidence-request")
+    parser.add_argument("--evidence-out")
     args = parser.parse_args(argv)
+
+    if args.evidence_request or args.evidence_out:
+        if not (args.evidence_request and args.evidence_out) or args.actions:
+            parser.error("evidence mode takes --evidence-request and --evidence-out")
+        doc = write_evidence(
+            Path(args.evidence_request),
+            Path(args.evidence_out),
+            Path(args.fixes_dir).resolve(),
+        )
+        print(f"{doc['engine']}: {len(doc['items'])} items")
+        for item in doc["items"]:
+            print(
+                f"  {item['scenario_id']} {item['variable']:46s} "
+                f"{item['engine_value']:>11.2f} -> {item['corrected_value']:>11.2f}  "
+                f"{'+'.join(item['modules'])}"
+            )
+        return
+    if not (args.actions and args.out_dir):
+        parser.error("a build takes --actions and --out-dir")
 
     actions_path = Path(args.actions)
     actions = json.loads(actions_path.read_text())
@@ -1153,7 +1521,36 @@ def main(argv: list[str] | None = None) -> None:
     write_computed(
         Path(args.computed_csv or out / "computed.csv"), base, computed, states
     )
-    plan = plan_upgrade(base, release, ruled, actions, computed)
+    targets = [
+        entry
+        for entry in actions.get("regenerated_exclusions", [])
+        if isinstance(entry.get("target"), dict)
+        and entry["target"].get("kind") == TARGET_FIX_MODULES
+    ]
+    evidence = {
+        entry["target"]["evidence"]["path"]: load_evidence(entry["target"]["evidence"])
+        for entry in targets
+        if isinstance(entry["target"].get("evidence"), dict)
+    }
+    module_pins = audit_module_pins(
+        [m for entry in targets for m in target_modules(entry)]
+    )
+    module_values = module_values_on(
+        final,
+        scenarios,
+        [(key_of(entry), target_modules(entry)) for entry in targets],
+        harness.build_situation,
+    )
+    plan = plan_upgrade(
+        base,
+        release,
+        ruled,
+        actions,
+        computed,
+        evidence=evidence,
+        module_pins=module_pins,
+        module_values=module_values,
+    )
     if plan.problems:
         raise Refusal("refusing to write references:\n  " + "\n  ".join(plan.problems))
 

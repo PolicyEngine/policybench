@@ -2514,7 +2514,11 @@ def write_judge_provenance(args) -> None:
         not validate_verdicts(args.stage_dir / "audit", seed=load_seed(args.stage_dir)),
         "missing or invalid verdicts; run judge",
     )
-    write_json(JUDGE_PROVENANCE, judge_provenance_record(cases, rejudged))
+    # json.dumps(indent=1), as release 20260930's docs/gpt61sol record is.
+    record = json.loads(
+        json.dumps(judge_provenance_record(cases, rejudged), sort_keys=True)
+    )
+    JUDGE_PROVENANCE.write_text(json.dumps(record, indent=1, allow_nan=False) + "\n")
     verify_judge_provenance(cases, rejudged, JUDGE_PROVENANCE)
     print(f"Wrote {JUDGE_PROVENANCE_PATH}: {len(rejudged)} verdicts")
 
@@ -3049,7 +3053,7 @@ def upgrade_baseline(spec: dict | None = None) -> Baseline:
 
 
 def regeneration_lands(variable: str, value: float, alternative: float) -> bool:
-    """Whether a regenerated output lands on its record's alternative_value:
+    """Whether a regenerated output lands on its audited corrected value:
     within REGENERATION_TOLERANCE ($1, the exact-match tolerance) for an
     amount, equal for a 0/1 flag (policybench.paper_results'
     moves_beyond_tolerance, which the builder applies too)."""
@@ -3058,6 +3062,148 @@ def regeneration_lands(variable: str, value: float, alternative: float) -> bool:
     return abs(value - alternative) <= REGENERATION_TOLERANCE and not (
         moves_beyond_tolerance(variable, alternative, value)
     )
+
+
+def engine_older(older: str, newer: str) -> bool:
+    """Whether one 'policyengine-us X.Y.Z' release precedes another."""
+
+    def parts(engine) -> tuple[int, ...] | None:
+        if not isinstance(engine, str) or not engine.startswith(ENGINE_PREFIX):
+            return None
+        try:
+            return tuple(int(p) for p in engine.removeprefix(ENGINE_PREFIX).split("."))
+        except ValueError:
+            return None
+
+    a, b = parts(older), parts(newer)
+    return a is not None and b is not None and a < b
+
+
+# The audited root-cause fix modules a "fix_modules" regeneration target
+# names, as committed at BASE_COMMIT.
+AUDIT_FIXES = Path("reference_audit/2026-09-22/fixes")
+TARGET_KEYS = {
+    "record": {"kind", "value", "engine"},
+    "fix_modules": {
+        "kind",
+        "value",
+        "engine",
+        "engine_value",
+        "modules",
+        "evidence",
+        "evidence_sha256",
+        "value_with_modules",
+    },
+}
+
+
+def regeneration_target_problems(
+    key: tuple[str, str], record: dict, target, value: float, engine: str
+) -> list[str]:
+    """Why a regenerated output's audited target does not hold, re-derived
+    from what the build cites (the builder's regeneration_target).
+
+    A "record" target is the record's alternative_value on the record's
+    engine. A "fix_modules" target is the corrected value in a committed
+    evidence file, at its sha256, computed on an older engine than the build's
+    with fix modules committed at BASE_COMMIT; there the modules moved the
+    output beyond the exact-match tolerance (the defect was present), and on
+    the build's engine they moved it by no more than REGENERATION_TOLERANCE
+    (nothing is left to fix). Either way the build's value lands on it.
+    """
+    variable = key[1]
+    if not isinstance(target, dict) or target.get("kind") not in TARGET_KEYS:
+        return [f"{key}: the regeneration names no audited target"]
+    kind = target["kind"]
+    if set(target) != TARGET_KEYS[kind]:
+        return [f"{key}: the {kind} target's fields are {sorted(target)}"]
+    if not _number(target["value"]):
+        return [f"{key}: the target's value is not a number"]
+    problems = []
+    if kind == "record":
+        if not _same(target["value"], float(record["alternative_value"])) or (
+            target["engine"] != record["engine_version"]
+        ):
+            problems.append(f"{key}: the record target is not the record's")
+    else:
+        problems.extend(_fix_modules_target_problems(key, target, value, engine))
+    if not regeneration_lands(variable, value, float(target["value"])):
+        problems.append(
+            f"{key}: regenerated at {value}, not within "
+            f"${REGENERATION_TOLERANCE:g} of its audited target {target['value']} "
+            f"({kind})"
+        )
+    return problems
+
+
+def _fix_modules_target_problems(
+    key: tuple[str, str], target: dict, value: float, engine: str
+) -> list[str]:
+    from policybench.paper_results import moves_beyond_tolerance
+
+    variable = key[1]
+    path = target["evidence"]
+    if not isinstance(path, str) or Path(path).is_absolute() or ".." in Path(path).parts:
+        return [f"{key}: the evidence path {path!r} is not in the checkout"]
+    file = ROOT / path
+    if not file.is_file() or digest(file) != target["evidence_sha256"]:
+        return [f"{key}: {path} is missing or not the evidence its sha256 pins"]
+    try:
+        doc = json.loads(file.read_text())
+    except ValueError:
+        return [f"{key}: {path} is not JSON"]
+    problems = []
+    if not isinstance(doc, dict) or doc.get("kind") != "regeneration_evidence":
+        return [f"{key}: {path} is not regeneration evidence"]
+    if doc.get("engine") != target["engine"] or not engine_older(
+        target["engine"], engine
+    ):
+        problems.append(
+            f"{key}: the evidence's engine {doc.get('engine')!r} is not the target's, "
+            f"or is not older than the build's {engine}"
+        )
+    modules = target["modules"]
+    if not (
+        isinstance(modules, list)
+        and modules
+        and all(isinstance(m, dict) and set(m) == {"module", "sha256"} for m in modules)
+    ):
+        return [*problems, f"{key}: the target lists no fix modules"]
+    names = [m["module"] for m in modules]
+    for entry in modules:
+        name = entry["module"]
+        committed = hashlib.sha256(base_commit_blob(AUDIT_FIXES / name)).hexdigest()
+        if entry["sha256"] != committed or doc["modules"].get(name) != committed:
+            problems.append(
+                f"{key}: {name} is not {AUDIT_FIXES / name} as committed at "
+                f"{BASE_COMMIT[:12]}"
+            )
+    items = [
+        item
+        for item in doc.get("items", [])
+        if isinstance(item, dict) and spec_key(item) == key and item.get("modules") == names
+    ]
+    if len(items) != 1:
+        return [*problems, f"{key}: {path} has {len(items)} items for {names}"]
+    item = items[0]
+    if not (
+        _same(item.get("engine_value"), target["engine_value"])
+        and _same(item.get("corrected_value"), target["value"])
+    ):
+        problems.append(f"{key}: the target's values are not the evidence's")
+    elif not moves_beyond_tolerance(
+        variable, float(item["engine_value"]), float(item["corrected_value"])
+    ):
+        problems.append(
+            f"{key}: on {doc['engine']} the modules do not move it, so the evidence "
+            "shows no defect"
+        )
+    after = target["value_with_modules"]
+    if not _number(after) or not regeneration_lands(variable, float(after), value):
+        problems.append(
+            f"{key}: on {engine} the audited fix still moves it: {value} -> {after}"
+        )
+    return problems
 
 
 def _number(value) -> bool:
@@ -3319,6 +3465,7 @@ def upgrade_exclusion_records(
     changed: dict[tuple[str, str], float],
     plan: dict,
     engine: str,
+    revision: dict | None = None,
 ) -> tuple[list[dict], frozenset, frozenset, frozenset]:
     """The build's exclusion record, gated: the release's record.
 
@@ -3327,7 +3474,10 @@ def upgrade_exclusion_records(
     build's actions newly exclude, and nothing else. So the regenerated ruled
     records are exactly the spec's regenerated_by_upgrade; each regenerated
     record is an engine defect whose output the built CSV now scores within
-    REGENERATION_TOLERANCE of its alternative_value; a kept record keeps its
+    REGENERATION_TOLERANCE of its audited target, as the revision's
+    regenerated_exclusions entry states it and regeneration_target_problems
+    re-derives it (the record's alternative_value, or the corrected value in a
+    committed fix-module evidence file); a kept record keeps its
     bytes and its output its value (rule 5: unlisted in ``changed``); a new
     record is its action's, computed on the build's engine and frozen at the
     built value. Release 20261006's records keep their order and its last
@@ -3424,14 +3574,15 @@ def upgrade_exclusion_records(
                 f"{key}: an engine upgrade regenerates only an engine defect, not "
                 f"a {record['reason_code']} record"
             )
-        if not regeneration_lands(
-            key[1], values[key], float(record["alternative_value"])
-        ):
-            problems.append(
-                f"{key}: regenerated at {values[key]}, not within "
-                f"${REGENERATION_TOLERANCE:g} of its record's alternative_value "
-                f"{record['alternative_value']}"
-            )
+        entries = [
+            item
+            for item in (revision or {}).get("regenerated_exclusions", [])
+            if isinstance(item, dict) and spec_key(item) == key
+        ]
+        target = entries[0].get("target") if len(entries) == 1 else None
+        problems.extend(
+            regeneration_target_problems(key, record, target, values[key], engine)
+        )
     order = [key for key in map(spec_key, doc["exclusions"]) if key in base]
     if order != [key for key in map(spec_key, base_doc["exclusions"]) if key in built]:
         problems.append("release 20261006's records changed their order")
@@ -3505,7 +3656,7 @@ def load_build(
         f"{misstated[:8]}",
     )
     records, regenerated_base, regenerated_ruled, added = upgrade_exclusion_records(
-        baseline, text, values, changed, plan, engine
+        baseline, text, values, changed, plan, engine, revision
     )
     expected_traces = {f"{s}|{v}" for s, v in changed}
     require(
