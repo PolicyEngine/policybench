@@ -2293,6 +2293,74 @@ def verify_judge_provenance(
     )
 
 
+# The provenance groups of this release's new verdicts, by the account their
+# sidecar declares: the pb-judge setup-token login of Max's 2026-09-30 opt-in
+# (the GPT-6.1 Sol stage's "setup-token 2"), and subfleet lane claude-18's token
+# for the 21 judged after that login's weekly limit (Fleet ops, 2026-10-09).
+PROVENANCE_GROUPS = {
+    "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30": (
+        "isolated: setup-token 2"
+    ),
+    "claude:max@axiom.org (subfleet lane claude-18)": (
+        "isolated: subfleet lane claude-18"
+    ),
+}
+PROVENANCE_NOTE = (
+    "Provenance of the new Opus 5.5 judge verdicts in the Claude Haiku 5.5 stage: "
+    "every case Claude Haiku 5.5 re-opened, which includes the nine cases release "
+    "20261006 reworded. Every verdict ran through scripts/run_audit_claude.sh "
+    "from an empty directory outside the repo, with no tools, an allowlisted "
+    "environment, no user settings and a token login, at effort xhigh; each "
+    "transcript passes the runner's checks. Most ran on Max's second "
+    "setup-token login (2026-09-30 opt-in); those judged after that login's "
+    "weekly limit ran on subfleet lane claude-18's token. Counts are by group. "
+    "Scores do not depend on judge verdicts."
+)
+
+
+def judge_provenance_record(cases_dir: Path, rejudged: frozenset[str]) -> dict:
+    """The record verify_judge_provenance checks, built from the sidecars."""
+    entries = []
+    for case_id in sorted(rejudged):
+        case = cases_dir / case_id
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        declared = meta.get("judge_account_declared")
+        require(
+            declared in PROVENANCE_GROUPS,
+            f"{case_id}: no provenance group for the declared account",
+        )
+        require("judge_isolation" in meta, f"{case_id}: the verdict is not isolated")
+        entry = {
+            "case_id": case_id,
+            "group": PROVENANCE_GROUPS[declared],
+            "isolated": True,
+            **{
+                field: withhold_addresses(meta.get(field))
+                for field in JUDGE_SIDECAR_FIELDS
+            },
+            "verdict_sha256": digest(case / "verdict.json"),
+            "prompt_sha256": digest(case / "prompt.md"),
+        }
+        entries.append(entry)
+    counts: dict[str, int] = {}
+    for entry in entries:
+        counts[entry["group"]] = counts.get(entry["group"], 0) + 1
+    return {"note": PROVENANCE_NOTE, "counts": counts, "verdicts": entries}
+
+
+def write_judge_provenance(args) -> None:
+    """Write JUDGE_PROVENANCE from the stage's sidecars, then check it."""
+    cases = args.stage_dir / "audit" / "cases"
+    rejudged = rejudged_cases(args.stage_dir)
+    require(
+        not validate_verdicts(args.stage_dir / "audit", seed=load_seed(args.stage_dir)),
+        "missing or invalid verdicts; run judge",
+    )
+    write_json(JUDGE_PROVENANCE, judge_provenance_record(cases, rejudged))
+    verify_judge_provenance(cases, rejudged, JUDGE_PROVENANCE)
+    print(f"Wrote {JUDGE_PROVENANCE_PATH}: {len(rejudged)} verdicts")
+
+
 def judge(args, bundle) -> None:
     """Run one Claude CLI judge at a time and retry missing/hedged cases."""
     from policybench.audit import collect_audit
@@ -2612,6 +2680,7 @@ def parse_args(argv=None):
             "install-exclusions",
             "judge",
             "adjudicate-exclusions",
+            "provenance",
             "triage",
             "export",
         ),
@@ -2705,6 +2774,8 @@ def main(argv=None) -> None:
             install_exclusions(args)
         elif args.step == "adjudicate-exclusions":
             adjudicate_exclusions(args)
+        elif args.step == "provenance":
+            write_judge_provenance(args)
         elif args.step == "judge":
             judge(args, bundle)
         elif args.step == "triage":

@@ -4700,3 +4700,79 @@ def test_the_freeze_tests_do_not_spell_the_release_tag():
         if driver.RELEASE_TAG in line
     ]
     assert lines == [], f"tests/test_freeze_haiku55.py spells the tag on {lines}"
+
+
+def _provenance_case(root: Path, case_id: str, meta: dict) -> None:
+    case = root / case_id
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text("prompt")
+    (case / "verdict.json").write_text("{}")
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+
+
+def test_the_provenance_record_groups_each_verdict_by_its_declared_account(tmp_path):
+    """Each entry copies its sidecar's fields (an address withheld), hashes its
+    verdict and prompt, and takes its group from the declared account; the
+    counts are the tally of the groups."""
+    lane = "claude:max@axiom.org (subfleet lane claude-18)"
+    token = next(k for k in driver.PROVENANCE_GROUPS if "setup-token" in k)
+    for case_id, declared in (("us__a__x", token), ("us__b__y", lane)):
+        _provenance_case(
+            tmp_path,
+            case_id,
+            {
+                "judge_account_declared": declared,
+                "judge_effort": "xhigh",
+                "judge_model_reported": ["claude-opus-5-5"],
+                "judged_at_utc": "2026-10-09T11:00:00+00:00",
+                "judge_isolation": {"cwd": "empty"},
+            },
+        )
+    record = driver.judge_provenance_record(
+        tmp_path, frozenset({"us__a__x", "us__b__y"})
+    )
+    assert set(record) == driver.JUDGE_PROVENANCE_KEYS
+    assert record["counts"] == {
+        "isolated: setup-token 2": 1,
+        "isolated: subfleet lane claude-18": 1,
+    }
+    by_case = {entry["case_id"]: entry for entry in record["verdicts"]}
+    assert set(by_case["us__a__x"]) == driver.JUDGE_PROVENANCE_ENTRY_KEYS
+    assert by_case["us__b__y"]["judge_account_declared"] == (
+        f"claude:{driver.WITHHELD_ADDRESS} (subfleet lane claude-18)"
+    )
+    assert by_case["us__a__x"]["prompt_sha256"] == hashlib.sha256(b"prompt").hexdigest()
+    assert not driver.account_data(record, "record", keys=False)
+
+
+@pytest.mark.parametrize(
+    "meta",
+    [
+        {"judge_account_declared": "someone else", "judge_isolation": {}},
+        {"judge_account_declared": ("claude:max@axiom.org (subfleet lane claude-18)")},
+    ],
+)
+def test_the_provenance_record_refuses_an_unknown_account_or_an_unisolated_verdict(
+    tmp_path, meta
+):
+    _provenance_case(tmp_path, "us__a__x", meta)
+    with pytest.raises(SystemExit):
+        driver.judge_provenance_record(tmp_path, frozenset({"us__a__x"}))
+
+
+def test_the_provenance_record_of_the_live_stage_passes_the_export_gate():
+    """Local: once every re-opened case has its verdict, the record built from
+    the live stage's sidecars passes verify_judge_provenance (transcripts
+    included), so export accepts it."""
+    stage = STAGE
+    if not (stage / "prompt-changes.json").is_file():
+        pytest.skip("no live stage")
+    cases = stage / "audit" / "cases"
+    rejudged = driver.rejudged_cases(stage)
+    if not all((cases / case / "verdict.json").is_file() for case in rejudged):
+        pytest.skip("the live stage is still being judged")
+    record = driver.judge_provenance_record(cases, rejudged)
+    with tempfile.TemporaryDirectory() as scratch:
+        path = Path(scratch) / "judge_provenance.json"
+        path.write_text(json.dumps(record))
+        driver.verify_judge_provenance(cases, rejudged, path)
