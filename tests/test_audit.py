@@ -518,10 +518,18 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
     assert not verdict_path.exists()  # stale verdict dropped
     assert not meta_path.exists()  # and its provenance sidecar with it
 
-    # An unchanged case keeps its verdict.
+    # An unchanged case keeps its verdict, judged on the prompt's template
+    # (the re-opened case's prompt is the current version's).
     verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
+    meta_path.write_text(json.dumps({"judge_template_version": 2}))
     prepare_audit(d, audit_dir)
     assert verdict_path.exists()
+    # A verdict whose sidecar records no version was judged on v1, so the
+    # current version's prompt is not the one it was judged on.
+    meta_path.write_text('{"judge_model_requested": "opus"}')
+    prepare_audit(d, audit_dir)
+    assert not verdict_path.exists()
+    assert not meta_path.exists()
 
 
 def test_collect_audit_coerces_parse_source_for_parsed_predictions(tmp_path: Path):

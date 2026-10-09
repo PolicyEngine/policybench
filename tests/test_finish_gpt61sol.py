@@ -28,7 +28,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import finish_gpt61sol as driver  # noqa: E402
 
-from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+from policybench.audit import (  # noqa: E402
+    AUDIT_OUTPUT_SCHEMA,
+    template_version_problems,
+)
+from policybench.judge_template import (  # noqa: E402
+    CURRENT_TEMPLATE_VERSION,
+    V1_REVIEW_CLAIM,
+    template_version_of,
+)
 
 NEW = "gpt-6.1-sol"
 SLUG = "gpt61sol"
@@ -966,7 +974,9 @@ def seeded_stage(tmp_path, monkeypatch):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = tmp_path / "seed"
     seed_board = _board(tmp_path / "seed-board", INCUMBENT_ROWS)
-    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+    # Release 20260929's seed was judged on judge template v1, before versions
+    # existed, so its sidecars record none.
+    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup, template_version=1)
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(
             seed / "cases" / item["case_id"],
@@ -1015,16 +1025,32 @@ def test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over(
         assert (audit / "cases" / untouched / name).read_bytes() == (
             seed / "cases" / untouched / name
         ).read_bytes()
+    # The kept case stays on the v1 template it was judged on; the re-opened
+    # one moves to the current template.
+    assert (
+        template_version_of((audit / "cases" / untouched / "prompt.md").read_bytes())
+        == 1
+    )
+    assert (
+        template_version_of((audit / "cases" / joined / "prompt.md").read_bytes())
+        == CURRENT_TEMPLATE_VERSION
+    )
     assert json.loads((stage / "prompt-changes.json").read_text()) == {
         "added": [],
         "changed": [joined],
         "kept": [untouched],
     }
     wrong = ["m1", "m2", NEW]
-    write_verdict(audit / "cases" / joined, _verdict(wrong))
+    write_verdict(
+        audit / "cases" / joined,
+        _verdict(wrong),
+        judge_template_version=CURRENT_TEMPLATE_VERSION,
+    )
     seed_binding = driver.load_seed(stage)
     assert seed_binding == driver.seed_digest(seed)
     assert driver.validate_verdicts(audit, seed=seed_binding) == []
+    # The stage mixes a v1 seed and a current-template verdict, and validates.
+    assert template_version_problems(audit) == []
 
 
 # GPT-6.1 Sol misses s0 alone: s0 is re-opened, s1 carries over.
@@ -1373,54 +1399,136 @@ def test_each_20260929_entry_names_its_seed_verdict_as_its_sidecar_records_it():
         assert named_item(entry) == replaced_item(found, key in waved), entry
 
 
-@pytest.mark.slow
-def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
-    """Release 20260929's 45-model board, as BASE_COMMIT holds it, renders
-    exactly the seed's cases and prompts.
-
-    So check_prompt_changes may attribute every changed or new prompt in a
-    stage to GPT-6.1 Sol joining its case. #182's review excluded
-    scenario_023 head_medicaid_eligible and rewrote its adjudication and case
-    note; neither enters a prompt, and its prompt is unchanged.
-    """
-    if not (SEED.is_dir() and GROUNDING.is_file()):
-        pytest.skip("release 20260929's audit or grounding is not on this machine")
-    from policybench.audit import prepare_audit
-
-    bundle = tmp_path / "publish" / driver.RUN_NAME
+def _committed_bundle(root: Path, blob) -> Path:
+    """The board a release committed, read through ``blob`` (a function from
+    a repository path to its bytes at that release's commit), as a bundle
+    prepare_audit can render: ``root/publish/<RUN_NAME>/us``."""
+    bundle = root / "publish" / driver.RUN_NAME
     (bundle / "us").mkdir(parents=True)
-    # From git: after this release's freeze the working tree holds 20260930.
     for name in (*driver.REFERENCE_FILES, "predictions.csv.gz"):
-        (bundle / "us" / name).write_bytes(
-            driver.base_commit_blob((driver.SNAPSHOT / name).relative_to(driver.ROOT))
-        )
+        (bundle / "us" / name).write_bytes(blob(SNAPSHOT_PATH / name))
     (bundle / "annotations").mkdir()
     for name in driver.ANNOTATION_FILES:
         (bundle / "annotations" / name).write_bytes(
-            driver.base_commit_blob(
-                (driver.ANNOTATIONS / name).relative_to(driver.ROOT)
-            )
+            blob(Path("annotations") / driver.RUN_NAME / name)
         )
+    return bundle / "us"
+
+
+def _prepare_like_the_driver(country_dir: Path, audit: Path, **kwargs) -> None:
+    """prepare_audit with the grounding and the object strings the driver
+    renders with (resolve_base sets them)."""
+    from policybench.audit import prepare_audit
+
     grounding = pd.read_csv(GROUNDING)
     lookup = {
         (str(r.scenario_id), str(r.variable)): str(r.grounding)
         for r in grounding.itertuples()
     }
-    audit = tmp_path / "audit"
-    # prepare renders with object strings, as resolve_base sets them.
     arrow = hasattr(pd.options, "future") and hasattr(pd.options.future, "infer_string")
     with (
         pd.option_context("future.infer_string", False)
         if arrow
         else contextlib.nullcontext()
     ):
-        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+        prepare_audit(country_dir, audit, grounding_lookup=lookup, **kwargs)
+
+
+@pytest.mark.slow
+def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
+    """Release 20260929's 45-model board, as BASE_COMMIT holds it, renders
+    exactly the seed's cases and prompts on judge template v1, the template
+    the seed was judged on.
+
+    So check_prompt_changes may attribute every changed or new prompt in a
+    stage to GPT-6.1 Sol joining its case. #182's review excluded
+    scenario_023 head_medicaid_eligible and rewrote its adjudication and case
+    note; neither enters a prompt, and its prompt is unchanged. On the current
+    template every prompt is the seed's without v1's review claim.
+    """
+    if not (SEED.is_dir() and GROUNDING.is_file()):
+        pytest.skip("release 20260929's audit or grounding is not on this machine")
+    # From git: after this release's freeze the working tree holds 20260930.
+    country_dir = _committed_bundle(tmp_path, driver.base_commit_blob)
+    audit = tmp_path / "audit"
+    _prepare_like_the_driver(country_dir, audit, template_version=1)
     assert (audit / "cases.jsonl").read_bytes() == (SEED / "cases.jsonl").read_bytes()
     rendered = driver.seed_prompt_digests(audit)
     assert rendered == driver.seed_prompt_digests(SEED) and len(rendered) == 674
     case = "us__scenario_023__head_medicaid_eligible"
     meta = json.loads((SEED / "cases" / case / "verdict.meta.json").read_text())
     assert rendered[case] == meta["prompt_sha256"]
+    current = tmp_path / "current"
+    _prepare_like_the_driver(country_dir, current)
+    for case_dir in sorted((SEED / "cases").iterdir()):
+        seed_prompt = (case_dir / "prompt.md").read_text()
+        assert (current / "cases" / case_dir.name / "prompt.md").read_text() == (
+            seed_prompt.replace(V1_REVIEW_CLAIM, "", 1)
+        ), case_dir.name
+
+
+# The audit trees releases froze (git-ignored, local only), each with the
+# commit holding the board it was rendered from: release 20260929's (the
+# GPT-6.1 Sol seed, BASE_COMMIT) and release 20260930's (RELEASE_COMMIT),
+# which release dashboard-data-20261006 carried over unchanged.
+FROZEN_AUDITS = {
+    "20260929": (SEED, "base"),
+    "20260930": (
+        Path(
+            "/Users/maxghenis/PolicyEngine/policybench/results/local/gpt61sol-stage/"
+            "gpt61sol-v1/audit"
+        ),
+        "release",
+    ),
+}
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("release", sorted(FROZEN_AUDITS))
+def test_every_frozen_verdict_rerenders_on_its_recorded_template(tmp_path, release):
+    """Local only: copied into a stage as prepare_cases copies a seed, every
+    verdict of a frozen audit tree re-renders on the template version its
+    sidecar records (absent: v1) to the exact prompt it was judged on, so
+    prepare_audit keeps every prompt, verdict and sidecar byte for byte under
+    the current default; and the tree validates."""
+    from policybench.audit import template_version_problems
+    from policybench.judge_template import recorded_template_version
+
+    tree, commit = FROZEN_AUDITS[release]
+    if not (tree.is_dir() and GROUNDING.is_file()):
+        pytest.skip(f"release {release}'s audit or grounding is not on this machine")
+    blob = driver.base_commit_blob if commit == "base" else release_blob
+    country_dir = _committed_bundle(tmp_path, blob)
+    stage = tmp_path / "stage"
+    judged = {}
+    for case_dir in sorted((tree / "cases").iterdir()):
+        if not (case_dir / "verdict.json").is_file():
+            continue
+        target = stage / "cases" / case_dir.name
+        target.mkdir(parents=True)
+        judged[case_dir.name] = {}
+        for name in ("prompt.md", "verdict.json", "verdict.meta.json"):
+            if (case_dir / name).is_file():
+                data = (case_dir / name).read_bytes()
+                (target / name).write_bytes(data)
+                judged[case_dir.name][name] = data
+    assert len(judged) == 674
+    assert template_version_problems(stage) == []
+    versions = {
+        case: recorded_template_version(
+            json.loads(files["verdict.meta.json"])
+            if "verdict.meta.json" in files
+            else None
+        )
+        for case, files in judged.items()
+    }
+    assert set(versions.values()) == {1}
+    _prepare_like_the_driver(country_dir, stage)
+    assert (stage / "cases.jsonl").read_bytes() == (tree / "cases.jsonl").read_bytes()
+    for case, files in judged.items():
+        for name, data in files.items():
+            assert (stage / "cases" / case / name).read_bytes() == data, (case, name)
+    assert template_version_problems(stage) == []
 
 
 def test_check_prompt_changes_names_new_incumbent_only_cases(tmp_path):

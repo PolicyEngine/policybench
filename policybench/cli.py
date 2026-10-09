@@ -564,6 +564,13 @@ def main():
         help="Optional CSV (scenario_id, variable, grounding) of authoritative "
         "engine facts rendered into matching case prompts",
     )
+    audit_prepare_parser.add_argument(
+        "--template-version",
+        type=int,
+        default=None,
+        help="Judge template version for new and re-opened cases (default: the "
+        "current one; a judged case keeps the version its verdict records)",
+    )
 
     audit_collect_parser = subparsers.add_parser(
         "audit-collect",
@@ -1370,10 +1377,26 @@ def main():
                 for row in grounding_df.itertuples()
                 if str(row.grounding).strip()
             }
+        from policybench.judge_template import (
+            CURRENT_TEMPLATE_VERSION,
+            JUDGE_TEMPLATE_HEADERS,
+        )
+
+        template_version = (
+            CURRENT_TEMPLATE_VERSION
+            if args.template_version is None
+            else args.template_version
+        )
+        if template_version not in JUDGE_TEMPLATE_HEADERS:
+            raise SystemExit(
+                f"audit-prepare: no judge template version {template_version}; "
+                f"the versions are {sorted(JUDGE_TEMPLATE_HEADERS)}"
+            )
         cases = prepare_audit(
             Path(args.country_dir),
             Path(args.audit_dir),
             grounding_lookup=grounding_lookup,
+            template_version=template_version,
         )
         print(
             f"Prepared {len(cases)} audit cases under {args.audit_dir}. "
@@ -1385,6 +1408,17 @@ def main():
 
         country_dir = Path(args.country_dir)
         out = collect_audit(country_dir, Path(args.audit_dir))
+        template = out["template"]
+        if not template.empty:
+            # A verdict judged on other words than its prompt.md's is not
+            # this case's verdict.
+            for case_id, problem in template.itertuples(index=False):
+                print(f"TEMPLATE: {case_id}: {problem}")
+            raise SystemExit(
+                f"{len(template)} verdicts disagree with their prompt.md on the "
+                "judge template version; re-run audit-prepare, which re-opens "
+                "them, and re-judge"
+            )
         hedged = out["hedged"]
         if not hedged.empty and not args.allow_hedged:
             for case_id in hedged["case_id"]:

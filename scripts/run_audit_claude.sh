@@ -28,7 +28,10 @@
 #     an advisor model; and unless the judge's one accepted StructuredOutput
 #     call (any other is one the schema refused) answered exactly the verdict;
 #   - it reads a private copy of prompt.md, hashed before it runs; the sidecar
-#     records that hash. A verdict is rejected if prompt.md no longer has it
+#     records that hash and the judge template version the copy begins with
+#     (judge_template_version, policybench.judge_template; null for a prompt
+#     audit-prepare did not render). A verdict is rejected if prompt.md no
+#     longer has it
 #     at extraction, or if the transcript's user events are not exactly one
 #     text message equal to the judged prompt (plus Claude Code's own
 #     StructuredOutput nudge, PROMPT_NUDGE) and the results of the judge's
@@ -354,13 +357,18 @@ extract_verdict() {
   case_dir="$1"; out_tmp="$2"; meta_tmp="$3"; judged="$4"; judged_sha="$5"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
     "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
-    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" <<'PY'
+    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" \
+    "$SCRIPT_DIR" <<'PY'
 import datetime, glob, hashlib, json, re, shutil, sys
 from pathlib import Path
 
 (case_dir, out_path, meta_path, requested_model, cli_version, config_dir, auth,
  declared, disallowed, attachments, effort, judged_path, judged_sha,
- nudge, event_types) = sys.argv[1:16]
+ nudge, event_types, script_dir) = sys.argv[1:17]
+# The judge template versions, from this runner's own checkout.
+sys.path.insert(0, str(Path(script_dir).resolve().parent))
+from policybench.judge_template import template_version_of
+
 case = Path(case_dir)
 try:
     envelope = json.load(open(case / "claude.json"))
@@ -597,6 +605,9 @@ meta = {
     "verdict_sha256": hashlib.sha256(verdict_bytes).hexdigest(),
     # The exact bytes the judge read on stdin, hashed before it ran.
     "prompt_sha256": judged_sha,
+    # The judge template those bytes begin with (policybench.judge_template),
+    # or null for a prompt audit-prepare did not render.
+    "judge_template_version": template_version_of(judged),
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,

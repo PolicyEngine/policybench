@@ -21,7 +21,11 @@ from freeze_snapshot import (  # noqa: E402
     verify_adjudications_keep_judge_verdicts,
 )
 
-from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+from policybench.audit import (  # noqa: E402
+    AUDIT_OUTPUT_SCHEMA,
+    template_version_problems,
+)
+from policybench.judge_template import template_header  # noqa: E402
 
 VERDICT = {
     "reference_suspect": False,
@@ -289,6 +293,8 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     meta = json.loads((case_dir / "verdict.meta.json").read_text())
     assert meta["judge_runner"] == "scripts/run_audit_codex.sh"
     assert meta["judge_model_reported"] == ["gpt-5.6-sol"]
+    # The fixture's prompt is no judge template's.
+    assert meta["judge_template_version"] is None
     assert (
         meta["verdict_sha256"]
         == hashlib.sha256((case_dir / "verdict.json").read_bytes()).hexdigest()
@@ -508,3 +514,27 @@ def test_adjudication_flag_matches_the_verdict_or_names_its_run(tmp_path: Path):
             [dict(entry, scenario_id="scenario_002", judge_reference_suspect=False)],
             cases,
         )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+def test_both_runners_record_the_judge_template_version(tmp_path: Path):
+    """Each runner's sidecar records the template version of the prompt its
+    verdict was judged on, so prepare_audit can render the case on it again."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path)
+    for runner, version in (("run_audit_claude.sh", 2), ("run_audit_codex.sh", 1)):
+        (case_dir / "verdict.json").unlink(missing_ok=True)
+        (case_dir / "prompt.md").write_text(
+            template_header(version) + "\nCOUNTRY: US\nClassify this miss.\n"
+        )
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / runner), str(audit_dir)],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=tmp_path,
+        )
+        assert result.returncode == 0, result.stderr + result.stdout
+        meta = json.loads((case_dir / "verdict.meta.json").read_text())
+        assert meta["judge_runner"] == f"scripts/{runner}"
+        assert meta["judge_template_version"] == version
+        assert template_version_problems(audit_dir) == []

@@ -35,6 +35,14 @@ from policybench.annotation_taxonomy import (
 )
 from policybench.case_annotations import _format_value, wrong_prediction_rows
 from policybench.full_run_export import load_case_reference_explanations
+from policybench.judge_template import (
+    CURRENT_TEMPLATE_VERSION,
+    JUDGE_TEMPLATE_HEADERS,
+    TEMPLATE_VERSION_FIELD,
+    recorded_template_version,
+    template_header,
+    template_version_of,
+)
 from policybench.spec import metric_type_for_output
 
 # _format_value renders a missing/NaN prediction as this sentinel; such a miss
@@ -275,67 +283,21 @@ AUDIT_OUTPUT_SCHEMA: dict = {
     ],
 }
 
-_PROMPT_HEADER = """\
-You are diagnosing why AI models missed a PolicyEngine reference value on a \
-US/UK tax-and-benefit estimation benchmark. The models answered from \
-parametric knowledge with no tools; PolicyEngine's microsimulation is the \
-reference.
-
-The reference value and its derivation are generated directly from the \
-engine's computation trace, and the reference pipeline has survived an \
-adversarial review program: every wrong-reference hypothesis raised by \
-earlier audits was adjudicated against primary sources, and the few real \
-bugs found were fixed before this run. Treat the reference and its \
-derivation as correct. Your job is NOT to re-litigate the reference — it is \
-to explain each model's mistake decisively.
-
-For every wrong model, write a `diagnosis`: 1-3 definitive sentences naming \
-the exact rule, eligibility pathway, deduction, threshold, or computation \
-step that model missed or misapplied, grounded in its own stated reasoning. \
-Be specific — "treated the 138% FPL MAGI limit as the only Medicaid pathway \
-and never applied the aged/disabled income test, which deducts the Medicare \
-Part B premium from countable income" — not generic ("got the income \
-calculation wrong"). If the model gave no usable reasoning, derive the \
-mistake from its answer: state what the correct derivation yields and what \
-shortcut the model's number is consistent with.
-
-Hedging is forbidden in `diagnosis` and `rationale`, and these phrasings \
-are mechanically rejected: "plausible"; "not enough evidence"; \
-"insufficient evidence/information"; "cannot/unable to \
-determine/verify/confirm/tell"; "difficult/hard to verify"; "may be/have"; \
-"might be/have"; "possibly"; "perhaps"; "unclear"; "the reference \
-is/appears/seems correct" or any other verdict on the reference. Write \
-definitively around them (e.g. "excess shelter costs are deductible", not \
-"may be deducted"). Doubt \
-about the reference belongs ONLY in reference_suspect + \
-reference_bug_hypothesis, and requires a concrete contradiction: the \
-derivation conflicts with a specific statute, regulation, or published \
-parameter you can name, or contradicts its own arithmetic. Absent that, set \
-reference_suspect=false and diagnose from the reference as ground truth.
-
-failure_source meanings:
-- llm_error: the model reasoned or computed incorrectly (the usual case).
-- prompt_ambiguity: the question is genuinely ambiguous; a careful expert \
-could read it more than one way. Name the two readings.
-- reference_model_issue_fixed / reference_data_issue_fixed: the reference \
-value looks wrong (PolicyEngine logic / underlying data). Use with \
-reference_suspect=true and a concrete contradiction.
-- parse_contract_failure: the model's answer was missing or unparseable, not a \
-substantive error.
-- budget_exhausted_at_ceiling: the provider length-terminated every retry through \
-its maximum allowed completion budget.
-- needs_review: genuinely cannot tell; name precisely what information is \
-missing.
-
-Output ONLY the JSON verdict matching the schema. Do not run any commands; all \
-information you need is below.
-"""
+# The judge's prompt is a versioned header (policybench.judge_template) and
+# the case. A verdict is carried only on the exact bytes it was judged on, so
+# a seed case renders with the version its sidecar records.
 
 
-def render_case_prompt(case: AuditCase) -> str:
-    """Render the self-contained classification prompt for one case."""
+def render_case_prompt(
+    case: AuditCase, template_version: int = CURRENT_TEMPLATE_VERSION
+) -> str:
+    """Render the self-contained classification prompt for one case.
+
+    ``template_version`` picks the header (``JUDGE_TEMPLATE_HEADERS``); the
+    rest of the prompt does not depend on it.
+    """
     lines = [
-        _PROMPT_HEADER,
+        template_header(template_version),
         f"\nCOUNTRY: {case.country.upper()}",
         f"OUTPUT (variable): {case.variable}  [{case.metric_type}]",
         f"POLICYENGINE REFERENCE VALUE: {case.reference_value}",
@@ -368,6 +330,7 @@ def prepare_audit(
     country_dir: Path,
     audit_dir: Path,
     grounding_lookup: dict[tuple[str, str], str] | None = None,
+    template_version: int = CURRENT_TEMPLATE_VERSION,
 ) -> list[AuditCase]:
     """Write per-case prompts, the shared output schema, and a manifest.
 
@@ -376,8 +339,17 @@ def prepare_audit(
         schema.json
         cases.jsonl
         cases/<case_id>/prompt.md
-        cases/<case_id>/verdict.json   (written later by the runner)
+        cases/<case_id>/verdict.json        (written later by the runner)
+        cases/<case_id>/verdict.meta.json   (its provenance sidecar)
+
+    A case that already has a verdict (a seed a release driver copied in, or
+    an earlier run's) is rendered with the template version its sidecar
+    records (absent: v1). If that reproduces its prompt.md, the verdict
+    stands and the prompt keeps its bytes. Otherwise the case changed since it
+    was judged: the verdict and its sidecar are dropped and the case is
+    re-opened. New and re-opened cases are rendered with ``template_version``.
     """
+    template_header(template_version)
     cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
     audit_dir.mkdir(parents=True, exist_ok=True)
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
@@ -405,22 +377,84 @@ def prepare_audit(
             case_dir.mkdir(exist_ok=True)
             prompt_path = case_dir / "prompt.md"
             verdict_path = case_dir / "verdict.json"
-            new_prompt = render_case_prompt(case)
-            # Content-aware resumability: if the case changed since it was last
-            # classified (e.g. a model was re-run and now answers differently),
-            # the prompt differs from the stored one — drop the stale verdict so
-            # the runner re-classifies it rather than reusing the old label.
-            if (
-                verdict_path.exists()
-                and prompt_path.exists()
-                and prompt_path.read_text() != new_prompt
-            ):
-                verdict_path.unlink()
-                # The provenance sidecar describes that verdict; a re-judge by
-                # the other runner must not inherit it.
-                (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+            new_prompt = None
+            if verdict_path.exists():
+                # A judged case renders with the template its verdict was
+                # judged on, so an unchanged case keeps its prompt's bytes.
+                judged_on = recorded_template_version(_sidecar(case_dir))
+                if judged_on is not None:
+                    seeded = render_case_prompt(case, judged_on)
+                    # A verdict without its prompt keeps it, as before
+                    # templates were versioned.
+                    if not prompt_path.exists() or prompt_path.read_text() == seeded:
+                        new_prompt = seeded
+                if new_prompt is None:
+                    # Content-aware resumability: the case changed since it was
+                    # classified (e.g. a model was re-run and now answers
+                    # differently), or its template is unknown. Drop the stale
+                    # verdict so the runner re-classifies it rather than
+                    # reusing the old label. The provenance sidecar describes
+                    # that verdict; a re-judge by the other runner must not
+                    # inherit it.
+                    verdict_path.unlink()
+                    (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+            if new_prompt is None:
+                new_prompt = render_case_prompt(case, template_version)
             prompt_path.write_text(new_prompt)
     return cases
+
+
+def _sidecar(case_dir: Path) -> dict | None:
+    """A case's ``verdict.meta.json``, or None when it has none.
+
+    A sidecar that is not a JSON object records no template version.
+    """
+    path = case_dir / "verdict.meta.json"
+    if not path.is_file():
+        return None
+    try:
+        meta = json.loads(path.read_text())
+    except ValueError:
+        meta = None
+    return meta if isinstance(meta, dict) else {TEMPLATE_VERSION_FIELD: None}
+
+
+def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
+    """Each judged case whose prompt and verdict disagree on the template.
+
+    A tree may mix versions: a release's carried seeds keep the version they
+    were judged on, while its new and re-opened cases use the current one.
+    Every verdict must have its prompt.md, its sidecar must name a known
+    version (absent: v1), and prompt.md must begin with that version's
+    header. Returns ``(case_id, problem)`` for each case that fails, in case
+    order.
+    """
+    problems: list[tuple[str, str]] = []
+    cases_root = audit_dir / "cases"
+    if not cases_root.is_dir():
+        return problems
+    for case_dir in sorted(cases_root.iterdir()):
+        if not (case_dir / "verdict.json").is_file():
+            continue
+        meta = _sidecar(case_dir)
+        recorded = recorded_template_version(meta)
+        prompt_path = case_dir / "prompt.md"
+        if recorded is None:
+            problem = (
+                f"its sidecar's {TEMPLATE_VERSION_FIELD} "
+                f"{meta.get(TEMPLATE_VERSION_FIELD)!r} names no template "
+                f"version ({sorted(JUDGE_TEMPLATE_HEADERS)})"
+            )
+        elif not prompt_path.is_file():
+            problem = "a verdict without prompt.md"
+        else:
+            actual = template_version_of(prompt_path.read_bytes())
+            if actual == recorded:
+                continue
+            found = "no template version" if actual is None else f"v{actual}"
+            problem = f"prompt.md is {found}, but its verdict records v{recorded}"
+        problems.append((case_dir.name, problem))
+    return problems
 
 
 # --- Hedge detection -----------------------------------------------------------
@@ -516,14 +550,17 @@ def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
     """Fold verdicts into the annotation schema.
 
-    Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...}``.
+    Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...,
+    "template": ...}``.
     ``row`` and ``case`` match the committed annotation CSV columns, extended
     with ``rationale`` and ``reference_suspect`` so the classifier's reasoning
     is preserved. ``missing`` lists cases whose verdict has not yet been
     produced (resumability). ``hedged`` lists case ids whose diagnosis or
     rationale hedges instead of diagnosing (see :data:`HEDGE_PATTERNS`) —
     delete those ``verdict.json`` files and re-run the classifier rather than
-    shipping them.
+    shipping them. ``template`` lists the judged cases whose prompt and
+    verdict disagree on the judge template version
+    (:func:`template_version_problems`).
     """
     manifest = _load_manifest(audit_dir)
     cases_root = audit_dir / "cases"
@@ -669,4 +706,7 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
         "case": pd.DataFrame(case_records, columns=case_columns),
         "missing": pd.DataFrame({"case_id": missing}, columns=["case_id"]),
         "hedged": pd.DataFrame({"case_id": hedged}, columns=["case_id"]),
+        "template": pd.DataFrame(
+            template_version_problems(audit_dir), columns=["case_id", "problem"]
+        ),
     }

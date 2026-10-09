@@ -47,6 +47,52 @@ side. It is told to default to `llm_error` and flag `reference_suspect` only
 with concrete evidence — the same conservatism as the deterministic inferrer,
 but with actual tax/benefit reasoning instead of keyword matching.
 
+## Judge template versions
+
+Each prompt starts with a fixed header, the judge template, followed by the
+case (`policybench/judge_template.py`). The template is versioned because a
+release carries a seed verdict forward only when its case re-renders to the
+exact bytes the judge read.
+
+| Version | Judged | Change |
+|---|---|---|
+| v1 | every verdict before versions were added (2026-10-09), through release dashboard-data-20261006 and the Claude Haiku 5.5 release's judges | none |
+| v2 | new and re-opened cases from then on | drops v1's claim that the reference pipeline "has survived an adversarial review program" and that "the few real bugs found were fixed before this run" |
+
+The v1 claim is not so: release dashboard-data-20261006's exclusion record
+stops scoring 28 outputs for engine defects, and the 2026-10-05 reference
+adversary found four more (`reference_audit/2026-10-05-reference-adversary/`
+on #200).
+
+- Both runners record the version a verdict was judged on in its
+  `verdict.meta.json` as `judge_template_version`. The Claude runner reads it
+  from the judged copy of `prompt.md`, the Codex runner from `prompt.md`. A
+  prompt that begins with no version's header, one `audit-prepare` did not
+  write, records `null`.
+- A sidecar without the field, or a verdict without a sidecar, was judged on
+  v1.
+- `audit-prepare` renders a case that already has a verdict with the version
+  its sidecar records. If that reproduces `prompt.md`, the verdict stands and
+  the prompt keeps its bytes. Otherwise the case changed since it was judged,
+  or its version is unknown: the verdict and its sidecar are dropped and the
+  case is re-opened. New and re-opened cases use the current version, or the
+  one `--template-version` names.
+- The fold drivers (`scripts/finish_gpt61sol.py`, `scripts/finish_adds0928.py`)
+  copy the seed's prompts, verdicts and sidecars into their stage before they
+  call `prepare_audit`. So each seed case renders with its recorded version,
+  and a kept case's prompt keeps the seed's bytes.
+- A tree may mix versions. `audit-collect` refuses a tree in which a verdict
+  records an unknown version, or one other than the version its `prompt.md`
+  begins with (`policybench.audit.template_version_problems`). Re-running
+  `audit-prepare` re-opens those cases.
+- A version's text never changes once a verdict is judged on it; changing the
+  template means adding a version. `tests/test_judge_template.py` pins each
+  version's sha256.
+- Every writer of `verdict.meta.json` must record the field. A writer that
+  does not, such as the Workflow and session judges of
+  `results/local/adds202609/judge_stages.py`, labels its verdicts v1; on a v2
+  prompt, `audit-collect` refuses them and `audit-prepare` re-opens them.
+
 ## Acting on suspect references
 
 Cases with `reference_suspect=true` are candidate PolicyEngine or data bugs.

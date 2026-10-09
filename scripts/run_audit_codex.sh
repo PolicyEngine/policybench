@@ -12,9 +12,10 @@
 #
 # Judge provenance: beside each verdict.json the runner writes verdict.meta.json
 # (the same sidecar scripts/run_audit_claude.sh writes) with the model Codex
-# reports in its log header, the model requested, the UTC timestamp, and the
+# reports in its log header, the model requested, the UTC timestamp, the
 # verdict's sha256, so a re-judged case can never keep the other runner's
-# provenance.
+# provenance, and the judge template version prompt.md begins with
+# (policybench.judge_template; null for a prompt audit-prepare did not render).
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -85,7 +86,7 @@ classify_one() {
     -o "$tmp" \
     - < "$prompt" > "$case_dir/codex.log" 2>&1
   if verdict_ok "$tmp" && write_provenance "$tmp" "$case_dir/codex.log" \
-      "$case_dir/verdict.meta.json.tmp"; then
+      "$case_dir/verdict.meta.json.tmp" "$prompt"; then
     mv -f "$tmp" "$out"
     mv -f "$case_dir/verdict.meta.json.tmp" "$case_dir/verdict.meta.json"
     echo "[ok] $(basename "$case_dir")"
@@ -97,12 +98,17 @@ classify_one() {
 
 # Provenance sidecar for a validated verdict: the model Codex reports in its
 # log header (`model: ...`), the model requested (or "default"), the UTC time,
-# and the verdict's sha256 so the sidecar cannot outlive the verdict it describes.
+# the verdict's sha256 so the sidecar cannot outlive the verdict it describes,
+# and the judge template version of the prompt it was judged on.
 write_provenance() {
-  verdict_path="$1"; log_path="$2"; meta_out="$3"
-  "$PYTHON" - "$verdict_path" "$log_path" "$meta_out" "${AUDIT_MODEL:-default}" <<'PY'
+  verdict_path="$1"; log_path="$2"; meta_out="$3"; prompt_path="$4"
+  "$PYTHON" - "$verdict_path" "$log_path" "$meta_out" "${AUDIT_MODEL:-default}" \
+    "$prompt_path" "$SCRIPT_DIR" <<'PY'
 import datetime, hashlib, json, re, sys
-verdict_path, log_path, meta_out, requested = sys.argv[1:5]
+from pathlib import Path
+verdict_path, log_path, meta_out, requested, prompt_path, script_dir = sys.argv[1:7]
+sys.path.insert(0, str(Path(script_dir).resolve().parent))
+from policybench.judge_template import template_version_of
 verdict = open(verdict_path, "rb").read()
 reported = []
 try:
@@ -117,6 +123,7 @@ meta = {
     "judge_model_requested": requested,
     "judge_model_reported": reported,
     "judged_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "judge_template_version": template_version_of(open(prompt_path, "rb").read()),
 }
 json.dump(meta, open(meta_out, "w"), indent=2, sort_keys=True)
 PY
