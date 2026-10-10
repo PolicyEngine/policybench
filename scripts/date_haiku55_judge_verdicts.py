@@ -200,13 +200,20 @@ def new_waves(record: dict, upgrade: str | None = None) -> dict[str, str]:
     return written
 
 
-def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
-    evidence = copy.deepcopy(evidence)
-    waves = evidence["wave_releases"]
+def base_wave_releases(waves: dict) -> dict:
+    """Release 20261006's waves alone. The waves after them are this release's,
+    which every pass writes afresh from the record, so an earlier pass's (a
+    rehearsal's, or one whose record has since changed) cannot outlive it."""
     driver.require(
         list(waves)[: len(BASE_WAVES)] == BASE_WAVES,
         "the evidence's waves are not release 20261006's",
     )
+    return {wave: waves[wave] for wave in BASE_WAVES}
+
+
+def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
+    evidence = copy.deepcopy(evidence)
+    waves = base_wave_releases(evidence["wave_releases"])
     fill = fill_release()
     if waves[FILL_WAVE].get("commit") is None:
         driver.require(

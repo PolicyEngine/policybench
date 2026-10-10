@@ -33,11 +33,12 @@ RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 # Release 20261010 (Claude Haiku 5.5) builds on it: it restates the decisions
 # on the cases Claude Haiku 5.5 re-opened (docs/haiku55/judge_verdicts_20261010.json),
 # drops the decisions on records its engine upgrade regenerated, and adds the
-# 2026-10-06 and 2026-10-09 waves' decisions.
+# 2026-10-06 and 2026-10-10 waves' decisions.
 RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 (EVIDENCE_20261010,) = sorted((ROOT / "docs/haiku55").glob("judge_verdicts_*.json"))
 # The UTC day of the frozen references' last engine upgrade: the wave of the
-# decisions on the outputs it newly excludes (2026-10-09 in the rehearsal).
+# decisions on the outputs it newly excludes (2026-10-10, on policyengine-us
+# 2.38.6; 2026-10-09 in the rehearsal).
 UPGRADE_WAVE = [
     revision["date"]
     for revision in json.loads(
@@ -262,16 +263,16 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # 69 through release 20260930; the 2026-10-05 wave added one
     # prompt_ambiguity decision for each of the eight outputs the 2026-10-05
     # audits excluded (77 in release 20261006). Release 20261010 dropped the
-    # decisions on the three records its engine upgrade regenerated (039 state,
-    # 064 federal and state income tax), decided the six ruled records the
-    # upgrade kept (2026-10-06: four unlisted-input scope cells, and
-    # Louisiana's two outputs as later law, scenario_051's restated in place
-    # from a regenerated-reference decision) and the two Indiana county
-    # outputs the upgrade newly excludes (2026-10-09).
-    assert len(entries) == 81
+    # decisions on the 14 records its engine upgrade regenerated (all
+    # engine-defect decisions of the 2026-09-22 wave), decided the six ruled
+    # records the upgrade kept (2026-10-06: four unlisted-input scope cells,
+    # and Louisiana's two outputs as later law, scenario_051's restated in
+    # place from a regenerated-reference decision) and the two Indiana county
+    # outputs the upgrade newly excludes (2026-10-10): 70.
+    assert len(entries) == 70
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
         {
-            "reference_engine_defect": 25,
+            "reference_engine_defect": 14,
             "prompt_ambiguity": 42,
             "llm_error": 12,
             "reference_later_law": 2,
@@ -305,7 +306,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # September 29 judge called later law (scenario_007 federal income tax
     # and scenario_008 New Jersey refundable credits), whose law predates the
     # reference freeze.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 69
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 58
     assert Counter(
         e.get("reference_verdict")
         for e in entries
@@ -350,7 +351,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 81
+    assert block["cases"] == 70
     # The judge's own class for each case (its verdict.json), not the
     # adjudicated one; the freezer refuses a record that differs from it.
     # After the 2026-09-30 restatements (release 20260929 had llm_error 50,
@@ -358,14 +359,14 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # reference_model_issue_fixed 16), release 20260930 had llm_error 59; the
     # judge called each of the 2026-10-05 wave's eight cases an LLM error.
     # Release 20261010's Opus 5.5 verdicts on the cases Claude Haiku 5.5
-    # re-opened give its counts.
+    # re-opened, the decisions it adds and the 14 it drops give its counts.
     assert block["by_judge_verdict"] == {
-        "llm_error": 67,
+        "llm_error": 59,
         "prompt_ambiguity": 6,
         "reference_data_issue_fixed": 1,
         "reference_engine_defect": 1,
         "reference_later_law": 1,
-        "reference_model_issue_fixed": 5,
+        "reference_model_issue_fixed": 2,
     }
     assert block["by_judge_verdict"] == dict(
         Counter(e["judge_failure_source"] for e in entries)
@@ -373,7 +374,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # unlisted_input was 20 in release 20260930 and 28 in release 20261006.
     assert block["by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 25,
+        "engine_defect": 14,
         "later_law": 2,
         "regenerated": 5,
         "unlisted_input": 34,
@@ -384,14 +385,14 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # The judge flagged none of the 2026-10-05 wave's references.
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 18,
+        "engine_defect": 11,
         "later_law": 1,
         "regenerated": 5,
         "unlisted_input": 8,
     }
     assert not any(e["judge_reference_suspect"] for e in new_wave)
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 69
+    assert manifest["reference_exclusions"]["outputs"] == 58
 
 
 def test_verify_requires_agreement_with_the_complete_record():
@@ -550,10 +551,12 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
                 assert item["judged_on"] <= entry["judge_rejudged_on"], key
     # 54 in release 20260929. The 2026-09-30 restatements gave four more
     # entries their first judge_previous item: 008 state refundable credits,
-    # 078 and 117 federal income tax, and 100 federal refundable credits.
-    # Release 20261010's restatements of the cases Claude Haiku 5.5 re-opened
-    # gave nine more theirs (58 in release 20261006).
-    assert rejudged == 67
+    # 078 and 117 federal income tax, and 100 federal refundable credits (58
+    # in release 20261006). Release 20261010 drops 14 of them with the
+    # decisions on the records its engine upgrade regenerated, and its
+    # restatements of the cases Claude Haiku 5.5 re-opened gave 12 more
+    # theirs: 56.
+    assert rejudged == 56
 
 
 def _write_case(root: Path, case: str, verdict: dict, meta: dict) -> None:
@@ -830,17 +833,17 @@ def test_each_restatement_names_its_20260930_verdict(tmp_path):
 def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     """adjudicated_on names the audit wave (date_conventions). A committed
     wave's decisions were written up to the day its release was committed;
-    this release's waves (2026-10-06 and 2026-10-09), whose release has no
+    this release's waves (2026-10-06 and 2026-10-10), whose release has no
     commit yet, record the day their adjudications were written. So the
     verdict each decision reviewed -- adjudicated_verdict where a later wave
     replaced it, otherwise the earliest verdict the entry keeps -- is dated on
     or before that day, and a committed wave's decision reviewed the verdict
     its release published.
 
-    Intended exceptions to "on or before adjudicated_on": 42 decisions of the
+    Intended exceptions to "on or before adjudicated_on": 31 decisions of the
     2026-09-22 wave reviewed verdicts its own judge runs finished on
     2026-09-23 UTC, before its release was committed that day (46 in release
-    20261006, which this release drops three of with the records its engine
+    20261006, which this release drops 14 of with the records its engine
     upgrade regenerated, and moves scenario_051's to the 2026-10-06 wave); and
     five of the 2026-10-06 wave's six decisions reviewed verdicts this
     release's judge runs finished on 2026-10-08 and 2026-10-09 UTC, before
@@ -934,7 +937,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
             # This release's judge runs (2026-10-08 and 2026-10-09 UTC) re-judged
             # the cases its 2026-10-06 rulings decide, before those decisions
             # were written (checked above).
-            assert wave == "2026-10-06" and day in ("2026-10-08", "2026-10-09", "2026-10-10"), case
+            assert wave == "2026-10-06" and day in ("2026-10-08", "2026-10-09"), case
             later_than_own_wave += 1
         elif day > wave:
             assert (wave, day) == ("2026-09-22", "2026-09-23"), case
@@ -962,7 +965,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
                 reviewed["judged_on"],
             ) == (*published_verdict, published["judged_on_utc"]), case
             assert published["release"] in reviewed["recorded_in"], case
-    assert later_than_wave == 42
+    assert later_than_wave == 31
     assert later_than_own_wave == 5
 
 
@@ -1263,7 +1266,7 @@ def test_each_restatement_names_its_20261010_verdict(tmp_path):
     and UTC day, with release 20261006's verdict appended to judge_previous
     when the new one replaces it. The decisions on records its engine upgrade
     regenerated are dropped (the #178 precedent). The 2026-10-06 and
-    2026-10-09 waves' decisions are added, or restated in place where a ruled
+    2026-10-10 waves' decisions are added, or restated in place where a ruled
     output already had a decision. Everything else is release 20261006's."""
     evidence = json.loads(EVIDENCE_20261010.read_text())
     assert evidence["base_commit"] == RELEASE_20261006_COMMIT
@@ -1338,10 +1341,11 @@ def test_each_restatement_names_its_20261010_verdict(tmp_path):
             before["judge_failure_subtype"],
         ), case
         replaced += 1
-    # Every verdict the evidence lists belongs to a committed decision: the 60
-    # restated ones, and the new waves' decisions.
+    # Every verdict the evidence lists belongs to a committed decision: the 49
+    # restated ones, and the new waves' seven added decisions (56 verdicts).
     assert set(verdicts) <= set(entries)
-    assert replaced == 60
+    assert replaced == 49
+    assert len(verdicts) == 56
     assert set(verdicts) - set(base) == added
     # The judge evidence names, for each of the new waves' decisions, the
     # verdict that decision carries (its "current" verdict).
@@ -1378,6 +1382,32 @@ def _flag_agrees(entry: dict, flagged_now: bool) -> bool:
         and not flagged_now
         and bool(entry.get("judge_reference_suspect_source"))
     )
+
+
+def test_the_evidence_script_rewrites_this_releases_waves_each_pass():
+    """MOCK wave releases: scripts/date_haiku55_judge_verdicts.py keeps release
+    20261006's waves and drops every later one, so a wave an earlier pass wrote
+    (here a rehearsal's 2026-10-09) does not survive into the evidence unless
+    the record still decides it."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "date_haiku55_judge_verdicts", ROOT / "scripts/date_haiku55_judge_verdicts.py"
+    )
+    dating = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dating)
+
+    base = {wave: {"commit": f"MOCK {wave}"} for wave in dating.BASE_WAVES}
+    stale = {
+        **base,
+        "2026-10-06": {"commit": None, "release": "MOCK"},
+        "2026-10-09": {"commit": None, "release": "MOCK rehearsal"},
+    }
+    assert dating.base_wave_releases(stale) == base
+    assert list(dating.base_wave_releases(stale)) == dating.BASE_WAVES
+    reordered = dict(reversed(list(base.items())))
+    with pytest.raises(SystemExit, match="not release 20261006's"):
+        dating.base_wave_releases(reordered)
 
 
 def test_the_evidence_script_refuses_a_decision_that_does_not_name_its_verdict():

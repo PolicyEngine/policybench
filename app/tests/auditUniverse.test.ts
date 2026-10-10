@@ -23,12 +23,12 @@ describe("audit universe", () => {
     // ruled on 2026-10-06 and the two Indiana county outputs leave scoring,
     // the outputs the engine upgrade regenerates return to it).
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 7_507,
-      legacyThresholdRowCount: 7_507,
-      exactMissCount: 7_503,
-      annotatedExactMissCount: 7_503,
+      annotatedRowCount: 8_001,
+      legacyThresholdRowCount: 8_001,
+      exactMissCount: 7_997,
+      annotatedExactMissCount: 7_997,
       annotatedExactHitCount: 4,
-      unannotatedBelowFullBoundedScoreCount: 2_115,
+      unannotatedBelowFullBoundedScoreCount: 2_138,
     });
   });
 });

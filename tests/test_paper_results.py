@@ -94,21 +94,23 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # Release 20260930's 652 (Kimi K2.6 390, GLM-5.2 133) less the eight on
     # the outputs the 2026-10-05 review excluded (seven Kimi K2.6, one GLM-5.2;
     # test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone): 644
-    # in release 20261006. Release 20261010's exclusions take some out and
-    # the outputs its engine upgrade regenerates bring others back; Claude
+    # in release 20261006 (Kimi K2.6 383, GLM-5.2 132, GLM-5.3 71, Kimi K3
+    # 58). Release 20261010's eight new exclusions take out four (Kimi K2.6)
+    # and the 14 outputs its engine upgrade returns to scoring bring back 19
+    # (Kimi K2.6 11, GLM-5.2 four, GLM-5.3 two, Kimi K3 two): 659. Claude
     # Haiku 5.5 parsed every answer.
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 381,
-            "glm-5.2": 134,
+            "kimi-k2.6": 390,
+            "glm-5.2": 136,
             "glm-5.3": 73,
-            "kimi-k3": 58,
+            "kimi-k3": 60,
         }
     )
-    assert r.parse_contract_failure_count == 646
-    assert r.parse_contract_failure_count_fmt == "646"
-    # 646 of the 47-model board's 90,005 scored answers (47 x 1,915).
-    assert r.n_canonical_rows == 90_005
+    assert r.parse_contract_failure_count == 659
+    assert r.parse_contract_failure_count_fmt == "659"
+    # 659 of the 47-model board's 90,522 scored answers (47 x 1,926).
+    assert r.n_canonical_rows == 90_522
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
@@ -117,22 +119,22 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # unannotated) less the 333 annotated misses and the 35 exact hits on the
     # eight outputs the 2026-10-05 review excluded: 7,527, 7,523 and 2,072 in
     # release 20261006. Release 20261010 adds Claude Haiku 5.5's rows and
-    # moves the scored outputs.
-    assert r.audit_annotated_row_count == 7_507
-    assert r.audit_annotated_row_count_fmt == "7,507"
+    # moves the scored outputs: 8,001, 7,997 and 2,138.
+    assert r.audit_annotated_row_count == 8_001
+    assert r.audit_annotated_row_count_fmt == "8,001"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 7_503
-    assert r.exact_match_miss_count_fmt == "7,503"
-    assert r.annotated_exact_miss_count == 7_503
-    assert r.annotated_exact_miss_count_fmt == "7,503"
+    assert r.exact_match_miss_count == 7_997
+    assert r.exact_match_miss_count_fmt == "7,997"
+    assert r.annotated_exact_miss_count == 7_997
+    assert r.annotated_exact_miss_count_fmt == "7,997"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_115
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,115"
+    assert r.unannotated_below_full_bounded_score_count == 2_138
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,138"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """646 scored rows never parsed a number (rows on excluded outputs are outside
+    """659 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 59 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -141,7 +143,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "59"
-    assert r.contract_violation_count_fmt == "705"
+    assert r.contract_violation_count_fmt == "718"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (55), Kimi K2.6 (3), and Claude Haiku 4.5 (1)"
     )
@@ -365,16 +367,16 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # review's eight (in scenario_022, 032, 043, 081, 082 and 114; 022, 081
     # and 082 already had one): 64 in 42 households in release 20261006.
     # Release 20261010 adds the six ruled records its engine upgrade keeps
-    # and the two Indiana county records, and returns three of the September
-    # 22 engine-defect outputs to scoring.
-    assert r.excluded_output_count == 69
-    assert r.excluded_output_phrase == "69 outputs"
-    assert r.excluded_output_households_phrase == "47 households"
+    # and the two Indiana county records, and returns 14 of release 20261006's
+    # excluded outputs to scoring: 58 in 42 households.
+    assert r.excluded_output_count == 58
+    assert r.excluded_output_phrase == "58 outputs"
+    assert r.excluded_output_households_phrase == "42 households"
     assert r.unlisted_input_exclusion_count == 42
-    assert r.engine_defect_exclusion_count == 25
-    assert r.engine_defect_root_cause_count == 11
+    assert r.engine_defect_exclusion_count == 14
+    assert r.engine_defect_root_cause_count == 8
     assert r.snap_engine_defect_exclusion_count == 1
-    assert r.engine_defect_unflagged_count == 7
+    assert r.engine_defect_unflagged_count == 3
     # The September 22 regenerations, made on policyengine-us 1.755.4; the
     # engine upgrade's own changes are counted separately below.
     assert r.regenerated_reference_count == 26
@@ -411,18 +413,18 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert by_input[part_b] == 1
     assert by_input[payroll] == 4
     assert by_input["county of residence (Indiana county income tax)"] == 2
-    assert r.scored_outputs_per_model_fmt == "1,915"
+    assert r.scored_outputs_per_model_fmt == "1,926"
     assert r.total_outputs_per_model_fmt == "1,984"
     # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
     # rows on the review's eight outputs (2,444 in release 20261006), moved by
     # release 20261010's exclusions, regenerations and Claude Haiku 5.5's rows.
-    assert r.excluded_output_annotation_row_count == 2729
+    assert r.excluded_output_annotation_row_count == 2212
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
     # 1,145 in release 20261006.
     assert r.prompt_ambiguity_row_count == 1447
     assert (
-        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 61
+        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 48
     )
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
@@ -442,7 +444,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1915
+        assert stats["n"] == 1926
 
 
 # The reference records, as committed and with a synthetic second upgrade
@@ -1624,6 +1626,21 @@ def _MOCK_fix_modules_target(entry: dict, engine: str = "policyengine-us 9.9.9")
     }
 
 
+def _native_fix_modules() -> tuple[set[int], str]:
+    """The frozen sidecar's restored entries already held to fix modules, and
+    the engine a MOCK target must name to sit beside them (the sentence names
+    one engine)."""
+    entries = r.last_engine_upgrade.revision["regenerated_exclusions"]
+    native = {
+        index
+        for index, entry in enumerate(entries)
+        if entry["target"]["kind"] == "fix_modules"
+    }
+    engines = {entries[index]["target"]["engine"] for index in native}
+    assert len(engines) <= 1, engines
+    return native, next(iter(engines), "policyengine-us 9.9.9")
+
+
 def _with_restored(edit) -> PaperResults:
     """MOCK edit of the frozen sidecar's restored entries."""
     results = PaperResults()
@@ -1666,25 +1683,27 @@ def test_the_restored_target_sentence_counts_each_kind(data):
     total = r.engine_upgrade_restored_count
     assume(total > 0)
     chosen = data.draw(st.sets(st.integers(0, total - 1)))
+    native, engine = _native_fix_modules()
+    held = chosen | native
 
     def edit(entries):
         for index in chosen:
-            _MOCK_fix_modules_target(entries[index])
+            _MOCK_fix_modules_target(entries[index], engine)
 
     results = _with_restored(edit)
     targets = results.engine_upgrade_restored_targets
-    assert len(targets["fix_modules"]) == len(chosen)
-    assert len(targets["record"]) == total - len(chosen)
+    assert len(targets["fix_modules"]) == len(held)
+    assert len(targets["record"]) == total - len(held)
     sentence = results.engine_upgrade_restored_target_sentence
     assert not sentence[0].isdigit()
-    assert ("policyengine-us 9.9.9" in sentence) == bool(chosen)
-    if chosen and len(chosen) < total:
+    assert (engine in sentence) == bool(held)
+    if held and len(held) < total:
         assert sentence.startswith(f"Of the {count_word(total)}, ")
-        other = "one" if len(chosen) == 1 else count_word(len(chosen))
+        other = "one" if len(held) == 1 else count_word(len(held))
         assert f"The other {other} " in sentence
-        kept = total - len(chosen)
+        kept = total - len(held)
         assert f", {count_word(kept)} land" in sentence
-    elif chosen:
+    elif held:
         assert sentence.startswith(("They are held to", "It is held to"))
     else:
         assert sentence == r.engine_upgrade_restored_target_sentence
@@ -1695,6 +1714,8 @@ def test_a_flag_held_to_fix_modules_that_move_it_is_described():
     defect, as the builder's beyond() rule says, though the move is not more
     than $1."""
 
+    native, engine = _native_fix_modules()
+
     def flag(entries):
         entry = entries[0]
         entry["variable"] = "head_medicaid_eligible"
@@ -1703,13 +1724,15 @@ def test_a_flag_held_to_fix_modules_that_move_it_is_described():
         entry["target"] = {
             "kind": "fix_modules",
             "value": 1.0,
-            "engine": "policyengine-us 9.9.9",
+            "engine": engine,
             "engine_value": 0.0,
         }
 
     results = _with_restored(flag)
-    assert len(results.engine_upgrade_restored_targets["fix_modules"]) == 1
-    assert "policyengine-us 9.9.9" in results.engine_upgrade_restored_target_sentence
+    held = results.engine_upgrade_restored_targets["fix_modules"]
+    assert len(held) == len(native | {0})
+    assert any(entry["variable"] == "head_medicaid_eligible" for entry in held)
+    assert engine in results.engine_upgrade_restored_target_sentence
 
 
 def test_a_restored_output_off_its_target_stops_the_sentence():

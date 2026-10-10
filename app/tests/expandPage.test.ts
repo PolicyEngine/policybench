@@ -71,17 +71,18 @@ test("expand page derives its exact-score headline from the live summary", async
   ).text();
 
   expect(leader.model).toBe("gpt-6-sol");
-  expect(leader.exact).toBeCloseTo(96.462, 3);
+  expect(leader.exact).toBeCloseTo(95.583, 3);
   expect(pageSource).toContain("const leader = headlineExactLeader(dashboard);");
   expect(pageSource).toContain(
     "const leaderLabel = MODEL_LABELS[leader.model] ?? leader.model;",
   );
   expect(pageSource).toContain("The best model, {leaderLabel}, computes");
   expect(pageSource).toContain("{leader.exact.toFixed(1)}% of");
+  expect(pageSource).not.toContain("95.6%");
   expect(pageSource).not.toContain("96.5%");
   expect(pageSource).not.toContain("95.0%");
   expect(expectedCopy).toBe(
-    "GPT-6 Sol computes 96.5% of requested outputs exactly",
+    "GPT-6 Sol computes 95.6% of requested outputs exactly",
   );
 });
 
