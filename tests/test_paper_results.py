@@ -94,7 +94,7 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # Release 20260930's 652 (Kimi K2.6 390, GLM-5.2 133) less the eight on
     # the outputs the 2026-10-05 review excluded (seven Kimi K2.6, one GLM-5.2;
     # test_the_review_moves_the_paper_counts_by_its_eight_outputs_alone): 644
-    # in release 20261006. Release 20261009's exclusions take some out and
+    # in release 20261006. Release 20261010's exclusions take some out and
     # the outputs its engine upgrade regenerates bring others back; Claude
     # Haiku 5.5 parsed every answer.
     assert r.parse_contract_failure_counts == Counter(
@@ -116,7 +116,7 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # Release 20260930's counts (7,860 annotated, 7,856 misses, 2,107
     # unannotated) less the 333 annotated misses and the 35 exact hits on the
     # eight outputs the 2026-10-05 review excluded: 7,527, 7,523 and 2,072 in
-    # release 20261006. Release 20261009 adds Claude Haiku 5.5's rows and
+    # release 20261006. Release 20261010 adds Claude Haiku 5.5's rows and
     # moves the scored outputs.
     assert r.audit_annotated_row_count == 7_507
     assert r.audit_annotated_row_count_fmt == "7,507"
@@ -364,7 +364,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # Release 20260930's 56 outputs in 39 households plus the 2026-10-05
     # review's eight (in scenario_022, 032, 043, 081, 082 and 114; 022, 081
     # and 082 already had one): 64 in 42 households in release 20261006.
-    # Release 20261009 adds the six ruled records its engine upgrade keeps
+    # Release 20261010 adds the six ruled records its engine upgrade keeps
     # and the two Indiana county records, and returns three of the September
     # 22 engine-defect outputs to scoring.
     assert r.excluded_output_count == 69
@@ -415,7 +415,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert r.total_outputs_per_model_fmt == "1,984"
     # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
     # rows on the review's eight outputs (2,444 in release 20261006), moved by
-    # release 20261009's exclusions, regenerations and Claude Haiku 5.5's rows.
+    # release 20261010's exclusions, regenerations and Claude Haiku 5.5's rows.
     assert r.excluded_output_annotation_row_count == 2729
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.

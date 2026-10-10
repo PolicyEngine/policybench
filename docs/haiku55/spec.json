@@ -1,6 +1,6 @@
 {
   "note": "Inputs of the release after dashboard-data-20261006, read by scripts/finish_haiku55.py. The release folds Claude Haiku 5.5 onto release dashboard-data-20261006 and installs Max's rulings of 2026-10-06: d1022 (the reference adversary's eight confirmed or ambiguous cells) and d994 (the two Louisiana cells). Ten outputs leave scoring for every model; the references, the incumbents' predictions and every earlier exclusion's value stay as they were.",
-  "release_tag": "dashboard-data-20261009",
+  "release_tag": "dashboard-data-20261010",
   "base_tag": "dashboard-data-20261006",
   "base_sha256": "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462",
   "decided_on": "2026-10-06",
@@ -159,7 +159,7 @@
       "reasoning": "The frozen reference is 3,070.06; the alternative is 4,451.56. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2."
     }
   ],
-  "snapshot_date": "2026-10-09",
+  "snapshot_date": "2026-10-10",
   "record_edits": [
     {
       "scenario_id": "scenario_018",
@@ -234,5 +234,5 @@
       "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state."
     }
   ],
-  "upgrade_adjudications_written_on": "2026-10-09"
+  "upgrade_adjudications_written_on": "2026-10-10"
 }

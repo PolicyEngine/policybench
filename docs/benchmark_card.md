@@ -104,13 +104,13 @@ income tax references moved by less than $1. The reference sidecar's
 `reference_audit/2026-09-28/` records the investigation and the independent
 review behind each.
 
-On 2026-10-09 PolicyBench moved the references again, from 2.15.17 to 2.37.2, a
+On 2026-10-10 PolicyBench moved the references again, from 2.15.17 to 2.37.2, a
 release that fixes engine defects behind excluded outputs, and recomputed every
 output under the same conventions and adapter. The new version fixes the
 defects behind seven outputs. Release 20261006 excluded three of them, which
 return to scoring; the other four are the 2026-10-06 defects below, which stay
 scored. Each lands within $1 of its audited corrected value, and the sidecar's
-2026-10-09 revision names the upstream fix behind it: Arizona's
+2026-10-10 revision names the upstream fix behind it: Arizona's
 standard deduction indexing (#9928), Ohio's medical deduction for health
 insurance premiums (#10020), estate income in gross income (#9633), Colorado's
 2026 sales tax refund (#9946), the IRA deduction's compensation limit and a
@@ -267,7 +267,7 @@ the seventh to be a question of definition: where a dependent must file their
 own return, the output definitions do not say whether the household's income
 tax includes it, which reaches four outputs in a Pennsylvania and a Missouri
 household. The other two are the Louisiana outputs above
-(`reference_audit/2026-10-05-louisiana/`). The 2026-10-09 engine move fixed
+(`reference_audit/2026-10-05-louisiana/`). The 2026-10-10 engine move fixed
 the four defects, so those four outputs stay scored; the other six are
 excluded.
 
@@ -346,7 +346,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-09 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-10 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

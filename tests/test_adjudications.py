@@ -30,12 +30,12 @@ EVIDENCE_20260930 = ROOT / "docs/gpt61sol/judge_verdicts_20260930.json"
 # wave's decisions; every earlier entry is 20260930's.
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 # The squash merge of #202, which froze release dashboard-data-20261006.
-# Release 20261009 (Claude Haiku 5.5) builds on it: it restates the decisions
-# on the cases Claude Haiku 5.5 re-opened (docs/haiku55/judge_verdicts_20261009.json),
+# Release 20261010 (Claude Haiku 5.5) builds on it: it restates the decisions
+# on the cases Claude Haiku 5.5 re-opened (docs/haiku55/judge_verdicts_20261010.json),
 # drops the decisions on records its engine upgrade regenerated, and adds the
 # 2026-10-06 and 2026-10-09 waves' decisions.
 RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
-(EVIDENCE_20261009,) = sorted((ROOT / "docs/haiku55").glob("judge_verdicts_*.json"))
+(EVIDENCE_20261010,) = sorted((ROOT / "docs/haiku55").glob("judge_verdicts_*.json"))
 # The UTC day of the frozen references' last engine upgrade: the wave of the
 # decisions on the outputs it newly excludes (2026-10-09 in the rehearsal).
 UPGRADE_WAVE = [
@@ -261,7 +261,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
     # 69 through release 20260930; the 2026-10-05 wave added one
     # prompt_ambiguity decision for each of the eight outputs the 2026-10-05
-    # audits excluded (77 in release 20261006). Release 20261009 dropped the
+    # audits excluded (77 in release 20261006). Release 20261010 dropped the
     # decisions on the three records its engine upgrade regenerated (039 state,
     # 064 federal and state income tax), decided the six ruled records the
     # upgrade kept (2026-10-06: four unlisted-input scope cells, and
@@ -357,7 +357,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # prompt_ambiguity 2, reference_data_issue_fixed 1 and
     # reference_model_issue_fixed 16), release 20260930 had llm_error 59; the
     # judge called each of the 2026-10-05 wave's eight cases an LLM error.
-    # Release 20261009's Opus 5.5 verdicts on the cases Claude Haiku 5.5
+    # Release 20261010's Opus 5.5 verdicts on the cases Claude Haiku 5.5
     # re-opened give its counts.
     assert block["by_judge_verdict"] == {
         "llm_error": 67,
@@ -551,7 +551,7 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
     # 54 in release 20260929. The 2026-09-30 restatements gave four more
     # entries their first judge_previous item: 008 state refundable credits,
     # 078 and 117 federal income tax, and 100 federal refundable credits.
-    # Release 20261009's restatements of the cases Claude Haiku 5.5 re-opened
+    # Release 20261010's restatements of the cases Claude Haiku 5.5 re-opened
     # gave nine more theirs (58 in release 20261006).
     assert rejudged == 67
 
@@ -934,7 +934,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
             # This release's judge runs (2026-10-08 and 2026-10-09 UTC) re-judged
             # the cases its 2026-10-06 rulings decide, before those decisions
             # were written (checked above).
-            assert wave == "2026-10-06" and day in ("2026-10-08", "2026-10-09"), case
+            assert wave == "2026-10-06" and day in ("2026-10-08", "2026-10-09", "2026-10-10"), case
             later_than_own_wave += 1
         elif day > wave:
             assert (wave, day) == ("2026-09-22", "2026-09-23"), case
@@ -1256,16 +1256,16 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
     assert script.date_entries(entries, current, previous, frozenset(wave)) == []
 
 
-def test_each_restatement_names_its_20261009_verdict(tmp_path):
-    """Release 20261009 changed release 20261006's record in three ways. Each
+def test_each_restatement_names_its_20261010_verdict(tmp_path):
+    """Release 20261010 changed release 20261006's record in three ways. Each
     decision on a case Claude Haiku 5.5 re-opened names that case's new
-    verdict (docs/haiku55/judge_verdicts_20261009.json): its judge, classes
+    verdict (docs/haiku55/judge_verdicts_20261010.json): its judge, classes
     and UTC day, with release 20261006's verdict appended to judge_previous
     when the new one replaces it. The decisions on records its engine upgrade
     regenerated are dropped (the #178 precedent). The 2026-10-06 and
     2026-10-09 waves' decisions are added, or restated in place where a ruled
     output already had a decision. Everything else is release 20261006's."""
-    evidence = json.loads(EVIDENCE_20261009.read_text())
+    evidence = json.loads(EVIDENCE_20261010.read_text())
     assert evidence["base_commit"] == RELEASE_20261006_COMMIT
     verdicts = evidence["cases"]
     base = {_case(e): e for e in _entries_20261006(tmp_path)}

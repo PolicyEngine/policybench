@@ -1,6 +1,6 @@
 {
-  "slug": "2026-10-09-claude-haiku-5-5-joins-the-board",
-  "date": "2026-10-09",
+  "slug": "2026-10-10-claude-haiku-5-5-joins-the-board",
+  "date": "2026-10-10",
   "title": "Claude Haiku 5.5 joins the board as the references move to policyengine-us 2.37.2",
   "paragraphs": [
     "Claude Haiku 5.5 joined the board on {releaseDate}, bringing it to {nModels} models. It gets {haikuExact}% of answers within $1, weighted by household impact, #{haikuRank} of {nModels} and {haikuGain} points above Claude Haiku 4.5 ({haiku45Exact}%, #{haiku45Rank}). GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
@@ -11,7 +11,7 @@
     "Against the previous release, the exact rate of every one of the {incumbents} earlier models falls, by {fallMin} to {fallMax} points. The cause is the {newlyScored} restored outputs that the previous release did not score, which few models get right: the median one is answered within $1 by {newlyScoredMedianMatched:words} of the {nModels} models, and {newlyScoredUnmatched:words} by none. Had they stayed excluded, every earlier model's rate would have risen, by {riseWithoutMin} to {riseWithoutMax} points."
   ],
   "facts": {
-    "releaseDate": "2026-10-09",
+    "releaseDate": "2026-10-10",
     "nModels": 47,
     "haikuExact": 79.5,
     "haikuRank": 37,
@@ -50,7 +50,7 @@
   "data": [
     {
       "label": "Dashboard data release",
-      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261009"
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261010"
     },
     {
       "label": "Engine upgrade record",
@@ -85,6 +85,6 @@
       "href": "/notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs"
     }
   ],
-  "boardSnapshot": "2026-10-09",
-  "release": "dashboard-data-20261009"
+  "boardSnapshot": "2026-10-10",
+  "release": "dashboard-data-20261010"
 }

@@ -160,7 +160,7 @@ SUPERSEDED_RELEASES = {
     # October 5 BBCE note's facts are still recomputed, from the snapshot its
     # commit holds (RELEASE_20260930_COMMIT).
     "dashboard-data-20260930": "2026-09-30",
-    # Superseded by dashboard-data-20261009, which adds Claude Haiku 5.5 and
+    # Superseded by dashboard-data-20261010, which adds Claude Haiku 5.5 and
     # moves the references to the policyengine-us release that fixes engine
     # defects behind exclusions. Its note's facts are still recomputed, from
     # the snapshot its commit holds (RELEASE_20261006_COMMIT).
@@ -4716,7 +4716,7 @@ def test_bbce_note_describes_the_later_release() -> None:
     assert _rank(exact["claude-sonnet-5.5"], board) == later["lunaRank"] - 1
 
 
-# --- Release dashboard-data-20261009: Claude Haiku 5.5 and the engine move ----
+# --- Release dashboard-data-20261010: Claude Haiku 5.5 and the engine move ----
 
 (HAIKU_NOTE,) = sorted(
     path.stem for path in NOTES_DIR.glob("*-claude-haiku-5-5-joins-the-board.json")
@@ -4729,7 +4729,7 @@ def _key_of(entry: dict) -> tuple[str, str]:
 
 
 @cache
-def _release_20261009_scoring() -> dict:
+def _release_20261010_scoring() -> dict:
     """What moves the earlier models' rates between release 20261006 and this
     one, recomputed from the frozen predictions and weights: every model's
     exact rate on this release's scored references (``now``), the same with
@@ -4791,7 +4791,7 @@ def _release_20261009_scoring() -> dict:
     }
 
 
-def _release_20261009_facts() -> dict:
+def _release_20261010_facts() -> dict:
     """The Claude Haiku 5.5 release note's facts, recomputed from the frozen
     release's payload, sidecar and exclusion record, from release 20261006's
     payload at its commit, and from the committed sensitivity summary."""
@@ -4807,7 +4807,7 @@ def _release_20261009_facts() -> dict:
         if row["condition"] == "no_tools"
     }
     fall = [exact - by_model[model]["exact"] for model, exact in then.items()]
-    scoring = _release_20261009_scoring()
+    scoring = _release_20261010_scoring()
     rise = [scoring["without"][model] - exact for model, exact in then.items()]
     matched = median(scoring["matched"].values())
     haiku, haiku45 = by_model["claude-haiku-5.5"], by_model["claude-haiku-4.5"]
@@ -4861,12 +4861,12 @@ def _release_20261009_facts() -> dict:
     }
 
 
-def test_release_20261009_note() -> None:
+def test_release_20261010_note() -> None:
     """The Claude Haiku 5.5 release note's facts are the frozen release's,
     recomputed from its payload, sidecar and exclusion record and from release
     20261006 at its commit; and the direction its last paragraph states (every
     earlier model's rate falls, and would have risen without the newly scored
-    outputs) holds. test_release_20261009_note_claims checks the rest of what
+    outputs) holds. test_release_20261010_note_claims checks the rest of what
     its sentences say, on the recomputed facts."""
     note = _note(HAIKU_NOTE)
     facts = note["facts"]
@@ -4874,12 +4874,12 @@ def test_release_20261009_note() -> None:
     assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
     assert note["slug"].startswith(note["date"])
     assert facts["engineVersion"] in note["title"]
-    assert facts == _release_20261009_facts()
+    assert facts == _release_20261010_facts()
     assert 0 < facts["fallMin"] <= facts["fallMax"]
     assert 0 < facts["riseWithoutMin"] <= facts["riseWithoutMax"]
 
 
-def test_release_20261009_note_claims() -> None:
+def test_release_20261010_note_claims() -> None:
     """What the Claude Haiku 5.5 release note's sentences claim holds on the
     frozen release, checked on the facts recomputed from it (so these checks
     run even while the note's own facts await the release)."""
@@ -4888,7 +4888,7 @@ def test_release_20261009_note_claims() -> None:
     from policybench.paper_results import PaperResults
 
     note = _note(HAIKU_NOTE)
-    facts = _release_20261009_facts()
+    facts = _release_20261010_facts()
     r = PaperResults()
     board = r.model_stats
     # Claude Haiku 5.5 is new, and the cheapest row with a recorded cost.
@@ -4905,7 +4905,7 @@ def test_release_20261009_note_claims() -> None:
     ]
     # The recomputed board is the payload's, and the payload's exact marks are
     # the scorer's.
-    scoring = _release_20261009_scoring()
+    scoring = _release_20261010_scoring()
     assert set(scoring["now"]) == {row["model"] for row in board}
     for row in board:
         assert scoring["now"][row["model"]] == pytest.approx(row["exact"], abs=1e-9)

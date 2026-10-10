@@ -47,7 +47,7 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 47-model board (2026-10-09). Scores are on the
+All ranks are on the 47-model board (2026-10-10). Scores are on the
 1,915 outputs the board scores; the 69 outputs `reference_exclusions.json`
 lists (engine defects, references that depend on an input the prompt never
 states, and references that rest on an amount a state published after the
@@ -141,7 +141,7 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 47-model board (2026-10-09).
+reason. The ranks are on the 47-model board (2026-10-10).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
@@ -198,7 +198,7 @@ thinking block: the row answers without extended thinking, as Claude Opus
 5's does (its model card's notes). Its sensitivity run is the August
 condition: the answer tool declared with `tool_choice: "auto"`, over the
 whole scenario, as the board row also requests it. The ranks are on the
-47-model board (2026-10-09).
+47-model board (2026-10-10).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|

@@ -651,7 +651,7 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # scored rows (8 outputs x 46 models), all below full bounded score; 333
     # had a legacy threshold score below 1, all exact misses and all
     # annotated (325 llm_error, 8 parse_contract_failure), and 35 did not.
-    # Release 20261009: Claude Haiku 5.5's rows join, and the outputs the
+    # Release 20261010: Claude Haiku 5.5's rows join, and the outputs the
     # 2026-10-06 rulings and the engine upgrade exclude leave the universe
     # while the ones it regenerates return (release 20261006: annotated 7,527,
     # below full bounded score 9,599, llm_error 6,883, parse failures 644).

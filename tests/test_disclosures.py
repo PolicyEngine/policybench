@@ -271,7 +271,7 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # Release 20261006: release 20260930's counts (7,860 annotated, 7,856
     # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
     # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
-    # below full bounded score (7,527, 7,523 and 2,072). Release 20261009
+    # below full bounded score (7,527, 7,523 and 2,072). Release 20261010
     # adds Claude Haiku 5.5's rows and moves the scored outputs. The app's
     # summarizeAuditUniverse recomputes the same counts from the payload
     # (app/tests/auditUniverse.test.ts).

@@ -40,7 +40,7 @@ ANNOTATIONS = ROOT / "annotations" / RUN_NAME
 BASE_TAG = "dashboard-data-20261006"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_haiku55.py and the design note read it from here.
-RELEASE_TAG = "dashboard-data-20261009"
+RELEASE_TAG = "dashboard-data-20261010"
 BASE_SHA256 = "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462"
 BASE_MODELS = 46
 BASE_OUTPUTS = 1984

@@ -1,4 +1,4 @@
-"""Record the verdicts release dashboard-data-20261009's adjudications name.
+"""Record the verdicts release dashboard-data-20261010's adjudications name.
 
 The Claude Haiku 5.5 release restated the judge fields of every decision on a
 case Claude Haiku 5.5 re-opened (scripts/restate_gpt61sol_adjudications.py),
@@ -7,7 +7,7 @@ two waves of decisions: the 2026-10-06 rulings' (d1022, d994) and the engine
 upgrade's, on the outputs it newly excludes. Run on the exported stage after
 the freeze, this script
 
-- writes docs/haiku55/judge_verdicts_20261009.json: for each committed
+- writes docs/haiku55/judge_verdicts_20261010.json: for each committed
   decision on a re-opened case, the case's verdict in the stage, read from
   verdict.json and its sha256-bound verdict.meta.json, as
   scripts/date_gpt61sol_judge_verdicts.py did for release 20260930; and
@@ -133,7 +133,7 @@ def restatements(stage: Path, record: dict) -> dict:
         }
     return {
         "note": (
-            "The verdicts release dashboard-data-20261009's adjudication entries "
+            "The verdicts release dashboard-data-20261010's adjudication entries "
             "name on the cases Claude Haiku 5.5 re-opened: for each committed "
             "decision on such a case, the case's verdict in the exported stage, "
             "read by scripts/date_haiku55_judge_verdicts.py from verdict.json and "

@@ -18,7 +18,7 @@ describe("audit universe", () => {
     expect(AUDIT_SELECTION_RULE).toBe(
       "rows whose legacy threshold score is below 1",
     );
-    // Release 20261009: the counts tests/test_disclosures.py recomputes
+    // Release 20261010: the counts tests/test_disclosures.py recomputes
     // from the frozen annotations and payload (47 models; the ten outputs
     // ruled on 2026-10-06 and the two Indiana county outputs leave scoring,
     // the outputs the engine upgrade regenerates return to it).

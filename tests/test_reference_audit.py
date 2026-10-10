@@ -27,7 +27,7 @@ AUDIT_DATES = ("2026-09-22", "2026-09-24")
 # tax in SALT, the Medicare Part B premium and state payroll components
 # (reference_audit/2026-10-05, -medicare-part-b and -payroll), the 2026-10-06
 # rulings on the reference adversary's and the Louisiana audit's records
-# (d1022, d994), and the 2026-10-09 engine upgrade's Indiana county records
+# (d1022, d994), and the 2026-10-10 engine upgrade's Indiana county records
 # (reference_audit/2026-10-09-engine-upgrade).
 LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06")
 R33 = "r33_snap_child_support_treatment"
@@ -63,7 +63,7 @@ def _revisions() -> list[dict]:
 
 def _later_dates() -> tuple[str, ...]:
     """LATER_DATES with the day of the last engine upgrade, whose new records
-    carry it (2026-10-09 in the rehearsal build)."""
+    carry it (2026-10-10 in this release)."""
     upgrades = [r["date"] for r in _all_revisions() if r["kind"] == "engine_upgrade"]
     return tuple(dict.fromkeys((*LATER_DATES, upgrades[-1])))
 
@@ -376,8 +376,8 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     }
     # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade,
     # records dated 2026-10-05 to the 2026-10-05 audits, 2026-10-06 to that
-    # day's rulings (less the ones the 2026-10-09 upgrade regenerated) and
-    # 2026-10-09 to that upgrade's county records.
+    # day's rulings (less the ones the 2026-10-10 upgrade regenerated) and
+    # 2026-10-10 to that upgrade's county records.
     later = [e for e in _exclusions() if e["decided_on"] in _later_dates()]
     assert Counter(e["decided_on"] for e in later) == Counter(
         {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, _later_dates()[-1]: 2}
