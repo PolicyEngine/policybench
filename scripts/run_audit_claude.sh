@@ -28,7 +28,10 @@
 #     an advisor model; and unless the judge's one accepted StructuredOutput
 #     call (any other is one the schema refused) answered exactly the verdict;
 #   - it reads a private copy of prompt.md, hashed before it runs; the sidecar
-#     records that hash. A verdict is rejected if prompt.md no longer has it
+#     records that hash and the judge template version the copy begins with
+#     (judge_template_version, policybench.judge_template; null for a prompt
+#     audit-prepare did not render). A verdict is rejected if prompt.md no
+#     longer has it
 #     at extraction, or if the transcript's user events are not exactly one
 #     text message equal to the judged prompt (plus Claude Code's own
 #     StructuredOutput nudge, PROMPT_NUDGE) and the results of the judge's
@@ -354,13 +357,18 @@ extract_verdict() {
   case_dir="$1"; out_tmp="$2"; meta_tmp="$3"; judged="$4"; judged_sha="$5"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
     "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
-    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" <<'PY'
+    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" \
+    "$SCRIPT_DIR" <<'PY'
 import datetime, glob, hashlib, json, re, shutil, sys
 from pathlib import Path
 
 (case_dir, out_path, meta_path, requested_model, cli_version, config_dir, auth,
  declared, disallowed, attachments, effort, judged_path, judged_sha,
- nudge, event_types) = sys.argv[1:16]
+ nudge, event_types, script_dir) = sys.argv[1:17]
+# The judge template versions, from this runner's own checkout.
+sys.path.insert(0, str(Path(script_dir).resolve().parent))
+from policybench.judge_template import template_version_of
+
 case = Path(case_dir)
 try:
     envelope = json.load(open(case / "claude.json"))
@@ -597,6 +605,9 @@ meta = {
     "verdict_sha256": hashlib.sha256(verdict_bytes).hexdigest(),
     # The exact bytes the judge read on stdin, hashed before it ran.
     "prompt_sha256": judged_sha,
+    # The judge template those bytes begin with (policybench.judge_template),
+    # or null for a prompt audit-prepare did not render.
+    "judge_template_version": template_version_of(judged),
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,
@@ -631,8 +642,11 @@ classify_one() {
   [ -f "$prompt" ] || return 0
   case_ok "$out" "$name" 2>/dev/null && return 0
   # No valid verdict: any sidecar left behind describes a verdict that no
-  # longer exists (re-prepared case) and must not outlive it.
-  rm -f "$tmp" "$meta_tmp" "$envelope" "$case_dir/verdict.meta.json" \
+  # longer exists (re-prepared case) and must not outlive it. An invalid
+  # verdict.json goes too, so no verdict sits beside this run's sidecar until
+  # this run's verdict is published: audit-prepare removes a sidecar only
+  # together with the verdict it describes.
+  rm -f "$tmp" "$meta_tmp" "$envelope" "$out" "$case_dir/verdict.meta.json" \
     "$case_dir/claude.transcript.jsonl"
   work=$(mktemp -d "${TMPDIR:-/tmp}/pb-judge.XXXXXX") || {
     echo "[FAIL] $(basename "$case_dir") (no scratch directory)"
@@ -680,8 +694,12 @@ classify_one() {
   rm -f "$judged"
   if [ "$extracted" = 0 ] && verdict_ok "$tmp"; then
     if problem=$(case_ok "$tmp" "$name" 2>&1); then
-      mv -f "$tmp" "$out"
+      # The sidecar first: an interrupted publish leaves at most a sidecar
+      # without a verdict, which the next run removes, and never a verdict
+      # without its sidecar, which audit-prepare would read as a legacy v1
+      # verdict with no record of the bytes its judge read.
       mv -f "$meta_tmp" "$case_dir/verdict.meta.json"
+      mv -f "$tmp" "$out"
       echo "[ok] $name"
     else
       # Answered, but not for this case's models: pending, and the run goes on.

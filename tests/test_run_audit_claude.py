@@ -24,6 +24,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA
+from policybench.judge_template import JUDGE_TEMPLATE_HEADERS, template_header
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -368,6 +369,26 @@ def test_the_sidecar_binds_the_prompt_and_records_the_login(lane):
         assert meta["judge_isolation"]["transcript_tool_calls"] == 0
         transcript = (case / "claude.transcript.jsonl").read_text()
         assert f"Classify {name}." in transcript
+
+
+@pytest.mark.parametrize("version", sorted(JUDGE_TEMPLATE_HEADERS))
+def test_the_sidecar_records_the_judge_template_version(lane, version):
+    """The sidecar records the template version the judged prompt begins with,
+    and null for a prompt audit-prepare did not render."""
+    audit, _, _, run = lane
+    rendered, fixture = CASES
+    (audit / "cases" / rendered / "prompt.md").write_text(
+        template_header(version) + f"\nCOUNTRY: US\nClassify {rendered}.\n"
+    )
+    result, _ = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    recorded = {
+        name: json.loads((audit / "cases" / name / "verdict.meta.json").read_text())[
+            "judge_template_version"
+        ]
+        for name in CASES
+    }
+    assert recorded == {rendered: version, fixture: None}
 
 
 def test_a_home_lanes_own_account_is_recorded(lane):
@@ -1239,6 +1260,7 @@ def _judge_both(work: Path, events: list, prompt: bytes, monkeypatch):
     argv += [str(config), "{}", "", _runner_value("DISALLOWED")]
     argv += [_runner_value("ATTACHMENTS"), "xhigh", str(work / "judged")]
     argv += [sha(prompt), _runner_value("PROMPT_NUDGE"), _runner_value("EVENT_TYPES")]
+    argv += [str(RUNNER.parent)]
     monkeypatch.setattr(sys, "argv", ["extract_verdict", *argv])
     try:
         with contextlib.redirect_stderr(io.StringIO()):

@@ -19,6 +19,7 @@ LLM step is the only non-deterministic link and is fully resumable.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -35,6 +36,13 @@ from policybench.annotation_taxonomy import (
 )
 from policybench.case_annotations import _format_value, wrong_prediction_rows
 from policybench.full_run_export import load_case_reference_explanations
+from policybench.judge_template import (
+    JUDGE_TEMPLATE_HEADERS,
+    TEMPLATE_VERSION_FIELD,
+    recorded_template_version,
+    template_header,
+    template_version_of,
+)
 from policybench.spec import metric_type_for_output
 
 # _format_value renders a missing/NaN prediction as this sentinel; such a miss
@@ -275,67 +283,21 @@ AUDIT_OUTPUT_SCHEMA: dict = {
     ],
 }
 
-_PROMPT_HEADER = """\
-You are diagnosing why AI models missed a PolicyEngine reference value on a \
-US/UK tax-and-benefit estimation benchmark. The models answered from \
-parametric knowledge with no tools; PolicyEngine's microsimulation is the \
-reference.
-
-The reference value and its derivation are generated directly from the \
-engine's computation trace, and the reference pipeline has survived an \
-adversarial review program: every wrong-reference hypothesis raised by \
-earlier audits was adjudicated against primary sources, and the few real \
-bugs found were fixed before this run. Treat the reference and its \
-derivation as correct. Your job is NOT to re-litigate the reference — it is \
-to explain each model's mistake decisively.
-
-For every wrong model, write a `diagnosis`: 1-3 definitive sentences naming \
-the exact rule, eligibility pathway, deduction, threshold, or computation \
-step that model missed or misapplied, grounded in its own stated reasoning. \
-Be specific — "treated the 138% FPL MAGI limit as the only Medicaid pathway \
-and never applied the aged/disabled income test, which deducts the Medicare \
-Part B premium from countable income" — not generic ("got the income \
-calculation wrong"). If the model gave no usable reasoning, derive the \
-mistake from its answer: state what the correct derivation yields and what \
-shortcut the model's number is consistent with.
-
-Hedging is forbidden in `diagnosis` and `rationale`, and these phrasings \
-are mechanically rejected: "plausible"; "not enough evidence"; \
-"insufficient evidence/information"; "cannot/unable to \
-determine/verify/confirm/tell"; "difficult/hard to verify"; "may be/have"; \
-"might be/have"; "possibly"; "perhaps"; "unclear"; "the reference \
-is/appears/seems correct" or any other verdict on the reference. Write \
-definitively around them (e.g. "excess shelter costs are deductible", not \
-"may be deducted"). Doubt \
-about the reference belongs ONLY in reference_suspect + \
-reference_bug_hypothesis, and requires a concrete contradiction: the \
-derivation conflicts with a specific statute, regulation, or published \
-parameter you can name, or contradicts its own arithmetic. Absent that, set \
-reference_suspect=false and diagnose from the reference as ground truth.
-
-failure_source meanings:
-- llm_error: the model reasoned or computed incorrectly (the usual case).
-- prompt_ambiguity: the question is genuinely ambiguous; a careful expert \
-could read it more than one way. Name the two readings.
-- reference_model_issue_fixed / reference_data_issue_fixed: the reference \
-value looks wrong (PolicyEngine logic / underlying data). Use with \
-reference_suspect=true and a concrete contradiction.
-- parse_contract_failure: the model's answer was missing or unparseable, not a \
-substantive error.
-- budget_exhausted_at_ceiling: the provider length-terminated every retry through \
-its maximum allowed completion budget.
-- needs_review: genuinely cannot tell; name precisely what information is \
-missing.
-
-Output ONLY the JSON verdict matching the schema. Do not run any commands; all \
-information you need is below.
-"""
+# The judge's prompt is a versioned header (policybench.judge_template) and
+# the case. A verdict is carried only on the exact bytes it was judged on, so
+# a seed case renders with the version its sidecar records. Every caller names
+# the version: nothing here picks one by default or reads one off a prompt.
 
 
-def render_case_prompt(case: AuditCase) -> str:
-    """Render the self-contained classification prompt for one case."""
+def render_case_prompt(case: AuditCase, *, template_version: int) -> str:
+    """Render the self-contained classification prompt for one case.
+
+    ``template_version`` picks the header (``JUDGE_TEMPLATE_HEADERS``); the
+    rest of the prompt does not depend on it. It has no default: a release
+    reproduces its prompts only on the version its verdicts were judged on.
+    """
     lines = [
-        _PROMPT_HEADER,
+        template_header(template_version),
         f"\nCOUNTRY: {case.country.upper()}",
         f"OUTPUT (variable): {case.variable}  [{case.metric_type}]",
         f"POLICYENGINE REFERENCE VALUE: {case.reference_value}",
@@ -368,6 +330,8 @@ def prepare_audit(
     country_dir: Path,
     audit_dir: Path,
     grounding_lookup: dict[tuple[str, str], str] | None = None,
+    *,
+    template_version: int,
 ) -> list[AuditCase]:
     """Write per-case prompts, the shared output schema, and a manifest.
 
@@ -376,8 +340,24 @@ def prepare_audit(
         schema.json
         cases.jsonl
         cases/<case_id>/prompt.md
-        cases/<case_id>/verdict.json   (written later by the runner)
+        cases/<case_id>/verdict.json        (written later by the runner)
+        cases/<case_id>/verdict.meta.json   (its provenance sidecar)
+
+    A case that already has a verdict (a seed a release driver copied in, or
+    an earlier run's) keeps it only on the exact bytes its judge read
+    (:func:`_judged_prompt`): the case rendered on the template version its
+    sidecar records (absent: v1) must equal its prompt.md byte for byte, or,
+    when prompt.md is missing, hash to the ``prompt_sha256`` its sidecar
+    records. A kept case's files are left untouched. Otherwise the case
+    changed since it was judged, or its version or judged bytes are unknown:
+    the verdict and its sidecar are dropped and the case is re-opened. New
+    and re-opened cases are rendered with ``template_version``, which the
+    caller must name. The version a case renders with comes from the sidecar
+    or the caller, never from prompt.md: a prompt that begins with another
+    version's header is not adopted. Prompts are written as UTF-8 bytes, with
+    no newline translation.
     """
+    template_header(template_version)
     cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
     audit_dir.mkdir(parents=True, exist_ok=True)
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
@@ -405,22 +385,182 @@ def prepare_audit(
             case_dir.mkdir(exist_ok=True)
             prompt_path = case_dir / "prompt.md"
             verdict_path = case_dir / "verdict.json"
-            new_prompt = render_case_prompt(case)
-            # Content-aware resumability: if the case changed since it was last
-            # classified (e.g. a model was re-run and now answers differently),
-            # the prompt differs from the stored one — drop the stale verdict so
-            # the runner re-classifies it rather than reusing the old label.
-            if (
-                verdict_path.exists()
-                and prompt_path.exists()
-                and prompt_path.read_text() != new_prompt
-            ):
-                verdict_path.unlink()
-                # The provenance sidecar describes that verdict; a re-judge by
-                # the other runner must not inherit it.
-                (case_dir / "verdict.meta.json").unlink(missing_ok=True)
-            prompt_path.write_text(new_prompt)
+            verdict = _read_or_none(verdict_path)
+            if verdict is not None:
+                judged = _judged_prompt(case, case_dir, verdict)
+                if judged is not None:
+                    # The verdict stands on these bytes. A prompt.md the
+                    # sidecar's hash vouched for is restored.
+                    if not prompt_path.exists():
+                        prompt_path.write_bytes(judged)
+                    continue
+                # Content-aware resumability: the case changed since it was
+                # classified (e.g. a model was re-run and now answers
+                # differently), or its template or judged bytes are unknown.
+                # Drop the stale verdict so the runner re-classifies it rather
+                # than reusing the old label.
+                _drop_verdict(case_dir, verdict)
+            prompt = render_case_prompt(case, template_version=template_version)
+            prompt_path.write_bytes(prompt.encode("utf-8"))
     return cases
+
+
+def _read_or_none(path: Path) -> bytes | None:
+    """A file's bytes, or None when it does not exist (a runner may remove a
+    file between a check and a read)."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
+
+
+def _judged_prompt(case: AuditCase, case_dir: Path, verdict: bytes) -> bytes | None:
+    """The prompt bytes the judged case's ``verdict`` stands on, or None when
+    the case must be re-opened.
+
+    A sidecar that records ``verdict_sha256`` must describe ``verdict``:
+    otherwise it is another verdict's record, such as one a runner has
+    published and whose verdict has not arrived yet. The case is rendered on
+    the version the sidecar records (absent: v1; an unknown version, or no
+    sidecar, gives None). Those bytes must be prompt.md's exactly, and, when the sidecar
+    records ``prompt_sha256`` (the hash of the bytes its judge read), hash to
+    it. Without prompt.md, that hash is the only evidence of what the judge
+    read, so a sidecar without one gives None.
+    """
+    meta = _sidecar(case_dir)
+    recorded_verdict = (meta or {}).get("verdict_sha256")
+    if recorded_verdict is not None and (
+        recorded_verdict != hashlib.sha256(verdict).hexdigest()
+    ):
+        return None
+    judged_on = recorded_template_version(meta)
+    if judged_on is None:
+        return None
+    rendered = render_case_prompt(case, template_version=judged_on).encode("utf-8")
+    recorded_sha256 = (meta or {}).get("prompt_sha256")
+    if recorded_sha256 is not None and (
+        recorded_sha256 != hashlib.sha256(rendered).hexdigest()
+    ):
+        return None
+    prompt_path = case_dir / "prompt.md"
+    if prompt_path.exists():
+        return rendered if prompt_path.read_bytes() == rendered else None
+    return rendered if recorded_sha256 is not None else None
+
+
+def _drop_verdict(case_dir: Path, verdict: bytes) -> None:
+    """Re-open a case: remove ``verdict``, the verdict prepare_audit read,
+    and its sidecar.
+
+    The sidecar goes only when it describes ``verdict`` (its
+    ``verdict_sha256``) or records no verdict_sha256, as sidecars from before
+    runners recorded one do; a re-judge by the other runner must not inherit
+    it. Any other sidecar is the record of a verdict a runner is publishing,
+    which runners do sidecar first: removing it would leave that verdict with
+    no record of the bytes its judge read, and runners remove a sidecar left
+    without a verdict themselves. Likewise verdict.json goes only while it
+    still holds ``verdict``: one a runner has published since is left for the
+    collect gates and the next preparation to judge.
+    """
+    verdict_path = case_dir / "verdict.json"
+    if _read_or_none(verdict_path) == verdict:
+        verdict_path.unlink(missing_ok=True)
+    meta = _sidecar(case_dir)
+    if meta is None:
+        return
+    recorded = meta.get("verdict_sha256")
+    if recorded is None or recorded == hashlib.sha256(verdict).hexdigest():
+        (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+
+
+def _sidecar(case_dir: Path) -> dict | None:
+    """A case's ``verdict.meta.json``, or None when it has none.
+
+    A sidecar that is not a JSON object records no template version.
+    """
+    text = _read_or_none(case_dir / "verdict.meta.json")
+    if text is None:
+        return None
+    try:
+        meta = json.loads(text)
+    except ValueError:
+        meta = None
+    return meta if isinstance(meta, dict) else {TEMPLATE_VERSION_FIELD: None}
+
+
+def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
+    """Each judged case whose prompt and verdict disagree on the template.
+
+    A tree may mix versions: a release's carried seeds keep the version they
+    were judged on, while its new and re-opened cases use the one its driver
+    names. Every verdict must have its sidecar and its prompt.md, its
+    sidecar must name a known version (absent: v1), and prompt.md must begin
+    with that version's header. A verdict without a sidecar has no record of
+    the bytes its judge read: one a runner published can lose its sidecar to
+    an audit-prepare racing it. Returns ``(case_id, problem)`` for each case
+    that fails, in case order.
+    """
+    problems: list[tuple[str, str]] = []
+    cases_root = audit_dir / "cases"
+    if not cases_root.is_dir():
+        return problems
+    for case_dir in sorted(cases_root.iterdir()):
+        if not (case_dir / "verdict.json").is_file():
+            continue
+        meta = _sidecar(case_dir)
+        recorded = recorded_template_version(meta)
+        prompt_path = case_dir / "prompt.md"
+        if meta is None:
+            problem = "a verdict without its sidecar (verdict.meta.json)"
+        elif recorded is None:
+            problem = (
+                f"its sidecar's {TEMPLATE_VERSION_FIELD} "
+                f"{meta.get(TEMPLATE_VERSION_FIELD)!r} names no template "
+                f"version ({sorted(JUDGE_TEMPLATE_HEADERS)})"
+            )
+        elif not prompt_path.is_file():
+            problem = "a verdict without prompt.md"
+        else:
+            actual = template_version_of(prompt_path.read_bytes())
+            if actual == recorded:
+                continue
+            found = "no template version" if actual is None else f"v{actual}"
+            problem = f"prompt.md is {found}, but its verdict records v{recorded}"
+        problems.append((case_dir.name, problem))
+    return problems
+
+
+def prompt_hash_problems(audit_dir: Path) -> list[tuple[str, str]]:
+    """Each judged case whose prompt.md is not the bytes its judge read.
+
+    A runner records the sha256 of the bytes its judge read as the sidecar's
+    ``prompt_sha256`` (sidecars from before the runners did record none, and
+    are not checked). A verdict published after prompt.md was rewritten, say
+    by an audit-prepare racing the runner, keeps the hash of the old bytes,
+    so it disagrees. A verdict without prompt.md is
+    :func:`template_version_problems`' to report. Returns ``(case_id,
+    problem)`` for each case that fails, in case order.
+    """
+    problems: list[tuple[str, str]] = []
+    cases_root = audit_dir / "cases"
+    if not cases_root.is_dir():
+        return problems
+    for case_dir in sorted(cases_root.iterdir()):
+        prompt_path = case_dir / "prompt.md"
+        if not ((case_dir / "verdict.json").is_file() and prompt_path.is_file()):
+            continue
+        recorded = (_sidecar(case_dir) or {}).get("prompt_sha256")
+        if recorded is None:
+            continue
+        if hashlib.sha256(prompt_path.read_bytes()).hexdigest() != recorded:
+            problems.append(
+                (
+                    case_dir.name,
+                    "prompt.md is not the bytes its judge read (its sidecar's "
+                    "prompt_sha256)",
+                )
+            )
+    return problems
 
 
 # --- Hedge detection -----------------------------------------------------------
@@ -516,14 +656,18 @@ def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
     """Fold verdicts into the annotation schema.
 
-    Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...}``.
+    Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...,
+    "template": ..., "prompt_hash": ...}``.
     ``row`` and ``case`` match the committed annotation CSV columns, extended
     with ``rationale`` and ``reference_suspect`` so the classifier's reasoning
     is preserved. ``missing`` lists cases whose verdict has not yet been
     produced (resumability). ``hedged`` lists case ids whose diagnosis or
     rationale hedges instead of diagnosing (see :data:`HEDGE_PATTERNS`) —
     delete those ``verdict.json`` files and re-run the classifier rather than
-    shipping them.
+    shipping them. ``template`` lists the judged cases whose prompt and
+    verdict disagree on the judge template version
+    (:func:`template_version_problems`), and ``prompt_hash`` those whose
+    prompt.md is not the bytes their judge read (:func:`prompt_hash_problems`).
     """
     manifest = _load_manifest(audit_dir)
     cases_root = audit_dir / "cases"
@@ -669,4 +813,10 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
         "case": pd.DataFrame(case_records, columns=case_columns),
         "missing": pd.DataFrame({"case_id": missing}, columns=["case_id"]),
         "hedged": pd.DataFrame({"case_id": hedged}, columns=["case_id"]),
+        "template": pd.DataFrame(
+            template_version_problems(audit_dir), columns=["case_id", "problem"]
+        ),
+        "prompt_hash": pd.DataFrame(
+            prompt_hash_problems(audit_dir), columns=["case_id", "problem"]
+        ),
     }
