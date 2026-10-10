@@ -642,8 +642,11 @@ classify_one() {
   [ -f "$prompt" ] || return 0
   case_ok "$out" "$name" 2>/dev/null && return 0
   # No valid verdict: any sidecar left behind describes a verdict that no
-  # longer exists (re-prepared case) and must not outlive it.
-  rm -f "$tmp" "$meta_tmp" "$envelope" "$case_dir/verdict.meta.json" \
+  # longer exists (re-prepared case) and must not outlive it. An invalid
+  # verdict.json goes too, so no verdict sits beside this run's sidecar until
+  # this run's verdict is published: audit-prepare removes a sidecar only
+  # together with the verdict it describes.
+  rm -f "$tmp" "$meta_tmp" "$envelope" "$out" "$case_dir/verdict.meta.json" \
     "$case_dir/claude.transcript.jsonl"
   work=$(mktemp -d "${TMPDIR:-/tmp}/pb-judge.XXXXXX") || {
     echo "[FAIL] $(basename "$case_dir") (no scratch directory)"

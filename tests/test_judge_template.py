@@ -677,6 +677,75 @@ def test_collect_refuses_a_verdict_published_on_rewritten_bytes(tmp_path):
     assert prompt_hash_problems(audit) == []
 
 
+def test_prepare_racing_a_publish_never_strands_the_verdict(tmp_path):
+    """The round-3 review's schedule, step by step. A $250 case holds a
+    truncated verdict.json. A runner's judge reads the $250 v1 prompt and the
+    runner publishes its sidecar. Before its verdict arrives, an
+    audit-prepare re-runs m1 at $999 on v1: it drops the truncated verdict
+    but leaves the sidecar, which describes another verdict. Then the
+    runner's verdict arrives. It still has its sidecar, whose prompt hash is
+    the $250 prompt's, so audit-collect refuses it and the next preparation
+    re-opens it."""
+    board = _board(tmp_path / "us", {"s0": 250.0})
+    audit = tmp_path / "audit"
+    (case,) = prepare_audit(board, audit, template_version=1)
+    case_dir = audit / "cases" / case.case_id
+    judged = (case_dir / "prompt.md").read_bytes()
+    (case_dir / "verdict.json").write_text("{")
+    verdict = json.dumps(VERDICT, indent=2, sort_keys=True).encode()
+    sidecar = {
+        "judge_runner": "scripts/run_audit_codex.sh",
+        "verdict_sha256": _sha256(verdict),
+        "prompt_sha256": _sha256(judged),
+        TEMPLATE_VERSION_FIELD: 1,
+    }
+    (case_dir / "verdict.meta.json").write_text(json.dumps(sidecar))
+    _board(board, {"s0": 999.0})
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert json.loads((case_dir / "verdict.meta.json").read_text()) == sidecar
+    (case_dir / "verdict.json").write_bytes(verdict)
+    assert [case_id for case_id, _ in prompt_hash_problems(audit)] == [case.case_id]
+    with pytest.raises(SystemExit, match="1 verdicts disagree with their prompt.md"):
+        _collect_cli(board, audit, tmp_path / "out")
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()
+
+
+def test_a_dropped_verdict_takes_only_its_own_sidecar(tmp_path):
+    """Re-opening a case removes its sidecar when the sidecar describes the
+    verdict (verdict_sha256) or records no verdict_sha256, as legacy sidecars
+    do; a sidecar describing another verdict stays for its runner."""
+    for name, verdict_sha256, stays in (
+        ("own", "verdict", False),
+        ("legacy", None, False),
+        ("another verdict's", "0" * 64, True),
+    ):
+        root = tmp_path / name.replace(" ", "-").replace("'", "")
+        board, audit, case, case_dir = _judged_case(root)
+        meta = json.loads((case_dir / "verdict.meta.json").read_text())
+        if verdict_sha256 is None:
+            del meta["verdict_sha256"]
+        elif verdict_sha256 != "verdict":
+            meta["verdict_sha256"] = verdict_sha256
+        (case_dir / "verdict.meta.json").write_text(json.dumps(meta))
+        _board(board, {"s0": 999.0})
+        prepare_audit(board, audit, template_version=1)
+        assert not (case_dir / "verdict.json").exists(), name
+        assert (case_dir / "verdict.meta.json").exists() == stays, name
+
+
+def test_a_verdict_its_sidecar_does_not_describe_is_reopened(tmp_path):
+    """An unchanged case whose verdict.json is not the verdict its sidecar
+    describes is re-opened; the sidecar, another verdict's, stays."""
+    board, audit, case, case_dir = _judged_case(tmp_path)
+    (case_dir / "verdict.json").write_text(json.dumps({**VERDICT, "rationale": "x"}))
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert (case_dir / "verdict.meta.json").exists()
+
+
 def test_prompts_compare_and_keep_exact_bytes(tmp_path):
     """Byte equality, with no newline translation either way: a case whose
     text holds a carriage return keeps its verdict and its prompt's bytes on
@@ -917,11 +986,12 @@ HASHES = (None, "v1", "v2", "other")
     st.sampled_from(JUDGED_STATES),
     st.sampled_from(PROMPT_KINDS),
     st.sampled_from(HASHES),
+    st.booleans(),
     st.sampled_from(sorted(JUDGE_TEMPLATE_HEADERS)),
     TEXT,
 )
 def test_a_verdict_is_kept_on_its_recorded_version_alone(
-    state, kind, hashed, version, text
+    state, kind, hashed, described, version, text
 ):
     """Never inferred, and byte for byte: prepare_audit keeps an unchanged
     judged case's verdict exactly when the case rendered on the version its
@@ -929,9 +999,11 @@ def test_a_verdict_is_kept_on_its_recorded_version_alone(
     which must also hash to the sidecar's prompt_sha256 when it records one;
     without prompt.md, that hash alone. A prompt.md on another version is
     re-opened, though template_version_of reads a version off it and though
-    the caller may name that very version, and so is a CRLF copy. A kept
-    case's files are untouched; a re-opened case renders on the caller's
-    version."""
+    the caller may name that very version, and so is a CRLF copy. A sidecar
+    must also describe the verdict (its verdict_sha256); when ``described``
+    is false, verdict.json is another verdict. A kept case's files are
+    untouched. A re-opened case loses its verdict, and its sidecar unless the
+    sidecar describes another verdict; it renders on the caller's version."""
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
         board = _board(root / "us", {"s0": 250.0})
@@ -964,22 +1036,29 @@ def test_a_verdict_is_kept_on_its_recorded_version_alone(
             )
             sidecar = {**sidecar, "prompt_sha256": recorded_sha256}
         _judge(case_dir, sidecar)
+        if not described:
+            (case_dir / "verdict.json").write_text(
+                json.dumps({**VERDICT, "rationale": "Another verdict."})
+            )
+        other_verdict = sidecar is not None and not described
         before = _tree(audit)
         recorded = recorded_template_version(sidecar)
         judged = renders.get(recorded)
         kept = (
-            judged is not None
+            not other_verdict
+            and judged is not None
             and recorded_sha256 in (None, _sha256(judged))
             and (prompt == judged if prompt is not None else bool(recorded_sha256))
         )
         prepare_audit(board, audit, template_version=version)
         after = _tree(audit)
+        where = (state, kind, hashed, described)
         if kept:
             restored = {f"cases/{case.case_id}/prompt.md": judged}
-            assert after == {**before, **restored}, (state, kind, hashed)
+            assert after == {**before, **restored}, where
         else:
-            assert not (case_dir / "verdict.json").exists(), (state, kind, hashed)
-            assert not (case_dir / "verdict.meta.json").exists()
+            assert not (case_dir / "verdict.json").exists(), where
+            assert (case_dir / "verdict.meta.json").exists() == other_verdict, where
             assert (case_dir / "prompt.md").read_bytes() == renders[version]
         assert template_version_problems(audit) == []
         assert prompt_hash_problems(audit) == []

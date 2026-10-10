@@ -385,8 +385,9 @@ def prepare_audit(
             case_dir.mkdir(exist_ok=True)
             prompt_path = case_dir / "prompt.md"
             verdict_path = case_dir / "verdict.json"
-            if verdict_path.exists():
-                judged = _judged_prompt(case, case_dir)
+            verdict = _read_or_none(verdict_path)
+            if verdict is not None:
+                judged = _judged_prompt(case, case_dir, verdict)
                 if judged is not None:
                     # The verdict stands on these bytes. A prompt.md the
                     # sidecar's hash vouched for is restored.
@@ -397,27 +398,41 @@ def prepare_audit(
                 # classified (e.g. a model was re-run and now answers
                 # differently), or its template or judged bytes are unknown.
                 # Drop the stale verdict so the runner re-classifies it rather
-                # than reusing the old label. The provenance sidecar describes
-                # that verdict; a re-judge by the other runner must not
-                # inherit it.
-                verdict_path.unlink()
-                (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+                # than reusing the old label.
+                _drop_verdict(case_dir, verdict)
             prompt = render_case_prompt(case, template_version=template_version)
             prompt_path.write_bytes(prompt.encode("utf-8"))
     return cases
 
 
-def _judged_prompt(case: AuditCase, case_dir: Path) -> bytes | None:
-    """The prompt bytes a judged case's verdict stands on, or None when the
-    case must be re-opened.
+def _read_or_none(path: Path) -> bytes | None:
+    """A file's bytes, or None when it does not exist (a runner may remove a
+    file between a check and a read)."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
 
-    The case is rendered on the version its sidecar records (absent: v1; an
-    unknown version gives None). Those bytes must be prompt.md's exactly,
-    and, when the sidecar records ``prompt_sha256`` (the hash of the bytes
-    its judge read), hash to it. Without prompt.md, that hash is the only
-    evidence of what the judge read, so a sidecar without one gives None.
+
+def _judged_prompt(case: AuditCase, case_dir: Path, verdict: bytes) -> bytes | None:
+    """The prompt bytes the judged case's ``verdict`` stands on, or None when
+    the case must be re-opened.
+
+    A sidecar that records ``verdict_sha256`` must describe ``verdict``:
+    otherwise it is another verdict's record, such as one a runner has
+    published and whose verdict has not arrived yet. The case is rendered on
+    the version the sidecar records (absent: v1; an unknown version gives
+    None). Those bytes must be prompt.md's exactly, and, when the sidecar
+    records ``prompt_sha256`` (the hash of the bytes its judge read), hash to
+    it. Without prompt.md, that hash is the only evidence of what the judge
+    read, so a sidecar without one gives None.
     """
     meta = _sidecar(case_dir)
+    recorded_verdict = (meta or {}).get("verdict_sha256")
+    if recorded_verdict is not None and (
+        recorded_verdict != hashlib.sha256(verdict).hexdigest()
+    ):
+        return None
     judged_on = recorded_template_version(meta)
     if judged_on is None:
         return None
@@ -433,16 +448,41 @@ def _judged_prompt(case: AuditCase, case_dir: Path) -> bytes | None:
     return rendered if recorded_sha256 is not None else None
 
 
+def _drop_verdict(case_dir: Path, verdict: bytes) -> None:
+    """Re-open a case: remove ``verdict``, the verdict prepare_audit read,
+    and its sidecar.
+
+    The sidecar goes only when it describes ``verdict`` (its
+    ``verdict_sha256``) or records no verdict_sha256, as sidecars from before
+    runners recorded one do; a re-judge by the other runner must not inherit
+    it. Any other sidecar is the record of a verdict a runner is publishing,
+    which runners do sidecar first: removing it would leave that verdict with
+    no record of the bytes its judge read, and runners remove a sidecar left
+    without a verdict themselves. Likewise verdict.json goes only while it
+    still holds ``verdict``: one a runner has published since is left for the
+    collect gates and the next preparation to judge.
+    """
+    verdict_path = case_dir / "verdict.json"
+    if _read_or_none(verdict_path) == verdict:
+        verdict_path.unlink(missing_ok=True)
+    meta = _sidecar(case_dir)
+    if meta is None:
+        return
+    recorded = meta.get("verdict_sha256")
+    if recorded is None or recorded == hashlib.sha256(verdict).hexdigest():
+        (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+
+
 def _sidecar(case_dir: Path) -> dict | None:
     """A case's ``verdict.meta.json``, or None when it has none.
 
     A sidecar that is not a JSON object records no template version.
     """
-    path = case_dir / "verdict.meta.json"
-    if not path.is_file():
+    text = _read_or_none(case_dir / "verdict.meta.json")
+    if text is None:
         return None
     try:
-        meta = json.loads(path.read_text())
+        meta = json.loads(text)
     except ValueError:
         meta = None
     return meta if isinstance(meta, dict) else {TEMPLATE_VERSION_FIELD: None}

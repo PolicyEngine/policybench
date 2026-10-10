@@ -76,8 +76,11 @@ classify_one() {
   # temp file and publish atomically only once it validates, so an interrupted
   # run never leaves a half-written verdict that looks done. Default reasoning
   # effort (xhigh) is wasteful for classification, so it is lowered. A sidecar
-  # left from a previous verdict describes a verdict that no longer exists.
-  rm -f "$tmp" "$case_dir/verdict.meta.json"
+  # left from a previous verdict describes a verdict that no longer exists,
+  # and an invalid verdict.json goes too, so no verdict sits beside this
+  # run's sidecar until this run's verdict is published: audit-prepare
+  # removes a sidecar only together with the verdict it describes.
+  rm -f "$tmp" "$out" "$case_dir/verdict.meta.json"
   # Codex reads a private copy, so the sidecar describes the bytes it judged
   # even if audit-prepare rewrites prompt.md meanwhile.
   judged=$(mktemp "${TMPDIR:-/tmp}/pb-codex-prompt.XXXXXX") || {

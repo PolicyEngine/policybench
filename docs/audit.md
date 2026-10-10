@@ -75,10 +75,11 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   that copy's sha256 (`prompt_sha256`) and version (`judge_template_version`)
   in `verdict.meta.json`. A verdict is not published if `prompt.md` no longer
   holds those bytes. A prompt that begins with no version's header, one
-  `audit-prepare` did not write, records `null`. A runner publishes the
-  sidecar before the verdict. An interrupted publish can leave a sidecar
-  without a verdict, which the next run removes, but never a new verdict
-  without its sidecar.
+  `audit-prepare` did not write, records `null`. Before it judges a case, a
+  runner removes the case's invalid `verdict.json` and stale sidecar, and it
+  publishes the sidecar before the verdict. An interrupted publish can leave
+  a sidecar without a verdict, which the next run removes, but never a new
+  verdict without its sidecar.
 - A sidecar without the field, or a verdict without a sidecar, was judged on
   v1 (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars
   written before versions existed, not a guess from the prompt.
@@ -87,11 +88,22 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   `prompt.md` byte for byte and, when the sidecar records `prompt_sha256`
   (the hash of the bytes its judge read), matches it. Without `prompt.md`,
   the verdict stands only if that hash matches, and the prompt is restored.
-  A kept case's files are not rewritten. Otherwise the case changed since it
-  was judged, or its version or judged bytes are unknown: the verdict and
-  its sidecar are dropped and the case is re-opened. A `prompt.md` on
-  another version is re-opened, not adopted. New and re-opened cases use the
-  version the caller names.
+  A sidecar that records `verdict_sha256` must also describe the verdict. A
+  kept case's files are not rewritten. Otherwise the case changed since it
+  was judged, or its version or judged bytes are unknown, and the case is
+  re-opened: the verdict is dropped, and so is its sidecar when the sidecar
+  describes that verdict or records no `verdict_sha256`. A sidecar that
+  describes another verdict stays, such as the record of a verdict a runner
+  is still publishing. A `prompt.md` on another version is re-opened, not
+  adopted. New and re-opened cases use the version the caller names.
+- `audit-prepare` may run while a runner judges the same tree, with one
+  runner per case and one `audit-prepare` at a time. Once both finish, no
+  verdict passes `audit-collect`, or survives the next `audit-prepare`, on
+  bytes its judge did not read. That holds because a runner never leaves a
+  new verdict without its sidecar, `audit-prepare` never removes another
+  verdict's sidecar, and `audit-collect` checks each recorded hash. A
+  verdict judged before a racing `audit-prepare` rewrote its case is
+  refused, not kept. Run `audit-collect` after both finish.
 - Each release driver names the version its new and re-opened cases render
   on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
   versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,

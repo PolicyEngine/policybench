@@ -588,18 +588,23 @@ def test_codex_publishes_no_verdict_for_a_prompt_rewritten_while_it_judged(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
 @pytest.mark.parametrize("runner", ["run_audit_claude.sh", "run_audit_codex.sh"])
+@pytest.mark.parametrize("earlier", [None, "{"])
 def test_an_interrupted_publish_never_leaves_a_verdict_without_its_sidecar(
-    tmp_path: Path, runner
+    tmp_path: Path, runner, earlier
 ):
     """A worker killed between publishing its two files leaves at most a
     sidecar without a verdict, never a verdict that audit-prepare would read
     as a legacy v1 verdict with no record of the bytes its judge read. Here
-    the first move succeeds and the worker is then terminated. The next run
-    judges the case again and publishes both."""
+    the first move succeeds and the worker is then terminated. A case that
+    held an invalid verdict (``earlier``) loses it when the run starts, so
+    no verdict sits beside the new sidecar either. The next run judges the
+    case again and publishes both."""
     audit_dir, case_dir, env = _claude_audit(tmp_path)
     (case_dir / "prompt.md").write_text(
         template_header(1) + "\nCOUNTRY: US\nClassify this miss.\n"
     )
+    if earlier is not None:
+        (case_dir / "verdict.json").write_text(earlier)
     shim = tmp_path / "shim"
     shim.mkdir()
     _fake_cli(shim / "mv", '/bin/mv "$@" || exit $?\nkill -TERM "$PPID"\n')
@@ -652,5 +657,76 @@ def test_a_terminated_codex_worker_removes_its_prompt_copy(tmp_path: Path):
     )
     assert "audit complete: 0/1" in result.stdout, result.stdout + result.stderr
     assert list(copies.iterdir()) == []
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+def test_an_audit_prepare_between_a_publishs_two_moves_strands_nothing(
+    tmp_path: Path,
+):
+    """End to end, the round-3 review's schedule on the real Codex runner: a
+    $250 case holding a truncated verdict is judged, and right after the
+    runner moves its sidecar into place an audit-prepare re-runs m1 at $999
+    on v1; then the runner moves its verdict. The verdict keeps its sidecar,
+    whose prompt hash is the $250 prompt's: audit-collect refuses it and the
+    next audit-prepare re-opens it."""
+    from policybench.audit import prepare_audit
+
+    board = tmp_path / "us"
+    board.mkdir()
+
+    def write_board(answer: float) -> None:
+        (board / "reference_outputs.csv").write_text(
+            "scenario_id,variable,value\ns0,snap,0.0\n"
+        )
+        (board / "predictions.csv").write_text(
+            "model,scenario_id,variable,prediction,explanation,error\n"
+            f"m1,s0,snap,{answer},Estimated {answer}.,\n"
+        )
+
+    write_board(250.0)
+    audit_dir = tmp_path / "audit"
+    (case,) = prepare_audit(board, audit_dir, template_version=1)
+    case_dir = audit_dir / "cases" / case.case_id
+    judged = (case_dir / "prompt.md").read_bytes()
+    (case_dir / "verdict.json").write_text("{")
+    _, _, env = _claude_audit(tmp_path / "fixture")
+    hook = tmp_path / "prepare_999.py"
+    hook.write_text(
+        "from pathlib import Path\n"
+        "from policybench.audit import prepare_audit\n"
+        f"board = Path({str(board)!r})\n"
+        "(board / 'predictions.csv').write_text(\n"
+        "    'model,scenario_id,variable,prediction,explanation,error\\n'\n"
+        "    'm1,s0,snap,999.0,Estimated 999.0.,\\n'\n"
+        ")\n"
+        f"prepare_audit(board, Path({str(audit_dir)!r}), template_version=1)\n"
+    )
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    _fake_cli(
+        shim / "mv",
+        '/bin/mv "$@" || exit $?\n'
+        'case "$3" in *verdict.meta.json)\n'
+        f'  PYTHONPATH="{ROOT}" "{sys.executable}" "{hook}" || exit 1 ;;\n'
+        "esac\n",
+    )
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/run_audit_codex.sh"), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env={**env, "PATH": f"{shim}:{env['PATH']}"},
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert f"[ok] {case_dir.name}" in result.stdout, result.stdout
+    meta = json.loads((case_dir / "verdict.meta.json").read_text())
+    verdict = (case_dir / "verdict.json").read_bytes()
+    assert meta["verdict_sha256"] == hashlib.sha256(verdict).hexdigest()
+    assert meta["prompt_sha256"] == hashlib.sha256(judged).hexdigest()
+    assert b"999" in (case_dir / "prompt.md").read_bytes()
+    assert [c for c, _ in prompt_hash_problems(audit_dir)] == [case_dir.name]
+    prepare_audit(board, audit_dir, template_version=1)
     assert not (case_dir / "verdict.json").exists()
     assert not (case_dir / "verdict.meta.json").exists()
