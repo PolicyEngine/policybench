@@ -2,13 +2,21 @@
 the version each was judged on.
 
 Invariants:
+- every committed prompt re-renders on its recorded version: the prompt
+  sha256s that docs/gpt61sol/ and docs/haiku55/ commit re-render from each
+  release's committed board on the version their verdicts record (local only,
+  for it needs the audit grounding), and prepare_audit keeps a judged case's
+  prompt, verdict and sidecar bytes when the case re-renders to them with its
+  recorded version (absent: v1);
+- v2 differs from v1 only by the dropped clause: the header diff is one
+  deletion, V1_REVIEW_CLAIM, and the rest of a prompt does not depend on the
+  version;
+- version selection is explicit, never inferred: render_case_prompt,
+  prepare_audit and audit-prepare require a version, every call names one,
+  and prepare_audit keeps a verdict on its recorded version alone, never on
+  the version a prompt begins with;
 - a version's header never changes (pinned by sha256), and no header is a
   prefix of another, so a prompt's version is read off its bytes;
-- the rest of a prompt does not depend on the version, and v2 is v1 without
-  the review claim;
-- prepare_audit keeps a judged case's prompt, verdict and sidecar bytes when
-  the case re-renders to them with its recorded version (absent: v1), and
-  renders every other case with the requested version (default: current);
 - after prepare_audit, a tree validates (template_version_problems is empty),
   and a second prepare_audit changes nothing.
 """
@@ -16,8 +24,13 @@ Invariants:
 from __future__ import annotations
 
 import ast
+import contextlib
+import difflib
+import functools
 import hashlib
+import inspect
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -116,6 +129,23 @@ def test_v2_is_v1_without_the_review_claim():
     )
 
 
+def test_the_header_diff_is_one_deletion_of_the_clause():
+    """v2 differs from v1 only by the dropped clause, and no diff can place
+    the deletion anywhere else: the common prefix ends where the clause
+    starts, the common suffix starts where it ends, and difflib's edit is that
+    one deletion."""
+    v1, v2 = JUDGE_TEMPLATE_HEADERS[1], JUDGE_TEMPLATE_HEADERS[2]
+    prefix = len(os.path.commonprefix([v1, v2]))
+    suffix = len(os.path.commonprefix([v1[::-1], v2[::-1]]))
+    assert prefix + suffix == len(v2)
+    assert v1[prefix : len(v1) - suffix] == V1_REVIEW_CLAIM
+    opcodes = difflib.SequenceMatcher(None, v1, v2, autojunk=False).get_opcodes()
+    edits = [
+        (tag, v1[i1:i2], v2[j1:j2]) for tag, i1, i2, j1, j2 in opcodes if tag != "equal"
+    ]
+    assert edits == [("delete", V1_REVIEW_CLAIM, "")]
+
+
 def test_no_header_is_a_prefix_of_another():
     for version, header in JUDGE_TEMPLATE_HEADERS.items():
         for other, other_header in JUDGE_TEMPLATE_HEADERS.items():
@@ -190,7 +220,7 @@ def audit_cases(draw) -> AuditCase:
 @given(audit_cases())
 def test_a_prompts_version_is_read_off_its_bytes(case):
     for version in JUDGE_TEMPLATE_HEADERS:
-        prompt = render_case_prompt(case, version)
+        prompt = render_case_prompt(case, template_version=version)
         assert prompt.startswith(template_header(version))
         assert template_version_of(prompt) == version
         assert template_version_of(prompt.encode("utf-8")) == version
@@ -200,15 +230,17 @@ def test_a_prompts_version_is_read_off_its_bytes(case):
 @given(audit_cases())
 def test_only_the_header_depends_on_the_version(case):
     bodies = {
-        render_case_prompt(case, version)[len(header) :]
+        render_case_prompt(case, template_version=version)[len(header) :]
         for version, header in JUDGE_TEMPLATE_HEADERS.items()
     }
     assert len(bodies) == 1
-    v1, v2 = render_case_prompt(case, 1), render_case_prompt(case, 2)
+    v1 = render_case_prompt(case, template_version=1)
+    v2 = render_case_prompt(case, template_version=2)
     assert v2 == v1.replace(V1_REVIEW_CLAIM, "", 1)
-    assert render_case_prompt(case) == render_case_prompt(
-        case, CURRENT_TEMPLATE_VERSION
-    )
+    # The one deletion is the clause, where the header states it.
+    start = v1.index(V1_REVIEW_CLAIM)
+    assert v2 == v1[:start] + v1[start + len(V1_REVIEW_CLAIM) :]
+    assert start == JUDGE_TEMPLATE_HEADERS[1].index(V1_REVIEW_CLAIM)
 
 
 @PROPERTY
@@ -301,12 +333,14 @@ def _judge(case_dir: Path, sidecar: dict | None) -> None:
 def _seed(audit: Path, board: Path, states: dict[str, str]) -> dict[str, AuditCase]:
     """Prepare ``board`` into ``audit``, then give each scenario's case the
     prompt and verdict its state names. Returns the cases by scenario."""
-    prepare_audit(board, audit)
+    prepare_audit(board, audit, template_version=CURRENT_TEMPLATE_VERSION)
     cases = {case.scenario_id: case for case in build_audit_cases(board)}
     for scenario, state in states.items():
         case_dir = audit / "cases" / cases[scenario].case_id
         (case_dir / "prompt.md").write_text(
-            render_case_prompt(cases[scenario], SEED_PROMPT_VERSION[state])
+            render_case_prompt(
+                cases[scenario], template_version=SEED_PROMPT_VERSION[state]
+            )
         )
         if state != "unjudged":
             _judge(case_dir, SEED_STATES[state])
@@ -366,17 +400,17 @@ def test_prepare_keeps_each_judged_case_on_its_own_template(plan, version):
                 assert f"{case_dir}/verdict.json" not in after, state
                 assert f"{case_dir}/verdict.meta.json" not in after, state
                 assert after[f"{case_dir}/prompt.md"] == render_case_prompt(
-                    cases[scenario], version
+                    cases[scenario], template_version=version
                 ).encode("utf-8")
         assert template_version_problems(audit) == []
         prepare_audit(board, audit, template_version=version)
         assert _tree(audit) == after
 
 
-def test_new_cases_get_the_current_version(tmp_path):
+def test_a_new_audit_on_the_current_version_drops_the_claim(tmp_path):
     board = _board(tmp_path / "us", {"s0": 250.0, "s1": 100.0})
     audit = tmp_path / "audit"
-    cases = prepare_audit(board, audit)
+    cases = prepare_audit(board, audit, template_version=CURRENT_TEMPLATE_VERSION)
     for case in cases:
         prompt = (audit / "cases" / case.case_id / "prompt.md").read_bytes()
         assert template_version_of(prompt) == CURRENT_TEMPLATE_VERSION == 2
@@ -391,7 +425,7 @@ def test_a_requested_version_renders_new_cases_and_an_unknown_one_is_refused(
     audit = tmp_path / "audit"
     (case,) = prepare_audit(board, audit, template_version=1)
     prompt = (audit / "cases" / case.case_id / "prompt.md").read_text()
-    assert prompt == render_case_prompt(case, 1)
+    assert prompt == render_case_prompt(case, template_version=1)
     assert "fixed before this run" in prompt
     with pytest.raises(ValueError, match="no judge template version 3"):
         prepare_audit(board, tmp_path / "other", template_version=3)
@@ -399,9 +433,9 @@ def test_a_requested_version_renders_new_cases_and_an_unknown_one_is_refused(
 
 
 def test_a_v1_seed_carries_over_and_a_reopened_case_moves_to_v2(tmp_path):
-    """The fold drivers' flow: a seed judged on v1 (its sidecar predates the
-    field) is copied into a stage; the case a new model joins is re-opened on
-    v2, and the other keeps the seed's bytes."""
+    """The fold drivers' flow, for a driver that names v2: a seed judged on v1
+    (its sidecar predates the field) is copied into a stage; the case a new
+    model joins is re-opened on v2, and the other keeps the seed's bytes."""
     seed_board = _board(tmp_path / "seed" / "us", {"s0": 250.0, "s1": 100.0})
     seed = tmp_path / "seed" / "audit"
     prepare_audit(seed_board, seed, template_version=1)
@@ -420,7 +454,10 @@ def test_a_v1_seed_carries_over_and_a_reopened_case_moves_to_v2(tmp_path):
     new = predictions.assign(model="new")
     new.loc[new.scenario_id == "s1", "prediction"] = 0.0
     pd.concat([predictions, new]).to_csv(board / "predictions.csv", index=False)
-    cases = {case.scenario_id: case for case in prepare_audit(board, stage)}
+    cases = {
+        case.scenario_id: case
+        for case in prepare_audit(board, stage, template_version=2)
+    }
     kept, reopened = (stage / "cases" / cases[s].case_id for s in ("s1", "s0"))
     for name in ("prompt.md", "verdict.json", "verdict.meta.json"):
         assert (kept / name).read_bytes() == (
@@ -428,7 +465,9 @@ def test_a_v1_seed_carries_over_and_a_reopened_case_moves_to_v2(tmp_path):
         ).read_bytes()
     assert template_version_of((kept / "prompt.md").read_bytes()) == 1
     assert not (reopened / "verdict.json").exists()
-    assert (reopened / "prompt.md").read_text() == render_case_prompt(cases["s0"], 2)
+    assert (reopened / "prompt.md").read_text() == render_case_prompt(
+        cases["s0"], template_version=2
+    )
     assert template_version_problems(stage) == []
 
 
@@ -460,9 +499,20 @@ def test_a_mixed_tree_validates_and_collects(tmp_path):
     assert list(out["template"].columns) == ["case_id", "problem"]
     assert sorted(out["missing"]["case_id"]) == [cases["s4"].case_id]
     assert len(out["case"]) == 4
-    # Preparing it again keeps every verdict: each case renders to its bytes.
+    # Preparing it again, on either version, keeps every verdict: each judged
+    # case renders to its bytes on the version it records. Only the unjudged
+    # case follows the version the caller names.
     before = _tree(audit)
-    prepare_audit(board, audit)
+    unjudged = f"cases/{cases['s4'].case_id}/prompt.md"
+    for version in sorted(JUDGE_TEMPLATE_HEADERS):
+        prepare_audit(board, audit, template_version=version)
+        after = _tree(audit)
+        assert after[unjudged] == render_case_prompt(
+            cases["s4"], template_version=version
+        ).encode("utf-8")
+        assert {k: v for k, v in after.items() if k != unjudged} == {
+            k: v for k, v in before.items() if k != unjudged
+        }
     assert _tree(audit) == before
     _collect_cli(board, audit, tmp_path / "out")
     assert (tmp_path / "out" / "us_audit_case_annotations.csv").is_file()
@@ -504,16 +554,16 @@ def test_a_verdict_whose_template_disagrees_with_its_prompt_is_flagged(tmp_path)
     assert not (tmp_path / "out").exists()
     # Preparing again re-opens every flagged case except the verdict that
     # lost its prompt, which keeps its verdict and gets its v1 prompt back.
-    prepare_audit(board, audit)
+    prepare_audit(board, audit, template_version=2)
     assert template_version_problems(audit) == []
     assert (case_dir["s0"] / "verdict.json").is_file()
     assert (case_dir["s0"] / "prompt.md").read_text() == render_case_prompt(
-        cases["s0"], 1
+        cases["s0"], template_version=1
     )
     for scenario in ("s1", "s2", "s3", "s4"):
         assert not (case_dir[scenario] / "verdict.json").exists(), scenario
         assert (case_dir[scenario] / "prompt.md").read_text() == render_case_prompt(
-            cases[scenario], 2
+            cases[scenario], template_version=2
         )
 
 
@@ -526,20 +576,369 @@ def _collect_cli(board: Path, audit: Path, out: Path) -> None:
         cli.main()
 
 
-def test_audit_prepare_takes_a_template_version(tmp_path, capsys):
+def test_audit_prepare_requires_a_template_version(tmp_path, capsys):
     from policybench import cli
 
     board = _board(tmp_path / "us", {"s0": 250.0})
-    for flag, version in ((["--template-version", "1"], 1), ([], 2)):
+    for version in sorted(JUDGE_TEMPLATE_HEADERS):
         audit = tmp_path / f"audit-{version}"
         argv = ["policybench", "audit-prepare", "--country-dir", str(board)]
-        argv += ["--audit-dir", str(audit), *flag]
+        argv += ["--audit-dir", str(audit), "--template-version", str(version)]
         with mock.patch.object(sys, "argv", argv):
             cli.main()
         (prompt,) = (audit / "cases").glob("*/prompt.md")
         assert template_version_of(prompt.read_bytes()) == version
+        assert f"on judge template v{version}." in capsys.readouterr().out
+    # No flag: argparse refuses before anything is written.
+    argv = ["policybench", "audit-prepare", "--country-dir", str(board)]
+    argv += ["--audit-dir", str(tmp_path / "audit-none")]
+    with mock.patch.object(sys, "argv", argv):
+        with pytest.raises(SystemExit) as refused:
+            cli.main()
+    assert refused.value.code == 2
+    assert "--template-version" in capsys.readouterr().err
+    assert not (tmp_path / "audit-none").exists()
     argv = ["policybench", "audit-prepare", "--country-dir", str(board)]
     argv += ["--audit-dir", str(tmp_path / "audit-9"), "--template-version", "9"]
     with mock.patch.object(sys, "argv", argv):
         with pytest.raises(SystemExit, match="no judge template version 9"):
             cli.main()
+    assert not (tmp_path / "audit-9").exists()
+
+
+# --- Version selection is explicit, never inferred ------------------------------
+
+
+def test_the_renderers_have_no_default_version():
+    """Every renderer takes the version as a required keyword: none falls back
+    to CURRENT_TEMPLATE_VERSION, so adding a version moves no caller."""
+    for function in (render_case_prompt, prepare_audit):
+        parameter = inspect.signature(function).parameters["template_version"]
+        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, function.__name__
+        assert parameter.default is inspect.Parameter.empty, function.__name__
+
+
+def test_a_renderer_called_without_a_version_is_refused(tmp_path):
+    board = _board(tmp_path / "us", {"s0": 250.0})
+    (case,) = build_audit_cases(board)
+    with pytest.raises(TypeError, match="template_version"):
+        render_case_prompt(case)
+    with pytest.raises(TypeError):
+        render_case_prompt(case, CURRENT_TEMPLATE_VERSION)  # not by name
+    with pytest.raises(TypeError, match="template_version"):
+        prepare_audit(board, tmp_path / "audit")
+    assert not (tmp_path / "audit").exists()
+
+
+# The modules outside the tests that render judge prompts, and their calls.
+RENDERER_CALLS = {
+    "policybench/audit.py": {"render_case_prompt": 2},
+    "policybench/cli.py": {"prepare_audit": 1},
+    "scripts/finish_adds0928.py": {"prepare_audit": 1},
+    "scripts/finish_gpt61sol.py": {"prepare_audit": 1},
+    "scripts/finish_haiku55.py": {"prepare_audit": 2, "render_case_prompt": 1},
+}
+RENDERERS = ("render_case_prompt", "prepare_audit")
+
+
+def _called_name(call: ast.Call) -> str | None:
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def test_every_renderer_call_names_its_version():
+    """Static: every call of render_case_prompt or prepare_audit in
+    policybench/, scripts/ and reference_audit/ passes template_version by
+    name, and no value passed is read off a prompt (template_version_of)."""
+    found: dict[str, dict[str, int]] = {}
+    paths = [
+        path
+        for part in ("policybench", "scripts", "reference_audit")
+        for path in sorted((ROOT / part).rglob("*.py"))
+    ]
+    for path in paths:
+        relative = path.relative_to(ROOT).as_posix()
+        for call in ast.walk(ast.parse(path.read_text(), filename=relative)):
+            if not isinstance(call, ast.Call) or _called_name(call) not in RENDERERS:
+                continue
+            name = _called_name(call)
+            counts = found.setdefault(relative, {})
+            counts[name] = counts.get(name, 0) + 1
+            keywords = {k.arg: k.value for k in call.keywords}
+            where = f"{relative}:{call.lineno} {name}"
+            assert "template_version" in keywords, f"{where} names no version"
+            inferred = [
+                node
+                for node in ast.walk(keywords["template_version"])
+                if isinstance(node, ast.Call)
+                and _called_name(node) == "template_version_of"
+            ]
+            assert not inferred, f"{where} reads its version off a prompt"
+    for relative, counts in RENDERER_CALLS.items():
+        assert found.get(relative) == counts, relative
+
+
+# The release drivers of releases judged before versions existed: each
+# judged every verdict on v1.
+V1_DRIVERS = (
+    "scripts/finish_adds0928.py",
+    "scripts/finish_gpt61sol.py",
+    "scripts/finish_haiku55.py",
+)
+
+
+def test_each_past_release_driver_renders_on_v1_by_name():
+    """Each driver states the version its release was judged on as the
+    module constant JUDGE_TEMPLATE_VERSION = 1, and passes that constant, not
+    a literal or another value, to every renderer it calls."""
+    for relative in V1_DRIVERS:
+        tree = ast.parse((ROOT / relative).read_text(), filename=relative)
+        (value,) = [
+            node.value
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and [getattr(t, "id", None) for t in node.targets]
+            == ["JUDGE_TEMPLATE_VERSION"]
+        ]
+        assert isinstance(value, ast.Constant) and value.value == 1, relative
+        calls = [
+            call
+            for call in ast.walk(tree)
+            if isinstance(call, ast.Call) and _called_name(call) in RENDERERS
+        ]
+        assert calls, relative
+        for call in calls:
+            (named,) = [k.value for k in call.keywords if k.arg == "template_version"]
+            assert isinstance(named, ast.Name), (relative, call.lineno)
+            assert named.id == "JUDGE_TEMPLATE_VERSION", (relative, call.lineno)
+
+
+# A judged case's prompt.md, as the property draws it.
+PROMPT_KINDS = ("v1", "v2", "v1 + text", "v2 + text", "no header")
+JUDGED_STATES = sorted(state for state in SEED_STATES if state != "unjudged")
+
+
+@PROPERTY
+@given(
+    st.sampled_from(JUDGED_STATES),
+    st.sampled_from(PROMPT_KINDS),
+    st.sampled_from(sorted(JUDGE_TEMPLATE_HEADERS)),
+    TEXT,
+)
+def test_a_verdict_is_kept_on_its_recorded_version_alone(state, kind, version, text):
+    """Never inferred: prepare_audit keeps an unchanged judged case's verdict
+    exactly when prompt.md is the case rendered on the version its sidecar
+    records. A prompt.md on another version is re-opened, though
+    template_version_of reads a version off it and though the caller may name
+    that very version; a re-opened case renders on the caller's version."""
+    with tempfile.TemporaryDirectory() as scratch:
+        root = Path(scratch)
+        board = _board(root / "us", {"s0": 250.0})
+        audit = root / "audit"
+        (case,) = prepare_audit(board, audit, template_version=version)
+        case_dir = audit / "cases" / case.case_id
+        if kind == "no header":
+            prompt = f"Classify this miss.\n{text}"
+        else:
+            prompt = render_case_prompt(case, template_version=int(kind[1]))
+            if kind.endswith("+ text"):
+                prompt += f"\n{text}."
+        (case_dir / "prompt.md").write_text(prompt)
+        _judge(case_dir, SEED_STATES[state])
+        before = _tree(audit)
+        recorded = recorded_template_version(SEED_STATES[state])
+        kept = recorded is not None and prompt == render_case_prompt(
+            case, template_version=recorded
+        )
+        prepare_audit(board, audit, template_version=version)
+        after = _tree(audit)
+        names = ("prompt.md", "verdict.json", "verdict.meta.json")
+        if kept:
+            for name in names:
+                key = f"cases/{case.case_id}/{name}"
+                assert after.get(key) == before.get(key), (state, kind, name)
+        else:
+            assert not (case_dir / "verdict.json").exists(), (state, kind)
+            assert not (case_dir / "verdict.meta.json").exists(), (state, kind)
+            assert (case_dir / "prompt.md").read_text() == render_case_prompt(
+                case, template_version=version
+            )
+        assert template_version_problems(audit) == []
+
+
+# --- Every committed prompt re-renders on its recorded version ------------------
+
+RUN_NAME = "us_full_run_20260612_policyengine_4_16_1_populace"
+BOARD_PATH = Path("paper/snapshot/20260501/runs") / RUN_NAME
+ANNOTATIONS_PATH = Path("annotations") / RUN_NAME
+# The board files an audit renders from, and the annotations beside them.
+BOARD_FILES = (
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "reference_exclusions.json",
+    "scenarios.csv",
+    "scenarios.csv.meta.json",
+    "predictions.csv.gz",
+)
+ANNOTATION_FILES = (
+    "us_audit_row_annotations.csv",
+    "us_case_notes.csv",
+    "us_case_reference_explanations.csv",
+    "us_adjudications.json",
+)
+# Each release PR's squash on main, which commits the board the release's
+# audit renders from. A dashboard-data tag marks main when its GitHub release
+# was cut, before that merge, so it does not hold the release's board.
+RELEASE_COMMITS = {
+    "20260929": "d616e67c33b6f80dabf5cb7329f069f9a1de069d",
+    "20260930": "8b4c0ca146bb6f66deba6ce24009d49d70d92df2",
+    "20261010": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+}
+# The audit grounding these releases rendered with, which the release drivers
+# pin as GROUNDING_SHA256. It is not committed, so rendering is local only.
+GROUNDING = Path(
+    "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
+    "grounding.csv"
+)
+GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7b55c"
+
+
+def _seed_records(path: str) -> dict[str, dict]:
+    """A committed seed digest: each judged case's prompt and verdict sha256."""
+    lines = (ROOT / path).read_text().splitlines()
+    assert lines[0] == "case_id,prompt_sha256,verdict_sha256"
+    return {
+        case: {"prompt_sha256": prompt, "verdict_sha256": verdict}
+        for case, prompt, verdict in (line.split(",") for line in lines[1:])
+    }
+
+
+def _provenance_records(path: str) -> dict[str, dict]:
+    """A committed judge provenance record: each re-judged verdict's entry."""
+    verdicts = json.loads((ROOT / path).read_text())["verdicts"]
+    records = {entry["case_id"]: entry for entry in verdicts}
+    assert len(records) == len(verdicts), path
+    return records
+
+
+def _committed_prompts() -> dict[str, dict[str, dict]]:
+    """Every committed prompt record, by the release whose audit holds it.
+
+    Release 20260929's audit is docs/gpt61sol/seed_digest.csv. Release
+    20260930 re-judged the cases docs/gpt61sol/judge_provenance.json lists
+    and carried the rest; release 20261006 carried that audit, as
+    docs/haiku55/seed_digest.csv records. Release 20261010 re-judged the
+    cases docs/haiku55/judge_provenance.json lists and carried the rest.
+    """
+    seed_0929 = _seed_records("docs/gpt61sol/seed_digest.csv")
+    seed_1006 = _seed_records("docs/haiku55/seed_digest.csv")
+    return {
+        "20260929": seed_0929,
+        "20260930": {
+            **seed_0929,
+            **_provenance_records("docs/gpt61sol/judge_provenance.json"),
+        },
+        "20261006": seed_1006,
+        "20261010": {
+            **seed_1006,
+            **_provenance_records("docs/haiku55/judge_provenance.json"),
+        },
+    }
+
+
+def test_the_committed_prompt_records_agree_and_name_a_version():
+    """Runs anywhere: each committed record names a known template version
+    (none records the field, so each records v1), and release 20261006's
+    seed digest is release 20260930's audit: release 20260929's digest with
+    the prompts and verdicts of the cases release 20260930 re-judged."""
+    committed = _committed_prompts()
+    assert {release: len(records) for release, records in committed.items()} == {
+        "20260929": 674,
+        "20260930": 674,
+        "20261006": 674,
+        # The seed's 674 and three cases release 20261010 added.
+        "20261010": 677,
+    }
+    for records in committed.values():
+        for case, record in records.items():
+            assert recorded_template_version(record) == 1, case
+    digests = {
+        release: {
+            case: (record["prompt_sha256"], record["verdict_sha256"])
+            for case, record in records.items()
+        }
+        for release, records in committed.items()
+    }
+    assert digests["20261006"] == digests["20260930"]
+
+
+@functools.cache
+def _blob(commit: str, path: Path) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        pytest.fail(
+            f"cannot read {path} at {commit[:12]}; fetch full history (git fetch "
+            f"--unshallow): {result.stderr.decode().strip()}"
+        )
+    return result.stdout
+
+
+@contextlib.contextmanager
+def _object_strings():
+    """Render as the release drivers did: with pandas' inferred Arrow strings
+    off."""
+    if hasattr(pd.options, "future") and hasattr(pd.options.future, "infer_string"):
+        with pd.option_context("future.infer_string", False):
+            yield
+    else:
+        yield
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("release", sorted(RELEASE_COMMITS))
+def test_every_committed_prompt_rerenders_on_its_recorded_version(tmp_path, release):
+    """Local only: release ``release``'s board, read from the commit that
+    committed it, renders every judged case of its audit, on the version its
+    committed record names, to the prompt sha256 that record commits; and it
+    renders no other case."""
+    if not GROUNDING.is_file():
+        pytest.skip("the audit grounding is not on this machine")
+    assert hashlib.sha256(GROUNDING.read_bytes()).hexdigest() == GROUNDING_SHA256
+    commit = RELEASE_COMMITS[release]
+    country_dir = tmp_path / RUN_NAME / "us"
+    country_dir.mkdir(parents=True)
+    for name in BOARD_FILES:
+        (country_dir / name).write_bytes(_blob(commit, BOARD_PATH / name))
+    (tmp_path / RUN_NAME / "annotations").mkdir()
+    for name in ANNOTATION_FILES:
+        (tmp_path / RUN_NAME / "annotations" / name).write_bytes(
+            _blob(commit, ANNOTATIONS_PATH / name)
+        )
+    grounding = pd.read_csv(GROUNDING)
+    lookup = {
+        (str(r.scenario_id), str(r.variable)): str(r.grounding)
+        for r in grounding.itertuples()
+    }
+    committed = _committed_prompts()[release]
+    rendered = {}
+    with _object_strings():
+        for case in build_audit_cases(country_dir, grounding_lookup=lookup):
+            if case.to_manifest_row()["parse_failure_only"]:
+                continue
+            record = committed.get(case.case_id)
+            assert record is not None, f"{case.case_id} has no committed prompt"
+            prompt = render_case_prompt(
+                case, template_version=recorded_template_version(record)
+            )
+            rendered[case.case_id] = hashlib.sha256(prompt.encode()).hexdigest()
+    expected = {case: record["prompt_sha256"] for case, record in committed.items()}
+    assert sorted(rendered) == sorted(expected)
+    differ = sorted(case for case in rendered if rendered[case] != expected[case])
+    assert not differ, differ

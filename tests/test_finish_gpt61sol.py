@@ -34,6 +34,7 @@ from policybench.audit import (  # noqa: E402
 )
 from policybench.judge_template import (  # noqa: E402
     CURRENT_TEMPLATE_VERSION,
+    JUDGE_TEMPLATE_HEADERS,
     V1_REVIEW_CLAIM,
     template_version_of,
 )
@@ -1006,9 +1007,16 @@ def seeded_stage(tmp_path, monkeypatch):
     return seed, stage, prepare
 
 
+@pytest.mark.parametrize(
+    "version", sorted({driver.JUDGE_TEMPLATE_VERSION, CURRENT_TEMPLATE_VERSION})
+)
 def test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over(
-    seeded_stage,
+    seeded_stage, monkeypatch, version
 ):
+    """The driver re-opens the case the new model joins on the version it
+    names: v1 as committed, or v2 as a new release's driver names it. The
+    other case keeps the seed's bytes on the v1 template it was judged on."""
+    monkeypatch.setattr(driver, "JUDGE_TEMPLATE_VERSION", version)
     seed, stage, prepare = seeded_stage
     audit = prepare(
         [
@@ -1025,15 +1033,13 @@ def test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over(
         assert (audit / "cases" / untouched / name).read_bytes() == (
             seed / "cases" / untouched / name
         ).read_bytes()
-    # The kept case stays on the v1 template it was judged on; the re-opened
-    # one moves to the current template.
     assert (
         template_version_of((audit / "cases" / untouched / "prompt.md").read_bytes())
         == 1
     )
     assert (
         template_version_of((audit / "cases" / joined / "prompt.md").read_bytes())
-        == CURRENT_TEMPLATE_VERSION
+        == version
     )
     assert json.loads((stage / "prompt-changes.json").read_text()) == {
         "added": [],
@@ -1042,14 +1048,12 @@ def test_a_case_the_new_model_joins_is_rejudged_and_the_rest_carry_over(
     }
     wrong = ["m1", "m2", NEW]
     write_verdict(
-        audit / "cases" / joined,
-        _verdict(wrong),
-        judge_template_version=CURRENT_TEMPLATE_VERSION,
+        audit / "cases" / joined, _verdict(wrong), judge_template_version=version
     )
     seed_binding = driver.load_seed(stage)
     assert seed_binding == driver.seed_digest(seed)
     assert driver.validate_verdicts(audit, seed=seed_binding) == []
-    # The stage mixes a v1 seed and a current-template verdict, and validates.
+    # The stage validates; on v2 it mixes a v1 seed and a v2 verdict.
     assert template_version_problems(audit) == []
 
 
@@ -1443,8 +1447,8 @@ def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
     So check_prompt_changes may attribute every changed or new prompt in a
     stage to GPT-6.1 Sol joining its case. #182's review excluded
     scenario_023 head_medicaid_eligible and rewrote its adjudication and case
-    note; neither enters a prompt, and its prompt is unchanged. On the current
-    template every prompt is the seed's without v1's review claim.
+    note; neither enters a prompt, and its prompt is unchanged. On v2 every
+    prompt is the seed's without v1's review claim.
     """
     if not (SEED.is_dir() and GROUNDING.is_file()):
         pytest.skip("release 20260929's audit or grounding is not on this machine")
@@ -1459,7 +1463,7 @@ def test_every_seed_prompt_rerenders_from_the_committed_snapshot(tmp_path):
     meta = json.loads((SEED / "cases" / case / "verdict.meta.json").read_text())
     assert rendered[case] == meta["prompt_sha256"]
     current = tmp_path / "current"
-    _prepare_like_the_driver(country_dir, current)
+    _prepare_like_the_driver(country_dir, current, template_version=2)
     for case_dir in sorted((SEED / "cases").iterdir()):
         seed_prompt = (case_dir / "prompt.md").read_text()
         assert (current / "cases" / case_dir.name / "prompt.md").read_text() == (
@@ -1489,8 +1493,8 @@ def test_every_frozen_verdict_rerenders_on_its_recorded_template(tmp_path, relea
     """Local only: copied into a stage as prepare_cases copies a seed, every
     verdict of a frozen audit tree re-renders on the template version its
     sidecar records (absent: v1) to the exact prompt it was judged on, so
-    prepare_audit keeps every prompt, verdict and sidecar byte for byte under
-    the current default; and the tree validates."""
+    prepare_audit keeps every prompt, verdict and sidecar byte for byte
+    whichever version its caller names; and the tree validates."""
     from policybench.audit import template_version_problems
     from policybench.judge_template import recorded_template_version
 
@@ -1523,12 +1527,15 @@ def test_every_frozen_verdict_rerenders_on_its_recorded_template(tmp_path, relea
         for case, files in judged.items()
     }
     assert set(versions.values()) == {1}
-    _prepare_like_the_driver(country_dir, stage)
-    assert (stage / "cases.jsonl").read_bytes() == (tree / "cases.jsonl").read_bytes()
-    for case, files in judged.items():
-        for name, data in files.items():
-            assert (stage / "cases" / case / name).read_bytes() == data, (case, name)
-    assert template_version_problems(stage) == []
+    for version in sorted(JUDGE_TEMPLATE_HEADERS):
+        _prepare_like_the_driver(country_dir, stage, template_version=version)
+        cases_jsonl = (stage / "cases.jsonl").read_bytes()
+        assert cases_jsonl == (tree / "cases.jsonl").read_bytes(), version
+        for case, files in judged.items():
+            for name, data in files.items():
+                path = stage / "cases" / case / name
+                assert path.read_bytes() == data, (version, case, name)
+        assert template_version_problems(stage) == []
 
 
 def test_check_prompt_changes_names_new_incumbent_only_cases(tmp_path):

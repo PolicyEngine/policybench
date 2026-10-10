@@ -7,20 +7,28 @@ when its case re-renders to the exact bytes the judge read, so the renderer
 must still produce every version a carried verdict was judged on. Changing
 the template means adding a version.
 
-- **v1**, the only template before versions were added (2026-10-09), so
-  every verdict judged before then, through release dashboard-data-20261006
-  and the Claude Haiku 5.5 release's judges. It tells the judge that the
+- **v1**, the only template before versions were added, so every verdict
+  through release dashboard-data-20261010 (Claude Haiku 5.5), the last
+  release judged before versions existed. It tells the judge that the
   reference pipeline "has survived an adversarial review program" and that
   "the few real bugs found were fixed before this run".
   That is not so: release dashboard-data-20261006's exclusion record stops
   scoring 28 outputs for engine defects, and the 2026-10-05 reference
-  adversary found four more.
-- **v2**, v1 without that claim. New cases and re-opened cases use it.
+  adversary confirmed four more.
+- **v2**, v1 without that claim: the version a new audit names.
 
 Each verdict's provenance sidecar (``verdict.meta.json``) records the version
 of the prompt it was judged on as ``judge_template_version``. A sidecar
 without the field, or a verdict without a sidecar, predates the versions and
 was judged on v1.
+
+Version selection is explicit: every renderer
+(:func:`policybench.audit.render_case_prompt`,
+:func:`policybench.audit.prepare_audit`, ``policybench audit-prepare``) takes
+the version as a required argument, and a judged case renders on the version
+its sidecar records. Nothing picks a version by default, and nothing chooses
+one by reading a prompt: :func:`template_version_of` only records what a
+judge read and checks that a tree agrees with its sidecars.
 
 Dependency-free, so the audit runners can read a prompt's version.
 """
@@ -33,7 +41,7 @@ from collections.abc import Mapping
 TEMPLATE_VERSION_FIELD = "judge_template_version"
 # The version of a verdict whose sidecar does not record one.
 UNRECORDED_TEMPLATE_VERSION = 1
-# The version new and re-opened cases are rendered with.
+# The newest version: the one a new audit names. No renderer defaults to it.
 CURRENT_TEMPLATE_VERSION = 2
 
 _V1 = """\

@@ -22,6 +22,7 @@ from policybench.audit import (
     prepare_audit,
     render_case_prompt,
 )
+from policybench.judge_template import CURRENT_TEMPLATE_VERSION
 
 
 @pytest.fixture
@@ -87,7 +88,7 @@ def test_build_audit_cases_groups_wrong_by_case(country_dir: Path):
 
 def test_render_case_prompt_includes_reference_and_models(country_dir: Path):
     case = next(c for c in build_audit_cases(country_dir) if c.scenario_id == "s0")
-    prompt = render_case_prompt(case)
+    prompt = render_case_prompt(case, template_version=CURRENT_TEMPLATE_VERSION)
     assert "POLICYENGINE REFERENCE VALUE: $0.00" in prompt
     assert "m1: answered $250.00" in prompt
     assert "Used gross income test." in prompt
@@ -114,7 +115,9 @@ def test_parse_verdict_tolerates_prose_around_json(tmp_path: Path):
 
 def test_prepare_audit_writes_layout(country_dir: Path, tmp_path: Path):
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     assert (audit_dir / "schema.json").exists()
     assert (audit_dir / "cases.jsonl").exists()
     for case in cases:
@@ -127,7 +130,9 @@ def test_collect_audit_folds_verdicts_and_tracks_missing(
     country_dir: Path, tmp_path: Path
 ):
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     # Write a verdict for the s0 case only; leave s1 missing.
     s0 = next(c for c in cases if c.scenario_id == "s0")
     verdict = {
@@ -169,7 +174,9 @@ def test_collect_audit_rejects_invalid_failure_source(
     country_dir: Path, tmp_path: Path
 ):
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     s0 = next(c for c in cases if c.scenario_id == "s0")
     (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(
         json.dumps(
@@ -223,7 +230,9 @@ def test_reference_derivation_reaches_the_prompt(tmp_path: Path):
 
     case = build_audit_cases(d)[0]
     assert "over the income test" in case.reference_derivation
-    assert "HOW POLICYENGINE DERIVED THE REFERENCE" in render_case_prompt(case)
+    assert "HOW POLICYENGINE DERIVED THE REFERENCE" in render_case_prompt(
+        case, template_version=CURRENT_TEMPLATE_VERSION
+    )
 
 
 def test_binary_variable_renders_yes_no(tmp_path: Path):
@@ -286,7 +295,9 @@ def test_missing_prediction_renders_as_missing(tmp_path: Path):
     case = next(c for c in build_audit_cases(d) if c.scenario_id == "s0")
     silent = next(m for m in case.wrong_models if m.model == "silent")
     assert silent.prediction == "missing"
-    assert "answered missing" in render_case_prompt(case)
+    assert "answered missing" in render_case_prompt(
+        case, template_version=CURRENT_TEMPLATE_VERSION
+    )
 
 
 def test_collect_defaults_missing_model_to_case_source(
@@ -294,7 +305,9 @@ def test_collect_defaults_missing_model_to_case_source(
 ):
     """When the verdict omits a wrong model, its row inherits the case source."""
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     s0 = next(c for c in cases if c.scenario_id == "s0")
     (audit_dir / "cases" / s0.case_id / "verdict.json").write_text(
         json.dumps(
@@ -372,7 +385,7 @@ def test_collect_empty_wrong_set_keeps_header(tmp_path: Path):
         ]
     ).to_csv(d / "predictions.csv", index=False)
     audit_dir = tmp_path / "audit"
-    prepare_audit(d, audit_dir)
+    prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     out = collect_audit(d, audit_dir)
     assert list(out["row"].columns) and "failure_source" in out["row"].columns
     assert list(out["case"].columns) and "case_failure_source" in out["case"].columns
@@ -410,7 +423,7 @@ def test_parse_failure_only_case_skips_codex_and_is_deterministic(tmp_path: Path
         ]
     ).to_csv(d / "predictions.csv", index=False)
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(d, audit_dir)
+    cases = prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     s0 = next(c for c in cases if c.scenario_id == "s0")
     # No prompt is written for a parse-failure-only case (no Codex call).
     assert not (audit_dir / "cases" / s0.case_id / "prompt.md").exists()
@@ -446,7 +459,7 @@ def test_budget_exhaustion_source_survives_deterministic_missing_audit(
     ).to_csv(d / "predictions.csv", index=False)
     audit_dir = tmp_path / "audit"
 
-    prepare_audit(d, audit_dir)
+    prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     out = collect_audit(d, audit_dir)
 
     assert out["row"].iloc[0]["failure_source"] == "budget_exhausted_at_ceiling"
@@ -494,7 +507,7 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
         ]
     ).to_csv(d / "predictions.csv", index=False)
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(d, audit_dir)
+    cases = prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     s0 = cases[0]
     verdict_path = audit_dir / "cases" / s0.case_id / "verdict.json"
     verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
@@ -514,7 +527,7 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
             }
         ]
     ).to_csv(d / "predictions.csv", index=False)
-    prepare_audit(d, audit_dir)
+    prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     assert not verdict_path.exists()  # stale verdict dropped
     assert not meta_path.exists()  # and its provenance sidecar with it
 
@@ -522,12 +535,12 @@ def test_reprepare_drops_stale_verdict_when_case_changed(tmp_path: Path):
     # (the re-opened case's prompt is the current version's).
     verdict_path.write_text('{"case_failure_source": "llm_error", "models": []}')
     meta_path.write_text(json.dumps({"judge_template_version": 2}))
-    prepare_audit(d, audit_dir)
+    prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     assert verdict_path.exists()
     # A verdict whose sidecar records no version was judged on v1, so the
     # current version's prompt is not the one it was judged on.
     meta_path.write_text('{"judge_model_requested": "opus"}')
-    prepare_audit(d, audit_dir)
+    prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     assert not verdict_path.exists()
     assert not meta_path.exists()
 
@@ -553,7 +566,7 @@ def test_collect_audit_coerces_parse_source_for_parsed_predictions(tmp_path: Pat
     ).to_csv(d / "predictions.csv", index=False)
 
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(d, audit_dir)
+    cases = prepare_audit(d, audit_dir, template_version=CURRENT_TEMPLATE_VERSION)
     case = cases[0]
     verdict_path = audit_dir / "cases" / case.case_id / "verdict.json"
     verdict_path.write_text(
@@ -619,7 +632,9 @@ def test_collect_uses_per_model_diagnosis_for_row_annotation(
     country_dir: Path, tmp_path: Path
 ):
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     s0 = next(c for c in cases if c.scenario_id == "s0")
     verdict = make_verdict(
         "Applied the net-income allotment formula without the earned income "
@@ -645,7 +660,9 @@ def test_collect_flags_hedged_verdicts_for_rejudging(country_dir: Path, tmp_path
     # The shipped 20260707c failure class: the judge answers "is the
     # reference wrong?" instead of diagnosing the model.
     audit_dir = tmp_path / "audit"
-    cases = prepare_audit(country_dir, audit_dir)
+    cases = prepare_audit(
+        country_dir, audit_dir, template_version=CURRENT_TEMPLATE_VERSION
+    )
     s0 = next(c for c in cases if c.scenario_id == "s0")
     verdict = make_verdict(
         "The reference is plausible under the stated PolicyEngine "
@@ -684,7 +701,7 @@ def test_prompt_treats_reference_as_verified_and_demands_diagnosis(
     country_dir: Path,
 ):
     case = next(c for c in build_audit_cases(country_dir) if c.scenario_id == "s0")
-    prompt = render_case_prompt(case)
+    prompt = render_case_prompt(case, template_version=CURRENT_TEMPLATE_VERSION)
     assert "Treat the reference and its derivation as correct" in prompt
     assert "diagnosis" in prompt
     assert "mechanically rejected" in prompt
@@ -696,9 +713,15 @@ def test_grounding_lookup_renders_engine_facts_block(country_dir: Path):
     cases = build_audit_cases(country_dir, grounding_lookup=lookup)
     grounded = next(c for c in cases if c.scenario_id == "s0")
     bare = next(c for c in cases if c.scenario_id == "s1")
-    assert "AUTHORITATIVE ENGINE FACTS" in render_case_prompt(grounded)
-    assert "SENIOR_OR_DISABLED" in render_case_prompt(grounded)
-    assert "AUTHORITATIVE ENGINE FACTS" not in render_case_prompt(bare)
+    assert "AUTHORITATIVE ENGINE FACTS" in render_case_prompt(
+        grounded, template_version=CURRENT_TEMPLATE_VERSION
+    )
+    assert "SENIOR_OR_DISABLED" in render_case_prompt(
+        grounded, template_version=CURRENT_TEMPLATE_VERSION
+    )
+    assert "AUTHORITATIVE ENGINE FACTS" not in render_case_prompt(
+        bare, template_version=CURRENT_TEMPLATE_VERSION
+    )
 
 
 def test_schema_requires_per_model_diagnosis():

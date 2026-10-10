@@ -15,6 +15,10 @@ from policybench.config import (
     PROGRAMS,
     get_programs,
 )
+from policybench.judge_template import (
+    CURRENT_TEMPLATE_VERSION,
+    JUDGE_TEMPLATE_HEADERS,
+)
 
 
 def _ensure_parent_dir(output_path: str) -> None:
@@ -567,9 +571,12 @@ def main():
     audit_prepare_parser.add_argument(
         "--template-version",
         type=int,
-        default=None,
-        help="Judge template version for new and re-opened cases (default: the "
-        "current one; a judged case keeps the version its verdict records)",
+        required=True,
+        help="Judge template version for new and re-opened cases "
+        "(policybench.judge_template; a new audit uses the current one, "
+        f"{CURRENT_TEMPLATE_VERSION}). Required: a release reproduces its prompts "
+        "only on the version its verdicts were judged on. A judged case keeps "
+        "the version its verdict records",
     )
 
     audit_collect_parser = subparsers.add_parser(
@@ -1377,16 +1384,7 @@ def main():
                 for row in grounding_df.itertuples()
                 if str(row.grounding).strip()
             }
-        from policybench.judge_template import (
-            CURRENT_TEMPLATE_VERSION,
-            JUDGE_TEMPLATE_HEADERS,
-        )
-
-        template_version = (
-            CURRENT_TEMPLATE_VERSION
-            if args.template_version is None
-            else args.template_version
-        )
+        template_version = args.template_version
         if template_version not in JUDGE_TEMPLATE_HEADERS:
             raise SystemExit(
                 f"audit-prepare: no judge template version {template_version}; "
@@ -1399,7 +1397,8 @@ def main():
             template_version=template_version,
         )
         print(
-            f"Prepared {len(cases)} audit cases under {args.audit_dir}. "
+            f"Prepared {len(cases)} audit cases under {args.audit_dir}; new and "
+            f"re-opened cases are on judge template v{template_version}. "
             f"Run scripts/run_audit_codex.sh {args.audit_dir} to classify."
         )
 

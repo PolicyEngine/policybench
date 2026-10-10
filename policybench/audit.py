@@ -36,7 +36,6 @@ from policybench.annotation_taxonomy import (
 from policybench.case_annotations import _format_value, wrong_prediction_rows
 from policybench.full_run_export import load_case_reference_explanations
 from policybench.judge_template import (
-    CURRENT_TEMPLATE_VERSION,
     JUDGE_TEMPLATE_HEADERS,
     TEMPLATE_VERSION_FIELD,
     recorded_template_version,
@@ -285,16 +284,16 @@ AUDIT_OUTPUT_SCHEMA: dict = {
 
 # The judge's prompt is a versioned header (policybench.judge_template) and
 # the case. A verdict is carried only on the exact bytes it was judged on, so
-# a seed case renders with the version its sidecar records.
+# a seed case renders with the version its sidecar records. Every caller names
+# the version: nothing here picks one by default or reads one off a prompt.
 
 
-def render_case_prompt(
-    case: AuditCase, template_version: int = CURRENT_TEMPLATE_VERSION
-) -> str:
+def render_case_prompt(case: AuditCase, *, template_version: int) -> str:
     """Render the self-contained classification prompt for one case.
 
     ``template_version`` picks the header (``JUDGE_TEMPLATE_HEADERS``); the
-    rest of the prompt does not depend on it.
+    rest of the prompt does not depend on it. It has no default: a release
+    reproduces its prompts only on the version its verdicts were judged on.
     """
     lines = [
         template_header(template_version),
@@ -330,7 +329,8 @@ def prepare_audit(
     country_dir: Path,
     audit_dir: Path,
     grounding_lookup: dict[tuple[str, str], str] | None = None,
-    template_version: int = CURRENT_TEMPLATE_VERSION,
+    *,
+    template_version: int,
 ) -> list[AuditCase]:
     """Write per-case prompts, the shared output schema, and a manifest.
 
@@ -346,8 +346,11 @@ def prepare_audit(
     an earlier run's) is rendered with the template version its sidecar
     records (absent: v1). If that reproduces its prompt.md, the verdict
     stands and the prompt keeps its bytes. Otherwise the case changed since it
-    was judged: the verdict and its sidecar are dropped and the case is
-    re-opened. New and re-opened cases are rendered with ``template_version``.
+    was judged, or its version is unknown: the verdict and its sidecar are
+    dropped and the case is re-opened. New and re-opened cases are rendered
+    with ``template_version``, which the caller must name. The version a case
+    renders with comes from the sidecar or the caller, never from prompt.md:
+    a prompt that begins with another version's header is not adopted.
     """
     template_header(template_version)
     cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
@@ -383,7 +386,7 @@ def prepare_audit(
                 # judged on, so an unchanged case keeps its prompt's bytes.
                 judged_on = recorded_template_version(_sidecar(case_dir))
                 if judged_on is not None:
-                    seeded = render_case_prompt(case, judged_on)
+                    seeded = render_case_prompt(case, template_version=judged_on)
                     # A verdict without its prompt keeps it, as before
                     # templates were versioned.
                     if not prompt_path.exists() or prompt_path.read_text() == seeded:
@@ -399,7 +402,7 @@ def prepare_audit(
                     verdict_path.unlink()
                     (case_dir / "verdict.meta.json").unlink(missing_ok=True)
             if new_prompt is None:
-                new_prompt = render_case_prompt(case, template_version)
+                new_prompt = render_case_prompt(case, template_version=template_version)
             prompt_path.write_text(new_prompt)
     return cases
 
@@ -423,9 +426,9 @@ def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
     """Each judged case whose prompt and verdict disagree on the template.
 
     A tree may mix versions: a release's carried seeds keep the version they
-    were judged on, while its new and re-opened cases use the current one.
-    Every verdict must have its prompt.md, its sidecar must name a known
-    version (absent: v1), and prompt.md must begin with that version's
+    were judged on, while its new and re-opened cases use the one its driver
+    names. Every verdict must have its prompt.md, its sidecar must name a
+    known version (absent: v1), and prompt.md must begin with that version's
     header. Returns ``(case_id, problem)`` for each case that fails, in case
     order.
     """

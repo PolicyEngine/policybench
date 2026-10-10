@@ -18,7 +18,8 @@ Python (`policybench/audit.py`).
 # 1. Assemble one prompt per wrong case (+ shared output schema + manifest).
 uv run python -m policybench.cli audit-prepare \
   --country-dir results/<run>/us \
-  --audit-dir   results/<run>/us/audit
+  --audit-dir   results/<run>/us/audit \
+  --template-version 2
 
 # 2. Classify in bulk via Codex (ChatGPT plan). Resumable + parallel.
 AUDIT_PARALLEL=4 AUDIT_REASONING_EFFORT=low \
@@ -56,31 +57,42 @@ exact bytes the judge read.
 
 | Version | Judged | Change |
 |---|---|---|
-| v1 | every verdict before versions were added (2026-10-09), through release dashboard-data-20261006 and the Claude Haiku 5.5 release's judges | none |
-| v2 | new and re-opened cases from then on | drops v1's claim that the reference pipeline "has survived an adversarial review program" and that "the few real bugs found were fixed before this run" |
+| v1 | every verdict through release dashboard-data-20261010 (Claude Haiku 5.5), the last release judged before versions existed | none |
+| v2 | the version a new audit names | drops v1's claim that the reference pipeline "has survived an adversarial review program" and that "the few real bugs found were fixed before this run" |
 
 The v1 claim is not so: release dashboard-data-20261006's exclusion record
 stops scoring 28 outputs for engine defects, and the 2026-10-05 reference
-adversary found four more (`reference_audit/2026-10-05-reference-adversary/`
-on #200).
+adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`,
+#200).
 
+- Version selection is explicit. `render_case_prompt` and `prepare_audit` take
+  `template_version` as a required keyword, and `audit-prepare` requires
+  `--template-version`; nothing defaults to `CURRENT_TEMPLATE_VERSION`. A
+  judged case renders on the version its sidecar records. Nothing reads a
+  version off a prompt to choose how to render it: `template_version_of` only
+  records what a judge read and checks a tree.
 - Both runners record the version a verdict was judged on in its
   `verdict.meta.json` as `judge_template_version`. The Claude runner reads it
   from the judged copy of `prompt.md`, the Codex runner from `prompt.md`. A
   prompt that begins with no version's header, one `audit-prepare` did not
   write, records `null`.
 - A sidecar without the field, or a verdict without a sidecar, was judged on
-  v1.
+  v1 (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars
+  written before versions existed, not a guess from the prompt.
 - `audit-prepare` renders a case that already has a verdict with the version
   its sidecar records. If that reproduces `prompt.md`, the verdict stands and
   the prompt keeps its bytes. Otherwise the case changed since it was judged,
   or its version is unknown: the verdict and its sidecar are dropped and the
-  case is re-opened. New and re-opened cases use the current version, or the
-  one `--template-version` names.
-- The fold drivers (`scripts/finish_gpt61sol.py`, `scripts/finish_adds0928.py`)
-  copy the seed's prompts, verdicts and sidecars into their stage before they
-  call `prepare_audit`. So each seed case renders with its recorded version,
-  and a kept case's prompt keeps the seed's bytes.
+  case is re-opened. A `prompt.md` on another version is re-opened, not
+  adopted. New and re-opened cases use the version the caller names.
+- Each release driver names the version its new and re-opened cases render
+  on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
+  versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,
+  `scripts/finish_haiku55.py`) name v1, so re-running one reproduces its
+  release's prompts. A new release's driver names v2. Each driver copies the
+  seed's prompts, verdicts and sidecars into its stage before it calls
+  `prepare_audit`, so each seed case renders on its recorded version and a
+  kept case's prompt keeps the seed's bytes.
 - A tree may mix versions. `audit-collect` refuses a tree in which a verdict
   records an unknown version, or one other than the version its `prompt.md`
   begins with (`policybench.audit.template_version_problems`). Re-running
@@ -92,6 +104,27 @@ on #200).
   does not, such as the Workflow and session judges of
   `results/local/adds202609/judge_stages.py`, labels its verdicts v1; on a v2
   prompt, `audit-collect` refuses them and `audit-prepare` re-opens them.
+
+### Invariants
+
+`tests/test_judge_template.py` states and tests these:
+
+- **Every committed prompt re-renders on its recorded version.** The prompt
+  sha256s committed in `docs/gpt61sol/` and `docs/haiku55/` (the seed digests
+  and the judge provenance records of releases 20260929 through 20261010)
+  re-render from each release's committed board on the version their verdicts
+  record, v1. This test is local only: it needs the audit grounding, which is
+  not committed. In CI, a property test checks that `prepare_audit` keeps any
+  judged case's prompt, verdict and sidecar bytes when the case is unchanged.
+- **v2 differs from v1 only by the dropped clause.** The header diff is one
+  deletion, `V1_REVIEW_CLAIM`. For any case, the two prompts differ only in
+  their headers, and the v2 prompt is the v1 prompt without that clause.
+- **Version selection is explicit, never inferred.** The renderers have no
+  default version, and every call in `policybench/` and `scripts/` names one.
+  `prepare_audit` decides whether to keep a verdict from the recorded version
+  alone: a prompt on any other version is re-opened, never adopted.
+- No header is a prefix of another, so a prompt's version is unambiguous.
+- `prepare_audit` is idempotent, and the tree it writes validates.
 
 ## Acting on suspect references
 
