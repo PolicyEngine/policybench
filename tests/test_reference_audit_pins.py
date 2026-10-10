@@ -253,14 +253,16 @@ def _impact_argv(
     _argv(monkeypatch, _impact_script(audit), out, *flags, root=root)
 
 
-def _from_junk_checkout(path: Path, script: str, code: list[str] = ()):
+def _from_junk_checkout(monkeypatch, path: Path, script: str, code: list[str] = ()):
     """``script`` loaded from a checkout whose working tree holds junk.
 
     The checkout shares this repository's objects, so git holds every pin. In its
     working tree every file the script reads is junk. Every other file is absent,
     except the script itself and the ``code`` it loads, copied from this checkout.
-    The loaded module's ROOT and HERE both point into the junk checkout, so a script
-    that read the working tree instead of git would fail or write something else.
+    The working directory moves into the junk checkout before the script loads, so
+    the module's ROOT and HERE and every relative path, even one read at import,
+    point into the junk: a script that read the working tree instead of git would
+    fail or write something else.
     """
     subprocess.run(
         ["git", "clone", "--quiet", "--shared", "--no-checkout", str(ROOT), str(path)],
@@ -273,6 +275,7 @@ def _from_junk_checkout(path: Path, script: str, code: list[str] = ()):
     for name in (script, *code):
         (path / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, path / name)
+    monkeypatch.chdir(path)
     return _load(script, root=path)
 
 
@@ -613,9 +616,9 @@ def test_the_impact_script_scores_only_the_staged_inputs(scratch, monkeypatch, a
     summary run for real on the staged copies."""
     spec = IMPACT[audit]
     script = _impact_script(audit)
-    impact = _from_junk_checkout(scratch / "co", script, getattr(spec, "code", []))
-    # Relative paths resolve against the junk checkout as well.
-    monkeypatch.chdir(scratch / "co")
+    impact = _from_junk_checkout(
+        monkeypatch, scratch / "co", script, getattr(spec, "code", [])
+    )
     scored: dict[str, dict[str, str]] = {}
     published: dict = {}
 
@@ -653,9 +656,7 @@ def test_the_direct_script_reproduces_its_files_from_a_junk_checkout(
 ):
     """Run for real from a checkout whose working tree is junk: every file the
     script writes is the committed one, byte for byte."""
-    module = _from_junk_checkout(scratch / "co", script)
-    # Relative paths resolve against the junk checkout as well.
-    monkeypatch.chdir(scratch / "co")
+    module = _from_junk_checkout(monkeypatch, scratch / "co", script)
     out = scratch / "out"
     _argv(monkeypatch, script, out, root=scratch / "co")
     module.main()
