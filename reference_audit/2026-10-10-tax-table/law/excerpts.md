@@ -155,7 +155,7 @@ The two capital gain worksheets and the foreign earned income worksheet send the
 <!-- source: i1040gi.raw.txt -->
 > 4. At least one of your parents was alive at the end of 2025.
 
-So a filer who is 24 or older does not file it, and a younger one files it only as a student with a living parent.
+So a filer who is 24 or older does not file it. One aged 19 to 23 files it only as a full-time student with a living parent, among the other conditions.
 
 The instruction draws no line between filers who itemize and filers who do not.
 
