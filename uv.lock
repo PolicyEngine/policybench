@@ -2511,7 +2511,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0" },
     { name = "policyengine", specifier = "==6.1.2" },
     { name = "policyengine-uk", specifier = "==2.89.0" },
-    { name = "policyengine-us", specifier = "==2.37.2" },
+    { name = "policyengine-us", specifier = "==2.38.6" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
@@ -2581,7 +2581,7 @@ wheels = [
 
 [[package]]
 name = "policyengine-us"
-version = "2.37.2"
+version = "2.38.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "microdf-python" },
@@ -2591,9 +2591,9 @@ dependencies = [
     { name = "tables" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/66/68323682f10d27ebacd19aac23c84d1ec122671462d342551a8d34a3333c/policyengine_us-2.37.2.tar.gz", hash = "sha256:169e0f04ccda83d34299af62ca91b0aa31470471c34d3d2af1b32ca05b595d9e", size = 13449379, upload-time = "2026-10-09T13:49:50.789Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/4d/c14cd11fa1a0577038410d62f90cd3f15c7c6b3e63fbd567bae7e46a688f/policyengine_us-2.38.6.tar.gz", hash = "sha256:f65f338278c9b72f342cfbe6b72dc38e730ce7163d3eacf870c07ca5a0ac9f40", size = 13524917, upload-time = "2026-10-10T05:39:51.123Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/c6/17884d5bc0045fe616d777227ebe65e8e39f87e3ded5e36690314d36f651/policyengine_us-2.37.2-py3-none-any.whl", hash = "sha256:8f62fda53a77f182cee559b81cad0935edf08caf71cb19ec151b424ee9acadb8", size = 16899243, upload-time = "2026-10-09T13:49:47.631Z" },
+    { url = "https://files.pythonhosted.org/packages/78/be/9f2b53a655af581bde48cc76ad70ff9e95ca878f63ab0fb3b6847e5a2147/policyengine_us-2.38.6-py3-none-any.whl", hash = "sha256:04e8d4f498aa10adcf8c7515310334406bb5a42402a2a0c1ee7f80214fcfafaf", size = 17022598, upload-time = "2026-10-10T05:39:47.526Z" },
 ]
 
 [[package]]
