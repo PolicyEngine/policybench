@@ -411,12 +411,11 @@ def _judged_prompt(case: AuditCase, case_dir: Path) -> bytes | None:
     """The prompt bytes a judged case's verdict stands on, or None when the
     case must be re-opened.
 
-    The case is rendered on the version its sidecar records (absent: v1; a
-    version it names no known one for gives None). Those bytes must be
-    prompt.md's exactly, and, when the sidecar records ``prompt_sha256`` (the
-    hash of the bytes its judge read), hash to it. Without prompt.md, that
-    hash is the only evidence of what the judge read, so a sidecar without
-    one gives None.
+    The case is rendered on the version its sidecar records (absent: v1; an
+    unknown version gives None). Those bytes must be prompt.md's exactly,
+    and, when the sidecar records ``prompt_sha256`` (the hash of the bytes
+    its judge read), hash to it. Without prompt.md, that hash is the only
+    evidence of what the judge read, so a sidecar without one gives None.
     """
     meta = _sidecar(case_dir)
     judged_on = recorded_template_version(meta)
