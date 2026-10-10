@@ -12,7 +12,6 @@ from collections import Counter
 from datetime import date, datetime, timezone
 from functools import cache
 from pathlib import Path
-from statistics import median
 
 import pytest
 
@@ -4809,7 +4808,10 @@ def _release_20261010_facts() -> dict:
     fall = [exact - by_model[model]["exact"] for model, exact in then.items()]
     scoring = _release_20261010_scoring()
     rise = [scoring["without"][model] - exact for model, exact in then.items()]
-    matched = median(scoring["matched"].values())
+    # At least half the newly scored outputs are answered within $1 by at most
+    # this many models (the lower median, so it is a whole number of models).
+    counts = sorted(scoring["matched"].values())
+    half_at_most = counts[(len(counts) + 1) // 2 - 1]
     haiku, haiku45 = by_model["claude-haiku-5.5"], by_model["claude-haiku-4.5"]
     sensitivity = _load_json(HAIKU_SENSITIVITY)["sensitivity"]
     last = r.last_engine_upgrade
@@ -4852,9 +4854,7 @@ def _release_20261010_facts() -> dict:
         "fallMin": round(min(fall), 2),
         "fallMax": round(max(fall), 2),
         "newlyScored": len(scoring["newly_scored"]),
-        "newlyScoredMedianMatched": int(matched)
-        if matched == int(matched)
-        else matched,
+        "newlyScoredHalfAtMost": half_at_most,
         "newlyScoredUnmatched": sum(n == 0 for n in scoring["matched"].values()),
         "riseWithoutMin": round(min(rise), 2),
         "riseWithoutMax": round(max(rise), 2),
@@ -4939,8 +4939,11 @@ def test_release_20261010_note_claims() -> None:
     # computed": every restored output's target holds (record or fix modules).
     targets = r.engine_upgrade_restored_targets
     assert len(targets["record"]) + len(targets["fix_modules"]) == facts["restored"]
-    # "Few models get right": the median output, by at most a tenth of them.
-    assert facts["newlyScoredMedianMatched"] <= facts["nModels"] / 10
+    # "Few models get right": half of them, by at most a tenth of the models.
+    assert facts["newlyScoredHalfAtMost"] <= facts["nModels"] / 10
+    counts = sorted(scoring["matched"].values())
+    at_most = sum(n <= facts["newlyScoredHalfAtMost"] for n in counts)
+    assert 2 * at_most >= len(counts)
     for (scenario_id, variable), matched in scoring["matched"].items():
         # "Within $1" is the scorer's exact rule for an amount output.
         assert metric_type_for_output(variable) == "amount"

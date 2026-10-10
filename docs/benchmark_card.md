@@ -68,12 +68,15 @@ be described as faithful reasoning traces.
 ## Reference outputs
 
 PolicyBench computes each scored US reference by running
-`policyengine_us.Simulation` from policyengine-us 2.37.2. The 69 excluded
-outputs keep the values they were decided on (49 computed with policyengine-us
-1.755.4, 18 with 2.15.17, 2 with 2.37.2), and PolicyBench re-reviewed the 22 of
-them that move on 2.37.2; all 22 stay excluded. The manifest also records
-policyengine.py 6.1.2 for provenance. Its certified US bundle carries
-policyengine-us 2.2.1, and policyengine.py does not load beside 2.37.2.
+`policyengine_us.Simulation` from policyengine-us 2.38.6, the newest release
+when PolicyBench began sweeping the references on 2026-10-10 (uploaded 05:39
+UTC). policyengine-us 2.38.6 was still the newest release when PolicyBench
+checked PyPI on 2026-10-10 at 06:53 UTC. The 58 excluded outputs keep the
+values they were decided on (38 computed with policyengine-us 1.755.4, 18 with
+2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 17 of them that move on
+2.38.6; all 17 stay excluded. The manifest also records policyengine.py 6.1.2
+for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
+policyengine.py does not load beside 2.38.6.
 
 A scored reference follows from the stated facts and from law published before
 PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
@@ -104,31 +107,42 @@ income tax references moved by less than $1. The reference sidecar's
 `reference_audit/2026-09-28/` records the investigation and the independent
 review behind each.
 
-On 2026-10-10 PolicyBench moved the references again, from 2.15.17 to 2.37.2, a
+On 2026-10-10 PolicyBench moved the references again, from 2.15.17 to 2.38.6, a
 release that fixes engine defects behind excluded outputs, and recomputed every
 output under the same conventions and adapter. The new version fixes the
-defects behind seven outputs. Release 20261006 excluded three of them, which
-return to scoring; the other four are the 2026-10-06 defects below, which stay
-scored. Each lands within $1 of its audited corrected value, and the sidecar's
-2026-10-10 revision names the upstream fix behind it: Arizona's
-standard deduction indexing (#9928), Ohio's medical deduction for health
-insurance premiums (#10020), estate income in gross income (#9633), Colorado's
-2026 sales tax refund (#9946), the IRA deduction's compensation limit and a
-dependent's contributions (#9801, two outputs) and New York's 2026 child and
+defects behind 18 outputs. Release 20261006 excluded 14 of them, which return to
+scoring; the other four are the 2026-10-06 defects below, which stay scored.
+Each lands within $1 of its audited corrected value, and the sidecar's
+2026-10-10 revision names the upstream fix behind it: the IRA deduction's
+compensation limit and a dependent's contributions (#10032, #9801; three
+outputs), the IRA deduction's active-participant phase-out (#10032; four
+outputs), the IRA deduction's active-participant phase-out and California's
+itemized deduction conformity (#10032, #10034), the IRA deduction's
+active-participant phase-out and estate income in gross income (#10032,
+#10027; two outputs), California's itemized deduction conformity (#10034),
+estate income in gross income (#10027, #9633; two outputs), New Jersey's worker
+unemployment and workforce contributions (#10031), Arizona's standard deduction
+indexing (#9928), Ohio's medical deduction for health insurance premiums
+(#10020), Colorado's 2026 sales tax refund (#9946) and New York's 2026 child and
 dependent care credit (#9948). The move changes one scored reference beyond the
 $1 tolerance: policyengine-us now counts Idaho's $10 permanent building fund
 tax (Idaho Code 63-3082) in state income tax (#9810). It also moves two Indiana
 households' local income tax onto a county the prompt does not state, and
-PolicyBench excluded both outputs. `reference_audit/2026-10-09-engine-upgrade/`
-holds the builder, its evidence and the reviewed actions.
+PolicyBench excluded both outputs. One more output, a California household's
+state income tax, lands on its recorded corrected value but stays excluded: the
+release's judge found that its reference rests on a further defect, California's
+non-conformity to the federal educator expense deduction (FTB Instructions for
+Schedule CA (540), Section C, line 11), which policyengine-us 2.38.6 still
+allows. `reference_audit/2026-10-09-engine-upgrade/` holds the builder, its
+evidence and the reviewed actions.
 
 ## Audit scope
 
-The frozen US annotations cover 7,507 scored rows selected because their
-legacy threshold score is below 1 (2,729 further annotated rows sit on the 69
+The frozen US annotations cover 8,001 scored rows selected because their
+legacy threshold score is below 1 (2,212 further annotated rows sit on the 58
 excluded outputs and are description, not audit). This audit universe contains
-7,503 of the snapshot's 7,503 exact-match misses and four exact hits. Another
-2,115 scored rows have a bounded score below 100 but fall outside the
+7,997 of the snapshot's 7,997 exact-match misses and four exact hits. Another
+2,138 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
 CLI for 269 cases, Claude Opus 5 through the Claude Code CLI for the 94 cases
@@ -141,7 +155,7 @@ reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-81: one for each excluded output, one for each flagged reference the
+70: one for each excluded output, one for each flagged reference the
 adjudication affirmed or replaced with a regenerated reference, and two for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
@@ -163,18 +177,21 @@ gain fix as first built also applied Wisconsin's capital gain exclusion to the
 distributions, which the upstream fix does not; that part is recorded as its
 own defect, not fixed upstream.
 
-Sixty-nine outputs in 47 households are excluded from scoring for every model
+Fifty-eight outputs in 42 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
 output a defect not fixed upstream moved by more than a dollar. Of those
-records, 25 remain as engine-defect exclusions. Twenty-four rest on the ten
-root causes policyengine-us 2.37.2 does not fix (among them the IRA deduction's
-active-participant phase-out, California's itemized deduction conformity, and
-the heat-and-eat SNAP utility allowance that P.L. 119-21 ended for households
-without an elderly or disabled member). policyengine-us 2.37.2 computes one of
-them at its corrected value; it stays excluded because it also moves under an
-input the prompt does not state. An output such a defect moves that was
+records, 14 remain as engine-defect exclusions. Nine rest on the five root
+causes policyengine-us 2.38.6 does not fix (among them Idaho's subtraction for
+health insurance premiums, elective deferrals in the earned income behind the
+EITC, and the heat-and-eat SNAP utility allowance that P.L. 119-21 ended for
+households without an elderly or disabled member). policyengine-us 2.38.6
+computes four of them at their corrected values; they stay excluded because
+each also moves under an input the prompt does not state. policyengine-us
+2.38.6 computes one more at its recorded corrected value, but its reference
+rests on a further engine defect, found on 2.38.6 and not fixed there, so it
+stays excluded. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
 same value, or it moved and a re-review found the exclusion still holds.
@@ -205,9 +222,9 @@ requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
 reading; with the program's test reading SSI's definition of disability, the
 head qualifies only by meeting it.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
-with rows that did not, so every model is scored on 1,915 of its 1,984
+with rows that did not, so every model is scored on 1,926 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:
-each carries its exclusion's class, except the 61 answers that never parsed,
+each carries its exclusion's class, except the 48 answers that never parsed,
 which stay parse_contract_failure; no scored row carries a descriptive class.
 The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
