@@ -15,6 +15,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from policybench.paper_results import r
 from policybench.snapshot_payload import read_run_payload
@@ -912,6 +914,113 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
             f"{october_read[11:16]} UTC",
         }
     )
+
+
+_TENS = {
+    2: "twenty",
+    3: "thirty",
+    4: "forty",
+    5: "fifty",
+    6: "sixty",
+    7: "seventy",
+    8: "eighty",
+    9: "ninety",
+}
+_TEENS = (
+    "ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen"
+).split()
+
+
+def _sentence_number(n: int) -> str:
+    """A count opening a sentence, spelled out as the card writes it."""
+    from policybench.paper_results import count_word
+
+    if n <= 10:
+        return count_word(n).capitalize()
+    if n < 20:
+        return _TEENS[n - 10].capitalize()
+    tens, ones = divmod(n, 10)
+    assert n < 100, n
+    word = _TENS[tens] + (f"-{count_word(ones)}" if ones else "")
+    return word.capitalize()
+
+
+def test_card_counts_follow_the_frozen_records():
+    """The card's October paragraph and its exclusion breakdown, written by
+    hand, state the counts the frozen sidecar and exclusion record give (pre-T
+    review finding 3)."""
+    from policybench.paper_results import (
+        ENGINE_DEFECT,
+        ROOT_CAUSE_LABELS,
+        PaperResults,
+        count_word,
+        exclusion_basis,
+    )
+
+    r = PaperResults()
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    # The October move: what it restores, from where, and why.
+    restored, ruled = r.engine_upgrade_restored_count, r.ruled_regenerated_count
+    assert (
+        f"The new version fixes the defects behind {count_word(restored)} outputs. "
+        f"Release 20261006 excluded {count_word(restored - ruled)} of them, which "
+        f"return to scoring; the other {count_word(ruled)} are the 2026-10-06 "
+        "defects below, which stay scored."
+    ) in card
+    october = card[card.index("PolicyBench moved the references again") :]
+    october = october[: october.index("## ")]
+    for label, _, prs in r.engine_upgrade_restored_fixes:
+        assert label in october, label
+        assert all(f"#{pr}" in october for pr in prs), (label, prs)
+    changed = r.engine_upgrade_scored_change_count
+    noun = "reference" if changed == 1 else "references"
+    assert f"The move changes {count_word(changed)} scored {noun} beyond" in october
+    new = r.engine_upgrade_new_exclusion_count
+    assert f"moves {count_word(new)} Indiana households' local income tax" in october
+    # The exclusion breakdown.
+    assert (
+        f"{_sentence_number(r.excluded_output_count)} outputs in "
+        f"{r.excluded_output_households_fmt} households are excluded from scoring "
+        "for every model"
+    ) in card
+    assert (
+        f"Of those records, {r.engine_defect_exclusion_count} remain as "
+        "engine-defect exclusions."
+    ) in card
+    assert (
+        f"{_sentence_number(r.engine_defect_unfixed_count)} rest on the "
+        f"{count_word(r.engine_defect_unfixed_root_cause_count)} root causes "
+        f"policyengine-us {r.policyengine_us_version} does not fix"
+    ) in card
+    if r.engine_defect_fixed_kept_count:
+        assert r.engine_defect_fixed_kept_sentence in card
+    # The root causes the card names as unfixed are ones the engine still has.
+    unfixed = {
+        cause
+        for entry in r.reference_exclusions
+        if entry["reason_code"] == ENGINE_DEFECT
+        and (entry["scenario_id"], entry["variable"])
+        not in r.engine_defect_fixed_kept_keys
+        for cause in exclusion_basis(entry).split("+")
+    }
+    named = card[card.index("does not fix (among them") :]
+    named = named[: named.index(").")]
+    listed = [cause for cause, label in ROOT_CAUSE_LABELS.items() if label in named]
+    assert listed and set(listed) <= unfixed, set(listed) - unfixed
+    assert (
+        f"{_sentence_number(r.unlisted_input_exclusion_count)} depend on an input "
+        "the prompt never states"
+    ) in card
+    assert (
+        f"The other {count_word(r.later_law_exclusion_count)} are Louisiana "
+        "households' state income tax"
+    ) in card
+
+
+@given(st.integers(0, 99))
+def test_a_sentence_number_is_spelled_out(n):
+    word = _sentence_number(n)
+    assert word[0].isupper() and not any(ch.isdigit() for ch in word)
 
 
 def _app_model_labels() -> dict[str, str]:

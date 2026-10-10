@@ -172,9 +172,9 @@ records, 25 remain as engine-defect exclusions. Twenty-four rest on the ten
 root causes policyengine-us 2.37.2 does not fix (among them the IRA deduction's
 active-participant phase-out, California's itemized deduction conformity, and
 the heat-and-eat SNAP utility allowance that P.L. 119-21 ended for households
-without an elderly or disabled member). The other one policyengine-us 2.37.2
-computes at its corrected value; it stays excluded because it also moves under
-an input the prompt does not state. An output such a defect moves that was
+without an elderly or disabled member). policyengine-us 2.37.2 computes one of
+them at its corrected value; it stays excluded because it also moves under an
+input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
 same value, or it moved and a re-review found the exclusion still holds.
