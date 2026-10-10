@@ -688,6 +688,25 @@ def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
         assert sentence in text, sentence
 
 
+def test_rendered_html_calls_the_upgrade_fixes_fixed_not_restored():
+    """Round-2 final review nits: the upgrades table renders its split from
+    restored_split_clause, and the sentence naming the upstream fixes, in the
+    table and in the October paragraph, calls all the fixed outputs "fixed",
+    since the ones ruled on 2026-10-06 while still scored never left scoring."""
+    text = _html_text()
+    assert r.engine_upgrade_restored_split_clause in text
+    sentence = r.engine_upgrade_restored_sentence
+    assert sentence.startswith("The fixed outputs take the upstream fixes for ")
+    assert text.count(sentence) == 2
+    assert "restored outputs take" not in text
+
+
+def test_rendered_pdf_calls_the_upgrade_fixes_fixed_not_restored():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text()))
+    assert "restored outputs take" not in text
+    assert "fixed outputs take the upstream fixes for" in text
+
+
 def _engine_groups(exclusions) -> list[tuple[str, int]]:
     """Excluded outputs by the engine version of their value, oldest first."""
     by_engine = Counter(
@@ -961,11 +980,11 @@ def test_card_counts_follow_the_frozen_records():
 
     r = PaperResults()
     card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
-    # The October move: what it restores, from where, and why.
-    restored, ruled = r.engine_upgrade_restored_count, r.ruled_regenerated_count
+    # The October move: what it fixes, from where, and why.
+    fixed, ruled = r.engine_upgrade_restored_count, r.ruled_regenerated_count
     assert (
-        f"The new version fixes the defects behind {count_word(restored)} outputs. "
-        f"Release 20261006 excluded {count_word(restored - ruled)} of them, which "
+        f"The new version fixes the defects behind {count_word(fixed)} outputs. "
+        f"Release 20261006 excluded {count_word(fixed - ruled)} of them, which "
         f"return to scoring; the other {count_word(ruled)} are the 2026-10-06 "
         "defects below, which stay scored."
     ) in card
