@@ -1923,10 +1923,12 @@ class PaperResults:
         """The last upgrade's restored outputs by how their corrected value is
         known (the sidecar's ``target.kind``): ``record`` for the value the
         exclusion record carries, ``fix_modules`` for the value the audit's
-        fix modules give on a later engine that still has the defect. Refuses
-        an entry whose engine value is not within its tolerance of its target,
-        a tolerance above $1, a ``record`` target that is not the record's
-        value, and a ``fix_modules`` target whose engine shows no defect."""
+        fix modules give on a later engine that still has the defect. Refuses,
+        as the builder's regeneration_target does, an entry whose engine value
+        is not within its tolerance of its target (a flag must equal it), a
+        tolerance above $1, a ``record`` target that is not the record's value,
+        and a ``fix_modules`` target whose modules did not move the output
+        beyond the exact-match tolerance on that engine (no defect there)."""
         last = self.last_engine_upgrade
         targets: dict[str, list[dict]] = {"record": [], "fix_modules": []}
         for entry in [] if last is None else last.revision["regenerated_exclusions"]:
@@ -1936,17 +1938,20 @@ class PaperResults:
             tolerance = entry["tolerance"]
             if not 0 <= tolerance <= 1:
                 raise ValueError(f"{key} is restored on a tolerance of {tolerance}")
-            if abs(entry["regenerated"] - target["value"]) > tolerance:
+            variable = entry["variable"]
+            if abs(
+                entry["regenerated"] - target["value"]
+            ) > tolerance or moves_beyond_tolerance(
+                variable, target["value"], entry["regenerated"]
+            ):
                 raise ValueError(f"{key} is restored off its target")
             if target["kind"] == "record":
                 if target["value"] != entry["record"]["alternative_value"]:
                     raise ValueError(f"{key}'s target is not its record's value")
-            else:
-                if abs(target["engine_value"] - target["value"]) <= tolerance:
-                    raise ValueError(f"{key}'s fix modules move nothing there")
-                carried = entry["record"]["alternative_value"]
-                if abs(target["value"] - carried) <= tolerance:
-                    raise ValueError(f"{key}'s record already carries its target")
+            elif not moves_beyond_tolerance(
+                variable, target["engine_value"], target["value"]
+            ):
+                raise ValueError(f"{key}'s fix modules move nothing there")
             targets[target["kind"]].append(entry)
         return targets
 
@@ -1971,17 +1976,15 @@ class PaperResults:
             modules = (
                 f"{'The other one' if some else 'It'} is held"
                 f"{' instead' if some else ''} to the value the audit's fix "
-                f"modules give on {engines[0]}, which still has the defect, "
-                "because that value differs from the one its record carries; "
-                "it lands within $1 of it."
+                f"modules give on {engines[0]}, an engine that still has the "
+                "defect; it lands within $1 of it."
             )
         else:
             subject = f"The other {count_word(len(by_modules))}" if some else "They"
             modules = (
                 f"{subject} are held{' instead' if some else ''} to the values "
-                f"the audit's fix modules give on {engines[0]}, which still "
-                "has the defects, because those values differ from the ones "
-                "their records carry; each lands within $1 of its own."
+                f"the audit's fix modules give on {engines[0]}, an engine that "
+                "still has the defects; each lands within $1 of its own."
             )
         if not some:
             return modules

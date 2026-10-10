@@ -1635,6 +1635,8 @@ def _with_restored(edit) -> PaperResults:
 def test_the_restored_target_sentence_follows_the_frozen_sidecar():
     """Every restored output is counted under how its corrected value is
     known, and lands within its tolerance of that value."""
+    from policybench.paper_results import moves_beyond_tolerance
+
     targets = r.engine_upgrade_restored_targets
     entries = r.last_engine_upgrade.revision["regenerated_exclusions"]
     assert len(targets["record"]) + len(targets["fix_modules"]) == len(entries)
@@ -1643,9 +1645,10 @@ def test_the_restored_target_sentence_follows_the_frozen_sidecar():
     for entry in targets["record"]:
         assert entry["target"]["value"] == entry["record"]["alternative_value"]
     for entry in targets["fix_modules"]:
-        target, carried = entry["target"], entry["record"]["alternative_value"]
-        assert abs(target["engine_value"] - target["value"]) > entry["tolerance"]
-        assert abs(target["value"] - carried) > entry["tolerance"]
+        target = entry["target"]
+        assert moves_beyond_tolerance(
+            entry["variable"], target["engine_value"], target["value"]
+        )
     sentence = r.engine_upgrade_restored_target_sentence
     assert sentence.count("within $1") == (2 if targets["fix_modules"] else 1)
     for entry in targets["fix_modules"]:
@@ -1687,6 +1690,28 @@ def test_the_restored_target_sentence_counts_each_kind(data):
         assert sentence == r.engine_upgrade_restored_target_sentence
 
 
+def test_a_flag_held_to_fix_modules_that_move_it_is_described():
+    """MOCK edit: on a 0/1 flag, fix modules that move it from 0 to 1 show the
+    defect, as the builder's beyond() rule says, though the move is not more
+    than $1."""
+
+    def flag(entries):
+        entry = entries[0]
+        entry["variable"] = "head_medicaid_eligible"
+        entry["regenerated"] = 1.0
+        entry["record"]["alternative_value"] = 0.0
+        entry["target"] = {
+            "kind": "fix_modules",
+            "value": 1.0,
+            "engine": "policyengine-us 9.9.9",
+            "engine_value": 0.0,
+        }
+
+    results = _with_restored(flag)
+    assert len(results.engine_upgrade_restored_targets["fix_modules"]) == 1
+    assert "policyengine-us 9.9.9" in results.engine_upgrade_restored_target_sentence
+
+
 def test_a_restored_output_off_its_target_stops_the_sentence():
     """MOCK edits: each way a restored entry can contradict the sentence is
     refused instead of described."""
@@ -1704,9 +1729,11 @@ def test_a_restored_output_off_its_target_stops_the_sentence():
         _MOCK_fix_modules_target(entries[0])
         entries[0]["target"]["engine_value"] = entries[0]["target"]["value"]
 
-    def already_carried(entries):
-        _MOCK_fix_modules_target(entries[0])
-        entries[0]["record"]["alternative_value"] = entries[0]["target"]["value"]
+    def flag_off_its_target(entries):
+        entries[0]["variable"] = "head_medicaid_eligible"
+        entries[0]["target"]["value"] = 1.0
+        entries[0]["record"]["alternative_value"] = 1.0
+        entries[0]["regenerated"] = 0.0
 
     def unknown_kind(entries):
         entries[0]["target"]["kind"] = "MOCK_kind"
@@ -1716,7 +1743,7 @@ def test_a_restored_output_off_its_target_stops_the_sentence():
         (loose, "is restored on a tolerance of 2.0"),
         (not_the_records, "target is not its record's value"),
         (no_defect, "fix modules move nothing there"),
-        (already_carried, "record already carries its target"),
+        (flag_off_its_target, "is restored off its target"),
         (unknown_kind, "unknown target kind 'MOCK_kind'"),
     ):
         with pytest.raises(ValueError, match=message):
@@ -1929,3 +1956,9 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     paper = (ROOT / "paper/index.qmd").read_text()
     assert "`{python} r.engine_defect_fixed_kept_sentence`" in paper
     assert "`{python} r.engine_defect_unfixed_count` outputs whose references" in paper
+    # The September audit paragraph separates the defects the reference engine
+    # still has from the records it fixes but keeps (pre-T review finding 4).
+    assert (
+        "still has the defect behind `{python} r.engine_defect_unfixed_count`" in paper
+    )
+    assert "They stay excluded until references built on a fixed engine" not in paper
