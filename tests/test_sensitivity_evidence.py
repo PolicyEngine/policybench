@@ -370,3 +370,16 @@ def test_doc_all_output_scores_recompute_on_the_frozen_references():
             "sensitivity-claude-haiku-5-5-thinking",
         )
     ]
+
+
+def test_only_claude_sonnet_5_gains_more_than_claude_haiku_5_5():
+    """The doc's "Among the Claude rows only Claude Sonnet 5 gains more under
+    auto", from the committed summaries' gains on the frozen board."""
+    gains = {run["model"]: run["delta_exact"] for run in AUGUST["runs"].values()}
+    gains[SUMMARY["model"]] = SUMMARY["delta_exact"]
+    above = sorted(m for m, gain in gains.items() if gain > HAIKU["delta_exact"])
+    assert above == ["claude-sonnet-5"]
+    doc = re.sub(
+        r"\s+", " ", (ROOT / "sensitivity/claude-thinking-2026-08.md").read_text()
+    )
+    assert "Among the Claude rows only Claude Sonnet 5 gains more under `auto`" in doc

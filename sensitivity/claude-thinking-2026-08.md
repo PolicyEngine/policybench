@@ -49,8 +49,9 @@ shape changes, while Claude Opus 5's isolates thinking alone.
 
 All ranks are on the 47-model board (2026-10-09). Scores are on the
 1,915 outputs the board scores; the 69 outputs `reference_exclusions.json`
-lists (engine defects, and references that depend on an input the prompt
-never states) are excluded for every model, sensitivity runs included. On
+lists (engine defects, references that depend on an input the prompt never
+states, and references that rest on an amount a state published after the
+freeze) are excluded for every model, sensitivity runs included. On
 all 1,984 outputs the thinking runs scored 87.0, 85.8 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
