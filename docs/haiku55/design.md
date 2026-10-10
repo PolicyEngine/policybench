@@ -234,7 +234,8 @@ With a build installed, the step decides only the ruled outputs the build keeps 
 **Which engine.** References come from the newest policyengine-us release when the reference sweep begins, and at publication PolicyBench checks that the newest release gives the same values (`ENGINE_RULE` in the builder). `reference_audit/2026-10-09-engine-upgrade/scripts/sweep_timing.py` records both:
 
 - `sweep` reads PyPI and records each release's wheel upload time from the reference engine onward, the newest release at the read, and when the sweep wrote its first output. It refuses unless the reference engine was the newest release when the sweep began.
-- `check` reads PyPI again before publication. When a newer release is out, it compares every output that release computes under the same conventions with the reference engine's, and counts scored and excluded outputs apart. A newer release may move outputs that stay excluded. If it moves a scored output, `engine_upgrade_timing_sentence` in `policybench/paper_results.py` refuses, so the paper does not render, and `tests/test_disclosures.py` fails.
+- `check` reads PyPI again before publication. It takes the reference build and refuses one that is not the release's: its sidecar must name the sweep's engine, pin its CSV and name the committed builder, its reference CSV and exclusion record must be the committed snapshot's, and its `computed.csv` must give every scored reference. When a newer release is out, it compares every output that release computes under the same conventions with the reference engine's, and counts scored and excluded outputs apart. Each input is pinned in the record by sha256. A newer release may move outputs that stay excluded. If it moves a scored output, `check` writes the record and exits non-zero, `engine_upgrade_timing_sentence` in `policybench/paper_results.py` refuses, so the paper does not render, and `tests/test_disclosures.py` fails.
+- Both refuse a sweep whose output does not follow its engine: the wheel's upload, the install and the first output must come in that order. A release whose wheels are all yanked is left out, and the record lists any such release newer than the reference engine.
 
 Both write into `reference_audit/2026-10-09-engine-upgrade/verification/`.
 
@@ -377,8 +378,7 @@ Write the provenance record and commit it, then export and freeze:
 "$PB_PY" scripts/rescore_sensitivity_summaries.py --release "$PB_TAG"
 # With an engine upgrade, the publication check (add --check-computed and
 # --check-venv when PyPI's newest release is not the reference engine):
-"${F_PY[@]}" "$U/scripts/sweep_timing.py" check --computed "$F/build/computed.csv" \
-  --exclusions "$F/build/reference_exclusions.json"
+"${F_PY[@]}" "$U/scripts/sweep_timing.py" check --build "$F/build"
 # Update the note, paper prose, roster pins (47 models) and tests, then render
 # and freeze again, which re-pins the rendered paper:
 "$PB_PY" paper/render_paper.py

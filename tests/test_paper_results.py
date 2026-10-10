@@ -1800,6 +1800,28 @@ def _with_timing(tmp_path, monkeypatch, record: dict | None) -> PaperResults:
     return PaperResults()
 
 
+def test_an_upload_on_another_day_names_its_date(tmp_path, monkeypatch):
+    """MOCK record: a wheel uploaded the day before the sweep began is dated,
+    so the sentence does not imply the sweep's day."""
+    engine = r.policyengine_us_version
+    record = _MOCK_october_timing({"engine": engine})
+    record["pypi"]["wheel_uploaded_at_utc"][engine] = "2026-10-09T23:50:02Z"
+    sentence = _with_timing(
+        tmp_path, monkeypatch, record
+    ).engine_upgrade_timing_sentence
+    assert "on 2026-10-10 (uploaded 2026-10-09 at 23:50 UTC)." in sentence
+
+
+@given(st.datetimes(), st.dates())
+def test_an_upload_phrase_dates_only_another_days_upload(moment, day):
+    from policybench.paper_results import uploaded_phrase
+
+    stamp = moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+    phrase = uploaded_phrase(stamp, day.isoformat())
+    assert phrase.endswith(f"{stamp[11:16]} UTC")
+    assert (stamp[:10] in phrase) is (stamp[:10] != day.isoformat())
+
+
 def test_the_upgrade_timing_sentence_states_the_timing_record(tmp_path, monkeypatch):
     """MOCK records: the sentence gives the sweep's day, the engine's upload
     time and what the publication check found; without a record it is empty,

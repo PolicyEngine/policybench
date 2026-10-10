@@ -17,15 +17,23 @@ Two steps, each writing into this audit's verification/ directory:
       unless the engine was the newest release when the sweep began: no
       release newer than it was uploaded before its first output.
 
-  sweep_timing.py check --computed <reference computed.csv>
-                        --exclusions <the build's reference_exclusions.json>
+  sweep_timing.py check --build <the reference build's out-dir>
                         --check-computed <computed.csv on the newest release>
                         --check-venv <venv>
-      Reads PyPI again. When a newer release is out, compares every output the
-      newest release computes under the same conventions with the reference
-      engine's (publication_check_<version>.csv) and records the result,
-      counting scored and excluded outputs apart; when the reference engine is
-      still the newest, records that.
+      Reads PyPI again. The build must be the release's: its sidecar names the
+      sweep's engine and pins its CSV, its reference CSV and exclusion record
+      are the committed snapshot's byte for byte, and its computed.csv gives
+      every scored reference. When a newer release is out, compares every
+      output the newest release computes under the same conventions with the
+      reference engine's (publication_check_<version>.csv) and records the
+      result, counting scored and excluded outputs apart; when the reference
+      engine is still the newest, records that. Each input is pinned in the
+      record by sha256. Exits non-zero, after writing the record, when the
+      newest release moves a scored output: that stops the publish.
+
+A release whose wheels are all yanked is not one PolicyBench builds on or
+checks against; the record lists any such release newer than the reference
+engine (yanked_newer), so one yanked after the sweep began stays visible.
 
 Times are UTC. Birth times are macOS st_birthtime.
 """
@@ -49,6 +57,18 @@ TIMING = VERIFICATION / "sweep_timing.json"
 PYPI = "https://pypi.org/pypi/policyengine-us/json"
 PACKAGE = "policyengine_us"
 SAME = 1e-9
+# The builder's own tolerance for an output it did not move (its EPS): every
+# scored reference is the engine's value, so the build's computed.csv gives it.
+REFERENCE_EPS = 1e-6
+RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
+SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
+BUILDER = AUDIT / "scripts" / "build_references_upgrade.py"
+BUILD_FILES = (
+    "computed.csv",
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "reference_exclusions.json",
+)
 NOTE = (
     "When PolicyBench began sweeping the references for the 2026-10-09 move, "
     "which policyengine-us release was the newest then and at publication, and "
@@ -92,6 +112,29 @@ def wheel_uploads(pypi: dict) -> dict[str, str]:
         if wheels and not all(f.get("yanked") for f in wheels):
             uploads[version] = min(f["upload_time_iso_8601"] for f in wheels)
     return uploads
+
+
+def yanked_newer(pypi: dict, engine: str) -> dict[str, str]:
+    """Releases newer than the engine whose wheels are all yanked, with the
+    reason PyPI gives (wheel_uploads leaves them out)."""
+    yanked = {}
+    for version, files in pypi.get("releases", {}).items():
+        try:
+            key = version_key(version)
+        except ValueError:
+            continue
+        wheels = [f for f in files if f.get("packagetype") == "bdist_wheel"]
+        if (
+            key > version_key(engine)
+            and wheels
+            and all(f.get("yanked") for f in wheels)
+        ):
+            yanked[version] = wheels[0].get("yanked_reason") or ""
+    return dict(sorted(yanked.items(), key=lambda kv: version_key(kv[0])))
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def newest(uploads: dict[str, str]) -> str:
@@ -226,6 +269,8 @@ def sweep(args) -> dict:
     uploads = wheel_uploads(pypi)
     if engine not in uploads:
         raise Refusal(f"PyPI lists no wheel for policyengine-us {engine}")
+    installed_at = utc(installed.stat().st_birthtime)
+    sweep_order_problems(uploads[engine], installed_at, first_at, engine)
     earlier = newer_before(uploads, engine, first_at)
     if earlier:
         raise Refusal(
@@ -240,10 +285,11 @@ def sweep(args) -> dict:
             "read_at_utc": read_at,
             "newest_at_read": newest(uploads),
             "wheel_uploaded_at_utc": from_engine(uploads, engine),
+            "yanked_newer": yanked_newer(pypi, engine),
         },
         "reference_sweep": {
             "engine": engine,
-            "engine_installed_at_utc": utc(installed.stat().st_birthtime),
+            "engine_installed_at_utc": installed_at,
             "engine_installed_evidence": relative(installed),
             "script": (
                 "reference_audit/2026-10-09-engine-upgrade/scripts/"
@@ -251,13 +297,90 @@ def sweep(args) -> dict:
             ),
             "first_output_at_utc": first_at,
             "first_output": relative(first),
+            "first_output_sha256": sha256(first),
         },
     }
+
+
+def sweep_order_problems(
+    uploaded_at: str, installed_at: str, output_at: str, engine: str
+) -> None:
+    """A sweep's output follows its engine: the wheel was on PyPI before it was
+    installed, and installed before the sweep wrote its output. An older file
+    (an earlier rehearsal's output, say) would otherwise backdate the sweep."""
+    if not uploaded_at[:19] <= installed_at[:19] <= output_at[:19]:
+        raise Refusal(
+            f"policyengine-us {engine}: wheel uploaded {uploaded_at}, installed "
+            f"{installed_at}, output written {output_at}; an output must follow "
+            "its engine's install, and the install its upload"
+        )
+
+
+def build_problems(
+    build: Path, engine: str, snapshot: Path
+) -> tuple[dict, frozenset[tuple[str, str]], dict[str, str]]:
+    """The reference build's computed values, its excluded outputs and the
+    sha256 of each build file, once the build is shown to be the release's."""
+    files = {name: build / name for name in BUILD_FILES}
+    missing = [name for name, path in files.items() if not path.is_file()]
+    if missing:
+        raise Refusal(f"{build} lacks {missing}")
+    pins = {name: sha256(path) for name, path in files.items()}
+    meta = json.loads(files["reference_outputs.csv.meta.json"].read_text())
+    revision = meta["revisions"][-1]
+    if (
+        revision.get("kind") != "engine_upgrade"
+        or revision.get("engine_version") != f"policyengine-us {engine}"
+    ):
+        raise Refusal(
+            f"{build}'s last revision is not an engine upgrade to {engine}: "
+            f"{revision.get('kind')} {revision.get('engine_version')}"
+        )
+    if meta.get("reference_csv_sha256") != pins["reference_outputs.csv"]:
+        raise Refusal(f"{build}'s sidecar does not pin its reference_outputs.csv")
+    # The check sweep runs this audit's builder, as the build did: the same
+    # conventions and adapter, so the sidecar must name the committed builder.
+    named = (revision.get("provenance") or {}).get("builder_sha256")
+    if named is not None and named != sha256(BUILDER):
+        raise Refusal(f"{build} was built by another builder ({named[:12]})")
+    pins["builder"] = named or sha256(BUILDER)
+    for name in ("reference_outputs.csv", "reference_exclusions.json"):
+        committed = snapshot / name
+        if not committed.is_file() or sha256(committed) != pins[name]:
+            raise Refusal(
+                f"{build}/{name} is not the committed snapshot's ({committed}); "
+                "check the build the release froze"
+            )
+    record = json.loads(files["reference_exclusions.json"].read_text())["exclusions"]
+    excluded = frozenset((e["scenario_id"], e["variable"]) for e in record)
+    with files["reference_outputs.csv"].open(newline="") as source:
+        references = {
+            (row["scenario_id"], row["variable"]): float(row["value"])
+            for row in csv.DictReader(source)
+        }
+    computed = read_computed(files["computed.csv"])
+    if set(computed) != set(references) or not excluded <= set(references):
+        raise Refusal(
+            f"{build}'s computed.csv, references and record cover different outputs"
+        )
+    off = sorted(
+        key
+        for key, value in references.items()
+        if key not in excluded and abs(computed[key][1] - value) > REFERENCE_EPS
+    )
+    if off:
+        raise Refusal(f"{build}'s computed.csv is not its scored references: {off[:5]}")
+    return computed, excluded, pins
 
 
 def check(args) -> dict:
     timing = json.loads(TIMING.read_text())
     engine = timing["reference_sweep"]["engine"]
+    build = Path(args.build)
+    computed, excluded, pins = build_problems(
+        build, engine, Path(getattr(args, "snapshot", None) or SNAPSHOT)
+    )
+    scored = len(computed) - len(excluded)
     pypi = read_pypi()
     read_at = now_utc()
     uploads = wheel_uploads(pypi)
@@ -267,6 +390,12 @@ def check(args) -> dict:
         "read_at_utc": read_at,
         "newest_at_read": latest,
         "wheel_uploaded_at_utc": from_engine(uploads, engine),
+        "yanked_newer": yanked_newer(pypi, engine),
+    }
+    inputs = {
+        "build": relative(build),
+        "build_sha256": pins,
+        "scored_outputs": scored,
     }
     if latest == engine:
         timing["publication_check"] = {
@@ -275,6 +404,7 @@ def check(args) -> dict:
                 f"policyengine-us {engine}, the reference engine, was still the "
                 "newest release when PolicyBench read PyPI"
             ),
+            **inputs,
         }
         return timing
     if not args.check_computed or not args.check_venv:
@@ -284,24 +414,28 @@ def check(args) -> dict:
         )
     check_path = Path(args.check_computed)
     installed = dist_info(Path(args.check_venv), latest)
-    record = json.loads(Path(args.exclusions).read_text())["exclusions"]
-    excluded = frozenset((e["scenario_id"], e["variable"]) for e in record)
+    installed_at = utc(installed.stat().st_birthtime)
+    output_at = utc(check_path.stat().st_birthtime)
+    sweep_order_problems(uploads[latest], installed_at, output_at, latest)
     rows, summary = compare(
-        read_computed(Path(args.computed)),
-        read_computed(check_path),
-        engine,
-        latest,
-        excluded,
+        computed, read_computed(check_path), engine, latest, excluded
     )
+    if summary["scored_outputs"] != scored:
+        raise Refusal(
+            f"the check scored {summary['scored_outputs']} outputs, not {scored}"
+        )
     out = VERIFICATION / f"publication_check_{latest.replace('.', '_')}.csv"
     digest = write_rows(out, rows)
     timing["publication_check"] = {
         "engine": latest,
-        "engine_installed_at_utc": utc(installed.stat().st_birthtime),
+        "engine_installed_at_utc": installed_at,
         "engine_installed_evidence": relative(installed),
-        "output_at_utc": utc(check_path.stat().st_birthtime),
+        "check_computed": relative(check_path),
+        "check_computed_sha256": sha256(check_path),
+        "output_at_utc": output_at,
         "output": relative(out),
         "output_sha256": digest,
+        **inputs,
         **summary,
     }
     return timing
@@ -315,8 +449,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--venv", required=True)
     s.add_argument("--first-output", required=True)
     c = sub.add_parser("check")
-    c.add_argument("--computed", required=True)
-    c.add_argument("--exclusions", required=True)
+    c.add_argument("--build", required=True)
     c.add_argument("--check-computed")
     c.add_argument("--check-venv")
     args = parser.parse_args(argv)
@@ -326,6 +459,13 @@ def main(argv: list[str] | None = None) -> None:
     print(
         json.dumps(timing.get("publication_check", timing["reference_sweep"]), indent=1)
     )
+    moved = timing.get("publication_check", {}).get("scored_differ")
+    if moved:
+        raise Refusal(
+            f"policyengine-us {timing['publication_check']['engine']} moves scored "
+            f"outputs {moved[:5]}: do not publish (the record is in "
+            f"{relative(TIMING)})"
+        )
 
 
 if __name__ == "__main__":

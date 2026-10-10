@@ -187,6 +187,15 @@ def _series(parts: list[str]) -> str:
     return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
+def uploaded_phrase(uploaded: str, day: str) -> str:
+    """When a wheel went up, as the timing sentences state it: the clock time,
+    and the date too when the upload was not on ``day`` (the sweep's)."""
+    clock = uploaded[11:16]
+    if uploaded[:10] == day:
+        return f"uploaded {clock} UTC"
+    return f"uploaded {uploaded[:10]} at {clock} UTC"
+
+
 def count_word(n: int) -> str:
     """A count as the paper writes it: a word up to ten, digits above."""
     return NUMBER_WORDS.get(n, f"{n:,}")
@@ -1832,7 +1841,9 @@ class PaperResults:
             return ""
         engine = timing["reference_sweep"]["engine"]
         began = timing["reference_sweep"]["first_output_at_utc"][:10]
-        uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine][11:16]
+        uploaded = uploaded_phrase(
+            timing["pypi"]["wheel_uploaded_at_utc"][engine], began
+        )
         read_at = timing["pypi"]["read_at_utc"]
         check = timing.get("publication_check")
         if check is None or check["engine"] != timing["pypi"]["newest_at_read"]:
@@ -1863,7 +1874,7 @@ class PaperResults:
             )
         return (
             f"policyengine-us {engine} was the newest release when PolicyBench began "
-            f"sweeping the references on {began} (uploaded {uploaded} UTC). {checked}"
+            f"sweeping the references on {began} ({uploaded}). {checked}"
         )
 
     @property

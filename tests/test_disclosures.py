@@ -832,6 +832,8 @@ def _publication_check_sentence(timing: dict, engine: str) -> str:
 def test_card_states_the_engines_behind_scored_and_excluded_references():
     """The card's engine sentences, rebuilt from the sidecar, the exclusion
     record and each move's timing record and publication check."""
+    from policybench.paper_results import uploaded_phrase
+
     run_dir = (
         ROOT
         / "paper/snapshot/20260501/runs"
@@ -852,22 +854,6 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         for index, (version, count) in enumerate(_engine_groups(exclusions))
     )
     card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
-    # The move to the current engine: its sweep's timing record.
-    assert OCTOBER_TIMING.is_file(), (
-        "record the sweep with reference_audit/2026-10-09-engine-upgrade/scripts/"
-        "sweep_timing.py and state its times in the card"
-    )
-    october = json.loads(OCTOBER_TIMING.read_text())
-    assert october["reference_sweep"]["engine"] == engine
-    uploaded_now = october["pypi"]["wheel_uploaded_at_utc"][engine]
-    assert (
-        "PolicyBench computes each scored US reference by running "
-        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
-        "release when PolicyBench began sweeping the references on "
-        f"{october['reference_sweep']['first_output_at_utc'][:10]} (uploaded "
-        f"{uploaded_now[11:16]} UTC)."
-    ) in card
-    assert _publication_check_sentence(october, engine) in card
     recheck = len(upgrade["excluded_outputs_rechecked"])
     assert (
         f"The {len(exclusions)} excluded outputs keep the values they were decided "
@@ -899,6 +885,23 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"{september} for all {len(rows):,} outputs under the same conventions and "
         "adapter."
     ) in card
+    # The move to the current engine: its sweep's timing record, checked last
+    # so that a missing record does not hide the checks above.
+    assert OCTOBER_TIMING.is_file(), (
+        "record the sweep with reference_audit/2026-10-09-engine-upgrade/scripts/"
+        "sweep_timing.py and state its times in the card"
+    )
+    october = json.loads(OCTOBER_TIMING.read_text())
+    assert october["reference_sweep"]["engine"] == engine
+    uploaded_now = october["pypi"]["wheel_uploaded_at_utc"][engine]
+    began = october["reference_sweep"]["first_output_at_utc"][:10]
+    assert (
+        "PolicyBench computes each scored US reference by running "
+        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
+        "release when PolicyBench began sweeping the references on "
+        f"{began} ({uploaded_phrase(uploaded_now, began)})."
+    ) in card
+    assert _publication_check_sentence(october, engine) in card
     # No other clock time appears in the card.
     october_read = october["pypi"]["read_at_utc"]
     assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
