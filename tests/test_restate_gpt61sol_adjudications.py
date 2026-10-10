@@ -803,12 +803,14 @@ SOURCE_WORDINGS = [
 def test_the_freeze_accepts_exactly_the_reference_flag_restatements_write(
     tmp_path_factory, seed_flag, waved, wording, rejudges
 ):
-    """Differential: for any seed flag, 2026-09-22 wave flag and 20260929
-    source wording, and any sequence of re-judges and their flags, every
-    entry this script restates passes the freeze's verify_restatements
-    against the current verdict, and the same entry with its top-level flag
-    lowered or raised, its source dropped or added, or its source reworded,
-    is refused."""
+    """For any seed flag, 2026-09-22 wave flag and 20260929 source wording,
+    and any sequence of re-judges and their flags, every entry this script
+    restates passes the freeze's verify_restatements against the current
+    verdict, and the same entry with its top-level flag lowered or raised,
+    its source dropped or added, or its source reworded, is refused. (The
+    gate also accepts FLAG_SOURCE_EARLIER_RUN in place of 20260929's own
+    wording; both sides share reference_flag, so a wrong rule there is the
+    flag table's to catch, in tests/test_freeze_gpt61sol.py.)"""
     root = tmp_path_factory.mktemp("restated")
     stage, seed = root / "stage", root / "seed"
     _write_case(

@@ -47,9 +47,9 @@ ANNOTATION_CSVS = [
 # The case reference explanations, which must stay release 20260929's.
 EXPLANATIONS_NAME = "us_case_reference_explanations.csv"
 EXPLANATIONS = BUNDLE / "annotations" / EXPLANATIONS_NAME
-# The bundle files export_full_run reads (driver.EXPORT_INPUTS): the
-# references and predictions, and the three annotation CSVs whose loaders
-# fall back to the working directory's committed annotations.
+# The bundle files export requires (driver.EXPORT_INPUTS): the references and
+# predictions, and the three annotation CSVs whose loaders fall back to the
+# working directory's committed annotations when the bundle has none.
 EXPORT_READS = (
     *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
     "annotations/us_audit_row_annotations.csv",
@@ -679,7 +679,9 @@ def test_the_freeze_refuses_a_stage_edited_after_its_pin_was_committed(
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
-@pytest.mark.parametrize("where", ["unlisted_case", "parse_only_case", "sidecar_alone"])
+@pytest.mark.parametrize(
+    "where", ["unlisted_case", "parse_only_case", "sidecar_alone", "case_variant"]
+)
 def test_the_freeze_refuses_a_verdict_outside_the_judged_cases(
     staged_board, monkeypatch, where, dry_run
 ):
@@ -687,7 +689,10 @@ def test_the_freeze_refuses_a_verdict_outside_the_judged_cases(
     holds a verdict.json. A verdict and its bound sidecar added after export
     to a case cases.jsonl does not list, or to a parse-failure-only case, are
     bound by no receipt entry and checked by no other gate; so is a sidecar
-    alone. Each is refused before any later gate and any workspace mutation."""
+    alone. Each is refused before any later gate and any workspace mutation.
+    Names that differ only in case (Verdict.json) are refused wherever the
+    file system matches them as the tally does, and seen by neither where it
+    does not."""
     stage, rebind = staged_board
     for name in driver.REFERENCE_FILES:
         shutil.copyfile(driver.SNAPSHOT / name, stage / BUNDLE / "us" / name)
@@ -698,16 +703,27 @@ def test_the_freeze_refuses_a_verdict_outside_the_judged_cases(
         "unlisted_case": "us__scenario_999__snap",
         "parse_only_case": "us__scenario_001__snap",
         "sidecar_alone": "us__scenario_999__snap",
+        "case_variant": "us__scenario_999__snap",
     }[where]
     (cases / case).mkdir(exist_ok=True)
     meta = json.loads((cases / KEPT / "verdict.meta.json").read_text())
     meta["judge_model_requested"] = "claude-opus-5-5"
+    names = ("verdict.json", "verdict.meta.json")
+    if where == "case_variant":
+        names = ("Verdict.json", "Verdict.meta.json")
     if where != "sidecar_alone":
-        shutil.copyfile(cases / KEPT / "verdict.json", cases / case / "verdict.json")
-    (cases / case / "verdict.meta.json").write_text(json.dumps(meta))
+        shutil.copyfile(cases / KEPT / "verdict.json", cases / case / names[0])
+    (cases / case / names[1]).write_text(json.dumps(meta))
     before = workspace_files()
-    with pytest.raises(SystemExit, match=f"not judged cases in cases.jsonl.*{case}"):
-        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    if where == "case_variant" and not (cases / case / "verdict.json").is_file():
+        # A case-sensitive file system: the tally does not count it either.
+        with pytest.raises(SystemExit, match="Reached the next gate"):
+            release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    else:
+        with pytest.raises(
+            SystemExit, match=f"not judged cases in cases.jsonl.*{case}"
+        ):
+            release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
     assert workspace_files() == before
 
 
@@ -715,6 +731,9 @@ def _commit(root: Path, message: str) -> None:
     """Commit everything in a scratch repository, with no user hooks or keys."""
     git = ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null"]
     git += ["-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@t"]
+    # No background maintenance: it writes .git/ while the workspace is
+    # compared before and after a freeze.
+    git += ["-c", "maintenance.auto=false", "-c", "gc.auto=0"]
     subprocess.run([*git, "add", "."], check=True)
     subprocess.run([*git, "commit", "-qm", message], check=True)
 
@@ -759,6 +778,64 @@ def test_the_freeze_reads_the_receipt_pin_as_committed_at_head(
     freeze("stage's \\['payload_sha256'\\] are not what")
 
 
+@pytest.mark.parametrize(
+    "extra",
+    ["annotations/us_zz_annotations.csv", "annotations/notes.txt", "us/by_model"],
+)
+def test_the_rebuild_refuses_a_bound_file_export_would_read_unchecked(
+    staged_board, rebuilds, extra
+):
+    """export_full_run reads every us_*_annotations.csv in annotations/ and
+    prefers us/by_model/ to us/predictions.csv. Such a file, added before
+    export and so bound by the receipt, is in the rebuild's scratch copy;
+    build_payload refuses it before export_full_run runs."""
+    stage, rebind = staged_board
+    path = stage / BUNDLE / extra
+    if extra == "us/by_model":
+        path.mkdir()
+        path = path / "gpt-6.1-sol.csv"
+    path.write_text(
+        "model,scenario_id,variable,annotation,failure_source,failure_subtype\n"
+        "gpt-6.1-sol,scenario_001,snap,No judge wrote this.,llm_error,other\n"
+    )
+    rebind()
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    receipt["files"][str(path.relative_to(stage))] = sha(path)
+    with pytest.raises(SystemExit, match=f"the bundle holds.*{re.escape(extra)}"):
+        release.rebuild_payload(
+            stage,
+            receipt,
+            stage / "data-board46.json",
+            driver.base_payload_from_commit(),
+        )
+    assert rebuilds == []
+
+
+@pytest.mark.parametrize("edit", [None, "explanations", "reference"])
+def test_the_freeze_checks_the_frozen_references_and_explanations(tmp_path, edit):
+    """After the freezer writes the snapshot, the frozen references must be
+    release 20260929's pins and the committed explanations its file."""
+    frozen, annotations = tmp_path / "run", tmp_path / "annotations"
+    frozen.mkdir()
+    annotations.mkdir()
+    for name in driver.REFERENCE_FILES:
+        (frozen / name).write_bytes(
+            driver.base_commit_blob(Path("paper/snapshot/20260501/runs") / RUN / name)
+        )
+    (annotations / EXPLANATIONS_NAME).write_bytes(base_explanations())
+    if edit is None:
+        release.verify_frozen(frozen, annotations)
+        return
+    if edit == "explanations":
+        (annotations / EXPLANATIONS_NAME).write_bytes(base_explanations() + b"\n")
+        message = f"Frozen {EXPLANATIONS_NAME} is not release 20260929's"
+    else:
+        (frozen / "scenarios.csv").write_bytes(b"scenario_id\n")
+        message = "frozen reference scenarios.csv does not match its pin"
+    with pytest.raises(SystemExit, match=message):
+        release.verify_frozen(frozen, annotations)
+
+
 def _edit_explanation(stage: Path) -> None:
     """Rewrite one case's written reference derivation in the staged file."""
     path = stage / EXPLANATIONS
@@ -794,18 +871,19 @@ def test_the_freeze_refuses_edited_reference_explanations(
     assert workspace_files() == before
 
 
-def test_the_export_inputs_are_the_files_export_full_run_reads():
+def test_the_export_inputs_are_the_references_predictions_and_annotation_csvs():
     assert driver.EXPORT_INPUTS == EXPORT_READS
 
 
 @pytest.mark.parametrize("name", EXPORT_READS)
-def test_the_rebuild_refuses_a_bundle_file_export_reads_and_the_receipt_omits(
+def test_the_rebuild_refuses_a_bundle_file_export_requires_and_the_receipt_omits(
     staged_board, rebuilds, name
 ):
-    """A file export reads that the receipt does not bind is missing from the
-    scratch copy. The rebuild refuses it before export_full_run runs: its
-    loaders would read the working directory's committed annotations in the
-    copy's place and rebuild the staged payload from other bytes."""
+    """A file export requires that the receipt does not bind is missing from
+    the scratch copy. The rebuild refuses it before export_full_run runs: for
+    an annotation CSV, its loader would read the working directory's
+    committed annotations in the copy's place and rebuild the staged payload
+    from other bytes."""
     stage, _ = staged_board
     receipt = json.loads((stage / "release-ready.json").read_text())
     del receipt["files"][str(BUNDLE / name)]
@@ -1481,7 +1559,9 @@ EARLIER_RUN = (
 # Each: the current verdict's own flag, whether the 2026-09-22 wave flagged
 # the case, the entry's top-level flag and its source, and whether the gate
 # passes it. The flag is raised when the verdict or the wave raised it, and
-# names a source exactly when the wave alone did.
+# names a source exactly when the wave alone did. The table holds all 16
+# combinations of the two flags, the entry's flag and its source (none or
+# EARLIER_RUN), and one source in other words.
 REFERENCE_FLAGS = {
     "raised_with_a_source_the_verdict_does_not_raise": (
         False,
@@ -1519,6 +1599,23 @@ REFERENCE_FLAGS = {
     "lowered_against_the_wave": (False, True, False, None, False),
     "raised_by_both": (True, True, True, None, True),
     "raised_by_both_naming_an_earlier_run": (True, True, True, EARLIER_RUN, False),
+    "lowered_naming_an_earlier_run": (False, False, False, EARLIER_RUN, False),
+    "lowered_against_the_wave_naming_it": (False, True, False, EARLIER_RUN, False),
+    "lowered_against_the_verdict_naming_an_earlier_run": (
+        True,
+        False,
+        False,
+        EARLIER_RUN,
+        False,
+    ),
+    "lowered_against_both": (True, True, False, None, False),
+    "lowered_against_both_naming_an_earlier_run": (
+        True,
+        True,
+        False,
+        EARLIER_RUN,
+        False,
+    ),
 }
 
 

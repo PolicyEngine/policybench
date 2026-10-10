@@ -1092,6 +1092,86 @@ def test_a_kept_sidecar_must_be_the_seeds(seeded_stage, changes):
     assert sorted(p.name for p in kept.iterdir()) == before
 
 
+# File names a case directory may hold; on a case-insensitive file system the
+# variants of one name are one file.
+CASE_FILE_NAMES = [
+    "verdict.json",
+    "Verdict.json",
+    "VERDICT.JSON",
+    "verdict.meta.json",
+    "Verdict.Meta.json",
+    "codex.log",
+    "notes.txt",
+]
+
+
+@settings(max_examples=80, deadline=None)
+@given(
+    cases=st.lists(
+        st.tuples(
+            st.sampled_from(["judged", "parse_only", "unlisted"]),
+            st.sets(st.sampled_from(CASE_FILE_NAMES), max_size=3),
+        ),
+        min_size=1,
+        max_size=6,
+    )
+)
+def test_stray_verdicts_are_the_unjudged_cases_the_tally_counts(
+    tmp_path_factory, cases
+):
+    """Differential against freeze_snapshot.audit_judge_provenance, the
+    snapshot manifest's judge tally: every case directory the tally counts is
+    a judged case or one stray_verdicts names. It holds on any file system,
+    case-sensitive or not, because both test (case / name).is_file()."""
+    import freeze_snapshot
+
+    audit = tmp_path_factory.mktemp("audit")
+    manifest = {}
+    for index, (kind, names) in enumerate(cases):
+        case = f"us__s{index}__snap"
+        if kind != "unlisted":
+            manifest[case] = {"parse_failure_only": kind == "parse_only"}
+        directory = audit / "cases" / case
+        directory.mkdir(parents=True)
+        for name in names:
+            (directory / name).write_text("{}")
+    stray = driver.stray_verdicts(audit, manifest)
+    judged = {case for case, item in manifest.items() if not item["parse_failure_only"]}
+    assert not set(stray) & judged
+
+    def counted(case: str) -> bool:
+        return (audit / "cases" / case / "verdict.json").is_file()
+
+    tally = freeze_snapshot.audit_judge_provenance(audit / "cases")["cases_judged"]
+    assert tally == sum(map(counted, judged)) + sum(map(counted, stray))
+
+
+UNCHECKED_FILES = [
+    "annotations/us_zz_annotations.csv",
+    "annotations/notes.txt",
+    "us/by_model",
+]
+
+
+@pytest.mark.parametrize("extra", UNCHECKED_FILES)
+def test_export_refuses_a_file_it_would_read_unchecked(exporting, extra):
+    """export_full_run reads every us_*_annotations.csv in annotations/ and
+    prefers us/by_model/ to us/predictions.csv; nothing else re-derives them.
+    Export refuses a bundle holding one, and writes no payload or receipt."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    path = bundle / extra
+    if extra == "us/by_model":
+        path.mkdir()
+        path = path / "gpt-6.1-sol.csv"
+    path.write_text("model,scenario_id,variable,annotation\n")
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=f"the bundle holds.*{re.escape(extra)}"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
 @pytest.mark.parametrize(
     "files", [("verdict.json", "verdict.meta.json"), ("verdict.meta.json",)]
 )
@@ -1895,7 +1975,7 @@ def _write_run(stage, bundle) -> dict:
 
 
 # The case reference explanations, which must stay release 20260929's, and
-# the bundle files export_full_run reads (driver.EXPORT_INPUTS).
+# the bundle files export requires (driver.EXPORT_INPUTS).
 EXPLANATIONS = "us_case_reference_explanations.csv"
 EXPORT_READS = (
     *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
@@ -2025,7 +2105,7 @@ def test_export_writes_no_receipt_when_the_inputs_are_not_the_pinned_run(
 @pytest.mark.parametrize("name", EXPORT_READS)
 def test_export_refuses_a_bundle_without_a_file_it_reads(exporting, monkeypatch, name):
     """build_payload, which export and the freeze's rebuild share, refuses a
-    bundle that lacks a file export reads before export_full_run runs: for an
+    bundle that lacks a file export requires before export_full_run runs: for an
     annotation CSV, its loader would read the working directory's committed
     annotations/<RUN>/ instead. Export writes no payload and no receipt."""
     import policybench.full_run_export

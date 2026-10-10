@@ -442,6 +442,14 @@ def verify_annotation_amendments(
             )
 
 
+def verify_frozen(frozen_run: Path, annotations: Path) -> None:
+    """After the freezer writes the snapshot: it copies the staged references
+    and their explanations byte for byte, so the frozen copies must be
+    release 20260929's pins and explanations."""
+    driver.verify_reference_pins(frozen_run, "frozen reference")
+    driver.verify_reference_explanations(annotations, "Frozen")
+
+
 def freeze_amendments(stage: Path, destination: Path) -> None:
     """Commit the stage's wording amendments beside the adjudication record.
 
@@ -661,10 +669,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     freezer.main()
     freeze_amendments(stage, freezer.ANNOTATIONS_DEST)
-    # The freezer copies the staged references and their explanations byte
-    # for byte; confirm it.
-    driver.verify_reference_pins(frozen_run, "frozen reference")
-    driver.verify_reference_explanations(freezer.ANNOTATIONS_DEST, "Frozen")
+    verify_frozen(frozen_run, freezer.ANNOTATIONS_DEST)
     cache = ROOT / "app/.cache" / f"dashboard-data-{payload_hash[:16]}.json"
     cache.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(payload_path, cache)

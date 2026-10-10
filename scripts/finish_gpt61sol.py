@@ -55,11 +55,13 @@ ANNOTATION_FILES = (
 # The written derivation of each case's reference. This release revises no
 # reference, so it must stay release 20260929's, byte for byte.
 REFERENCE_EXPLANATIONS = "us_case_reference_explanations.csv"
-# The bundle files export_full_run reads, relative to the bundle. For each
+# The bundle files export requires, relative to the bundle: the pinned
+# references and the predictions (us/), and the three annotation CSVs. For an
 # annotation CSV a bundle lacks, its loader falls back to the working
 # directory's committed annotations/<RUN>/ (full_run_export.load_annotations,
 # load_case_annotations, load_case_reference_explanations), so build_payload
-# refuses a bundle without one rather than export another file's text.
+# refuses a bundle without one rather than export another file's text. It
+# also refuses any file export would read beyond these (unexpected_bundle_files).
 EXPORT_INPUTS = (
     *(f"us/{name}" for name in (*REFERENCE_FILES, "predictions.csv")),
     "annotations/us_audit_row_annotations.csv",
@@ -1666,16 +1668,22 @@ def stray_verdicts(audit: Path, manifest: dict[str, dict]) -> list[str]:
 
     freeze_snapshot.audit_judge_provenance tallies the judge of every case
     directory holding a verdict.json, from its sidecar, for the snapshot
-    manifest; validate_verdicts checks only the manifest's judged cases.
+    manifest; validate_verdicts checks only the manifest's judged cases. The
+    test is the tally's own, ``(case / name).is_file()`` over the directory's
+    entries, so a name the file system matches without regard to case
+    (``Verdict.json`` on APFS) is found here exactly when the tally finds it.
     """
     judged = {case for case, item in manifest.items() if not item["parse_failure_only"]}
+    cases = audit / "cases"
+    if not cases.is_dir():
+        return []
     return sorted(
-        {
-            path.parent.name
-            for name in ("verdict.json", "verdict.meta.json")
-            for path in (audit / "cases").glob(f"*/{name}")
-            if path.parent.name not in judged
-        }
+        case.name
+        for case in cases.iterdir()
+        if case.name not in judged
+        and any(
+            (case / name).is_file() for name in ("verdict.json", "verdict.meta.json")
+        )
     )
 
 
@@ -1709,7 +1717,8 @@ def validate_verdicts(
         not stray,
         f"{len(stray)} audit case directories hold a verdict or sidecar but are "
         f"not judged cases in cases.jsonl: {stray[:8]}; the snapshot manifest's "
-        "judge tally would count them, and no gate checks them",
+        "judge tally counts any verdict there and reads its sidecar, and no "
+        "other gate checks either",
     )
     seed = seed or {}
     pending, refused = [], []
@@ -2180,6 +2189,29 @@ def payload_text(payload: dict) -> str:
     return json.dumps(payload, allow_nan=False)
 
 
+def unexpected_bundle_files(bundle: Path) -> list[str]:
+    """Files in ``bundle`` that export would read beyond EXPORT_INPUTS.
+
+    full_run_export.load_annotations reads every us_*_annotations.csv in
+    annotations/, and load_predictions reads us/by_model/*.csv in preference
+    to us/predictions.csv. The freeze re-derives only the named annotation
+    files and compares only the predictions, so any other file in
+    annotations/, and a us/by_model/ folder, would publish text or answers no
+    gate checks.
+    """
+    found = []
+    annotations = bundle / "annotations"
+    if annotations.is_dir():
+        found += [
+            f"annotations/{path.name}"
+            for path in sorted(annotations.iterdir())
+            if path.name not in ANNOTATION_FILES
+        ]
+    if (bundle / "us" / "by_model").exists():
+        found.append("us/by_model/")
+    return found
+
+
 def build_payload(
     bundle: Path, live: dict, *, partial: bool = False, early: bool = False
 ) -> dict:
@@ -2190,9 +2222,10 @@ def build_payload(
     carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
     dashboard schema. The freeze rebuilds the staged payload with this.
     export_full_run writes data.json, us/data.json and us/analysis/ into
-    ``bundle``. A bundle that lacks a file export reads (EXPORT_INPUTS) is
-    refused, so neither export nor the freeze's rebuild ever reads the
-    working directory's annotations in its place.
+    ``bundle``. A bundle that lacks a file export requires (EXPORT_INPUTS),
+    or holds one it would read beyond them (unexpected_bundle_files), is
+    refused, so neither export nor the freeze's rebuild reads the working
+    directory's annotations or any file no gate checks.
     """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
@@ -2200,8 +2233,15 @@ def build_payload(
     missing = [name for name in EXPORT_INPUTS if not (bundle / name).is_file()]
     require(
         not missing,
-        f"the bundle lacks {missing}, which export reads; export_full_run would "
-        f"read the working directory's annotations/{RUN_NAME}/ in their place",
+        f"the bundle lacks {missing}, which export requires; for an annotation "
+        "CSV, export_full_run would read the working directory's "
+        f"annotations/{RUN_NAME}/ in its place",
+    )
+    extra = unexpected_bundle_files(bundle)
+    require(
+        not extra,
+        f"the bundle holds {extra}, which export would read and no gate checks; "
+        "remove them and export again",
     )
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
