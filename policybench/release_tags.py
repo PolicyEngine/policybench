@@ -10,8 +10,9 @@ which holds the previous release's board.
 A release's board commit is the first commit on main's first-parent line whose
 pointer names the release's tag and the sha256 of the asset the release holds
 now. For a release PR that is its squash commit. Sealing moves the tag to that
-commit. The Seal release workflow seals each release when its PR merges, and
-``policybench seal-release`` plans and makes the same move by hand.
+commit. The Seal release workflow seals every release that has landed since
+sealing began and marks the release main serves Latest; ``policybench
+seal-release`` plans and makes the same moves by hand.
 
 The module uses only the standard library, so the workflow runs it as
 ``python -m policybench.release_tags`` without installing the package.
@@ -31,6 +32,10 @@ DEFAULT_REF = "origin/main"
 POINTER_PATH = "app/src/data.artifact.json"
 ASSET_NAME = "dashboard-data.json"
 TAG_PATTERN = re.compile(r"dashboard-data-\d{8}[a-z]?")
+# The merge of PR #208, which holds release dashboard-data-20261010: the last
+# board before the Seal release workflow. The workflow seals releases whose
+# board commits come after it; tags of earlier releases are re-pointed by hand.
+SEALING_STARTS_AFTER = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
 
 
 class ReleaseTagError(RuntimeError):
@@ -138,28 +143,14 @@ def board_commit(history: list[PointerCommit], tag: str, sha256: str) -> str | N
     return None
 
 
-def live_tag(
+def live_pointer(
     ref: str = DEFAULT_REF, *, root: str = ".", path: str = POINTER_PATH
-) -> str:
-    """The tag the pointer at ``ref`` names."""
+) -> tuple[str, str]:
+    """The tag and sha256 the pointer at ``ref`` names."""
     pointer = _pointer_at(root, _git(root, "rev-parse", ref).strip(), path)
     if pointer is None:
         raise ReleaseTagError(f"{ref} has no {path}")
-    return pointer["tag"]
-
-
-def is_ancestor(commit: str, of: str, *, root: str = ".") -> bool:
-    """Whether ``commit`` is ``of`` or an ancestor of it."""
-    result = subprocess.run(
-        ["git", "-C", root, "merge-base", "--is-ancestor", commit, of],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode not in (0, 1):
-        raise ReleaseTagError(
-            f"git merge-base failed: {result.stderr.strip() or result.stdout.strip()}"
-        )
-    return result.returncode == 0
+    return pointer["tag"], pointer["sha256"]
 
 
 def commit_subject(commit: str, *, root: str = ".") -> str:
@@ -286,52 +277,13 @@ def plan_tag(
     return TagPlan(tag, current, board, release.sha256, reason)
 
 
-@dataclass(frozen=True)
-class Sealed:
-    """What ``seal`` found and did. ``skipped`` says why it did nothing."""
-
-    plan: TagPlan
-    moved: bool
-    skipped: str | None = None
-
-
-def seal(
-    tag: str,
-    *,
-    repo: str = DEFAULT_REPO,
-    ref: str = DEFAULT_REF,
-    root: str = ".",
-    apply: bool = False,
-    latest: bool = False,
-    new_since: str | None = None,
-) -> Sealed:
-    """Plan, and with ``apply`` make, the move of ``tag`` to its board commit.
-
-    Refuses when the release has no verifiable asset or no commit on ``ref``
-    names it. With ``new_since``, does nothing unless the board commit is
-    neither ``new_since`` nor an ancestor of it: the workflow passes the commit
-    main named before the push, so it seals only a release that push landed.
-    """
-    release = fetch_release(repo, tag)
-    current = remote_tag_commit(repo, tag)
-    plan = plan_tag(tag, current, release, pointer_history(ref, root=root))
-    if plan.action == "leave":
-        raise ReleaseTagError(f"cannot seal {tag}: {plan.reason}")
-    if new_since is not None and is_ancestor(plan.board, new_since, root=root):
-        return Sealed(
-            plan,
-            moved=False,
-            skipped=f"its board commit was on main at {new_since[:12]}, "
-            "so this push landed no new release",
-        )
-    moved = False
-    if apply:
-        if plan.action == "move":
-            move_tag(repo, tag, plan.board)
-            moved = True
-        if latest:
-            make_latest(repo, release)
-    return Sealed(plan, moved)
+def plan_one(
+    tag: str, *, repo: str = DEFAULT_REPO, ref: str = DEFAULT_REF, root: str = "."
+) -> TagPlan:
+    history = pointer_history(ref, root=root)
+    return plan_tag(
+        tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+    )
 
 
 def plan_all(
@@ -346,14 +298,80 @@ def plan_all(
     ]
 
 
+def plan_landed(
+    after: str = SEALING_STARTS_AFTER,
+    *,
+    repo: str = DEFAULT_REPO,
+    ref: str = DEFAULT_REF,
+    root: str = ".",
+) -> list[TagPlan]:
+    """A plan for every release that landed on ``ref`` after ``after``.
+
+    A tag counts when a commit after ``after`` names it and its board commit
+    is not ``after`` or an ancestor of it. A tag whose board comes earlier (main
+    pointed back at an older release) is left out: those tags are re-pointed by
+    hand. A plan with no board stays in, so the caller can report it.
+    """
+    history = pointer_history(ref, root=root)
+    landed = set(_git(root, "rev-list", f"{after}..{ref}").split())
+    plans = []
+    for tag in dict.fromkeys(e.tag for e in history if e.commit in landed):
+        plan = plan_tag(
+            tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+        )
+        if plan.board is None or plan.board in landed:
+            plans.append(plan)
+    return plans
+
+
+def _require_digest(repo: str, plan: TagPlan, when: str) -> None:
+    release = fetch_release(repo, plan.tag)
+    now = release.sha256 if release else None
+    if now != plan.sha256:
+        moved = f"; {plan.tag} now names {plan.board[:12]}" if when == "after" else ""
+        raise ReleaseTagError(
+            f"{plan.tag}'s {ASSET_NAME} changed {when} the move "
+            f"(planned {plan.sha256[:12]}, now {(now or 'none')[:12]}){moved}. "
+            "Plan again."
+        )
+
+
+def checked_move(plan: TagPlan, *, repo: str = DEFAULT_REPO) -> None:
+    """Move ``plan``'s tag to its board commit. The release's asset digest is
+    read again just before and just after the move: if the asset changed, the
+    board may have too, so the move is refused or reported."""
+    if plan.action != "move":
+        raise ReleaseTagError(f"{plan.tag} has nothing to move ({plan.action})")
+    _require_digest(repo, plan, "before")
+    move_tag(repo, plan.tag, plan.board)
+    _require_digest(repo, plan, "after")
+
+
 def apply_plans(plans: list[TagPlan], *, repo: str = DEFAULT_REPO) -> list[str]:
     """Move every tag whose plan is ``move``; return the tags moved."""
     moved = []
     for plan in plans:
         if plan.action == "move":
-            move_tag(repo, plan.tag, plan.board)
+            checked_move(plan, repo=repo)
             moved.append(plan.tag)
     return moved
+
+
+def promote_live(
+    *, repo: str = DEFAULT_REPO, ref: str = DEFAULT_REF, root: str = "."
+) -> str:
+    """Mark Latest the release the pointer at ``ref`` names, once its asset is
+    checked to be the pointer's bytes; return its tag."""
+    tag, sha256 = live_pointer(ref, root=root)
+    release = fetch_release(repo, tag)
+    if release is None or release.sha256 != sha256:
+        held = release.sha256[:12] if release and release.sha256 else "none"
+        raise ReleaseTagError(
+            f"the pointer at {ref} names {tag} with sha256 {sha256[:12]}, but the "
+            f"release holds {held}; not marking it Latest"
+        )
+    make_latest(repo, release)
+    return tag
 
 
 # --- command line ------------------------------------------------------------
@@ -386,6 +404,15 @@ def configure_seal_parser(parser: argparse.ArgumentParser) -> None:
     which.add_argument(
         "--all", action="store_true", help="Plan every dashboard-data-* tag"
     )
+    which.add_argument(
+        "--landed-after",
+        nargs="?",
+        const=SEALING_STARTS_AFTER,
+        metavar="COMMIT",
+        help="Seal every release whose board commit comes after COMMIT "
+        f"(default {SEALING_STARTS_AFTER[:12]}, the last board before sealing "
+        "began)",
+    )
     parser.add_argument("--repo", default=DEFAULT_REPO)
     parser.add_argument(
         "--ref", default=DEFAULT_REF, help="Branch whose history holds the board"
@@ -398,13 +425,7 @@ def configure_seal_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--latest",
         action="store_true",
-        help="Also mark the sealed release Latest (with --tag or --live)",
-    )
-    parser.add_argument(
-        "--new-since",
-        metavar="COMMIT",
-        help="Seal only a release whose board commit is not COMMIT or an "
-        "ancestor of it (with --live)",
+        help="With --apply, also mark Latest the release the pointer at --ref names",
     )
     parser.add_argument("--json", action="store_true", help="Print the plan as JSON")
 
@@ -442,43 +463,39 @@ def run_release_commit(args: argparse.Namespace) -> None:
 
 
 def run_seal(args: argparse.Namespace) -> None:
+    if args.latest and not args.apply:
+        raise SystemExit("--latest needs --apply")
     root = "."
-    skipped = None
+    where = {"repo": args.repo, "ref": args.ref, "root": root}
     try:
         if args.all:
-            if args.latest or args.new_since:
-                raise SystemExit("--latest and --new-since need --tag or --live")
-            plans = plan_all(repo=args.repo, ref=args.ref, root=root)
-            moved = apply_plans(plans, repo=args.repo) if args.apply else []
+            plans = plan_all(**where)
+        elif args.landed_after:
+            plans = plan_landed(args.landed_after, **where)
         else:
-            if args.new_since and not args.live:
-                raise SystemExit("--new-since needs --live")
-            tag = live_tag(args.ref, root=root) if args.live else args.tag
-            result = seal(
-                tag,
-                repo=args.repo,
-                ref=args.ref,
-                root=root,
-                apply=args.apply,
-                latest=args.latest,
-                new_since=args.new_since,
-            )
-            plans = [result.plan]
-            moved = [tag] if result.moved else []
-            skipped = result.skipped
+            tag = live_pointer(args.ref, root=root)[0] if args.live else args.tag
+            plans = [plan_one(tag, **where)]
+            if plans[0].action == "leave":
+                raise ReleaseTagError(f"cannot seal {tag}: {plans[0].reason}")
+        moved = apply_plans(plans, repo=args.repo) if args.apply else []
+        latest = promote_live(**where) if args.latest else None
     except ReleaseTagError as exc:
         raise SystemExit(str(exc)) from exc
     if args.json:
         print(json.dumps([_plan_record(plan) for plan in plans], indent=2))
-        return
-    for plan in plans:
-        print(_plan_line(plan, root))
-    if skipped:
-        print(f"Left {plans[0].tag} alone: {skipped}")
-        return
-    count = len(moved) if args.apply else sum(p.action == "move" for p in plans)
-    verb = "Moved" if args.apply else "Would move"
-    print(f"{verb} {count} tag{'' if count == 1 else 's'}")
+    else:
+        for plan in plans:
+            print(_plan_line(plan, root))
+        count = len(moved) if args.apply else sum(p.action == "move" for p in plans)
+        verb = "Moved" if args.apply else "Would move"
+        print(f"{verb} {count} tag{'' if count == 1 else 's'}")
+        if latest:
+            print(f"Marked {latest} Latest")
+    stuck = [p for p in plans if p.action == "leave"]
+    if args.landed_after and stuck:
+        raise SystemExit(
+            "cannot seal " + ", ".join(f"{p.tag} ({p.reason})" for p in stuck)
+        )
 
 
 def main(argv: list[str] | None = None) -> None:

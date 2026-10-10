@@ -441,24 +441,39 @@ workflow (`.github/workflows/seal-release.yml`) moves the tag to the release
 PR's merge commit when the PR merges.
 
 1. Freeze and render the release, then run the tests.
-2. Check that the tag is free: `gh release view <tag>` must fail.
+2. Check that the tag is free: `gh release view <tag>` must fail and
+   `git ls-remote origin refs/tags/<tag>` must print nothing. A tag can exist
+   without a release, as `dashboard-data-20260705b` does.
 3. Create the release with its assets, not marked Latest:
    `gh release create <tag> --latest=false --title <tag> --notes "…" <assets>`.
    `policybench publish-dashboard --tag <tag>` does the same for the payload
    alone. Download the asset and compare its sha256 with the pointer.
 4. Open the PR. CI's app job and Vercel download the asset.
 5. Squash-merge after green CI and an independent review.
-6. The Seal release workflow runs on the merge commit. It moves the tag to
-   that commit, checks that GitHub's tag names it, and marks the release
+6. The Seal release workflow runs on the merge. It moves the tag to the
+   merge commit, checks that GitHub's tag names it, and marks the release
    Latest. Check that the run passed and that
    `git ls-remote origin refs/tags/<tag>` prints the merge commit. If the run
-   failed, run `uv run policybench seal-release --live --apply --latest` on an
-   up-to-date main.
+   failed, run `uv run policybench seal-release --landed-after --apply --latest`
+   on an up-to-date main.
 7. Check prod on policybench.org.
 
-The workflow seals only a release that its push landed (`--new-since`, the
-commit main named before the push). A push that points the app back at an
-older release leaves that release's tag alone.
+Each run of the workflow reads main as it is when the run starts, not the
+commit of the push that started it. It seals every release whose board commit
+comes after `SEALING_STARTS_AFTER` in `policybench/release_tags.py` (the merge
+of release 20261010), so a run GitHub cancels in favour of a newer one loses
+nothing. It leaves alone the tag of any earlier release, including one that
+main points back at. It marks Latest the release main serves. Before and after
+each move it reads the release's asset digest again, and it refuses the move,
+or reports it, when the asset changed.
+
+GitHub has been reported to refuse a tag pushed with `GITHUB_TOKEN` when the
+tagged commit's `.github/workflows/` differs from that of every branch head
+([community discussion 151442](https://github.com/orgs/community/discussions/151442)).
+The workflow moves tags through the REST API, which may meet the same check.
+A run that starts right after the merge targets main's head, where the two
+match. If a later run fails this way, seal the release by hand with the
+command in step 6, using a token with the `workflow` scope.
 
 ### Which commit holds a release's board
 

@@ -2,10 +2,11 @@ name: Seal release
 
 # A release's tag is created before its PR merges: CI's app job and Vercel
 # download the asset the PR's pointer names, so the release must exist first,
-# and GitHub puts its tag on main as it stood then. When the release PR merges,
-# this moves the tag to the merge commit, which holds the release's board, and
-# marks the release Latest. --new-since limits it to a release this push landed,
-# so it never moves an older release's tag. See docs/runbook.md, section 8.
+# and GitHub puts its tag on main as it stood then. When main's pointer
+# changes, this moves the tag of every release that has landed since sealing
+# began (policybench.release_tags.SEALING_STARTS_AFTER) to the commit that
+# holds its board, and marks Latest the release main serves. See
+# docs/runbook.md, section 8.
 on:
   push:
     branches: [main]
@@ -15,6 +16,8 @@ on:
 permissions:
   contents: write
 
+# GitHub cancels a pending run when a newer one queues. Each run seals every
+# release landed so far, so the newer run covers the cancelled one.
 concurrency:
   group: seal-release
   cancel-in-progress: false
@@ -26,17 +29,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # The board commit is found in main's first-parent history.
+          # Board commits are found in main's first-parent history.
           fetch-depth: 0
+      # A re-run keeps its push's GITHUB_SHA. Seal against main as it is now,
+      # so a re-run never marks an older release Latest.
+      - name: Fetch main as it is now
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       # policybench.release_tags uses only the standard library, so the job
       # installs nothing.
-      - name: Seal the release this push landed
+      - name: Seal the releases that have landed
         env:
           GH_TOKEN: ${{ github.token }}
-          BEFORE: ${{ github.event.before }}
         run: >-
-          python -m policybench.release_tags seal-release --live
-          --ref "$GITHUB_SHA" --new-since "$BEFORE" --apply --latest
+          python -m policybench.release_tags seal-release --landed-after
+          --ref origin/main --apply --latest
