@@ -419,6 +419,7 @@ def _fake_run_writing(receipt_problems=(), computed=True):
         )
         if computed and "--out-dir" in command:
             out = Path(command[command.index("--out-dir") + 1])
+            out.mkdir(parents=True, exist_ok=True)  # as the builder does
             _computed(VALUES, out / "computed.csv")
         return type("Ran", (), {"returncode": 1, "stdout": "", "stderr": "draft"})()
 
@@ -660,3 +661,81 @@ def test_a_package_beside_the_builder_cannot_shadow_the_engine(tmp_path):
     (beside / "policyengine_us" / "__init__.py").write_text("X = -1\n")
     found, ran = _runner(tmp_path, site, builder=_printer(beside))
     assert found["problems"] == [] and "X 1" in ran.stdout
+
+
+def test_a_symlink_in_the_package_is_refused(tmp_path):
+    """MOCK installs, real runner: a symlinked directory (a package that would
+    shadow a recorded module, its files hidden from the scan) and a symlinked
+    file each stop the runner before the builder runs; installs must be
+    copies, not links (so uv's symlink link mode is not supported)."""
+    outside = tmp_path / "outside" / "spm"
+    outside.mkdir(parents=True)
+    (outside / "__init__.py").write_text("X = 99\n")
+    linked_dir = _fake_install(
+        tmp_path / "dir", "9.9.9", {**PACKAGE, "policyengine_us/spm.py": "S = 1\n"}
+    )
+    (linked_dir / "policyengine_us" / "spm").symlink_to(
+        outside, target_is_directory=True
+    )
+    found, ran = _runner(tmp_path, linked_dir, builder=_printer(tmp_path / "b1"))
+    assert ran.returncode == 3 and "policyengine_us/spm" in " ".join(found["problems"])
+    linked_file = _fake_install(tmp_path / "file", "9.9.9", PACKAGE)
+    target = tmp_path / "outside" / "m.py"
+    target.write_text("Y = 2\n")
+    (linked_file / "policyengine_us" / "m.py").unlink()
+    (linked_file / "policyengine_us" / "m.py").symlink_to(target)
+    found, ran = _runner(tmp_path, linked_file, builder=_printer(tmp_path / "b2"))
+    assert ran.returncode == 3 and "symlinks in the package" in " ".join(
+        found["problems"]
+    )
+
+
+def test_run_takes_only_fresh_receipts_and_outputs(tmp_path, monkeypatch):
+    """MOCK subprocess: an existing receipt, or an out-dir already holding a
+    computed.csv, is refused before anything runs; a run whose builder writes
+    nothing new is refused after it; and a relative receipt given outside the
+    repository is the file the child writes and the parent reads."""
+    run, calls = _fake_run_writing()
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    venv = _venv(tmp_path / "venv", "9.9.9")
+    out = tmp_path / "pass1"
+    out.mkdir()
+    receipt = tmp_path / "receipt.json"
+    receipt.write_text("{}")
+    with pytest.raises(timing.Refusal, match="each run writes a fresh receipt"):
+        timing.run_on_engine(venv, "9.9.9", receipt, ["--out-dir", str(out)])
+    receipt.unlink()
+    _computed(VALUES, out / "computed.csv")
+    argv = ["run", "--venv", str(venv), "--engine", "9.9.9", "--receipt", str(receipt)]
+    with pytest.raises(timing.Refusal, match="fresh out-dir"):
+        timing.main([*argv, "--", "--out-dir", str(out)])
+    (out / "computed.csv").unlink()
+    silent, _ = _fake_run_writing(computed=False)
+    monkeypatch.setattr(timing.subprocess, "run", silent)
+    with pytest.raises(timing.Refusal, match="wrote no new"):
+        timing.main([*argv, "--", "--out-dir", str(out)])
+    # Outside the repository, a relative receipt and out-dir are resolved once.
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    with pytest.raises(SystemExit) as stopped:
+        timing.main(
+            [
+                "run",
+                "--venv",
+                str(venv),
+                "--engine",
+                "9.9.9",
+                "--receipt",
+                "r.json",
+                "--",
+                "--out-dir",
+                "fresh",
+            ]
+        )
+    assert stopped.value.code == 1  # the MOCK builder's draft refusal
+    assert calls[-1][1]["PB_ENGINE_RECEIPT"] == str(elsewhere / "r.json")
+    assert (elsewhere / "r.json").is_file() and (
+        elsewhere / "fresh/computed.csv"
+    ).is_file()

@@ -58,6 +58,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
@@ -75,6 +76,15 @@ RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
 BUILDER = AUDIT / "scripts" / "build_references_upgrade.py"
 SPEC = ROOT / "docs/haiku55/spec.json"
+# The builder's arguments that name files or directories.
+BUILDER_PATH_FLAGS = (
+    "--actions",
+    "--out-dir",
+    "--computed-csv",
+    "--fixes-dir",
+    "--evidence-request",
+    "--evidence-out",
+)
 BASE_ENGINE = "policyengine-us 2.15.17"
 BUILD_FILES = (
     "computed.csv",
@@ -439,6 +449,16 @@ for entry in dist.files or []:
     digest = hashlib.new(entry.hash.mode, data).digest() if data is not None else b""
     if base64.urlsafe_b64encode(digest).rstrip(b"=").decode() != entry.hash.value:
         mismatched.append(name)
+# No symlink anywhere in the package (a linked directory hides its files from
+# the scan, and a linked file leaves the package): installs must be copies.
+links = sorted(
+    str(pathlib.Path(root, name).relative_to(site))
+    for root, dirs, files in os.walk(package)
+    for name in dirs + files
+    if os.path.islink(os.path.join(root, name))
+)
+if os.path.islink(site / "policyengine_us"):
+    links.insert(0, "policyengine_us")
 suffixes = tuple(mach.all_suffixes())
 unrecorded = sorted(
     str(p.relative_to(site))
@@ -454,6 +474,7 @@ found = {
     "files_verified": len(recorded) - len(mismatched),
     "files_mismatched": mismatched[:5],
     "files_unrecorded": unrecorded[:5],
+    "symlinks": links[:5],
     "pycache_prefix": sys.pycache_prefix,
     "sys_path": sys.path,
 }
@@ -468,6 +489,8 @@ if mismatched or not found["files_verified"]:
     problems.append(f"files unlike the wheel's RECORD {mismatched[:5]}")
 if unrecorded:
     problems.append(f"importable files the wheel lacks {unrecorded[:5]}")
+if links:
+    problems.append(f"symlinks in the package (installs must be copies) {links[:5]}")
 if not sys.pycache_prefix or any(pathlib.Path(sys.pycache_prefix).iterdir()):
     problems.append("no fresh bytecode-cache prefix")
 found["problems"] = problems
@@ -496,6 +519,9 @@ def run_on_engine(
     """ENGINE_RUNNER under the venv's interpreter: the engine check, then (with
     ``builder_args``) the builder in the same process. Returns the completed
     process and the check's record; refuses when the check found a problem."""
+    receipt = receipt.resolve()
+    if receipt.exists():
+        raise Refusal(f"{receipt} exists: each run writes a fresh receipt")
     cache = Path(tempfile.mkdtemp(prefix="pb-pycache-"))
     command = [str(venv / "bin" / "python"), "-P", "-c", ENGINE_RUNNER]
     if builder_args is not None:
@@ -672,10 +698,31 @@ def main(argv: list[str] | None = None) -> None:
     if args.step == "run":
         # The reference build itself, through the same engine check and the
         # same single process as the check sweep (run_on_engine).
+        # Path arguments are resolved here: the child runs in the repository
+        # root, so a relative path would name another file there.
         builder_args = [a for a in args.builder_args if a != "--"]
+        for index, arg in enumerate(builder_args[:-1]):
+            if arg in BUILDER_PATH_FLAGS:
+                builder_args[index + 1] = str(Path(builder_args[index + 1]).resolve())
+        out_dir = (
+            Path(builder_args[builder_args.index("--out-dir") + 1])
+            if "--out-dir" in builder_args
+            else None
+        )
+        computed = out_dir / "computed.csv" if out_dir else None
+        if computed is not None and computed.exists():
+            raise Refusal(f"{computed} exists: each run writes into a fresh out-dir")
+        started = time.time()
         ran, install = run_on_engine(
             Path(args.venv).resolve(), args.engine, Path(args.receipt), builder_args
         )
+        if computed is not None and (
+            not computed.is_file() or computed.stat().st_birthtime < started - 1
+        ):
+            raise Refusal(
+                f"the build on {args.engine} wrote no new {computed} "
+                f"(exit {ran.returncode})"
+            )
         sys.stdout.write(ran.stdout)
         sys.stderr.write(ran.stderr)
         print(json.dumps({"engine_install": install}), file=sys.stderr)
