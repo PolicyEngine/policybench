@@ -171,6 +171,10 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     # excluded two Indiana county income tax outputs it moves onto a county no
     # prompt states.
     assert len(exclusions) == 69
+    sidecar = json.loads((RUN_DIR / "reference_outputs.csv.meta.json").read_text())
+    upgrade_day = [
+        r["date"] for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"
+    ][-1]
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
         {
@@ -193,7 +197,7 @@ def test_frozen_snapshot_carries_the_exclusion_record():
             "2026-09-29": 4,
             "2026-10-05": 8,
             "2026-10-06": 6,
-            "2026-10-09": 2,
+            upgrade_day: 2,
         }
     )
     inputs = {

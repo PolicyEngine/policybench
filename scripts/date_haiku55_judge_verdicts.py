@@ -44,7 +44,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import finish_haiku55 as driver  # noqa: E402
 from date_adds0928_judge_verdicts import _evidence  # noqa: E402
 
-OUT = ROOT / "docs/haiku55/judge_verdicts_20261009.json"
+# Named for the release tag's date (dashboard-data-YYYYMMDD).
+OUT = ROOT / f"docs/haiku55/judge_verdicts_{driver.RELEASE_TAG[-8:]}.json"
 EVIDENCE = ROOT / "reference_audit/2026-09-28/verification/judge_verdicts.json"
 # The wave release 20261006 decided, which this release's base commit froze.
 FILL_WAVE = "2026-10-05"

@@ -35,7 +35,21 @@ RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 # drops the decisions on records its engine upgrade regenerated, and adds the
 # 2026-10-06 and 2026-10-09 waves' decisions.
 RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
-EVIDENCE_20261009 = ROOT / "docs/haiku55/judge_verdicts_20261009.json"
+(EVIDENCE_20261009,) = sorted((ROOT / "docs/haiku55").glob("judge_verdicts_*.json"))
+# The UTC day of the frozen references' last engine upgrade: the wave of the
+# decisions on the outputs it newly excludes (2026-10-09 in the rehearsal).
+UPGRADE_WAVE = [
+    revision["date"]
+    for revision in json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / "us_full_run_20260612_policyengine_4_16_1_populace"
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
+    )["revisions"]
+    if revision["kind"] == "engine_upgrade"
+][-1]
 
 
 @cache
@@ -266,12 +280,12 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert Counter(
         (e["adjudicated_on"], e["adjudicated_failure_source"], e["reference_verdict"])
         for e in entries
-        if e["adjudicated_on"] in ("2026-10-06", "2026-10-09")
+        if e["adjudicated_on"] in ("2026-10-06", UPGRADE_WAVE)
     ) == Counter(
         {
             ("2026-10-06", "prompt_ambiguity", "unlisted_input"): 4,
             ("2026-10-06", "reference_later_law", "later_law"): 2,
-            ("2026-10-09", "prompt_ambiguity", "unlisted_input"): 2,
+            (UPGRADE_WAVE, "prompt_ambiguity", "unlisted_input"): 2,
         }
     )
     new_wave = [e for e in entries if e["adjudicated_on"] == "2026-10-05"]
@@ -851,7 +865,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     waves = list(released)
     assert waves == sorted(waves)
     # Only this release's own waves, the latest two, have no commit.
-    assert uncommitted == waves[-2:] == ["2026-10-06", "2026-10-09"]
+    assert uncommitted == waves[-2:] == ["2026-10-06", UPGRADE_WAVE]
     committed = waves[:-2]
     assert len(committed) == 4
     # The record's decisions come from exactly these waves.
@@ -1271,7 +1285,7 @@ def test_each_restatement_names_its_20261009_verdict(tmp_path):
         f"us__{item['scenario_id']}__{item['variable']}"
         for item in upgrade["regenerated_exclusions"]
     }
-    new_waves = {"2026-10-06", "2026-10-09"}
+    new_waves = {"2026-10-06", UPGRADE_WAVE}
     assert set(base) - set(entries) == regenerated & set(base)
     added = set(entries) - set(base)
     assert added and {entries[c]["adjudicated_on"] for c in added} <= new_waves

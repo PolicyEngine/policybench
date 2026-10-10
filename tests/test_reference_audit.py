@@ -29,7 +29,7 @@ AUDIT_DATES = ("2026-09-22", "2026-09-24")
 # rulings on the reference adversary's and the Louisiana audit's records
 # (d1022, d994), and the 2026-10-09 engine upgrade's Indiana county records
 # (reference_audit/2026-10-09-engine-upgrade).
-LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06", "2026-10-09")
+LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06")
 R33 = "r33_snap_child_support_treatment"
 # policyengine-us#9586, squash-merged on 2026-09-24.
 R33_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
@@ -59,6 +59,13 @@ def _revisions() -> list[dict]:
     """The September 22 wave's revisions (the 2026-09-29 engine upgrade has its
     own record, reference_audit/2026-09-28, tested in test_reference_upgrade)."""
     return [r for r in _all_revisions() if r["kind"] in ("convention", "upstream_fix")]
+
+
+def _later_dates() -> tuple[str, ...]:
+    """LATER_DATES with the day of the last engine upgrade, whose new records
+    carry it (2026-10-09 in the rehearsal build)."""
+    upgrades = [r["date"] for r in _all_revisions() if r["kind"] == "engine_upgrade"]
+    return tuple(dict.fromkeys((*LATER_DATES, upgrades[-1])))
 
 
 def _superseded() -> dict[tuple[str, str], dict]:
@@ -227,7 +234,7 @@ def test_every_regeneration_names_a_committed_fix():
             if key in excluded_later:
                 # A later record excludes it at the regenerated value.
                 record = excluded_later[key]
-                assert record["decided_on"] in LATER_DATES, key
+                assert record["decided_on"] in _later_dates(), key
                 assert abs(record["frozen_value"] - change["regenerated"]) < 1e-6, key
                 superseded_by_exclusion.add(key)
                 continue
@@ -371,15 +378,17 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     # records dated 2026-10-05 to the 2026-10-05 audits, 2026-10-06 to that
     # day's rulings (less the ones the 2026-10-09 upgrade regenerated) and
     # 2026-10-09 to that upgrade's county records.
-    later = [e for e in _exclusions() if e["decided_on"] in LATER_DATES]
+    later = [e for e in _exclusions() if e["decided_on"] in _later_dates()]
     assert Counter(e["decided_on"] for e in later) == Counter(
-        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, "2026-10-09": 2}
+        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, _later_dates()[-1]: 2}
     )
     for entry in later:
         key = (entry["scenario_id"], entry["variable"])
         assert adjudicated_on[key] == entry["decided_on"], key
     audit = [
-        e for e in _exclusions() if e["decided_on"] not in ("2026-09-05", *LATER_DATES)
+        e
+        for e in _exclusions()
+        if e["decided_on"] not in ("2026-09-05", *_later_dates())
     ]
     assert audit
     for entry in audit:

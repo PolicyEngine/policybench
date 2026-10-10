@@ -4716,7 +4716,9 @@ def test_bbce_note_describes_the_later_release() -> None:
 
 # --- Release dashboard-data-20261009: Claude Haiku 5.5 and the engine move ----
 
-HAIKU_NOTE = "2026-10-09-claude-haiku-5-5-joins-the-board"
+(HAIKU_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-claude-haiku-5-5-joins-the-board.json")
+)
 HAIKU_SENSITIVITY = ROOT / "sensitivity/data/claude-haiku-5-5-thinking.json"
 
 
