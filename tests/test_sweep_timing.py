@@ -219,9 +219,8 @@ def test_a_sweep_follows_its_engines_upload_and_install(uploaded, installed, out
 
 def _write_build(root: Path, values: dict, excluded: set, engine: str = "2.38.4"):
     """MOCK reference build and the committed snapshot it froze into: the
-    references are the computed values, every output scored but ``excluded``."""
-    import hashlib
-
+    references are the computed values, every output scored but ``excluded``,
+    and the sidecar names the committed builder."""
     build, snapshot = root / "build", root / "snapshot"
     build.mkdir(parents=True)
     snapshot.mkdir(parents=True)
@@ -233,15 +232,22 @@ def _write_build(root: Path, values: dict, excluded: set, engine: str = "2.38.4"
         "exclusions": [{"scenario_id": s, "variable": v} for s, v in sorted(excluded)]
     }
     (build / "reference_exclusions.json").write_text(json.dumps(record))
-    csv_sha = hashlib.sha256((build / "reference_outputs.csv").read_bytes()).hexdigest()
     meta = {
-        "reference_csv_sha256": csv_sha,
+        "reference_csv_sha256": timing.sha256(build / "reference_outputs.csv"),
         "revisions": [
-            {"kind": "engine_upgrade", "engine_version": f"policyengine-us {engine}"}
+            {
+                "kind": "engine_upgrade",
+                "engine_version": f"policyengine-us {engine}",
+                "provenance": {"builder_sha256": timing.sha256(timing.BUILDER)},
+            }
         ],
     }
     (build / "reference_outputs.csv.meta.json").write_text(json.dumps(meta))
-    for name in ("reference_outputs.csv", "reference_exclusions.json"):
+    for name in (
+        "reference_outputs.csv",
+        "reference_outputs.csv.meta.json",
+        "reference_exclusions.json",
+    ):
         (snapshot / name).write_bytes((build / name).read_bytes())
     return build, snapshot
 
@@ -259,24 +265,38 @@ def _check_setup(tmp_path, monkeypatch, pypi, excluded=frozenset({("s3", "v")}))
     return build, snapshot
 
 
-def _check_args(build, snapshot, check_computed=None, check_venv=None):
+def _check_args(build, snapshot, check_venv=None, work_dir=None):
     return type(
         "Args",
         (),
         {
             "build": str(build),
             "snapshot": str(snapshot),
-            "check_computed": check_computed and str(check_computed),
             "check_venv": check_venv and str(check_venv),
+            "work_dir": work_dir and str(work_dir),
         },
     )
 
 
+def _MOCK_sweep(values: dict):
+    """MOCK check sweep: writes ``values`` as the computed.csv a first pass on
+    the venv's engine would, in place of running the builder."""
+
+    def run(venv, engine, out_dir):
+        out_dir.mkdir(parents=True)
+        path = _computed(values, out_dir / "computed.csv")
+        return path, {"builder_sha256": timing.sha256(timing.BUILDER), "MOCK": True}
+
+    return run
+
+
+ONLY_ENGINE = {"releases": {"2.38.4": [_wheel("2026-10-09T20:50:00Z")]}}
+
+
 def test_the_check_records_a_still_newest_engine(tmp_path, monkeypatch):
     """MOCK: with the reference engine still the newest, the record says so and
-    pins the build; a newer release needs a sweep on it."""
-    only = {"releases": {"2.38.4": [_wheel("2026-10-09T20:50:00Z")]}}
-    build, snapshot = _check_setup(tmp_path, monkeypatch, only)
+    pins the build; a newer release needs a venv holding it."""
+    build, snapshot = _check_setup(tmp_path, monkeypatch, ONLY_ENGINE)
     out = timing.check(_check_args(build, snapshot))
     check = out["publication_check"]
     assert check["engine"] == "2.38.4" and "was still the newest" in check["result"]
@@ -289,44 +309,44 @@ def test_the_check_records_a_still_newest_engine(tmp_path, monkeypatch):
 
 def test_the_check_holds_its_build_to_the_release(tmp_path, monkeypatch):
     """MOCK: a build that is not the frozen release's is refused before PyPI
-    is read: another engine, a sidecar that does not pin its CSV, a CSV or
-    record that is not the committed snapshot's, a computed.csv that is not
-    the scored references."""
-    only = {"releases": {"2.38.4": [_wheel("2026-10-09T20:50:00Z")]}}
-    build, snapshot = _check_setup(tmp_path, monkeypatch, only)
+    is read: another engine, a sidecar that does not pin its CSV, a missing or
+    other builder, a sidecar, CSV or record that is not the committed
+    snapshot's, a computed.csv that is not the scored references, and a
+    non-finite value anywhere."""
+    build, snapshot = _check_setup(tmp_path, monkeypatch, ONLY_ENGINE)
     meta_path = build / "reference_outputs.csv.meta.json"
     meta = json.loads(meta_path.read_text())
+    revision = meta["revisions"][0]
 
     def refused(match):
         with pytest.raises(timing.Refusal, match=match):
             timing.check(_check_args(build, snapshot))
 
-    meta_path.write_text(
-        json.dumps(
-            {**meta, "revisions": [{"kind": "engine_upgrade", "engine_version": "x"}]}
-        )
-    )
+    def sidecar(**changes):
+        meta_path.write_text(json.dumps({**meta, **changes}))
+
+    sidecar(revisions=[{**revision, "engine_version": "x"}])
     refused("not an engine upgrade to 2.38.4")
-    meta_path.write_text(json.dumps({**meta, "reference_csv_sha256": "0" * 64}))
+    sidecar(reference_csv_sha256="0" * 64)
     refused("does not pin its reference_outputs.csv")
-    other = {"kind": "engine_upgrade", "engine_version": "policyengine-us 2.38.4"}
-    meta_path.write_text(
-        json.dumps(
-            {
-                **meta,
-                "revisions": [{**other, "provenance": {"builder_sha256": "f" * 64}}],
-            }
-        )
-    )
-    refused("another builder")
-    meta_path.write_text(json.dumps(meta))
+    for provenance in ({"builder_sha256": "f" * 64}, {}):
+        sidecar(revisions=[{**revision, "provenance": provenance}])
+        refused("not the committed one")
+    sidecar(MOCK_extra=1)
+    refused("reference_outputs.csv.meta.json is not the committed snapshot's")
+    sidecar()
     record = snapshot / "reference_exclusions.json"
     original = record.read_bytes()
     record.write_text(json.dumps({"exclusions": []}))
-    refused("not the committed snapshot's")
+    refused("reference_exclusions.json is not the committed snapshot's")
     record.write_bytes(original)
     _computed({**VALUES, ("s1", "v"): 1.5}, build / "computed.csv")
     refused("not its scored references")
+    # Non-finite values are refused, scored or excluded, before any
+    # comparison: the still-newest branch never reaches compare.
+    for key in (("s1", "v"), ("s3", "v")):
+        _computed({**VALUES, key: math.nan}, build / "computed.csv")
+        refused("non-finite")
     # A moved excluded output is the engine's value, not the reference's: fine.
     _computed({**VALUES, ("s3", "v"): 9.0}, build / "computed.csv")
     assert timing.check(_check_args(build, snapshot))["publication_check"]
@@ -339,23 +359,17 @@ def test_the_check_holds_its_build_to_the_release(tmp_path, monkeypatch):
 def test_the_check_stops_the_publish_when_a_scored_output_moves(
     tmp_path, monkeypatch, moved, publishes
 ):
-    """MOCK: a newer release that moves only excluded outputs passes; one that
-    moves a scored output writes the record and exits non-zero."""
+    """MOCK: check runs the sweep on the newer release itself (here a MOCK
+    sweep); one that moves only excluded outputs passes, one that moves a
+    scored output writes the record and exits non-zero."""
     build, snapshot = _check_setup(
         tmp_path, monkeypatch, _pypi_around_now(-1800, offset_engine=-7200)
     )
     venv = _venv(tmp_path / "check-venv", "2.39.0")
-    newer = _computed({**VALUES, **moved}, tmp_path / "check.csv")
-    argv = [
-        "check",
-        "--build",
-        str(build),
-        "--check-computed",
-        str(newer),
-        "--check-venv",
-        str(venv),
-    ]
+    monkeypatch.setattr(timing, "run_check_sweep", _MOCK_sweep({**VALUES, **moved}))
+    monkeypatch.setattr(timing.tempfile, "mkdtemp", lambda **kw: str(tmp_path / "w"))
     monkeypatch.setattr(timing, "SNAPSHOT", snapshot)
+    argv = ["check", "--build", str(build), "--check-venv", str(venv)]
     if publishes:
         timing.main(argv)
     else:
@@ -364,13 +378,37 @@ def test_the_check_stops_the_publish_when_a_scored_output_moves(
     check = json.loads(timing.TIMING.read_text())["publication_check"]
     assert check["engine"] == "2.39.0" and check["scored_outputs"] == 2
     assert bool(check["scored_differ"]) is not publishes
-    assert check["check_computed_sha256"] == timing.sha256(newer)
-    # A check sweep installed before the newer release's wheel was uploaded
-    # is not a sweep on that release.
+    assert check["check_sweep"]["MOCK"] is True
+    # A venv installed before the newer release's wheel was uploaded does not
+    # hold that release.
     monkeypatch.setattr(
         timing,
         "read_pypi",
         lambda url=None: _pypi_around_now(3600, offset_engine=-7200),
     )
     with pytest.raises(timing.Refusal, match="must follow"):
-        timing.check(_check_args(build, snapshot, newer, venv))
+        timing.check(_check_args(build, snapshot, venv, tmp_path / "w2"))
+
+
+def test_the_check_sweep_is_run_and_must_write_its_output(tmp_path, monkeypatch):
+    """MOCK subprocess: check runs the builder under the venv's interpreter
+    with empty actions naming the newer engine, and refuses when that sweep
+    writes nothing (as the builder does when the venv lacks the engine)."""
+    calls = []
+
+    def fake_run(command, **kw):
+        calls.append(command)
+        if "writes" in str(command[0]):
+            out = Path(command[command.index("--out-dir") + 1])
+            _computed(VALUES, out / "computed.csv")
+        return type("Ran", (), {"returncode": 1, "stdout": "", "stderr": "draft"})()
+
+    monkeypatch.setattr(timing.subprocess, "run", fake_run)
+    venv = tmp_path / "writes-venv"
+    path, receipt = timing.run_check_sweep(venv, "2.39.0", tmp_path / "a")
+    assert path.is_file() and receipt["exit_code"] == 1
+    actions = json.loads((tmp_path / "a/actions.empty.json").read_text())
+    assert actions["engine"] == "policyengine-us 2.39.0" and actions["draft"] is True
+    assert calls[0][0] == str(venv / "bin/python") and "--allow-draft" in calls[0]
+    with pytest.raises(timing.Refusal, match="wrote no computed.csv"):
+        timing.run_check_sweep(tmp_path / "silent-venv", "2.39.0", tmp_path / "b")

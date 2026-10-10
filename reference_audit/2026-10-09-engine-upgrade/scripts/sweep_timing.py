@@ -18,18 +18,20 @@ Two steps, each writing into this audit's verification/ directory:
       release newer than it was uploaded before its first output.
 
   sweep_timing.py check --build <the reference build's out-dir>
-                        --check-computed <computed.csv on the newest release>
-                        --check-venv <venv>
+                        [--check-venv <venv with the newest release>]
       Reads PyPI again. The build must be the release's: its sidecar names the
-      sweep's engine and pins its CSV, its reference CSV and exclusion record
-      are the committed snapshot's byte for byte, and its computed.csv gives
-      every scored reference. When a newer release is out, compares every
-      output the newest release computes under the same conventions with the
-      reference engine's (publication_check_<version>.csv) and records the
-      result, counting scored and excluded outputs apart; when the reference
-      engine is still the newest, records that. Each input is pinned in the
-      record by sha256. Exits non-zero, after writing the record, when the
-      newest release moves a scored output: that stops the publish.
+      sweep's engine, pins its CSV and names the committed builder, its
+      reference CSV, sidecar and exclusion record are the committed snapshot's
+      byte for byte, and its computed.csv gives every scored reference, every
+      value finite. When a newer release is out, check runs the check sweep
+      itself: this audit's builder, a first pass with empty actions, in the
+      given venv, which the builder refuses unless it holds that release. It
+      compares every output that sweep computes with the reference engine's
+      (publication_check_<version>.csv) and records the result, counting
+      scored and excluded outputs apart; when the reference engine is still
+      the newest, it records that. Each input is pinned in the record by
+      sha256. Exits non-zero, after writing the record, when the newest
+      release moves a scored output: that stops the publish.
 
 A release whose wheels are all yanked is not one PolicyBench builds on or
 checks against; the record lists any such release newer than the reference
@@ -46,7 +48,10 @@ import datetime
 import hashlib
 import json
 import math
+import os
+import subprocess
 import sys
+import tempfile
 import urllib.request
 from pathlib import Path
 
@@ -63,6 +68,8 @@ REFERENCE_EPS = 1e-6
 RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
 BUILDER = AUDIT / "scripts" / "build_references_upgrade.py"
+SPEC = ROOT / "docs/haiku55/spec.json"
+BASE_ENGINE = "policyengine-us 2.15.17"
 BUILD_FILES = (
     "computed.csv",
     "reference_outputs.csv",
@@ -341,10 +348,16 @@ def build_problems(
     # The check sweep runs this audit's builder, as the build did: the same
     # conventions and adapter, so the sidecar must name the committed builder.
     named = (revision.get("provenance") or {}).get("builder_sha256")
-    if named is not None and named != sha256(BUILDER):
-        raise Refusal(f"{build} was built by another builder ({named[:12]})")
-    pins["builder"] = named or sha256(BUILDER)
-    for name in ("reference_outputs.csv", "reference_exclusions.json"):
+    if named != sha256(BUILDER):
+        raise Refusal(
+            f"{build}'s sidecar names builder {named!r}, not the committed one"
+        )
+    pins["builder"] = named
+    for name in (
+        "reference_outputs.csv",
+        "reference_outputs.csv.meta.json",
+        "reference_exclusions.json",
+    ):
         committed = snapshot / name
         if not committed.is_file() or sha256(committed) != pins[name]:
             raise Refusal(
@@ -359,6 +372,14 @@ def build_problems(
             for row in csv.DictReader(source)
         }
     computed = read_computed(files["computed.csv"])
+    nonfinite = sorted(
+        key
+        for key in set(references) | set(computed)
+        if not math.isfinite(references.get(key, 0.0))
+        or not math.isfinite(computed.get(key, ("", 0.0))[1])
+    )
+    if nonfinite:
+        raise Refusal(f"{build} holds non-finite values: {nonfinite[:5]}")
     if set(computed) != set(references) or not excluded <= set(references):
         raise Refusal(
             f"{build}'s computed.csv, references and record cover different outputs"
@@ -371,6 +392,57 @@ def build_problems(
     if off:
         raise Refusal(f"{build}'s computed.csv is not its scored references: {off[:5]}")
     return computed, excluded, pins
+
+
+def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]:
+    """The check sweep, run here: this audit's builder, a first pass with
+    empty actions naming ``engine``, under the venv's interpreter. The builder
+    refuses before computing unless the venv holds that release, and it pins
+    the conventions and harness it applies, so the computed.csv it writes is
+    that engine's under the release's conventions. Returns the file and what
+    ran."""
+    out_dir.mkdir(parents=True, exist_ok=False)
+    actions = out_dir / "actions.empty.json"
+    actions.write_text(
+        json.dumps(
+            {
+                "engine": f"policyengine-us {engine}",
+                "previous_engine": BASE_ENGINE,
+                "date": now_utc()[:10],
+                "release_spec_sha256": sha256(SPEC),
+                "draft": True,
+            }
+        )
+    )
+    command = [
+        str(venv / "bin" / "python"),
+        str(BUILDER),
+        "--actions",
+        str(actions),
+        "--out-dir",
+        str(out_dir),
+        "--allow-draft",
+    ]
+    env = {
+        **{k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")},
+        "PYTHONPATH": str(ROOT),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+    }
+    ran = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True)
+    (out_dir / "sweep.log").write_text(ran.stdout + ran.stderr)
+    computed = out_dir / "computed.csv"
+    if not computed.is_file():
+        raise Refusal(
+            f"the check sweep on {engine} wrote no computed.csv "
+            f"(exit {ran.returncode}; see {out_dir / 'sweep.log'})"
+        )
+    return computed, {
+        "builder_sha256": sha256(BUILDER),
+        "venv": relative(venv),
+        "command": "build_references_upgrade.py --actions <empty> --allow-draft",
+        "exit_code": ran.returncode,
+    }
 
 
 def check(args) -> dict:
@@ -407,14 +479,24 @@ def check(args) -> dict:
             **inputs,
         }
         return timing
-    if not args.check_computed or not args.check_venv:
+    if not args.check_venv:
         raise Refusal(
             f"policyengine-us {latest} is newer than the reference engine {engine}: "
-            "pass --check-computed and --check-venv from a sweep on it"
+            "pass --check-venv, a venv holding it, and check runs the sweep"
         )
-    check_path = Path(args.check_computed)
-    installed = dist_info(Path(args.check_venv), latest)
+    venv = Path(args.check_venv)
+    installed = dist_info(venv, latest)
     installed_at = utc(installed.stat().st_birthtime)
+    work = (
+        Path(
+            getattr(args, "work_dir", None)
+            or tempfile.mkdtemp(
+                prefix=f"check-sweep-{latest}-", dir=ROOT / "results/local"
+            )
+        )
+        / "sweep"
+    )
+    check_path, receipt = run_check_sweep(venv, latest, work)
     output_at = utc(check_path.stat().st_birthtime)
     sweep_order_problems(uploads[latest], installed_at, output_at, latest)
     rows, summary = compare(
@@ -432,6 +514,7 @@ def check(args) -> dict:
         "engine_installed_evidence": relative(installed),
         "check_computed": relative(check_path),
         "check_computed_sha256": sha256(check_path),
+        "check_sweep": receipt,
         "output_at_utc": output_at,
         "output": relative(out),
         "output_sha256": digest,
@@ -450,7 +533,6 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--first-output", required=True)
     c = sub.add_parser("check")
     c.add_argument("--build", required=True)
-    c.add_argument("--check-computed")
     c.add_argument("--check-venv")
     args = parser.parse_args(argv)
     timing = sweep(args) if args.step == "sweep" else check(args)
