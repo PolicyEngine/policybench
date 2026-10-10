@@ -4019,8 +4019,9 @@ def test_uk_prompt_states_role_specific_disability_and_birth_facts():
     assert "- annual hours worked: 1,820" in prompt
     assert (
         "- current education: full-time non-advanced education (school or "
-        "college, below higher-education level), begun before age 19"
+        "college, below higher-education level)"
     ) in prompt
+    assert "- age when the current education or training began: 16" in prompt
     assert "- current education: advanced (higher) education" in prompt
 
 

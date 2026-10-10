@@ -436,13 +436,17 @@ so by listing none. Since October 2026 the path works as follows.
   a couple who are not married or in a civil partnership, and the reference
   supplies exactly that (claimant and partner flags, no marriage), so neither
   PE-UK's presumed-child rule nor its presumption that couples are married
-  applies. A private renter's prompt states a Broad Rental Market Area: the
-  area of the region's largest city, since the transfer data records none
-  and PE-UK otherwise reads Maidstone's Local Housing Allowance everywhere.
-  Someone in non-advanced education is stated to have begun it before 19.
-- **Whole-number facts.** Every UK amount is stored as the whole number the
-  prompt shows, so the reference uses the stated figure, not an unrounded
-  uprated one.
+  applies. A private renter's prompt states a Broad Rental Market Area: a
+  fixed area within each region, since the transfer data records none and
+  PE-UK otherwise reads Maidstone's Local Housing Allowance everywhere.
+  Someone in non-advanced education has the age it began stated (16 where
+  the scenario gives none).
+- **Whole-number facts.** Every UK amount is the whole number the prompt
+  shows, so the reference uses the stated figure, not an unrounded uprated
+  one.
+- **One canonical scenario.** The prompt renderer and the reference builder
+  both start from `canonical_uk_scenario`, which applies these conventions,
+  so a scenario loaded from a manifest gives each the same facts.
 - **Engine-version guards.** Reference generation stops if the artifact stores
   a variable the installed PolicyEngine UK does not define, or if a derived
   fact the prompt states is renamed, so a model release cannot silently drop

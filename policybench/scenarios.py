@@ -348,10 +348,10 @@ UK_COMPUTED_PERSON_INPUTS = (
 # Below 16 every person is a child; from 20 no one is a qualifying young person.
 UK_EDUCATION_PROMPT_AGES = range(16, 20)
 
-# A Broad Rental Market Area per region for private renters: the area of the
-# region's largest city. PE-UK reads the Local Housing Allowance from the BRMA
-# alone and defaults every household to Maidstone, whatever its region; the
-# transfer data records none. The prompt states the area it uses.
+# A fixed Broad Rental Market Area within each region, for private renters.
+# PE-UK reads the Local Housing Allowance from the BRMA alone and defaults
+# every household to Maidstone, whatever its region; the transfer data records
+# none. The prompt states the area it uses.
 UK_REGION_BRMA = {
     "NORTH_EAST": "TYNESIDE",
     "NORTH_WEST": "CENTRAL_GREATER_MANCHESTER",
@@ -368,11 +368,11 @@ UK_REGION_BRMA = {
 }
 UK_PRIVATE_RENT_TENURE = "RENT_PRIVATELY"
 
-# The age a prompted person in non-advanced education began it. The data
-# records none, and PE-UK's default (1000) would fail every
-# qualifying-young-person entry condition; the prompt states "began before
-# age 19".
+# The age a prompted person in non-advanced education began it, where the
+# scenario gives none. PE-UK's default (1000) would fail every
+# qualifying-young-person entry condition. The prompt states the age.
 UK_EDUCATION_ENTRY_AGE = 16
+UK_EDUCATION_ENTRY_FIELD = "age_started_or_accepted_current_education_or_training"
 
 UK_NON_PROMPTABLE_SENTINELS = {
     "",
@@ -647,6 +647,15 @@ class Scenario:
         """
         if self.country != "uk":
             raise ValueError("to_pe_uk_situation is only supported for UK scenarios.")
+        self = canonical_uk_scenario(self)
+        hidden_household = sorted(
+            k for k in self.household_inputs if is_excluded_prompt_input_name(k)
+        )
+        if hidden_household:
+            raise ValueError(
+                f"{self.id}: household inputs the prompt does not show: "
+                f"{hidden_household}"
+            )
         if self.tax_unit_inputs or self.spm_unit_inputs:
             raise ValueError(
                 f"{self.id}: UK scenarios cannot carry tax-unit or benefit inputs."
@@ -674,10 +683,6 @@ class Scenario:
                 if key == "date_of_birth":
                     value = int(value)
                 person_data[key] = self._yearize(value)
-            if person.inputs.get("current_education") == "POST_SECONDARY":
-                person_data["age_started_or_accepted_current_education_or_training"] = (
-                    self._yearize(UK_EDUCATION_ENTRY_AGE)
-                )
             people[f"{prefix}{person.name}"] = person_data
         members = list(people)
         household_data = {
@@ -749,6 +754,75 @@ class Scenario:
             f"marital_unit_{index}": {"members": members}
             for index, members in enumerate(groups, start=1)
         }
+
+
+def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    canonical: dict[str, Any] = {}
+    for key, value in inputs.items():
+        if isinstance(value, (bool, np.bool_, str)) or value is None:
+            canonical[key] = value
+            continue
+        number = round_uk_prompt_number(value)
+        if number != 0:
+            canonical[key] = number
+    return canonical
+
+
+def canonical_uk_scenario(scenario: "Scenario") -> "Scenario":
+    """A UK scenario holding exactly the facts its prompt states.
+
+    The prompt renderer and the reference builder both start from this, so a
+    scenario loaded from a manifest gives the same facts to each as one built
+    from the transfer data:
+
+    - every amount is the whole number the prompt shows, and an amount shown
+      as 0 is unlisted;
+    - a private renter without a Broad Rental Market Area gets the fixed one
+      for the region (``UK_REGION_BRMA``);
+    - someone in non-advanced education without an entry age gets
+      ``UK_EDUCATION_ENTRY_AGE``.
+
+    Idempotent. Scenarios of other countries are returned unchanged.
+    """
+    if scenario.country != "uk":
+        return scenario
+
+    def person(original: Person) -> Person:
+        inputs = _canonical_uk_inputs(original.inputs)
+        if inputs.get("current_education") == "POST_SECONDARY":
+            inputs.setdefault(UK_EDUCATION_ENTRY_FIELD, float(UK_EDUCATION_ENTRY_AGE))
+        return Person(
+            name=original.name,
+            age=original.age,
+            employment_income=round_uk_prompt_number(original.employment_income),
+            inputs=inputs,
+        )
+
+    household_inputs = _canonical_uk_inputs(scenario.household_inputs)
+    if (
+        household_inputs.get("tenure_type") == UK_PRIVATE_RENT_TENURE
+        and "brma" not in household_inputs
+    ):
+        if scenario.state not in UK_REGION_BRMA:
+            raise ValueError(
+                f"{scenario.id}: no Broad Rental Market Area is set for region "
+                f"{scenario.state!r}."
+            )
+        household_inputs["brma"] = UK_REGION_BRMA[scenario.state]
+    return Scenario(
+        id=scenario.id,
+        state=scenario.state,
+        filing_status=scenario.filing_status,
+        adults=[person(adult) for adult in scenario.adults],
+        children=[person(child) for child in scenario.children],
+        tax_unit_inputs=scenario.tax_unit_inputs,
+        spm_unit_inputs=scenario.spm_unit_inputs,
+        household_inputs=household_inputs,
+        year=scenario.year,
+        country=scenario.country,
+        source_dataset=scenario.source_dataset,
+        metadata=scenario.metadata,
+    )
 
 
 def person_to_dict(person: Person) -> dict[str, Any]:
@@ -1547,8 +1621,6 @@ def _extract_uk_household_inputs(row: pd.Series) -> dict[str, Any]:
         promptable = _uk_promptable_value(value)
         if promptable is not None:
             inputs[col] = promptable
-    if inputs.get("tenure_type") == UK_PRIVATE_RENT_TENURE:
-        inputs["brma"] = UK_REGION_BRMA[str(row["region"])]
     return inputs
 
 
@@ -1693,7 +1765,7 @@ def scenarios_from_uk_frames(
             )
         )
 
-    return scenarios
+    return [canonical_uk_scenario(scenario) for scenario in scenarios]
 
 
 def generate_scenarios(

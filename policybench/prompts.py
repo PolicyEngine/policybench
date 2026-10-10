@@ -3,6 +3,7 @@
 from policybench.scenarios import (
     Person,
     Scenario,
+    canonical_uk_scenario,
     is_excluded_prompt_input_name,
 )
 from policybench.spec import find_output_spec, parse_person_output
@@ -160,6 +161,9 @@ INPUT_LABEL_OVERRIDES = {
     "hours_worked": "annual hours worked",
     "current_education": "current education",
     "brma": "Broad Rental Market Area (for the Local Housing Allowance)",
+    "age_started_or_accepted_current_education_or_training": (
+        "age when the current education or training began"
+    ),
     "date_of_birth": "date of birth",
     "workers_compensation": "workers' compensation",
     "capital_gains_before_response": "capital gains",
@@ -215,6 +219,7 @@ INPUT_LABEL_OVERRIDES = {
 
 
 NON_MONETARY_NUMERIC_FIELDS = {
+    "age_started_or_accepted_current_education_or_training",
     "weekly_hours_worked",
     "hours_worked_last_week",
     "hours_worked",
@@ -264,7 +269,7 @@ UK_EDUCATION_DESCRIPTIONS = {
     "UPPER_SECONDARY": "secondary school",
     "POST_SECONDARY": (
         "full-time non-advanced education (school or college, below "
-        "higher-education level), begun before age 19"
+        "higher-education level)"
     ),
     "TERTIARY": "advanced (higher) education",
 }
@@ -412,6 +417,9 @@ def _describe_entity_inputs(
 
 def describe_household(scenario: Scenario) -> str:
     """Create a structured description of a household."""
+    # The UK reference starts from the same canonical scenario, so the prompt
+    # and the reference state the same facts however the scenario was built.
+    scenario = canonical_uk_scenario(scenario)
     period_label = (
         f"UK fiscal year: {scenario.year}-{str(scenario.year + 1)[-2:]}"
         if scenario.country == "uk"
