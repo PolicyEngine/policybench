@@ -76,15 +76,53 @@ RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
 BUILDER = AUDIT / "scripts" / "build_references_upgrade.py"
 SPEC = ROOT / "docs/haiku55/spec.json"
-# The builder's arguments that name files or directories.
+# The builder's arguments that name files or directories, and its flag.
 BUILDER_PATH_FLAGS = (
     "--actions",
     "--out-dir",
-    "--computed-csv",
     "--fixes-dir",
+    "--computed-csv",
     "--evidence-request",
     "--evidence-out",
 )
+BUILDER_VALUE_FLAGS = (*BUILDER_PATH_FLAGS, "--regenerated-at")
+BUILDER_SWITCHES = ("--allow-draft",)
+
+
+def builder_arguments(argv: list[str]) -> tuple[list[str], Path | None]:
+    """The builder's arguments as the builder itself reads them (the same
+    flags, argparse's equals form, abbreviations and last-occurrence rule),
+    rewritten in one canonical form with every path resolved here (the child
+    runs in the repository root), and the computed.csv the run must write:
+    --computed-csv when given, else <out-dir>/computed.csv. Unknown arguments
+    are refused rather than passed on."""
+    parser = argparse.ArgumentParser(prog="builder", add_help=False)
+    for flag in BUILDER_VALUE_FLAGS:
+        parser.add_argument(flag)
+    for flag in BUILDER_SWITCHES:
+        parser.add_argument(flag, action="store_true")
+    try:
+        parsed = parser.parse_args(argv)
+    except SystemExit:
+        raise Refusal(f"the builder cannot take these arguments: {argv}") from None
+    canonical: list[str] = []
+    values = vars(parsed)
+    for flag in BUILDER_VALUE_FLAGS:
+        value = values[flag[2:].replace("-", "_")]
+        if value is None:
+            continue
+        if flag in BUILDER_PATH_FLAGS:
+            value = str(Path(value).resolve())
+        canonical += [flag, value]
+    canonical += [
+        flag for flag in BUILDER_SWITCHES if values[flag[2:].replace("-", "_")]
+    ]
+    computed = values["computed_csv"] or (
+        str(Path(values["out_dir"]) / "computed.csv") if values["out_dir"] else None
+    )
+    return canonical, Path(computed).resolve() if computed else None
+
+
 BASE_ENGINE = "policyengine-us 2.15.17"
 BUILD_FILES = (
     "computed.csv",
@@ -698,18 +736,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.step == "run":
         # The reference build itself, through the same engine check and the
         # same single process as the check sweep (run_on_engine).
-        # Path arguments are resolved here: the child runs in the repository
-        # root, so a relative path would name another file there.
-        builder_args = [a for a in args.builder_args if a != "--"]
-        for index, arg in enumerate(builder_args[:-1]):
-            if arg in BUILDER_PATH_FLAGS:
-                builder_args[index + 1] = str(Path(builder_args[index + 1]).resolve())
-        out_dir = (
-            Path(builder_args[builder_args.index("--out-dir") + 1])
-            if "--out-dir" in builder_args
-            else None
-        )
-        computed = out_dir / "computed.csv" if out_dir else None
+        raw = list(args.builder_args)
+        if raw[:1] == ["--"]:
+            raw = raw[1:]
+        builder_args, computed = builder_arguments(raw)
         if computed is not None and computed.exists():
             raise Refusal(f"{computed} exists: each run writes into a fresh out-dir")
         started = time.time()

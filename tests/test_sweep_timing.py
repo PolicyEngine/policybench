@@ -739,3 +739,98 @@ def test_run_takes_only_fresh_receipts_and_outputs(tmp_path, monkeypatch):
     assert (elsewhere / "r.json").is_file() and (
         elsewhere / "fresh/computed.csv"
     ).is_file()
+
+
+def test_builder_arguments_are_read_as_the_builder_reads_them(tmp_path, monkeypatch):
+    """The equals form, an abbreviation and a repeated flag (last wins) name
+    the same out-dir the builder would use; --computed-csv names the file the
+    run must write; paths are resolved here; an unknown argument is refused."""
+    monkeypatch.chdir(tmp_path)
+    out = str(tmp_path / "b")
+    for argv in (
+        ["--out-dir", "b"],
+        ["--out-dir=b"],
+        ["--out-d", "b"],
+        ["--out-dir", "a", "--out-dir=b"],
+    ):
+        canonical, computed = timing.builder_arguments([*argv, "--allow-draft"])
+        assert canonical == ["--out-dir", out, "--allow-draft"], argv
+        assert computed == tmp_path / "b" / "computed.csv"
+    canonical, computed = timing.builder_arguments(
+        ["--actions=x.json", "--out-dir", "b", "--computed-csv", "c.csv"]
+    )
+    assert canonical == [
+        "--actions",
+        str(tmp_path / "x.json"),
+        "--out-dir",
+        out,
+        "--computed-csv",
+        str(tmp_path / "c.csv"),
+    ]
+    assert computed == tmp_path / "c.csv"
+    assert timing.builder_arguments(["--evidence-request", "r.json"])[1] is None
+    with pytest.raises(timing.Refusal, match="cannot take these arguments"):
+        timing.builder_arguments(["--out-dir", "b", "--unknown"])
+
+
+def test_the_replica_takes_exactly_the_builders_flags():
+    """builder_arguments' parser has the builder's own flags, so argparse
+    resolves equals forms and abbreviations the same way in both."""
+    import ast
+
+    tree = ast.parse(timing.BUILDER.read_text())
+    (main,) = [
+        n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"
+    ]
+    flags = {
+        call.args[0].value: any(
+            k.arg == "action" and getattr(k.value, "value", None) == "store_true"
+            for k in call.keywords
+        )
+        for call in ast.walk(main)
+        if isinstance(call, ast.Call)
+        and getattr(call.func, "attr", None) == "add_argument"
+    }
+    assert {f for f, switch in flags.items() if switch} == set(timing.BUILDER_SWITCHES)
+    assert {f for f, switch in flags.items() if not switch} == set(
+        timing.BUILDER_VALUE_FLAGS
+    )
+
+
+def test_run_checks_the_file_the_builder_actually_writes(tmp_path, monkeypatch):
+    """MOCK subprocess: with the equals form an old computed.csv is still
+    refused, and with --computed-csv the run checks that file, not the
+    out-dir's."""
+
+    def run(command, env=None, **kw):
+        Path(env["PB_ENGINE_RECEIPT"]).write_text(
+            json.dumps({"version": "9.9.9", "files_verified": 2, "problems": []})
+        )
+        target = Path(command[command.index("--computed-csv") + 1])
+        _computed(VALUES, target)
+        return type("Ran", (), {"returncode": 1, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    venv = _venv(tmp_path / "venv", "9.9.9")
+    old = tmp_path / "old"
+    old.mkdir()
+    _computed(VALUES, old / "computed.csv")
+    base = ["run", "--venv", str(venv), "--engine", "9.9.9"]
+    with pytest.raises(timing.Refusal, match="fresh out-dir"):
+        timing.main(
+            [*base, "--receipt", str(tmp_path / "r1.json"), "--", f"--out-dir={old}"]
+        )
+    with pytest.raises(SystemExit) as stopped:
+        timing.main(
+            [
+                *base,
+                "--receipt",
+                str(tmp_path / "r2.json"),
+                "--",
+                "--out-dir",
+                str(tmp_path / "new"),
+                "--computed-csv",
+                str(tmp_path / "c.csv"),
+            ]
+        )
+    assert stopped.value.code == 1 and (tmp_path / "c.csv").is_file()
