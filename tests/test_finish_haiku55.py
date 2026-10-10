@@ -5506,8 +5506,8 @@ EXCLUSION_TAMPERS = {
                 ]
             ),
         ),
-        # The revision lists no regeneration of it, so it has no audited target.
-        "names no audited target",
+        # No reviewed action regenerates it, so the build may not drop its record.
+        "actions do not regenerate it exactly once",
     ),
     "the_tail_moved": (
         lambda b: _edit_record(
@@ -6014,7 +6014,8 @@ ACTION_TAMPERS = {
         lambda plan: plan.update(
             regenerated_exclusions=plan["regenerated_exclusions"][1:]
         ),
-        "actions' regenerated_exclusions names",
+        # The regeneration is bound to its action before the lists are compared.
+        "actions do not regenerate it exactly once",
     ),
     "a_kept_ruled_output_left_out": (
         lambda plan: plan.update(
