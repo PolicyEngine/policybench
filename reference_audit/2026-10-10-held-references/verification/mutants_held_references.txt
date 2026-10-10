@@ -1,0 +1,15 @@
+Each line breaks policybench/held_references.py one way and runs tests/test_held_references.py (-x).
+ 1. killed    the held reference is never compared: 1 failed, 4 passed in 0.49s
+ 2. killed    an unexplained consensus no longer keeps the cell: 1 failed, 6 passed in 0.51s
+ 3. killed    tolerance is exclusive: 1 failed, 3 passed in 0.45s
+ 4. killed    eligibility outputs compare in dollars: 1 failed, 8 passed in 0.50s
+ 5. killed    binary_outputs is ignored: 1 failed, 8 passed in 0.39s
+ 6. killed    not_flagged lists the flagged records: 1 failed in 0.51s
+ 7. killed    a flag with no record is dropped: 1 failed in 0.39s
+ 8. killed    a stale flag is dropped instead of kept: 1 failed, 4 passed in 0.38s
+ 9. killed    a cell may be listed twice: 1 failed, 24 passed in 0.40s
+10. killed    any verdict is accepted: 1 failed, 20 passed in 0.37s
+11. killed    the explanation is not carried into the listing: 1 failed in 0.35s
+12. killed    a cell flagged twice is accepted: 1 failed, 9 passed in 0.39s
+13. killed    a held cell is also kept: 1 failed in 0.43s
+13 of 13 mutants killed

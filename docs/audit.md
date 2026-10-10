@@ -89,12 +89,14 @@ uv run policybench consensus-flags \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --output <dir>/consensus_flags.json
 
-# 2. One two-stage case per flagged cell, minus cells another audit owns.
+# 2. One two-stage case per flagged cell, minus cells another audit owns and
+#    cells whose reference an earlier check already held.
 uv run policybench adversary-prepare \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --flags <dir>/consensus_flags.json \
   --annotations-dir annotations/<run> \
   --skip-cells <dir>/covered_elsewhere.json \
+  --held-references reference_audit/held_references.json \
   --adversary-dir <adv>
 
 # 3. Judge inside a Subfleet lane (subscription billing, never an API key).
@@ -181,6 +183,38 @@ release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
 each carries a developer `reference_verdict` (`policybench.adjudications`):
 the existing adjudication path. A change to a published reference or an
 exclusion still needs a release and the maintainer's ruling.
+
+## Held references
+
+The consensus trigger reads no history, so a cell whose reference a check has
+already worked from the law and held is flagged again for as long as the same
+models agree. `reference_audit/held_references.json` is the standing list of
+such checks. Each record names a cell, the reference value held, each
+consensus answer the check explained, and the write-up
+(`policybench/held_references.py` gives the schema).
+
+`adversary-prepare --held-references` gives a flagged cell on that list no
+case and writes `<adv>/held_references.json`, which lists it as checked and
+held beside the explanation of each triggering cluster. A record applies only
+while both of these are true:
+
+- the flag's reference is the held value, within the flags' tolerance (an
+  eligibility output's must be equal); and
+- every triggering cluster's answer is within that tolerance of an answer the
+  record explains.
+
+Otherwise the cell is judged like any other, and the listing gives the reason:
+`reference_moved` when an engine or data change gave the cell another
+reference, `unexplained_consensus` when models now agree on an answer the
+check never looked at. A record whose cell is not flagged is listed as
+`not_flagged`. The option decides only which cells get a case. It changes no
+score, reference or exclusion, and a hold is not a ruling: a record can carry
+an open question, as the first two do
+(`reference_audit/2026-10-10-held-references/`).
+
+To add a record, write the check up under `reference_audit/`, with the law,
+the engine run and the models' answers it rests on, and list only the
+consensus answers it explains.
 
 ## Definition and publication checks
 

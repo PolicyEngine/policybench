@@ -640,6 +640,15 @@ def main():
         help="JSON list of {scenario_id, variable, covered_by} cells another "
         "audit already covers; they get no adversary case",
     )
+    adversary_prepare_parser.add_argument(
+        "--held-references",
+        default=None,
+        help="Held-references JSON (reference_audit/held_references.json): a "
+        "flagged cell an earlier check held gets no adversary case while its "
+        "reference is the held value and every triggering consensus answer is "
+        "one the record explains; <adversary-dir>/held_references.json lists "
+        "those cells and every record that no longer applies",
+    )
 
     adversary_collect_parser = subparsers.add_parser(
         "adversary-collect",
@@ -1464,13 +1473,38 @@ def main():
             prepare_adversary,
         )
 
-        flags = json.loads(Path(args.flags).read_text())["flags"]
+        flags_report = json.loads(Path(args.flags).read_text())
+        flags = flags_report["flags"]
+        # Held references first, so "not flagged" means not flagged at all.
+        unheld = flags
+        held_report = None
+        if args.held_references:
+            from policybench.consensus import file_sha256
+            from policybench.held_references import (
+                apply_held_references,
+                load_held_references,
+            )
+
+            flag_params = flags_report.get("params") or {}
+            unheld, held_report = apply_held_references(
+                flags,
+                load_held_references(args.held_references),
+                tolerance=float(flag_params.get("tolerance", 1.0)),
+                binary_outputs=str(flag_params.get("binary_outputs", "mismatch")),
+            )
+            held_report = {
+                "held_references": str(args.held_references),
+                "held_references_sha256": file_sha256(args.held_references),
+                "flags": str(args.flags),
+                "flags_sha256": file_sha256(args.flags),
+                **held_report,
+            }
         skipped: dict[tuple[str, str], str] = {}
         if args.skip_cells:
             for cell in json.loads(Path(args.skip_cells).read_text()):
                 key = (str(cell["scenario_id"]), str(cell["variable"]))
                 skipped[key] = str(cell.get("covered_by", ""))
-        kept = [f for f in flags if (f["scenario_id"], f["variable"]) not in skipped]
+        kept = [f for f in unheld if (f["scenario_id"], f["variable"]) not in skipped]
         derivations = (
             load_derivations(Path(args.annotations_dir))
             if args.annotations_dir
@@ -1480,9 +1514,31 @@ def main():
             load_us_payload(Path(args.payload)), kept, derivations=derivations
         )
         prepare_adversary(Path(args.adversary_dir), cases)
+        # The directory describes this preparation, so a listing left by an
+        # earlier one with --held-references does not outlive it.
+        held_path = Path(args.adversary_dir) / "held_references.json"
+        held_note = ""
+        if held_report is None:
+            held_path.unlink(missing_ok=True)
+        else:
+            held_path.write_text(json.dumps(held_report, indent=2) + "\n")
+            held_note = (
+                f"; {len(held_report['held'])} listed as checked and held in "
+                f"{held_path}"
+            )
+            stale = [
+                f"{row['scenario_id']} {row['variable']} ({row['reason']})"
+                for row in held_report["not_applied"]
+            ]
+            if stale:
+                held_note += (
+                    "; held records that no longer apply, so their cells are "
+                    f"judged: {', '.join(stale)}"
+                )
         print(
             f"Prepared {len(cases)} adversary cases under {args.adversary_dir} "
-            f"({len(flags) - len(kept)} flagged cells skipped as covered elsewhere). "
+            f"({len(unheld) - len(kept)} flagged cells skipped as covered "
+            f"elsewhere{held_note}). "
             "Run scripts/run_reference_adversary_claude.sh or "
             "scripts/run_reference_adversary_codex.sh inside a Subfleet lane."
         )

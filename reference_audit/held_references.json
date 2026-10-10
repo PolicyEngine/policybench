@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "about": "References a check worked from the law and held against a model consensus. `policybench adversary-prepare --held-references` reads this file: a flagged cell listed here gets no adversary case, and is listed as checked and held, while its reference is still the held value and every triggering consensus answer is one its record explains (policybench/held_references.py). A record whose reference has moved, or whose cell shows a consensus it does not explain, no longer applies, and the cell is judged. Listing a cell here changes no score, reference or exclusion.",
+  "records": [
+    {
+      "scenario_id": "scenario_039",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "state": "VA",
+      "reference": 8596.03,
+      "verdict": "reference_holds",
+      "checked_on": "2026-10-10",
+      "release": "dashboard-data-20261010",
+      "engine": "policyengine-us 2.38.6",
+      "evidence": "reference_audit/2026-10-10-held-references/README.md",
+      "consensus": [
+        {
+          "answer": 5145.11,
+          "models": [
+            "claude-fable-5.1",
+            "claude-opus-5.5",
+            "claude-sonnet-5.5",
+            "gpt-5.5",
+            "gpt-6-astra",
+            "gpt-6.1-sol"
+          ],
+          "explanation": "The six models keep the reference's adjusted gross income ($79,209.22) and file the head as a qualifying surviving spouse: the $32,200 standard deduction and the joint rate table give $2,480 + 12% x ($47,009.22 - $24,800) = $5,145.11. 26 U.S.C. 2(a)(1)(B) gives that status only to a taxpayer whose home is the principal place of abode of a dependent son, stepson, daughter or stepdaughter. This household is one person, so the head files single: $16,100 standard deduction and $5,800 + 22% x ($63,109.22 - $50,400) = $8,596.03. The prompt's \"is a surviving spouse\" is the Code's name for the status; the data behind it is only the survey's marital status \"widowed\"."
+        }
+      ],
+      "independent_review": "GPT-6.1 Sol, 2026-10-10 (reference_audit/2026-10-10-held-references/reviews/review_va039.md): reproduces $8,596.03 and $5,145.11, and puts single as the filing status of a widow with no qualifying child above 99%.",
+      "reviewer_dissent": "The reviewer's verdict is \"Scenario ambiguous\", on a ground the consensus does not raise: \"estate income\" states no character, and read as qualified dividends or long-term gain the same $25,950 gives $6,259.99 (75% confidence in excluding). The check did not adopt it: the preface sets unlisted numeric inputs to 0, and qualified dividends and capital gains are separate inputs.",
+      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground is Max's call, queued as cos decision d1252 on 2026-10-10 and not ruled when this record was written. This record does not act on it."
+    },
+    {
+      "scenario_id": "scenario_025",
+      "variable": "state_income_tax_before_refundable_credits",
+      "state": "OH",
+      "reference": 1916.61,
+      "verdict": "reference_holds",
+      "checked_on": "2026-10-10",
+      "release": "dashboard-data-20261010",
+      "engine": "policyengine-us 2.38.6",
+      "evidence": "reference_audit/2026-10-10-held-references/README.md",
+      "earlier_record": "reference_audit/2026-10-05-reference-adversary/verification/independent/oh_025.md (2026-10-06, decision d1022): the reference was then $1,921.57, an engine defect, and the value to regenerate to was $1,916.60. policyengine-us #10020 fixed the engine and release dashboard-data-20261010 regenerated the reference.",
+      "consensus": [
+        {
+          "answer": 1589.56,
+          "models": [
+            "claude-fable-5.1",
+            "claude-opus-5.5",
+            "claude-sonnet-5.5",
+            "gemini-3.6-flash",
+            "gpt-6-luna",
+            "gpt-6-sol",
+            "grok-4.7",
+            "kimi-k3"
+          ],
+          "explanation": "The eight models tax Ohio income above $26,050 at 2.75% with no fixed amount, and take no medical deduction: 2.75% x ($94,925 - $3,800 - $26,050) - $200 = $1,589.56. R.C. 5747.02(A)(3)(c) reads \"$332.00 plus 2.75% of the amount in excess of $26,050\" for taxable years beginning in 2026. With the $332.00, and the $180.60 medical deduction of R.C. 5747.01(A)(10)(b), the tax is $332.00 + 2.75% x ($90,944.69 - $26,050) - $200 = $1,916.60. The engine carries the fixed amount as 1.27448% x $26,050 = $332.002 and gives $1,916.61."
+        }
+      ],
+      "independent_review": "GPT-6.1 Sol, 2026-10-10 (reference_audit/2026-10-10-held-references/reviews/review_oh025.md): reproduces $1,916.60 and $1,589.56, and finds the $332.00, the $26,050 threshold and the frozen exemptions settled in the reference's favor.",
+      "reviewer_dissent": "The reviewer's verdict is \"Scenario ambiguous\", on a ground the consensus does not raise: \"employer sponsored insurance premiums: $21,208\" does not say who paid. Read as paid by the head after tax it gives $1,319.65, or $1,145.86 if the plan is also unsubsidized. The check did not adopt it: the prompt gives the head's premiums as $6,500 in total, and the 2026-10-06 verification weighed this reading (its R4) and rejected it.",
+      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground is Max's call, queued as cos decision d1252 on 2026-10-10 and not ruled when this record was written. This record does not act on it."
+    }
+  ]
+}
