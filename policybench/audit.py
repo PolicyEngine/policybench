@@ -19,6 +19,7 @@ LLM step is the only non-deterministic link and is fully resumable.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -343,14 +344,18 @@ def prepare_audit(
         cases/<case_id>/verdict.meta.json   (its provenance sidecar)
 
     A case that already has a verdict (a seed a release driver copied in, or
-    an earlier run's) is rendered with the template version its sidecar
-    records (absent: v1). If that reproduces its prompt.md, the verdict
-    stands and the prompt keeps its bytes. Otherwise the case changed since it
-    was judged, or its version is unknown: the verdict and its sidecar are
-    dropped and the case is re-opened. New and re-opened cases are rendered
-    with ``template_version``, which the caller must name. The version a case
-    renders with comes from the sidecar or the caller, never from prompt.md:
-    a prompt that begins with another version's header is not adopted.
+    an earlier run's) keeps it only on the exact bytes its judge read
+    (:func:`_judged_prompt`): the case rendered on the template version its
+    sidecar records (absent: v1) must equal its prompt.md byte for byte, or,
+    when prompt.md is missing, hash to the ``prompt_sha256`` its sidecar
+    records. A kept case's files are left untouched. Otherwise the case
+    changed since it was judged, or its version or judged bytes are unknown:
+    the verdict and its sidecar are dropped and the case is re-opened. New
+    and re-opened cases are rendered with ``template_version``, which the
+    caller must name. The version a case renders with comes from the sidecar
+    or the caller, never from prompt.md: a prompt that begins with another
+    version's header is not adopted. Prompts are written as UTF-8 bytes, with
+    no newline translation.
     """
     template_header(template_version)
     cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
@@ -380,31 +385,53 @@ def prepare_audit(
             case_dir.mkdir(exist_ok=True)
             prompt_path = case_dir / "prompt.md"
             verdict_path = case_dir / "verdict.json"
-            new_prompt = None
             if verdict_path.exists():
-                # A judged case renders with the template its verdict was
-                # judged on, so an unchanged case keeps its prompt's bytes.
-                judged_on = recorded_template_version(_sidecar(case_dir))
-                if judged_on is not None:
-                    seeded = render_case_prompt(case, template_version=judged_on)
-                    # A verdict without its prompt keeps it, as before
-                    # templates were versioned.
-                    if not prompt_path.exists() or prompt_path.read_text() == seeded:
-                        new_prompt = seeded
-                if new_prompt is None:
-                    # Content-aware resumability: the case changed since it was
-                    # classified (e.g. a model was re-run and now answers
-                    # differently), or its template is unknown. Drop the stale
-                    # verdict so the runner re-classifies it rather than
-                    # reusing the old label. The provenance sidecar describes
-                    # that verdict; a re-judge by the other runner must not
-                    # inherit it.
-                    verdict_path.unlink()
-                    (case_dir / "verdict.meta.json").unlink(missing_ok=True)
-            if new_prompt is None:
-                new_prompt = render_case_prompt(case, template_version=template_version)
-            prompt_path.write_text(new_prompt)
+                judged = _judged_prompt(case, case_dir)
+                if judged is not None:
+                    # The verdict stands on these bytes. A prompt.md the
+                    # sidecar's hash vouched for is restored.
+                    if not prompt_path.exists():
+                        prompt_path.write_bytes(judged)
+                    continue
+                # Content-aware resumability: the case changed since it was
+                # classified (e.g. a model was re-run and now answers
+                # differently), or its template or judged bytes are unknown.
+                # Drop the stale verdict so the runner re-classifies it rather
+                # than reusing the old label. The provenance sidecar describes
+                # that verdict; a re-judge by the other runner must not
+                # inherit it.
+                verdict_path.unlink()
+                (case_dir / "verdict.meta.json").unlink(missing_ok=True)
+            prompt = render_case_prompt(case, template_version=template_version)
+            prompt_path.write_bytes(prompt.encode("utf-8"))
     return cases
+
+
+def _judged_prompt(case: AuditCase, case_dir: Path) -> bytes | None:
+    """The prompt bytes a judged case's verdict stands on, or None when the
+    case must be re-opened.
+
+    The case is rendered on the version its sidecar records (absent: v1; a
+    version it names no known one for gives None). Those bytes must be
+    prompt.md's exactly, and, when the sidecar records ``prompt_sha256`` (the
+    hash of the bytes its judge read), hash to it. Without prompt.md, that
+    hash is the only evidence of what the judge read, so a sidecar without
+    one gives None.
+    """
+    meta = _sidecar(case_dir)
+    judged_on = recorded_template_version(meta)
+    if judged_on is None:
+        return None
+    rendered = render_case_prompt(case, template_version=judged_on).encode("utf-8")
+    recorded_sha256 = (meta or {}).get("prompt_sha256")
+    if recorded_sha256 is not None and (
+        recorded_sha256 != hashlib.sha256(rendered).hexdigest()
+    ):
+        return None
+    prompt_path = case_dir / "prompt.md"
+    if prompt_path.exists():
+        return rendered if prompt_path.read_bytes() == rendered else None
+    return rendered if recorded_sha256 is not None else None
 
 
 def _sidecar(case_dir: Path) -> dict | None:

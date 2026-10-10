@@ -71,20 +71,24 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   judged case renders on the version its sidecar records. Nothing reads a
   version off a prompt to choose how to render it: `template_version_of` only
   records what a judge read and checks a tree.
-- Both runners record the version a verdict was judged on in its
-  `verdict.meta.json` as `judge_template_version`. The Claude runner reads it
-  from the judged copy of `prompt.md`, the Codex runner from `prompt.md`. A
-  prompt that begins with no version's header, one `audit-prepare` did not
-  write, records `null`.
+- Both runners have the judge read a private copy of `prompt.md`, and record
+  that copy's sha256 (`prompt_sha256`) and version (`judge_template_version`)
+  in `verdict.meta.json`. A verdict is not published if `prompt.md` no longer
+  holds those bytes. A prompt that begins with no version's header, one
+  `audit-prepare` did not write, records `null`.
 - A sidecar without the field, or a verdict without a sidecar, was judged on
   v1 (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars
   written before versions existed, not a guess from the prompt.
 - `audit-prepare` renders a case that already has a verdict with the version
-  its sidecar records. If that reproduces `prompt.md`, the verdict stands and
-  the prompt keeps its bytes. Otherwise the case changed since it was judged,
-  or its version is unknown: the verdict and its sidecar are dropped and the
-  case is re-opened. A `prompt.md` on another version is re-opened, not
-  adopted. New and re-opened cases use the version the caller names.
+  its sidecar records. The verdict stands only if that reproduces
+  `prompt.md` byte for byte and, when the sidecar records `prompt_sha256`
+  (the hash of the bytes its judge read), matches it. Without `prompt.md`,
+  the verdict stands only if that hash matches, and the prompt is restored.
+  A kept case's files are not rewritten. Otherwise the case changed since it
+  was judged, or its version or judged bytes are unknown: the verdict and
+  its sidecar are dropped and the case is re-opened. A `prompt.md` on
+  another version is re-opened, not adopted. New and re-opened cases use the
+  version the caller names.
 - Each release driver names the version its new and re-opened cases render
   on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
   versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,
@@ -109,13 +113,17 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
 
 `tests/test_judge_template.py` states and tests these:
 
-- **Every committed prompt re-renders on its recorded version.** The prompt
-  sha256s committed in `docs/gpt61sol/` and `docs/haiku55/` (the seed digests
-  and the judge provenance records of releases 20260929 through 20261010)
-  re-render from each release's committed board on the version their verdicts
-  record, v1. This test is local only: it needs the audit grounding, which is
-  not committed. In CI, a property test checks that `prepare_audit` keeps any
-  judged case's prompt, verdict and sidecar bytes when the case is unchanged.
+- **Every committed prompt re-renders on its recorded version.** Each prompt
+  sha256 committed in `docs/gpt61sol/` and `docs/haiku55/` (the seed digests
+  and the judge provenance records) re-renders on the version its verdict
+  records, v1. It renders from the committed board of the release that judged
+  it: release 20260929, 20260930 or 20261010. Release 20261006 judged
+  nothing. It carried release 20260930's audit while rewording nine reference
+  explanations, so those nine prompts do not re-render from its own board;
+  release 20261010 re-opened them. This test is local only: it needs the
+  audit grounding, which is not committed. In CI, property tests check that
+  `prepare_audit` keeps a judged case's files only on the exact bytes its
+  judge read.
 - **v2 differs from v1 only by the dropped clause.** The header diff is one
   deletion, `V1_REVIEW_CLAIM`. For any case, the two prompts differ only in
   their headers, and the v2 prompt is the v1 prompt without that clause.

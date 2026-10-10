@@ -2,12 +2,13 @@
 the version each was judged on.
 
 Invariants:
-- every committed prompt re-renders on its recorded version: the prompt
-  sha256s that docs/gpt61sol/ and docs/haiku55/ commit re-render from each
-  release's committed board on the version their verdicts record (local only,
-  for it needs the audit grounding), and prepare_audit keeps a judged case's
-  prompt, verdict and sidecar bytes when the case re-renders to them with its
-  recorded version (absent: v1);
+- every committed prompt re-renders on its recorded version: each prompt
+  sha256 that docs/gpt61sol/ and docs/haiku55/ commit re-renders, on the
+  version its verdict records, from the committed board of the release that
+  judged it (local only, for it needs the audit grounding); and prepare_audit
+  keeps a judged case's files only on the exact bytes its judge read: the
+  case rendered on its recorded version (absent: v1), equal to prompt.md and
+  to the sidecar's prompt_sha256 when it records one;
 - v2 differs from v1 only by the dropped clause: the header diff is one
   deletion, V1_REVIEW_CLAIM, and the rest of a prompt does not depend on the
   version;
@@ -180,7 +181,7 @@ def test_recorded_version_is_the_field_when_it_names_one(value):
 # --- Rendering -------------------------------------------------------------------
 
 TEXT = st.text(
-    alphabet=st.characters(blacklist_categories=("Cs",), blacklist_characters="\r"),
+    alphabet=st.characters(blacklist_categories=("Cs",)),
     max_size=60,
 )
 
@@ -552,19 +553,122 @@ def test_a_verdict_whose_template_disagrees_with_its_prompt_is_flagged(tmp_path)
     with pytest.raises(SystemExit, match="5 verdicts disagree with their prompt.md"):
         _collect_cli(board, audit, tmp_path / "out")
     assert not (tmp_path / "out").exists()
-    # Preparing again re-opens every flagged case except the verdict that
-    # lost its prompt, which keeps its verdict and gets its v1 prompt back.
+    # Preparing again re-opens every flagged case. The verdict that lost its
+    # prompt has no sidecar, so nothing records the bytes its judge read.
     prepare_audit(board, audit, template_version=2)
     assert template_version_problems(audit) == []
-    assert (case_dir["s0"] / "verdict.json").is_file()
-    assert (case_dir["s0"] / "prompt.md").read_text() == render_case_prompt(
-        cases["s0"], template_version=1
-    )
-    for scenario in ("s1", "s2", "s3", "s4"):
+    for scenario in ("s0", "s1", "s2", "s3", "s4"):
         assert not (case_dir[scenario] / "verdict.json").exists(), scenario
-        assert (case_dir[scenario] / "prompt.md").read_text() == render_case_prompt(
+        assert (case_dir[scenario] / "prompt.md").read_bytes() == render_case_prompt(
             cases[scenario], template_version=2
-        )
+        ).encode("utf-8")
+
+
+def _judged_case(tmp_path: Path, answer: float = 250.0, **sidecar):
+    """A one-case board whose case is judged on v1, with ``sidecar``'s fields
+    in its sidecar. Returns the board, the audit, the case and its dir."""
+    board = _board(tmp_path / "us", {"s0": answer})
+    audit = tmp_path / "audit"
+    (case,) = prepare_audit(board, audit, template_version=1)
+    case_dir = audit / "cases" / case.case_id
+    _judge(case_dir, {TEMPLATE_VERSION_FIELD: 1, **sidecar})
+    return board, audit, case, case_dir
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def test_a_verdict_without_its_prompt_stands_only_on_its_recorded_hash(tmp_path):
+    """Without prompt.md, the sidecar's prompt_sha256 is the only record of
+    what the judge read. A verdict whose hash is the case rendered on its
+    version keeps its files, and its prompt comes back byte for byte; one
+    with no hash, or another hash, is re-opened."""
+    for name, recorded in (
+        ("matching", "v1"),
+        ("no hash", None),
+        ("another hash", "v2"),
+    ):
+        root = tmp_path / name.replace(" ", "-")
+        board = _board(root / "us", {"s0": 250.0})
+        audit = root / "audit"
+        (case,) = prepare_audit(board, audit, template_version=1)
+        case_dir = audit / "cases" / case.case_id
+        renders = {
+            v: render_case_prompt(case, template_version=v).encode("utf-8")
+            for v in JUDGE_TEMPLATE_HEADERS
+        }
+        fields = {TEMPLATE_VERSION_FIELD: 1}
+        if recorded is not None:
+            fields["prompt_sha256"] = _sha256(renders[int(recorded[1])])
+        _judge(case_dir, fields)
+        verdict = (case_dir / "verdict.json").read_bytes()
+        (case_dir / "prompt.md").unlink()
+        assert dict(template_version_problems(audit)) == {
+            case.case_id: "a verdict without prompt.md"
+        }
+        prepare_audit(board, audit, template_version=2)
+        if recorded == "v1":
+            assert (case_dir / "verdict.json").read_bytes() == verdict, name
+            assert (case_dir / "prompt.md").read_bytes() == renders[1], name
+        else:
+            assert not (case_dir / "verdict.json").exists(), name
+            assert not (case_dir / "verdict.meta.json").exists(), name
+            assert (case_dir / "prompt.md").read_bytes() == renders[2], name
+        assert template_version_problems(audit) == []
+
+
+def test_a_changed_case_without_its_prompt_is_reopened(tmp_path):
+    """The review's case: a verdict judged on m1's $250 answer loses its
+    prompt.md, and m1 is re-run and answers $999. The case renders anew, so
+    the verdict is dropped, even though its sidecar hashes the old prompt."""
+    board, audit, case, case_dir = _judged_case(tmp_path)
+    old = (case_dir / "prompt.md").read_bytes()
+    meta = json.loads((case_dir / "verdict.meta.json").read_text())
+    meta["prompt_sha256"] = _sha256(old)
+    (case_dir / "verdict.meta.json").write_text(json.dumps(meta))
+    (case_dir / "prompt.md").unlink()
+    _board(board, {"s0": 999.0})
+    (changed,) = prepare_audit(board, audit, template_version=1)
+    assert changed.case_id == case.case_id
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()
+    new = (case_dir / "prompt.md").read_bytes()
+    assert new != old and b"999" in new
+
+
+def test_a_sidecar_hash_that_is_not_the_prompt_reopens_the_case(tmp_path):
+    """A prompt.md that renders right but is not the bytes the sidecar says
+    its judge read is not the verdict's prompt."""
+    board, audit, case, case_dir = _judged_case(tmp_path, prompt_sha256="0" * 64)
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+
+
+def test_prompts_compare_and_keep_exact_bytes(tmp_path):
+    """Byte equality, with no newline translation either way: a case whose
+    text holds a carriage return keeps its verdict and its prompt's bytes on
+    every preparation; a prompt.md with CRLF line endings is not the case's
+    rendering, so its verdict is re-opened and the prompt rewritten exactly."""
+    board = _board(tmp_path / "us", {"s0": 250.0})
+    predictions = pd.read_csv(board / "predictions.csv")
+    predictions["explanation"] = "Gross income\rtest only."
+    predictions.to_csv(board / "predictions.csv", index=False)
+    audit = tmp_path / "audit"
+    (case,) = prepare_audit(board, audit, template_version=1)
+    rendered = render_case_prompt(case, template_version=1).encode("utf-8")
+    assert b"Gross income\rtest only." in rendered
+    case_dir = audit / "cases" / case.case_id
+    assert (case_dir / "prompt.md").read_bytes() == rendered
+    _judge(case_dir, {TEMPLATE_VERSION_FIELD: 1, "prompt_sha256": _sha256(rendered)})
+    before = _tree(audit)
+    for version in sorted(JUDGE_TEMPLATE_HEADERS):
+        prepare_audit(board, audit, template_version=version)
+        assert _tree(audit) == before, version
+    (case_dir / "prompt.md").write_bytes(rendered.replace(b"\n", b"\r\n"))
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert (case_dir / "prompt.md").read_bytes() == rendered
 
 
 def _collect_cli(board: Path, audit: Path, out: Path) -> None:
@@ -682,6 +786,48 @@ def test_every_renderer_call_names_its_version():
         assert found.get(relative) == counts, relative
 
 
+# Where Python code may read a version off a prompt: only to check a tree.
+# (The runners' embedded Python also records what a judge read.)
+TEMPLATE_VERSION_OF_CALLERS = {("policybench/audit.py", "template_version_problems")}
+
+
+def test_only_the_tree_check_reads_a_version_off_a_prompt():
+    """Static, closing the scan's gap for a version read into a variable and
+    passed on: template_version_of is called nowhere in policybench/,
+    scripts/ or reference_audit/ but in template_version_problems, which
+    renders nothing."""
+    callers = set()
+    for part in ("policybench", "scripts", "reference_audit"):
+        for path in sorted((ROOT / part).rglob("*.py")):
+            relative = path.relative_to(ROOT).as_posix()
+            tree = ast.parse(path.read_text(), filename=relative)
+            for function in ast.walk(tree):
+                if not isinstance(function, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                for call in ast.walk(function):
+                    if (
+                        isinstance(call, ast.Call)
+                        and _called_name(call) == "template_version_of"
+                        and function.name != "template_version_of"
+                    ):
+                        callers.add((relative, function.name))
+            module_level = [
+                node
+                for node in tree.body
+                if not isinstance(
+                    node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
+                )
+            ]
+            for node in module_level:
+                for call in ast.walk(node):
+                    if (
+                        isinstance(call, ast.Call)
+                        and _called_name(call) == "template_version_of"
+                    ):
+                        callers.add((relative, "<module>"))
+    assert callers == TEMPLATE_VERSION_OF_CALLERS
+
+
 # The release drivers of releases judged before versions existed: each
 # judged every verdict on v1.
 V1_DRIVERS = (
@@ -718,55 +864,91 @@ def test_each_past_release_driver_renders_on_v1_by_name():
 
 
 # A judged case's prompt.md, as the property draws it.
-PROMPT_KINDS = ("v1", "v2", "v1 + text", "v2 + text", "no header")
+PROMPT_KINDS = (
+    "v1",
+    "v2",
+    "v1 + text",
+    "v2 + text",
+    "v1 CRLF",
+    "v2 CRLF",
+    "no header",
+    "missing",
+)
 JUDGED_STATES = sorted(state for state in SEED_STATES if state != "unjudged")
+# What the sidecar's prompt_sha256 hashes: nothing (no field), each version's
+# rendering of the case, or bytes no prompt has.
+HASHES = (None, "v1", "v2", "other")
 
 
 @PROPERTY
 @given(
     st.sampled_from(JUDGED_STATES),
     st.sampled_from(PROMPT_KINDS),
+    st.sampled_from(HASHES),
     st.sampled_from(sorted(JUDGE_TEMPLATE_HEADERS)),
     TEXT,
 )
-def test_a_verdict_is_kept_on_its_recorded_version_alone(state, kind, version, text):
-    """Never inferred: prepare_audit keeps an unchanged judged case's verdict
-    exactly when prompt.md is the case rendered on the version its sidecar
-    records. A prompt.md on another version is re-opened, though
-    template_version_of reads a version off it and though the caller may name
-    that very version; a re-opened case renders on the caller's version."""
+def test_a_verdict_is_kept_on_its_recorded_version_alone(
+    state, kind, hashed, version, text
+):
+    """Never inferred, and byte for byte: prepare_audit keeps an unchanged
+    judged case's verdict exactly when the case rendered on the version its
+    sidecar records is the bytes its judge read. Those are prompt.md's bytes,
+    which must also hash to the sidecar's prompt_sha256 when it records one;
+    without prompt.md, that hash alone. A prompt.md on another version is
+    re-opened, though template_version_of reads a version off it and though
+    the caller may name that very version, and so is a CRLF copy. A kept
+    case's files are untouched; a re-opened case renders on the caller's
+    version."""
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
         board = _board(root / "us", {"s0": 250.0})
         audit = root / "audit"
         (case,) = prepare_audit(board, audit, template_version=version)
         case_dir = audit / "cases" / case.case_id
-        if kind == "no header":
-            prompt = f"Classify this miss.\n{text}"
+        renders = {
+            v: render_case_prompt(case, template_version=v).encode("utf-8")
+            for v in JUDGE_TEMPLATE_HEADERS
+        }
+        if kind == "missing":
+            prompt = None
+        elif kind == "no header":
+            prompt = f"Classify this miss.\n{text}".encode()
         else:
-            prompt = render_case_prompt(case, template_version=int(kind[1]))
+            prompt = renders[int(kind[1])]
             if kind.endswith("+ text"):
-                prompt += f"\n{text}."
-        (case_dir / "prompt.md").write_text(prompt)
-        _judge(case_dir, SEED_STATES[state])
+                prompt += f"\n{text}.".encode()
+            if kind.endswith("CRLF"):
+                prompt = prompt.replace(b"\n", b"\r\n")
+        if prompt is None:
+            (case_dir / "prompt.md").unlink()
+        else:
+            (case_dir / "prompt.md").write_bytes(prompt)
+        sidecar = SEED_STATES[state]
+        recorded_sha256 = None
+        if sidecar is not None and hashed is not None:
+            recorded_sha256 = (
+                "0" * 64 if hashed == "other" else _sha256(renders[int(hashed[1])])
+            )
+            sidecar = {**sidecar, "prompt_sha256": recorded_sha256}
+        _judge(case_dir, sidecar)
         before = _tree(audit)
-        recorded = recorded_template_version(SEED_STATES[state])
-        kept = recorded is not None and prompt == render_case_prompt(
-            case, template_version=recorded
+        recorded = recorded_template_version(sidecar)
+        judged = renders.get(recorded)
+        kept = (
+            judged is not None
+            and recorded_sha256 in (None, _sha256(judged))
+            and (prompt == judged if prompt is not None else bool(recorded_sha256))
         )
         prepare_audit(board, audit, template_version=version)
         after = _tree(audit)
-        names = ("prompt.md", "verdict.json", "verdict.meta.json")
         if kept:
-            for name in names:
-                key = f"cases/{case.case_id}/{name}"
-                assert after.get(key) == before.get(key), (state, kind, name)
+            restored = {f"cases/{case.case_id}/prompt.md": judged}
+            assert after == {**before, **restored}, (state, kind, hashed)
         else:
-            assert not (case_dir / "verdict.json").exists(), (state, kind)
-            assert not (case_dir / "verdict.meta.json").exists(), (state, kind)
-            assert (case_dir / "prompt.md").read_text() == render_case_prompt(
-                case, template_version=version
-            )
+            assert not (case_dir / "verdict.json").exists(), (state, kind, hashed)
+            assert not (case_dir / "verdict.meta.json").exists()
+            assert (case_dir / "prompt.md").read_bytes() == renders[version]
         assert template_version_problems(audit) == []
 
 
@@ -907,7 +1089,10 @@ def test_every_committed_prompt_rerenders_on_its_recorded_version(tmp_path, rele
     """Local only: release ``release``'s board, read from the commit that
     committed it, renders every judged case of its audit, on the version its
     committed record names, to the prompt sha256 that record commits; and it
-    renders no other case."""
+    renders no other case. Release 20261006 judged nothing: it carried
+    release 20260930's audit, which test_the_committed_prompt_records_agree
+    checks, while rewording nine explanations that release 20261010
+    re-opened, so its own board is not one an audit was rendered from."""
     if not GROUNDING.is_file():
         pytest.skip("the audit grounding is not on this machine")
     assert hashlib.sha256(GROUNDING.read_bytes()).hexdigest() == GROUNDING_SHA256

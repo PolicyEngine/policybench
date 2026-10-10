@@ -295,6 +295,11 @@ def test_rejudging_through_the_other_runner_replaces_provenance(tmp_path: Path):
     assert meta["judge_model_reported"] == ["gpt-5.6-sol"]
     # The fixture's prompt is no judge template's.
     assert meta["judge_template_version"] is None
+    # The bytes Codex judged, from its private copy of prompt.md.
+    assert (
+        meta["prompt_sha256"]
+        == hashlib.sha256((case_dir / "prompt.md").read_bytes()).hexdigest()
+    )
     assert (
         meta["verdict_sha256"]
         == hashlib.sha256((case_dir / "verdict.json").read_bytes()).hexdigest()
@@ -538,3 +543,43 @@ def test_both_runners_record_the_judge_template_version(tmp_path: Path):
         assert meta["judge_runner"] == f"scripts/{runner}"
         assert meta["judge_template_version"] == version
         assert template_version_problems(audit_dir) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+def test_codex_publishes_no_verdict_for_a_prompt_rewritten_while_it_judged(
+    tmp_path: Path,
+):
+    """Codex judges a v1 prompt; audit-prepare rewrites prompt.md to v2 while
+    it runs. The verdict describes bytes prompt.md no longer holds, so the
+    runner publishes neither it nor a sidecar, and leaves no copy behind."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path)
+    v1 = template_header(1) + "\nCOUNTRY: US\nClassify this miss.\n"
+    v2 = template_header(2) + "\nCOUNTRY: US\nClassify this miss.\n"
+    (case_dir / "prompt.md").write_text(v1)
+    rewrite = tmp_path / "v2.md"
+    rewrite.write_text(v2)
+    verdict = tmp_path / "canned_verdict.json"
+    copies = tmp_path / "copies"
+    copies.mkdir()
+    _fake_cli(
+        tmp_path / "bin" / "codex",
+        'out=""; while [ $# -gt 0 ]; do'
+        ' if [ "$1" = -o ]; then out="$2"; shift; fi; shift; done\n'
+        "cat >/dev/null\n"
+        'echo "model: gpt-5.6-sol"\n'
+        f'cp "{rewrite}" "{case_dir / "prompt.md"}"\n'
+        f'cat "{verdict}" > "$out"\n',
+    )
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/run_audit_codex.sh"), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env={**env, "TMPDIR": str(copies)},
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert f"[FAIL] {case_dir.name}" in result.stdout
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()
+    assert list(copies.iterdir()) == []
+    assert (case_dir / "prompt.md").read_text() == v2
