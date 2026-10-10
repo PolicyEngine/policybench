@@ -1740,3 +1740,49 @@ def test_the_upgrade_timing_sentence_states_the_timing_record(tmp_path, monkeypa
         "`{python} r.engine_upgrade_timing_sentence`"
         in (ROOT / "paper/index.qmd").read_text()
     )
+
+
+def test_fixed_but_kept_engine_defect_records_are_counted_apart():
+    """An engine-defect record the last upgrade rechecked whose new-engine
+    value is its corrected value has a fixed defect: the paper counts it with
+    the unstated inputs that keep it excluded, never as a defect "upstream
+    has not fixed". Each such record names its second reason."""
+    from policybench.paper_results import moves_beyond_tolerance
+
+    last = r.last_engine_upgrade
+    field = "value_on_" + last.engine_version.replace(".", "_")
+    records = {(e["scenario_id"], e["variable"]): e for e in r.reference_exclusions}
+    expected = set()
+    for item in last.rechecked:
+        key = (item["scenario_id"], item["variable"])
+        record = records[key]
+        if record["reason_code"] != "reference_engine_defect":
+            continue
+        if not moves_beyond_tolerance(
+            key[1], float(record["alternative_value"]), float(item[field])
+        ):
+            expected.add(key)
+            assert "unlisted input" in record["note"], key
+            assert "second reason" in item["reason"], key
+    assert r.engine_defect_fixed_kept_keys == expected
+    assert expected, "the rehearsal keeps scenario_081's Massachusetts output"
+    assert (
+        r.engine_defect_unfixed_count + r.engine_defect_fixed_kept_count
+        == r.engine_defect_exclusion_count
+    )
+    assert (
+        r.engine_defect_unfixed_count
+        + r.unstated_input_exclusion_total
+        + r.later_law_exclusion_count
+        == r.excluded_output_count
+    )
+    assert (
+        0
+        < r.engine_defect_unfixed_root_cause_count
+        <= (r.engine_defect_root_cause_count)
+    )
+    sentence = r.engine_defect_fixed_kept_sentence
+    assert f"policyengine-us {r.policyengine_us_version} computes" in sentence
+    paper = (ROOT / "paper/index.qmd").read_text()
+    assert "`{python} r.engine_defect_fixed_kept_sentence`" in paper
+    assert "`{python} r.engine_defect_unfixed_count` outputs whose references" in paper

@@ -2485,6 +2485,81 @@ class PaperResults:
             1 for e in self.reference_exclusions if e["reason_code"] == LATER_LAW
         )
 
+    @cached_property
+    def engine_defect_fixed_kept_keys(self) -> frozenset[tuple[str, str]]:
+        """Engine-defect records still excluded although the last upgrade's
+        engine computes the record's corrected value (within the exact-match
+        tolerance). The defect is fixed there; the upgrade's recheck keeps
+        each excluded for the second reason its record names, an input the
+        prompt does not state."""
+        last = self.last_engine_upgrade
+        if last is None:
+            return frozenset()
+        records = {
+            _key(entry): entry
+            for entry in self.reference_exclusions
+            if entry["reason_code"] == ENGINE_DEFECT
+        }
+        field = "value_on_" + last.engine_version.replace(".", "_")
+        return frozenset(
+            _key(item)
+            for item in last.rechecked
+            if _key(item) in records
+            and field in item
+            and not moves_beyond_tolerance(
+                item["variable"],
+                float(records[_key(item)]["alternative_value"]),
+                float(item[field]),
+            )
+        )
+
+    @property
+    def engine_defect_fixed_kept_count(self) -> int:
+        return len(self.engine_defect_fixed_kept_keys)
+
+    @property
+    def engine_defect_fixed_kept_sentence(self) -> str:
+        """What the paper says of the fixed-but-kept records; empty for none."""
+        count = self.engine_defect_fixed_kept_count
+        if count == 0:
+            return ""
+        if count == 1:
+            return (
+                f"policyengine-us {self.policyengine_us_version} computes one of "
+                "them at its corrected value; it stays excluded because it also "
+                "moves under an input the prompt does not state."
+            )
+        return (
+            f"policyengine-us {self.policyengine_us_version} computes "
+            f"{count_word(count)} of them at their corrected values; they stay "
+            "excluded because each also moves under an input the prompt does not "
+            "state."
+        )
+
+    @property
+    def engine_defect_unfixed_count(self) -> int:
+        """Engine-defect exclusions whose defect the current engine has."""
+        return self.engine_defect_exclusion_count - self.engine_defect_fixed_kept_count
+
+    @property
+    def engine_defect_unfixed_root_cause_count(self) -> int:
+        """Distinct root causes behind the unfixed engine-defect exclusions."""
+        causes: set[str] = set()
+        for entry in self.reference_exclusions:
+            if (
+                entry["reason_code"] == ENGINE_DEFECT
+                and _key(entry) not in self.engine_defect_fixed_kept_keys
+            ):
+                causes.update(exclusion_basis(entry).split("+"))
+        return len(causes)
+
+    @property
+    def unstated_input_exclusion_total(self) -> int:
+        """Excluded outputs that depend on an input the prompt does not state:
+        the unlisted-input records, and the engine-defect records whose defect
+        is fixed and which stay excluded for such an input."""
+        return self.unlisted_input_exclusion_count + self.engine_defect_fixed_kept_count
+
     @property
     def engine_defect_root_cause_count(self) -> int:
         """Distinct root causes behind the engine-defect exclusions."""

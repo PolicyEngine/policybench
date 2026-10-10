@@ -625,12 +625,14 @@ def _html_text() -> str:
 
 
 def _abstract_exclusion_sentence() -> str:
+    # An engine-defect record whose defect the engine now fixes, kept for an
+    # unstated input, counts with the unstated inputs.
     counts = (
-        r.engine_defect_exclusion_count,
-        r.unlisted_input_exclusion_count,
+        r.engine_defect_unfixed_count,
+        r.unstated_input_exclusion_total,
         r.later_law_exclusion_count,
     )
-    # The three classes are the whole exclusion record.
+    # The three groups are the whole exclusion record.
     assert sum(counts) == r.excluded_output_count
     return (
         "PolicyBench excludes from scoring, for every model, the "
