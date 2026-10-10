@@ -1,9 +1,12 @@
 """Batch-mode eval: request parity, result normalization, repair, resume."""
 
+import itertools
 import json
+import random
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import litellm
 import pandas as pd
 import pytest
 
@@ -18,11 +21,19 @@ from policybench.batch_eval import (
     _openai_kwargs_to_anthropic_params,
     adapter_for_model,
     build_units,
+    merge_attempt_rows,
     parse_unit_result,
     rows_from_unit,
     run_batch_eval,
 )
-from policybench.eval_no_tools import _chat_completion_request_kwargs
+from policybench.eval_no_tools import (
+    _chat_completion_request_kwargs,
+    _merge_repair_response,
+    _required_explanation_chunk_size,
+    is_infrastructure_error_text,
+    run_single_no_tools,
+)
+from policybench.reparse_predictions import parse_serialized_response
 from policybench.scenarios import Person, Scenario
 from policybench.spec import expand_programs_for_scenario
 from policybench.spend_ledger import read_spend_ledger, spend_ledger_path
@@ -534,7 +545,16 @@ def test_run_batch_eval_end_to_end_with_repair(tmp_path, scenario, second_scenar
     assert len(adapter.submissions[1]) == 2  # one broken unit per scenario
     # Chunk-of-one repair carries the repaired explanation.
     repaired = frame[frame["explanation"].astype(str).str.startswith("repaired")]
-    assert len(repaired) == len(frame)  # round 2 rows only replace broken ones
+    assert len(repaired) == len(frame)
+    # The repair merges per cell, as sync does: it fills the missing
+    # explanation but keeps the round-0 value it disagreed with (7 vs 1000),
+    # and the stored raw response holds both source responses.
+    kept = frame[frame["prediction"] == 7.0]
+    assert len(kept) == 2
+    assert kept["explanation"].str.endswith("value = 1000").all()
+    for raw_response in kept["raw_response"]:
+        assert len(json.loads(raw_response)["responses"]) == 2
+    assert (frame.loc[frame["prediction"] != 7.0, "prediction"] == 1000.0).all()
     # State files persisted for both rounds.
     assert (tmp_path / "batches" / "claude-sonnet-5.round0.json").exists()
     assert (tmp_path / "batches" / "claude-sonnet-5.round1.json").exists()
@@ -787,3 +807,666 @@ def test_batch_result_iteration_failure_preserves_all_submitted_calls(
     assert len(ledger) == len(adapter.submissions[0])
     assert ledger[0]["status"] == "ok"
     assert {record["status"] for record in ledger[1:]} == {"pending"}
+
+
+# Repair merging. Invariants, for any sequence of round results:
+#   1. A present prediction or explanation is never replaced or cleared.
+#   2. A missing one takes the first value any later round supplies.
+#   3. An errored, missing or empty result changes no cell.
+#   4. Merging is idempotent: re-applying a response changes nothing, and
+#      re-running a finished batch over the same results gives the same frame.
+#   5. Batch and sync keep the same cells for the same scripted responses.
+
+WHOLE_SCENARIO_MODEL = "claude-opus-4-6"
+CHUNKED_MODEL = "claude-sonnet-5"
+ERROR = "error"  # scripted round: every request in it fails
+MISSING = "missing"  # scripted round: the provider returns no result entry
+PREDICTION_DOMAIN = (None, 1.0, 2.0)
+EXPLANATION_DOMAIN = (None, "", "  ", "First. value = 1", "Second. value = 2")
+CELL_DOMAIN = list(itertools.product(PREDICTION_DOMAIN, EXPLANATION_DOMAIN))
+
+
+def _present(explanation) -> bool:
+    return isinstance(explanation, str) and explanation.strip() != ""
+
+
+def _cell_value(value):
+    return None if value is None or pd.isna(value) else value
+
+
+def _answer_tool_call(outputs: dict) -> SimpleNamespace:
+    return SimpleNamespace(
+        function=SimpleNamespace(
+            name="submit_outputs",
+            arguments=json.dumps({"outputs": outputs}),
+        )
+    )
+
+
+class ScriptedAdapter(FakeAdapter):
+    """Answers round k from ``script[k]``.
+
+    A round is ERROR, MISSING, or a mapping from variable to the output entry
+    the model returns for it; a variable absent from the mapping is absent
+    from the response.
+    """
+
+    def __init__(self, script, error_text="batch_errored: scripted failure"):
+        super().__init__()
+        self.script = script
+        self.error_text = error_text
+
+    def build_request_body(self, scenario, unit, model_id):
+        return {"variables": unit.variables, "repair": unit.repair}
+
+    def results(self, batch_id):
+        round_index = int(batch_id.split("_")[1]) - 1
+        answers = self.script[round_index]
+        for custom_id, body in self.submissions[round_index]:
+            if answers == MISSING:
+                continue
+            if answers == ERROR:
+                yield NormalizedResult(custom_id=custom_id, error=self.error_text)
+                continue
+            outputs = {
+                variable: answers[variable]
+                for variable in body["variables"]
+                if variable in answers
+            }
+            yield NormalizedResult(
+                custom_id=custom_id,
+                tool_calls=[_answer_tool_call(outputs)],
+                prompt_tokens=10,
+                completion_tokens=5,
+                provider_response_id=f"{batch_id}/{custom_id}",
+            )
+
+    def requested_rounds(self) -> list[list[str]]:
+        return [
+            sorted(variable for _, body in requests for variable in body["variables"])
+            for requests in self.submissions
+        ]
+
+
+def _run_batch_script(run_dir, scenario, programs, script, *, model_id, adapter=None):
+    adapter = adapter or ScriptedAdapter(script)
+    frame = run_batch_eval(
+        scenarios=[scenario],
+        programs=programs,
+        model_name=model_id,
+        model_id=model_id,
+        run_dir=run_dir,
+        adapter=adapter,
+        poll_seconds=0,
+        sleep=lambda _s: None,
+        log=lambda *_a, **_k: None,
+    )
+    cells = {
+        row["variable"]: (
+            _cell_value(row["prediction"]),
+            _cell_value(row["explanation"]),
+        )
+        for row in frame.to_dict("records")
+    }
+    return frame, cells, adapter
+
+
+def _run_sync_script(scenario, variables, script):
+    """Run the sync repair loop over the same scripted responses."""
+    requested_rounds: list[list[str]] = []
+
+    def fake_completion(**kwargs):
+        (tool,) = kwargs["tools"]
+        outputs_schema = tool["function"]["parameters"]["properties"]["outputs"]
+        requested = list(outputs_schema["properties"])
+        answers = script[len(requested_rounds)]
+        requested_rounds.append(sorted(requested))
+        if answers in (ERROR, MISSING):
+            # A batch result that never arrives is modeled as a sync request
+            # that raises.
+            raise RuntimeError("scripted failure")
+        message = SimpleNamespace(
+            content=None,
+            tool_calls=[
+                _answer_tool_call(
+                    {v: answers[v] for v in requested if v in answers},
+                )
+            ],
+            function_call=None,
+        )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message, finish_reason="stop")],
+            usage=litellm.Usage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+        )
+
+    def no_explanation_only_pass(*_args, base_explanations, **_kwargs):
+        # Batch has no counterpart to sync's explanation-only request, so it
+        # answers nothing here and the comparison covers the rounds both run.
+        return {
+            "explanations": dict(base_explanations),
+            "request_results": [],
+            "exhausted_variables": set(),
+            "budget_escalation_count": 0,
+        }
+
+    with (
+        patch("policybench.eval_no_tools.completion", side_effect=fake_completion),
+        patch("policybench.eval_no_tools.MAX_ATTEMPTS", 1),
+        patch(
+            "policybench.eval_no_tools._request_explanations_with_budget_escalation",
+            side_effect=no_explanation_only_pass,
+        ),
+    ):
+        result = run_single_no_tools(
+            scenario,
+            variables,
+            WHOLE_SCENARIO_MODEL,
+            include_explanations=True,
+            _allow_chunking=False,
+        )
+    cells = {
+        variable: (result["predictions"][variable], result["explanations"][variable])
+        for variable in variables
+    }
+    return cells, requested_rounds, result
+
+
+def _reference_cells(variables, script, rounds):
+    """First-value-wins oracle: which cells the repair loop should end with.
+
+    Responses go through the production parser (not what is under test); the
+    merge is the closed form of invariants 1-3. Also returns the variables
+    each round should request: every cell in round 0, then the broken ones.
+    """
+    cells = {variable: [None, None] for variable in variables}
+    requested_rounds = []
+    for round_index in range(rounds):
+        targets = sorted(
+            variable
+            for variable, (prediction, explanation) in cells.items()
+            if prediction is None or not _present(explanation)
+        )
+        if not targets:
+            break
+        requested_rounds.append(targets)
+        answers = script[round_index]
+        if answers in (ERROR, MISSING):
+            continue
+        unit = BatchUnit(scenario_id="s", variables=targets, chunk_index=0)
+        predictions, explanations, _, _ = parse_unit_result(
+            unit,
+            NormalizedResult(
+                custom_id=unit.custom_id,
+                tool_calls=[
+                    _answer_tool_call(
+                        {v: answers[v] for v in targets if v in answers},
+                    )
+                ],
+            ),
+        )
+        for variable in targets:
+            if cells[variable][0] is None:
+                cells[variable][0] = predictions[variable]
+            if not _present(cells[variable][1]) and _present(explanations[variable]):
+                cells[variable][1] = explanations[variable]
+    return {v: tuple(cell) for v, cell in cells.items()}, requested_rounds
+
+
+ENTRY_KINDS = (
+    "absent",
+    "value_only",
+    "agreeing_explanation",
+    "disagreeing_explanation",
+    "explanation_only",
+    "explanation_without_value",
+    "blank_explanation",
+)
+
+
+def _scripted_entry(kind: str, round_index: int, value: float, other: float):
+    reason = f"Round {round_index} reason."
+    return {
+        "absent": None,
+        "value_only": {"value": value},
+        "agreeing_explanation": {
+            "value": value,
+            "explanation": f"{reason} value = {value:g}",
+        },
+        "disagreeing_explanation": {
+            "value": value,
+            "explanation": f"{reason} value = {other:g}",
+        },
+        "explanation_only": {"explanation": f"{reason} value = {value:g}"},
+        "explanation_without_value": {"value": value, "explanation": reason},
+        "blank_explanation": {"value": value, "explanation": "   "},
+    }[kind]
+
+
+def _random_round(rng: random.Random, variables, round_index: int) -> dict:
+    answers = {}
+    for variable in variables:
+        value, other = rng.sample([100.0, 250.0, 4022.0], 2)
+        entry = _scripted_entry(rng.choice(ENTRY_KINDS), round_index, value, other)
+        if entry is not None:
+            answers[variable] = entry
+    return answers
+
+
+@pytest.fixture
+def repair_rounds():
+    """Pin both harnesses to two repair rounds so scripts have three rounds."""
+    with (
+        patch("policybench.eval_no_tools.MAX_REPAIR_ROUNDS", 2),
+        patch("policybench.batch_eval.MAX_REPAIR_ROUNDS", 2),
+    ):
+        yield 3
+
+
+def test_merge_repair_response_invariants_exhaustive():
+    """Invariants 1-4 for every pair of cells over a small complete domain."""
+    for (base_p, base_e), (repair_p, repair_e) in itertools.product(
+        CELL_DOMAIN, repeat=2
+    ):
+        disagreements = []
+        predictions, explanations = _merge_repair_response(
+            {"v": base_p},
+            {"v": base_e},
+            {"v": repair_p},
+            {"v": repair_e},
+            disagreements=disagreements,
+        )
+        merged = (predictions["v"], explanations["v"])
+        case = f"base={(base_p, base_e)!r} repair={(repair_p, repair_e)!r}"
+
+        # 1. Present values are kept exactly.
+        if base_p is not None:
+            assert merged[0] == base_p, case
+        if _present(base_e):
+            assert merged[1] == base_e, case
+        # 2. Missing values take the repair's (blank counts as missing).
+        if base_p is None:
+            assert merged[0] == repair_p, case
+        if not _present(base_e):
+            assert merged[1] == (repair_e if _present(repair_e) else None), case
+        # Disagreements are recorded exactly when two present values differ.
+        expected = []
+        if base_p is not None and repair_p is not None and base_p != repair_p:
+            expected.append(
+                {
+                    "variable": "v",
+                    "field": "prediction",
+                    "original": base_p,
+                    "repair": repair_p,
+                }
+            )
+        if _present(base_e) and _present(repair_e) and base_e != repair_e:
+            expected.append(
+                {
+                    "variable": "v",
+                    "field": "explanation",
+                    "original": base_e,
+                    "repair": repair_e,
+                }
+            )
+        assert disagreements == expected, case
+
+        # 3. An empty response is a no-op.
+        empty_p, empty_e = _merge_repair_response(
+            {"v": base_p},
+            {"v": base_e},
+            {"v": None},
+            {"v": None},
+            disagreements=[],
+        )
+        assert (empty_p["v"], empty_e["v"]) == (
+            base_p,
+            base_e if _present(base_e) else None,
+        ), case
+        # 4. Idempotent.
+        again_p, again_e = _merge_repair_response(
+            predictions,
+            explanations,
+            {"v": repair_p},
+            {"v": repair_e},
+            disagreements=[],
+        )
+        assert (again_p["v"], again_e["v"]) == merged, case
+
+
+def _attempt_rows(attempt, index: int) -> list[dict]:
+    """Rows for one attempt at cell ("s", "v"): a (prediction, explanation)
+    pair, ERROR for a provider failure, or MISSING for no result entry."""
+    unit = BatchUnit(scenario_id="s", variables=["v"], chunk_index=0)
+    if attempt in (ERROR, MISSING):
+        prefix = "batch_errored" if attempt == ERROR else "batch_missing"
+        return rows_from_unit(
+            model_name=CHUNKED_MODEL,
+            model_id=CHUNKED_MODEL,
+            unit=unit,
+            predictions={"v": None},
+            explanations={"v": None},
+            raw_response=None,
+            error=f"{prefix}: attempt {index}",
+            result=None,
+        )
+    prediction, explanation = attempt
+    return rows_from_unit(
+        model_name=CHUNKED_MODEL,
+        model_id=CHUNKED_MODEL,
+        unit=unit,
+        predictions={"v": prediction},
+        explanations={"v": explanation},
+        raw_response=f"raw {index}",
+        error=None,
+        result=NormalizedResult(
+            custom_id=unit.custom_id, prompt_tokens=10 + index, completion_tokens=1
+        ),
+    )
+
+
+def test_merge_attempt_rows_exhaustive_over_three_attempts():
+    """Invariants 1-3 for every sequence of three attempts at one cell, plus
+    the metadata rules: raw responses and usage aggregate over attempts, and
+    error follows the latest attempt that returned a result entry."""
+    failures = (ERROR, MISSING)
+    attempts_domain = [*CELL_DOMAIN, *failures]
+    for sequence in itertools.product(attempts_domain, repeat=3):
+        rows_by_key: dict = {}
+        attempts_by_key: dict = {}
+        disagreements: list = []
+        first_prediction = None
+        first_explanation = None
+        expected_error = None
+        for index, attempt in enumerate(sequence):
+            before = dict(rows_by_key.get(("s", "v"), {}))
+            merge_attempt_rows(
+                rows_by_key,
+                attempts_by_key,
+                _attempt_rows(attempt, index),
+                disagreements,
+                result_missing=attempt == MISSING,
+            )
+            row = rows_by_key[("s", "v")]
+            case = f"sequence={sequence!r} step={index}"
+            if attempt not in failures:
+                if first_prediction is None:
+                    first_prediction = attempt[0]
+                if first_explanation is None and _present(attempt[1]):
+                    first_explanation = attempt[1]
+            before_complete = before.get("prediction") is not None and _present(
+                before.get("explanation")
+            )
+            if before_complete:
+                pass  # a complete cell keeps its error (none)
+            elif attempt == ERROR:
+                expected_error = f"batch_errored: attempt {index}"
+            elif attempt != MISSING:
+                expected_error = None
+            elif not before:
+                expected_error = f"batch_missing: attempt {index}"
+            # 1. Nothing present is ever replaced or cleared.
+            if before.get("prediction") is not None:
+                assert row["prediction"] == before["prediction"], case
+            if _present(before.get("explanation")):
+                assert row["explanation"] == before["explanation"], case
+            # 2-3. Each field holds the first value supplied for it; a blank
+            # explanation counts as missing from the first attempt on.
+            assert row["prediction"] == first_prediction, case
+            assert row["explanation"] == first_explanation, case
+            assert row["error"] == expected_error, case
+
+        raws = [
+            f"raw {i}" for i, attempt in enumerate(sequence) if attempt not in failures
+        ]
+        expected_raw = (
+            None
+            if not raws
+            else raws[0]
+            if len(raws) == 1
+            else json.dumps({"responses": raws})
+        )
+        assert row["raw_response"] == expected_raw, sequence
+        expected_prompt_tokens = [
+            10 + i for i, attempt in enumerate(sequence) if attempt not in failures
+        ]
+        assert row["prompt_tokens"] == (
+            sum(expected_prompt_tokens) if expected_prompt_tokens else None
+        ), sequence
+
+
+@pytest.mark.parametrize("failure", [ERROR, MISSING])
+def test_failed_repairs_never_erase_a_valid_prediction(
+    tmp_path, scenario, repair_rounds, failure
+):
+    """Regression: round 0 returns 123.0 without an explanation and every
+    repair fails. Row-level merging replaced the row with an errored repair's
+    empty one, so the final row lost the valid 123.0. (It already kept the row
+    when the repair's result entry was missing; that still holds.)"""
+    script = [{"eitc": {"value": 123.0}}, failure, failure]
+    frame, cells, adapter = _run_batch_script(
+        tmp_path, scenario, ["eitc"], script, model_id=WHOLE_SCENARIO_MODEL
+    )
+
+    assert cells == {"eitc": (123.0, None)}
+    # The cell stayed broken, so every repair round re-requested it.
+    assert adapter.requested_rounds() == [["eitc"], ["eitc"], ["eitc"]]
+    (row,) = frame.to_dict("records")
+    # A missing entry never overwrites the error of an attempt that returned
+    # one, here round 0's (none).
+    assert row["error"] == (
+        "batch_errored: scripted failure" if failure == ERROR else None
+    )
+    # The stored raw response still reproduces the value it kept.
+    predictions, _ = parse_serialized_response(row["raw_response"], ["eitc"])
+    assert predictions == {"eitc": 123.0}
+    # Sync keeps the same cell for the same responses.
+    sync_cells, _, sync_result = _run_sync_script(scenario, ["eitc"], script)
+    assert sync_cells == cells
+    assert "scripted failure" in sync_result["error"]
+
+
+def test_missing_repairs_keep_an_earlier_infrastructure_error(
+    tmp_path, scenario, repair_rounds
+):
+    """A provider timeout followed by repairs whose entries never come back
+    stays an infrastructure error, so resume and retries still see it."""
+    script = [ERROR, MISSING, MISSING]
+    frame, cells, _ = _run_batch_script(
+        tmp_path,
+        scenario,
+        ["eitc"],
+        script,
+        model_id=WHOLE_SCENARIO_MODEL,
+        adapter=ScriptedAdapter(script, error_text="batch_errored: request Timeout"),
+    )
+
+    assert cells == {"eitc": (None, None)}
+    (row,) = frame.to_dict("records")
+    assert row["error"] == "batch_errored: request Timeout"
+    assert is_infrastructure_error_text(row["error"])
+
+
+def test_repeated_result_entries_are_merged_once(tmp_path, scenario, repair_rounds):
+    """A provider repeating a request's entry (even as an error) neither
+    doubles its usage nor pins the repeat's error on the completed cell."""
+
+    class RepeatingAdapter(ScriptedAdapter):
+        def results(self, batch_id):
+            for result in super().results(batch_id):
+                yield result
+                yield result
+                yield NormalizedResult(custom_id=result.custom_id, error="dup")
+
+    script = [{"eitc": {"value": 5.0, "explanation": "A. value = 5"}}, ERROR, ERROR]
+    frame, cells, adapter = _run_batch_script(
+        tmp_path,
+        scenario,
+        ["eitc"],
+        script,
+        model_id=WHOLE_SCENARIO_MODEL,
+        adapter=RepeatingAdapter(script),
+    )
+
+    assert cells == {"eitc": (5.0, "A. value = 5")}
+    assert adapter.requested_rounds() == [["eitc"]]
+    (row,) = frame.to_dict("records")
+    assert pd.isna(row["error"])
+    assert row["prompt_tokens"] == 10.0
+    # The ledger keeps the first entry too, so the cell's cost is not lost to
+    # a trailing errored repeat.
+    ledger = read_spend_ledger(
+        tmp_path / "batches" / f"{WHOLE_SCENARIO_MODEL}.spend.jsonl"
+    )
+    assert [record["status"] for record in ledger] == ["ok"]
+    assert ledger[0]["prompt_tokens"] == 10
+    assert row["total_cost_usd"] == pytest.approx(ledger[0]["total_cost_usd"])
+
+
+def test_repair_fills_only_missing_cells_like_sync(tmp_path, scenario, repair_rounds):
+    """A disagreeing repair fills the missing explanation but not the value."""
+    script = [
+        {"eitc": {"value": 123.0, "explanation": "No terminal value."}},
+        {"eitc": {"value": 999.0, "explanation": "Recomputed. value = 999"}},
+        ERROR,
+    ]
+    frame, cells, adapter = _run_batch_script(
+        tmp_path, scenario, ["eitc"], script, model_id=WHOLE_SCENARIO_MODEL
+    )
+
+    assert cells == {"eitc": (123.0, "Recomputed. value = 999")}
+    assert adapter.requested_rounds() == [["eitc"], ["eitc"]]
+    # Usage sums both attempts, costs come from the ledger, and the provider
+    # response id is the first attempt's, as in a sync row.
+    (row,) = frame.to_dict("records")
+    ledger = read_spend_ledger(
+        tmp_path / "batches" / f"{WHOLE_SCENARIO_MODEL}.spend.jsonl"
+    )
+    assert len(ledger) == 2
+    assert row["total_tokens"] == 30.0
+    assert row["total_cost_usd"] == pytest.approx(
+        sum(record["total_cost_usd"] for record in ledger)
+    )
+    first_custom_id = adapter.submissions[0][0][0]
+    assert row["provider_response_id"] == f"batch_1/{first_custom_id}"
+    assert len(json.loads(row["raw_response"])["responses"]) == 2
+    sync_cells, sync_rounds, sync_result = _run_sync_script(scenario, ["eitc"], script)
+    assert sync_cells == cells
+    assert sync_rounds == adapter.requested_rounds()
+    assert sync_result["repair_disagreements"] == [
+        {"variable": "eitc", "field": "prediction", "original": 123.0, "repair": 999.0}
+    ]
+
+
+def test_batch_and_sync_repair_merges_agree_on_scripted_rounds(
+    tmp_path, scenario, repair_rounds
+):
+    """Differential: identical scripted responses, identical final cells and
+    repair requests. A round that fails is followed only by failing rounds,
+    since sync stops repairing the (unchunked) scenario at its first failed
+    request while batch runs its remaining rounds, which then fail too.
+    Responses are never length-truncated, so sync's budget escalation, which
+    batch lacks, does not apply."""
+    assert _required_explanation_chunk_size(WHOLE_SCENARIO_MODEL, True) is None
+    programs = ["eitc", "snap"]
+    variables = expand_programs_for_scenario(programs, scenario)
+    rng = random.Random(20260928)
+    for case in range(150):
+        first_failure = rng.choice([None, None, 1, 2])
+        script = [
+            ERROR
+            if first_failure is not None and round_index >= first_failure
+            else _random_round(rng, variables, round_index)
+            for round_index in range(repair_rounds)
+        ]
+        _, batch_cells, adapter = _run_batch_script(
+            tmp_path / f"case{case}",
+            scenario,
+            programs,
+            script,
+            model_id=WHOLE_SCENARIO_MODEL,
+        )
+        sync_cells, sync_rounds, _ = _run_sync_script(scenario, variables, script)
+        expected_cells, expected_rounds = _reference_cells(
+            variables, script, repair_rounds
+        )
+        assert batch_cells == sync_cells == expected_cells, (case, script)
+        batch_rounds = adapter.requested_rounds()
+        assert sync_rounds == batch_rounds[: len(sync_rounds)], (case, script)
+        assert batch_rounds == expected_rounds, (case, script)
+
+
+@pytest.mark.parametrize(
+    ("model_id", "cases"), [(WHOLE_SCENARIO_MODEL, 60), (CHUNKED_MODEL, 15)]
+)
+def test_batch_repair_matches_first_value_oracle(
+    tmp_path, scenario, second_scenario, repair_rounds, model_id, cases
+):
+    """Property check over random scripts with failures and missing results
+    anywhere, whole-scenario and chunked: final cells and each round's repair
+    targets match the first-value-wins oracle, and re-running the finished
+    batch over the same results reproduces the frame exactly."""
+    assert _required_explanation_chunk_size(model_id, True) == (
+        None if model_id == WHOLE_SCENARIO_MODEL else 1
+    )
+    programs = ["eitc", "snap"]
+    variables = expand_programs_for_scenario(programs, scenario)
+    assert expand_programs_for_scenario(programs, second_scenario) == variables
+    rng = random.Random(f"{model_id}-oracle")
+    for case in range(cases):
+        script = [
+            rng.choice([ERROR, MISSING])
+            if rng.random() < 0.2
+            else _random_round(rng, variables, round_index)
+            for round_index in range(repair_rounds)
+        ]
+        run_dir = tmp_path / f"case{case}"
+        adapter = ScriptedAdapter(script)
+        frame = run_batch_eval(
+            scenarios=[scenario, second_scenario],
+            programs=programs,
+            model_name=model_id,
+            model_id=model_id,
+            run_dir=run_dir,
+            adapter=adapter,
+            poll_seconds=0,
+            sleep=lambda _s: None,
+            log=lambda *_a, **_k: None,
+        )
+        expected_cells, expected_rounds = _reference_cells(
+            variables, script, repair_rounds
+        )
+        for scenario_id in (scenario.id, second_scenario.id):
+            rows = frame[frame["scenario_id"] == scenario_id].to_dict("records")
+            cells = {
+                row["variable"]: (
+                    _cell_value(row["prediction"]),
+                    _cell_value(row["explanation"]),
+                )
+                for row in rows
+            }
+            assert cells == expected_cells, (case, scenario_id, script)
+        assert [sorted(set(r)) for r in adapter.requested_rounds()] == (
+            expected_rounds
+        ), (case, script)
+        # Row usage sums every attempt at each cell, so it adds back up to the
+        # per-request usage in the spend ledger.
+        ledger = read_spend_ledger(run_dir / "batches" / f"{model_id}.spend.jsonl")
+        for column in ("prompt_tokens", "completion_tokens"):
+            assert frame[column].fillna(0).sum() == pytest.approx(
+                sum(record[column] or 0 for record in ledger)
+            ), (case, column)
+
+        submissions = len(adapter.submissions)
+        rerun = run_batch_eval(
+            scenarios=[scenario, second_scenario],
+            programs=programs,
+            model_name=model_id,
+            model_id=model_id,
+            run_dir=run_dir,
+            adapter=adapter,
+            poll_seconds=0,
+            sleep=lambda _s: None,
+            log=lambda *_a, **_k: None,
+        )
+        assert len(adapter.submissions) == submissions
+        pd.testing.assert_frame_equal(rerun, frame)

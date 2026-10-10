@@ -17,6 +17,18 @@ Semantics that differ from sync mode, by design:
   rates (litellm's price map plus ``PRICE_OVERRIDES_PER_1M``), matching the
   leaderboard's comparison basis. Actual spend is ~half of the reported
   figure; the state file records that the run used the batch endpoint.
+- Repair rounds merge cells through the same helper as sync's value and
+  explanation repair rounds, so the same responses yield the same values and
+  explanations. Round control differs:
+  - a batch runs its remaining repair rounds after a failed request, where
+    sync stops repairing a request group (the scenario, or one chunk of a
+    chunked model) once a request still fails after its in-place retries;
+  - a batch does not re-request a length-truncated response at a larger
+    completion budget within the round, as sync does (sync then stops
+    repairing cells exhausted at the budget ceiling); it repairs them in the
+    next round instead;
+  - a batch has no counterpart to the explanation-only request sync makes
+    when every value is present but some explanations are still missing.
 
 xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 """
@@ -35,10 +47,12 @@ import pandas as pd
 
 from policybench.eval_no_tools import (
     MAX_REPAIR_ROUNDS,
+    _aggregate_request_results,
     _answer_contract_for_model,
     _chat_completion_request_kwargs,
     _chunk_variables,
     _enforce_explanation_value_contract,
+    _merge_repair_response,
     _reconstruct_token_cost,
     _required_explanation_chunk_size,
     _responses_request_kwargs,
@@ -692,6 +706,62 @@ def rows_from_unit(
     return rows
 
 
+def merge_attempt_rows(
+    rows_by_key: dict[tuple[str, str], dict],
+    attempts_by_key: dict[tuple[str, str], list[dict]],
+    rows: list[dict],
+    disagreements: list[dict],
+    *,
+    result_missing: bool = False,
+) -> None:
+    """Fold one round's rows into the rows earlier rounds built, cell by cell.
+
+    ``prediction`` and ``explanation`` merge through the sync repair merge
+    (``_merge_repair_response``): a present value is never replaced, a missing
+    one is filled from the later round, and an errored, missing or empty
+    result changes nothing. Usage and provenance sum over every attempt at the
+    cell with the sync aggregator, so ``raw_response`` keeps the response each
+    stored value came from.
+
+    ``error`` keeps the rule of the old row-level merge: it comes from the
+    latest attempt that returned a result entry while the cell was still
+    broken, and a missing entry (``result_missing``) records its error only on
+    a cell no earlier attempt reached. A complete cell keeps the error of the
+    attempt that completed it (none).
+    """
+    for row in rows:
+        key = (row["scenario_id"], row["variable"])
+        attempts = attempts_by_key.setdefault(key, [])
+        attempts.append(row)
+        existing = rows_by_key.get(key)
+        variable = row["variable"]
+        predictions, explanations = _merge_repair_response(
+            {variable: existing["prediction"] if existing else None},
+            {variable: existing["explanation"] if existing else None},
+            {variable: row["prediction"]},
+            {variable: row["explanation"]},
+            disagreements=disagreements,
+        )
+        if existing is None:
+            merged = dict(row)
+        else:
+            existing_complete = existing["prediction"] is not None and bool(
+                str(existing["explanation"] or "").strip()
+            )
+            merged = {
+                **existing,
+                **_aggregate_request_results(attempts),
+                "error": (
+                    existing["error"]
+                    if result_missing or existing_complete
+                    else row["error"]
+                ),
+            }
+        merged["prediction"] = predictions[variable]
+        merged["explanation"] = explanations[variable]
+        rows_by_key[key] = merged
+
+
 def _batch_spend_record(
     *,
     state: BatchRunState,
@@ -829,7 +899,8 @@ def run_batch_eval(
 
     Writes ``<run_dir>/by_model/<model>.csv`` in the sync schema and returns
     the frame. Rounds beyond the first re-request only units whose response
-    violated the answer contract, mirroring the sync repair loop.
+    violated the answer contract, mirroring the sync repair loop, and merge
+    cell by cell as it does (see ``merge_attempt_rows``).
     """
     adapter = adapter or adapter_for_model(model_id)
     if adapter is None:
@@ -843,6 +914,8 @@ def run_batch_eval(
 
     scenario_by_id = {scenario.id: scenario for scenario in scenarios}
     rows_by_key: dict[tuple[str, str], dict] = {}
+    attempts_by_key: dict[tuple[str, str], list[dict]] = {}
+    repair_disagreements: list[dict] = []
     units = build_units(scenarios, programs, model_id)
     spend_ledger_path = run_dir / BATCH_STATE_DIRNAME / f"{model_name}.spend.jsonl"
 
@@ -951,9 +1024,14 @@ def run_batch_eval(
             sleep(poll_seconds)
 
         seen: set[str] = set()
+        disagreements_before_round = len(repair_disagreements)
         for result in adapter.results(state.batch_id):
             unit = unit_index.get(result.custom_id)
-            if unit is None:
+            # A provider returns one entry per request; if it repeats one,
+            # keep the first so the request is not merged or counted twice.
+            # (If the first were an error and a repeat a success, the cell
+            # stays broken and is simply re-requested next round.)
+            if unit is None or result.custom_id in seen:
                 continue
             seen.add(result.custom_id)
             predictions, explanations, raw_response, error = parse_unit_result(
@@ -974,7 +1052,7 @@ def run_batch_eval(
                     )
                 ],
             )
-            for row in rows_from_unit(
+            rows = rows_from_unit(
                 model_name=model_name,
                 model_id=model_id,
                 unit=unit,
@@ -983,17 +1061,8 @@ def run_batch_eval(
                 raw_response=raw_response,
                 error=error,
                 result=result if not result.error else None,
-            ):
-                key = (row["scenario_id"], row["variable"])
-                existing = rows_by_key.get(key)
-                # Later rounds only override rows the earlier round left
-                # broken, mirroring sync repair-merge semantics.
-                if (
-                    existing is None
-                    or existing.get("prediction") is None
-                    or not str(existing.get("explanation") or "").strip()
-                ):
-                    rows_by_key[key] = row
+            )
+            merge_attempt_rows(rows_by_key, attempts_by_key, rows, repair_disagreements)
         for custom_id, unit in unit_index.items():
             if custom_id in seen:
                 continue
@@ -1015,7 +1084,7 @@ def run_batch_eval(
                     )
                 ],
             )
-            for row in rows_from_unit(
+            rows = rows_from_unit(
                 model_name=model_name,
                 model_id=model_id,
                 unit=unit,
@@ -1024,8 +1093,14 @@ def run_batch_eval(
                 raw_response=None,
                 error=missing_error,
                 result=None,
-            ):
-                rows_by_key.setdefault((row["scenario_id"], row["variable"]), row)
+            )
+            merge_attempt_rows(
+                rows_by_key,
+                attempts_by_key,
+                rows,
+                repair_disagreements,
+                result_missing=True,
+            )
 
         state.completed_at = clock()
         state.save(run_dir)
@@ -1034,6 +1109,12 @@ def run_batch_eval(
             f"{len(seen)}/{len(unit_index)} results in "
             f"{state.completed_at - state.submitted_at:.0f}s"
         )
+        if len(repair_disagreements) > disagreements_before_round:
+            log(
+                f"[{model_name}] round {round_index}: kept the original value "
+                f"in {len(repair_disagreements) - disagreements_before_round} "
+                "cells where the repair response disagreed"
+            )
 
         units = _repair_targets(scenario_by_id, programs, model_id, rows_by_key)
         if units:
