@@ -200,12 +200,14 @@ SEED_RELEASE_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 REFERENCE_EXPLANATIONS = (
     Path("annotations") / RUN_NAME / "us_case_reference_explanations.csv"
 )
-# The cases whose reference explanation release 20261006 reworded (its
-# annotation rewrite ledger, docs/release_20261006/annotation_rewrites.json)
-# after the seed was rendered. The explanation is the one annotation a judge's
-# prompt carries, so these prompts re-render differently from the seed's, and
-# prepare re-judges them like a case Claude Haiku 5.5 joins. reworded_since_seed()
-# derives the set from git and must find exactly these.
+# The cases whose reference explanation release 20261006 reworded after the
+# seed was rendered: eight in its annotation rewrite ledger
+# (docs/release_20261006/annotation_rewrites.json) and scenario_031's in
+# reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json (PR #197).
+# The explanation is the one annotation a judge's prompt carries, so these
+# prompts re-render differently from the seed's, and prepare re-judges them
+# like a case Claude Haiku 5.5 joins. reworded_since_seed() derives the set
+# from git and must find exactly these.
 REWORDED_SINCE_SEED = frozenset(
     {
         "us__scenario_031__head_medicaid_eligible",
@@ -2734,7 +2736,7 @@ def verify_judge_provenance(
 # The provenance groups of this release's new verdicts, by the account their
 # sidecar declares: the pb-judge setup-token login of Max's 2026-09-30 opt-in
 # (the GPT-6.1 Sol stage's "setup-token 2"), and subfleet lane claude-18's token
-# for the 21 judged after that login's weekly limit (Fleet ops, 2026-10-09).
+# for those judged after that login's weekly limit (Fleet ops, 2026-10-09).
 PROVENANCE_GROUPS = {
     "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30": (
         "isolated: setup-token 2"

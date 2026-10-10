@@ -64,8 +64,7 @@ GROUNDING = Path(
     "grounding.csv"
 )
 RUNS = Path("/Users/maxghenis/PolicyEngine/policybench/results/local/haiku55-runs")
-# The UTC day a test's adjudicate step says its decisions were written on;
-# docs/haiku55/spec.json does not name one yet (see the xfail below).
+# The UTC day a test's adjudicate step says its decisions were written on.
 WRITTEN_ON = "2026-10-09"
 # The seven fields the ruling decides on an entry.
 DECISION_FIELDS = (
