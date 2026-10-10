@@ -159,6 +159,7 @@ INPUT_LABEL_OVERRIDES = {
     "weekly_hours_worked": "hours worked per week",
     "hours_worked": "annual hours worked",
     "current_education": "current education",
+    "brma": "Broad Rental Market Area (for the Local Housing Allowance)",
     "date_of_birth": "date of birth",
     "workers_compensation": "workers' compensation",
     "capital_gains_before_response": "capital gains",
@@ -227,8 +228,9 @@ NON_MONETARY_NUMERIC_FIELDS = {
 # the element before 6 April 2026 when a household is simulated on its own.
 UK_DISABILITY_LABELS = {
     "adult": (
-        "has limited capability for work and work-related activity (LCWRA) "
-        "for Universal Credit, held since before 6 April 2026"
+        "assessed as having limited capability for work and work-related "
+        "activity (LCWRA); if entitled to Universal Credit, the award has "
+        "included the LCWRA element since before 6 April 2026"
     ),
     "child": "is disabled (lower rate disabled child addition in Universal Credit)",
 }
@@ -261,7 +263,8 @@ UK_EDUCATION_DESCRIPTIONS = {
     "NOT_IN_EDUCATION": "not in education or training",
     "UPPER_SECONDARY": "secondary school",
     "POST_SECONDARY": (
-        "non-advanced education (school or college, below higher-education level)"
+        "full-time non-advanced education (school or college, below "
+        "higher-education level), begun before age 19"
     ),
     "TERTIARY": "advanced (higher) education",
 }
@@ -430,7 +433,8 @@ def describe_household(scenario: Scenario) -> str:
                 [
                     "Household structure:",
                     "- all listed people live together in one UK benefit unit",
-                    "- if two adults are listed, Adult 1 and Adult 2 are a couple",
+                    "- if two adults are listed, Adult 1 and Adult 2 are a couple, "
+                    "not married or in a civil partnership",
                     (
                         "- children and qualifying young people are dependents, "
                         "not partners"

@@ -134,8 +134,9 @@ engine's own computation log, pruned to the steps that carry a value, in
   member's model id, answer and explanation, and the reference value. It does
   not see the engine derivation. It works the answer from primary law
   (statutes, regulations, agency publications, forms and instructions), cites
-  each rule with its publication date and whether it predates the 2026-07-03
-  reference freeze, and says which answer the law supports.
+  each rule with its publication date and whether it predates the country's
+  reference freeze (US 2026-07-03, UK 2026-10-10), and says which answer the
+  law supports.
   - The Claude runner gives it only web tools (no file access) and denies
     WebFetch on the PolicyBench, PolicyEngine and GitHub domains
     (`BLOCKED_DOMAINS`). WebSearch has no deny rule, so its results reach the

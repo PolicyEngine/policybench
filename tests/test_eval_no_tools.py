@@ -4006,8 +4006,9 @@ def test_uk_prompt_states_role_specific_disability_and_birth_facts():
     prompt = make_no_tools_batch_prompt(scenario, ["universal_credit"])
 
     assert (
-        "- has limited capability for work and work-related activity (LCWRA) "
-        "for Universal Credit, held since before 6 April 2026"
+        "- assessed as having limited capability for work and work-related "
+        "activity (LCWRA); if entitled to Universal Credit, the award has "
+        "included the LCWRA element since before 6 April 2026"
     ) in prompt
     assert (
         "- is disabled (lower rate disabled child addition in Universal Credit)"
@@ -4017,8 +4018,8 @@ def test_uk_prompt_states_role_specific_disability_and_birth_facts():
     assert "- gender: Female" in prompt
     assert "- annual hours worked: 1,820" in prompt
     assert (
-        "- current education: non-advanced education (school or college, below "
-        "higher-education level)"
+        "- current education: full-time non-advanced education (school or "
+        "college, below higher-education level), begun before age 19"
     ) in prompt
     assert "- current education: advanced (higher) education" in prompt
 

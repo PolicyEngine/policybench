@@ -432,6 +432,17 @@ so by listing none. Since October 2026 the path works as follows.
   status of anyone aged 16 to 19 (qualifying young person rules), and an
   adult's limited capability for work and work-related activity for Universal
   Credit, held since before 6 April 2026.
+- **Relationships and locality stated.** The prompt says two listed adults are
+  a couple who are not married or in a civil partnership, and the reference
+  supplies exactly that (claimant and partner flags, no marriage), so neither
+  PE-UK's presumed-child rule nor its presumption that couples are married
+  applies. A private renter's prompt states a Broad Rental Market Area: the
+  area of the region's largest city, since the transfer data records none
+  and PE-UK otherwise reads Maidstone's Local Housing Allowance everywhere.
+  Someone in non-advanced education is stated to have begun it before 19.
+- **Whole-number facts.** Every UK amount is stored as the whole number the
+  prompt shows, so the reference uses the stated figure, not an unrounded
+  uprated one.
 - **Engine-version guards.** Reference generation stops if the artifact stores
   a variable the installed PolicyEngine UK does not define, or if a derived
   fact the prompt states is renamed, so a model release cannot silently drop

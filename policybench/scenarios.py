@@ -348,6 +348,32 @@ UK_COMPUTED_PERSON_INPUTS = (
 # Below 16 every person is a child; from 20 no one is a qualifying young person.
 UK_EDUCATION_PROMPT_AGES = range(16, 20)
 
+# A Broad Rental Market Area per region for private renters: the area of the
+# region's largest city. PE-UK reads the Local Housing Allowance from the BRMA
+# alone and defaults every household to Maidstone, whatever its region; the
+# transfer data records none. The prompt states the area it uses.
+UK_REGION_BRMA = {
+    "NORTH_EAST": "TYNESIDE",
+    "NORTH_WEST": "CENTRAL_GREATER_MANCHESTER",
+    "YORKSHIRE": "LEEDS",
+    "EAST_MIDLANDS": "NOTTINGHAM",
+    "WEST_MIDLANDS": "BIRMINGHAM",
+    "EAST_OF_ENGLAND": "CAMBRIDGE",
+    "LONDON": "INNER_NORTH_LONDON",
+    "SOUTH_EAST": "MAIDSTONE",
+    "SOUTH_WEST": "BRISTOL",
+    "WALES": "CARDIFF",
+    "SCOTLAND": "GREATER_GLASGOW",
+    "NORTHERN_IRELAND": "BELFAST",
+}
+UK_PRIVATE_RENT_TENURE = "RENT_PRIVATELY"
+
+# The age a prompted person in non-advanced education began it. The data
+# records none, and PE-UK's default (1000) would fail every
+# qualifying-young-person entry condition; the prompt states "began before
+# age 19".
+UK_EDUCATION_ENTRY_AGE = 16
+
 UK_NON_PROMPTABLE_SENTINELS = {
     "",
     "NONE",
@@ -609,23 +635,49 @@ class Scenario:
         Each listed person, the region and the household inputs go in
         unchanged; nothing else from the source record does, so the reference
         is a function of the prompt. The benchmark keeps households with one
-        benefit unit, so every person joins that unit. ``prefix`` namespaces
+        benefit unit, so every person joins that unit. The prompt states the
+        relationships, so they go in explicitly rather than through PE-UK's
+        presumptions: the listed adults are the claimant and partner, every
+        child is neither, and a couple is not married (the prompt states no
+        marriage, and unlisted statuses are false). ``prefix`` namespaces
         entity keys when several scenarios share one simulation.
+
+        Raises ``ValueError`` for inputs the prompt cannot show: tax-unit or
+        benefit inputs, or person fields the renderer filters out.
         """
         if self.country != "uk":
             raise ValueError("to_pe_uk_situation is only supported for UK scenarios.")
+        if self.tax_unit_inputs or self.spm_unit_inputs:
+            raise ValueError(
+                f"{self.id}: UK scenarios cannot carry tax-unit or benefit inputs."
+            )
         people = {}
         for person in self.all_people:
+            hidden = sorted(
+                k for k in person.inputs if is_excluded_prompt_input_name(k)
+            )
+            if hidden:
+                raise ValueError(
+                    f"{self.id} {person.name}: inputs the prompt does not show: "
+                    f"{hidden}"
+                )
             person_data = {
                 "age": self._yearize(person.age),
                 # The stored wage leaf; employment_income adds the (zero)
                 # labour-supply response to it, as in the microsimulation.
                 "employment_income_before_lsr": self._yearize(person.employment_income),
+                "is_claimant_or_partner": self._yearize(
+                    person.name.startswith("adult")
+                ),
             }
             for key, value in person.inputs.items():
                 if key == "date_of_birth":
                     value = int(value)
                 person_data[key] = self._yearize(value)
+            if person.inputs.get("current_education") == "POST_SECONDARY":
+                person_data["age_started_or_accepted_current_education_or_training"] = (
+                    self._yearize(UK_EDUCATION_ENTRY_AGE)
+                )
             people[f"{prefix}{person.name}"] = person_data
         members = list(people)
         household_data = {
@@ -636,7 +688,12 @@ class Scenario:
             household_data[key] = self._yearize(value)
         return {
             "people": people,
-            "benunits": {f"{prefix}benunit": {"members": members}},
+            "benunits": {
+                f"{prefix}benunit": {
+                    "members": members,
+                    "is_married": self._yearize(False),
+                }
+            },
             "households": {f"{prefix}household": household_data},
         }
 
@@ -1490,6 +1547,8 @@ def _extract_uk_household_inputs(row: pd.Series) -> dict[str, Any]:
         promptable = _uk_promptable_value(value)
         if promptable is not None:
             inputs[col] = promptable
+    if inputs.get("tenure_type") == UK_PRIVATE_RENT_TENURE:
+        inputs["brma"] = UK_REGION_BRMA[str(row["region"])]
     return inputs
 
 
