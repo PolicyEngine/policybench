@@ -2406,9 +2406,9 @@
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
-   "judged_at_utc": "2026-10-10T06:20:32.976583+00:00",
-   "prompt_sha256": "bde989691cd47fe0eb1382bc5469604859949fc0e77fc385bfd4134f5354ee77",
-   "verdict_sha256": "d14067ec8e9e8b9b7b8d5dc60971fbab8939fa31011c702f5dabf95150c57a94"
+   "judged_at_utc": "2026-10-10T06:46:49.657279+00:00",
+   "prompt_sha256": "4e70fc18edd1d27e2ef589ae02325425bf0a8115221edbad4fa94bcaa38dc571",
+   "verdict_sha256": "5a96439af716b7d43516665a1bdcc7db7d9b3f72cda484764c67f88daa996314"
   },
   {
    "case_id": "us__scenario_100__child1_head_start_eligible",
