@@ -9,8 +9,17 @@ run's payload and exclusion record, and #204 rewrote
 these inputs only through ``git_input``: ``git show <commit>:<path>`` into scratch,
 refused (SystemExit) unless the bytes match the pinned sha256, and read only from the
 staged copy. A script stages everything it reads before it computes or writes
-anything. The code (this checkout's ``policybench`` package and the installed engine)
-is not pinned here; each script's own reproduction check covers it.
+anything, and before it imports the engine. The code (this checkout's ``policybench``
+package and the installed engine) is not pinned here; each script's own reproduction
+check covers it.
+
+``policybench`` loads its output definitions (``benchmark_specs.json``) itself, once
+per process: first at import of ``policybench.scenarios``, and every spec lookup then
+uses that copy. Those are an input, so ``use_staged_specs`` points the package at the
+staged copy; the engine-side scripts call it in every process, workers included,
+before they import anything else from ``policybench``. leaderboard_impact.py does not: it scores with ``policybench analyze``
+in a child process and treats the definitions as part of the scoring code its
+published-reproduction check covers.
 
 The README's Inputs table lists every pin and the scripts that read it, and
 tests/test_reference_adversary_inputs.py checks that the table and these pins agree.
@@ -19,6 +28,7 @@ tests/test_reference_adversary_inputs.py checks that the table and these pins ag
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import subprocess
 from collections.abc import Iterable
@@ -183,3 +193,31 @@ def stage_fixes(target: Path) -> Path:
     for path, pinned in FIXES_SHA256.items():
         git_input(PASS_COMMIT, path, pinned, target / Path(path).name)
     return target
+
+
+def stage_specs(target: Path) -> Path:
+    """The output definitions as PASS_COMMIT holds them, written to ``target``."""
+    return git_input(PASS_COMMIT, SPECS_PATH, SPECS_SHA256, target)
+
+
+def use_staged_specs(path: Path) -> None:
+    """Make ``policybench`` read its output definitions from the staged ``path``.
+
+    For this process only; call it before importing anything else from
+    ``policybench``, because ``policybench.scenarios`` derives module constants from
+    the definitions as it is imported. If the package has already loaded its
+    definitions (a long-lived interpreter, such as a test run), they must equal the
+    staged ones, or the script stops: constants derived from other definitions
+    cannot be recalled.
+    """
+    from policybench import spec
+
+    staged = json.loads(path.read_text(encoding="utf-8"))
+    if spec._raw_spec_data.cache_info().currsize and spec._raw_spec_data() != staged:
+        raise SystemExit(
+            "policybench already loaded output definitions that are not the pinned "
+            f"{SPECS_PATH}; run this script in a fresh interpreter"
+        )
+    spec._spec_path = lambda: path
+    spec._raw_spec_data.cache_clear()
+    spec.get_benchmark_spec.cache_clear()

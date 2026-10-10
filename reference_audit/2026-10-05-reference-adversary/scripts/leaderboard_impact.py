@@ -57,6 +57,9 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
 
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
+
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
 OUT_DIR = HERE / "verification"
@@ -206,10 +209,17 @@ def stage(source: Path, target: Path, records: dict[str, list[dict]] | None) -> 
     return target
 
 
+def analyze_env() -> dict[str, str]:
+    """The scoring child's environment: this checkout first on PYTHONPATH, with the
+    caller's own entries kept after it."""
+    path = os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")]))
+    return dict(os.environ, PYTHONPATH=path, PYTHONDONTWRITEBYTECODE="1")
+
+
 def analyze(run_dir: Path) -> dict:
     out = run_dir / "analysis"
     dashboard = run_dir / "dashboard.json"
-    env = dict(os.environ, PYTHONPATH=str(ROOT), PYTHONDONTWRITEBYTECODE="1")
+    env = analyze_env()
     subprocess.run(
         [
             sys.executable,

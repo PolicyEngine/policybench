@@ -59,12 +59,16 @@ recorded per-output simulations, and refuses to report if any scored reference d
 not reproduce.
 
 Every input is the pass's, staged from git by pass_inputs.py and checked against its
-pinned sha256 before any system is built: the frozen run's payload, references,
-reference sidecar, exclusion record and scenarios as release dashboard-data-20260930
-(8b4c0ca1) committed them, and latest_final with its parts as 8b4c0ca1 held them (each
-worker stages its own copy). The working tree's run, which later releases rewrite
-(#202 rewrote its payload and exclusion record), is never read. The report names each
-input by its repository path.
+pinned sha256 before anything is computed and before the engine is imported: the
+frozen run's payload, references, reference sidecar, exclusion record and scenarios
+and the output definitions (benchmark_specs.json) as release dashboard-data-20260930
+(8b4c0ca1) committed them, and latest_final with its parts as 8b4c0ca1 held them. The
+main process and every worker (started with the spawn method) stage their own
+conventions and output definitions and point policybench at the staged definitions.
+The working tree's run, which later releases rewrite (#202 rewrote its payload and
+exclusion record), is never read. The report names each input by its repository
+path. The script always runs the engine: it has no mode that builds a report from a
+saved file.
 
 Run from a policybench checkout with the policyengine-us 2.15.17 venv (the checkout
 needs 8b4c0ca1 in its history):
@@ -83,6 +87,7 @@ import atexit
 import importlib.util
 import json
 import math
+import multiprocessing
 import os
 import shutil
 import sys
@@ -98,6 +103,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
 
 # The frozen run's files main reads, staged from git.
 RUN_FILES = (
@@ -136,12 +144,20 @@ def _jsonable(value):
     return repr(value)
 
 
-def _assemble_fixes() -> Path:
-    """latest_final and its parts, plus the sales tax table the IRS module reads,
-    staged from git (pass_inputs.FIXES_SHA256)."""
-    target = Path(tempfile.mkdtemp(prefix="publication_sources_fixes_"))
-    atexit.register(shutil.rmtree, target, True)
-    return pass_inputs.stage_fixes(target)
+def stage_engine_inputs() -> Path:
+    """Stage this process's reference-system inputs, before the engine is imported.
+
+    latest_final and its parts, plus the sales tax table the IRS module reads
+    (pass_inputs.FIXES_SHA256), go into a new directory, which is returned; the
+    output definitions go beside it and policybench is pointed at them. Each is
+    refused unless it matches its pin. The main process and every worker call this.
+    """
+    scratch = Path(tempfile.mkdtemp(prefix="publication_sources_engine_"))
+    atexit.register(shutil.rmtree, scratch, True)
+    fix_dir = pass_inputs.stage_fixes(scratch / "fixes")
+    specs = pass_inputs.stage_specs(scratch / Path(pass_inputs.SPECS_PATH).name)
+    pass_inputs.use_staged_specs(specs)
+    return fix_dir
 
 
 def _load_reform(fix_dir: Path):
@@ -334,10 +350,25 @@ def install_recording() -> None:
 
 def _init_worker() -> None:
     global _SYSTEM
+    # Staged and checked before the engine is imported.
+    fix_dir = stage_engine_inputs()
     install_recording()
     from policyengine_us import CountryTaxBenefitSystem
 
-    _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(_assemble_fixes()))
+    _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(fix_dir))
+
+
+def worker_pool(workers: int) -> ProcessPoolExecutor:
+    """A pool whose workers each stage their own reference-system inputs.
+
+    Spawned, never forked: a forked worker would inherit the main process's
+    policybench and build-hook state.
+    """
+    return ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_init_worker,
+    )
 
 
 def _output_value(sim, scenario, variable: str) -> float:
@@ -777,30 +808,16 @@ def main() -> None:
     parser.add_argument("--scenarios", nargs="*")
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--facts-out", help="also write the unclassified facts here")
-    parser.add_argument(
-        "--from-facts",
-        help="skip the engine: rebuild the report from a --facts-out file",
-    )
     args = parser.parse_args()
-    if args.from_facts:
-        from policybench.publication_sources import build_report, dumps_report
-
-        saved = json.loads(Path(args.from_facts).read_text())
-        report, markdown = build_report(
-            saved["facts"], saved["other_instants"], saved["meta"]
-        )
-        out_dir = Path(args.out_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "publication_sources.json").write_text(
-            dumps_report(report)
-        )
-        (out_dir / "publication_sources.md").write_text(markdown)
-        return
 
     started = time.time()
+    # Every input is staged and checked before anything else: before policybench
+    # is imported (it reads its output definitions as it loads), before the
+    # engine is imported or hooked and before any worker starts.
     run = Path(tempfile.mkdtemp(prefix="publication_sources_inputs_"))
     atexit.register(shutil.rmtree, run, True)
     stage_inputs(run)
+    fix_dir = stage_engine_inputs().resolve()
     install_build_hooks()
     BUILD["label"] = "plain"
 
@@ -841,9 +858,7 @@ def main() -> None:
             (row["scenario_json"], variables, position % REVERSE_CHECK_EVERY == 0)
         )
 
-    with ProcessPoolExecutor(
-        max_workers=min(args.workers, len(jobs)), initializer=_init_worker
-    ) as pool:
+    with worker_pool(min(args.workers, len(jobs))) as pool:
         futures = [pool.submit(record_scenario, job) for job in jobs]
 
         # Build both systems here while the workers run.
@@ -853,7 +868,7 @@ def main() -> None:
 
         plain_system = policyengine_us.system.system
         BUILD["label"] = "reference"
-        BUILD["fix_dir"] = _assemble_fixes().resolve()
+        BUILD["fix_dir"] = fix_dir
         reference_system = CountryTaxBenefitSystem(
             reform=_load_reform(BUILD["fix_dir"])
         )

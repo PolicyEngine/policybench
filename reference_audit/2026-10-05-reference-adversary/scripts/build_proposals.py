@@ -25,8 +25,9 @@ rewrote its exclusion record), is never read.
 
 The committed proposed_changes.json is pinned at sha256 PROPOSED_SHA256 below:
 leaderboard_impact.py reads it at that hash, and the Haiku 5.5 release pins it too. So the
-script never writes it. It writes to --out, which must be another path, and a regeneration is
-checked by comparing the two:
+script never writes it, nor any file that already exists: it creates --out, which must be a
+new path (a hard link to the committed file, or another checkout's copy, is an existing file
+and is refused like any other). A regeneration is checked by comparing the two:
 
   python reference_audit/2026-10-05-reference-adversary/scripts/build_proposals.py \\
     --out <scratch>/proposed_changes.json
@@ -45,6 +46,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
@@ -394,10 +398,14 @@ def main() -> None:
             f"{PROPOSED.relative_to(ROOT)} is pinned at sha256 {PROPOSED_SHA256}; "
             "write elsewhere and compare"
         )
+    if out.exists() or out.is_symlink():
+        parser.error(f"{out} exists; --out must be a new file")
     with tempfile.TemporaryDirectory(prefix="build_proposals_inputs_") as scratch:
         records = build(stage_inputs(Path(scratch)))
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(records, indent=2) + "\n")
+    # Exclusive creation: never writes through to a file that already exists.
+    with out.open("x") as handle:
+        handle.write(json.dumps(records, indent=2) + "\n")
     print(f"wrote {out}")
 
 

@@ -28,12 +28,15 @@ PolicyEngine/policybench#194 (commit 049f4f09,
 reference_audit/2026-10-05-payroll/program_classification.json), read from git.
 
 Every input is the pass's, staged from git by pass_inputs.py and checked against its
-pinned sha256 before anything is computed: the frozen run's payload, references,
-reference sidecar and scenarios and the output definitions (benchmark_specs.json) as
-release dashboard-data-20260930 (8b4c0ca1) committed them, #194's table, and
-latest_final with its parts as 8b4c0ca1 held them (each worker stages its own copy).
-The working tree's run, which later releases rewrite, is never read. The run record
-names each input by its repository path.
+pinned sha256 before anything is computed and before the engine is imported: the
+frozen run's payload, references, reference sidecar and scenarios and the output
+definitions (benchmark_specs.json) as release dashboard-data-20260930 (8b4c0ca1)
+committed them, #194's table, and latest_final with its parts as 8b4c0ca1 held them.
+The main process and every worker (started with the spawn method, so none inherits
+the main process's system) stage their own conventions and output definitions and
+point policybench at the staged definitions. The working tree's run, which later
+releases rewrite, is never read. The run record names each input by its repository
+path.
 
 Run from a policybench checkout with the policyengine-us 2.15.17 venv (the checkout
 needs 8b4c0ca1 and 049f4f09 in its history):
@@ -53,6 +56,7 @@ import gzip
 import hashlib
 import importlib.util
 import json
+import multiprocessing
 import shutil
 import sys
 import tempfile
@@ -66,6 +70,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
 
 ROOT = Path(__file__).resolve().parents[3]
 # The frozen run's files main reads, staged from git.
@@ -113,33 +120,37 @@ PERSON_DIAGNOSTICS = (
 )
 
 _SYSTEM = None
-# The directory this process's reference system was built from.
+# This process's staged conventions (a directory) and output definitions (a file).
 _FIX_DIR = None
+_SPECS = None
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _assemble_fixes() -> Path:
-    """latest_final and its parts, plus the sales tax table the IRS module reads,
-    staged from git (pass_inputs.FIXES_SHA256)."""
-    global _FIX_DIR
-    target = Path(tempfile.mkdtemp(prefix="definition_conformance_fixes_"))
-    _FIX_DIR = pass_inputs.stage_fixes(target)
-    return _FIX_DIR
+def stage_engine_inputs() -> Path:
+    """Stage this process's reference-system inputs, before the engine is imported.
+
+    latest_final and its parts, plus the sales tax table the IRS module reads
+    (pass_inputs.FIXES_SHA256), go into a new directory, which is returned; the
+    output definitions go beside it and policybench is pointed at them. Each is
+    refused unless it matches its pin. The main process and every worker call this.
+    """
+    global _FIX_DIR, _SPECS
+    scratch = Path(tempfile.mkdtemp(prefix="definition_conformance_engine_"))
+    atexit.register(shutil.rmtree, scratch, True)
+    fix_dir = pass_inputs.stage_fixes(scratch / "fixes")
+    specs = pass_inputs.stage_specs(scratch / Path(pass_inputs.SPECS_PATH).name)
+    pass_inputs.use_staged_specs(specs)
+    _FIX_DIR, _SPECS = fix_dir, specs
+    return fix_dir
 
 
 def stage_inputs(target: Path) -> Path:
-    """Stage what main reads besides the engine: the run's files under ``run/``, the
-    output definitions and #194's law table, each refused unless it matches its pin."""
+    """Stage what main reads besides the reference system's inputs: the run's files
+    under ``run/`` and #194's law table, each refused unless it matches its pin."""
     pass_inputs.stage_run(target / "run", RUN_FILES)
-    pass_inputs.git_input(
-        pass_inputs.PASS_COMMIT,
-        pass_inputs.SPECS_PATH,
-        pass_inputs.SPECS_SHA256,
-        target / Path(pass_inputs.SPECS_PATH).name,
-    )
     pass_inputs.git_input(
         pass_inputs.LAW_COMMIT,
         pass_inputs.LAW_PATH,
@@ -161,10 +172,25 @@ def _load_reform(fix_dir: Path):
 def _system():
     global _SYSTEM
     if _SYSTEM is None:
+        # Staged and checked before the engine is imported.
+        fix_dir = _FIX_DIR or stage_engine_inputs()
         from policyengine_us import CountryTaxBenefitSystem
 
-        _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(_assemble_fixes()))
+        _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(fix_dir))
     return _SYSTEM
+
+
+def worker_pool(workers: int) -> ProcessPoolExecutor:
+    """A pool whose workers each stage their own reference-system inputs.
+
+    Spawned, never forked: a forked worker would inherit the main process's built
+    system and policybench state instead of staging its own.
+    """
+    return ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=stage_engine_inputs,
+    )
 
 
 def build_situation(scenario) -> dict:
@@ -511,6 +537,15 @@ def main() -> None:
     parser.add_argument("--scenarios", nargs="*")
     args = parser.parse_args()
 
+    started = time.time()
+    # Every input is staged and checked before anything else: before policybench
+    # is imported (it reads its output definitions as it loads), before the
+    # engine is imported and before any worker starts.
+    staged = Path(tempfile.mkdtemp(prefix="definition_conformance_inputs_"))
+    atexit.register(shutil.rmtree, staged, True)
+    stage_inputs(staged)
+    stage_engine_inputs()
+
     from policybench.definition_conformance import (
         HOUSEHOLD_PROMPT_PHRASE,
         component_tree,
@@ -519,13 +554,9 @@ def main() -> None:
         variable_graph_from_system,
     )
 
-    started = time.time()
     out_dir = Path(args.out_dir)
-    staged = Path(tempfile.mkdtemp(prefix="definition_conformance_inputs_"))
-    atexit.register(shutil.rmtree, staged, True)
-    stage_inputs(staged)
     run = staged / "run"
-    specs_path = staged / Path(pass_inputs.SPECS_PATH).name
+    specs_path = _SPECS
     payload = json.loads(gzip.decompress((run / "data.json.gz").read_bytes()))
     meta = json.loads((run / "reference_outputs.csv.meta.json").read_text())
     programs = list(meta["programs"])
@@ -635,7 +666,7 @@ def main() -> None:
         f"{len(scored)} scored cells, {len(node_variables)} node variables",
         flush=True,
     )
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+    with worker_pool(args.workers) as pool:
         results = list(pool.map(scenario_cells, jobs))
     results.sort(key=lambda result: result["scenario_id"])
     by_scenario = {result["scenario_id"]: result for result in results}

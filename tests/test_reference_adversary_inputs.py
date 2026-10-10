@@ -12,9 +12,10 @@ one convention module). These tests check that
   committed evidence records the same hashes, and the README's Inputs table
   lists each pin with the scripts that stage it;
 * any other bytes are refused, and each script refuses before it computes or
-  writes anything;
+  writes anything and before it imports the engine;
 * no script opens the working tree's copy of a pinned input (an audit hook
-  fails any such open);
+  fails any such open), policybench's own read of its output definitions
+  included: the engine-side scripts point the package at their staged copy;
 * each script regenerates its committed outputs byte for byte. The engine-side
   regenerations need policyengine-us 2.15.17 and take minutes, so they are
   marked slow and CI deselects them; build_proposals.py's regeneration is fast.
@@ -31,6 +32,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,7 +44,7 @@ from unittest import mock
 
 import pandas as pd
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,7 +111,8 @@ SCRIPT_MODULES = {
 # A fence on the working tree's copy of every pinned input
 # ---------------------------------------------------------------------------
 
-# The working tree's copies; policybench may read its own benchmark_specs.json.
+# The working tree's copies, policybench's own benchmark_specs.json included: the
+# scripts here point the package at a staged copy before it reads the file.
 FENCE = {
     "forbidden": [
         str(ROOT / path)
@@ -122,9 +125,27 @@ FENCE = {
             pins.CONFORMANCE_PATH,
         )
     ],
-    "exempt": {str(ROOT / pins.SPECS_PATH): str(ROOT / "policybench")},
+    "exempt": {},
     "root": str(ROOT),
 }
+
+
+@pytest.fixture(autouse=True)
+def package_specs():
+    """Start each test with policybench's output definitions unloaded, and point
+    the package back at its own file afterwards: the engine-side scripts repoint
+    it at their staged copy."""
+    from policybench import spec
+
+    original = spec._spec_path
+    spec._raw_spec_data.cache_clear()
+    spec.get_benchmark_spec.cache_clear()
+    try:
+        yield spec
+    finally:
+        spec._spec_path = original
+        spec._raw_spec_data.cache_clear()
+        spec.get_benchmark_spec.cache_clear()
 
 
 @contextmanager
@@ -148,7 +169,7 @@ def _fenced_env(directory: Path) -> dict[str, str]:
     )
 
 
-def test_the_fence_catches_a_working_tree_read():
+def test_the_fence_catches_a_working_tree_read(package_specs):
     """The hook is not vacuous: each way the scripts read files trips it."""
     run = ROOT / pins.RUN_PATH
     with fenced():
@@ -160,13 +181,9 @@ def test_the_fence_catches_a_working_tree_read():
             (ROOT / MODULE_204).read_text()
         with pytest.raises(PermissionError, match="working tree"):
             (ROOT / pins.CONFORMANCE_PATH).read_bytes()
-        # Only policybench's own code may read its output definitions.
+        # policybench's own read of its output definitions trips it too.
         with pytest.raises(PermissionError, match="working tree"):
-            (ROOT / pins.SPECS_PATH).read_bytes()
-        from policybench import spec
-
-        spec._raw_spec_data.cache_clear()
-        assert spec._raw_spec_data()
+            package_specs._raw_spec_data()
         # git show reads the object store, not the working tree.
         assert pins.git_bytes(
             pins.PASS_COMMIT, MODULE_204, pins.FIXES_SHA256[MODULE_204]
@@ -288,11 +305,11 @@ def _staged(script: str, tmp_path: Path) -> set[tuple[str, str]]:
         else:
             SCRIPT_MODULES[script].stage_inputs(tmp_path / script)
         if script in ("definition_conformance", "publication_sources"):
-            SCRIPT_MODULES[script]._assemble_fixes()
+            SCRIPT_MODULES[script].stage_engine_inputs()
         if script == "engine_probe":
             # The probe builds its reference system with definition_conformance's
-            # builder, which stages the convention modules.
-            conformance._assemble_fixes()
+            # builder, which stages the conventions and output definitions.
+            conformance.stage_engine_inputs()
     return seen
 
 
@@ -407,7 +424,13 @@ def _shown(data: bytes) -> SimpleNamespace:
     )
 
 
-@settings(max_examples=60, deadline=None)
+@settings(
+    max_examples=60,
+    deadline=None,
+    # The autouse fixture only resets policybench's spec cache, which this
+    # property never touches.
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
 @given(_edits())
 def test_any_changed_byte_in_any_pinned_input_is_refused_unwritten(edit):
     """Invariant: git_input writes a file only if its bytes are the pinned bytes."""
@@ -453,7 +476,7 @@ def test_the_reference_system_refuses_other_convention_modules(
     """#204's rewrite of a convention module (on 4db91b5f) is refused."""
     monkeypatch.setattr(pins, attribute, value)
     with pytest.raises(SystemExit, match=re.escape(message)):
-        SCRIPT_MODULES[script]._assemble_fixes()
+        SCRIPT_MODULES[script].stage_engine_inputs()
 
 
 def _never(name: str):
@@ -471,6 +494,15 @@ def _argv(script: str, out: Path) -> list[str]:
     return [script, "--out-dir", str(out)]
 
 
+# What each script calls only after every input is staged.
+ENGINE_ENTRY_POINTS = (
+    "_system",
+    "stage_engine_inputs",
+    "install_build_hooks",
+    "install_recording",
+    "worker_pool",
+    "_conformance",
+)
 # The first input each script stages that #202 rewrote.
 FIRST_REWRITTEN = {
     "definition_conformance": "data.json.gz",
@@ -487,7 +519,7 @@ def test_a_mismatched_input_stops_the_script_before_it_computes_or_writes(
     """Pointed at #202's run, each script refuses before any engine work or write."""
     module = SCRIPT_MODULES[script]
     monkeypatch.setattr(pins, "PASS_COMMIT", RELEASE_20261006_COMMIT)
-    for name in ("_system", "_assemble_fixes", "install_build_hooks", "_conformance"):
+    for name in ENGINE_ENTRY_POINTS:
         if hasattr(module, name):
             monkeypatch.setattr(module, name, _never(name))
     monkeypatch.setattr(module, "build", _never("build"), raising=False)
@@ -503,6 +535,121 @@ def test_a_mismatched_input_stops_the_script_before_it_computes_or_writes(
     ):
         module.main()
     assert not out.exists()
+
+
+def _bad_pin(monkeypatch, which: str) -> None:
+    """Make a late-staged pin wrong: a convention module or the definitions."""
+    if which == "conventions":
+        last = list(pins.FIXES_SHA256)[-1]
+        monkeypatch.setattr(pins, "FIXES_SHA256", {**pins.FIXES_SHA256, last: "0" * 64})
+    else:
+        monkeypatch.setattr(pins, "SPECS_SHA256", "0" * 64)
+
+
+def _no_engine(monkeypatch) -> None:
+    """Any import of the engine from here on fails with ImportError."""
+    for name in ("policyengine_us", "policyengine_core"):
+        monkeypatch.setitem(sys.modules, name, None)
+
+
+@pytest.mark.parametrize("which", ["conventions", "definitions"])
+@pytest.mark.parametrize(
+    "script", ["definition_conformance", "publication_sources", "engine_probe"]
+)
+def test_a_late_staged_input_stops_each_main_before_the_engine(
+    script, which, tmp_path, monkeypatch
+):
+    """The reference system's inputs are staged last. A wrong pin there still stops
+    the script before it imports the engine, hooks it, starts a worker or writes."""
+    module = SCRIPT_MODULES[script]
+    _bad_pin(monkeypatch, which)
+    _no_engine(monkeypatch)
+    for name in ("_system", "install_build_hooks", "install_recording", "worker_pool"):
+        if hasattr(module, name):
+            monkeypatch.setattr(module, name, _never(name))
+    if script == "engine_probe":
+        builder = SimpleNamespace(
+            stage_engine_inputs=conformance.stage_engine_inputs,
+            _system=_never("_system"),
+            _simulation=_never("_simulation"),
+            build_situation=_never("build_situation"),
+        )
+        monkeypatch.setattr(probe, "_conformance", lambda: builder)
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", _argv(script, out))
+    with pytest.raises(SystemExit, match=f"not the pinned {'0' * 64}"):
+        module.main()
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("which", ["conventions", "definitions"])
+def test_a_worker_stages_its_inputs_before_it_imports_the_engine(which, monkeypatch):
+    """The paths a worker takes: definition_conformance's lazy system builder and
+    publication_sources's initializer both check the pins first."""
+    _bad_pin(monkeypatch, which)
+    _no_engine(monkeypatch)
+    monkeypatch.setattr(conformance, "_SYSTEM", None)
+    monkeypatch.setattr(conformance, "_FIX_DIR", None)
+    with pytest.raises(SystemExit, match=f"not the pinned {'0' * 64}"):
+        conformance._system()
+    monkeypatch.setattr(sources, "install_recording", _never("install_recording"))
+    with pytest.raises(SystemExit, match=f"not the pinned {'0' * 64}"):
+        sources._init_worker()
+
+
+def test_workers_are_spawned_and_stage_their_own_inputs():
+    """Never forked: a forked worker would inherit the main process's system and
+    policybench state instead of staging its own. Each worker's initializer stages."""
+    for module, initializer in (
+        (conformance, conformance.stage_engine_inputs),
+        (sources, sources._init_worker),
+    ):
+        pool = module.worker_pool(1)
+        try:
+            assert pool._mp_context.get_start_method() == "spawn"
+            assert pool._initializer is initializer
+        finally:
+            pool.shutdown()
+
+
+def test_publication_sources_has_no_mode_that_skips_staging(tmp_path, monkeypatch):
+    """--from-facts built both reports from a saved file with no pin check."""
+    for name in ("stage_inputs", *ENGINE_ENTRY_POINTS):
+        if hasattr(sources, name):
+            monkeypatch.setattr(sources, name, _never(name))
+    facts = tmp_path / "facts.json"
+    facts.write_text(json.dumps({"facts": [], "other_instants": [], "meta": {}}))
+    out = tmp_path / "out"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["publication_sources", "--out-dir", str(out), "--from-facts", str(facts)],
+    )
+    with pytest.raises(SystemExit) as refused:
+        sources.main()
+    assert refused.value.code == 2
+    assert not out.exists()
+
+
+def test_a_script_refuses_another_module_named_pass_inputs(tmp_path):
+    """A pass_inputs already imported from elsewhere would win over the scripts'
+    directory; each script checks where its pins came from."""
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        "import runpy, sys, types\n"
+        "fake = types.ModuleType('pass_inputs')\n"
+        "fake.__file__ = '/elsewhere/pass_inputs.py'\n"
+        "sys.modules['pass_inputs'] = fake\n"
+        "runpy.run_path(sys.argv[1], run_name='not_main')\n"
+    )
+    for path in sorted(SCRIPTS.glob("*.py")):
+        if "import pass_inputs" not in path.read_text():
+            continue
+        result = subprocess.run(
+            [sys.executable, str(driver), str(path)], capture_output=True, text=True
+        )
+        assert result.returncode != 0, path.name
+        assert "/elsewhere/pass_inputs.py, not this script's" in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -554,6 +701,46 @@ def test_build_proposals_never_writes_the_committed_records(
     assert hashlib.sha256(committed).hexdigest() == pins.PROPOSALS_SHA256
 
 
+def test_build_proposals_writes_only_a_new_file(tmp_path, monkeypatch, capsys):
+    """A hard link to the committed records, another checkout's copy and a dangling
+    symlink are existing paths, and no existing path is written."""
+    committed = AUDIT / "proposed_changes.json"
+    before = committed.read_bytes()
+    monkeypatch.setattr(proposals, "build", _never("build"))
+    hard = tmp_path / "hard.json"
+    os.link(committed, hard)
+    other = tmp_path / "checkout" / pins.PROPOSALS_PATH
+    other.parent.mkdir(parents=True)
+    other.write_bytes(before)
+    dangling = tmp_path / "dangling.json"
+    dangling.symlink_to(tmp_path / "nowhere.json")
+    for target in (hard, other, dangling):
+        monkeypatch.setattr(sys, "argv", ["build_proposals", "--out", str(target)])
+        with pytest.raises(SystemExit):
+            proposals.main()
+        assert "--out must be a new file" in capsys.readouterr().err
+    assert committed.read_bytes() == hard.read_bytes() == other.read_bytes() == before
+    assert not (tmp_path / "nowhere.json").exists()
+
+
+def test_build_proposals_creates_its_output_exclusively(tmp_path, monkeypatch):
+    """A file that appears at --out after the check is not written through: here
+    it is a hard link to the committed records, created while the script builds."""
+    committed = AUDIT / "proposed_changes.json"
+    before = committed.read_bytes()
+    out = tmp_path / "proposed_changes.json"
+
+    def build(inputs):
+        os.link(committed, out)
+        return {"root_causes": {}}
+
+    monkeypatch.setattr(proposals, "build", build)
+    monkeypatch.setattr(sys, "argv", ["build_proposals", "--out", str(out)])
+    with pytest.raises(FileExistsError):
+        proposals.main()
+    assert committed.read_bytes() == out.read_bytes() == before
+
+
 # ---------------------------------------------------------------------------
 # The working tree is never read
 # ---------------------------------------------------------------------------
@@ -583,20 +770,120 @@ def test_definition_conformance_reads_only_staged_inputs(tmp_path):
     )
     for name in conformance.RUN_FILES:
         assert pins.sha256(staged / "run" / name) == pins.RUN_SHA256[name]
-    assert pins.sha256(staged / "benchmark_specs.json") == pins.SPECS_SHA256
     recorded = json.loads((VERIFICATION / "definition_conformance.json").read_text())
     assert meta == recorded["run"]["law_classification"]
     assert laws
 
 
-def test_the_reference_system_is_built_from_staged_modules():
+def test_the_reference_system_is_built_from_staged_inputs(package_specs):
+    """Conventions and output definitions are staged, and policybench then reads
+    the staged definitions: with the working tree fenced off, its lookups work."""
+    from policybench.ground_truth import _pe_variable_for_output
+
     expected = {Path(path).name: sha for path, sha in pins.FIXES_SHA256.items()}
+    pinned = json.loads(
+        pins.git_bytes(pins.PASS_COMMIT, pins.SPECS_PATH, pins.SPECS_SHA256)
+    )
     for module in (conformance, sources):
         with fenced():
-            fix_dir = module._assemble_fixes()
+            fix_dir = module.stage_engine_inputs()
+            assert package_specs._raw_spec_data() == pinned
+            assert _pe_variable_for_output("snap", "us") == "snap"
         assert {path.name: pins.sha256(path) for path in fix_dir.iterdir()} == expected
-    # definition_conformance records the hashes of the directory it built from.
-    assert conformance._assemble_fixes() == conformance._FIX_DIR
+        assert pins.sha256(package_specs._spec_path()) == pins.SPECS_SHA256
+    # definition_conformance records the hashes of what it staged.
+    assert conformance.stage_engine_inputs() == conformance._FIX_DIR
+    assert pins.sha256(conformance._SPECS) == pins.SPECS_SHA256
+
+
+def _mutated_specs(target: Path) -> tuple[Path, str]:
+    """The pinned definitions with the US ``snap`` output's engine variable changed."""
+    data = json.loads(
+        pins.git_bytes(pins.PASS_COMMIT, pins.SPECS_PATH, pins.SPECS_SHA256)
+    )
+    outputs = data["specs"]["policybench"]["countries"]["us"]
+    (snap,) = [output for output in outputs if output["id"] == "snap"]
+    assert snap["pe_variable"] == "snap"
+    snap["pe_variable"] = "not_the_pass_variable"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(data))
+    return target, "not_the_pass_variable"
+
+
+def test_staged_definitions_replace_a_checkouts_changed_ones(tmp_path, package_specs):
+    """A checkout whose benchmark_specs.json maps an output to another engine
+    variable does not change what the scripts compute: lookups read the pin."""
+    from policybench.ground_truth import _pe_variable_for_output
+
+    mutated, variable = _mutated_specs(tmp_path / "benchmark_specs.json")
+    package_specs._spec_path = lambda: mutated
+    assert _pe_variable_for_output("snap", "us") == variable
+    package_specs._raw_spec_data.cache_clear()
+    package_specs.get_benchmark_spec.cache_clear()
+    conformance.stage_engine_inputs()
+    assert _pe_variable_for_output("snap", "us") == "snap"
+
+
+def test_definitions_already_loaded_from_elsewhere_are_refused(tmp_path, package_specs):
+    """Constants derived from other definitions cannot be recalled, so a process
+    that already loaded them is refused, not silently repointed."""
+    mutated, _ = _mutated_specs(tmp_path / "benchmark_specs.json")
+    package_specs._spec_path = lambda: mutated
+    package_specs._raw_spec_data()
+    staged = pins.stage_specs(tmp_path / "staged.json")
+    with pytest.raises(SystemExit, match="fresh interpreter"):
+        pins.use_staged_specs(staged)
+    assert package_specs._spec_path() == mutated
+
+
+SPECS_DRIVER = """
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+import pass_inputs
+
+staged = pass_inputs.stage_specs(Path(sys.argv[2]))
+if sys.argv[3] == "staged":
+    pass_inputs.use_staged_specs(staged)
+from policybench import scenarios, spec  # scenarios derives constants as it loads
+from policybench.ground_truth import _pe_variable_for_output
+
+print(spec.__file__)
+print(_pe_variable_for_output("snap", "us"))
+"""
+
+
+def test_a_mutated_checkout_specs_file_never_reaches_the_engine_helpers(tmp_path):
+    """End to end in fresh interpreters: with a copy of the package whose
+    benchmark_specs.json is changed first on the path, the helpers the scripts
+    call return the pinned mapping once the staged definitions are in use, and
+    the changed one otherwise."""
+    package = tmp_path / "checkout" / "policybench"
+    shutil.copytree(
+        ROOT / "policybench", package, ignore=shutil.ignore_patterns("__pycache__")
+    )
+    _, variable = _mutated_specs(package / "benchmark_specs.json")
+    driver = tmp_path / "driver.py"
+    driver.write_text(SPECS_DRIVER)
+    seen = {}
+    for mode in ("staged", "checkout"):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(driver),
+                str(SCRIPTS),
+                str(tmp_path / f"{mode}.json"),
+                mode,
+            ],
+            env=dict(os.environ, PYTHONPATH=str(package.parent)),
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr[-2000:]
+        module, seen[mode] = result.stdout.split()
+        assert Path(module).parent == package
+    assert seen == {"staged": "snap", "checkout": variable}
 
 
 def test_publication_sources_reads_only_staged_inputs(tmp_path):
@@ -634,6 +921,7 @@ def test_engine_probe_scores_the_pass_cells_not_202s(tmp_path, monkeypatch):
         for row in reference[reference["scenario_id"] == "scenario_043"].itertuples()
     }
     engine = SimpleNamespace(
+        stage_engine_inputs=conformance.stage_engine_inputs,
         build_situation=conformance.build_situation,
         _system=lambda: SimpleNamespace(variables={}),
         _simulation=lambda situation: None,

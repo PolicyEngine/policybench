@@ -15,11 +15,12 @@ It is the engine-evidence probe for the reference adversary's non-holding
 verdicts; it reads no verdict and changes no reference.
 
 Every input is the pass's, staged from git by pass_inputs.py and checked against
-its pinned sha256 before the reference system is built: the frozen run's
-scenarios, references and exclusion record as release dashboard-data-20260930
-(8b4c0ca1) committed them, and latest_final with its parts as 8b4c0ca1 held them.
-The working tree's run, which later releases rewrite (#202 rewrote its exclusion
-record), is never read. Each committed probe records its own arguments
+its pinned sha256 before anything is computed and before the engine is imported:
+the frozen run's scenarios, references and exclusion record and the output
+definitions (benchmark_specs.json) as release dashboard-data-20260930 (8b4c0ca1)
+committed them, and latest_final with its parts as 8b4c0ca1 held them. policybench
+is pointed at the staged definitions. The working tree's run, which later
+releases rewrite (#202 rewrote its exclusion record), is never read. Each committed probe records its own arguments
 (``scenario_id``, ``period``, the ``variables`` and ``parameters`` keys and
 ``counterfactual.set``), and tests/test_reference_adversary_inputs.py regenerates
 every probe from them.
@@ -50,6 +51,9 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != HERE:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
 
 YEAR = 2026
 INSTANT = "2026-01-01"
@@ -192,6 +196,9 @@ def main() -> None:
     atexit.register(shutil.rmtree, run, True)
     stage_inputs(run)
     conformance = _conformance()
+    # The conventions and output definitions, before policybench or the engine
+    # is imported.
+    conformance.stage_engine_inputs()
     scenarios = pd.read_csv(run / "scenarios.csv")
     rows = scenarios[scenarios["scenario_id"] == args.scenario_id]
     if rows.empty:

@@ -30,6 +30,29 @@ VERIFICATION = AUDIT / "verification"
 sys.path.insert(0, str(SCRIPT.parent))
 import pass_inputs as pins  # noqa: E402
 
+from tests import working_tree_fence as fence  # noqa: E402
+
+# The working tree's copy of every input the script stages. The script scores with
+# the checkout's policybench, which may read its own output definitions.
+FENCE = {
+    "forbidden": [
+        str(ROOT / path)
+        for path in (pins.RUN_PATH, pins.PROPOSALS_PATH, pins.SPECS_PATH)
+    ],
+    "exempt": {str(ROOT / pins.SPECS_PATH): str(ROOT / "policybench")},
+    "root": str(ROOT),
+}
+
+
+def _fenced_env(directory: Path) -> dict[str, str]:
+    """A subprocess environment whose every interpreter is fenced."""
+    return dict(
+        os.environ,
+        PYTHONPATH=f"{fence.sitecustomize(directory)}{os.pathsep}{ROOT}",
+        **{fence.ENV: json.dumps(FENCE)},
+    )
+
+
 # The pins tests/test_consensus.py and tests/test_reference_adversary.py hold.
 PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 FROZEN_SHA256 = "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18"
@@ -195,12 +218,48 @@ def test_the_script_scores_only_the_staged_inputs(tmp_path, monkeypatch):
     assert summary["proposals"] == "proposed_changes.json"
 
 
+READ = "import sys; print(len(open(sys.argv[1], 'rb').read()))"
+LOAD = "from policybench import spec; print(len(spec._raw_spec_data()))"
+
+
+def test_the_scoring_child_keeps_the_callers_path_and_so_the_fence(
+    tmp_path, monkeypatch
+):
+    """analyze() used to replace PYTHONPATH, which dropped a caller's sitecustomize
+    from the scoring child. Under the fenced environment the slow test uses, a
+    child started as analyze() starts it cannot open the working tree's run, while
+    policybench can still load its own output definitions."""
+    for name, value in _fenced_env(tmp_path / "fence").items():
+        monkeypatch.setenv(name, value)
+    env = impact.analyze_env()
+    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(impact.ROOT)
+    assert str(tmp_path / "fence") in env["PYTHONPATH"].split(os.pathsep)
+
+    def child(code: str, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-c", code, *args], env=env, capture_output=True, text=True
+        )
+
+    for name in ("scenarios.csv", "reference_exclusions.json"):
+        refused = child(READ, str(ROOT / pins.RUN_PATH / name))
+        assert refused.returncode != 0
+        assert "opened the working tree's" in refused.stderr
+    assert child(READ, str(ROOT / pins.SPECS_PATH)).returncode != 0
+    loaded = child(LOAD)
+    assert loaded.returncode == 0, loaded.stderr
+    # Unfenced, the same child reads the file: the refusals above were the fence's.
+    monkeypatch.delenv(fence.ENV)
+    env = impact.analyze_env()
+    assert child(READ, str(ROOT / pins.RUN_PATH / "scenarios.csv")).returncode == 0
+
+
 @pytest.mark.slow
 def test_regeneration_reproduces_the_committed_evidence(tmp_path):
     """Score every variant for real and require the committed files byte for byte.
 
-    About five minutes of ``policybench analyze`` runs, so CI deselects it. Run it
-    with
+    The script and its scoring children run fenced: none may open the working
+    tree's run or proposals. About five minutes of ``policybench analyze`` runs,
+    so CI deselects it. Run it with
       OPENBLAS_NUM_THREADS=1 uv run pytest -m slow \\
         tests/test_reference_adversary_impact.py
     """
@@ -216,7 +275,7 @@ def test_regeneration_reproduces_the_committed_evidence(tmp_path):
             str(out),
         ],
         cwd=ROOT,
-        env=dict(os.environ, PYTHONPATH=str(ROOT)),
+        env=_fenced_env(tmp_path / "fence"),
         capture_output=True,
         text=True,
     )
