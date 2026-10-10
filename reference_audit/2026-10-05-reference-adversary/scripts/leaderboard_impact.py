@@ -1,9 +1,19 @@
 """Score the frozen run as published and under each alternative in proposed_changes.json.
 
-Copies the frozen run (predictions, references, scenarios, exclusions) to scratch
-directories and never writes the snapshot. Each copy is scored with
-``python -m policybench.cli analyze``, the command the freeze runs (the method of
-PolicyEngine/policybench#191 and #194):
+Reads the pass's inputs from git, never from the working tree: the frozen run
+(payload, predictions, references, scenarios, exclusions) as commit PASS_COMMIT
+(release dashboard-data-20260930, #187) holds it, and proposed_changes.json as
+RECORDS_COMMIT (#200) holds it, both pinned in pass_inputs.py. Later releases
+rewrite the working tree's run (dashboard-data-20261006, #202, rewrote its payload
+and exclusions), and scoring those would regenerate different evidence into this
+pass's verification files. Each file is staged under ``<scratch>/pass_inputs`` and
+must match its pinned sha256, or the script stops before scoring anything. The
+scoring code is the checkout's; ``published`` below stops the script if that code
+no longer scores the pinned run as the pinned payload records.
+
+Copies the staged run to scratch directories and never writes the snapshot. Each
+copy is scored with ``python -m policybench.cli analyze``, the command the freeze
+runs (the method of PolicyEngine/policybench#191 and #194):
 
 ``published``
     Unchanged. It must reproduce the published payload's scoring: every modelStats field
@@ -24,13 +34,17 @@ Every variant is measured against ``published``.
   PYTHONPATH=<checkout> <policybench venv>/bin/python \\
     reference_audit/2026-10-05-reference-adversary/scripts/leaderboard_impact.py \\
     --scratch <dir>
+
+The checkout needs PASS_COMMIT and RECORDS_COMMIT in its history (a shallow
+clone needs ``git fetch --unshallow``). ``--out-dir`` writes the verification
+files elsewhere; tests/test_reference_adversary_impact.py regenerates them that
+way and requires the committed ones byte for byte.
 """
 
 from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import json
 import os
 import shutil
@@ -40,14 +54,17 @@ from pathlib import Path
 
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
+
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
-PROPOSALS = HERE / "proposed_changes.json"
 OUT_DIR = HERE / "verification"
+PROPOSALS_NAME = Path(pass_inputs.PROPOSALS_PATH).name
+# Copied into each variant and scored; data.json.gz is only compared against.
 RUN_FILES = (
     "predictions.csv.gz",
     "reference_outputs.csv",
@@ -70,17 +87,27 @@ EXACT_PAYLOAD_KEYS = ("programStats", "heatmap", "globalWeights", "failureModes"
 RANKED = ("exact", "within1pct", "score")
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def stage_inputs(target: Path) -> Path:
+    """Stage the pass's run bundle under ``target/run`` and its proposals beside it."""
+    if target.exists():
+        shutil.rmtree(target)
+    pass_inputs.stage_run(target / "run")
+    pass_inputs.git_input(
+        pass_inputs.RECORDS_COMMIT,
+        pass_inputs.PROPOSALS_PATH,
+        pass_inputs.PROPOSALS_SHA256,
+        target / PROPOSALS_NAME,
+    )
+    return target
 
 
-def proposals() -> dict:
-    return json.loads(PROPOSALS.read_text())["root_causes"]
+def proposals(path: Path) -> dict:
+    return json.loads(path.read_text())["root_causes"]
 
 
-def variants() -> dict[str, dict[str, list[dict]]]:
-    """Each variant's exclusion and regeneration records."""
-    causes = proposals()
+def variants(path: Path) -> dict[str, dict[str, list[dict]]]:
+    """Each variant's exclusion and regeneration records, from ``path``'s proposals."""
+    causes = proposals(path)
     plan: dict[str, dict[str, list[dict]]] = {}
     for cause, spec in causes.items():
         plan[f"exclude:{cause}"] = {"exclude": spec["exclusions"], "regenerate": []}
@@ -140,12 +167,13 @@ def always_zero(run_dir: Path) -> dict[str, float]:
     }
 
 
-def stage(target: Path, records: dict[str, list[dict]] | None) -> Path:
+def stage(source: Path, target: Path, records: dict[str, list[dict]] | None) -> Path:
+    """Copy the staged run at ``source`` to ``target`` and apply ``records``."""
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
     for name in RUN_FILES:
-        shutil.copy2(RUN / name, target / name)
+        shutil.copy2(source / name, target / name)
     if not records:
         return target
     if records["exclude"]:
@@ -165,7 +193,7 @@ def stage(target: Path, records: dict[str, list[dict]] | None) -> Path:
                 raise SystemExit(f"{key}: frozen value differs from the reference CSV")
             reference.at[row, "value"] = repr(float(change["regenerated_value"]))
         reference.to_csv(target / "reference_outputs.csv", index=False)
-        before = (RUN / "reference_outputs.csv").read_text().splitlines()
+        before = (source / "reference_outputs.csv").read_text().splitlines()
         after = (target / "reference_outputs.csv").read_text().splitlines()
         changed = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
         if len(before) != len(after) or len(changed) != len(changes):
@@ -174,15 +202,24 @@ def stage(target: Path, records: dict[str, list[dict]] | None) -> Path:
             )
         meta_path = target / "reference_outputs.csv.meta.json"
         meta = json.loads(meta_path.read_text())
-        meta["reference_csv_sha256"] = sha256(target / "reference_outputs.csv")
+        meta["reference_csv_sha256"] = pass_inputs.sha256(
+            target / "reference_outputs.csv"
+        )
         meta_path.write_text(json.dumps(meta, indent=2) + "\n")
     return target
+
+
+def analyze_env() -> dict[str, str]:
+    """The scoring child's environment: this checkout first on PYTHONPATH, with the
+    caller's own entries kept after it."""
+    path = os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")]))
+    return dict(os.environ, PYTHONPATH=path, PYTHONDONTWRITEBYTECODE="1")
 
 
 def analyze(run_dir: Path) -> dict:
     out = run_dir / "analysis"
     dashboard = run_dir / "dashboard.json"
-    env = dict(os.environ, PYTHONPATH=str(ROOT), PYTHONDONTWRITEBYTECODE="1")
+    env = analyze_env()
     subprocess.run(
         [
             sys.executable,
@@ -200,7 +237,7 @@ def analyze(run_dir: Path) -> dict:
             "--app-data-output",
             str(dashboard),
             "--reference-digest",
-            sha256(run_dir / "reference_outputs.csv"),
+            pass_inputs.sha256(run_dir / "reference_outputs.csv"),
         ],
         cwd=ROOT,
         env=env,
@@ -211,8 +248,9 @@ def analyze(run_dir: Path) -> dict:
     return payload["countries"]["us"]
 
 
-def check_reproduces_published(base: dict) -> None:
-    published = json.loads(gzip.decompress((RUN / "data.json.gz").read_bytes()))
+def check_reproduces_published(base: dict, source: Path) -> None:
+    """Stop unless ``base`` scores as the staged ``source/data.json.gz`` does."""
+    published = json.loads(gzip.decompress((source / "data.json.gz").read_bytes()))
     for key in EXACT_PAYLOAD_KEYS:
         if published[key] != base[key]:
             raise SystemExit(f"unchanged copy does not reproduce published {key}")
@@ -331,27 +369,36 @@ def main() -> None:
     parser.add_argument(
         "--only", nargs="*", help="score only these variants (default: all)"
     )
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT_DIR),
+        help="where to write the verification files (default: %(default)s)",
+    )
     args = parser.parse_args()
     scratch = Path(args.scratch).resolve()
-    # stage() deletes and rewrites scratch/<variant>; never inside the repository.
+    out_dir = Path(args.out_dir)
+    # stage() and stage_inputs() delete and rewrite scratch/<name>; never inside
+    # the repository.
     if scratch == ROOT.resolve() or scratch.is_relative_to(ROOT.resolve()):
         parser.error(f"--scratch must be outside the repository ({ROOT})")
-    plan = variants()
+    inputs = stage_inputs(scratch / "pass_inputs")
+    source = inputs / "run"
+    plan = variants(inputs / PROPOSALS_NAME)
     unknown = sorted(set(args.only or ()) - set(plan))
     if unknown:
         parser.error(f"unknown variant(s) {unknown}; choose from {sorted(plan)}")
 
-    base_dir = stage(scratch / "published", None)
+    base_dir = stage(source, scratch / "published", None)
     base = analyze(base_dir)
-    check_reproduces_published(base)
+    check_reproduces_published(base, source)
     zero_published = always_zero(base_dir)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    summary: dict = {"published_reproduced": True, "proposals": PROPOSALS.name}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary: dict = {"published_reproduced": True, "proposals": PROPOSALS_NAME}
     if args.only:
         plan = {name: plan[name] for name in args.only}
     for name, records in plan.items():
-        run_dir = stage(scratch / name.replace(":", "__"), records)
+        run_dir = stage(source, scratch / name.replace(":", "__"), records)
         other = analyze(run_dir)
         models = compare(base, other)
         programs = program_rows(base, other)
@@ -363,8 +410,8 @@ def main() -> None:
             }
         )
         slug = name.replace(":", "_")
-        models.to_csv(OUT_DIR / f"leaderboard_impact_{slug}_models.csv")
-        programs.to_csv(OUT_DIR / f"leaderboard_impact_{slug}_programs.csv")
+        models.to_csv(out_dir / f"leaderboard_impact_{slug}_models.csv")
+        programs.to_csv(out_dir / f"leaderboard_impact_{slug}_programs.csv")
         summary[name] = summarize(models, base, other, zero, cells)
         summary[name]["programs"] = programs.round(6).to_dict(orient="index")
         with pd.option_context("display.width", 250, "display.max_rows", 100):
@@ -385,7 +432,7 @@ def main() -> None:
                 ].round(4)
             )
             print(programs.round(4))
-    (OUT_DIR / "leaderboard_impact.json").write_text(
+    (out_dir / "leaderboard_impact.json").write_text(
         json.dumps(summary, indent=2) + "\n"
     )
     print(json.dumps({k: v for k, v in summary.items() if k != "proposals"}, indent=2)[:4000])

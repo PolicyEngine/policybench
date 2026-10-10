@@ -27,7 +27,19 @@ and against the cited primary-law classification of state paid-leave programs in
 PolicyEngine/policybench#194 (commit 049f4f09,
 reference_audit/2026-10-05-payroll/program_classification.json), read from git.
 
-Run from a policybench checkout with the policyengine-us 2.15.17 venv:
+Every input is the pass's, staged from git by pass_inputs.py and checked against its
+pinned sha256 before anything is computed and before the engine is imported: the
+frozen run's payload, references, reference sidecar and scenarios and the output
+definitions (benchmark_specs.json) as release dashboard-data-20260930 (8b4c0ca1)
+committed them, #194's table, and latest_final with its parts as 8b4c0ca1 held them.
+The main process and every worker (started with the spawn method, so none inherits
+the main process's system) stage their own conventions and output definitions and
+point policybench at the staged definitions. The working tree's run, which later
+releases rewrite, is never read. The run record names each input by its repository
+path.
+
+Run from a policybench checkout with the policyengine-us 2.15.17 venv (the checkout
+needs 8b4c0ca1 and 049f4f09 in its history):
 
   PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> \\
     <triage>/.venv-pe21517/bin/python \\
@@ -38,13 +50,14 @@ Run from a policybench checkout with the policyengine-us 2.15.17 venv:
 from __future__ import annotations
 
 import argparse
+import atexit
 import copy
 import gzip
 import hashlib
 import importlib.util
 import json
+import multiprocessing
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -55,16 +68,20 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pass_inputs  # noqa: E402  (the pass's pinned inputs, beside this script)
+
+if Path(pass_inputs.__file__).resolve().parent != Path(__file__).resolve().parent:
+    raise SystemExit(f"pass_inputs is {pass_inputs.__file__}, not this script's")
+
 ROOT = Path(__file__).resolve().parents[3]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+# The frozen run's files main reads, staged from git.
+RUN_FILES = (
+    "data.json.gz",
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "scenarios.csv",
 )
-PAYLOAD = RUN / "data.json.gz"
-PAYLOAD_SHA256 = "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18"
-AUDIT_0928 = ROOT / "reference_audit/2026-09-28"
-AUDIT_0922 = ROOT / "reference_audit/2026-09-22"
-SPECS = ROOT / "policybench/benchmark_specs.json"
 YEAR = 2026
 PERIOD = str(YEAR)
 INSTANT = "2026-01-01"
@@ -72,9 +89,10 @@ REPRODUCE_TOLERANCE = 1e-3
 TOLERANCE = 0.005
 # sweep.py's rename for the 1.755.4 harness; sweep_latest.py kept it on 2.15.17.
 RENAME = {"partnership_se_income": "partnership_self_employment_net_earnings"}
-LAW_COMMIT = "049f4f09"
-LAW_PATH = "reference_audit/2026-10-05-payroll/program_classification.json"
-LAW_SOURCE = f"PolicyEngine/policybench#194 @ {LAW_COMMIT}:{LAW_PATH}"
+LAW_SOURCE = (
+    f"PolicyEngine/policybench#194 @ {pass_inputs.LAW_COMMIT[:8]}:"
+    f"{pass_inputs.LAW_PATH}"
+)
 # Gross income sources the engine counts as earned (irs_gross_income reads
 # irs_employment_income, itself max(0, employment_income - pre_tax_contributions)).
 EARNED_SOURCES = (
@@ -102,18 +120,43 @@ PERSON_DIAGNOSTICS = (
 )
 
 _SYSTEM = None
+# This process's staged conventions (a directory) and output definitions (a file).
+_FIX_DIR = None
+_SPECS = None
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _assemble_fixes() -> Path:
-    """latest_final and its parts, plus the sales tax table the IRS module reads."""
-    target = Path(tempfile.mkdtemp(prefix="definition_conformance_fixes_"))
-    for path in (AUDIT_0928 / "fixes").glob("*.py"):
-        shutil.copy2(path, target / path.name)
-    shutil.copy2(AUDIT_0922 / "fixes/r19_irs_sales_tax_2025.json", target)
+def stage_engine_inputs() -> Path:
+    """Stage this process's reference-system inputs, before the engine is imported.
+
+    latest_final and its parts, plus the sales tax table the IRS module reads
+    (pass_inputs.FIXES_SHA256), go into a new directory, which is returned; the
+    output definitions go beside it and policybench is pointed at them. Each is
+    refused unless it matches its pin. The main process and every worker call this.
+    """
+    global _FIX_DIR, _SPECS
+    scratch = Path(tempfile.mkdtemp(prefix="definition_conformance_engine_"))
+    atexit.register(shutil.rmtree, scratch, True)
+    fix_dir = pass_inputs.stage_fixes(scratch / "fixes")
+    specs = pass_inputs.stage_specs(scratch / Path(pass_inputs.SPECS_PATH).name)
+    pass_inputs.use_staged_specs(specs)
+    _FIX_DIR, _SPECS = fix_dir, specs
+    return fix_dir
+
+
+def stage_inputs(target: Path) -> Path:
+    """Stage what main reads besides the reference system's inputs: the run's files
+    under ``run/`` and #194's law table, each refused unless it matches its pin."""
+    pass_inputs.stage_run(target / "run", RUN_FILES)
+    pass_inputs.git_input(
+        pass_inputs.LAW_COMMIT,
+        pass_inputs.LAW_PATH,
+        pass_inputs.LAW_SHA256,
+        target / Path(pass_inputs.LAW_PATH).name,
+    )
     return target
 
 
@@ -129,10 +172,25 @@ def _load_reform(fix_dir: Path):
 def _system():
     global _SYSTEM
     if _SYSTEM is None:
+        # Staged and checked before the engine is imported.
+        fix_dir = _FIX_DIR or stage_engine_inputs()
         from policyengine_us import CountryTaxBenefitSystem
 
-        _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(_assemble_fixes()))
+        _SYSTEM = CountryTaxBenefitSystem(reform=_load_reform(fix_dir))
     return _SYSTEM
+
+
+def worker_pool(workers: int) -> ProcessPoolExecutor:
+    """A pool whose workers each stage their own reference-system inputs.
+
+    Spawned, never forked: a forked worker would inherit the main process's built
+    system and policybench state instead of staging its own.
+    """
+    return ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=stage_engine_inputs,
+    )
 
 
 def build_situation(scenario) -> dict:
@@ -347,16 +405,9 @@ def scenario_cells(job: dict) -> dict:
     }
 
 
-def law_classifications() -> tuple[dict, dict]:
-    """Variable -> cited classification, from the payroll audit's program table."""
-    try:
-        raw = subprocess.run(
-            ["git", "-C", str(ROOT), "show", f"{LAW_COMMIT}:{LAW_PATH}"],
-            check=True,
-            capture_output=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError) as error:
-        return {}, {"source": LAW_SOURCE, "available": False, "error": str(error)}
+def law_classifications(path: Path) -> tuple[dict, dict]:
+    """Variable -> cited classification, from the payroll audit's staged program table."""
+    raw = path.read_bytes()
     table = json.loads(raw)
     classifications = {}
     entries = list(table.get("programs", [])) + list(
@@ -486,6 +537,15 @@ def main() -> None:
     parser.add_argument("--scenarios", nargs="*")
     args = parser.parse_args()
 
+    started = time.time()
+    # Every input is staged and checked before anything else: before policybench
+    # is imported (it reads its output definitions as it loads), before the
+    # engine is imported and before any worker starts.
+    staged = Path(tempfile.mkdtemp(prefix="definition_conformance_inputs_"))
+    atexit.register(shutil.rmtree, staged, True)
+    stage_inputs(staged)
+    stage_engine_inputs()
+
     from policybench.definition_conformance import (
         HOUSEHOLD_PROMPT_PHRASE,
         component_tree,
@@ -494,21 +554,20 @@ def main() -> None:
         variable_graph_from_system,
     )
 
-    started = time.time()
     out_dir = Path(args.out_dir)
-    if _sha256(PAYLOAD) != PAYLOAD_SHA256:
-        raise SystemExit(f"{PAYLOAD} does not match its pinned sha256")
-    payload = json.loads(gzip.decompress(PAYLOAD.read_bytes()))
-    meta = json.loads((RUN / "reference_outputs.csv.meta.json").read_text())
+    run = staged / "run"
+    specs_path = _SPECS
+    payload = json.loads(gzip.decompress((run / "data.json.gz").read_bytes()))
+    meta = json.loads((run / "reference_outputs.csv.meta.json").read_text())
     programs = list(meta["programs"])
     specs = [
         spec
-        for spec in json.loads(SPECS.read_text())["specs"]["policybench"]["countries"][
-            "us"
-        ]
+        for spec in json.loads(specs_path.read_text())["specs"]["policybench"][
+            "countries"
+        ]["us"]
         if spec["id"] in programs
     ]
-    reference = pd.read_csv(RUN / "reference_outputs.csv")
+    reference = pd.read_csv(run / "reference_outputs.csv")
     indexed = reference.set_index(["scenario_id", "variable"])["value"]
     scored = _scored_cells(payload)
     if args.scenarios:
@@ -532,7 +591,7 @@ def main() -> None:
     graph = variable_graph_from_system(
         system, INSTANT, roots=[spec["pe_variable"] for spec in specs]
     )
-    laws, law_meta = law_classifications()
+    laws, law_meta = law_classifications(staged / Path(pass_inputs.LAW_PATH).name)
 
     # A first, cell-free pass names the variables whose values measure a rule's
     # effect when that is not the component itself.
@@ -583,7 +642,7 @@ def main() -> None:
         if graph[spec["pe_variable"]].entity == "tax_unit"
     }
 
-    scenarios = pd.read_csv(RUN / "scenarios.csv")
+    scenarios = pd.read_csv(run / "scenarios.csv")
     scored_by_scenario: dict[str, list[str]] = {}
     for scenario_id, output_id in scored:
         scored_by_scenario.setdefault(scenario_id, []).append(output_id)
@@ -607,7 +666,7 @@ def main() -> None:
         f"{len(scored)} scored cells, {len(node_variables)} node variables",
         flush=True,
     )
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+    with worker_pool(args.workers) as pool:
         results = list(pool.map(scenario_cells, jobs))
     results.sort(key=lambda result: result["scenario_id"])
     by_scenario = {result["scenario_id"]: result for result in results}
@@ -660,7 +719,6 @@ def main() -> None:
         )
     )
     script = Path(__file__).resolve()
-    fixes = sorted((AUDIT_0928 / "fixes").glob("*.py"))
     report["run"] = {
         "script": str(script.relative_to(ROOT)),
         "script_sha256": _sha256(script),
@@ -670,15 +728,15 @@ def main() -> None:
         "reference_system": "policyengine-us 2.15.17 + latest_final "
         "(reference_audit/2026-09-28/fixes)",
         "fixes_sha256": {
-            str(path.relative_to(ROOT)): _sha256(path)
-            for path in fixes + [AUDIT_0922 / "fixes/r19_irs_sales_tax_2025.json"]
+            path: _sha256(_FIX_DIR / Path(path).name)
+            for path in pass_inputs.FIXES_SHA256
         },
         "instant": INSTANT,
-        "payload": str(PAYLOAD.relative_to(ROOT)),
-        "payload_sha256": PAYLOAD_SHA256,
-        "reference_outputs_sha256": _sha256(RUN / "reference_outputs.csv"),
-        "scenarios_sha256": _sha256(RUN / "scenarios.csv"),
-        "benchmark_specs_sha256": _sha256(SPECS),
+        "payload": f"{pass_inputs.RUN_PATH}/data.json.gz",
+        "payload_sha256": _sha256(run / "data.json.gz"),
+        "reference_outputs_sha256": _sha256(run / "reference_outputs.csv"),
+        "scenarios_sha256": _sha256(run / "scenarios.csv"),
+        "benchmark_specs_sha256": _sha256(specs_path),
         "household_prompt_phrase": HOUSEHOLD_PROMPT_PHRASE,
         "household_prompt_in_every_scenario": household_prompt,
         "reproduction": {
