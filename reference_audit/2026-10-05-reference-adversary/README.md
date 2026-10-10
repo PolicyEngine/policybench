@@ -563,7 +563,7 @@ The tests regenerate every one of these outputs into scratch and require the com
 - `engine_probe.py`: all 8 probes, from the arguments each records.
 - `leaderboard_impact.py`: all 23 `verification/leaderboard_impact*` files.
 
-The engine-side regenerations took 21 minutes on a loaded machine, so they are marked slow and CI deselects them:
+The engine-side regenerations took 21 to 27 minutes on a heavily loaded machine, so they are marked slow and CI deselects them:
 
 ```bash
 OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_adversary_inputs.py tests/test_reference_adversary_impact.py
