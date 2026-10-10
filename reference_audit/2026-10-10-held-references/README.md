@@ -22,11 +22,11 @@ This output returned to scoring in release dashboard-data-20261010, when policye
 
 ## How a later pass lists them
 
-`reference_audit/held_references.json` is a standing list of references a check has held. Each record names the cell, the held reference, each consensus answer the check explained, and where the check is written up.
+`reference_audit/held_references.json` is a standing list of references a check has held. Each record names the cell, the scenario's prompt by its sha256, the held reference, each consensus answer the check explained, and where the check is written up. `records.json` here keeps the two records as this check wrote them.
 
 `policybench adversary-prepare --held-references reference_audit/held_references.json` reads it (`policybench/held_references.py`). A flagged cell with a record gets no adversary case, and `<adversary-dir>/held_references.json` lists it as checked and held next to the explanation of each triggering cluster. The record applies only while all of these are true:
 
-1. **The prompt is the one the check read.** The record carries the sha256 of the prompt the models answered: the preface, the household, every output's definition. A scenario id is a position in a run, so the same id can name another household later, and a reworded prompt is another question.
+1. **The prompt is the one the check read.** The record carries the sha256 of the scenario's prompt as the payload exports it: the preface, the household, every output's definition. A scenario id is a position in a run, so the same id can name another household later, and a reworded prompt is another question. The exported prompt is the canonical whole-scenario one under the tool answer contract. It binds the household and the definitions; it does not record each model's own request, which a model card may serve under the JSON contract or in chunks.
 2. **The reference is the held value**, within a dollar.
 3. **Each triggering cluster is an answer the record explains:** every member's own answer is within a dollar of the same explained answer.
 
@@ -36,8 +36,8 @@ Otherwise the cell is judged as usual, and the listing gives the first reason th
 
 Three guards keep the option from hiding or losing anything:
 
-- The flags must come from the payload they are applied with. A held flag gets no case, so the command checks it against the payload as it checks a flag that does get one, and refuses flags whose recorded payload hash is another's.
-- Preparing a directory removes the case of a cell no longer listed. If a cell that would now be listed as held already has judge output there, the command refuses and deletes nothing.
+- The flags must be the payload's. Flags from an older payload would lack a consensus that has formed since, and a hold would hide it. The command therefore requires the flags report to record the payload's sha256, and recomputes the flags from the payload at the report's own parameters; flags that differ are refused.
+- Preparing a directory removes the case of a cell no longer listed. Preparation writes only the stage-1 prompt into a case's directory. If a cell that would now be listed as held has any other file there (a verdict, or what an interrupted run left behind), the command refuses and deletes nothing.
 - A record that no longer applies to a cell another audit covers (`--skip-cells`) is reported as covered elsewhere, not as judged.
 
 Run on the release's payload:
@@ -60,7 +60,7 @@ For this record every claim in that report was treated as a claim and checked ag
 | Claim | How it was checked | Result |
 |---|---|---|
 | Both references reproduce on main `75cdd8019e` (2.38.8) | policyengine-us installed from that commit in a clean environment, with policyengine-core 3.33.0; `scripts/trace_cells.py` run on the release's `scenarios.csv` | $8,596.03 and $1,916.61. All four trace files and both situations are byte-identical to the session's; `key_variables.txt` differs only in the install path on its first line. The re-run's listed values, its install record and its files' hashes are in `traces/policyengine-us-2.38.8-75cdd8019e/rerun/`. |
-| Both references reproduce on the release's own engine | The same script on policyengine-us 2.38.6 with policyengine-core 3.32.29, the environment `uv.lock` pins | $8,596.03 and $1,916.61 (`traces/policyengine-us-2.38.6/`). Both situations, all 77 listed values and both short traces equal the 2.38.8 run's. A short trace (`*_trace.txt`) prints the tree under the output and prunes every zero-valued branch, with whatever lies under it. The full traces print those branches too, and differ in 36 lines for scenario_039 and 29 for scenario_025: repeated references to capital-gains variables that are zero, an `adjusted_earnings` node that 2.38.6 nests under `filer_adjusted_earnings`, and one reference that reads `employment_income` on 2.38.6 and `irs_employment_income` on 2.38.8. |
+| Both references reproduce on the release's own engine | The same script on policyengine-us 2.38.6 with policyengine-core 3.32.29, the environment `uv.lock` pins | $8,596.03 and $1,916.61 (`traces/policyengine-us-2.38.6/`). Both situations, all 77 listed values and both short traces equal the 2.38.8 run's. A short trace (`*_trace.txt`) prints the tree under the output and prunes zero-valued branches below the output's immediate children, with whatever lies under them. The full traces print those branches too, and differ in 36 lines for scenario_039 and 29 for scenario_025: repeated references to capital-gains variables that are zero, an `adjusted_earnings` node that 2.38.6 nests under `filer_adjusted_earnings`, and one reference that reads `employment_income` on 2.38.6 and `irs_employment_income` on 2.38.8. |
 | The hand derivations | `scripts/hand_derivations.py`, exact decimal arithmetic from the facts and the law's figures, with no engine | Virginia's reference reproduces to the cent. Ohio's statute figure is $1,916.60; with the fixed amount as the engine carries it, $332.00204, the same arithmetic gives the reference, $1,916.61. Both consensus answers, each other model answer the report reconstructs, and each value the reviewers' other readings give also reproduce to the cent (`verification/hand_derivations.json`). |
 | The situations the engine was run on | PolicyBench's own `Scenario.to_pe_household`, on the release's `scenarios.csv` | Equal to both committed situations. |
 | The models' answers | `model_answers.json` compared with the release's payload | All 94 answers and explanations match. The cluster sizes, ranks and quoted explanations are as reported. |
@@ -207,6 +207,7 @@ The report's three engine observations are outside both cells. Each matches the 
 | Path | What it is |
 |---|---|
 | `../held_references.json` | The standing list, with these two records |
+| `records.json` | The two records as written on 2026-10-10, whatever the standing list holds later |
 | `report/REPORT.md` | The session's write-up, as written |
 | `reviews/` | The two briefs and the two GPT-6.1 Sol reviews, as written |
 | `prompt_households.json` | The two household blocks the models saw |

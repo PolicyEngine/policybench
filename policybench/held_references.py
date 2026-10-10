@@ -7,17 +7,25 @@ lets a reference-adversary pass list such a cell as checked and held, with the
 consensus answer explained, and spend no case on it. It changes no score, no
 reference and no exclusion; it only decides which flags get a case.
 
-A held record names a cell, the prompt the models answered (by its sha256),
-the reference value the check held, and each consensus answer the check
-explained. It applies to a flag only while all of these are true:
+A held record names a cell, the scenario's prompt as the payload exports it
+(by its sha256), the reference value the check held, and each consensus answer
+the check explained. It applies to a flag only while all of these are true:
 
 1. the flag is for the record's cell;
-2. the payload's prompt for that scenario is the one the check read, byte for
-   byte. A scenario id is a position in a run, so the same id can name another
-   household after a regeneration, and a reworded prompt is another question;
+2. the payload's exported prompt for that scenario is the one the check read,
+   byte for byte. A scenario id is a position in a run, so the same id can
+   name another household after a regeneration, and a reworded prompt is
+   another question;
 3. the flag's reference is the held value; and
 4. each triggering cluster is one answer the record explains: every member's
    own answer matches the same explained answer.
+
+The exported prompt is the payload's canonical whole-scenario prompt under the
+tool answer contract (``policybench.analysis.build_scenario_prompt_map``): the
+preface, the household facts and every requested output's definition. It
+binds the household and the definitions. It is not a record of each model's
+request: a model card may serve the JSON contract or ask for outputs in
+chunks.
 
 "Is" and "matches" mean within ``HOLD_TOLERANCE``, a dollar, on an amount
 output, and equal on an eligibility output. The bound belongs to the check,
@@ -30,9 +38,11 @@ first reason that fails: ``prompt_changed``, ``reference_moved`` or
 ``unexplained_consensus``. A hold can therefore go stale, but it cannot cover
 a prompt, a reference or a consensus answer that the check did not see.
 
-The caller must check the flags against the payload they are applied with
-(``policybench.reference_adversary.build_adversary_cases`` does): this module
-takes a flag's reference and its members' answers from the flag.
+The caller must establish that the flags are the payload's
+(``adversary-prepare`` requires the flags report to carry the payload's
+sha256, and checks each held flag as
+``policybench.reference_adversary.build_adversary_cases`` checks any flag):
+this module takes a flag's reference and its members' answers from the flag.
 """
 
 from __future__ import annotations
@@ -68,11 +78,12 @@ def _text(value: Any) -> bool:
 
 
 def prompt_sha256(payload: dict, scenario_id: str) -> str | None:
-    """The sha256 of the prompt the models answered for a scenario.
+    """The sha256 of the prompt the payload exports for a scenario.
 
-    This is ``scenarios[scenario_id].prompt.tool``: the preface, the household
-    facts, every requested output's definition and the answer format. ``None``
-    when the payload has no such prompt.
+    This is ``scenarios[scenario_id].prompt.tool``, the canonical
+    whole-scenario prompt under the tool answer contract: the preface, the
+    household facts, every requested output's definition and the answer
+    format. ``None`` when the payload has no such prompt.
     """
     scenario = (payload.get("scenarios") or {}).get(scenario_id)
     prompt = ((scenario or {}).get("prompt") or {}).get("tool")
@@ -164,13 +175,22 @@ def _same(a: float, b: float, exact: bool) -> bool:
 
 
 def _member_answers(cluster: dict) -> list[float] | None:
-    """Each member's own answer, or ``None`` when the flag does not give one
-    finite answer for every model it names."""
+    """Each member's own answer, or ``None`` when the cluster does not give
+    exactly one finite answer for each of the ``n_models`` models it names.
+
+    A cluster that names one set of models and gives answers for another, or
+    counts more members than it names, is evidence about nothing in
+    particular, so no record explains it.
+    """
     models = cluster.get("models")
     predictions = cluster.get("predictions")
     if not isinstance(models, list) or not models or not isinstance(predictions, dict):
         return None
-    answers = [predictions.get(model) for model in models]
+    if len(set(models)) != len(models) or set(models) != set(predictions):
+        return None
+    if cluster.get("n_models") != len(models):
+        return None
+    answers = [predictions[model] for model in models]
     if not all(_finite(answer) for answer in answers):
         return None
     return [float(answer) for answer in answers]
@@ -257,10 +277,11 @@ def apply_held_references(
                     ),
                     None,
                 )
+            # As the flag gives them: a malformed cluster is listed, not coerced.
             listed = {
-                "answer": float(cluster["answer"]),
-                "n_models": int(cluster["n_models"]),
-                "n_top": int(cluster.get("n_top", 0)),
+                "answer": cluster.get("answer"),
+                "n_models": cluster.get("n_models"),
+                "n_top": cluster.get("n_top", 0),
                 "models": list(cluster.get("models") or []),
                 "predictions": dict(cluster.get("predictions") or {}),
             }

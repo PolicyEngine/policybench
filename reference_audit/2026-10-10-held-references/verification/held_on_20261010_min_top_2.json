@@ -1,6 +1,6 @@
 {
   "held_references": "reference_audit/held_references.json",
-  "held_references_sha256": "60aa395850317a119c65ed9b232e8f1c123b3d6ec9e84a057adf13e1bd10ac4a",
+  "held_references_sha256": "35abc95d3151203b775ec6475a7bc380c1d4a417a4971ccbd2be8e6a15f299c1",
   "flags": "reference_audit/2026-10-10-held-references/verification/consensus_flags_20261010_min_top_2.json",
   "flags_sha256": "ba5e22c748c896615bc44dfa573e847f119a8d55562a24f18ddf56b446a03b45",
   "payload_sha256": "535a51db14f13284b7054f2980b3663c3bc4317037eb3a0cc65e392096df5a90",

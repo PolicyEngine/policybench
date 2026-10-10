@@ -1,3 +1,4 @@
 $ uv run pytest tests/test_held_references.py -q   (policybench main 5a8164a0 plus this change; policyengine-us 2.38.6)
-..................................................................       [100%]
-66 passed in 2.52s
+........................................................................ [ 81%]
+................                                                         [100%]
+88 passed in 4.21s

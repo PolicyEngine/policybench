@@ -1488,47 +1488,72 @@ def main():
         unheld = flags
         held_report = None
         if args.held_references:
-            from policybench.consensus import file_sha256
+            from policybench.consensus import (
+                ConsensusParams,
+                consensus_flags,
+                file_sha256,
+            )
             from policybench.held_references import (
                 apply_held_references,
                 load_held_references,
             )
-            from policybench.reference_adversary import STAGE1_FILE, VERDICT_FILE
+            from policybench.reference_adversary import STAGE1_PROMPT
 
             # A hold is checked against the payload it is applied with, so the
-            # flags must come from that payload.
+            # flags must be that payload's: flags from an older payload would
+            # lack a consensus that has formed since, and a hold would hide it.
             payload_sha256 = file_sha256(payload_path)
             source_sha256 = flags_report.get("source_sha256")
-            if source_sha256 and source_sha256 != payload_sha256:
+            if source_sha256 != payload_sha256:
                 raise SystemExit(
-                    f"adversary-prepare: {args.flags} was computed from a payload "
-                    f"with sha256 {source_sha256}, not {payload_path} "
-                    f"({payload_sha256}); recompute the flags"
+                    f"adversary-prepare: --held-references needs flags computed "
+                    f"from {payload_path} (sha256 {payload_sha256}), and "
+                    f"{args.flags} records "
+                    + (f"sha256 {source_sha256}" if source_sha256 else "no payload")
+                    + "; recompute them with policybench consensus-flags"
+                )
+            # The recorded hash is a claim. The flags themselves must be what
+            # the trigger computes from this payload at their own parameters.
+            try:
+                flag_params = ConsensusParams(**flags_report["params"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} carries no usable "
+                    f"consensus parameters ({exc}); recompute the flags"
+                ) from exc
+            if consensus_flags(payload, flag_params) != flags:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} is not what the consensus "
+                    f"trigger computes from {payload_path} at its recorded "
+                    "parameters; recompute it with policybench consensus-flags"
                 )
             unheld, held_report = apply_held_references(
                 flags, load_held_references(args.held_references), payload
             )
-            # A held flag gets no case, so nothing later checks it against the
-            # payload. Building its case here does (and raises as below does).
-            judged_ids = {id(flag) for flag in unheld}
+            # The held flags' cases are built only for their ids.
+            unheld_ids = {id(flag) for flag in unheld}
             held_cases = build_adversary_cases(
-                payload, [flag for flag in flags if id(flag) not in judged_ids]
+                payload, [flag for flag in flags if id(flag) not in unheld_ids]
             )
             # Preparing removes the directory of a case no longer listed.
-            judged = [
+            # Preparation itself writes only the stage-1 prompt there, so
+            # anything else is a runner's: a verdict, or what an interrupted
+            # run left behind.
+            runner_files = [
                 case.case_id
                 for case in held_cases
-                if any(
-                    (adversary_dir / "cases" / case.case_id / name).is_file()
-                    for name in (STAGE1_FILE, VERDICT_FILE)
+                if (adversary_dir / "cases" / case.case_id).is_dir()
+                and any(
+                    child.name != STAGE1_PROMPT
+                    for child in (adversary_dir / "cases" / case.case_id).iterdir()
                 )
             ]
-            if judged:
+            if runner_files:
                 raise SystemExit(
-                    f"adversary-prepare: {adversary_dir} holds judge output for "
-                    f"cells now listed as held ({', '.join(judged)}), and "
-                    "preparing would delete it; prepare into a new directory or "
-                    "move those case directories aside"
+                    f"adversary-prepare: {adversary_dir} holds a runner's files "
+                    f"for cells now listed as held ({', '.join(runner_files)}), and "
+                    "preparing would delete them; prepare into a new directory "
+                    "or move those case directories aside"
                 )
             for row in held_report["not_applied"]:
                 # A record that no longer applies leaves its cell to the pass,

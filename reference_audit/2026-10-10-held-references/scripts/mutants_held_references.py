@@ -1,10 +1,13 @@
 """Break the held-references rule and its command one way at a time, and run
 tests/test_held_references.py against each break.
 
-Each mutant replaces one exact piece of source text (it must occur once), the
-tests run with -x, and the source is restored. A mutant the tests still pass
-is a property the tests do not hold. Writes
-verification/mutants_held_references.txt and exits 1 if any mutant survives.
+The unmodified tests must pass first. Each mutant then replaces one exact
+piece of source text (it must occur once), the tests run with -x, and the
+source is restored. A mutant is killed only when pytest ran and a test failed
+(exit status 1); a collection error or any other status is reported as an
+error, not as a kill. A mutant the tests still pass is a property the tests
+do not hold. Writes verification/mutants_held_references.txt and exits 1 if
+any mutant survives or errors.
 
   uv run python reference_audit/2026-10-10-held-references/scripts/mutants_held_references.py
 """
@@ -84,6 +87,19 @@ MUTANTS = [
         "    if not all(_finite(answer) for answer in answers):\n        return []",
     ),
     (
+        "a cluster may answer for models it does not name",
+        RULE,
+        "    if len(set(models)) != len(models) or set(models) != set(predictions):\n"
+        "        return None\n",
+        "",
+    ),
+    (
+        "a cluster may count more members than it names",
+        RULE,
+        '    if cluster.get("n_models") != len(models):\n        return None\n',
+        "",
+    ),
+    (
         "a flag with no cluster is accepted",
         RULE,
         '        if not flag.get("clusters"):',
@@ -151,22 +167,40 @@ MUTANTS = [
         '"explanation": "",',
     ),
     (
-        "flags from another payload are accepted",
+        "the flags' recorded payload is never compared",
         CLI,
-        "            if source_sha256 and source_sha256 != payload_sha256:",
+        "            if source_sha256 != payload_sha256:",
         "            if False:",
     ),
     (
-        "held flags are not checked against the payload",
+        "flags that record no payload are accepted",
         CLI,
-        "                payload, [flag for flag in flags if id(flag) not in judged_ids]",
+        "            if source_sha256 != payload_sha256:",
+        "            if source_sha256 and source_sha256 != payload_sha256:",
+    ),
+    (
+        "the flags are not recomputed from the payload",
+        CLI,
+        "            if consensus_flags(payload, flag_params) != flags:",
+        "            if False:",
+    ),
+    (
+        "the held cells' cases are not looked for",
+        CLI,
+        "                payload, [flag for flag in flags if id(flag) not in unheld_ids]",
         "                payload, []",
     ),
     (
-        "a judged case that became held is deleted",
+        "a runner's files for a cell that became held are deleted",
         CLI,
-        "            if judged:\n                raise SystemExit(",
+        "            if runner_files:\n                raise SystemExit(",
         "            if False:\n                raise SystemExit(",
+    ),
+    (
+        "only a published stage 1 or verdict protects a case",
+        CLI,
+        "                    child.name != STAGE1_PROMPT",
+        '                    child.name in ("stage1.json", "verdict.json")',
     ),
     (
         "a stale record of a covered cell is said to be judged",
@@ -189,41 +223,57 @@ MUTANTS = [
 ]
 
 
+def run_tests() -> tuple[int, str]:
+    """pytest's exit status and the last line it printed, without the time."""
+    run = subprocess.run(
+        [sys.executable, "-m", "pytest", TESTS, "-q", "-x", "--tb=no"]
+        + ["-p", "no:cacheprovider"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    tail = (run.stdout.strip().splitlines() or ["(no output)"])[-1]
+    return run.returncode, tail.rsplit(" in ", 1)[0]
+
+
 def main() -> int:
+    status, tail = run_tests()
+    if status != 0:
+        raise SystemExit(f"the unmodified tests do not pass ({tail}); nothing to mutate")
     lines = [
         "Each line breaks policybench/held_references.py or the adversary-prepare",
         f"branch of policybench/cli.py one way and runs {TESTS} (-x).",
-        "scripts/mutants_held_references.py holds each break's exact text.",
+        "scripts/mutants_held_references.py holds each break's exact text. A mutant",
+        "is killed only when pytest ran and a test failed (exit status 1).",
+        "",
+        f"Unmodified: {tail}",
         "",
     ]
-    survivors = 0
+    counts = {"killed": 0, "SURVIVED": 0, "ERROR": 0}
     for number, (what, name, old, new) in enumerate(MUTANTS, start=1):
         path = ROOT / name
         original = path.read_text()
         if original.count(old) != 1:
-            raise SystemExit(f"mutant {number} ({what}): text occurs {original.count(old)} times")
+            raise SystemExit(
+                f"mutant {number} ({what}): text occurs {original.count(old)} times"
+            )
         try:
             path.write_text(original.replace(old, new))
-            run = subprocess.run(
-                [sys.executable, "-m", "pytest", TESTS, "-q", "-x", "--tb=no", "-p", "no:cacheprovider"],
-                cwd=ROOT,
-                capture_output=True,
-                text=True,
-            )
+            status, tail = run_tests()
         finally:
             path.write_text(original)
-        killed = run.returncode != 0
-        survivors += not killed
-        tail = run.stdout.strip().splitlines()[-1]
-        # Drop the run time, which differs from run to run.
-        tail = tail.rsplit(" in ", 1)[0]
-        lines.append(f"{number:2d}. {'killed  ' if killed else 'SURVIVED'}  {what} [{name}]: {tail}")
+        outcome = {0: "SURVIVED", 1: "killed"}.get(status, "ERROR")
+        counts[outcome] += 1
+        lines.append(f"{number:2d}. {outcome:8s}  {what} [{name}]: {tail}")
     lines.append("")
-    lines.append(f"{len(MUTANTS) - survivors} of {len(MUTANTS)} mutants killed")
+    lines.append(
+        f"{counts['killed']} of {len(MUTANTS)} mutants killed, "
+        f"{counts['SURVIVED']} survived, {counts['ERROR']} errored"
+    )
     text = "\n".join(lines) + "\n"
     (HERE / "verification" / "mutants_held_references.txt").write_text(text)
     print(text, end="")
-    return 1 if survivors else 0
+    return 1 if counts["SURVIVED"] or counts["ERROR"] else 0
 
 
 if __name__ == "__main__":

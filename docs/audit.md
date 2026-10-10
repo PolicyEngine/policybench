@@ -189,18 +189,23 @@ exclusion still needs a release and the maintainer's ruling.
 The consensus trigger reads no history, so a cell whose reference a check has
 already worked from the law and held is flagged again for as long as the same
 models agree. `reference_audit/held_references.json` is the standing list of
-such checks. Each record names a cell, the prompt the models answered (by its
-sha256), the reference value held, each consensus answer the check explained,
-and the write-up (`policybench/held_references.py` gives the schema).
+such checks. Each record names a cell, the scenario's prompt as the payload
+exports it (by its sha256), the reference value held, each consensus answer
+the check explained, and the write-up (`policybench/held_references.py` gives
+the schema).
 
 `adversary-prepare --held-references` gives a flagged cell on that list no
 case and writes `<adv>/held_references.json`, which lists it as checked and
 held beside the explanation of each triggering cluster. A record applies only
 while all of these are true:
 
-- the payload's prompt for the scenario is the one the check read, byte for
-  byte. A scenario id is a position in a run (`scenario_{i:03d}`), so the same
-  id can name another household after a regeneration;
+- the payload's exported prompt for the scenario (`prompt.tool`, the
+  canonical whole-scenario prompt under the tool answer contract) is the one
+  the check read, byte for byte. A scenario id is a position in a run
+  (`scenario_{i:03d}`), so the same id can name another household after a
+  regeneration. The hash binds the household and the output definitions; it
+  does not record each model's own request, which a model card may serve
+  under the JSON contract or in chunks;
 - the flag's reference is the held value; and
 - each triggering cluster is an answer the record explains: every member's
   own answer matches the same explained answer.
@@ -220,13 +225,16 @@ a record can carry an open question, as the first two do
 
 With the option, the command also:
 
-- refuses flags that record another payload's hash, and checks each held flag
-  against the payload as it checks a flag that gets a case, since a held flag
-  would otherwise never be checked;
-- refuses to prepare a directory that already holds judge output
-  (`stage1.json` or `verdict.json`) for a cell now listed as held, because
-  preparing removes the directory of a case no longer listed. Prepare each
-  pass into a new directory;
+- requires the flags to be the payload's. The flags report must record the
+  payload's sha256, and the command recomputes the flags from the payload at
+  the report's parameters and refuses a report that differs. Flags from an
+  older payload would lack a consensus that has formed since, and a hold
+  would hide it;
+- refuses to prepare a directory that holds a runner's files for a cell now
+  listed as held, because preparing removes the directory of a case no longer
+  listed. Preparation writes only `stage1_prompt.md` into a case directory,
+  so any other file there counts: a verdict, or what an interrupted run left
+  behind. Prepare each pass into a new directory;
 - marks a record that no longer applies with what happens to its cell:
   `prepared`, or `covered_elsewhere` when `--skip-cells` lists it.
 

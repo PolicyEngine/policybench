@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "about": "References a check worked from the law and held against a model consensus. `policybench adversary-prepare --held-references` reads this file: a flagged cell listed here gets no adversary case, and is listed as checked and held, while the scenario's prompt as the payload exports it is the one the check read (`prompt_sha256`), its reference is still the held value, and each triggering cluster is an answer its record explains, each within a dollar (policybench/held_references.py). A record whose prompt or reference has changed, or whose cell shows a consensus it does not explain, no longer applies, and the cell is judged. Listing a cell here changes no score, reference or exclusion.",
+  "about": "The two records this check added to reference_audit/held_references.json, as written on 2026-10-10. The standing list may later bring a record's notes up to date or replace it after another check; this copy is what the evidence in this directory supports.",
   "records": [
     {
       "scenario_id": "scenario_039",
