@@ -54,6 +54,18 @@ ANNOTATION_CSVS = [
     BUNDLE / "annotations" / name
     for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
 ]
+# The case reference explanations, which must stay release 20260929's.
+EXPLANATIONS_NAME = "us_case_reference_explanations.csv"
+EXPLANATIONS = BUNDLE / "annotations" / EXPLANATIONS_NAME
+# The bundle files export requires (driver.EXPORT_INPUTS): the references and
+# predictions, and the three annotation CSVs whose loaders fall back to the
+# working directory's committed annotations when the bundle has none.
+EXPORT_READS = (
+    *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{EXPLANATIONS_NAME}",
+)
 
 
 @functools.cache
@@ -85,6 +97,11 @@ def committed_record() -> dict:
     """The adjudication record release 20260930 committed, as its commit holds
     it: release 20260929's restated where GPT-6.1 Sol re-opened a case."""
     return json.loads(release_blob(ADJUDICATIONS_PATH))
+
+
+# The committed receipt pin's reader, which the fixtures stub; the tests of
+# the pin itself restore it.
+COMMITTED_RELEASE_RECEIPT = getattr(driver, "committed_release_receipt", None)
 
 
 SOL = "gpt-6.1-sol"
@@ -216,6 +233,8 @@ def freeze_preflight(tmp_path, monkeypatch):
     for name in evidence:
         (stage / name).parent.mkdir(parents=True, exist_ok=True)
         (stage / name).write_text(f"Evidence: {name.name}\n")
+    (stage / EXPLANATIONS).write_bytes(base_explanations())
+    evidence += [EXPLANATIONS]
     # GPT-6.1 Sol's run files are the committed pins' (stubbed here), and the
     # bundle's predictions hold its rows as prepare folded them.
     pins = write_inputs(stage)
@@ -240,7 +259,27 @@ def freeze_preflight(tmp_path, monkeypatch):
     pointer = workspace / "app/src/data.artifact.json"
     pointer.parent.mkdir(parents=True)
     pointer.write_text("The live pointer must stay unchanged.\n")
+
+    def committed_release_receipt():
+        # The pin export would write for the stage as it stands, committed;
+        # the tests of the pin itself fix or restore it.
+        return {
+            "release_tag": json.loads((stage / "release-ready.json").read_text()).get(
+                "release_tag"
+            ),
+            "payload_sha256": sha(payload),
+            "release_ready_sha256": sha(stage / "release-ready.json"),
+        }
+
+    monkeypatch.setattr(
+        driver, "committed_release_receipt", committed_release_receipt, raising=False
+    )
     return stage, payload, receipt
+
+
+def base_explanations() -> bytes:
+    """Release 20260929's case reference explanations, from git."""
+    return driver.base_commit_blob(Path("annotations") / RUN / EXPLANATIONS_NAME)
 
 
 def workspace_files():
@@ -621,7 +660,7 @@ def test_the_rebuild_reads_a_scratch_copy_of_the_bound_bundle(
         for name in bound
         if name.is_relative_to(BUNDLE)
     }
-    assert len(files) == 9
+    assert len(files) == 10
 
 
 def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuilds):
@@ -636,6 +675,261 @@ def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuil
     with pytest.raises(SystemExit, match="changed since strict export.*predictions"):
         release.rebuild_payload(stage, receipt, payload, base)
     assert len(rebuilds) == 1
+
+
+def _reached(gate: str):
+    def stop(*args, **kwargs):
+        raise SystemExit(f"Reached the {gate}")
+
+    return stop
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("edit", ["receipt", "payload"])
+def test_the_freeze_refuses_a_stage_edited_after_its_pin_was_committed(
+    staged_board, monkeypatch, edit, dry_run
+):
+    """The receipt binds the stage only by hashes beside it. A stage file
+    edited after export, the receipt re-hashed to match (or the payload
+    edited, its receipt hash updated), is refused before any later gate
+    and any workspace mutation: the committed pin still names the receipt
+    and payload export wrote."""
+    stage, rebind = staged_board
+    pin = driver.committed_release_receipt()
+    monkeypatch.setattr(driver, "committed_release_receipt", lambda: pin)
+    monkeypatch.setattr(driver, "verify_new_model_inputs", _reached("input gate"))
+    if edit == "receipt":
+        meta = stage / "audit/cases" / KEPT / "verdict.meta.json"
+        meta.write_text(
+            json.dumps({**json.loads(meta.read_text()), "judge_runner": "by hand"})
+        )
+        expected = "\\['release_ready_sha256'\\]"
+    else:
+        payload = stage / "data-board46.json"
+        board = json.loads(payload.read_text())
+        board["countries"]["us"]["modelStats"][-1]["exact"] = 100.0
+        payload.write_text(json.dumps(board))
+        expected = "\\['payload_sha256', 'release_ready_sha256'\\]"
+    rebind()
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"stage's {expected} are not what"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize(
+    "where", ["unlisted_case", "parse_only_case", "sidecar_alone", "case_variant"]
+)
+def test_the_freeze_refuses_a_verdict_outside_the_judged_cases(
+    staged_board, monkeypatch, where, dry_run
+):
+    """The snapshot manifest's judge tally counts every case directory that
+    holds a verdict.json. A verdict and its bound sidecar added after export
+    to a case cases.jsonl does not list, or to a parse-failure-only case, are
+    bound by no receipt entry and checked by no other gate; so is a sidecar
+    alone. Each is refused before any later gate and any workspace mutation.
+    Names that differ only in case (Verdict.json) are refused wherever the
+    file system matches them as the tally does, and seen by neither where it
+    does not."""
+    stage, rebind = staged_board
+    release_references(stage / BUNDLE / "us")
+    rebind()
+    monkeypatch.setattr(release, "verify_judge_provenance", _reached("next gate"))
+    cases = stage / "audit/cases"
+    case = {
+        "unlisted_case": "us__scenario_999__snap",
+        "parse_only_case": "us__scenario_001__snap",
+        "sidecar_alone": "us__scenario_999__snap",
+        "case_variant": "us__scenario_999__snap",
+    }[where]
+    (cases / case).mkdir(exist_ok=True)
+    meta = json.loads((cases / KEPT / "verdict.meta.json").read_text())
+    meta["judge_model_requested"] = "claude-opus-5-5"
+    names = ("verdict.json", "verdict.meta.json")
+    if where == "case_variant":
+        names = ("Verdict.json", "Verdict.meta.json")
+    if where != "sidecar_alone":
+        shutil.copyfile(cases / KEPT / "verdict.json", cases / case / names[0])
+    (cases / case / names[1]).write_text(json.dumps(meta))
+    before = workspace_files()
+    if where == "case_variant" and not (cases / case / "verdict.json").is_file():
+        # A case-sensitive file system: the tally does not count it either.
+        with pytest.raises(SystemExit, match="Reached the next gate"):
+            release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    else:
+        with pytest.raises(
+            SystemExit, match=f"not judged cases in cases.jsonl.*{case}"
+        ):
+            release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def _commit(root: Path, message: str) -> None:
+    """Commit everything in a scratch repository, with no user hooks or keys."""
+    git = ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null"]
+    git += ["-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@t"]
+    # No background maintenance: it writes .git/ while the workspace is
+    # compared before and after a freeze.
+    git += ["-c", "maintenance.auto=false", "-c", "gc.auto=0"]
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", message], check=True)
+
+
+def test_the_freeze_reads_the_receipt_pin_as_committed_at_head(
+    staged_board, monkeypatch
+):
+    """Export writes the pin; the freeze reads it as committed at HEAD. A pin
+    never committed, or rewritten and not committed, is refused before any
+    later gate; once committed, a pin that names another payload is refused
+    too. Only the committed pin of this stage's receipt lets it through."""
+    stage, _ = staged_board
+    root = release.ROOT
+    monkeypatch.setattr(driver, "committed_release_receipt", COMMITTED_RELEASE_RECEIPT)
+    monkeypatch.setattr(driver, "ROOT", root)
+    pin = root / "docs/gpt61sol/release_receipt.json"
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", pin, raising=False)
+    monkeypatch.setattr(driver, "verify_new_model_inputs", _reached("input gate"))
+    pin.parent.mkdir(parents=True)
+    payload = stage / "data-board46.json"
+    record = {
+        "note": "The stage's receipt.",
+        "release_tag": driver.RELEASE_TAG,
+        "payload_sha256": sha(payload),
+        "release_ready_sha256": sha(stage / "release-ready.json"),
+    }
+    pin.write_text(json.dumps(record))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+
+    def freeze(match: str) -> None:
+        before = workspace_files()
+        with pytest.raises(SystemExit, match=match):
+            release.main(["--stage-dir", str(stage), "--dry-run"])
+        assert workspace_files() == before
+
+    freeze("release_receipt.json is not committed at HEAD")
+    _commit(root, "Pin the receipt")
+    freeze("Reached the input gate")
+    pin.write_text(json.dumps({**record, "payload_sha256": "0" * 64}))
+    freeze("release_receipt.json differs from its HEAD commit; commit it")
+    _commit(root, "Pin another payload")
+    freeze("stage's \\['payload_sha256'\\] are not what")
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["annotations/us_zz_annotations.csv", "annotations/notes.txt", "us/by_model"],
+)
+def test_the_rebuild_refuses_a_bound_file_export_would_read_unchecked(
+    staged_board, rebuilds, extra
+):
+    """export_full_run reads every us_*_annotations.csv in annotations/ and
+    prefers us/by_model/ to us/predictions.csv. Such a file, added before
+    export and so bound by the receipt, is in the rebuild's scratch copy;
+    build_payload refuses it before export_full_run runs."""
+    stage, rebind = staged_board
+    path = stage / BUNDLE / extra
+    if extra == "us/by_model":
+        path.mkdir()
+        path = path / "gpt-6.1-sol.csv"
+    path.write_text(
+        "model,scenario_id,variable,annotation,failure_source,failure_subtype\n"
+        "gpt-6.1-sol,scenario_001,snap,No judge wrote this.,llm_error,other\n"
+    )
+    rebind()
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    receipt["files"][str(path.relative_to(stage))] = sha(path)
+    with pytest.raises(SystemExit, match=f"the bundle holds.*{re.escape(extra)}"):
+        release.rebuild_payload(
+            stage,
+            receipt,
+            stage / "data-board46.json",
+            driver.base_payload_from_commit(),
+        )
+    assert rebuilds == []
+
+
+@pytest.mark.parametrize("edit", [None, "explanations", "reference"])
+def test_the_freeze_checks_the_frozen_references_and_explanations(tmp_path, edit):
+    """After the freezer writes the snapshot, the frozen references must be
+    release 20260929's pins and the committed explanations its file."""
+    frozen, annotations = tmp_path / "run", tmp_path / "annotations"
+    frozen.mkdir()
+    annotations.mkdir()
+    for name in driver.REFERENCE_FILES:
+        (frozen / name).write_bytes(
+            driver.base_commit_blob(Path("paper/snapshot/20260501/runs") / RUN / name)
+        )
+    (annotations / EXPLANATIONS_NAME).write_bytes(base_explanations())
+    if edit is None:
+        release.verify_frozen(frozen, annotations)
+        return
+    if edit == "explanations":
+        (annotations / EXPLANATIONS_NAME).write_bytes(base_explanations() + b"\n")
+        message = f"Frozen {EXPLANATIONS_NAME} is not release 20260929's"
+    else:
+        (frozen / "scenarios.csv").write_bytes(b"scenario_id\n")
+        message = "frozen reference scenarios.csv does not match its pin"
+    with pytest.raises(SystemExit, match=message):
+        release.verify_frozen(frozen, annotations)
+
+
+def _edit_explanation(stage: Path) -> None:
+    """Rewrite one case's written reference derivation in the staged file."""
+    path = stage / EXPLANATIONS
+    text = path.read_text()
+    first = text.splitlines()[1]
+    path.write_text(text.replace(first, first + " A sentence no review wrote.", 1))
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("receipt_entry", ["removed", "updated"])
+def test_the_freeze_refuses_edited_reference_explanations(
+    staged_board, receipt_entry, dry_run
+):
+    """The staged case reference explanations must be release 20260929's,
+    byte for byte. Edited with its receipt entry removed, the file is unbound;
+    edited with its entry re-hashed, it is not 20260929's. Either is refused
+    before any workspace mutation."""
+    stage, rebind = staged_board
+    release_references(stage / BUNDLE / "us")
+    _edit_explanation(stage)
+    rebind()
+    if receipt_entry == "removed":
+        receipt = json.loads((stage / "release-ready.json").read_text())
+        del receipt["files"][str(EXPLANATIONS)]
+        (stage / "release-ready.json").write_text(json.dumps(receipt))
+        message = f"does not bind.*{re.escape(str(EXPLANATIONS))}"
+    else:
+        message = f"Staged {EXPLANATIONS_NAME} is not release 20260929's"
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=message):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+def test_the_export_inputs_are_the_references_predictions_and_annotation_csvs():
+    assert driver.EXPORT_INPUTS == EXPORT_READS
+
+
+@pytest.mark.parametrize("name", EXPORT_READS)
+def test_the_rebuild_refuses_a_bundle_file_export_requires_and_the_receipt_omits(
+    staged_board, rebuilds, name
+):
+    """A file export requires that the receipt does not bind is missing from
+    the scratch copy. The rebuild refuses it before export_full_run runs: for
+    an annotation CSV, its loader would read the working directory's
+    committed annotations in the copy's place and rebuild the staged payload
+    from other bytes."""
+    stage, _ = staged_board
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    del receipt["files"][str(BUNDLE / name)]
+    payload = stage / "data-board46.json"
+    with pytest.raises(SystemExit, match=f"the bundle lacks.*{re.escape(name)}"):
+        release.rebuild_payload(
+            stage, receipt, payload, driver.base_payload_from_commit()
+        )
+    assert rebuilds == []
 
 
 JSON_LEAVES = st.none() | st.booleans() | st.integers() | st.text(max_size=3)
@@ -675,7 +969,9 @@ def test_payload_differences_name_the_first_differing_paths():
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
-@pytest.mark.parametrize("defect", ["edited_kept", "unbound_new"])
+@pytest.mark.parametrize(
+    "defect", ["edited_kept", "edited_kept_sidecar", "unbound_new"]
+)
 def test_the_freeze_refuses_a_verdict_edited_after_export(
     staged_board, monkeypatch, defect, dry_run
 ):
@@ -695,6 +991,13 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
         meta["verdict_sha256"] = sha(case / "verdict.json")
         (case / "verdict.meta.json").write_text(json.dumps(meta))
         message = f"carried-over verdicts differ.*{KEPT}"
+    elif defect == "edited_kept_sidecar":
+        # The judge the snapshot manifest tallies, rewritten; the sidecar
+        # still binds the seed's verdict bytes.
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        meta["judge_model_requested"] = "claude-opus-5-5"
+        (case / "verdict.meta.json").write_text(json.dumps(meta))
+        message = f"carried-over verdicts differ.*{KEPT}.*sidecar is not the seed's"
     else:
         monkeypatch.setattr(driver, "load_seed", lambda stage: {})
         message = f"fail validation.*{KEPT}"
@@ -1278,6 +1581,200 @@ def test_judge_fields_written_by_hand_are_refused(restated, tamper):
     staged[index] = entry
     with pytest.raises(SystemExit, match="not restated by the restate script"):
         driver.verify_restatements(base, staged, rejudged, cases)
+
+
+# The September 22c record's wording for a flag an earlier judge run raised
+# (FLAG_SOURCE_EARLIER_RUN in scripts/date_adds0928_judge_verdicts.py).
+EARLIER_RUN = (
+    "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); "
+    "the case's current verdict.json does not flag it"
+)
+# Each: the current verdict's own flag, whether the 2026-09-22 wave flagged
+# the case, the entry's top-level flag and its source, and whether the gate
+# passes it. The flag is raised when the verdict or the wave raised it, and
+# names a source exactly when the wave alone did. The table holds all 16
+# combinations of the two flags, the entry's flag and its source (none or
+# EARLIER_RUN), and one source in other words.
+REFERENCE_FLAGS = {
+    "raised_with_a_source_the_verdict_does_not_raise": (
+        False,
+        False,
+        True,
+        EARLIER_RUN,
+        False,
+    ),
+    "raised_with_no_source_the_verdict_does_not_raise": (
+        False,
+        False,
+        True,
+        None,
+        False,
+    ),
+    "lowered_as_the_verdict_says": (False, False, False, None, True),
+    "raised_as_the_verdict_says": (True, False, True, None, True),
+    "lowered_against_the_verdict": (True, False, False, None, False),
+    "raised_by_the_verdict_naming_an_earlier_run": (
+        True,
+        False,
+        True,
+        EARLIER_RUN,
+        False,
+    ),
+    "raised_by_the_wave_alone_and_sourced": (False, True, True, EARLIER_RUN, True),
+    "raised_by_the_wave_alone_unsourced": (False, True, True, None, False),
+    "raised_by_the_wave_alone_in_other_words": (
+        False,
+        True,
+        True,
+        "a-human-typed-this",
+        False,
+    ),
+    "lowered_against_the_wave": (False, True, False, None, False),
+    "raised_by_both": (True, True, True, None, True),
+    "raised_by_both_naming_an_earlier_run": (True, True, True, EARLIER_RUN, False),
+    "lowered_naming_an_earlier_run": (False, False, False, EARLIER_RUN, False),
+    "lowered_against_the_wave_naming_it": (False, True, False, EARLIER_RUN, False),
+    "lowered_against_the_verdict_naming_an_earlier_run": (
+        True,
+        False,
+        False,
+        EARLIER_RUN,
+        False,
+    ),
+    "lowered_against_both": (True, True, False, None, False),
+    "lowered_against_both_naming_an_earlier_run": (
+        True,
+        True,
+        False,
+        EARLIER_RUN,
+        False,
+    ),
+}
+
+
+def _judge_verdict(cases: Path, case: str, flag: bool) -> None:
+    """The case's current verdict with its own reference flag, its sidecar
+    re-bound to it."""
+    verdict = cases / case / "verdict.json"
+    verdict.write_text(
+        json.dumps({"case_failure_source": "llm_error", "reference_suspect": flag})
+    )
+    meta = json.loads(verdict.with_name("verdict.meta.json").read_text())
+    meta["verdict_sha256"] = sha(verdict)
+    verdict.with_name("verdict.meta.json").write_text(json.dumps(meta))
+
+
+def _flagged(entry: dict, flag: bool, source: str | None) -> dict:
+    entry = {**entry, "judge_reference_suspect": flag}
+    entry.pop("judge_reference_suspect_source", None)
+    if source is not None:
+        entry["judge_reference_suspect_source"] = source
+    return entry
+
+
+@pytest.mark.parametrize("name", REFERENCE_FLAGS)
+def test_a_restated_entrys_reference_flag_is_the_current_verdicts(
+    restated, monkeypatch, name
+):
+    """The restate script writes a re-opened entry's top-level flag from the
+    current verdict and the 2026-09-22 wave; a flag the verdict does not
+    raise, named to an earlier run the wave does not record, is refused. The
+    gate reads the wave from BASE_COMMIT (stubbed here)."""
+    verdict_flag, waved, flag, source, passes = REFERENCE_FLAGS[name]
+    base, staged, rejudged, cases, index = restated
+    entry = _flagged(staged[index], flag, source)
+    staged[index] = entry
+    _judge_verdict(cases, _case(entry), verdict_flag)
+    key = f"{entry['scenario_id']}:{entry['variable']}"
+    wave = frozenset({key} if waved else ())
+    monkeypatch.setattr(driver, "base_wave_flags", lambda: wave, raising=False)
+    if passes:
+        driver.verify_restatements(base, staged, rejudged, cases)
+        return
+    with pytest.raises(SystemExit, match=f"{_case(entry)}: its reference flag"):
+        driver.verify_restatements(base, staged, rejudged, cases)
+
+
+@pytest.mark.parametrize("verdict_flag", [False, True])
+def test_an_unrestated_reopened_entry_must_carry_the_current_verdicts_flag(
+    restated, verdict_flag
+):
+    """A re-opened entry left as 20260929's wrote it is checked too: its flag
+    must be the one the current verdict gives it."""
+    base, staged, rejudged, cases, index = restated
+    at = next(i for i, e in enumerate(base) if _case(e) == _case(staged[index]))
+    _judge_verdict(cases, _case(base[at]), verdict_flag)
+    # 20260929's entry, unrestated, with the flag the verdict does not give.
+    base[at] = staged[index] = _flagged(base[at], not verdict_flag, None)
+    with pytest.raises(SystemExit, match="its reference flag"):
+        driver.verify_restatements(
+            base, staged, rejudged, cases, wave_flags=frozenset()
+        )
+    base[at] = staged[index] = _flagged(base[at], verdict_flag, None)
+    driver.verify_restatements(base, staged, rejudged, cases, wave_flags=frozenset())
+
+
+@pytest.mark.parametrize(
+    "original, source, passes",
+    [
+        (None, EARLIER_RUN, True),
+        (None, "claude-opus-5-5 judge run adjudicated 2026-09-22", False),
+        ("claude-opus-5-5 judge run adjudicated 2026-09-22", EARLIER_RUN, True),
+        (
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            True,
+        ),
+        (
+            "claude-opus-5-5 judge run adjudicated 2026-09-22",
+            "a-human-typed-this",
+            False,
+        ),
+    ],
+)
+def test_a_named_flag_source_keeps_20260929s_wording_or_the_restate_scripts(
+    original, source, passes
+):
+    """A flag the wave alone raised names its source in the wording 20260929's
+    entry gave it, or in the restate script's FLAG_SOURCE_EARLIER_RUN, which
+    a restatement writes where the entry has none (a case whose first
+    re-judge flagged the reference loses its source, and a later re-judge
+    that does not restores the restate script's)."""
+    first = {} if original is None else {"judge_reference_suspect_source": original}
+    entry = {"judge_reference_suspect": True, "judge_reference_suspect_source": source}
+    problem = driver.reference_flag_problem(entry, first, False, True)
+    assert (problem is None) == passes
+
+
+def test_the_gate_reads_the_restate_scripts_wave_flags_from_git():
+    """The restate script's --wave-flags default is the file the gate reads
+    at BASE_COMMIT, and the working tree's copy is unchanged."""
+    import date_adds0928_judge_verdicts as dates
+    import restate_gpt61sol_adjudications as restate
+
+    assert restate.WAVE_FLAGS == dates.WAVE_FLAGS
+    assert dates.WAVE_FLAGS == driver.ROOT / driver.WAVE_FLAGS_PATH
+    assert driver.base_wave_flags() == frozenset(
+        json.loads(dates.WAVE_FLAGS.read_text())
+    )
+    assert restate.FLAG_SOURCE_EARLIER_RUN == EARLIER_RUN
+
+
+def test_the_stages_restated_entries_pass_the_restatement_check():
+    """Local only: every re-opened entry of the staged record, each restated
+    by the restate script, passes the gate against the stage's verdicts."""
+    from policybench.adjudications import load_adjudications
+
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "audit/cases").is_dir():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    changes = json.loads((stage / driver.PROMPT_CHANGES).read_text())
+    rejudged = frozenset(changes["changed"]) | frozenset(changes["added"])
+    staged = load_adjudications(stage / BUNDLE / "annotations/us_adjudications.json")
+    assert sum(_case(entry) in rejudged for entry in staged) == 54
+    driver.verify_restatements(
+        driver.base_adjudications(), staged, rejudged, stage / "audit/cases"
+    )
 
 
 def test_the_freeze_reads_20260929_predictions_and_serving_from_git(monkeypatch):

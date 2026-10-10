@@ -1,0 +1,6 @@
+{
+  "note": "The GPT-6.1 Sol stage's export receipt, written by scripts/finish_gpt61sol.py --step export: the release tag and the sha256 of the staged payload and of release-ready.json. The freeze reads this file as committed at HEAD and refuses a stage whose receipt or payload it does not name.",
+  "payload_sha256": "d1cae7456cf91ab6fa04644a4d5d570e359522386a7c52f9645d5923bfc11258",
+  "release_ready_sha256": "e8e0a51f28782d08fd9fb426fbf5cbe7a510fab75abfb949f799f92cf87773d7",
+  "release_tag": "dashboard-data-20260930"
+}

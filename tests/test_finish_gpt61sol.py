@@ -1097,6 +1097,168 @@ def test_bind_seed_binds_a_stage_prepared_before_prepare_did(seeded_stage):
         driver.bind_seed(args)
 
 
+def test_bind_seed_adds_the_sidecars_to_a_binding_made_before_them(seeded_stage):
+    """A stage bound when the digest held prompts and verdicts alone (as the
+    real stage was) is bound again with each case's sidecar sha256; until
+    then every read of the seed refuses it. A binding of another seed is
+    refused, not extended."""
+    seed, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    full = receipt["seed"]
+    receipt["seed"] = {
+        case: {key: item[key] for key in ("prompt_sha256", "verdict_sha256")}
+        for case, item in full.items()
+    }
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="binds it again with --step bind-seed"):
+        driver.load_seed(stage)
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed)
+    driver.bind_seed(args)
+    assert driver.load_seed(stage) == full
+    receipt["seed"]["us__s1__snap"]["verdict_sha256"] = "0" * 64
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="binds another audit seed"):
+        driver.bind_seed(args)
+
+
+def _edit_sidecar(case: Path, **changes) -> None:
+    """Rewrite a verdict's sidecar, its verdict_sha256 kept."""
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    meta.update(changes)
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"judge_model_requested": "claude-opus-5-5"},
+        {"judge_runner": "a Workflow subagent"},
+        {"judged_at_utc": "2026-09-30T05:00:00+00:00"},
+    ],
+)
+def test_a_kept_sidecar_must_be_the_seeds(seeded_stage, changes):
+    """A carried-over verdict's sidecar names the judge, runner and date the
+    snapshot manifest tallies; one rewritten with its verdict_sha256 kept is
+    refused, not re-judged."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    kept = audit / "cases/us__s1__snap"
+    _edit_sidecar(kept, **changes)
+    before = sorted(p.name for p in kept.iterdir())
+    with pytest.raises(
+        SystemExit, match="carried-over verdicts differ.*sidecar is not the seed's"
+    ):
+        driver.validate_verdicts(audit, remove_invalid=True, seed=seed)
+    assert sorted(p.name for p in kept.iterdir()) == before
+
+
+# File names a case directory may hold; on a case-insensitive file system the
+# variants of one name are one file.
+CASE_FILE_NAMES = [
+    "verdict.json",
+    "Verdict.json",
+    "VERDICT.JSON",
+    "verdict.meta.json",
+    "Verdict.Meta.json",
+    "codex.log",
+    "notes.txt",
+]
+
+
+@settings(max_examples=80, deadline=None)
+@given(
+    cases=st.lists(
+        st.tuples(
+            st.sampled_from(["judged", "parse_only", "unlisted"]),
+            st.sets(st.sampled_from(CASE_FILE_NAMES), max_size=3),
+        ),
+        min_size=1,
+        max_size=6,
+    )
+)
+def test_stray_verdicts_are_the_unjudged_cases_the_tally_counts(
+    tmp_path_factory, cases
+):
+    """Differential against freeze_snapshot.audit_judge_provenance, the
+    snapshot manifest's judge tally: every case directory the tally counts is
+    a judged case or one stray_verdicts names. It holds on any file system,
+    case-sensitive or not, because both test (case / name).is_file()."""
+    import freeze_snapshot
+
+    audit = tmp_path_factory.mktemp("audit")
+    manifest = {}
+    for index, (kind, names) in enumerate(cases):
+        case = f"us__s{index}__snap"
+        if kind != "unlisted":
+            manifest[case] = {"parse_failure_only": kind == "parse_only"}
+        directory = audit / "cases" / case
+        directory.mkdir(parents=True)
+        for name in names:
+            (directory / name).write_text("{}")
+    stray = driver.stray_verdicts(audit, manifest)
+    judged = {case for case, item in manifest.items() if not item["parse_failure_only"]}
+    assert not set(stray) & judged
+
+    def counted(case: str) -> bool:
+        return (audit / "cases" / case / "verdict.json").is_file()
+
+    tally = freeze_snapshot.audit_judge_provenance(audit / "cases")["cases_judged"]
+    assert tally == sum(map(counted, judged)) + sum(map(counted, stray))
+
+
+UNCHECKED_FILES = [
+    "annotations/us_zz_annotations.csv",
+    "annotations/notes.txt",
+    "us/by_model",
+]
+
+
+@pytest.mark.parametrize("extra", UNCHECKED_FILES)
+def test_export_refuses_a_file_it_would_read_unchecked(exporting, extra):
+    """export_full_run reads every us_*_annotations.csv in annotations/ and
+    prefers us/by_model/ to us/predictions.csv; nothing else re-derives them.
+    Export refuses a bundle holding one, and writes no payload or receipt."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    path = bundle / extra
+    if extra == "us/by_model":
+        path.mkdir()
+        path = path / "gpt-6.1-sol.csv"
+    path.write_text("model,scenario_id,variable,annotation\n")
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=f"the bundle holds.*{re.escape(extra)}"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+@pytest.mark.parametrize(
+    "files", [("verdict.json", "verdict.meta.json"), ("verdict.meta.json",)]
+)
+def test_a_verdict_outside_the_judged_cases_is_refused(seeded_stage, files):
+    """A verdict or sidecar in a case directory cases.jsonl does not list as
+    judged would be counted by the snapshot manifest's judge tally and checked
+    by nothing else; every step that validates verdicts refuses it."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    stray = audit / "cases/us__s9__snap"
+    stray.mkdir()
+    for name in files:
+        shutil.copyfile(audit / "cases/us__s1__snap" / name, stray / name)
+    with pytest.raises(
+        SystemExit, match="not judged cases in cases.jsonl.*us__s9__snap"
+    ):
+        driver.validate_verdicts(audit, seed=seed)
+    assert sorted(path.name for path in stray.iterdir()) == sorted(files)
+
+
 @pytest.mark.parametrize("move", ["kept_to_changed", "changed_to_kept", "dropped"])
 def test_prompt_changes_that_disagree_with_the_stage_stop_every_step(
     seeded_stage, move
@@ -1204,7 +1366,9 @@ def test_a_malformed_amendment_file_is_refused(tmp_path, payload):
         driver.load_amendments(tmp_path, frozenset())
 
 
-@pytest.mark.parametrize("defect", ["kept_verdict", "kept_prompt", "changed_prompt"])
+@pytest.mark.parametrize(
+    "defect", ["kept_verdict", "kept_sidecar", "kept_prompt", "changed_prompt"]
+)
 def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, defect):
     seed, stage, prepare = seeded_stage
     audit = prepare(JOINS_S0)
@@ -1213,6 +1377,8 @@ def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, de
     (stage / "stage.json").write_text(json.dumps(receipt))
     if defect == "kept_verdict":
         (audit / "cases/us__s1__snap/verdict.json").write_text("{}")
+    elif defect == "kept_sidecar":
+        _edit_sidecar(audit / "cases/us__s1__snap", judge_model_requested="opus")
     elif defect == "kept_prompt":
         (audit / "cases/us__s1__snap/prompt.md").write_text("Another prompt.\n")
     else:
@@ -1280,11 +1446,11 @@ def test_the_pinned_grounding_is_the_one_the_20260929_stage_used():
 
 def _committed_seed_digest() -> dict[str, dict[str, str]]:
     lines = driver.SEED_DIGEST.read_text().splitlines()
-    assert lines[0] == "case_id,prompt_sha256,verdict_sha256"
+    assert lines[0] == "case_id,prompt_sha256,verdict_sha256,meta_sha256"
     rows = [line.split(",") for line in lines[1:]]
     return {
-        case: {"prompt_sha256": prompt, "verdict_sha256": verdict}
-        for case, prompt, verdict in rows
+        case: {"prompt_sha256": prompt, "verdict_sha256": verdict, "meta_sha256": meta}
+        for case, prompt, verdict, meta in rows
     }
 
 
@@ -1816,9 +1982,19 @@ def exporting(tmp_path, monkeypatch):
     record.write_text(json.dumps(_provenance_record([])))
     monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
+    # Export's receipt pin goes to a scratch file, never the repository's.
+    monkeypatch.setattr(
+        driver, "RELEASE_RECEIPT", tmp_path / "release_receipt.json", raising=False
+    )
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
     pins = _write_run(stage, bundle)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    # The annotation CSVs export reads, the reference explanations release
+    # 20260929's.
+    for path in _annotations(bundle):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"Annotations: {path.name}\n")
+    (bundle / "annotations" / EXPLANATIONS).write_bytes(_base_explanations())
 
     def run(stats, live_stats, *, partial=False, early=False):
         exported["stats"] = stats
@@ -1865,6 +2041,27 @@ def _write_run(stage, bundle) -> dict:
     return {SLUG: {name: driver.digest(inputs / name) for name in PINNED}}
 
 
+# The case reference explanations, which must stay release 20260929's, and
+# the bundle files export requires (driver.EXPORT_INPUTS).
+EXPLANATIONS = "us_case_reference_explanations.csv"
+EXPORT_READS = (
+    *(f"us/{name}" for name in (*driver.REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{EXPLANATIONS}",
+)
+
+
+def _annotations(bundle) -> list[Path]:
+    """The annotation CSVs export reads, which the exporting fixture writes."""
+    return [bundle / name for name in EXPORT_READS if name.startswith("annotations/")]
+
+
+def _base_explanations() -> bytes:
+    """Release 20260929's case reference explanations, from git."""
+    return driver.base_commit_blob(Path("annotations") / driver.RUN_NAME / EXPLANATIONS)
+
+
 def _evidence(stage, bundle):
     paths = [bundle / "annotations/us_adjudications.json"]
     paths += [stage / "audit/cases.jsonl", stage / "audit/schema.json"]
@@ -1881,8 +2078,10 @@ def _evidence(stage, bundle):
     for path in paths:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"Evidence: {path.name}\n")
-    # The run files and prepare-time hashes the exporting fixture wrote.
-    paths += [bundle / "us/predictions.csv", stage / "stage.json"]
+    # The annotations, run files and prepare-time hashes the exporting
+    # fixture wrote.
+    paths += [*_annotations(bundle), bundle / "us/predictions.csv"]
+    paths += [stage / "stage.json"]
     paths += [stage / "model-provenance.json"]
     paths += [stage / "inputs" / SLUG / name for name in PINNED]
     return paths + [bundle / "us" / name for name in driver.REFERENCE_FILES]
@@ -1970,6 +2169,93 @@ def test_export_writes_no_receipt_when_the_inputs_are_not_the_pinned_run(
     assert not (stage / "data-board46.json").exists()
 
 
+@pytest.mark.parametrize("name", EXPORT_READS)
+def test_export_refuses_a_bundle_without_a_file_it_reads(exporting, monkeypatch, name):
+    """build_payload, which export and the freeze's rebuild share, refuses a
+    bundle that lacks a file export requires before export_full_run runs: for an
+    annotation CSV, its loader would read the working directory's committed
+    annotations/<RUN>/ instead. Export writes no payload and no receipt."""
+    import policybench.full_run_export
+
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    calls = []
+    monkeypatch.setattr(
+        policybench.full_run_export,
+        "export_full_run",
+        lambda *a, **kw: calls.append(a),
+    )
+    (bundle / name).unlink()
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=f"the bundle lacks.*{re.escape(name)}"):
+        driver.build_payload(bundle, {"countries": {"us": {"modelStats": []}}})
+    if name.startswith("annotations/"):
+        # Export refuses the bundle too, the explanations at their own gate.
+        with pytest.raises(SystemExit, match=re.escape(Path(name).name)):
+            run(_exported(incumbents), incumbents)
+    assert calls == []
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+@pytest.mark.parametrize("edit", ["edited", "missing"])
+def test_export_refuses_reference_explanations_that_are_not_20260929s(exporting, edit):
+    """The staged case reference explanations must be release 20260929's, as
+    committed at BASE_COMMIT, byte for byte, before export writes anything."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    path = bundle / "annotations" / EXPLANATIONS
+    if edit == "edited":
+        path.write_bytes(_base_explanations() + b"scenario_000,snap,Rewritten.\n")
+    else:
+        path.unlink()
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match="staged us_case_reference_explanations.csv"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+def test_the_committed_reference_explanations_are_20260929s(tmp_path):
+    """Runs anywhere with full history: the copy release 20260930's freeze
+    committed (RELEASE_COMMIT) is release 20260929's. Later releases may
+    revise the working tree's copy, so it is not the one checked."""
+    (tmp_path / EXPLANATIONS).write_bytes(
+        release_blob(Path("annotations") / driver.RUN_NAME / EXPLANATIONS)
+    )
+    driver.verify_reference_explanations(tmp_path, "committed")
+
+
+def test_the_stages_reference_explanations_are_20260929s():
+    """Local only: the staged copy is release 20260929's."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    annotations = stage / "publish" / driver.RUN_NAME / "annotations"
+    if not annotations.is_dir():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    driver.verify_reference_explanations(annotations, "staged")
+
+
+def test_export_pins_its_receipt_outside_the_stage(exporting):
+    """After release-ready.json, export writes the receipt's commitment to a
+    repository file: the release tag and the sha256 of the payload and of
+    release-ready.json, for the freeze to read as committed at HEAD."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    incumbents = _incumbents()
+    run(_exported(incumbents), incumbents)
+    receipt = stage / "release-ready.json"
+    pin = json.loads(driver.RELEASE_RECEIPT.read_text())
+    assert set(pin) == {"note", "release_tag", "payload_sha256", "release_ready_sha256"}
+    assert pin["release_tag"] == driver.RELEASE_TAG
+    assert pin["payload_sha256"] == json.loads(receipt.read_text())["payload_sha256"]
+    assert (
+        pin["release_ready_sha256"] == hashlib.sha256(receipt.read_bytes()).hexdigest()
+    )
+    assert driver.RELEASE_RECEIPT.read_text() == (
+        json.dumps(pin, indent=2, sort_keys=True) + "\n"
+    )
+
+
 def test_partial_export_never_gets_a_release_receipt(exporting):
     stage, bundle, run, _ = exporting
     stats = [_stat(f"incumbent-{i:02d}", 40.0) for i in range(45)]
@@ -1978,6 +2264,115 @@ def test_partial_export_never_gets_a_release_receipt(exporting):
     assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
     assert (bundle / "data.json").read_bytes() == payload.read_bytes()
     assert not (stage / "release-ready.json").exists()
+    assert not driver.RELEASE_RECEIPT.exists()
+
+
+def test_the_committed_receipt_pin_names_the_published_release():
+    """Runs anywhere with full history: the committed pin names release
+    20260930's tag and the payload its pointer published, as RELEASE_COMMIT
+    holds it (the live pointer has since moved), in the form export writes."""
+    pin = json.loads(driver.RELEASE_RECEIPT.read_text())
+    pointer = json.loads(release_blob(Path("app/src/data.artifact.json")))
+    assert pin["release_tag"] == pointer["tag"] == driver.RELEASE_TAG
+    assert pin["payload_sha256"] == pointer["sha256"]
+    assert re.fullmatch("[0-9a-f]{64}", pin["release_ready_sha256"])
+    assert driver.RELEASE_RECEIPT.read_text() == (
+        json.dumps(pin, indent=2, sort_keys=True) + "\n"
+    )
+
+
+def test_the_committed_receipt_pin_names_the_stages_receipt():
+    """Local only: the committed pin names the stage's receipt and payload."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "release-ready.json").is_file():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    driver.verify_release_receipt(
+        stage, stage / "data-board46.json", driver.RELEASE_TAG
+    )
+
+
+@pytest.fixture
+def pinned_receipt(tmp_path, monkeypatch):
+    """A git repository whose HEAD commits a receipt pin, and the stage and
+    payload it names."""
+    root = tmp_path / "repo"
+    pin = root / "docs/gpt61sol/release_receipt.json"
+    pin.parent.mkdir(parents=True)
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    (stage / "release-ready.json").write_text('{"files": {}}\n')
+    payload = stage / "data-board46.json"
+    payload.write_text('{"countries": {}}')
+    record = {
+        "note": "A pin.",
+        "release_tag": driver.RELEASE_TAG,
+        "payload_sha256": driver.digest(payload),
+        "release_ready_sha256": driver.digest(stage / "release-ready.json"),
+    }
+    pin.write_text(json.dumps(record))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    commit(root, "pin")
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", pin, raising=False)
+    return pin, record, stage, payload
+
+
+def test_the_receipt_pin_is_read_as_committed_at_head(pinned_receipt):
+    pin, record, stage, payload = pinned_receipt
+    assert driver.committed_release_receipt() == record
+    driver.verify_release_receipt(stage, payload, driver.RELEASE_TAG)
+    # A pin rewritten and not committed is refused, not silently ignored.
+    pin.write_text(json.dumps({**record, "payload_sha256": "0" * 64}))
+    with pytest.raises(SystemExit, match="differs from its HEAD commit; commit it"):
+        driver.committed_release_receipt()
+
+
+def test_a_receipt_pin_never_committed_is_refused(pinned_receipt, monkeypatch):
+    pin, _, _, _ = pinned_receipt
+    elsewhere = pin.with_name("other_receipt.json")
+    elsewhere.write_text(pin.read_text())
+    monkeypatch.setattr(
+        driver,
+        "RELEASE_RECEIPT_PATH",
+        "docs/gpt61sol/other_receipt.json",
+        raising=False,
+    )
+    monkeypatch.setattr(driver, "RELEASE_RECEIPT", elsewhere)
+    with pytest.raises(SystemExit, match="is not committed at HEAD"):
+        driver.committed_release_receipt()
+
+
+@pytest.mark.parametrize(
+    "key", ["release_tag", "payload_sha256", "release_ready_sha256"]
+)
+def test_a_receipt_pin_that_misses_a_hash_is_refused(pinned_receipt, key):
+    pin, record, _, _ = pinned_receipt
+    pin.write_text(json.dumps({k: v for k, v in record.items() if k != key}))
+    commit(driver.ROOT, "a pin without a key")
+    with pytest.raises(SystemExit, match="does not pin"):
+        driver.committed_release_receipt()
+
+
+@pytest.mark.parametrize("change", ["tag", "payload", "receipt", "payload_and_receipt"])
+def test_a_stage_the_committed_pin_does_not_name_is_refused(pinned_receipt, change):
+    """The freeze refuses a release tag, payload or receipt the committed pin
+    does not name, and names what differs."""
+    _, _, stage, payload = pinned_receipt
+    tag = driver.RELEASE_TAG
+    if change == "tag":
+        tag = "dashboard-data-20261001"
+    if change in ("payload", "payload_and_receipt"):
+        payload.write_text('{"countries": {"us": {}}}')
+    if change in ("receipt", "payload_and_receipt"):
+        (stage / "release-ready.json").write_text('{"files": {"x": "0"}}\n')
+    expected = {
+        "tag": ["release_tag"],
+        "payload": ["payload_sha256"],
+        "receipt": ["release_ready_sha256"],
+        "payload_and_receipt": ["payload_sha256", "release_ready_sha256"],
+    }[change]
+    with pytest.raises(SystemExit, match=re.escape(f"stage's {expected} are not what")):
+        driver.verify_release_receipt(stage, payload, tag)
 
 
 # --- Judge provenance ----------------------------------------------------------

@@ -52,6 +52,22 @@ ANNOTATION_FILES = (
     "us_case_reference_explanations.csv",
     "us_adjudications.json",
 )
+# The written derivation of each case's reference. This release revises no
+# reference, so it must stay release 20260929's, byte for byte.
+REFERENCE_EXPLANATIONS = "us_case_reference_explanations.csv"
+# The bundle files export requires, relative to the bundle: the pinned
+# references and the predictions (us/), and the three annotation CSVs. For an
+# annotation CSV a bundle lacks, its loader falls back to the working
+# directory's committed annotations/<RUN>/ (full_run_export.load_annotations,
+# load_case_annotations, load_case_reference_explanations), so build_payload
+# refuses a bundle without one rather than export another file's text. It
+# also refuses any file export would read beyond these (unexpected_bundle_files).
+EXPORT_INPUTS = (
+    *(f"us/{name}" for name in (*REFERENCE_FILES, "predictions.csv")),
+    "annotations/us_audit_row_annotations.csv",
+    "annotations/us_case_notes.csv",
+    f"annotations/{REFERENCE_EXPLANATIONS}",
+)
 JUDGE_MODEL = "claude-opus-5-5"
 ADJUDICATIONS = "us_adjudications.json"
 # Stage files export binds: the cases GPT-6.1 Sol re-opened, and the
@@ -156,11 +172,13 @@ BASE_REFERENCE_SHA256 = {
 # different grounding would silently invalidate carried-over verdicts.
 GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7b55c"
 # The seed: every judged case of the 20260929 audit, with the sha256 of its
-# prompt and of its verdict, committed at docs/gpt61sol/seed_digest.csv. This
-# pins that file's bytes; prepare refuses any other seed and binds this one in
-# stage.json, and a carried-over verdict must keep the seed's bytes.
+# prompt, its verdict and its verdict's sidecar, committed at
+# docs/gpt61sol/seed_digest.csv. This pins that file's bytes; prepare refuses
+# any other seed and binds this one in stage.json, and a carried-over verdict
+# and its sidecar must keep the seed's bytes.
 SEED_DIGEST = ROOT / "docs/gpt61sol/seed_digest.csv"
-SEED_DIGEST_SHA256 = "a94e96970113c4fb38dad9ec5a00fb430f026370a6b63ccffeefaae44436fe3d"
+SEED_DIGEST_SHA256 = "e80ec95ee4440f252df87aa16cee3113e4345dff4b9cd66a7bba9039bf8b1326"
+SEED_FIELDS = ("prompt_sha256", "verdict_sha256", "meta_sha256")
 # GPT-6.1 Sol's supervised run as it finished, pinned outside the stage: the
 # sha256 of the run directory's predictions.csv and run_state.json, which
 # --step pin-inputs writes here. Export and the freeze read the file as
@@ -168,6 +186,13 @@ SEED_DIGEST_SHA256 = "a94e96970113c4fb38dad9ec5a00fb430f026370a6b63ccffeefaae444
 INPUT_PINS_PATH = "docs/gpt61sol/input_pins.json"
 INPUT_PINS = ROOT / INPUT_PINS_PATH
 PINNED_INPUTS = ("predictions.csv", "run_state.json")
+# Export's receipt, committed outside the stage: the release tag, the
+# payload's sha256 and the sha256 of release-ready.json, which export writes
+# here. The freeze reads the file as committed at HEAD, so an edit to the stage
+# after export, its receipt re-hashed to match, also needs a visible commit.
+RELEASE_RECEIPT_PATH = "docs/gpt61sol/release_receipt.json"
+RELEASE_RECEIPT = ROOT / RELEASE_RECEIPT_PATH
+RELEASE_RECEIPT_KEYS = ("release_tag", "payload_sha256", "release_ready_sha256")
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
 # token or latency fields, so export_full_run reports $0 and omits the rest.
@@ -459,6 +484,64 @@ def verify_new_model_inputs(stage: Path) -> None:
     )
 
 
+def release_receipt_record(stage: Path, payload: Path) -> dict:
+    """The receipt pin export writes to RELEASE_RECEIPT: the release tag and
+    the sha256 of the staged ``payload`` and of release-ready.json."""
+    return {
+        "note": (
+            "The GPT-6.1 Sol stage's export receipt, written by "
+            "scripts/finish_gpt61sol.py --step export: the release tag and the "
+            "sha256 of the staged payload and of release-ready.json. The freeze "
+            "reads this file as committed at HEAD and refuses a stage whose "
+            "receipt or payload it does not name."
+        ),
+        "release_tag": RELEASE_TAG,
+        "payload_sha256": digest(payload),
+        "release_ready_sha256": digest(stage / "release-ready.json"),
+    }
+
+
+def committed_release_receipt() -> dict:
+    """The receipt pin as committed at HEAD.
+
+    The working-tree file must be HEAD's too, so a pin export wrote and no
+    one committed is refused rather than silently ignored.
+    """
+    blob = head_blob(RELEASE_RECEIPT_PATH)
+    require(
+        RELEASE_RECEIPT.is_file() and RELEASE_RECEIPT.read_bytes() == blob,
+        f"{RELEASE_RECEIPT_PATH} differs from its HEAD commit; commit it",
+    )
+    record = json.loads(blob)
+    require(
+        isinstance(record, dict)
+        and all(isinstance(record.get(key), str) for key in RELEASE_RECEIPT_KEYS),
+        f"{RELEASE_RECEIPT_PATH} does not pin {list(RELEASE_RECEIPT_KEYS)}",
+    )
+    return record
+
+
+def verify_release_receipt(stage: Path, payload: Path, tag: str) -> None:
+    """The stage's receipt and payload are the ones the committed pin names.
+
+    Export writes the pin after release-ready.json; it must be committed
+    before the freeze, which reads it at HEAD (committed_release_receipt).
+    """
+    pin = committed_release_receipt()
+    staged = {
+        "release_tag": tag,
+        "payload_sha256": digest(payload),
+        "release_ready_sha256": digest(stage / "release-ready.json"),
+    }
+    differ = [key for key in RELEASE_RECEIPT_KEYS if pin[key] != staged[key]]
+    require(
+        not differ,
+        f"the stage's {differ} are not what {RELEASE_RECEIPT_PATH} pins as "
+        "committed at HEAD; the stage changed after export, or export ran "
+        "again and its pin is not committed",
+    )
+
+
 def validate_stage_path(stage: Path, sources: list[Path]) -> None:
     """Allow only scratch outputs, disjoint from every read-only source."""
     stage = stage.resolve()
@@ -622,6 +705,21 @@ def base_payload_from_commit() -> dict:
     return live
 
 
+def verify_reference_explanations(annotations: Path, label: str) -> None:
+    """``annotations``' case reference explanations are release 20260929's.
+
+    The file is compared byte for byte with the one committed at BASE_COMMIT,
+    never with the working tree's copy, which the freeze overwrites.
+    """
+    path = annotations / REFERENCE_EXPLANATIONS
+    base = base_commit_blob(Path("annotations") / RUN_NAME / REFERENCE_EXPLANATIONS)
+    require(
+        path.is_file() and path.read_bytes() == base,
+        f"{label} {REFERENCE_EXPLANATIONS} is not release 20260929's; this "
+        "release has no reference revision",
+    )
+
+
 def base_adjudication_record() -> dict:
     """Release 20260929's adjudication record file, read from BASE_COMMIT.
 
@@ -668,21 +766,77 @@ def verify_record_form(text: str, base: dict) -> None:
     )
 
 
+# The cases a 2026-09-22 judge run flagged, as release 20260929 records them:
+# the restate script's --wave-flags default (WAVE_FLAGS in
+# scripts/date_adds0928_judge_verdicts.py), which a test keeps equal to this.
+WAVE_FLAGS_PATH = "reference_audit/2026-09-28/verification/flagged_sept22_wave.json"
+
+
+def base_wave_flags() -> frozenset[str]:
+    """The "scenario_id:variable" keys of WAVE_FLAGS_PATH at BASE_COMMIT."""
+    return frozenset(json.loads(base_commit_blob(Path(WAVE_FLAGS_PATH))))
+
+
+def reference_flag_problem(
+    entry: dict, original: dict | None, flag: bool, waved: bool
+) -> str | None:
+    """Why a re-opened entry's top-level reference flag is not the one the
+    restate script writes from its current verdict, or None.
+
+    The restate script's reference_flag (the one definition) says, from the
+    current verdict's own flag ``flag`` and whether a 2026-09-22 judge run
+    flagged the case (``waved``), whether judge_reference_suspect is raised
+    and whether the entry names a judge_reference_suspect_source. A named
+    source keeps the wording 20260929's entry (``original``) gave it, or is
+    FLAG_SOURCE_EARLIER_RUN where the restatement had to write one.
+    """
+    from restate_gpt61sol_adjudications import FLAG_SOURCE_EARLIER_RUN, reference_flag
+
+    raised, sourced = reference_flag(flag, waved)
+    key = "judge_reference_suspect_source"
+    wordings = {FLAG_SOURCE_EARLIER_RUN}
+    if original is not None and key in original:
+        wordings.add(original[key])
+    recorded = entry.get("judge_reference_suspect")
+    if (
+        recorded is raised
+        and (key in entry) == sourced
+        and (not sourced or entry[key] in wordings)
+    ):
+        return None
+    return (
+        f"its reference flag {recorded!r} (source {entry.get(key)!r}) is not "
+        f"what the restate script writes from the current verdict's flag {flag} "
+        f"and the 2026-09-22 wave's {waved}: {raised!r}"
+        + (" with a named source" if sourced else " with no source")
+    )
+
+
 def verify_restatements(
-    base: list[dict], staged: list[dict], rejudged: frozenset[str], cases_dir: Path
+    base: list[dict],
+    staged: list[dict],
+    rejudged: frozenset[str],
+    cases_dir: Path,
+    wave_flags: frozenset[str] | None = None,
 ) -> None:
     """A re-opened entry's judge fields must be the restate script's.
 
-    Where they differ from 20260929's, the entry must name the case's current
-    Opus 5.5 verdict (bound by its sidecar) as its judge, date it by that
-    sidecar's UTC day, and keep 20260929's judge_previous with exactly one
-    item appended: the replaced verdict, which is the one 20260929's entry
-    names (its judge, classes, flag and day are its seed verdict's, as the
-    sha256-bound sidecar records it). A new entry must name the current judge
-    too.
+    Every re-opened entry's top-level reference flag (judge_reference_suspect
+    and judge_reference_suspect_source) must be what the restate script
+    writes from the case's current verdict, bound by its sidecar, and the
+    2026-09-22 wave (``wave_flags``, by default release 20260929's, from
+    BASE_COMMIT): reference_flag_problem. Where an entry's judge fields
+    differ from 20260929's, it must also name the case's current Opus 5.5
+    verdict as its judge, date it by that sidecar's UTC day, and keep
+    20260929's judge_previous with exactly one item appended: the replaced
+    verdict, which is the one 20260929's entry names (its judge, classes,
+    flag and day are its seed verdict's, as the sha256-bound sidecar records
+    it). A new entry must name the current judge too.
     """
     from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day, named_item
 
+    if wave_flags is None:
+        wave_flags = base_wave_flags()
     before = {case_id(entry): entry for entry in base}
     wrong = []
     for entry in staged:
@@ -690,34 +844,48 @@ def verify_restatements(
         if case not in rejudged:
             continue
         original = before.get(case)
-        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
-        if original is not None and judge == {
-            k: v for k, v in original.items() if k in JUDGE_FIELDS
-        }:
-            continue
         verdict = cases_dir / case / "verdict.json"
         meta_path = verdict.with_name("verdict.meta.json")
         meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
         bound = verdict.is_file() and meta.get("verdict_sha256") == digest(verdict)
-        day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
         problems = []
-        if not bound or entry.get("judge_model") != JUDGE_MODEL:
-            problems.append("judge is not the current Opus 5.5 verdict")
-        if original is not None:
-            previous = original.get("judge_previous", [])
-            restated = entry.get("judge_previous", [])
-            if len(restated) != len(previous) + 1 or restated[:-1] != previous:
-                problems.append("judge_previous is not 20260929's plus one item")
-            elif restated[-1] != named_item(original):
-                problems.append(
-                    "the appended judge_previous item is not the verdict "
-                    "20260929's entry names"
-                )
-            if (
-                entry.get("judge_rejudged_on") != day
-                or entry.get("judged_on_utc", day) != day
-            ):
-                problems.append(f"not dated by the current verdict's day {day}")
+        if bound:
+            try:
+                current = json.loads(verdict.read_text())
+            except ValueError:
+                current = None
+            if isinstance(current, dict):
+                flag = bool(current.get("reference_suspect"))
+                waved = f"{entry['scenario_id']}:{entry['variable']}" in wave_flags
+                problem = reference_flag_problem(entry, original, flag, waved)
+                if problem:
+                    problems.append(problem)
+            else:
+                problems.append("its current verdict is not a JSON object")
+        else:
+            problems.append("its current verdict is not bound by its sidecar")
+        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
+        if original is None or judge != {
+            k: v for k, v in original.items() if k in JUDGE_FIELDS
+        }:
+            day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
+            if not bound or entry.get("judge_model") != JUDGE_MODEL:
+                problems.append("judge is not the current Opus 5.5 verdict")
+            if original is not None:
+                previous = original.get("judge_previous", [])
+                restated = entry.get("judge_previous", [])
+                if len(restated) != len(previous) + 1 or restated[:-1] != previous:
+                    problems.append("judge_previous is not 20260929's plus one item")
+                elif restated[-1] != named_item(original):
+                    problems.append(
+                        "the appended judge_previous item is not the verdict "
+                        "20260929's entry names"
+                    )
+                if (
+                    entry.get("judge_rejudged_on") != day
+                    or entry.get("judged_on_utc", day) != day
+                ):
+                    problems.append(f"not dated by the current verdict's day {day}")
         if problems:
             wrong.append(f"{case}: {'; '.join(problems)}")
     require(
@@ -1183,15 +1351,21 @@ def seed_prompt_digests(audit: Path) -> dict[str, str]:
 
 
 def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
-    """Each judged case's prompt and verdict sha256, keyed by case id."""
+    """Each judged case's prompt, verdict and sidecar sha256, keyed by case id.
+
+    The sidecar (verdict.meta.json) names the verdict's judge, runner and
+    date, which the snapshot manifest's judge tally reads.
+    """
     seed = {}
     for case in sorted((audit / "cases").glob("*")):
         if not (case / "prompt.md").is_file():
             continue
-        require((case / "verdict.json").is_file(), f"seed case unjudged: {case.name}")
+        for name in ("verdict.json", "verdict.meta.json"):
+            require((case / name).is_file(), f"seed case lacks {name}: {case.name}")
         seed[case.name] = {
             "prompt_sha256": digest(case / "prompt.md"),
             "verdict_sha256": digest(case / "verdict.json"),
+            "meta_sha256": digest(case / "verdict.meta.json"),
         }
     return seed
 
@@ -1199,19 +1373,29 @@ def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
 def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
     """The seed digest as docs/gpt61sol/seed_digest.csv spells it."""
     rows = [
-        f"{case},{item['prompt_sha256']},{item['verdict_sha256']}\n"
+        ",".join([case, *(item[field] for field in SEED_FIELDS)]) + "\n"
         for case, item in sorted(seed.items())
     ]
-    return "case_id,prompt_sha256,verdict_sha256\n" + "".join(rows)
+    return ",".join(["case_id", *SEED_FIELDS]) + "\n" + "".join(rows)
 
 
 def verify_seed(seed: dict[str, dict[str, str]]) -> None:
     """The seed must be the 20260929 audit the committed digest records."""
     require(
+        isinstance(seed, dict)
+        and all(
+            isinstance(item, dict) and set(item) == set(SEED_FIELDS)
+            for item in seed.values()
+        ),
+        "the audit seed does not record each judged case's prompt, verdict and "
+        "sidecar sha256; a stage bound before the digest recorded sidecars "
+        "binds it again with --step bind-seed --audit-seed <the 20260929 audit>",
+    )
+    require(
         hashlib.sha256(seed_digest_text(seed).encode()).hexdigest()
         == SEED_DIGEST_SHA256,
         "the audit seed is not release 20260929's (see docs/gpt61sol/"
-        "seed_digest.csv): its cases, prompts or verdicts differ",
+        "seed_digest.csv): its cases, prompts, verdicts or sidecars differ",
     )
 
 
@@ -1305,25 +1489,43 @@ def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> Non
 def bind_seed(args) -> None:
     """Bind the seed in the stage.json of a stage prepared before prepare did.
 
-    The seed must match the committed digest, and the stage must agree with it
-    case by case: every kept case keeps the seed's prompt and verdict bytes,
-    every changed case's prompt differs, and no added case is a seed case.
+    A stage bound before the digest recorded sidecars (its binding is this
+    seed's prompt and verdict sha256 alone) is bound again, with them. The
+    seed must match the committed digest, and the stage must agree with it
+    case by case: every kept case keeps the seed's prompt, verdict and
+    sidecar bytes, every changed case's prompt differs, and no added case is
+    a seed case.
     """
     receipt_path = args.stage_dir / "stage.json"
     receipt = json.loads(receipt_path.read_text())
-    require("seed" not in receipt, "stage.json already binds its audit seed")
     require(args.audit_seed is not None, "bind-seed needs --audit-seed")
     seed = seed_digest(args.audit_seed)
     verify_seed(seed)
+    bound = receipt.get("seed")
+    without_sidecars = {
+        case: {key: item[key] for key in ("prompt_sha256", "verdict_sha256")}
+        for case, item in seed.items()
+    }
+    require(
+        bound is None or bound == without_sidecars,
+        "stage.json already binds its audit seed"
+        if bound == seed
+        else "stage.json binds another audit seed",
+    )
     changes = json.loads((args.stage_dir / PROMPT_CHANGES).read_text())
     cases = args.stage_dir / "audit" / "cases"
+
+    def differs(case: str, name: str, field: str) -> bool:
+        path = cases / case / name
+        return not path.is_file() or digest(path) != seed[case][field]
+
     differ = [
         case
         for case in changes["kept"]
         if case not in seed
-        or not (cases / case / "verdict.json").is_file()
-        or digest(cases / case / "prompt.md") != seed[case]["prompt_sha256"]
-        or digest(cases / case / "verdict.json") != seed[case]["verdict_sha256"]
+        or differs(case, "prompt.md", "prompt_sha256")
+        or differs(case, "verdict.json", "verdict_sha256")
+        or differs(case, "verdict.meta.json", "meta_sha256")
     ]
     differ += [
         case
@@ -1459,6 +1661,32 @@ def set_aside(audit: Path, case_id: str, reason: str) -> None:
             os.replace(path, target / path.name)
 
 
+def stray_verdicts(audit: Path, manifest: dict[str, dict]) -> list[str]:
+    """Case directories that hold a verdict.json or verdict.meta.json but are
+    not a judged case of ``manifest`` (cases.jsonl, keyed by case id): a case
+    it does not list, or a parse-failure-only one.
+
+    freeze_snapshot.audit_judge_provenance tallies the judge of every case
+    directory holding a verdict.json, from its sidecar, for the snapshot
+    manifest; validate_verdicts checks only the manifest's judged cases. The
+    test is the tally's own, ``(case / name).is_file()`` over the directory's
+    entries, so a name the file system matches without regard to case
+    (``Verdict.json`` on APFS) is found here exactly when the tally finds it.
+    """
+    judged = {case for case, item in manifest.items() if not item["parse_failure_only"]}
+    cases = audit / "cases"
+    if not cases.is_dir():
+        return []
+    return sorted(
+        case.name
+        for case in cases.iterdir()
+        if case.name not in judged
+        and any(
+            (case / name).is_file() for name in ("verdict.json", "verdict.meta.json")
+        )
+    )
+
+
 def validate_verdicts(
     audit: Path,
     remove_invalid: bool = False,
@@ -1468,12 +1696,14 @@ def validate_verdicts(
 
     Every judged verdict's sidecar must carry the verdict's own sha256. A case
     whose prompt is the seed's (``seed``, as stage.json binds it) carries its
-    seed verdict over: the verdict must be the seed's, byte for byte, and any
-    prompt_sha256 its sidecar records must match. Every other verdict is new
-    and must record the sha256 of the prompt it judged. A verdict naming
-    GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns the pending
-    cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
-    that fails is refused outright: a re-judge cannot restore it.
+    seed verdict over: the verdict and its sidecar must be the seed's, byte
+    for byte, and any prompt_sha256 its sidecar records must match. Every
+    other verdict is new and must record the sha256 of the prompt it judged.
+    A verdict naming GPT-6.1 Sol also needs bound Opus 5.5 provenance. Returns
+    the pending cases; ``remove_invalid`` sets their verdicts aside. A
+    carried-over verdict that fails is refused outright: a re-judge cannot
+    restore it. A verdict or sidecar in any other case directory is refused
+    too (stray_verdicts).
     """
     import jsonschema
 
@@ -1482,6 +1712,14 @@ def validate_verdicts(
         item["case_id"]: item
         for item in map(json.loads, (audit / "cases.jsonl").read_text().splitlines())
     }
+    stray = stray_verdicts(audit, manifest)
+    require(
+        not stray,
+        f"{len(stray)} audit case directories hold a verdict or sidecar but are "
+        f"not judged cases in cases.jsonl: {stray[:8]}; the snapshot manifest's "
+        "judge tally counts any verdict there and reads its sidecar, and no "
+        "other gate checks either",
+    )
     seed = seed or {}
     pending, refused = [], []
     for case_id, item in manifest.items():
@@ -1511,6 +1749,10 @@ def validate_verdicts(
             if carried:
                 if hashlib.sha256(blob).hexdigest() != seed[case_id]["verdict_sha256"]:
                     raise ValueError("a carried-over verdict is not the seed's")
+                if digest(meta_path) != seed[case_id].get("meta_sha256"):
+                    raise ValueError(
+                        "a carried-over verdict's sidecar is not the seed's"
+                    )
                 if bound is not None and bound != digest(prompt):
                     raise ValueError("verdict is bound to a different prompt")
             elif bound != digest(prompt):
@@ -1947,6 +2189,29 @@ def payload_text(payload: dict) -> str:
     return json.dumps(payload, allow_nan=False)
 
 
+def unexpected_bundle_files(bundle: Path) -> list[str]:
+    """Files in ``bundle`` that export would read beyond EXPORT_INPUTS.
+
+    full_run_export.load_annotations reads every us_*_annotations.csv in
+    annotations/, and load_predictions reads us/by_model/*.csv in preference
+    to us/predictions.csv. The freeze re-derives only the named annotation
+    files and compares only the predictions, so any other file in
+    annotations/, and a us/by_model/ folder, would publish text or answers no
+    gate checks.
+    """
+    found = []
+    annotations = bundle / "annotations"
+    if annotations.is_dir():
+        found += [
+            f"annotations/{path.name}"
+            for path in sorted(annotations.iterdir())
+            if path.name not in ANNOTATION_FILES
+        ]
+    if (bundle / "us" / "by_model").exists():
+        found.append("us/by_model/")
+    return found
+
+
 def build_payload(
     bundle: Path, live: dict, *, partial: bool = False, early: bool = False
 ) -> dict:
@@ -1957,11 +2222,27 @@ def build_payload(
     carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
     dashboard schema. The freeze rebuilds the staged payload with this.
     export_full_run writes data.json, us/data.json and us/analysis/ into
-    ``bundle``.
+    ``bundle``. A bundle that lacks a file export requires (EXPORT_INPUTS),
+    or holds one it would read beyond them (unexpected_bundle_files), is
+    refused, so neither export nor the freeze's rebuild reads the working
+    directory's annotations or any file no gate checks.
     """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
 
+    missing = [name for name in EXPORT_INPUTS if not (bundle / name).is_file()]
+    require(
+        not missing,
+        f"the bundle lacks {missing}, which export requires; for an annotation "
+        "CSV, export_full_run would read the working directory's "
+        f"annotations/{RUN_NAME}/ in its place",
+    )
+    extra = unexpected_bundle_files(bundle)
+    require(
+        not extra,
+        f"the bundle holds {extra}, which export would read and no gate checks; "
+        "remove them and export again",
+    )
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -2000,6 +2281,7 @@ def export(args, bundle, live) -> dict:
         verify_reference_pins(bundle / "us", "staged reference")
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
+        verify_reference_explanations(bundle / "annotations", "staged")
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",
             rejudged_cases(args.stage_dir),
@@ -2075,6 +2357,9 @@ def export(args, bundle, live) -> dict:
                 },
             },
         )
+        # The receipt's commitment outside the stage; commit it, then freeze.
+        write_json(RELEASE_RECEIPT, release_receipt_record(args.stage_dir, path))
+        print(f"Wrote {RELEASE_RECEIPT_PATH}; commit it before the freeze")
     return payload
 
 

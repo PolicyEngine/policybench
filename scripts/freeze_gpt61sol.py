@@ -2,7 +2,8 @@
 
 Adapted from freeze_adds0928.py. It configures the existing freezer in process
 and never calls a release upload. Run only after finish_gpt61sol.py --step
-export has written release-ready.json. The optional --dry-run validates inputs
+export has written release-ready.json and its pin, committed at HEAD
+(docs/gpt61sol/release_receipt.json). The optional --dry-run validates inputs
 without changing repository files. Both rebuild the payload from the bound
 bundle, as export builds it, and refuse a staged payload that differs. This
 release has no reference revision: the references, exclusions and scenarios
@@ -41,6 +42,9 @@ EVIDENCE_RUN_ROOT = "adds202609"
 ADJUDICATIONS = "us_adjudications.json"
 # The published annotations the adjudications and amendments are applied to.
 ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
+# Every annotation file the freeze publishes, the case reference explanations
+# included; the receipt must bind each.
+ANNOTATION_FILES = driver.ANNOTATION_FILES
 
 
 def read_json(path: Path) -> dict:
@@ -125,8 +129,8 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
             raise SystemExit(f"Staged evidence changed since strict export: {name}")
     bundle = Path("publish") / RUN
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
-    required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
-    required += [bundle / "annotations" / name for name in ANNOTATION_CSVS]
+    required += [bundle / "us/predictions.csv"]
+    required += [bundle / "annotations" / name for name in ANNOTATION_FILES]
     # Each new model's pinned run files, and the prepare-time hashes.
     required += [
         Path("inputs") / slug / name
@@ -298,7 +302,10 @@ def rebuild_payload(stage: Path, receipt: dict, payload_path: Path, live: dict) 
     against its receipt hash, and its bytes must equal the staged payload's.
     The copy is the bundle's: export_full_run writes data.json, us/data.json
     and us/analysis/ into the bundle it reads, and its data.json lacks the
-    carried usage, so a rebuild in place would rewrite the stage.
+    carried usage, so a rebuild in place would rewrite the stage. A copy that
+    lacks a file export reads, because the receipt does not bind it, is
+    refused by build_payload; the rebuild never reads the working directory's
+    annotations in its place.
     """
     bundle = Path("publish") / RUN
     with tempfile.TemporaryDirectory(prefix="freeze-gpt61sol-") as scratch:
@@ -435,6 +442,14 @@ def verify_annotation_amendments(
             )
 
 
+def verify_frozen(frozen_run: Path, annotations: Path) -> None:
+    """After the freezer writes the snapshot: it copies the staged references
+    and their explanations byte for byte, so the frozen copies must be
+    release 20260929's pins and explanations."""
+    driver.verify_reference_pins(frozen_run, "frozen reference")
+    driver.verify_reference_explanations(annotations, "Frozen")
+
+
 def freeze_amendments(stage: Path, destination: Path) -> None:
     """Commit the stage's wording amendments beside the adjudication record.
 
@@ -470,6 +485,10 @@ def main(argv: list[str] | None = None) -> None:
 
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     receipt = verify_receipt(stage, payload_path, args.tag)
+    # The receipt binds the stage only by hashes stored beside it; its pin,
+    # committed at HEAD, means a file the receipt binds can change after
+    # export, its receipt re-hashed to match, only with a visible commit.
+    driver.verify_release_receipt(stage, payload_path, args.tag)
     # GPT-6.1 Sol's run files are the committed pins' and its bundle rows are
     # its run file's, every column: its cost, tokens and latency included.
     driver.verify_new_model_inputs(stage)
@@ -506,6 +525,7 @@ def main(argv: list[str] | None = None) -> None:
     source_run = stage / "publish" / RUN
     source_us = source_run / "us"
     verify_references(source_us, frozen_run, read_json(snapshot / "manifest.json"))
+    driver.verify_reference_explanations(source_run / "annotations", "Staged")
     del payload, stats
     rebuild_payload(stage, receipt, payload_path, base)
     del base
@@ -656,8 +676,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     freezer.main()
     freeze_amendments(stage, freezer.ANNOTATIONS_DEST)
-    # The freezer copies the staged references byte for byte; confirm it.
-    driver.verify_reference_pins(frozen_run, "frozen reference")
+    verify_frozen(frozen_run, freezer.ANNOTATIONS_DEST)
     cache = ROOT / "app/.cache" / f"dashboard-data-{payload_hash[:16]}.json"
     cache.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(payload_path, cache)
