@@ -4775,9 +4775,10 @@ def _release_20261009_scoring() -> dict:
         "now": board(excluded),
         "without": board(excluded | set(newly_scored)),
         "newly_scored": newly_scored,
+        # The payload marks an answer's exact hit as 100.0, a miss as 0.0.
         "matched": {
             key: sum(
-                entry["exact"] == 1.0
+                entry["exact"] == 100.0
                 for entry in payload["scenarioPredictions"][key[0]][key[1]].values()
             )
             for key in newly_scored
@@ -4831,7 +4832,8 @@ def _release_20261009_facts() -> dict:
         "previousEngine": r.previous_policyengine_us_version,
         "engineVersion": r.policyengine_us_version,
         "restored": r.engine_upgrade_restored_count,
-        "restoredFixes": r.engine_upgrade_restored_sentence,
+        "restoredRuled": r.engine_upgrade_restored_count - len(scoring["newly_scored"]),
+        "restoredFixes": r.engine_upgrade_restored_fix_phrase,
         "adversaryOutputs": r.ruled_decision_count("d1022"),
         "louisianaOutputs": r.ruled_decision_count("d994"),
         "indianaOutputs": r.engine_upgrade_new_exclusion_count,
@@ -4893,6 +4895,19 @@ def test_release_20261009_note() -> None:
     restored = r.last_engine_upgrade.restored
     assert 0 < facts["newlyScored"] <= facts["restored"] == len(restored)
     assert set(scoring["newly_scored"]) <= restored
+    # The restored outputs release 20261006 still scored are exactly the
+    # October 6 engine defects, which this release would otherwise exclude.
+    defect_keys = {
+        (e["scenario_id"], e["variable"])
+        for e in r.ruled_records
+        if e["reason_code"] == "reference_engine_defect"
+    }
+    assert restored - set(scoring["newly_scored"]) == defect_keys
+    assert facts["restoredRuled"] + facts["newlyScored"] == facts["restored"]
+    # "Each lands within $1 of the corrected value PolicyBench's audits
+    # computed": every restored output's target holds (record or fix modules).
+    targets = r.engine_upgrade_restored_targets
+    assert len(targets["record"]) + len(targets["fix_modules"]) == facts["restored"]
     # "Few models get right": the median output, by at most a tenth of them.
     assert facts["newlyScoredMedianMatched"] <= facts["nModels"] / 10
     for (scenario_id, variable), matched in scoring["matched"].items():
@@ -4901,6 +4916,7 @@ def test_release_20261009_note() -> None:
         entries = r.dashboard["scenarioPredictions"][scenario_id][variable]
         assert len(entries) == facts["nModels"]
         assert all(entry["scored"] for entry in entries.values())
+        assert {entry["exact"] for entry in entries.values()} <= {0.0, 100.0}
         assert matched == sum(
             row_hit_scores(variable, entry["groundTruth"], entry["prediction"])["exact"]
             for entry in entries.values()

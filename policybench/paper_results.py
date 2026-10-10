@@ -1889,16 +1889,23 @@ class PaperResults:
         return [(label, count, prs) for label, (count, prs) in fixes.items()]
 
     @property
-    def engine_upgrade_restored_sentence(self) -> str:
-        """One sentence naming the fixes behind the restored outputs."""
+    def engine_upgrade_restored_fix_phrase(self) -> str:
+        """The fixes behind the restored outputs as one series, each with the
+        upstream pull requests it names and, past one, how many outputs."""
         parts = []
         for label, count, prs in self.engine_upgrade_restored_fixes:
             numbers = ", ".join(f"#{pr}" for pr in prs)
             outputs = "" if count == 1 else f"; {count_word(count)} outputs"
             parts.append(f"{label} (policyengine-us {numbers}{outputs})")
-        if not parts:
+        return _series(parts)
+
+    @property
+    def engine_upgrade_restored_sentence(self) -> str:
+        """One sentence naming the fixes behind the restored outputs."""
+        phrase = self.engine_upgrade_restored_fix_phrase
+        if not phrase:
             return ""
-        return f"The restored outputs take the upstream fixes for {_series(parts)}."
+        return f"The restored outputs take the upstream fixes for {phrase}."
 
     @property
     def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
