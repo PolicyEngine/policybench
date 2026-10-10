@@ -94,8 +94,13 @@ INPUT_LABEL_OVERRIDES = {
         "employee pension contributions (net pay arrangement: taken from pay "
         "before tax)"
     ),
+    # PE-UK deducts personal contributions from taxable income, as it does
+    # net pay contributions. Relief at source works differently (the provider
+    # claims basic rate relief), so the label states the convention the
+    # reference follows rather than a method it does not.
     "personal_pension_contributions": (
-        "personal pension contributions (relief at source)"
+        "personal pension contributions (gross amount; benchmark convention: "
+        "deducted from taxable income)"
     ),
     "uc_is_in_gainful_self_employment": (
         "determined to be in gainful self-employment for Universal Credit"

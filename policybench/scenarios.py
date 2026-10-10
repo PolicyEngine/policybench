@@ -763,14 +763,15 @@ UK_GAINFUL_SELF_EMPLOYMENT_FIELD = "uc_is_in_gainful_self_employment"
 
 
 def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
-    """Each numeric input as the prompt shows it. An explicit zero is a stated
-    fact and is kept; rates keep their precision."""
+    """Each numeric input as the prompt shows it: amounts to the whole unit,
+    rates to four significant figures. An explicit zero is a stated fact and
+    is kept."""
     canonical: dict[str, Any] = {}
     for key, value in inputs.items():
         if isinstance(value, (bool, np.bool_, str)) or value is None:
             canonical[key] = value
         elif key.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
-            canonical[key] = float(value)
+            canonical[key] = round_uk_prompt_rate(value)
         else:
             canonical[key] = round_uk_prompt_number(value)
     return canonical
@@ -1592,6 +1593,15 @@ def round_uk_prompt_number(value: float) -> float:
     rounded value makes the reference use exactly the stated fact.
     """
     return float(round(float(value)))
+
+
+def round_uk_prompt_rate(value: float) -> float:
+    """A UK rate or ratio as the prompt shows it: to four significant figures.
+
+    The prompt formats rates with ``.4g``, so the stored value is the one that
+    format prints and the reference uses exactly the stated rate.
+    """
+    return float(f"{float(value):.4g}")
 
 
 def _uk_promptable_value(value: Any) -> Any | None:

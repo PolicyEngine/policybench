@@ -1758,6 +1758,34 @@ def test_canonical_uk_person_keeps_explicit_zeros_and_rates():
     assert "- savings interest income: £0" in lines
 
 
+def test_canonical_uk_rate_is_the_rate_the_prompt_shows():
+    from policybench.prompts import describe_household
+
+    scenario = _uk_renter(
+        household_inputs={
+            "tenure_type": "OWNED_OUTRIGHT",
+            "full_rate_vat_expenditure_rate": 0.123456789,
+        }
+    )
+    canonical = scenarios_module.canonical_uk_scenario(scenario)
+    assert canonical.household_inputs["full_rate_vat_expenditure_rate"] == 0.1235
+    assert "full-rate VAT expenditure share: 0.1235" in describe_household(scenario)
+    situation = scenario.to_pe_uk_situation()
+    (household,) = situation["households"].values()
+    assert household["full_rate_vat_expenditure_rate"] == {"2026": 0.1235}
+
+
+@settings(max_examples=200, deadline=None)
+@given(rate=st.floats(min_value=0, max_value=10, allow_nan=False, allow_infinity=False))
+def test_uk_prompt_rate_round_trips_through_its_display(rate):
+    stored = scenarios_module.round_uk_prompt_rate(rate)
+    # The prompt's format prints the stored value exactly, and storing is
+    # idempotent, so the reference and the prompt hold the same rate.
+    assert float(f"{stored:,.4g}".replace(",", "")) == stored
+    assert f"{stored:,.4g}" == f"{rate:,.4g}"
+    assert scenarios_module.round_uk_prompt_rate(stored) == stored
+
+
 def test_canonical_uk_person_states_statuses_pe_uk_would_impute():
     from policybench.prompts import describe_person
 
