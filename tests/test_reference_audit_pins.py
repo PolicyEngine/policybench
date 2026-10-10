@@ -241,14 +241,16 @@ def _committed(audit: str) -> list[str]:
     )
 
 
-def _argv(monkeypatch, script: str, out: Path, *extra: str) -> None:
-    argv = [str(ROOT / script), "--out-dir", str(out), *extra]
+def _argv(monkeypatch, script: str, out: Path, *extra: str, root: Path = ROOT) -> None:
+    argv = [str(root / script), "--out-dir", str(out), *extra]
     monkeypatch.setattr(sys, "argv", argv)
 
 
-def _impact_argv(monkeypatch, audit: str, scratch: Path, out: Path) -> None:
+def _impact_argv(
+    monkeypatch, audit: str, scratch: Path, out: Path, root: Path = ROOT
+) -> None:
     flags = ["--scratch", str(scratch), *IMPACT[audit].flags]
-    _argv(monkeypatch, _impact_script(audit), out, *flags)
+    _argv(monkeypatch, _impact_script(audit), out, *flags, root=root)
 
 
 def _from_junk_checkout(path: Path, script: str, code: list[str] = ()):
@@ -559,20 +561,43 @@ def test_a_refused_input_stops_the_direct_script_before_it_writes(
     assert not out.exists()
 
 
+def _case_insensitive() -> bool:
+    """Whether the filesystem holding the repository ignores case (macOS's default)."""
+    swapped = Path(str(ROOT).swapcase())
+    return swapped.exists() and swapped.samefile(ROOT)
+
+
+def _overlap(kind: str, scratch: Path) -> Path:
+    if kind == "inside":
+        return ROOT / "results/scratch"
+    if kind == "the repository":
+        return ROOT
+    if kind == "a parent":
+        return ROOT.parent
+    if kind == "a link to a parent":
+        link = scratch / "link"
+        link.symlink_to(ROOT.parent, target_is_directory=True)
+        return link
+    # A parent spelled in another case, which only a case-insensitive filesystem
+    # treats as the same directory.
+    if not _case_insensitive():
+        pytest.skip("the filesystem is case-sensitive")
+    return Path(str(ROOT.parent).swapcase())
+
+
 @pytest.mark.parametrize("audit", IMPACT)
 @pytest.mark.parametrize(
-    "overlap",
-    [ROOT / "results/scratch", ROOT, ROOT.parent],
-    ids=["inside", "the repository", "a parent"],
+    "kind",
+    ["inside", "the repository", "a parent", "a link to a parent", "another case"],
 )
 def test_scratch_overlapping_the_repository_is_refused(
-    scratch, monkeypatch, audit, overlap
+    scratch, monkeypatch, audit, kind
 ):
     """stage() and pass_inputs() delete scratch/<name>, so a scratch that holds the
-    repository could delete it."""
+    repository, however it is spelled, could delete it."""
     impact = MODULES[_impact_script(audit)]
     monkeypatch.setattr(impact, "pass_inputs", _never("pass_inputs"))
-    _impact_argv(monkeypatch, audit, overlap, scratch / "out")
+    _impact_argv(monkeypatch, audit, _overlap(kind, scratch), scratch / "out")
     with pytest.raises(SystemExit) as stopped:
         impact.main()
     assert stopped.value.code == 2
@@ -589,6 +614,8 @@ def test_the_impact_script_scores_only_the_staged_inputs(scratch, monkeypatch, a
     spec = IMPACT[audit]
     script = _impact_script(audit)
     impact = _from_junk_checkout(scratch / "co", script, getattr(spec, "code", []))
+    # Relative paths resolve against the junk checkout as well.
+    monkeypatch.chdir(scratch / "co")
     scored: dict[str, dict[str, str]] = {}
     published: dict = {}
 
@@ -603,7 +630,7 @@ def test_the_impact_script_scores_only_the_staged_inputs(scratch, monkeypatch, a
 
     monkeypatch.setattr(impact, "analyze", analyze)
     out = scratch / "out"
-    _impact_argv(monkeypatch, audit, scratch / "scratch", out)
+    _impact_argv(monkeypatch, audit, scratch / "scratch", out, root=scratch / "co")
     impact.main()
 
     pinned = {name: impact.INPUTS[f"{RUN_PATH}/{name}"][1] for name in impact.RUN_FILES}
@@ -627,8 +654,10 @@ def test_the_direct_script_reproduces_its_files_from_a_junk_checkout(
     """Run for real from a checkout whose working tree is junk: every file the
     script writes is the committed one, byte for byte."""
     module = _from_junk_checkout(scratch / "co", script)
+    # Relative paths resolve against the junk checkout as well.
+    monkeypatch.chdir(scratch / "co")
     out = scratch / "out"
-    _argv(monkeypatch, script, out)
+    _argv(monkeypatch, script, out, root=scratch / "co")
     module.main()
     written = sorted(
         path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()

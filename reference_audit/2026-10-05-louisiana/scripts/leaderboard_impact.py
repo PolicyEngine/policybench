@@ -128,6 +128,34 @@ METRICS = (
 EXACT_PAYLOAD_KEYS = ("programStats", "heatmap", "globalWeights", "failureModes")
 
 
+def overlaps(scratch: Path, root: Path) -> bool:
+    """Whether ``scratch`` and ``root`` are one directory or one holds the other.
+
+    Judged by filesystem identity (device and inode), not spelling, so case on a
+    case-insensitive filesystem or a link cannot hide an overlap. ``scratch`` need
+    not exist yet; its nearest existing ancestors decide.
+    """
+
+    def identities(path: Path) -> set[tuple[int, int]]:
+        found = set()
+        for part in (path, *path.parents):
+            try:
+                status = part.stat()
+            except OSError:
+                continue
+            found.add((status.st_dev, status.st_ino))
+        return found
+
+    root_status = root.stat()
+    if (root_status.st_dev, root_status.st_ino) in identities(scratch):
+        return True
+    try:
+        scratch_status = scratch.stat()
+    except OSError:
+        return False
+    return (scratch_status.st_dev, scratch_status.st_ino) in identities(root)
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -330,8 +358,7 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     # stage() and pass_inputs() delete and rewrite scratch/<name>, so scratch and
     # the repository must not overlap: neither may lie inside the other.
-    root = ROOT.resolve()
-    if scratch.is_relative_to(root) or root.is_relative_to(scratch):
+    if overlaps(scratch, ROOT):
         parser.error(f"--scratch must not overlap the repository ({ROOT})")
     inputs = pass_inputs(scratch / "pass_inputs")
     source = inputs / RUN_PATH
