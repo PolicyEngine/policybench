@@ -48,28 +48,28 @@ runs also use the canonical whole-scenario request
 shape changes, while Claude Opus 5's isolates thinking alone.
 
 All ranks are on the 47-model board (2026-10-10). Scores are on the
-1,915 outputs the board scores; the 69 outputs `reference_exclusions.json`
+1,926 outputs the board scores; the 58 outputs `reference_exclusions.json`
 lists (engine defects, references that depend on an input the prompt never
 states, and references that rest on an amount a state published after the
 freeze) are excluded for every model, sensitivity runs included. On
-all 1,984 outputs the thinking runs scored 87.0, 85.8 and 80.3.
+all 1,984 outputs the thinking runs scored 87.1, 86.2 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 85.1 (#21) | **93.2** | +8.0 | **#5** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 85.5 (#20) | **91.6** | +6.0 | #10 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 74.0 (#45) | **86.3** | +12.3 | #20 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.7 (#21) | **91.7** | +8.1 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 84.0 (#20) | **90.5** | +6.4 | #9 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.7 (#45) | **85.0** | +12.3 | #20 | $0.086 | 64 | 1,928/1,984 |
 
 In this table and the tables below, deltas are differences of the
 unrounded scores, so a delta can differ by 0.1 from the difference of the
 rounded scores shown; the per-program tables subtract the rounded rates.
 Each would-rank places the unrounded score on the board, so a score that
-rounds level with a board row's can rank on either side of it: Claude Opus
-5's 91.551 rounds level with Kimi K3's 91.629 and ranks below it.
+rounds level with a board row's can rank on either side of it: Claude Haiku
+5.5's 89.239 rounds level with GPT-5.6 Luna's 89.164 and ranks above it.
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers; the 55 on scored outputs count as misses inside its 86.3. Fable 5's
+1,984 answers, all on scored outputs, which count as misses inside its 85.0. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -91,17 +91,17 @@ versioned re-run, never an edit to existing scores; the plan is
 
 ## Where thinking helps (Claude Fable 5, per program)
 
-Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,915
+Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,926
 scored outputs. These are unweighted leaf rates from the heatmap; the
-headline weights by dollar magnitude, so these do not average to 93.2.
+headline weights by dollar magnitude, so these do not average to 91.7.
 
 | program | board | auto | delta |
 |---|---|---|---|
-| federal_income_tax_before_refundable_credits | 61.5 | 83.3 | +21.8 |
-| state_income_tax_before_refundable_credits | 65.1 | 78.3 | +13.2 |
+| federal_income_tax_before_refundable_credits | 57.1 | 78.6 | +21.5 |
+| state_income_tax_before_refundable_credits | 62.1 | 73.6 | +11.5 |
 | federal_refundable_credits | 87.8 | 96.9 | +9.1 |
 | person_medicare_eligible | 91.3 | 99.4 | +8.1 |
-| payroll_tax | 86.3 | 93.7 | +7.4 |
+| payroll_tax | 85.4 | 92.7 | +7.3 |
 | state_refundable_credits | 83.7 | 87.8 | +4.1 |
 | snap | 83.9 | 87.1 | +3.2 |
 | ssi | 96.9 | 100.0 | +3.1 |
@@ -145,15 +145,15 @@ reason. The ranks are on the 47-model board (2026-10-10).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 92.4 (#7) | **93.5** | +1.2 | #5 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 91.3 (#7) | **92.0** | +0.8 | #5 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
-The two rows sit 1.2 points apart, and no program moves more than three
+The two rows sit 0.8 points apart, and no program moves more than three
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (92.4) is 7.2 points
-above Fable 5's forced-tool board row (85.1) and 0.8 below Fable 5's
-`auto` run (93.2); Fable 5.1's own `auto` run (93.5) is 0.4 above Fable
-5's under the identical request. Scores are on the 1,915 scored outputs;
-on all 1,984 the auto run scored 88.2. The model called the answer tool on every
+picture matches August: Fable 5.1's JSON board row (91.3) is 7.6 points
+above Fable 5's forced-tool board row (83.7) and 0.5 below Fable 5's
+`auto` run (91.7); Fable 5.1's own `auto` run (92.0) is 0.3 above Fable
+5's under the identical request. Scores are on the 1,926 scored outputs;
+on all 1,984 the auto run scored 88.0. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
@@ -161,15 +161,15 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 
 | program | board (JSON) | auto (tool declared) | delta |
 |---|---|---|---|
-| federal_income_tax_before_refundable_credits | 83.3 | 85.9 | +2.6 |
-| state_income_tax_before_refundable_credits | 77.1 | 79.5 | +2.4 |
+| state_income_tax_before_refundable_credits | 73.6 | 75.9 | +2.3 |
 | person_medicare_eligible | 96.5 | 98.3 | +1.8 |
 | free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
 | reduced_price_school_meals_eligible | 99.0 | 100.0 | +1.0 |
 | ssi | 99.0 | 100.0 | +1.0 |
 | person_medicaid_eligible | 97.1 | 97.7 | +0.6 |
+| federal_income_tax_before_refundable_credits | 79.8 | 79.8 | +0.0 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
-| payroll_tax | 92.6 | 92.6 | +0.0 |
+| payroll_tax | 91.7 | 91.7 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_wic_eligible | 100.0 | 100.0 | +0.0 |
@@ -202,14 +202,14 @@ whole scenario, as the board row also requests it. The ranks are on the
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Haiku 5.5 | 80.9 (#37) | **90.4** | +9.4 | #11 | $0.0013 → $0.0027 | 5.1 → 17.4 | 1,984/1,984 |
+| Claude Haiku 5.5 | 79.6 (#37) | **89.2** | +9.7 | #10 | $0.0013 → $0.0027 | 5.1 → 17.4 | 1,984/1,984 |
 
 The model called the answer tool on every one of its 1,984 answers under
 `auto`. Its median household used 3,743 completion tokens against the board
 row's 1,199 and took 17.4 seconds against 5.1, as when thinking engages;
 litellm reports no reasoning tokens for Anthropic (above), so the run does
-not count them separately. Scores are on the 1,915 scored outputs; on all
-1,984 the auto run scored 85.0. Among the Claude rows only Claude Sonnet 5
+not count them separately. Scores are on the 1,926 scored outputs; on all
+1,984 the auto run scored 85.4. Among the Claude rows only Claude Sonnet 5
 gains more under `auto`. Most of the gain is in payroll tax and federal
 income tax; SNAP, state refundable credits and CHIP eligibility fall by two
 to three and a half points.
@@ -219,8 +219,8 @@ Per-variable within-$1 rates for Claude Haiku 5.5, board (forced tool) vs
 
 | program | board (forced tool) | auto (tool declared) | delta |
 |---|---|---|---|
-| payroll_tax | 68.4 | 93.7 | +25.3 |
-| federal_income_tax_before_refundable_credits | 59.0 | 82.1 | +23.1 |
+| payroll_tax | 67.7 | 92.7 | +25.0 |
+| federal_income_tax_before_refundable_credits | 54.8 | 78.6 | +23.8 |
 | person_head_start_eligible | 89.5 | 94.7 | +5.2 |
 | federal_refundable_credits | 88.8 | 93.9 | +5.1 |
 | self_employment_tax | 96.0 | 100.0 | +4.0 |
@@ -228,8 +228,8 @@ Per-variable within-$1 rates for Claude Haiku 5.5, board (forced tool) vs
 | person_medicare_eligible | 97.1 | 100.0 | +2.9 |
 | local_income_tax | 98.0 | 100.0 | +2.0 |
 | person_wic_eligible | 97.7 | 98.9 | +1.2 |
-| state_income_tax_before_refundable_credits | 67.5 | 68.7 | +1.2 |
 | ssi | 97.9 | 99.0 | +1.1 |
+| state_income_tax_before_refundable_credits | 64.4 | 65.5 | +1.1 |
 | free_school_meals_eligible | 99.0 | 99.0 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | reduced_price_school_meals_eligible | 100.0 | 100.0 | +0.0 |

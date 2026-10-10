@@ -27,7 +27,7 @@
     },
     "2026-10-06": {
       "commit": null,
-      "release": "dashboard-data-20261009",
+      "release": "dashboard-data-20261010",
       "pull_request": null,
       "adjudications_written_on": "2026-10-09"
     },
@@ -36,6 +36,12 @@
       "release": "dashboard-data-20261009",
       "pull_request": null,
       "adjudications_written_on": "2026-10-09"
+    },
+    "2026-10-10": {
+      "commit": null,
+      "release": "dashboard-data-20261010",
+      "pull_request": null,
+      "adjudications_written_on": "2026-10-10"
     }
   },
   "cases": {
@@ -2042,8 +2048,8 @@
         "case_failure_source": "prompt_ambiguity",
         "case_failure_subtype": "state_local_rule",
         "reference_suspect": false,
-        "judged_at_utc": "2026-10-09T15:27:58.790322+00:00",
-        "verdict_sha256": "a37617aa49c5c34553328a36f1a467aa17e277a5411f50df6f7ec284598939a8"
+        "judged_at_utc": "2026-10-10T05:58:15.427599+00:00",
+        "verdict_sha256": "e2f324f633297e6cfcd3832de8cba9d5a71b8f022d3bb0694dd30a0cb6e9ce91"
       }
     },
     "us__scenario_067__local_income_tax": {
@@ -2053,8 +2059,8 @@
         "case_failure_source": "prompt_ambiguity",
         "case_failure_subtype": "state_local_rule",
         "reference_suspect": false,
-        "judged_at_utc": "2026-10-09T15:42:59.163878+00:00",
-        "verdict_sha256": "faee57ba43f2a484ba86e4c8f547cac62db572a68179ee828d199c7c3ffd2fad"
+        "judged_at_utc": "2026-10-10T06:05:07.402541+00:00",
+        "verdict_sha256": "14c23bf7f38ae94b31c2f01fda8774837e4b599dcd43f38e2d21025c3cf19531"
       }
     }
   }
