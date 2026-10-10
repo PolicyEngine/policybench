@@ -29,6 +29,28 @@ EVIDENCE_20260930 = ROOT / "docs/gpt61sol/judge_verdicts_20260930.json"
 # 20261006 (Max's rulings of 2026-10-05) builds on it and adds the 2026-10-05
 # wave's decisions; every earlier entry is 20260930's.
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+# The squash merge of #202, which froze release dashboard-data-20261006.
+# Release 20261010 (Claude Haiku 5.5) builds on it: it restates the decisions
+# on the cases Claude Haiku 5.5 re-opened (docs/haiku55/judge_verdicts_20261010.json),
+# drops the decisions on records its engine upgrade regenerated, and adds the
+# 2026-10-06 and 2026-10-10 waves' decisions.
+RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+(EVIDENCE_20261010,) = sorted((ROOT / "docs/haiku55").glob("judge_verdicts_*.json"))
+# The UTC day of the frozen references' last engine upgrade: the wave of the
+# decisions on the outputs it newly excludes (2026-10-10, on policyengine-us
+# 2.38.6; 2026-10-09 in the rehearsal).
+UPGRADE_WAVE = [
+    revision["date"]
+    for revision in json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / "us_full_run_20260612_policyengine_4_16_1_populace"
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
+    )["revisions"]
+    if revision["kind"] == "engine_upgrade"
+][-1]
 
 
 @cache
@@ -67,6 +89,11 @@ def _entries_20260929(tmp_path: Path) -> list[dict]:
 def _entries_20260930(tmp_path: Path) -> list[dict]:
     """Release 20260930's adjudication entries, as its commit holds them."""
     return _entries_at(RELEASE_20260930_COMMIT, tmp_path)
+
+
+def _entries_20261006(tmp_path: Path) -> list[dict]:
+    """Release 20261006's adjudication entries, as its commit holds them."""
+    return _entries_at(RELEASE_20261006_COMMIT, tmp_path)
 
 
 def _entry(**overrides: object) -> dict:
@@ -235,10 +262,32 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
     # 69 through release 20260930; the 2026-10-05 wave added one
     # prompt_ambiguity decision for each of the eight outputs the 2026-10-05
-    # audits excluded.
-    assert len(entries) == 77
+    # audits excluded (77 in release 20261006). Release 20261010 dropped the
+    # decisions on the 14 records its engine upgrade regenerated (all
+    # engine-defect decisions of the 2026-09-22 wave), decided the six ruled
+    # records the upgrade kept (2026-10-06: four unlisted-input scope cells,
+    # and Louisiana's two outputs as later law, scenario_051's restated in
+    # place from a regenerated-reference decision) and the two Indiana county
+    # outputs the upgrade newly excludes (2026-10-10): 70.
+    assert len(entries) == 70
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
-        {"reference_engine_defect": 28, "prompt_ambiguity": 36, "llm_error": 13}
+        {
+            "reference_engine_defect": 14,
+            "prompt_ambiguity": 42,
+            "llm_error": 12,
+            "reference_later_law": 2,
+        }
+    )
+    assert Counter(
+        (e["adjudicated_on"], e["adjudicated_failure_source"], e["reference_verdict"])
+        for e in entries
+        if e["adjudicated_on"] in ("2026-10-06", UPGRADE_WAVE)
+    ) == Counter(
+        {
+            ("2026-10-06", "prompt_ambiguity", "unlisted_input"): 4,
+            ("2026-10-06", "reference_later_law", "later_law"): 2,
+            (UPGRADE_WAVE, "prompt_ambiguity", "unlisted_input"): 2,
+        }
     )
     new_wave = [e for e in entries if e["adjudicated_on"] == "2026-10-05"]
     assert len(new_wave) == 8
@@ -250,18 +299,19 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         )
         for e in new_wave
     } == {("prompt_ambiguity", "unlisted_input", True)}
-    # Every excluded output has its adjudication. Eleven llm_error entries are
+    # Every excluded output has its adjudication. Ten llm_error entries are
     # the references a flag questioned and the adjudication affirmed (five) or
-    # replaced with a regenerated reference (six); the other two resolve rows
-    # the September 29 judge called later law (scenario_007 federal income tax
+    # replaced with a regenerated reference (five; scenario_051's became a
+    # later-law exclusion on 2026-10-06); the other two resolve rows the
+    # September 29 judge called later law (scenario_007 federal income tax
     # and scenario_008 New Jersey refundable credits), whose law predates the
     # reference freeze.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 64
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 58
     assert Counter(
         e.get("reference_verdict")
         for e in entries
         if e["adjudicated_failure_source"] == "llm_error"
-    ) == Counter({"affirmed": 5, "regenerated": 6, None: 2})
+    ) == Counter({"affirmed": 5, "regenerated": 5, None: 2})
     assert {
         (e["scenario_id"], e["variable"])
         for e in entries
@@ -301,28 +351,33 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 77
+    assert block["cases"] == 70
     # The judge's own class for each case (its verdict.json), not the
     # adjudicated one; the freezer refuses a record that differs from it.
     # After the 2026-09-30 restatements (release 20260929 had llm_error 50,
     # prompt_ambiguity 2, reference_data_issue_fixed 1 and
     # reference_model_issue_fixed 16), release 20260930 had llm_error 59; the
     # judge called each of the 2026-10-05 wave's eight cases an LLM error.
+    # Release 20261010's Opus 5.5 verdicts on the cases Claude Haiku 5.5
+    # re-opened, the decisions it adds and the 14 it drops give its counts.
     assert block["by_judge_verdict"] == {
-        "llm_error": 67,
+        "llm_error": 59,
+        "prompt_ambiguity": 6,
         "reference_data_issue_fixed": 1,
-        "reference_engine_defect": 3,
-        "reference_model_issue_fixed": 6,
+        "reference_engine_defect": 1,
+        "reference_later_law": 1,
+        "reference_model_issue_fixed": 2,
     }
     assert block["by_judge_verdict"] == dict(
         Counter(e["judge_failure_source"] for e in entries)
     )
-    # unlisted_input was 20 in release 20260930.
+    # unlisted_input was 20 in release 20260930 and 28 in release 20261006.
     assert block["by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 28,
-        "regenerated": 6,
-        "unlisted_input": 28,
+        "engine_defect": 14,
+        "later_law": 2,
+        "regenerated": 5,
+        "unlisted_input": 34,
     }
     assert block["by_reference_verdict"] == dict(
         Counter(e["reference_verdict"] for e in entries if e.get("reference_verdict"))
@@ -330,13 +385,14 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # The judge flagged none of the 2026-10-05 wave's references.
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 20,
-        "regenerated": 6,
+        "engine_defect": 11,
+        "later_law": 1,
+        "regenerated": 5,
         "unlisted_input": 8,
     }
     assert not any(e["judge_reference_suspect"] for e in new_wave)
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 64
+    assert manifest["reference_exclusions"]["outputs"] == 58
 
 
 def test_verify_requires_agreement_with_the_complete_record():
@@ -495,8 +551,12 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
                 assert item["judged_on"] <= entry["judge_rejudged_on"], key
     # 54 in release 20260929. The 2026-09-30 restatements gave four more
     # entries their first judge_previous item: 008 state refundable credits,
-    # 078 and 117 federal income tax, and 100 federal refundable credits.
-    assert rejudged == 58
+    # 078 and 117 federal income tax, and 100 federal refundable credits (58
+    # in release 20261006). Release 20261010 drops 14 of them with the
+    # decisions on the records its engine upgrade regenerated, and its
+    # restatements of the cases Claude Haiku 5.5 re-opened gave 12 more
+    # theirs: 56.
+    assert rejudged == 56
 
 
 def _write_case(root: Path, case: str, verdict: dict, meta: dict) -> None:
@@ -586,8 +646,31 @@ VERIFICATION = ROOT / "reference_audit" / "2026-09-28" / "verification"
 
 def _judge_evidence() -> dict:
     """The verdicts scripts/date_adds0928_judge_verdicts.py bound the record's
-    dates to, committed beside the upgrade (verification/judge_verdicts.json)."""
+    dates to, committed beside the upgrade (verification/judge_verdicts.json),
+    as each later release brought it up to date (release 20261006's driver,
+    scripts/date_haiku55_judge_verdicts.py)."""
     return json.loads((VERIFICATION / "judge_verdicts.json").read_text())
+
+
+@cache
+def _judge_evidence_at(commit: str) -> dict:
+    """verification/judge_verdicts.json as a release commit holds it."""
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{commit}:reference_audit/2026-09-28/verification/judge_verdicts.json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, (
+        f"the evidence at {commit[:12]} needs git history; fetch full history. "
+        + shown.stderr
+    )
+    return json.loads(shown.stdout)
 
 
 def _case(entry: dict) -> str:
@@ -601,9 +684,11 @@ def test_each_judge_flag_is_the_flag_of_the_verdict_its_date_names(tmp_path):
     earlier run of the 2026-09-22 wave flagged (flagged_sept22_wave.json).
 
     The evidence describes release 20260929's record, so this reads that
-    record from its commit; test_each_restatement_names_its_20260930_verdict
-    checks what release 20260930 changed."""
-    evidence = _judge_evidence()["cases"]
+    record from its commit, and the evidence as release 20261006 committed
+    it (a later wave that restates a decision in place gives its case new
+    evidence); test_each_restatement_names_its_20260930_verdict checks what
+    release 20260930 changed."""
+    evidence = _judge_evidence_at(RELEASE_20261006_COMMIT)["cases"]
     wave_flags = set(
         json.loads((VERIFICATION / "flagged_sept22_wave.json").read_text())
     )
@@ -671,8 +756,8 @@ def test_each_restatement_names_its_20260930_verdict(tmp_path):
     earlier 2026-09-22 run flagged.
 
     This reads release 20260930's record from its commit, and then checks that
-    the committed record keeps every one of those entries unchanged and adds
-    only the 2026-10-05 wave's decisions."""
+    release 20261006's record keeps every one of those entries unchanged and
+    adds only the 2026-10-05 wave's decisions."""
     evidence = json.loads(EVIDENCE_20260930.read_text())
     assert evidence["base_commit"] == RELEASE_20260929_COMMIT
     restated = evidence["cases"]
@@ -737,7 +822,7 @@ def test_each_restatement_names_its_20260930_verdict(tmp_path):
     assert kept_flags == 22
     # Release 20261006 leaves each of release 20260930's entries as it was and
     # appends the 2026-10-05 wave's eight decisions.
-    committed = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    committed = _entries_20261006(tmp_path)
     assert committed[: len(entries)] == entries
     added = committed[len(entries) :]
     assert len(added) == 8
@@ -748,22 +833,29 @@ def test_each_restatement_names_its_20260930_verdict(tmp_path):
 def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     """adjudicated_on names the audit wave (date_conventions). A committed
     wave's decisions were written up to the day its release was committed;
-    this release's wave (2026-10-05), whose release has no commit yet, records
-    the day its adjudications were written. So the verdict each decision
-    reviewed -- adjudicated_verdict where a later wave replaced it, otherwise
-    the earliest verdict the entry keeps -- is dated on or before that day, and
-    a committed wave's decision reviewed the verdict its release published.
+    this release's waves (2026-10-06 and 2026-10-10), whose release has no
+    commit yet, record the day their adjudications were written. So the
+    verdict each decision reviewed -- adjudicated_verdict where a later wave
+    replaced it, otherwise the earliest verdict the entry keeps -- is dated on
+    or before that day, and a committed wave's decision reviewed the verdict
+    its release published.
 
-    Intended exceptions to "on or before adjudicated_on": 46 decisions of the
+    Intended exceptions to "on or before adjudicated_on": 31 decisions of the
     2026-09-22 wave reviewed verdicts its own judge runs finished on
-    2026-09-23 UTC, before its release was committed that day."""
+    2026-09-23 UTC, before its release was committed that day (46 in release
+    20261006, which this release drops 14 of with the records its engine
+    upgrade regenerated, and moves scenario_051's to the 2026-10-06 wave); and
+    five of the 2026-10-06 wave's six decisions reviewed verdicts this
+    release's judge runs finished on 2026-10-08 and 2026-10-09 UTC, before
+    they were written (scenario_051's, restated in place, reviewed an earlier
+    verdict it keeps)."""
     record = json.loads((ANNOTATIONS / "us_adjudications.json").read_text())
     evidence = _judge_evidence()
     released, uncommitted = {}, []
     for wave, release in evidence["wave_releases"].items():
         if release["commit"] is None:
             # Not committed yet: the day the adjudications were written, and
-            # no commit or pull request until the lead fills them after merge.
+            # no commit or pull request until the next release fills them.
             assert "committed_on" not in release and release["pull_request"] is None
             released[wave] = release["adjudications_written_on"]
             uncommitted.append(wave)
@@ -775,10 +867,10 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
         assert wave <= released[wave], wave
     waves = list(released)
     assert waves == sorted(waves)
-    # Only this release's own wave, the latest, has no commit.
-    assert uncommitted == [waves[-1]] == ["2026-10-05"]
-    committed = waves[:-1]
-    assert len(committed) == 3
+    # Only this release's own waves, the latest two, have no commit.
+    assert uncommitted == waves[-2:] == ["2026-10-06", UPGRADE_WAVE]
+    committed = waves[:-2]
+    assert len(committed) == 4
     # The record's decisions come from exactly these waves.
     assert {e["adjudicated_on"] for e in record["adjudications"]} == set(waves)
     # The record's date conventions name the waves and state the same days.
@@ -791,6 +883,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     timing = json.loads((VERIFICATION / "sweep_timing.json").read_text())
     sweep_day = timing["reference_sweep"]["first_output_at_utc"][:10]
     assert sweep_day == "2026-09-29" <= released["2026-09-29"]
+    # Release 20260929 wrote this sentence for the first three waves.
     committed_days = (
         f"The {committed[0]}, {committed[1]} and {committed[2]} waves' decisions "
         "were written up to the day each wave's release was committed "
@@ -799,15 +892,22 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
         f"began on {sweep_day} UTC, before its decisions were written. "
     )
     assert record["date_conventions"].count(committed_days) == 1
-    # The next sentence gives the day this release's own wave's decisions were
-    # written, the day the evidence records. How it describes Max's rulings is
-    # pinned by test_release_20261006 (release.DATE_CONVENTIONS_NEW), not here,
-    # so the two tests cannot require different texts.
-    own_wave = record["date_conventions"].split(committed_days, 1)[1]
-    own_wave = own_wave.split(". ", 1)[0]
-    assert own_wave.startswith(f"The {waves[-1]} wave's decisions"), own_wave
-    assert own_wave.endswith(f" were written on {released[waves[-1]]} UTC"), own_wave
-    later_than_wave = 0
+    # One sentence per later wave follows, in order, giving the day its
+    # decisions were written: for release 20261006's wave, on or before the
+    # day that release was committed; for this release's waves, the day the
+    # evidence records. How each describes Max's rulings is pinned by its
+    # release's driver tests, not here, so the tests cannot require
+    # different texts.
+    rest = record["date_conventions"].split(committed_days, 1)[1]
+    for wave in waves[3:]:
+        sentence, rest = rest.split(". ", 1)
+        assert sentence.startswith(f"The {wave} wave's decisions"), sentence
+        written = sentence.rsplit(" were written on ", 1)[1].removesuffix(" UTC")
+        if wave in uncommitted:
+            assert written == released[wave], sentence
+        else:
+            assert wave <= written <= released[wave], sentence
+    later_than_wave = later_than_own_wave = 0
     for entry in record["adjudications"]:
         case, wave = _case(entry), entry["adjudicated_on"]
         kept = [
@@ -833,12 +933,18 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
         else:
             day = reviewed["judged_on"]
         assert day <= released[wave], case
-        if day > wave:
+        if day > wave and wave in uncommitted:
+            # This release's judge runs (2026-10-08 and 2026-10-09 UTC) re-judged
+            # the cases its 2026-10-06 rulings decide, before those decisions
+            # were written (checked above).
+            assert wave == "2026-10-06" and day in ("2026-10-08", "2026-10-09"), case
+            later_than_own_wave += 1
+        elif day > wave:
             assert (wave, day) == ("2026-09-22", "2026-09-23"), case
             later_than_wave += 1
         published = evidence["cases"][case].get("published")
         # A committed wave's release published the verdict each of its
-        # decisions reviewed; this release's own wave has published nothing.
+        # decisions reviewed; this release's own waves have published nothing.
         assert (published is None) == (wave in uncommitted), case
         if published is None:
             assert reviewed is None, case
@@ -859,7 +965,8 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
                 reviewed["judged_on"],
             ) == (*published_verdict, published["judged_on_utc"]), case
             assert published["release"] in reviewed["recorded_in"], case
-    assert later_than_wave == 46
+    assert later_than_wave == 31
+    assert later_than_own_wave == 5
 
 
 def test_published_verdicts_in_the_evidence_match_each_wave_release():
@@ -882,9 +989,25 @@ def test_published_verdicts_in_the_evidence_match_each_wave_release():
         for entry in json.loads(shown.stdout)["adjudications"]:
             if entry["adjudicated_on"] == wave:
                 published[_case(entry)] = (release["release"], entry)
+    # A decision a later, uncommitted wave restated in place (scenario_051's
+    # Louisiana output, 2026-10-06) is now that wave's: its evidence names
+    # the verdict the new decision reviewed, which no release has published.
+    record = {
+        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    }
+    uncommitted = {
+        wave for wave, r in evidence["wave_releases"].items() if r["commit"] is None
+    }
+    restated = {
+        case
+        for case in published
+        if case in record and record[case]["adjudicated_on"] in uncommitted
+    }
+    assert restated == {"us__scenario_051__state_income_tax_before_refundable_credits"}
     compared = 0
     for case, found in evidence["cases"].items():
         if "published" not in found:
+            assert case not in published or case in restated, case
             continue
         release, entry = published[case]
         assert found["published"] == {
@@ -900,7 +1023,7 @@ def test_published_verdicts_in_the_evidence_match_each_wave_release():
             "judged_on_utc": entry.get("judged_on_utc"),
         }, case
         compared += 1
-    assert compared == len(published)
+    assert compared == len(published) - len(restated)
 
 
 def _script():
@@ -1134,3 +1257,203 @@ def test_date_entries_properties(tmp_path_factory, cases, in_wave):
             assert "judge_reference_suspect_source" not in item
     assert len(changes) == len(set(changes))
     assert script.date_entries(entries, current, previous, frozenset(wave)) == []
+
+
+def test_each_restatement_names_its_20261010_verdict(tmp_path):
+    """Release 20261010 changed release 20261006's record in three ways. Each
+    decision on a case Claude Haiku 5.5 re-opened names that case's new
+    verdict (docs/haiku55/judge_verdicts_20261010.json): its judge, classes
+    and UTC day, with release 20261006's verdict appended to judge_previous
+    when the new one replaces it. The decisions on records its engine upgrade
+    regenerated are dropped (the #178 precedent). The 2026-10-06 and
+    2026-10-10 waves' decisions are added, or restated in place where a ruled
+    output already had a decision. Everything else is release 20261006's."""
+    evidence = json.loads(EVIDENCE_20261010.read_text())
+    assert evidence["base_commit"] == RELEASE_20261006_COMMIT
+    verdicts = evidence["cases"]
+    base = {_case(e): e for e in _entries_20261006(tmp_path)}
+    entries = {
+        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    }
+    sidecar = json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / RUN_LABEL
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
+    )
+    upgrade = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"][-1]
+    regenerated = {
+        f"us__{item['scenario_id']}__{item['variable']}"
+        for item in upgrade["regenerated_exclusions"]
+    }
+    new_waves = {"2026-10-06", UPGRADE_WAVE}
+    assert set(base) - set(entries) == regenerated & set(base)
+    added = set(entries) - set(base)
+    assert added and {entries[c]["adjudicated_on"] for c in added} <= new_waves
+    moved = {
+        c
+        for c in set(base) & set(entries)
+        if entries[c]["adjudicated_on"] != base[c]["adjudicated_on"]
+    }
+    assert {entries[c]["adjudicated_on"] for c in moved} <= new_waves
+    replaced = 0
+    for case in sorted(set(base) & set(entries)):
+        before, entry = base[case], entries[case]
+        if case not in verdicts:
+            if case not in moved:
+                assert entry == before, case
+            continue
+        current = verdicts[case]
+        assert (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+        ) == (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+            current["judged_at_utc"][:10],
+        ), case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
+        if case not in moved:
+            decision = {
+                k: v
+                for k, v in entry.items()
+                if not k.startswith("judge") and k != "reasoning"
+            }
+            assert decision == {
+                k: v
+                for k, v in before.items()
+                if not k.startswith("judge") and k != "reasoning"
+            }, case
+        history = entry.get("judge_previous", [])
+        assert history[:-1] == before.get("judge_previous", []), case
+        assert (
+            history[-1]["judge_model"],
+            history[-1]["judge_failure_source"],
+            history[-1]["judge_failure_subtype"],
+        ) == (
+            before["judge_model"],
+            before["judge_failure_source"],
+            before["judge_failure_subtype"],
+        ), case
+        replaced += 1
+    # Every verdict the evidence lists belongs to a committed decision: the 49
+    # restated ones, and the new waves' seven added decisions (56 verdicts).
+    assert set(verdicts) <= set(entries)
+    assert replaced == 49
+    assert len(verdicts) == 56
+    assert set(verdicts) - set(base) == added
+    # The judge evidence names, for each of the new waves' decisions, the
+    # verdict that decision carries (its "current" verdict).
+    judged = _judge_evidence()["cases"]
+    for case, entry in entries.items():
+        if entry["adjudicated_on"] not in new_waves:
+            continue
+        current = judged[case]["current"]
+        assert "published" not in judged[case], case
+        assert (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+        ) == (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+            current["judged_at_utc"][:10],
+        ), case
+        assert current["verdict_sha256"] == verdicts[case]["verdict_sha256"], case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
+
+
+def _flag_agrees(entry: dict, flagged_now: bool) -> bool:
+    """A decision's reference flag is its verdict's, or set from an earlier
+    run the verdict does not repeat, which judge_reference_suspect_source
+    must say."""
+    flagged = bool(entry.get("judge_reference_suspect"))
+    if flagged == bool(flagged_now):
+        return True
+    return (
+        flagged
+        and not flagged_now
+        and bool(entry.get("judge_reference_suspect_source"))
+    )
+
+
+def test_the_evidence_script_rewrites_this_releases_waves_each_pass():
+    """MOCK wave releases: scripts/date_haiku55_judge_verdicts.py keeps release
+    20261006's waves and drops every later one, so a wave an earlier pass wrote
+    (here a rehearsal's 2026-10-09) does not survive into the evidence unless
+    the record still decides it."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "date_haiku55_judge_verdicts", ROOT / "scripts/date_haiku55_judge_verdicts.py"
+    )
+    dating = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dating)
+
+    base = {wave: {"commit": f"MOCK {wave}"} for wave in dating.BASE_WAVES}
+    stale = {
+        **base,
+        "2026-10-06": {"commit": None, "release": "MOCK"},
+        "2026-10-09": {"commit": None, "release": "MOCK rehearsal"},
+    }
+    assert dating.base_wave_releases(stale) == base
+    assert list(dating.base_wave_releases(stale)) == dating.BASE_WAVES
+    reordered = dict(reversed(list(base.items())))
+    with pytest.raises(SystemExit, match="not release 20261006's"):
+        dating.base_wave_releases(reordered)
+
+
+def test_the_evidence_script_refuses_a_decision_that_does_not_name_its_verdict():
+    """MOCK decision and verdict: scripts/date_haiku55_judge_verdicts.py
+    finds each way a decision's judge fields can depart from the verdict it
+    names, and accepts a flag set from an earlier run only with its source."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "date_haiku55_judge_verdicts", ROOT / "scripts/date_haiku55_judge_verdicts.py"
+    )
+    dating = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dating)
+
+    verdict = {
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "reference_suspect": False,
+    }
+    meta = {
+        "judge_model_requested": "claude-opus-5-5",
+        "judged_at_utc": "2026-10-10T03:00:00Z",
+    }
+    entry = {
+        "judge_model": "claude-opus-5-5",
+        "judge_failure_source": "llm_error",
+        "judge_failure_subtype": "thresholds_rates",
+        "judge_rejudged_on": "2026-10-10",
+        "judge_reference_suspect": False,
+    }
+    assert dating.judge_disagreements(entry, verdict, meta) == []
+    for field, value, found in (
+        ("judge_model", "claude-sonnet-5-5", "judge_model"),
+        ("judge_failure_subtype", "other", "judge_failure_subtype"),
+        ("judge_rejudged_on", "2026-10-09", "judged on"),
+        ("judge_reference_suspect", True, "reference flag"),
+    ):
+        problems = dating.judge_disagreements({**entry, field: value}, verdict, meta)
+        assert len(problems) == 1 and found in problems[0], (field, problems)
+    earlier = {
+        **entry,
+        "judge_reference_suspect": True,
+        "judge_reference_suspect_source": "MOCK earlier run",
+    }
+    assert dating.judge_disagreements(earlier, verdict, meta) == []
+    unflagged = dating.judge_disagreements(
+        entry, {**verdict, "reference_suspect": True}, meta
+    )
+    assert unflagged and "reference flag" in unflagged[0]

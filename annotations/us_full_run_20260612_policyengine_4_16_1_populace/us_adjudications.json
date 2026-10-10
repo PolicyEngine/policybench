@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "note": "Developer adjudications of judge verdicts. An entry either resolves a non-final judge class to a final one (llm_error, parse_contract_failure) or affirms prompt_ambiguity, which is allowed only together with excluded_from_scoring: true, meaning the output is removed from scoring for every model and listed in the run's reference_exclusions.json (the freezer verifies the two records agree). Each entry keeps the judge's verdict verbatim beside the decision and the reasoning. Applied to the row annotations and case notes by scripts/apply_adjudications.py before export.",
-  "date_conventions": "adjudicated_on names the audit wave that made the decision (2026-09-05, 2026-09-22, 2026-09-29 or 2026-10-05). It carries no time of day or time zone. The 2026-09-05, 2026-09-22 and 2026-09-29 waves' decisions were written up to the day each wave's release was committed (2026-09-05, 2026-09-23 and 2026-09-30); the 2026-09-29 wave's reference sweep began on 2026-09-29 UTC, before its decisions were written. The 2026-10-05 wave's decisions follow Max's rulings of 2026-10-05 US Eastern time (2026-10-06 UTC) and were written on 2026-10-06 UTC. judged_on_utc, judge_rejudged_on and each judge_previous item's judged_on are UTC days, read from the verdict's sidecar (verdict.meta.json judged_at_utc). The top-level judge fields name the case's verdict in this release's audit tree, dated by judge_rejudged_on when a later wave judged the case again and by judged_on_utc otherwise, and judge_previous keeps the verdict that re-judge replaced. A wave's own judge runs could finish after one of its decisions was first written, so a recorded verdict can postdate adjudicated_on up to the last day its wave's decisions were written. A flag an earlier judge run raised stays recorded and names that run in judge_reference_suspect_source, at the top level or on the judge_previous item it belongs to. Where a later wave replaced the verdict a decision reviewed without keeping it, adjudicated_verdict gives that verdict as the decision's own release recorded it.",
+  "date_conventions": "adjudicated_on names the audit wave that made the decision (2026-09-05, 2026-09-22, 2026-09-29, 2026-10-05, 2026-10-06 or 2026-10-10). It carries no time of day or time zone. The 2026-09-05, 2026-09-22 and 2026-09-29 waves' decisions were written up to the day each wave's release was committed (2026-09-05, 2026-09-23 and 2026-09-30); the 2026-09-29 wave's reference sweep began on 2026-09-29 UTC, before its decisions were written. The 2026-10-05 wave's decisions follow Max's rulings of 2026-10-05 US Eastern time (2026-10-06 UTC) and were written on 2026-10-06 UTC. The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 (17:11 UTC) and were written on 2026-10-09 UTC. The 2026-10-10 wave's decisions exclude the outputs the references' engine upgrade moved onto an input the prompt does not state, and were written on 2026-10-10 UTC. judged_on_utc, judge_rejudged_on and each judge_previous item's judged_on are UTC days, read from the verdict's sidecar (verdict.meta.json judged_at_utc). The top-level judge fields name the case's verdict in this release's audit tree, dated by judge_rejudged_on when a later wave judged the case again and by judged_on_utc otherwise, and judge_previous keeps the verdict that re-judge replaced. A wave's own judge runs could finish after one of its decisions was first written, so a recorded verdict can postdate adjudicated_on up to the last day its wave's decisions were written. A flag an earlier judge run raised stays recorded and names that run in judge_reference_suspect_source, at the top level or on the judge_previous item it belongs to. Where a later wave replaced the verdict a decision reviewed without keeping it, adjudicated_verdict gives that verdict as the decision's own release recorded it.",
   "adjudications": [
     {
       "country": "us",
@@ -54,7 +54,7 @@
       "scenario_id": "scenario_074",
       "variable": "head_medicare_eligible",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "age_disability",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -65,7 +65,7 @@
       "adjudicator": "developer",
       "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 1.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. In law the under-65 route needs 24 months of SSDI entitlement; a year-round recipient has at least 12. The facts do not settle it.",
       "judge_reference_suspect": false,
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5",
@@ -80,6 +80,13 @@
           "judge_failure_subtype": "age_disability",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "age_disability",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -129,7 +136,7 @@
       "scenario_id": "scenario_084",
       "variable": "head_medicare_eligible",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "age_disability",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -140,7 +147,7 @@
       "adjudicator": "developer",
       "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 1.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. In law the under-65 route needs 24 months of SSDI entitlement; a year-round recipient has at least 12. The facts do not settle it.",
       "judge_reference_suspect": false,
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -155,6 +162,13 @@
           "judge_failure_subtype": "age_disability",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "age_disability",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ],
       "adjudicated_verdict": {
@@ -170,7 +184,7 @@
       "scenario_id": "scenario_023",
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-08",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "age_disability",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -181,7 +195,7 @@
       "adjudicator": "developer",
       "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 461.339722 to 3596.039795 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. SSI itself stays $0 under either reading (the head's countable income exceeds the federal benefit rate); SNAP moves because SSI-disabled status switches on the elderly-or-disabled SNAP rules. The 2026-09-22 audit recomputes the alternative as 3,576.00 with every publication convention and upstream fix (the frozen-engine value above was 3,596.04).",
       "judge_reference_suspect": false,
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -196,6 +210,13 @@
           "judge_failure_subtype": "age_disability",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "age_disability",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ],
       "adjudicated_verdict": {
@@ -211,7 +232,7 @@
       "scenario_id": "scenario_057",
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -225,7 +246,7 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "42 U.S.C. 1382c(a)(3)(A); 20 CFR 416.905",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -240,6 +261,14 @@
           "judge_failure_subtype": "household_unit_or_filing_status",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ],
       "adjudicated_verdict": {
@@ -255,7 +284,7 @@
       "scenario_id": "scenario_100",
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -266,7 +295,7 @@
       "adjudicator": "developer",
       "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 8625.889648 to 8917.490234 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. SSI stays $0 under either reading ($2,800 in the bank exceeds the $2,000 resource limit); SNAP moves through the elderly-or-disabled SNAP rules. The 2026-09-22 audit recomputes the alternative as 8,844.00 with every publication convention and upstream fix (the frozen-engine value above was 8,917.49). r30_snap_heat_and_eat_sua (engine defect, not fixed upstream) also moves this output on the stated facts, from 8,556.00 to 6,924.00; the record keeps its 2026-09-05 classification.",
       "judge_reference_suspect": false,
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -281,6 +310,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ],
       "adjudicated_verdict": {
@@ -296,7 +332,7 @@
       "scenario_id": "scenario_057",
       "variable": "ssi",
       "judge_model": "claude-opus-5-5",
-      "judged_on_utc": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "categorical_eligibility",
       "adjudicated_failure_source": "prompt_ambiguity",
@@ -310,7 +346,7 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "42 U.S.C. 1382c(a)(3)(A); 20 CFR 416.905",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -325,6 +361,14 @@
           "judge_failure_subtype": "categorical_eligibility",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "categorical_eligibility",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ],
       "adjudicated_verdict": {
@@ -439,40 +483,6 @@
     },
     {
       "country": "us",
-      "scenario_id": "scenario_003",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_engine_defect",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "reasoning": "The frozen reference is 22,154.70; the corrected value is 22,400.65. PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_engine_defect",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
       "scenario_id": "scenario_005",
       "variable": "federal_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
@@ -487,7 +497,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "reasoning": "The frozen reference is 106,505.90; the corrected value is 107,198.34. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -502,41 +512,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_005",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
-      "reasoning": "The frozen reference is 41,051.51; the corrected value is 40,920.40. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
+        },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
           "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23",
-          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -557,7 +539,7 @@
       "reference_basis": "Idaho Code 63-3022P; Idaho Form 39R",
       "reasoning": "The frozen reference is 755.78; the corrected value is 651.32. PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -572,41 +554,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_008",
-      "variable": "payroll_tax",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "payroll_tax_base",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "N.J.S.A. 43:21-7(d)(1); NJDOL 2026 contribution rates",
-      "reasoning": "The frozen reference is 2,162.76; the corrected value is 2,276.66. PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "state_local_rule",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "state_local_rule",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -627,7 +582,7 @@
       "reference_basis": "whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say",
       "reasoning": "The frozen reference is 68,056.71; the alternative is 68,112.09. The prompt defines the output as federal individual income tax after nonrefundable credits and before refundable credits. The reference adds the net investment income tax (26 U.S.C. 1411), which Form 1040 reports on Schedule 2, Part II with self-employment tax, after line 22's tax after nonrefundable credits; read as line 22, the output excludes it.",
       "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -643,110 +598,14 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_022",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "household_unit_or_filing_status",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "state_local_rule",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "Cal. R&TC 17024.5 (conformity date), 17076",
-      "reasoning": "The frozen reference is 2,439.65; the corrected value is 1,968.81. PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
-          "judged_on": "2026-09-29",
+          "judged_on": "2026-09-30",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_039",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "reasoning": "The frozen reference is 1,345.51; the corrected value is 8,596.03. PolicyEngine leaves estate income out of gross income while counting it as qualified business income.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_engine_defect",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_039",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "reasoning": "The frozen reference is 514.50; the corrected value is 1,975.80. PolicyEngine leaves estate income out of gross income while counting it as qualified business income.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_engine_defect",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
         }
       ]
     },
@@ -755,7 +614,7 @@
       "scenario_id": "scenario_042",
       "variable": "state_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_engine_defect",
+      "judge_failure_source": "reference_model_issue_fixed",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "state_local_rule",
@@ -766,7 +625,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "Wis. Stat. 71.05(6)(b)54m (2025 Wisconsin Act 15); 2025 Schedule SB line 16; Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
       "reasoning": "The frozen reference is 284.74; the corrected value is 0.00. PolicyEngine's Wisconsin tax before refundable credits ignores the retirement income exclusion the filer elects, which its final Wisconsin tax applies; PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -781,41 +640,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_049",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 30,543.91; the corrected value is 30,702.59. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
+          "judge_failure_source": "reference_engine_defect",
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -824,8 +655,8 @@
       "scenario_id": "scenario_052",
       "variable": "federal_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
-      "judge_failure_subtype": "taxable_income_or_deductions",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "thresholds_rates",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_on": "2026-09-22",
@@ -835,7 +666,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "reasoning": "The frozen reference is 104,211.41; the corrected value is 104,225.26. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -850,6 +681,13 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "reference_model_issue_fixed",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -870,7 +708,7 @@
       "reference_basis": "Idaho Code 63-3022P; Idaho Form 39R",
       "reasoning": "The frozen reference is 2,435.28; the corrected value is 2,176.06. PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -885,6 +723,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -894,7 +740,7 @@
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
       "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
+      "judge_failure_subtype": "state_local_rule",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "categorical_eligibility",
       "adjudicated_on": "2026-09-22",
@@ -905,7 +751,7 @@
       "reference_basis": "weekly_hours_worked_before_lsr and whether the listed home mortgage interest is on the home the SNAP household occupies",
       "reasoning": "The frozen reference is 1,140.00; the alternative is 0.00. The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours a week, which clears the SNAP work requirement for able-bodied adults without dependents. Under the zero-hours reading the time limit applies, which ends benefits after three countable months unless an exemption or area waiver applies; the alternative value is the engine's zero-hours result, not a certified entitlement. The prompt also lists home mortgage interest without saying the mortgaged home is the household's residence; if it is, SNAP counts the mortgage payment, interest included, as a shelter cost (7 CFR 273.9(d)(6)(ii)(A)), which is the reading under the alternative value.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -920,6 +766,14 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -973,7 +827,7 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "the relationship of an adult tax dependent to the filers who claim them",
       "reasoning": "The frozen reference is 1.00; the alternative is 0.00. The prompt lists an adult 'Dependent' without saying whether that person is the claiming filers' child. If the dependent is their child, 42 CFR 435.603(f)(2) puts the dependent in the parents' Medicaid household, whose combined MAGI decides eligibility; the reference treats the dependent as a non-child whose household is their own (42 CFR 435.603(f)(2)(i), (f)(3)).",
-      "judge_rejudged_on": "2026-09-29",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5",
@@ -981,6 +835,13 @@
           "judge_failure_subtype": "household_unit_or_filing_status",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-05"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "household_unit_or_filing_status",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
         }
       ]
     },
@@ -1008,76 +869,6 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-05"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "thresholds_rates",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_064",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "reasoning": "The frozen reference is 4,439.29; the corrected value is 4,441.46. PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23",
-          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29",
-          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_064",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
-      "reasoning": "The frozen reference is 4,606.00; the corrected value is 4,599.62. PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
@@ -1132,7 +923,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
       "reasoning": "The frozen reference is 3,596.04; the corrected value is 3,240.00. PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1147,6 +938,13 @@
           "judge_failure_subtype": "categorical_eligibility",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "categorical_eligibility",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1167,7 +965,7 @@
       "reference_basis": "M.G.L. c. 62 sec. 2(b), 2(c)(2)(a), 2(c)(4), 2(f); DOR TIR 02-21",
       "reasoning": "The frozen reference is 8,238.41; the corrected value is 8,232.90. PolicyEngine taxes Massachusetts Part A dividends gross, without the short-term capital loss offset its own Part A AGI computes.",
       "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1183,40 +981,14 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_082",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 9,563.05; the corrected value is 9,564.92. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
           "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-29"
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1237,7 +1009,7 @@
       "reference_basis": "Wis. Stat. 71.05(6)(b)9; 26 U.S.C. 852(b)(3)(B); 2025 Wisconsin Schedule SB instructions, line 5",
       "reasoning": "The frozen reference is 843.66; the corrected value is 878.52. PolicyEngine's Wisconsin capital gain subtraction leaves out capital gain distributions reported without Schedule D, so once they reach federal AGI Wisconsin taxes all of them instead of 70%.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1252,40 +1024,14 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_099",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "credit_phaseout",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 10,679.75; the corrected value is 10,711.48. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "credit_phaseout",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "credit_phaseout",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-29"
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1305,8 +1051,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
       "reasoning": "The frozen reference is 4,493.74; the corrected value is 4,588.48. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-10",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1321,6 +1066,14 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1329,7 +1082,7 @@
       "scenario_id": "scenario_100",
       "variable": "federal_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "reference_model_issue_fixed",
       "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "credit_phaseout",
@@ -1340,9 +1093,8 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
       "reasoning": "The frozen reference is 2,878.10; the corrected value is 822.29. PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judged_on_utc": "2026-09-30",
-      "judge_rejudged_on": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1350,6 +1102,14 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-22"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1370,7 +1130,7 @@
       "reference_basis": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
       "reasoning": "The frozen reference is 473.18; the corrected value is 164.46. PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1385,6 +1145,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1412,7 +1180,7 @@
       "variable": "state_refundable_credits",
       "judge_model": "claude-opus-5-5",
       "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
+      "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "state_local_rule",
       "adjudicated_on": "2026-09-22",
@@ -1423,7 +1191,7 @@
       "reference_basis": "source of survivor_benefits (pension or annuity, or another survivor payment) and taxability of survivor_benefits",
       "reasoning": "The frozen reference is 271.39; the alternative is 0.00. The prompt lists survivor benefits other than Social Security without saying what they are. Wisconsin homestead household income counts the gross amount of a survivor pension or annuity (Wis. Stat. 71.52(6); Schedule H line 9d), which is the reading under the alternative value; the reference leaves them out.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1438,74 +1206,14 @@
           "judge_failure_subtype": "state_local_rule",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_110",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_engine_defect",
-      "judge_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": true,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "reasoning": "The frozen reference is 23,897.44; the corrected value is 25,747.77. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_engine_defect",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-23"
-        },
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "reference_model_issue_fixed",
-          "judge_failure_subtype": "taxable_income_or_deductions",
-          "judge_reference_suspect": true,
-          "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_110",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "thresholds_rates",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
-      "reasoning": "The frozen reference is 4,057.47; the corrected value is 4,236.81. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "thresholds_rates",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "thresholds_rates",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-29"
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1514,8 +1222,8 @@
       "scenario_id": "scenario_112",
       "variable": "snap",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
-      "judge_failure_subtype": "taxable_income_or_deductions",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "categorical_eligibility",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "categorical_eligibility",
       "adjudicated_on": "2026-09-22",
@@ -1525,7 +1233,8 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "weekly_hours_worked_before_lsr",
       "reasoning": "The frozen reference is 287.68; the alternative is 0.00. The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours a week, which clears the SNAP work requirement for able-bodied adults without dependents. Under the zero-hours reading the time limit applies, which ends benefits after three countable months unless an exemption or area waiver applies; the alternative value is the engine's zero-hours result, not a certified entitlement.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1541,6 +1250,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "reference_model_issue_fixed",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1560,7 +1276,7 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the listed home mortgage interest is on the home the SNAP household occupies",
       "reasoning": "The frozen reference is 2,903.94; the alternative is 3,576.00. The prompt lists home mortgage interest without saying the mortgaged home is the household's residence; if it is, SNAP counts the mortgage payment, interest included, as a shelter cost (7 CFR 273.9(d)(6)(ii)(A)), which is the reading under the alternative value.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1575,6 +1291,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1594,8 +1317,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
       "reasoning": "The frozen reference is 2,854.01; the corrected value is 3,366.07. PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit.",
-      "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1611,6 +1333,14 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "credit_phaseout",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1619,8 +1349,8 @@
       "scenario_id": "scenario_119",
       "variable": "state_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
-      "judge_failure_subtype": "credit_phaseout",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_failure_source": "reference_engine_defect",
       "adjudicated_failure_subtype": "credit_phaseout",
       "adjudicated_on": "2026-09-22",
@@ -1630,7 +1360,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 32(c)(2)(A)(i), 24(d)(1)(B)(i), 402(e)(3); Cal. R&TC 17052(c)(4)(A)",
       "reasoning": "The frozen reference is 1,859.09; the corrected value is 1,756.68. PolicyEngine counts elective 401(k) deferrals as earned income for the EITC and refundable child tax credit.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1646,6 +1376,13 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "reference_model_issue_fixed",
+          "judge_failure_subtype": "credit_phaseout",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1665,7 +1402,7 @@
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
       "reasoning": "The frozen reference is 40,021.82; the corrected value is 40,028.32. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1680,40 +1417,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
-        }
-      ]
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_120",
-      "variable": "state_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
-      "adjudicated_failure_source": "reference_engine_defect",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-09-22",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "engine_defect",
-      "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 11,917.18; the corrected value is 11,919.06. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
-      "judge_rejudged_on": "2026-09-30",
-      "judge_previous": [
-        {
-          "judge_model": "claude-opus-5-5",
-          "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "state_local_rule",
-          "judge_reference_suspect": false,
-          "judged_on": "2026-09-23"
         },
         {
           "judge_model": "claude-opus-5-5",
           "judge_failure_source": "llm_error",
-          "judge_failure_subtype": "state_local_rule",
+          "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
-          "judged_on": "2026-09-29"
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1786,7 +1496,7 @@
       "scenario_id": "scenario_056",
       "variable": "state_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "reference_model_issue_fixed",
+      "judge_failure_source": "reference_engine_defect",
       "judge_failure_subtype": "credit_phaseout",
       "adjudicated_failure_source": "llm_error",
       "adjudicated_failure_subtype": "credit_phaseout",
@@ -1796,7 +1506,7 @@
       "reference_verdict": "affirmed",
       "reference_basis": "N.J.S.A. 54A:4-7(a)(4); Rev. Proc. 2025-32",
       "reasoning": "New Jersey bases the earned income credit for filers 18 and older who fail only the federal age test on the federal maximum credit for filers without a qualifying child, and pays it as a flat yearly amount: 40% of the 2026 $664 maximum is $265.60. The judge's phase-in reading fails.",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1811,6 +1521,13 @@
           "judge_failure_subtype": "credit_phaseout",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "reference_model_issue_fixed",
+          "judge_failure_subtype": "credit_phaseout",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -1829,8 +1546,7 @@
       "reference_verdict": "affirmed",
       "reference_basis": "26 U.S.C. 62(a)(2)(D), 62(d)(3); Rev. Proc. 2025-32 section 3.12",
       "reasoning": "The 2026 educator expense cap is $350, so the head's $337.50 is fully deductible; the judge's $300 cap is not the law.",
-      "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
-      "judge_rejudged_on": "2026-09-29",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1838,6 +1554,14 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-23"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-29",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1857,7 +1581,7 @@
       "reference_basis": "Idaho Code 63-3029L (taxable years 2018 through 2025); Idaho Administrative Bulletin, July 1, 2026, Docket 35-0101-2601",
       "reasoning": "Idaho's $205 child tax credit applies only to taxable years beginning in 2018 through 2025, so it does not reduce 2026 tax; the judge's missing-credit hypothesis fails. The reference applies the Idaho zero-rate threshold held at its published 2025 amount.",
       "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1872,6 +1596,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
@@ -1891,8 +1623,7 @@
       "reference_verdict": "affirmed",
       "reference_basis": "N.Y. Tax Law 606(e) as amended by Part RR of Chapter 59 of the Laws of 2025",
       "reasoning": "From 2025 New York keys the real property tax credit to federal AGI and a flat table; with federal AGI of $0 and property tax above 3.5% of it, a filer 65 or older receives $375. The judge applied the repealed household-gross-income rule.",
-      "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1907,6 +1638,14 @@
           "judge_failure_subtype": "categorical_eligibility",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1926,7 +1665,7 @@
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14); 7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)",
       "reasoning": "The frozen 287.68 is regenerated as 288.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9162 (merged 2026-07-28), after the reference freeze): The minimum benefit is 8% of the maximum allotment for a household of one, rounded to the nearest whole dollar ($24 a month for FY2026, as USDA published).",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1943,6 +1682,14 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "categorical_eligibility",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1952,7 +1699,7 @@
       "variable": "federal_income_tax_before_refundable_credits",
       "judge_model": "claude-opus-5-5",
       "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "taxable_income_or_deductions",
+      "judge_failure_subtype": "household_unit_or_filing_status",
       "adjudicated_failure_source": "llm_error",
       "adjudicated_failure_subtype": "taxable_income_or_deductions",
       "adjudicated_on": "2026-09-22",
@@ -1962,7 +1709,7 @@
       "reference_basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
       "reasoning": "The frozen 1,979.16 is regenerated as 2,361.96: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -1979,6 +1726,14 @@
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
     },
@@ -1989,16 +1744,17 @@
       "judge_model": "claude-opus-5-5",
       "judge_failure_source": "llm_error",
       "judge_failure_subtype": "thresholds_rates",
-      "adjudicated_failure_source": "llm_error",
-      "adjudicated_failure_subtype": "thresholds_rates",
-      "adjudicated_on": "2026-09-22",
+      "adjudicated_failure_source": "reference_later_law",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "adjudicated_on": "2026-10-06",
       "adjudicator": "developer",
+      "excluded_from_scoring": true,
       "judge_reference_suspect": true,
-      "reference_verdict": "regenerated",
-      "reference_basis": "26 U.S.C. 61(a)(3), 852(b)(3)(B); Form 1040 line 7",
-      "reasoning": "The frozen 814.95 is regenerated as 820.35: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base.",
+      "reference_verdict": "later_law",
+      "reference_basis": "Louisiana Department of Revenue, Revenue Information Bulletin 26-019, dated 2026-09-28: Louisiana's 2026 standard deduction is $12,838 for single and separate filers and $25,676 for the other statuses, the first 2026 return amount Louisiana published",
+      "reasoning": "The frozen 814.95 is regenerated as 820.35: it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#8839 (issue #8828), after the reference freeze): Capital gain distributions are long-term capital gain in gross income and in the preferential-rate base. The frozen reference is 820.35; the value under the published figure is 820.26. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under decision d994, which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana).",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -2014,6 +1770,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
@@ -2034,7 +1798,18 @@
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14)",
       "reasoning": "The frozen 3,596.04 is regenerated as 3,576.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judged_on_utc": "2026-09-23"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-23",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2070,7 +1845,7 @@
       "reference_basis": "7 U.S.C. 2012(u), 2017(a); USDA FY2026 SNAP COLA memorandum (signed 2025-08-14); 7 CFR 273.10(e)(2)(ii)(A)",
       "reasoning": "The frozen 8,020.55 is regenerated as 7,932.00: it applies the publication rule: SNAP October-December 2026 hold the FY2026 schedule (the SNAP uprating index behind the maximum allotments, deductions, shelter cap and utility allowances), the last USDA published before the 2026-07-03 reference freeze; USDA published FY2027 on 2026-08-21. The poverty guideline is the 2026 HHS guideline, published in January 2026. The engine's SNAP rounding defects are root causes r26, r27, r28 and r31, fixed upstream and applied with the convention.; it corrects an engine defect fixed upstream (fixed in PolicyEngine/policyengine-us#9318 (merged 2026-08-25), after the reference freeze): If 30% of net income ends in cents, the state rounds it up to the next dollar or rounds the allotment down to the next dollar; with a whole-dollar maximum allotment both give the same whole-dollar allotment.",
       "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the case's current verdict.json does not flag it",
-      "judge_rejudged_on": "2026-09-30",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -2086,6 +1861,14 @@
           "judge_failure_subtype": "thresholds_rates",
           "judge_reference_suspect": true,
           "judged_on": "2026-09-29",
+          "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "thresholds_rates",
+          "judge_reference_suspect": true,
+          "judged_on": "2026-09-30",
           "judge_reference_suspect_source": "an earlier judge run in the 2026-09-22 wave (flagged_sept22_wave.json); the verdict dated here does not flag it"
         }
       ]
@@ -2106,7 +1889,17 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
       "reasoning": "The frozen reference is 3,818.15; the alternative is 3,788.99. The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax in the year it was deducted; policyengine-us 2.15.17 counts the whole refund as income (policyengine-us#9422, fixing issue #9122), while under 26 U.S.C. 111(a) none of it is income if the household took no tax benefit from the deduction. Found in the 2026-09-29 engine upgrade (reference_audit/2026-09-28, cluster salt_refund_gross_income_9122).",
-      "judged_on_utc": "2026-09-29"
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2124,8 +1917,8 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
       "reasoning": "The frozen reference is 24,164.46; the alternative is 23,772.80. The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax in the year it was deducted; policyengine-us 2.15.17 counts the whole refund as income (policyengine-us#9422, fixing issue #9122), while under 26 U.S.C. 111(a) none of it is income if the household took no tax benefit from the deduction. Found in the 2026-09-29 engine upgrade (reference_audit/2026-09-28, cluster salt_refund_gross_income_9122).",
-      "judged_on_utc": "2026-09-30",
-      "judge_rejudged_on": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -2133,6 +1926,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -2152,8 +1952,8 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the prior-year deduction of the refunded state and local tax reduced federal tax (prior-year itemization, the income-versus-sales-tax election, SALT-cap headroom)",
       "reasoning": "The frozen reference is 24,961.34; the alternative is 24,391.80. The prompt lists state and local tax refund income without saying whether the refunded tax reduced federal tax in the year it was deducted; policyengine-us 2.15.17 counts the whole refund as income (policyengine-us#9422, fixing issue #9122), while under 26 U.S.C. 111(a) none of it is income if the household took no tax benefit from the deduction. Found in the 2026-09-29 engine upgrade (reference_audit/2026-09-28, cluster salt_refund_gross_income_9122).",
-      "judged_on_utc": "2026-09-30",
-      "judge_rejudged_on": "2026-09-30",
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -2161,6 +1961,13 @@
           "judge_failure_subtype": "taxable_income_or_deductions",
           "judge_reference_suspect": false,
           "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
         }
       ]
     },
@@ -2180,7 +1987,17 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "meets_ssi_disability_criteria, the Social Security definition of disability that 42 CFR 435.540(a) and California's 250% Working Disabled Program require",
       "reasoning": "The frozen reference is 1 (eligible); the alternative is 0. The prompt says only that the head is disabled. The head's MAGI is 141.2% of the federal poverty guideline, above the 138% limit for the adult expansion group, so only a disability pathway leads to Medi-Cal. California's 250% Working Disabled Program requires the Social Security definition of disability, which the prompt does not state; policyengine-us 2.15.17 tests the broad is_disabled flag instead and places the head in the program. With the program's test reading the Social Security definition, the head qualifies only by meeting it. The same unlisted input excludes this household's SNAP. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. Flagged in the 2026-09-29 engine upgrade (reference_audit/2026-09-28, cluster excl_snap_ssi_disability) and excluded on review of the release.",
-      "judged_on_utc": "2026-09-29"
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "categorical_eligibility",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2195,14 +2012,24 @@
       "adjudicator": "developer",
       "judge_reference_suspect": false,
       "reasoning": "The judge labeled seven models' rows reference_later_law because they applied the pre-TCJA rules scheduled to return in 2026 (a smaller standard deduction, a personal exemption and a 15% second bracket). The reference applies the permanent TCJA parameters of P.L. 119-21, enacted July 4, 2025, before the July 3, 2026 reference freeze, and the benchmark scores law published before the freeze; the rows are model errors.",
-      "judged_on_utc": "2026-09-29"
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        }
+      ]
     },
     {
       "country": "us",
       "scenario_id": "scenario_008",
       "variable": "state_refundable_credits",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "reference_later_law",
       "judge_failure_subtype": "state_local_rule",
       "adjudicated_failure_source": "llm_error",
       "adjudicated_failure_subtype": "state_local_rule",
@@ -2210,8 +2037,71 @@
       "adjudicator": "developer",
       "judge_reference_suspect": false,
       "reasoning": "The judge labeled the case, and the rows of claude-opus-5.5 and gpt-6.1-sol, reference_later_law because those models applied New Jersey's pre-2026 child tax credit schedule. The reference applies P.L.2026, c.26, approved June 30, 2026, before the July 3, 2026 reference freeze, and the benchmark scores law published before the freeze; the rows are model errors.",
-      "judged_on_utc": "2026-09-30",
-      "judge_rejudged_on": "2026-09-30",
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        },
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
+        }
+      ]
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_022",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "taxable_income_or_deductions",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "adjudicated_on": "2026-10-05",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "state income tax withheld or paid during 2026, which the federal state and local tax deduction takes as its state income tax part; policyengine-us fills it with state_withheld_income_tax, a formula estimate on federal AGI that the household data never set",
+      "reasoning": "The frozen reference is 11,113.57; the alternative is 11,895.23. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of California withholding on federal AGI ($6,058.85), while read as the household paying its 2026 California income tax during the year the deduction takes the engine's liability ($2,505.87). Found in the 2026-10-05 audit of the state income tax in SALT (reference_audit/2026-10-05, scripts/sweep_salt_withholding.py).",
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "household_unit_or_filing_status",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
+        }
+      ]
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_032",
+      "variable": "payroll_tax",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "prompt_ambiguity",
+      "judge_failure_subtype": "state_local_rule",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "adjudicated_on": "2026-10-05",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "whether the employer deducts the employee share of a state paid-leave or disability premium that the law lets it deduct but does not require, which decides whether that share is a mandatory employee state payroll tax",
+      "reasoning": "The frozen reference is 2,346.10; the alternative is 2,218.50. The prompt counts mandatory employee state payroll taxes; Minnesota Paid Leave contributions are the employer's, which may deduct the employee share from wages but need not (Minn. Stat. 268B.14, subds. 1, 3 and 5a), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($127.60); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json).",
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
       "judge_previous": [
         {
           "judge_model": "claude-opus-5-5",
@@ -2224,46 +2114,10 @@
     },
     {
       "country": "us",
-      "scenario_id": "scenario_022",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "household_unit_or_filing_status",
-      "adjudicated_failure_source": "prompt_ambiguity",
-      "adjudicated_failure_subtype": "taxable_income_or_deductions",
-      "adjudicated_on": "2026-10-05",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "unlisted_input",
-      "reference_basis": "state income tax withheld or paid during 2026, which the federal state and local tax deduction takes as its state income tax part; policyengine-us fills it with state_withheld_income_tax, a formula estimate on federal AGI that the household data never set",
-      "reasoning": "The frozen reference is 11,113.57; the alternative is 11,895.23. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of California withholding on federal AGI ($6,058.85), while read as the household paying its 2026 California income tax during the year the deduction takes the engine's liability ($2,505.87). Found in the 2026-10-05 audit of the state income tax in SALT (reference_audit/2026-10-05, scripts/sweep_salt_withholding.py).",
-      "judged_on_utc": "2026-09-30"
-    },
-    {
-      "country": "us",
-      "scenario_id": "scenario_032",
-      "variable": "payroll_tax",
-      "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
-      "judge_failure_subtype": "state_local_rule",
-      "adjudicated_failure_source": "prompt_ambiguity",
-      "adjudicated_failure_subtype": "state_local_rule",
-      "adjudicated_on": "2026-10-05",
-      "adjudicator": "developer",
-      "excluded_from_scoring": true,
-      "judge_reference_suspect": false,
-      "reference_verdict": "unlisted_input",
-      "reference_basis": "whether the employer deducts the employee share of a state paid-leave or disability premium that the law lets it deduct but does not require, which decides whether that share is a mandatory employee state payroll tax",
-      "reasoning": "The frozen reference is 2,346.10; the alternative is 2,218.50. The prompt counts mandatory employee state payroll taxes; Minnesota Paid Leave contributions are the employer's, which may deduct the employee share from wages but need not (Minn. Stat. 268B.14, subds. 1, 3 and 5a), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($127.60); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json).",
-      "judged_on_utc": "2026-09-29"
-    },
-    {
-      "country": "us",
       "scenario_id": "scenario_043",
       "variable": "payroll_tax",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "prompt_ambiguity",
       "judge_failure_subtype": "state_local_rule",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "state_local_rule",
@@ -2274,7 +2128,17 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the employer deducts the employee share of a state paid-leave or disability premium that the law lets it deduct but does not require, which decides whether that share is a mandatory employee state payroll tax",
       "reasoning": "The frozen reference is 330.73; the alternative is 312.74. The prompt counts mandatory employee state payroll taxes; Colorado FAMLI contributions are the employer's, which may deduct the employee share from wages but need not (C.R.S. 8-13.3-507(2) and (5); 7 CCR 1107-1 s. 1.4(6)(A)), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($17.99); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json).",
-      "judged_on_utc": "2026-09-22"
+      "judged_on_utc": "2026-10-08",
+      "judge_rejudged_on": "2026-10-08",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-22"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2292,14 +2156,24 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "state income tax withheld or paid during 2026, which the federal state and local tax deduction takes as its state income tax part; policyengine-us fills it with state_withheld_income_tax, a formula estimate on federal AGI that the household data never set",
       "reasoning": "The frozen reference is 26,932.27; the alternative is 26,991.31. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of Massachusetts withholding on federal AGI ($8,484.41), while read as the household paying its 2026 Massachusetts income tax during the year the deduction takes the engine's liability ($8,238.41). Found in the 2026-10-05 audit of the state income tax in SALT (reference_audit/2026-10-05, scripts/sweep_salt_withholding.py).",
-      "judged_on_utc": "2026-09-30"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
+        }
+      ]
     },
     {
       "country": "us",
       "scenario_id": "scenario_081",
       "variable": "payroll_tax",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "prompt_ambiguity",
       "judge_failure_subtype": "state_local_rule",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "state_local_rule",
@@ -2310,14 +2184,24 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the employer deducts the employee share of a state paid-leave or disability premium that the law lets it deduct but does not require, which decides whether that share is a mandatory employee state payroll tax",
       "reasoning": "The frozen reference is 14,192.66; the alternative is 13,387.65. The prompt counts mandatory employee state payroll taxes; Massachusetts PFML contributions are the employer's, which may deduct the employee share from wages but need not (M.G.L. c. 175M, s. 6(a) and (c); 458 CMR 2.05(5)), and policyengine-us 2.15.17 counts the largest share Massachusetts's published 2026 rates let the employer deduct ($805.01); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json).",
-      "judged_on_utc": "2026-09-29"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        }
+      ]
     },
     {
       "country": "us",
       "scenario_id": "scenario_082",
       "variable": "payroll_tax",
       "judge_model": "claude-opus-5-5",
-      "judge_failure_source": "llm_error",
+      "judge_failure_source": "prompt_ambiguity",
       "judge_failure_subtype": "state_local_rule",
       "adjudicated_failure_source": "prompt_ambiguity",
       "adjudicated_failure_subtype": "state_local_rule",
@@ -2328,7 +2212,17 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "whether the employer deducts the employee share of a state paid-leave or disability premium that the law lets it deduct but does not require, which decides whether that share is a mandatory employee state payroll tax",
       "reasoning": "The frozen reference is 8,108.03; the alternative is 7,664.92. The prompt counts mandatory employee state payroll taxes; New York disability and Paid Family Leave contributions are the employer's, which may deduct the employee share from wages but need not (N.Y. Workers' Compensation Law ss. 209(3)-(4) and 210(1)), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($443.11); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json).",
-      "judged_on_utc": "2026-09-29"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "state_local_rule",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-29"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2346,7 +2240,17 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "state income tax withheld or paid during 2026, which the federal state and local tax deduction takes as its state income tax part; policyengine-us fills it with state_withheld_income_tax, a formula estimate on federal AGI that the household data never set; also Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either",
       "reasoning": "The frozen reference is 10,729.61; the alternative is 11,137.31. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of Virginia withholding on federal AGI ($5,367.30), while read as the household paying its 2026 Virginia income tax during the year the deduction takes the engine's liability ($3,514.15). The reference's medical deduction also counts a modeled Medicare Part B premium ($2,434.80) the prompt does not list; without it the output is 11,265.27. Found in the 2026-10-05 audits of the state income tax in SALT (reference_audit/2026-10-05) and of the Part B premium (reference_audit/2026-10-05-medicare-part-b).",
-      "judged_on_utc": "2026-09-30"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
+        }
+      ]
     },
     {
       "country": "us",
@@ -2364,7 +2268,143 @@
       "reference_verdict": "unlisted_input",
       "reference_basis": "Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either",
       "reasoning": "The frozen reference is 3,514.15; the alternative is 3,654.15. The prompt lists no Medicare enrollment or Part B premium; policyengine-us 2.15.17 treats the 69-year-old head as enrolled (takes_up_medicare_if_eligible defaults to true) and adds the $2,434.80 standard Part B premium to medical expenses, which Virginia's itemized deductions carry from the federal ones; read with no premium paid, the output is the alternative. Found in the 2026-10-05 audit of the Part B premium (reference_audit/2026-10-05-medicare-part-b, scripts/sweep_part_b.py).",
-      "judged_on_utc": "2026-09-30"
+      "judged_on_utc": "2026-10-09",
+      "judge_rejudged_on": "2026-10-09",
+      "judge_previous": [
+        {
+          "judge_model": "claude-opus-5-5",
+          "judge_failure_source": "llm_error",
+          "judge_failure_subtype": "taxable_income_or_deductions",
+          "judge_reference_suspect": false,
+          "judged_on": "2026-09-30"
+        }
+      ]
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_077",
+      "variable": "state_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "thresholds_rates",
+      "adjudicated_failure_source": "reference_later_law",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "adjudicated_on": "2026-10-06",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "later_law",
+      "reference_basis": "Louisiana Department of Revenue, Revenue Information Bulletin 26-019, dated 2026-09-28: Louisiana's 2026 standard deduction is $12,838 for single and separate filers and $25,676 for the other statuses, the first 2026 return amount Louisiana published",
+      "reasoning": "The frozen reference is 305.14; the value under the published figure is 305.05. The reference rests on a 2026 Louisiana standard deduction of $12,835, which policyengine-us computed from published CPI-U under R.S. 47:294(B) but which no Louisiana publication stated before the 2026-07-03 freeze; Louisiana's first 2026 return amount, $12,838, came in Revenue Information Bulletin 26-019 on 2026-09-28. Excluded under decision d994, which keeps the published-amounts convention for every other reference (reference_audit/2026-10-05-louisiana).",
+      "judged_on_utc": "2026-10-09"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_093",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_on": "2026-10-06",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+      "reasoning": "The frozen reference is 8,628.99; the alternative is 11,848.99. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2.",
+      "judged_on_utc": "2026-10-09"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_093",
+      "variable": "state_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_on": "2026-10-06",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+      "reasoning": "The frozen reference is 3,388.25; the alternative is 4,528.08. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2.",
+      "judged_on_utc": "2026-10-09"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_123",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_on": "2026-10-06",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+      "reasoning": "The frozen reference is 5,200.24; the alternative is 8,420.24. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2.",
+      "judged_on_utc": "2026-10-09"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_123",
+      "variable": "state_income_tax_before_refundable_credits",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "llm_error",
+      "judge_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_on": "2026-10-06",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "whether the income tax outputs cover only the head and spouse's return or every return the household's members must file; the definitions name no return, and a dependent here must file their own",
+      "reasoning": "The frozen reference is 3,070.06; the alternative is 4,451.56. A dependent with $45,000 of wages must file their own federal and state return, and the engine computes only the head and spouse's return. The output definitions name no return, tax unit or household, the prompt shows one tax unit and asks for quantities 'for this household', and careful readers split both ways (reference_audit/2026-10-05-reference-adversary/verification/independent/pa_123.md, verification/definition_conformance.md). Excluded under decision d1022 until decision d1029 settles the scope for version 2.",
+      "judged_on_utc": "2026-10-09"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_015",
+      "variable": "local_income_tax",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "prompt_ambiguity",
+      "judge_failure_subtype": "state_local_rule",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "adjudicated_on": "2026-10-10",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "county of residence (Indiana county income tax)",
+      "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state.",
+      "judged_on_utc": "2026-10-10"
+    },
+    {
+      "country": "us",
+      "scenario_id": "scenario_067",
+      "variable": "local_income_tax",
+      "judge_model": "claude-opus-5-5",
+      "judge_failure_source": "prompt_ambiguity",
+      "judge_failure_subtype": "state_local_rule",
+      "adjudicated_failure_source": "prompt_ambiguity",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "adjudicated_on": "2026-10-10",
+      "adjudicator": "developer",
+      "excluded_from_scoring": true,
+      "judge_reference_suspect": false,
+      "reference_verdict": "unlisted_input",
+      "reference_basis": "county of residence (Indiana county income tax)",
+      "reasoning": "The prompt places the household in Indiana but states no county. Every Indiana county levies its own local income tax (IC 6-3.6), at rates that differ by county. policyengine-us 2.15.17 left county income tax out of local_income_tax, so the frozen reference was $0.00. From policyengine-us 2.23.1 (PolicyEngine/policyengine-us#9694, which standardized local income tax) the engine counts Indiana county income tax in local_income_tax, at the rate of the county it assigns a household with no stated county. The reference therefore depends on the household's county, which the prompt does not state.",
+      "judged_on_utc": "2026-10-10"
     }
   ]
 }

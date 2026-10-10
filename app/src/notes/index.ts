@@ -1,3 +1,4 @@
+import claudeHaiku55JoinsTheBoard from "./2026-10-10-claude-haiku-5-5-joins-the-board.json";
 import claudeFable51Added from "./2026-09-01-claude-fable-5-1-added.json";
 import claudeSonnet55DebutsFifth from "./2026-09-29-claude-sonnet-5-5-debuts-fifth.json";
 import fiveSnapHouseholdsBbce from "./2026-10-05-five-snap-households-bbce.json";
@@ -29,6 +30,7 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
+  claudeHaiku55JoinsTheBoard,
   stopsScoringEightTaxOutputs,
   fiveSnapHouseholdsBbce,
   claudeSonnet55DebutsFifth,

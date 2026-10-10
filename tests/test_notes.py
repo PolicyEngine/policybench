@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import csv
 import gzip
+import hashlib
 import json
 import re
 import sys
+from collections import Counter
 from datetime import date, datetime, timezone
 from functools import cache
 from pathlib import Path
@@ -157,17 +159,48 @@ SUPERSEDED_RELEASES = {
     # October 5 BBCE note's facts are still recomputed, from the snapshot its
     # commit holds (RELEASE_20260930_COMMIT).
     "dashboard-data-20260930": "2026-09-30",
+    # Superseded by dashboard-data-20261010, which adds Claude Haiku 5.5 and
+    # moves the references to the policyengine-us release that fixes engine
+    # defects behind exclusions. Its note's facts are still recomputed, from
+    # the snapshot its commit holds (RELEASE_20261006_COMMIT).
+    "dashboard-data-20261006": "2026-09-30",
 }
-CURRENT_RELEASE_SNAPSHOT = "2026-09-30"
+# The frozen release's board snapshot is its manifest's snapshot date.
+CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
+    "snapshot_date"
+]
 # The commit that froze each superseded release whose notes' facts are
-# recomputed from git: the merges of #182 and #187.
+# recomputed from git: the merges of #182, #187 and #202.
 RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 RELEASE_20260930 = "dashboard-data-20260930"
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 RELEASE_COMMITS = {
     "dashboard-data-20260929": RELEASE_20260929_COMMIT,
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
+    "dashboard-data-20261006": RELEASE_20261006_COMMIT,
 }
+
+
+def _paper_snapshot(release: str) -> dict:
+    """app/src/paperSnapshot.json as ``release`` left it: at its commit when
+    it is superseded, this checkout's while it is the frozen release."""
+    import subprocess
+
+    if release not in RELEASE_COMMITS:
+        return _load_json(ROOT / "app/src/paperSnapshot.json")
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{RELEASE_COMMITS[release]}:app/src/paperSnapshot.json",
+        ],
+        capture_output=True,
+    )
+    assert shown.returncode == 0, shown.stderr.decode()
+    return json.loads(shown.stdout)
 
 
 def _release_root(release: str) -> Path:
@@ -4497,7 +4530,7 @@ def test_release_20261006_note() -> None:
     assert RELEASE_20260930.endswith(previous_end.replace("-", ""))
     assert last_answer.year == date.fromisoformat(start).year == 2026
     # The paper page states the same window.
-    assert _load_json(ROOT / "app/src/paperSnapshot.json")["responseWindow"] == (
+    assert _paper_snapshot(RELEASE_20261006)["responseWindow"] == (
         f"{facts['responseStart']} and {facts['responseEnd']}, {last_answer.year}"
     )
     # scenario_031's Medicaid text: the ledger's rewrites are the payload's
@@ -4680,3 +4713,359 @@ def test_bbce_note_describes_the_later_release() -> None:
     exact = _no_tools_exact(now)
     assert later["lunaRank"] == then["lunaRank"] + 1
     assert _rank(exact["claude-sonnet-5.5"], board) == later["lunaRank"] - 1
+
+
+# --- Release dashboard-data-20261010: Claude Haiku 5.5 and the engine move ----
+
+(HAIKU_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-claude-haiku-5-5-joins-the-board.json")
+)
+HAIKU_SENSITIVITY = ROOT / "sensitivity/data/claude-haiku-5-5-thinking.json"
+
+
+def _key_of(entry: dict) -> tuple[str, str]:
+    return entry["scenario_id"], entry["variable"]
+
+
+@cache
+def _release_20261010_scoring() -> dict:
+    """What moves the earlier models' rates between release 20261006 and this
+    one, recomputed from the frozen predictions and weights: every model's
+    exact rate on this release's scored references (``now``), the same with
+    the restored outputs release 20261006 had excluded left unscored
+    (``without``), those outputs (``newly_scored``) and how many models'
+    answers the payload marks exact on each (``matched``)."""
+    import pandas as pd
+
+    from policybench.paper_results import PaperResults
+    from policybench.scorer_vectors import canonical_filtered_scores
+    from policybench.spec import output_group_id
+
+    def excluded_at(root: Path) -> set[tuple[str, str]]:
+        return {
+            (e["scenario_id"], e["variable"])
+            for e in _load_json(_in(root, EXCLUSIONS_PATH))["exclusions"]
+        }
+
+    payload = _dashboard()
+    reference = pd.read_csv(REFERENCES_PATH)
+    excluded = excluded_at(ROOT)
+    restored = PaperResults().last_engine_upgrade.restored
+    assert not restored & excluded
+    newly_scored = sorted(restored & excluded_at(_release_root(RELEASE_20261006)))
+    predictions = pd.DataFrame(
+        [
+            (model, scenario_id, variable, entry.get("prediction"))
+            for scenario_id, outputs in payload["scenarioPredictions"].items()
+            for variable, by_model in outputs.items()
+            for model, entry in by_model.items()
+        ],
+        columns=["model", "scenario_id", "variable", "prediction"],
+    )
+    weights: dict[str, float] = {}
+    for variable, weight in payload["globalWeights"]["household"].items():
+        group = output_group_id(variable)
+        weights[group] = weights.get(group, 0.0) + weight
+
+    def board(unscored: set[tuple[str, str]]) -> dict[str, float]:
+        keys = zip(reference["scenario_id"], reference["variable"], strict=True)
+        scored = reference[[key not in unscored for key in keys]]
+        scores, _ = canonical_filtered_scores(
+            scored, predictions, weights, set(weights), "all", "exact"
+        )
+        return scores
+
+    return {
+        "now": board(excluded),
+        "without": board(excluded | set(newly_scored)),
+        "newly_scored": newly_scored,
+        # The payload marks an answer's exact hit as 100.0, a miss as 0.0.
+        "matched": {
+            key: sum(
+                entry["exact"] == 100.0
+                for entry in payload["scenarioPredictions"][key[0]][key[1]].values()
+            )
+            for key in newly_scored
+        },
+    }
+
+
+def _release_20261010_facts() -> dict:
+    """The Claude Haiku 5.5 release note's facts, recomputed from the frozen
+    release's payload, sidecar and exclusion record, from release 20261006's
+    payload at its commit, and from the committed sensitivity summary."""
+    from policybench.paper_results import PaperResults
+
+    r = PaperResults()
+    board = r.model_stats
+    by_model = {row["model"]: row for row in board}
+    ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
+    then = {
+        row["model"]: row["exact"]
+        for row in _payload_at(_release_root(RELEASE_20261006))["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+    fall = [exact - by_model[model]["exact"] for model, exact in then.items()]
+    scoring = _release_20261010_scoring()
+    rise = [scoring["without"][model] - exact for model, exact in then.items()]
+    # At least half the newly scored outputs are answered within $1 by at most
+    # this many models (the lower median, so it is a whole number of models).
+    counts = sorted(scoring["matched"].values())
+    half_at_most = counts[(len(counts) + 1) // 2 - 1]
+    haiku, haiku45 = by_model["claude-haiku-5.5"], by_model["claude-haiku-4.5"]
+    sensitivity = _load_json(HAIKU_SENSITIVITY)["sensitivity"]
+    last = r.last_engine_upgrade
+    changes = last.partition["scored_changes"]
+    assert len(changes) == 1 and changes[0]["scenario_id"] == "scenario_076"
+
+    def one(value: float) -> float:
+        return float(f"{value:.1f}")
+
+    return {
+        "releaseDate": r.manifest["snapshot_date"],
+        "nModels": len(board),
+        "haikuExact": one(haiku["exact"]),
+        "haikuRank": ranks["claude-haiku-5.5"],
+        "haiku45Exact": one(haiku45["exact"]),
+        "haiku45Rank": ranks["claude-haiku-4.5"],
+        # The gain the note prints is the difference of the rates it prints.
+        "haikuGain": one(one(haiku["exact"]) - one(haiku45["exact"])),
+        "solExact": one(by_model["gpt-6-sol"]["exact"]),
+        "opusExact": one(by_model["claude-opus-5.5"]["exact"]),
+        "sol56Exact": one(by_model["gpt-5.6-sol"]["exact"]),
+        "haikuCost": round(haiku["costPerHousehold"], 4),
+        "haiku45Cost": round(haiku45["costPerHousehold"], 4),
+        "haikuAutoExact": one(sensitivity["exact"]),
+        "haikuAutoRank": _rank(sensitivity["exact"], board),
+        "previousEngine": r.previous_policyengine_us_version,
+        "engineVersion": r.policyengine_us_version,
+        "restored": r.engine_upgrade_restored_count,
+        "restoredRuled": r.engine_upgrade_restored_count - len(scoring["newly_scored"]),
+        "restoredFixes": r.engine_upgrade_restored_fix_phrase,
+        "adversaryOutputs": r.ruled_decision_count("d1022"),
+        "louisianaOutputs": r.ruled_decision_count("d994"),
+        "indianaOutputs": r.engine_upgrade_new_exclusion_count,
+        "idahoBefore": f"{changes[0]['previous']:,.2f}",
+        "idahoAfter": f"{changes[0]['regenerated']:,.2f}",
+        "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
+        "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "excluded": r.excluded_output_count,
+        "incumbents": len(then),
+        "fallMin": round(min(fall), 2),
+        "fallMax": round(max(fall), 2),
+        "newlyScored": len(scoring["newly_scored"]),
+        "newlyScoredHalfAtMost": half_at_most,
+        "newlyScoredUnmatched": sum(n == 0 for n in scoring["matched"].values()),
+        "riseWithoutMin": round(min(rise), 2),
+        "riseWithoutMax": round(max(rise), 2),
+    }
+
+
+def test_release_20261010_note() -> None:
+    """The Claude Haiku 5.5 release note's facts are the frozen release's,
+    recomputed from its payload, sidecar and exclusion record and from release
+    20261006 at its commit; and the direction its last paragraph states (every
+    earlier model's rate falls, and would have risen without the newly scored
+    outputs) holds. test_release_20261010_note_claims checks the rest of what
+    its sentences say, on the recomputed facts."""
+    note = _note(HAIKU_NOTE)
+    facts = note["facts"]
+    assert note["release"] == _frozen_release()
+    assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
+    assert note["slug"].startswith(note["date"])
+    assert facts["engineVersion"] in note["title"]
+    assert facts == _release_20261010_facts()
+    assert 0 < facts["fallMin"] <= facts["fallMax"]
+    assert 0 < facts["riseWithoutMin"] <= facts["riseWithoutMax"]
+
+
+def test_release_20261010_note_claims() -> None:
+    """What the Claude Haiku 5.5 release note's sentences claim holds on the
+    frozen release, checked on the facts recomputed from it (so these checks
+    run even while the note's own facts await the release)."""
+    from policybench.analysis import metric_type_for_output, row_hit_scores
+    from policybench.model_cards import card_for
+    from policybench.paper_results import PaperResults
+
+    note = _note(HAIKU_NOTE)
+    facts = _release_20261010_facts()
+    r = PaperResults()
+    board = r.model_stats
+    # Claude Haiku 5.5 is new, and the cheapest row with a recorded cost.
+    assert facts["nModels"] == facts["incumbents"] + 1
+    paid = [row for row in board if row["costUsd"] > 0]
+    assert min(paid, key=lambda row: row["costPerHousehold"])["model"] == (
+        "claude-haiku-5.5"
+    )
+    # GPT-6 Sol leads, ahead of Claude Opus 5.5 and GPT-5.6 Sol, in that order.
+    assert [row["model"] for row in board[:3]] == [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+    ]
+    # The recomputed board is the payload's, and the payload's exact marks are
+    # the scorer's.
+    scoring = _release_20261010_scoring()
+    assert set(scoring["now"]) == {row["model"] for row in board}
+    for row in board:
+        assert scoring["now"][row["model"]] == pytest.approx(row["exact"], abs=1e-9)
+    restored = r.last_engine_upgrade.restored
+    assert 0 < facts["newlyScored"] <= facts["restored"] == len(restored)
+    assert set(scoring["newly_scored"]) <= restored
+    # The restored outputs release 20261006 still scored are exactly the
+    # October 6 engine defects, which this release would otherwise exclude.
+    defect_keys = {
+        (e["scenario_id"], e["variable"])
+        for e in r.ruled_records
+        if e["reason_code"] == "reference_engine_defect"
+    }
+    assert restored - set(scoring["newly_scored"]) == defect_keys
+    # "The cause is" the newly scored outputs: nothing else an incumbent is
+    # scored on moved. Every incumbent's answers and the household weights are
+    # release 20261006's.
+    then_payload = _payload_at(_release_root(RELEASE_20261006))
+    assert r.dashboard["globalWeights"] == then_payload["globalWeights"]
+    for scenario_id, outputs in then_payload["scenarioPredictions"].items():
+        for variable, by_model in outputs.items():
+            now = r.dashboard["scenarioPredictions"][scenario_id][variable]
+            for model, entry in by_model.items():
+                assert now[model]["prediction"] == entry["prediction"], (
+                    scenario_id,
+                    variable,
+                    model,
+                )
+    assert facts["restoredRuled"] + facts["newlyScored"] == facts["restored"]
+    # "Each lands within $1 of the corrected value PolicyBench's audits
+    # computed": every restored output's target holds (record or fix modules).
+    targets = r.engine_upgrade_restored_targets
+    assert len(targets["record"]) + len(targets["fix_modules"]) == facts["restored"]
+    # "Few models get right": half of them, by at most a tenth of the models.
+    assert facts["newlyScoredHalfAtMost"] <= facts["nModels"] / 10
+    counts = sorted(scoring["matched"].values())
+    at_most = sum(n <= facts["newlyScoredHalfAtMost"] for n in counts)
+    assert 2 * at_most >= len(counts)
+    for (scenario_id, variable), matched in scoring["matched"].items():
+        # "Within $1" is the scorer's exact rule for an amount output.
+        assert metric_type_for_output(variable) == "amount"
+        entries = r.dashboard["scenarioPredictions"][scenario_id][variable]
+        assert len(entries) == facts["nModels"]
+        assert all(entry["scored"] for entry in entries.values())
+        assert {entry["exact"] for entry in entries.values()} <= {0.0, 100.0}
+        assert matched == sum(
+            row_hit_scores(variable, entry["groundTruth"], entry["prediction"])["exact"]
+            for entry in entries.values()
+        )
+    # The four defects the adversary found are among the restored outputs,
+    # and the other four of its eight, with Louisiana's two, stay excluded.
+    ruled = r.ruled_records
+    defects = [e for e in ruled if e["reason_code"] == "reference_engine_defect"]
+    assert len(defects) == 4 and all(
+        (e["scenario_id"], e["variable"]) in restored for e in defects
+    )
+    states = {
+        e["scenario_id"]: r.dashboard["scenarios"][e["scenario_id"]]["state"]
+        for e in ruled
+    }
+    assert sorted(states[e["scenario_id"]] for e in defects) == ["AZ", "CO", "NY", "OH"]
+    kept = [e for e in ruled if e["reason_code"] != "reference_engine_defect"]
+    assert Counter((states[e["scenario_id"]], e["decision"]) for e in kept) == Counter(
+        {("PA", "d1022"): 2, ("MO", "d1022"): 2, ("LA", "d994"): 2}
+    )
+    assert facts["adversaryOutputs"] == 8 and facts["louisianaOutputs"] == 2
+    # The four kept d1022 outputs are the federal and state income tax of one
+    # Pennsylvania and one Missouri household, whose dependent has $45,000 of
+    # wages and must file their own return.
+    taxes = {
+        "federal_income_tax_before_refundable_credits",
+        "state_income_tax_before_refundable_credits",
+    }
+    scope = [e for e in kept if e["decision"] == "d1022"]
+    by_household: dict[str, set[str]] = {}
+    for e in scope:
+        by_household.setdefault(e["scenario_id"], set()).add(e["variable"])
+    assert len(by_household) == 2 and all(v == taxes for v in by_household.values())
+    for e in scope:
+        assert "$45,000 of wages must file their own" in e["alternative_reading"]
+        assert "must file their own" in e["unlisted_input"]
+    # Louisiana's two outputs are two households' state income tax; the record
+    # names the price-index computation and the September 28 publication.
+    louisiana = [e for e in kept if e["decision"] == "d994"]
+    assert len({e["scenario_id"] for e in louisiana}) == 2
+    for e in louisiana:
+        assert e["variable"] == "state_income_tax_before_refundable_credits"
+        assert "CPI-U" in e["alternative_reading"] and "CPI-U" in e["law"]
+        assert "dated 2026-09-28" in e["published"]
+    # The Indiana outputs are local income tax; the Idaho change is its
+    # $10 permanent building fund tax.
+    new = r.last_engine_upgrade.partition["new_exclusions"]
+    assert {c["variable"] for c in new} == {"local_income_tax"}
+    assert {r.dashboard["scenarios"][c["scenario_id"]]["state"] for c in new} == {"IN"}
+    assert len({c["scenario_id"] for c in new}) == facts["indianaOutputs"]
+    # "The prompt names no county": the record says so, and no prompt does.
+    for c in new:
+        (record,) = [e for e in r.reference_exclusions if _key_of(e) == _key_of(c)]
+        assert record["unlisted_input"].startswith("county of residence")
+        prompt = r.dashboard["scenarios"][c["scenario_id"]]["prompt"]
+        assert "county" not in json.dumps(prompt).lower()
+    (change,) = r.last_engine_upgrade.partition["scored_changes"]
+    assert r.dashboard["scenarios"][change["scenario_id"]]["state"] == "ID"
+    assert change["regenerated"] - change["previous"] == pytest.approx(10.0)
+    assert "permanent building fund" in change["basis"]
+    # The serving claims of the cost paragraph are the model card's.
+    card = card_for("claude-haiku-5-5")
+    assert card.answer_contract == "tool"
+    assert "forced-tool probe returned no thinking block" in card.notes
+    # "where a request without the forced tool did": the unforced probe.
+    assert "A request with no thinking parameter returns a thinking block" in (
+        card.notes
+    )
+    # The probes themselves (docs/haiku55/serving_probes.json): neither request
+    # sets thinking; the unforced one, with no tools, answered with a thinking
+    # block (119 of its 123 output tokens, as the card says); the forced-tool
+    # one answered with the tool call alone and no thinking tokens.
+    probes = _load_json(ROOT / "docs/haiku55/serving_probes.json")["probes"]
+    unforced, forced = probes["no_thinking_parameter"], probes["forced_tool"]
+    for probe in (unforced, forced):
+        assert (
+            probe["status"] == 200 and probe["request"]["model"] == "claude-haiku-5-5"
+        )
+        assert not probe["request"]["has_thinking_parameter"]
+    assert (
+        unforced["request"]["tools"] == []
+        and unforced["request"]["tool_choice"] is None
+    )
+    assert "thinking" in unforced["content_block_types"]
+    usage = unforced["usage"]
+    assert f"({usage['thinking_tokens']} of {usage['output_tokens']} output tokens" in (
+        card.notes
+    )
+    assert forced["request"]["tool_choice"] == {"type": "tool", "name": "answer"}
+    assert forced["content_block_types"] == ["tool_use"]
+    assert forced["usage"]["thinking_tokens"] == 0
+    # Where the source probes are on this machine, the fixture is theirs.
+    source = Path("/Users/maxghenis/PolicyEngine/policybench/results/local/haiku55")
+    for probe in (unforced, forced):
+        path = source / probe["source"]
+        if path.is_file():
+            assert (
+                hashlib.sha256(path.read_bytes()).hexdigest() == probe["source_sha256"]
+            )
+    assert "as Claude Opus 5's row does" in card.notes
+    # "Under the same publication conventions": the move keeps every
+    # convention module of the move before it.
+    upgrades = [x for x in r.reference_revisions if x.get("kind") == "engine_upgrade"]
+    conventions = [
+        {m["module"] for m in u["fix_modules"] if m["module"].startswith("latest_c")}
+        for u in upgrades[-2:]
+    ]
+    assert conventions[0] == conventions[1] and conventions[0]
+    assert facts["scoredOutputs"] == facts["totalOutputs"] - facts["excluded"]
+    # Links resolve to committed paths.
+    for entry in note["data"]:
+        href = entry["href"]
+        prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+        if href.startswith(prefix):
+            assert (ROOT / href.removeprefix(prefix)).exists(), href
+    text = " ".join(note["paragraphs"])
+    assert "{restoredFixes}" in text
+    assert "newest" not in text

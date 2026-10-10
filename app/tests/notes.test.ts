@@ -9,6 +9,8 @@ import {
   interpolateNoteText,
 } from "../src/components/NotesContent";
 import { notes } from "../src/notes";
+import artifact from "../src/data.artifact.json";
+import paperSnapshot from "../src/paperSnapshot.json";
 
 describe("notes", () => {
   test("the index is newest first", () => {
@@ -51,8 +53,8 @@ describe("notes", () => {
       "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
     );
     expect(markup).toContain("release dashboard-data-20260922");
-    // The BBCE note keeps release dashboard-data-20260930; the October 6
-    // release note is on the frozen release.
+    // The BBCE note keeps release dashboard-data-20260930, and the October 6
+    // release note its own release.
     expect(markup).toContain("release dashboard-data-20260930");
     expect(markup).toContain(
       "PolicyBench stops scoring eight tax outputs whose references turn on facts the prompts never state",
@@ -77,12 +79,17 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the release note for dashboard-data-20261006", () => {
-    expect(notes[0].slug).toBe(
+  test("the newest note is the frozen release's, ahead of the October 6 one", () => {
+    // The live pointer names the frozen release (src/data.artifact.json).
+    expect(notes[0].slug).toContain("claude-haiku-5-5-joins-the-board");
+    expect(notes[0].release).toBe(artifact.tag);
+    expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
+    expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+    expect(notes[1].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
-    expect(notes[0].release).toBe("dashboard-data-20261006");
-    expect(notes[0].boardSnapshot).toBe("2026-09-30");
+    expect(notes[1].release).toBe("dashboard-data-20261006");
+    expect(notes[1].boardSnapshot).toBe("2026-09-30");
   });
 
   test("a words placeholder spells out whole numbers under ten", () => {

@@ -161,17 +161,43 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     # (reference_audit/2026-10-05-medicare-part-b), and four
     # payroll tax outputs that count an employee share of a state paid-leave
     # or disability premium the employer may but need not deduct
-    # (reference_audit/2026-10-05-payroll).
-    assert len(exclusions) == 64
+    # (reference_audit/2026-10-05-payroll). The 2026-10-06 rulings (d1022,
+    # d994) added ten: four engine defects the reference adversary confirmed,
+    # two scope cells, and Louisiana's two 2026 state income tax outputs, whose
+    # standard deduction Louisiana published after the freeze. The 2026-10-10
+    # move to policyengine-us 2.38.6 regenerated the outputs whose defects
+    # that release fixes, the four 2026-10-06 defects and 14 2026-09-22
+    # engine-defect records, and excluded two Indiana county income tax
+    # outputs it moves onto a county no prompt states.
+    assert len(exclusions) == 58
+    sidecar = json.loads((RUN_DIR / "reference_outputs.csv.meta.json").read_text())
+    upgrade_day = [
+        r["date"] for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"
+    ][-1]
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
-        {"reference_engine_defect": 28, "reference_depends_on_unlisted_input": 36}
+        {
+            "reference_engine_defect": 14,
+            "reference_depends_on_unlisted_input": 42,
+            "reference_law_published_after_freeze": 2,
+        }
     )
     assert Counter(e["engine_version"] for e in exclusions) == Counter(
-        {"policyengine-us 1.755.4": 52, "policyengine-us 2.15.17": 12}
+        {
+            "policyengine-us 1.755.4": 38,
+            "policyengine-us 2.15.17": 18,
+            "policyengine-us 2.38.6": 2,
+        }
     )
     assert Counter(e["decided_on"] for e in exclusions) == Counter(
-        {"2026-09-05": 11, "2026-09-22": 41, "2026-09-29": 4, "2026-10-05": 8}
+        {
+            "2026-09-05": 11,
+            "2026-09-22": 27,
+            "2026-09-29": 4,
+            "2026-10-05": 8,
+            "2026-10-06": 6,
+            upgrade_day: 2,
+        }
     )
     inputs = {
         e["unlisted_input"]
