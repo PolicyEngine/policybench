@@ -652,6 +652,16 @@ def main():
         help="JSON list of {scenario_id, variable, covered_by} cells another "
         "audit already covers; they get no adversary case",
     )
+    adversary_prepare_parser.add_argument(
+        "--held-references",
+        default=None,
+        help="Held-references JSON (reference_audit/held_references.json): a "
+        "flagged cell an earlier check held gets no adversary case while its "
+        "prompt and reference are the ones checked and every triggering "
+        "consensus answer is one the record explains; "
+        "<adversary-dir>/held_references.json lists those cells and every "
+        "record that no longer applies",
+    )
 
     adversary_collect_parser = subparsers.add_parser(
         "adversary-collect",
@@ -1476,27 +1486,132 @@ def main():
             prepare_adversary,
         )
 
-        flags = json.loads(Path(args.flags).read_text())["flags"]
+        flags_report = json.loads(Path(args.flags).read_text())
+        flags = flags_report["flags"]
+        payload_path = Path(args.payload)
+        payload = load_payload(payload_path, args.country)
+        adversary_dir = Path(args.adversary_dir)
         skipped: dict[tuple[str, str], str] = {}
         if args.skip_cells:
             for cell in json.loads(Path(args.skip_cells).read_text()):
                 key = (str(cell["scenario_id"]), str(cell["variable"]))
                 skipped[key] = str(cell.get("covered_by", ""))
-        kept = [f for f in flags if (f["scenario_id"], f["variable"]) not in skipped]
+        # Held references first, so "not flagged" means not flagged at all.
+        unheld = flags
+        held_report = None
+        if args.held_references:
+            from policybench.consensus import (
+                ConsensusParams,
+                consensus_flags,
+                file_sha256,
+            )
+            from policybench.held_references import (
+                apply_held_references,
+                load_held_references,
+            )
+            from policybench.reference_adversary import STAGE1_PROMPT
+
+            # A hold is checked against the payload it is applied with, so the
+            # flags must be that payload's: flags from an older payload would
+            # lack a consensus that has formed since, and a hold would hide it.
+            payload_sha256 = file_sha256(payload_path)
+            source_sha256 = flags_report.get("source_sha256")
+            if source_sha256 != payload_sha256:
+                raise SystemExit(
+                    f"adversary-prepare: --held-references needs flags computed "
+                    f"from {payload_path} (sha256 {payload_sha256}), and "
+                    f"{args.flags} records "
+                    + (f"sha256 {source_sha256}" if source_sha256 else "no payload")
+                    + "; recompute them with policybench consensus-flags"
+                )
+            # The recorded hash is a claim. The flags themselves must be what
+            # the trigger computes from this payload at their own parameters.
+            try:
+                flag_params = ConsensusParams(**flags_report["params"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} carries no usable "
+                    f"consensus parameters ({exc}); recompute the flags"
+                ) from exc
+            if consensus_flags(payload, flag_params) != flags:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} is not what the consensus "
+                    f"trigger computes from {payload_path} at its recorded "
+                    "parameters; recompute it with policybench consensus-flags"
+                )
+            unheld, held_report = apply_held_references(
+                flags, load_held_references(args.held_references), payload
+            )
+            # The held flags' cases are built only for their ids.
+            unheld_ids = {id(flag) for flag in unheld}
+            held_cases = build_adversary_cases(
+                payload, [flag for flag in flags if id(flag) not in unheld_ids]
+            )
+            # Preparing removes the directory of a case no longer listed.
+            # Preparation itself writes only the stage-1 prompt there, so
+            # anything else is a runner's: a verdict, or what an interrupted
+            # run left behind.
+            runner_files = [
+                case.case_id
+                for case in held_cases
+                if (adversary_dir / "cases" / case.case_id).is_dir()
+                and any(
+                    child.name != STAGE1_PROMPT
+                    for child in (adversary_dir / "cases" / case.case_id).iterdir()
+                )
+            ]
+            if runner_files:
+                raise SystemExit(
+                    f"adversary-prepare: {adversary_dir} holds a runner's files "
+                    f"for cells now listed as held ({', '.join(runner_files)}), and "
+                    "preparing would delete them; prepare into a new directory "
+                    "or move those case directories aside"
+                )
+            for row in held_report["not_applied"]:
+                # A record that no longer applies leaves its cell to the pass,
+                # which judges it unless another audit covers it.
+                cell = (row["scenario_id"], row["variable"])
+                row["case"] = "covered_elsewhere" if cell in skipped else "prepared"
+            held_report = {
+                "held_references": str(args.held_references),
+                "held_references_sha256": file_sha256(args.held_references),
+                "flags": str(args.flags),
+                "flags_sha256": file_sha256(args.flags),
+                "payload_sha256": payload_sha256,
+                **held_report,
+            }
+        kept = [f for f in unheld if (f["scenario_id"], f["variable"]) not in skipped]
         derivations = (
             load_derivations(Path(args.annotations_dir), args.country)
             if args.annotations_dir
             else None
         )
-        cases = build_adversary_cases(
-            load_payload(Path(args.payload), args.country),
-            kept,
-            derivations=derivations,
-        )
-        prepare_adversary(Path(args.adversary_dir), cases)
+        cases = build_adversary_cases(payload, kept, derivations=derivations)
+        prepare_adversary(adversary_dir, cases)
+        # The directory describes this preparation, so a listing left by an
+        # earlier one with --held-references does not outlive it.
+        held_path = adversary_dir / "held_references.json"
+        held_note = ""
+        if held_report is None:
+            held_path.unlink(missing_ok=True)
+        else:
+            held_path.write_text(json.dumps(held_report, indent=2) + "\n")
+            held_note = (
+                f"; {len(held_report['held'])} listed as checked and held in "
+                f"{held_path}"
+            )
+            stale = [
+                f"{row['scenario_id']} {row['variable']} ({row['reason']}; "
+                + ("judged" if row["case"] == "prepared" else "covered elsewhere")
+                + ")"
+                for row in held_report["not_applied"]
+            ]
+            if stale:
+                held_note += f"; held records that no longer apply: {', '.join(stale)}"
         print(
             f"Prepared {len(cases)} adversary cases under {args.adversary_dir} "
-            f"({len(flags) - len(kept)} flagged cells skipped as covered elsewhere). "
+            f"({len(unheld) - len(kept)} flagged cells skipped as covered "
+            f"elsewhere{held_note}). "
             "Run scripts/run_reference_adversary_claude.sh or "
             "scripts/run_reference_adversary_codex.sh inside a Subfleet lane."
         )

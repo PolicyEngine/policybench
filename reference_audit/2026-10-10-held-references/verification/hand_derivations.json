@@ -1,0 +1,35 @@
+{
+  "scenario_039": {
+    "cell": "scenario_039 federal_income_tax_before_refundable_credits",
+    "other_income": "48519.97",
+    "taxable_social_security": "30689.25",
+    "adjusted_gross_income": "79209.22",
+    "taxable_income": "63109.22",
+    "reference_by_hand": "8596.03",
+    "consensus_qualifying_surviving_spouse": "5145.11",
+    "consensus_qualifying_surviving_spouse_from_prompt_dollars": "5145.11",
+    "joint_return_social_security_thresholds_too": "4484.79",
+    "reviewer_estate_income_preferential": "6259.99",
+    "reviewer_tax_table_projection": "8600",
+    "elderly_or_disabled_credit": "0.00"
+  },
+  "scenario_025": {
+    "cell": "scenario_025 state_income_tax_before_refundable_credits",
+    "federal_agi": "94925.29",
+    "medical_floor": "7119.40",
+    "medical_deduction": "180.60",
+    "ohio_agi": "94744.69",
+    "reference_by_hand": "1916.60",
+    "engine_base_amount": "332.0020400",
+    "reference_with_engine_base_amount": "1916.61",
+    "consensus_no_base_amount_no_deduction": "1589.56",
+    "no_medical_deduction": "1921.57",
+    "premiums_in_full_on_line_1_from_prompt_dollars": "1742.81",
+    "base_amount_of_2024_from_prompt_dollars": "1950.25",
+    "over_the_counter_counted": "1915.23",
+    "premiums_counted_twice": "1737.85",
+    "reviewer_employer_premiums_paid_by_head_subsidized_plan": "1319.65",
+    "reviewer_employer_premiums_paid_by_head_from_prompt_dollars": "1319.63",
+    "reviewer_employer_premiums_paid_by_head_unsubsidized_plan": "1145.86"
+  }
+}

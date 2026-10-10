@@ -1,0 +1,125 @@
+{
+ "people": {
+  "head": {
+   "age": {
+    "2026": 61
+   },
+   "employment_income": {
+    "2026": 0.0
+   },
+   "bank_account_assets": {
+    "2026": 16000.0
+   },
+   "employer_sponsored_insurance_premiums": {
+    "2026": 3589.27587890625
+   },
+   "estate_income": {
+    "2026": 25950.0
+   },
+   "has_esi": {
+    "2026": true
+   },
+   "health_insurance_premiums_without_medicare_part_b": {
+    "2026": 4800.0
+   },
+   "is_disabled": {
+    "2026": true
+   },
+   "is_surviving_spouse": {
+    "2026": true
+   },
+   "is_tax_unit_head": {
+    "2026": true
+   },
+   "is_tax_unit_spouse": {
+    "2026": false
+   },
+   "other_health_insurance_premiums": {
+    "2026": 4800.0
+   },
+   "other_medical_expenses": {
+    "2026": 200.0
+   },
+   "self_employment_income": {
+    "2026": -6260.029296875
+   },
+   "social_security_retirement": {
+    "2026": 36105.0
+   },
+   "taxable_ira_distributions": {
+    "2026": 26800.0
+   },
+   "taxable_private_pension_income": {
+    "2026": 2030.0
+   },
+   "takes_up_medicaid_if_eligible": {
+    "2026": true
+   },
+   "takes_up_ssi_if_eligible": {
+    "2026": true
+   }
+  }
+ },
+ "marital_units": {
+  "marital_unit_1": {
+   "members": [
+    "head"
+   ]
+  }
+ },
+ "tax_units": {
+  "tax_unit": {
+   "members": [
+    "head"
+   ],
+   "first_home_mortgage_balance": {
+    "2026": 47500.0
+   },
+   "takes_up_aca_if_eligible": {
+    "2026": true
+   },
+   "takes_up_dc_ptc": {
+    "2026": true
+   },
+   "takes_up_eitc": {
+    "2026": true
+   },
+   "would_file_if_eligible_for_refundable_credit": {
+    "2026": true
+   },
+   "would_file_taxes_voluntarily": {
+    "2026": true
+   }
+  }
+ },
+ "spm_units": {
+  "spm_unit": {
+   "members": [
+    "head"
+   ],
+   "takes_up_snap_if_eligible": {
+    "2026": true
+   }
+  }
+ },
+ "families": {
+  "family": {
+   "members": [
+    "head"
+   ]
+  }
+ },
+ "households": {
+  "household": {
+   "members": [
+    "head"
+   ],
+   "state_code": {
+    "2026": "VA"
+   },
+   "household_vehicles_value": {
+    "2026": 5184.11767578125
+   }
+  }
+ }
+}

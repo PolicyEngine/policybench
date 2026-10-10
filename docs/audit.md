@@ -89,12 +89,14 @@ uv run policybench consensus-flags \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --output <dir>/consensus_flags.json
 
-# 2. One two-stage case per flagged cell, minus cells another audit owns.
+# 2. One two-stage case per flagged cell, minus cells another audit owns and
+#    cells whose reference an earlier check already held.
 uv run policybench adversary-prepare \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --flags <dir>/consensus_flags.json \
   --annotations-dir annotations/<run> \
   --skip-cells <dir>/covered_elsewhere.json \
+  --held-references reference_audit/held_references.json \
   --adversary-dir <adv>
 
 # 3. Judge inside a Subfleet lane (subscription billing, never an API key).
@@ -194,6 +196,64 @@ release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
 each carries a developer `reference_verdict` (`policybench.adjudications`):
 the existing adjudication path. A change to a published reference or an
 exclusion still needs a release and the maintainer's ruling.
+
+## Held references
+
+The consensus trigger reads no history, so a cell whose reference a check has
+already worked from the law and held is flagged again for as long as the same
+models agree. `reference_audit/held_references.json` is the standing list of
+such checks. Each record names a cell, the scenario's prompt as the payload
+exports it (by its sha256), the reference value held, each consensus answer
+the check explained, and the write-up (`policybench/held_references.py` gives
+the schema).
+
+`adversary-prepare --held-references` gives a flagged cell on that list no
+case and writes `<adv>/held_references.json`, which lists it as checked and
+held beside the explanation of each triggering cluster. A record applies only
+while all of these are true:
+
+- the payload's exported prompt for the scenario (`prompt.tool`, the
+  canonical whole-scenario prompt under the tool answer contract) is the one
+  the check read, byte for byte. A scenario id is a position in a run
+  (`scenario_{i:03d}`), so the same id can name another household after a
+  regeneration. The hash binds the household and the output definitions; it
+  does not record each model's own request, which a model card may serve
+  under the JSON contract or in chunks;
+- the flag's reference is the held value; and
+- each triggering cluster is an answer the record explains: every member's
+  own answer matches the same explained answer.
+
+"Is" and "matches" mean within a dollar on an amount output, the benchmark's
+exact-match tolerance, and equal on an eligibility output. The bound belongs
+to the record: the pass's own `--tolerance` is not used.
+
+Otherwise the cell is judged like any other, and the listing gives the first
+reason that fails: `prompt_changed`, `reference_moved` when an engine or data
+change gave the cell another reference, or `unexplained_consensus` when models
+now agree on an answer the check never looked at. A record whose cell is not
+flagged is listed as `not_flagged`. The option decides only which cells get a
+case. It changes no score, reference or exclusion, and a hold is not a ruling:
+a record can carry an open question, as the first two do
+(`reference_audit/2026-10-10-held-references/`).
+
+With the option, the command also:
+
+- requires the flags to be the payload's. The flags report must record the
+  payload's sha256, and the command recomputes the flags from the payload at
+  the report's parameters and refuses a report that differs. Flags from an
+  older payload would lack a consensus that has formed since, and a hold
+  would hide it;
+- refuses to prepare a directory that holds a runner's files for a cell now
+  listed as held, because preparing removes the directory of a case no longer
+  listed. Preparation writes only `stage1_prompt.md` into a case directory,
+  so any other file there counts: a verdict, or what an interrupted run left
+  behind. Prepare each pass into a new directory;
+- marks a record that no longer applies with what happens to its cell:
+  `prepared`, or `covered_elsewhere` when `--skip-cells` lists it.
+
+To add a record, write the check up under `reference_audit/`, with the law,
+the engine run and the models' answers it rests on, and list only the
+consensus answers it explains.
 
 ## Definition and publication checks
 
