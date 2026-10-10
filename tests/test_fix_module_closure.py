@@ -2,6 +2,7 @@
 modules whose closure cannot be established (the 2026-10-09 delta review's
 finding 3)."""
 
+import json
 import re
 from pathlib import Path
 
@@ -68,6 +69,25 @@ def test_literal_siblings_are_found_transitively_in_source_order():
         ("import runpy\n", "runpy"),
         ("from . import sibling\n", "relatively"),
         ("os.chdir(d)\n", "uses .chdir"),
+        # The pre-T review's forms: a pattern over a literally named sibling's
+        # directory, a name built from pieces, the module's own location
+        # reached another way, and this repository's own package.
+        (
+            "d = Path(__file__).with_name('x.py').parent.glob('r0*_v2.py')\n",
+            "uses .glob",
+        ),
+        ("fs = sorted(HERE.rglob('*'))\n", "uses .rglob"),
+        ("fs = list(d.iterdir())\n", "uses .iterdir"),
+        ("fs = os.listdir(d)\n", "uses .listdir"),
+        ("fs = os.walk(d)\n", "uses .walk"),
+        ("o = __spec__.origin\n", "uses __spec__"),
+        ("l = __loader__\n", "uses __loader__"),
+        ("import sys\nf = sys.modules[__name__].__file__\n", "uses .__file__"),
+        ("import inspect\n", "inspect"),
+        ("g = globals()\n", "calls globals"),
+        ("v = vars()\n", "calls vars"),
+        ("from policybench.scenarios import load\n", "policybench"),
+        ("import policybench.scenarios\n", "policybench"),
         ("def f(:\n", "does not parse"),
     ],
 )
@@ -127,7 +147,9 @@ def test_on_the_committed_fixes_it_agrees_with_literal_discovery_or_refuses():
     """Differential, on every committed audited fix module: where the closure
     is established it is the one literal with_name discovery found; the
     modules it refuses are exactly the wrappers that build sibling paths at
-    run time (``_HERE / f"{name}.py"``), which literal discovery missed."""
+    run time (``_HERE / f"{name}.py"``), which literal discovery missed, and
+    the ones that import this repository's own package. No module the
+    engine upgrade's evidence applies is refused."""
     refused = set()
     for path in sorted(FIXES.glob("*.py")):
         try:
@@ -139,7 +161,19 @@ def test_on_the_committed_fixes_it_agrees_with_literal_discovery_or_refuses():
     wrappers = {
         path.name for path in FIXES.glob("*.py") if 'f"{name}.py"' in path.read_text()
     }
-    assert refused == wrappers
+    in_repo = {
+        path.name
+        for path in FIXES.glob("*.py")
+        if re.search(r"^\s*(from|import) policybench\b", path.read_text(), re.M)
+    }
+    assert refused == wrappers | in_repo
+    evidence = json.loads(
+        (
+            FIXES.parents[1] / "2026-10-09-engine-upgrade/evidence/pe2.37.2.json"
+        ).read_text()
+    )
+    applied = {m for item in evidence["items"] for m in item["modules"]}
+    assert applied and applied.isdisjoint(refused), applied & refused
     assert "c13v3_upstream_plus_r30.py" in refused
     assert {
         "r01_ira_compensation_v2.py",

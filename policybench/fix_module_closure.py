@@ -11,7 +11,14 @@ so it is refused rather than pinned short. The other ways are:
 - a file name given outside that call (``open("x.json")``, ``_HERE / "x.py"``);
 - ``sys.path``, ``runpy``, ``importlib.import_module``, ``__import__``, a
   file loader class, ``os.chdir``, or the ``exec``/``eval``/``compile``
-  builtins.
+  builtins;
+- listing a directory (``glob``, ``rglob``, ``iterdir``, ``listdir``,
+  ``scandir``, ``walk``), which turns a pattern into files no literal names;
+- reaching the module's own location another way (``__spec__``,
+  ``__loader__``, an attribute ``.__file__`` such as
+  ``sys.modules[__name__].__file__``, ``inspect``, ``globals()``, ``vars()``);
+- importing this repository's own package (``policybench``), whose code no
+  fix-module pin covers.
 
 The builder (``reference_audit/2026-10-09-engine-upgrade/scripts/
 build_references_upgrade.py``) and the release driver
@@ -33,7 +40,9 @@ FILE_NAME = re.compile(
     re.IGNORECASE,
 )
 # Builtins that run or load code a static read cannot follow.
-BANNED_BUILTINS = frozenset({"__import__", "exec", "eval", "compile"})
+BANNED_BUILTINS = frozenset(
+    {"__import__", "exec", "eval", "compile", "globals", "vars"}
+)
 # Names, as a bare name or an attribute, that load code or move the paths
 # local files resolve against.
 BANNED_NAMES = frozenset(
@@ -48,8 +57,20 @@ BANNED_NAMES = frozenset(
         "chdir",
         "getfile",
         "getsourcefile",
+        "glob",
+        "rglob",
+        "iterdir",
+        "listdir",
+        "scandir",
+        "walk",
+        "__spec__",
+        "__loader__",
     }
 )
+# Modules whose import reaches code or files a fix-module pin does not cover:
+# runpy runs other files, inspect finds them, and policybench is this
+# repository's own package.
+BANNED_IMPORTS = frozenset({"runpy", "inspect", "policybench"})
 
 
 class ClosureError(ValueError):
@@ -134,6 +155,8 @@ def direct_dependencies(text: str, name: str = "<module>") -> list[str]:
             problems.append(f"{at(node)} uses {node.id}")
         elif isinstance(node, ast.Attribute) and node.attr in BANNED_NAMES:
             problems.append(f"{at(node)} uses .{node.attr}")
+        elif isinstance(node, ast.Attribute) and node.attr == "__file__":
+            problems.append(f"{at(node)} uses .__file__ of another object")
         elif (
             isinstance(node, ast.Attribute)
             and node.attr == "path"
@@ -148,10 +171,13 @@ def direct_dependencies(text: str, name: str = "<module>") -> list[str]:
                 else [node.module or ""]
             )
             imported = {alias.name for alias in node.names}
-            if any(m.split(".")[0] == "runpy" for m in modules) or (
+            if any(m.split(".")[0] in BANNED_IMPORTS for m in modules) or (
                 isinstance(node, ast.ImportFrom) and node.level
             ):
-                problems.append(f"{at(node)} imports {modules} relatively or via runpy")
+                problems.append(
+                    f"{at(node)} imports {modules} relatively or from "
+                    f"{sorted(BANNED_IMPORTS)}"
+                )
             elif isinstance(node, ast.ImportFrom) and (
                 banned := imported & (BANNED_NAMES | BANNED_BUILTINS)
             ):
