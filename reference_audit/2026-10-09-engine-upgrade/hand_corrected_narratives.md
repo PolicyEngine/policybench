@@ -1,7 +1,7 @@
 # Hand-corrected reference narratives
 
 `hand_corrected_narratives.json` replaces the narrative writer (claude-haiku-4-5)
-for every output the engine upgrade changes (24 on policyengine-us 2.38.6),
+for every output the engine upgrade changes (23 on policyengine-us 2.38.6),
 through `scripts/narratives_upgrade.py --hand-corrected`. Judges' prompts render
 these narratives. Each text states the value and figures of the final engine's
 trace; the notes below give why each departs from the writer's draft.
@@ -58,14 +58,17 @@ it while the output's value and trace are unchanged.
 
 ## Corrections on the final engine
 
-On the final engine 24 outputs change, and Claude Haiku 4.5 wrote a narrative for each
-from its trace. An independent reviewer (GPT-6.1 Sol, read-only) then checked every
-narrative against its trace: each number, each sum, and each statement of how the value
-was derived. It found errors in all 17 that had no hand correction, and its report is
-`~/reviews/policybench-haiku-5-5/narratives-preT/review.md`. The 17 texts in
-`hand_corrected_narratives.json` are its trace-only rewrites, reworded for readers. A
-script then checked that every dollar figure in each is a value in the output's trace or
-a sum or difference of two of them. What each drafted narrative got wrong:
+On the code the final engine carries (checked before its release, then on
+policyengine-us 2.38.6 itself, with identical values), 24 outputs change, and Claude
+Haiku 4.5 wrote a narrative for each from its trace. An independent reviewer (GPT-6.1
+Sol, read-only) then checked every narrative against its trace: each number, each sum,
+and each statement of how the value was derived. It found errors in all 17 that had no
+hand correction; its report is kept with the release's review records, outside the
+repository. The texts in `hand_corrected_narratives.json` for those outputs are its
+trace-only rewrites, reworded for readers. A script then checked that every dollar figure
+in each is a value in the output's trace or a sum or difference of two of them. One of
+the 24, scenario_099 California income tax, then stayed excluded (below), so the release
+installs 23. What each drafted narrative got wrong:
 
 - **scenario_003 federal income tax.** It put the $1,582 capital loss inside gross
   income; the loss is an above-the-line deduction that takes $184,872.25 to adjusted
@@ -101,8 +104,12 @@ a sum or difference of two of them. What each drafted narrative got wrong:
   ($117,593.62), about 29.352%.
 - **scenario_085 federal income tax.** It gave a threshold as the reason for a $0 net
   investment income tax, which the trace does not show.
-- **scenario_099 California income tax.** It attributed the $1,256 exemption credit to
-  two children; the trace shows two dependents and no split.
+- **scenario_099 California income tax.** (Not installed: the output stays excluded.) Its
+  draft attributed the $1,256 exemption credit to two children; the trace shows two
+  dependents and no split. The release's judge then found that the reference rests on a
+  further defect: California does not conform to the federal educator expense deduction
+  (FTB Instructions for Schedule CA (540), Section C, line 11), which policyengine-us
+  2.38.6 still allows, so the output keeps its record (`excluded_outputs_rechecked`).
 - **scenario_110 Ohio income tax.** It said adjusted gross income reflects traditional
   IRA contributions; none appears, and gross income equals AGI.
 - **scenario_120 Connecticut income tax.** Only its description of the filer went
