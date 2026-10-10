@@ -90,17 +90,20 @@ INPUT_LABEL_OVERRIDES = {
     "early_withdrawal_penalty": "early withdrawal penalty",
     "educator_expense": "educator expense",
     "employment_income": "gross wages and salaries",
+    # PE-UK deducts both kinds of contribution from taxable income and
+    # neither from adjusted net income, which sets the High Income Child
+    # Benefit Charge and the personal allowance taper (policyengine-uk
+    # #2243). Relief at source works differently (the provider claims basic
+    # rate relief), so the labels state the convention the reference
+    # follows rather than a method it does not.
     "employee_pension_contributions_reported": (
         "employee pension contributions (net pay arrangement: taken from pay "
-        "before tax)"
+        "before income tax; benchmark convention: not deducted from adjusted "
+        "net income)"
     ),
-    # PE-UK deducts personal contributions from taxable income, as it does
-    # net pay contributions. Relief at source works differently (the provider
-    # claims basic rate relief), so the label states the convention the
-    # reference follows rather than a method it does not.
     "personal_pension_contributions": (
         "personal pension contributions (gross amount; benchmark convention: "
-        "deducted from taxable income)"
+        "deducted from taxable income, not from adjusted net income)"
     ),
     "uc_is_in_gainful_self_employment": (
         "determined to be in gainful self-employment for Universal Credit"

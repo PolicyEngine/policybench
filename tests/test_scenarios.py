@@ -1775,8 +1775,22 @@ def test_canonical_uk_rate_is_the_rate_the_prompt_shows():
     assert household["full_rate_vat_expenditure_rate"] == {"2026": 0.1235}
 
 
-@settings(max_examples=200, deadline=None)
-@given(rate=st.floats(min_value=0, max_value=10, allow_nan=False, allow_infinity=False))
+@settings(max_examples=300, deadline=None)
+@given(
+    rate=st.one_of(
+        st.floats(min_value=-10, max_value=10, allow_nan=False, allow_infinity=False),
+        # Around the thousands separator and .4g's switch to exponent form.
+        st.floats(
+            min_value=-200_000,
+            max_value=200_000,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        st.sampled_from(
+            [999.95, 1_000.0, 1_234.5, -1_234.5, 9_999.4, 9_999.6, 12_345.0]
+        ),
+    )
+)
 def test_uk_prompt_rate_round_trips_through_its_display(rate):
     stored = scenarios_module.round_uk_prompt_rate(rate)
     # The prompt's format prints the stored value exactly, and storing is

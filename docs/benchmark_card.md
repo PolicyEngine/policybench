@@ -445,11 +445,13 @@ so by listing none. Since October 2026 the path works as follows.
   and every rate the four significant figures it shows, so the reference uses
   the stated figure, not an unrounded uprated one.
 - **Pension contributions.** PolicyEngine UK deducts both kinds of
-  contribution from taxable income. The prompt says so for each: employee
-  contributions under a net pay arrangement, and personal contributions as a
-  gross amount deducted from taxable income by benchmark convention. It does
-  not call personal contributions relief at source, which works differently
-  and which the reference does not model.
+  contribution from taxable income and neither from adjusted net income, so
+  they do not lower the High Income Child Benefit Charge or the personal
+  allowance taper (policyengine-uk #2243). The prompt states that convention
+  for each: employee contributions under a net pay arrangement, and personal
+  contributions as a gross amount. It does not call personal contributions
+  relief at source, which works differently and which the reference does not
+  model.
 - **One canonical scenario.** The prompt renderer and the reference builder
   both start from `canonical_uk_scenario`, which applies these conventions,
   so a scenario loaded from a manifest gives each the same facts.
