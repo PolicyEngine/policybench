@@ -290,7 +290,11 @@ def _MOCK_sweep(values: dict):
     def run(venv, engine, out_dir):
         out_dir.mkdir(parents=True)
         path = _computed(values, out_dir / "computed.csv")
-        return path, {"builder_sha256": timing.sha256(timing.BUILDER), "MOCK": True}
+        return path, {
+            "builder_sha256": timing.sha256(timing.BUILDER),
+            "MOCK": True,
+            "engine_install": MOCK_INSTALL,
+        }
 
     return run
 
@@ -397,28 +401,64 @@ def test_the_check_stops_the_publish_when_a_scored_output_moves(
         timing.check(_check_args(build, snapshot, venv, tmp_path / "w2"))
 
 
-def test_the_check_sweep_is_run_and_must_write_its_output(tmp_path, monkeypatch):
-    """MOCK subprocess: check runs the builder under the venv's interpreter
-    with empty actions naming the newer engine, and refuses when that sweep
-    writes nothing (as the builder does when the venv lacks the engine)."""
+def _fake_run_writing(receipt_problems=(), computed=True):
+    """MOCK subprocess.run for run_on_engine: writes the engine check's
+    receipt (and the sweep's computed.csv) where the real runner would."""
     calls = []
 
-    def fake_run(command, **kw):
-        calls.append(command)
-        if "writes" in str(command[0]):
+    def run(command, env=None, **kw):
+        calls.append((command, env))
+        Path(env["PB_ENGINE_RECEIPT"]).write_text(
+            json.dumps(
+                {
+                    "version": env["PB_EXPECTED_ENGINE"],
+                    "files_verified": 2,
+                    "problems": list(receipt_problems),
+                }
+            )
+        )
+        if computed and "--out-dir" in command:
             out = Path(command[command.index("--out-dir") + 1])
             _computed(VALUES, out / "computed.csv")
         return type("Ran", (), {"returncode": 1, "stdout": "", "stderr": "draft"})()
 
-    monkeypatch.setattr(timing.subprocess, "run", fake_run)
-    venv = tmp_path / "writes-venv"
+    return run, calls
+
+
+def test_the_check_sweep_runs_the_builder_in_the_checked_process(tmp_path, monkeypatch):
+    """MOCK subprocess: one process, under the venv's interpreter with -P and a
+    fresh bytecode-cache prefix, checks the engine and then runs the builder
+    with empty actions naming the newer engine; a sweep that writes nothing,
+    or a failed check, is refused."""
+    run, calls = _fake_run_writing()
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    venv = tmp_path / "venv"
     path, receipt = timing.run_check_sweep(venv, "2.39.0", tmp_path / "a")
     assert path.is_file() and receipt["exit_code"] == 1
+    assert receipt["engine_install"]["fresh_bytecode_cache"] is True
+    command, env = calls[0]
+    assert command[:4] == [str(venv / "bin/python"), "-P", "-c", timing.ENGINE_RUNNER]
+    assert command[4] == str(timing.BUILDER) and "--allow-draft" in command
+    assert env["PB_EXPECTED_ENGINE"] == "2.39.0" and env["PYTHONPYCACHEPREFIX"]
     actions = json.loads((tmp_path / "a/actions.empty.json").read_text())
     assert actions["engine"] == "policyengine-us 2.39.0" and actions["draft"] is True
-    assert calls[0][0] == str(venv / "bin/python") and "--allow-draft" in calls[0]
+    run, _ = _fake_run_writing(computed=False)
+    monkeypatch.setattr(timing.subprocess, "run", run)
     with pytest.raises(timing.Refusal, match="wrote no computed.csv"):
-        timing.run_check_sweep(tmp_path / "silent-venv", "2.39.0", tmp_path / "b")
+        timing.run_check_sweep(venv, "2.39.0", tmp_path / "b")
+    run, _ = _fake_run_writing(receipt_problems=["an editable install"])
+    monkeypatch.setattr(timing.subprocess, "run", run)
+    with pytest.raises(timing.Refusal, match="an editable install"):
+        timing.run_check_sweep(venv, "2.39.0", tmp_path / "c")
+    monkeypatch.setattr(
+        timing.subprocess,
+        "run",
+        lambda *a, **k: type(
+            "Ran", (), {"returncode": 2, "stdout": "", "stderr": "x"}
+        )(),
+    )
+    with pytest.raises(timing.Refusal, match="did not run"):
+        timing.engine_install(venv, "2.39.0")
 
 
 def test_a_relative_check_venv_is_the_one_found_and_run(tmp_path, monkeypatch):
@@ -447,9 +487,28 @@ def test_a_relative_check_venv_is_the_one_found_and_run(tmp_path, monkeypatch):
     assert seen == [venv, venv]
 
 
-def _fake_install(root: Path, version: str, files: dict[str, str]) -> Path:
+def test_a_missing_scratch_parent_is_created(tmp_path, monkeypatch):
+    """MOCK: in a checkout without results/local, check creates it before
+    making the sweep's scratch directory."""
+    build, snapshot = _check_setup(
+        tmp_path, monkeypatch, _pypi_around_now(-1800, offset_engine=-7200)
+    )
+    root = tmp_path / "clean-checkout"
+    root.mkdir()
+    monkeypatch.setattr(timing, "ROOT", root)
+    monkeypatch.setattr(timing, "engine_install", lambda venv, engine: MOCK_INSTALL)
+    monkeypatch.setattr(timing, "run_check_sweep", _MOCK_sweep(VALUES))
+    venv = _venv(tmp_path / "check-venv", "2.39.0")
+    timing.check(_check_args(build, snapshot, venv))
+    assert (root / "results/local").is_dir()
+    assert any((root / "results/local").glob("check-sweep-2.39.0-*"))
+
+
+def _fake_install(
+    root: Path, version: str, files: dict[str, str], algorithm: str = "sha256"
+) -> Path:
     """MOCK site-packages: a policyengine-us wheel's dist-info whose RECORD
-    pins ``files`` as written."""
+    pins ``files`` as written, with the given hash algorithm."""
     import base64
     import hashlib
 
@@ -459,8 +518,10 @@ def _fake_install(root: Path, version: str, files: dict[str, str]) -> Path:
         path = site / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
-        digest = base64.urlsafe_b64encode(hashlib.sha256(text.encode()).digest())
-        record.append(f"{name},sha256={digest.rstrip(b'=').decode()},{len(text)}")
+        digest = base64.urlsafe_b64encode(
+            hashlib.new(algorithm, text.encode()).digest()
+        )
+        record.append(f"{name},{algorithm}={digest.rstrip(b'=').decode()},{len(text)}")
     info = site / f"policyengine_us-{version}.dist-info"
     info.mkdir()
     (info / "METADATA").write_text(
@@ -470,81 +531,132 @@ def _fake_install(root: Path, version: str, files: dict[str, str]) -> Path:
     return site
 
 
-def _verify(*paths: Path) -> dict:
-    """Run the verifier as engine_install does, with ``paths`` first on the
-    import path (as a shadowing tree or a .pth redirect would put them)."""
+def _runner(
+    tmp_path: Path, *paths: Path, builder=None, fresh_cache=True, expected="9.9.9"
+):
+    """Run ENGINE_RUNNER as run_on_engine does (-P, a fresh cache prefix), with
+    ``paths`` first on the import path, as a shadowing tree or a .pth redirect
+    would put them. Returns the receipt and the process."""
     import os
     import subprocess
     import sys
+    import tempfile
 
-    ran = subprocess.run(
-        [sys.executable, "-c", timing.VERIFY_ENGINE],
-        env={**os.environ, "PYTHONPATH": os.pathsep.join(str(p) for p in paths)},
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(ran.stdout.strip().splitlines()[-1])
+    receipt = Path(tempfile.mkdtemp(dir=tmp_path)) / "receipt.json"
+    env = {
+        **{k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")},
+        "PYTHONPATH": os.pathsep.join(str(p) for p in paths),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PB_EXPECTED_ENGINE": expected,
+        "PB_ENGINE_RECEIPT": str(receipt),
+    }
+    if fresh_cache:
+        env["PYTHONPYCACHEPREFIX"] = tempfile.mkdtemp(dir=tmp_path)
+    command = [sys.executable, "-P", "-c", timing.ENGINE_RUNNER]
+    if builder is not None:
+        command.append(str(builder))
+    ran = subprocess.run(command, env=env, capture_output=True, text=True, cwd=tmp_path)
+    return json.loads(receipt.read_text()), ran
 
 
 PACKAGE = {"policyengine_us/__init__.py": "X = 1\n", "policyengine_us/m.py": "Y = 2\n"}
 
 
-def test_the_verifier_sees_what_is_imported_not_the_label(tmp_path):
-    """MOCK installs, real verifier: a clean wheel passes; a source tree
-    shadowing it under the same version label, an editable install, a file
-    changed after install and a module the wheel lacks are each reported."""
+def _printer(directory: Path) -> Path:
+    """A MOCK builder that prints the engine module's X."""
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / "builder.py"
+    script.write_text("import policyengine_us\nprint('X', policyengine_us.X)\n")
+    return script
+
+
+@pytest.mark.parametrize("algorithm", ["sha256", "sha384", "sha512"])
+def test_a_clean_wheel_passes_the_runner_and_runs_its_builder(tmp_path, algorithm):
+    """MOCK install, real runner: a clean wheel, with any hash RECORD permits,
+    passes and the builder runs in the same process on its code."""
+    site = _fake_install(tmp_path / "clean", "9.9.9", PACKAGE, algorithm)
+    found, ran = _runner(tmp_path, site, builder=_printer(tmp_path / "b"))
+    assert found["problems"] == [] and found["files_verified"] == 2
+    assert ran.returncode == 0 and "X 1" in ran.stdout
+
+
+def test_the_runner_refuses_what_is_imported_not_the_label(tmp_path):
+    """MOCK installs, real runner: a source tree shadowing the wheel under the
+    same version label, an editable install, a file changed after install, an
+    unrecorded module, an unrecorded native extension, a wrong version and a
+    run without a fresh bytecode cache each stop it before any builder runs."""
+    import importlib.machinery
+
     site = _fake_install(tmp_path / "clean", "9.9.9", PACKAGE)
-    clean = _verify(site)
-    assert clean["version"] == "9.9.9" and clean["imported_from_package"]
-    assert clean["files_verified"] == 2 and not clean["files_mismatched"]
-    assert not clean["editable"] and not clean["files_unrecorded"]
-    # An older source tree ahead of the wheel on the import path.
     shadow = tmp_path / "shadow"
     (shadow / "policyengine_us").mkdir(parents=True)
     (shadow / "policyengine_us" / "__init__.py").write_text("X = 0\n")
-    assert not _verify(shadow, site)["imported_from_package"]
-    # An editable install's direct_url.json.
+
+    def problems(*paths, **kw):
+        found, ran = _runner(tmp_path, *paths, builder=_printer(tmp_path / "p"), **kw)
+        assert ran.returncode == 3 and "X " not in ran.stdout, ran.stdout
+        return " ".join(found["problems"])
+
+    assert "imports policyengine_us from" in problems(shadow, site)
     editable = _fake_install(tmp_path / "editable", "9.9.9", PACKAGE)
     (editable / "policyengine_us-9.9.9.dist-info" / "direct_url.json").write_text(
         json.dumps({"url": "file:///src", "dir_info": {"editable": True}})
     )
-    assert _verify(editable)["editable"]
-    # A file changed after install, and a module the wheel does not list.
+    assert "an editable install" in problems(editable)
     changed = _fake_install(tmp_path / "changed", "9.9.9", PACKAGE)
     (changed / "policyengine_us" / "m.py").write_text("Y = 3\n")
-    (changed / "policyengine_us" / "extra.py").write_text("Z = 4\n")
-    found = _verify(changed)
-    assert found["files_mismatched"] == ["policyengine_us/m.py"]
-    assert found["files_unrecorded"] == ["policyengine_us/extra.py"]
+    assert "policyengine_us/m.py" in problems(changed)
+    extra = _fake_install(tmp_path / "extra", "9.9.9", PACKAGE)
+    (extra / "policyengine_us" / "extra.py").write_text("Z = 4\n")
+    assert "importable files the wheel lacks" in problems(extra)
+    native = _fake_install(tmp_path / "native", "9.9.9", PACKAGE)
+    suffix = importlib.machinery.EXTENSION_SUFFIXES[0]
+    (native / "policyengine_us" / f"m{suffix}").write_bytes(b"\0")
+    assert f"policyengine_us/m{suffix}" in problems(native)
+    assert "version 9.9.9, not 9.9.8" in problems(site, expected="9.9.8")
+    assert "no fresh bytecode-cache prefix" in problems(site, fresh_cache=False)
 
 
-@pytest.mark.parametrize(
-    "found, problem",
-    [
-        ({"version": "9.9.8"}, "version 9.9.8, not 9.9.9"),
-        ({"imported_from_package": False, "origin": "/src"}, "imports policyengine_us"),
-        ({"editable": True}, "an editable install"),
-        ({"files_mismatched": ["policyengine_us/m.py"]}, "RECORD"),
-        ({"files_verified": 0}, "RECORD"),
-        ({"files_unrecorded": ["policyengine_us/x.py"]}, "modules the wheel lacks"),
-    ],
-)
-def test_engine_install_refuses_each_kind_of_mismatch(
-    tmp_path, monkeypatch, found, problem
-):
-    """MOCK verifier output: each problem the verifier reports stops the sweep."""
-    report = {
-        "version": "9.9.9",
-        "origin": "/site/policyengine_us/__init__.py",
-        "imported_from_package": True,
-        "editable": False,
-        "files_verified": 2,
-        "files_mismatched": [],
-        "files_unrecorded": [],
-        **found,
-    }
-    ran = type("Ran", (), {"stdout": json.dumps(report), "stderr": ""})()
-    monkeypatch.setattr(timing.subprocess, "run", lambda *a, **k: ran)
-    with pytest.raises(timing.Refusal, match=problem):
-        timing.engine_install(tmp_path, "9.9.9")
+def test_stale_bytecode_cannot_run_in_place_of_the_verified_source(tmp_path):
+    """MOCK install, real runner: an unchecked-hash .pyc compiled from older
+    code sits in __pycache__ beside a source that matches RECORD. A plain
+    interpreter runs the stale bytecode; the runner's fresh cache prefix makes
+    the builder run the verified source."""
+    import importlib.util
+    import os
+    import py_compile
+    import subprocess
+    import sys
+
+    site = _fake_install(tmp_path / "stale", "9.9.9", PACKAGE)
+    source = site / "policyengine_us" / "__init__.py"
+    old = tmp_path / "old" / "__init__.py"
+    old.parent.mkdir()
+    old.write_text("X = 0\n")
+    py_compile.compile(
+        str(old),
+        cfile=importlib.util.cache_from_source(str(source)),
+        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+    )
+    plain = subprocess.run(
+        [sys.executable, "-c", "import policyengine_us; print('X', policyengine_us.X)"],
+        env={**os.environ, "PYTHONPATH": str(site), "PYTHONDONTWRITEBYTECODE": "1"},
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    assert "X 0" in plain.stdout  # the stale bytecode is what a plain import runs
+    found, ran = _runner(tmp_path, site, builder=_printer(tmp_path / "b"))
+    assert found["problems"] == [] and "X 1" in ran.stdout
+
+
+def test_a_package_beside_the_builder_cannot_shadow_the_engine(tmp_path):
+    """MOCK install, real runner: a policyengine_us package in the builder's
+    own directory is not on the import path (-P, and runpy adds no script
+    directory), so the builder runs the wheel's code."""
+    site = _fake_install(tmp_path / "clean", "9.9.9", PACKAGE)
+    beside = tmp_path / "scripts"
+    (beside / "policyengine_us").mkdir(parents=True)
+    (beside / "policyengine_us" / "__init__.py").write_text("X = -1\n")
+    found, ran = _runner(tmp_path, site, builder=_printer(beside))
+    assert found["problems"] == [] and "X 1" in ran.stdout

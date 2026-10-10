@@ -17,6 +17,11 @@ Two steps, each writing into this audit's verification/ directory:
       unless the engine was the newest release when the sweep began: no
       release newer than it was uploaded before its first output.
 
+  sweep_timing.py run --venv <venv> --engine X.Y.Z --receipt <json> -- <builder args>
+      Runs the builder for the reference build through the same engine check,
+      in the same single process, as the check sweep (ENGINE_RUNNER); the
+      receipt records the check.
+
   sweep_timing.py check --build <the reference build's out-dir>
                         [--check-venv <venv with the newest release>]
       Reads PyPI again. The build must be the release's: its sidecar names the
@@ -49,6 +54,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -397,12 +403,21 @@ def build_problems(
     return computed, excluded, pins
 
 
-# Run under a venv's interpreter with the sweep's environment: which
-# policyengine_us that interpreter imports, and whether its files are the
-# installed wheel's. A version label alone can sit beside older code (an
-# editable install whose checkout moved, a source tree shadowing the wheel).
-VERIFY_ENGINE = r"""
-import base64, hashlib, importlib.metadata as md, importlib.util, json, pathlib, sys
+# The engine check and, when a builder is named, the builder itself, in ONE
+# process under the venv's interpreter, so what is checked is what computes.
+# Launched with -P (no script or working directory on sys.path) and a fresh,
+# empty bytecode-cache prefix, so no __pycache__ beside the sources is read:
+# every module compiles from the verified source. Before policyengine_us is
+# imported, it requires the expected version, an import origin inside the
+# installed package, no editable install, every package file at the hash the
+# wheel's RECORD gives (sha256, sha384 or sha512), and no importable file in the
+# package (a module, a sourceless .pyc, a native extension) that RECORD does not
+# list. It writes what it found to PB_ENGINE_RECEIPT, then runs the builder with
+# the remaining arguments, or stops (exit 3) on any problem.
+ENGINE_RUNNER = r"""
+import base64, hashlib, importlib.machinery as mach, importlib.metadata as md
+import importlib.util, json, os, pathlib, runpy, sys
+expected = os.environ["PB_EXPECTED_ENGINE"]
 dist = md.distribution("policyengine-us")
 spec = importlib.util.find_spec("policyengine_us")
 origin = pathlib.Path(spec.origin).resolve()
@@ -416,19 +431,22 @@ for entry in dist.files or []:
     if not name.startswith("policyengine_us/") or "__pycache__" in name:
         continue
     recorded.add(name)
-    if not entry.hash or entry.hash.mode != "sha256":
+    if not entry.hash or entry.hash.mode not in ("sha256", "sha384", "sha512"):
         mismatched.append(name)
         continue
     path = pathlib.Path(dist.locate_file(entry))
-    digest = hashlib.sha256(path.read_bytes()).digest() if path.is_file() else b""
+    data = path.read_bytes() if path.is_file() else None
+    digest = hashlib.new(entry.hash.mode, data).digest() if data is not None else b""
     if base64.urlsafe_b64encode(digest).rstrip(b"=").decode() != entry.hash.value:
         mismatched.append(name)
+suffixes = tuple(mach.all_suffixes())
 unrecorded = sorted(
     str(p.relative_to(site))
-    for p in package.rglob("*.py")
-    if "__pycache__" not in p.parts and str(p.relative_to(site)) not in recorded
+    for p in package.rglob("*")
+    if p.is_file() and "__pycache__" not in p.parts and p.name.endswith(suffixes)
+    and str(p.relative_to(site)) not in recorded
 )
-print(json.dumps({
+found = {
     "version": dist.version,
     "origin": str(origin),
     "imported_from_package": origin.is_relative_to(package),
@@ -436,7 +454,29 @@ print(json.dumps({
     "files_verified": len(recorded) - len(mismatched),
     "files_mismatched": mismatched[:5],
     "files_unrecorded": unrecorded[:5],
-}))
+    "pycache_prefix": sys.pycache_prefix,
+    "sys_path": sys.path,
+}
+problems = []
+if found["version"] != expected:
+    problems.append(f"version {found['version']}, not {expected}")
+if not found["imported_from_package"]:
+    problems.append(f"imports policyengine_us from {found['origin']}")
+if editable:
+    problems.append("an editable install")
+if mismatched or not found["files_verified"]:
+    problems.append(f"files unlike the wheel's RECORD {mismatched[:5]}")
+if unrecorded:
+    problems.append(f"importable files the wheel lacks {unrecorded[:5]}")
+if not sys.pycache_prefix or any(pathlib.Path(sys.pycache_prefix).iterdir()):
+    problems.append("no fresh bytecode-cache prefix")
+found["problems"] = problems
+pathlib.Path(os.environ["PB_ENGINE_RECEIPT"]).write_text(json.dumps(found))
+if problems:
+    sys.exit(3)
+if len(sys.argv) > 1:
+    sys.argv = sys.argv[1:]
+    runpy.run_path(sys.argv[0], run_name="__main__")
 """
 
 
@@ -450,52 +490,58 @@ def sweep_env() -> dict[str, str]:
     }
 
 
-def engine_install(venv: Path, engine: str) -> dict:
-    """What the venv's interpreter imports as policyengine_us, in the sweep's
-    environment, checked: the release's version, imported from the installed
-    package, not an editable install, every package file the wheel's RECORD
-    lists at its recorded sha256, and no unrecorded module beside them."""
-    ran = subprocess.run(
-        [str(venv / "bin" / "python"), "-c", VERIFY_ENGINE],
-        env=sweep_env(),
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
+def run_on_engine(
+    venv: Path, engine: str, receipt: Path, builder_args: list[str] | None = None
+):
+    """ENGINE_RUNNER under the venv's interpreter: the engine check, then (with
+    ``builder_args``) the builder in the same process. Returns the completed
+    process and the check's record; refuses when the check found a problem."""
+    cache = Path(tempfile.mkdtemp(prefix="pb-pycache-"))
+    command = [str(venv / "bin" / "python"), "-P", "-c", ENGINE_RUNNER]
+    if builder_args is not None:
+        command += [str(BUILDER), *builder_args]
+    env = {
+        **sweep_env(),
+        "PYTHONPYCACHEPREFIX": str(cache),
+        "PB_EXPECTED_ENGINE": engine,
+        "PB_ENGINE_RECEIPT": str(receipt),
+    }
     try:
-        found = json.loads(ran.stdout.strip().splitlines()[-1])
-    except (IndexError, json.JSONDecodeError):
+        ran = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True)
+    finally:
+        shutil.rmtree(cache, ignore_errors=True)
+    if not receipt.is_file():
         raise Refusal(
-            f"{venv}: could not read its policyengine_us ({ran.stderr.strip()[-300:]})"
-        ) from None
-    problems = []
-    if found["version"] != engine:
-        problems.append(f"version {found['version']}, not {engine}")
-    if not found["imported_from_package"]:
-        problems.append(f"imports policyengine_us from {found['origin']}")
-    if found["editable"]:
-        problems.append("an editable install")
-    if found["files_mismatched"] or not found["files_verified"]:
-        problems.append(f"files unlike the wheel's RECORD {found['files_mismatched']}")
-    if found["files_unrecorded"]:
-        problems.append(f"modules the wheel lacks {found['files_unrecorded']}")
-    if problems:
-        raise Refusal(f"{venv} is not policyengine-us {engine} as released: {problems}")
-    return {
+            f"{venv}: the engine check did not run ({ran.stderr.strip()[-300:]})"
+        )
+    found = json.loads(receipt.read_text())
+    if found["problems"]:
+        raise Refusal(
+            f"{venv} is not policyengine-us {engine} as released: {found['problems']}"
+        )
+    return ran, {
         "version": found["version"],
         "files_verified": found["files_verified"],
         "editable": False,
         "imported_from_package": True,
+        "fresh_bytecode_cache": True,
     }
+
+
+def engine_install(venv: Path, engine: str) -> dict:
+    """The engine check alone (ENGINE_RUNNER without a builder)."""
+    with tempfile.TemporaryDirectory() as scratch:
+        _, install = run_on_engine(venv, engine, Path(scratch) / "receipt.json")
+    return install
 
 
 def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]:
     """The check sweep, run here: this audit's builder, a first pass with
-    empty actions naming ``engine``, under the venv's interpreter. The builder
-    refuses before computing unless the venv holds that release, and it pins
-    the conventions and harness it applies, so the computed.csv it writes is
-    that engine's under the release's conventions. Returns the file and what
-    ran."""
+    empty actions naming ``engine``, in the same process as the engine check
+    (run_on_engine), under the venv's interpreter. The builder also refuses
+    before computing unless the venv holds that release, and it pins the
+    conventions and harness it applies, so the computed.csv it writes is that
+    engine's under the release's conventions. Returns the file and what ran."""
     out_dir.mkdir(parents=True, exist_ok=False)
     actions = out_dir / "actions.empty.json"
     actions.write_text(
@@ -509,18 +555,8 @@ def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]
             }
         )
     )
-    command = [
-        str(venv / "bin" / "python"),
-        str(BUILDER),
-        "--actions",
-        str(actions),
-        "--out-dir",
-        str(out_dir),
-        "--allow-draft",
-    ]
-    ran = subprocess.run(
-        command, env=sweep_env(), cwd=ROOT, capture_output=True, text=True
-    )
+    args = ["--actions", str(actions), "--out-dir", str(out_dir), "--allow-draft"]
+    ran, install = run_on_engine(venv, engine, out_dir / "engine_install.json", args)
     (out_dir / "sweep.log").write_text(ran.stdout + ran.stderr)
     computed = out_dir / "computed.csv"
     if not computed.is_file():
@@ -533,6 +569,7 @@ def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]
         "venv": relative(venv),
         "command": "build_references_upgrade.py --actions <empty> --allow-draft",
         "exit_code": ran.returncode,
+        "engine_install": install,
     }
 
 
@@ -577,7 +614,7 @@ def check(args) -> dict:
         )
     venv = Path(args.check_venv).resolve()
     installed = dist_info(venv, latest)
-    install = engine_install(venv, latest)
+    engine_install(venv, latest)  # fail fast; the sweep's own process checks again
     installed_at = utc(installed.stat().st_birthtime)
     scratch = ROOT / "results/local"
     scratch.mkdir(parents=True, exist_ok=True)
@@ -606,7 +643,7 @@ def check(args) -> dict:
         "engine_installed_evidence": relative(installed),
         "check_computed": relative(check_path),
         "check_computed_sha256": sha256(check_path),
-        "check_sweep": {**receipt, "engine_install": install},
+        "check_sweep": receipt,
         "output_at_utc": output_at,
         "output": relative(out),
         "output_sha256": digest,
@@ -626,7 +663,23 @@ def main(argv: list[str] | None = None) -> None:
     c = sub.add_parser("check")
     c.add_argument("--build", required=True)
     c.add_argument("--check-venv")
+    r = sub.add_parser("run")
+    r.add_argument("--venv", required=True)
+    r.add_argument("--engine", required=True)
+    r.add_argument("--receipt", required=True)
+    r.add_argument("builder_args", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
+    if args.step == "run":
+        # The reference build itself, through the same engine check and the
+        # same single process as the check sweep (run_on_engine).
+        builder_args = [a for a in args.builder_args if a != "--"]
+        ran, install = run_on_engine(
+            Path(args.venv).resolve(), args.engine, Path(args.receipt), builder_args
+        )
+        sys.stdout.write(ran.stdout)
+        sys.stderr.write(ran.stderr)
+        print(json.dumps({"engine_install": install}), file=sys.stderr)
+        raise SystemExit(ran.returncode)
     timing = sweep(args) if args.step == "sweep" else check(args)
     VERIFICATION.mkdir(parents=True, exist_ok=True)
     TIMING.write_text(json.dumps(timing, indent=2) + "\n")
