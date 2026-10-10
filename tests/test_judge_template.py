@@ -176,7 +176,8 @@ def test_recorded_version_is_the_field_when_it_names_one(value):
     expected = value if type(value) is int and value in JUDGE_TEMPLATE_HEADERS else None
     assert recorded_template_version({TEMPLATE_VERSION_FIELD: value}) == expected
     assert recorded_template_version({"judge_runner": "x"}) == 1
-    assert recorded_template_version(None) == 1
+    # No sidecar records nothing.
+    assert recorded_template_version(None) is None
 
 
 # --- Rendering -------------------------------------------------------------------
@@ -484,7 +485,7 @@ def _mixed_tree(tmp_path: Path) -> tuple[Path, Path, dict[str, AuditCase]]:
         audit,
         board,
         {
-            "s0": "no sidecar",
+            "s0": "v1, field absent",
             "s1": "v1, field absent",
             "s2": "v1",
             "s3": "v2",
@@ -536,7 +537,7 @@ def test_a_verdict_whose_template_disagrees_with_its_prompt_is_flagged(tmp_path)
     sidecar.write_text(json.dumps(stripped))  # v2 prompt, field absent (v1)
     meta("s2", judge_template_version="2")  # names no version
     (case_dir["s0"] / "prompt.md").unlink()  # a verdict without its prompt
-    (case_dir["s4"] / "verdict.json").write_text(json.dumps(VERDICT))
+    _judge(case_dir["s4"], {})  # judged, sidecar without the field (v1)
     (case_dir["s4"] / "prompt.md").write_text("Classify this miss.\n")
     problems = dict(template_version_problems(audit))
     assert problems == {
@@ -556,7 +557,8 @@ def test_a_verdict_whose_template_disagrees_with_its_prompt_is_flagged(tmp_path)
         _collect_cli(board, audit, tmp_path / "out")
     assert not (tmp_path / "out").exists()
     # Preparing again re-opens every flagged case. The verdict that lost its
-    # prompt has no sidecar, so nothing records the bytes its judge read.
+    # prompt has no prompt_sha256, so nothing records the bytes its judge
+    # read.
     prepare_audit(board, audit, template_version=2)
     assert template_version_problems(audit) == []
     for scenario in ("s0", "s1", "s2", "s3", "s4"):
@@ -711,6 +713,33 @@ def test_prepare_racing_a_publish_never_strands_the_verdict(tmp_path):
     prepare_audit(board, audit, template_version=1)
     assert not (case_dir / "verdict.json").exists()
     assert not (case_dir / "verdict.meta.json").exists()
+
+
+def test_a_verdict_without_its_sidecar_is_refused_and_reopened(tmp_path):
+    """The round-4 review's schedule ends with a runner's verdict and no
+    sidecar. A $250 case's verdict is dropped by an audit-prepare re-running
+    m1 at $999, which pauses and then removes the sidecar the runner has just
+    published (the old sidecar matched the runner's verdict, whose bytes
+    repeat the old verdict's); then the runner's verdict arrives. Nothing
+    records what its judge read, so audit-collect refuses it and the next
+    audit-prepare re-opens it."""
+    board, audit, case, case_dir = _judged_case(tmp_path)
+    verdict = (case_dir / "verdict.json").read_bytes()
+    _board(board, {"s0": 999.0})
+    (case_dir / "verdict.json").unlink()
+    (case_dir / "verdict.meta.json").unlink()
+    (case_dir / "prompt.md").write_bytes(
+        render_case_prompt(build_audit_cases(board)[0], template_version=1).encode()
+    )
+    (case_dir / "verdict.json").write_bytes(verdict)
+    problem = "a verdict without its sidecar (verdict.meta.json)"
+    assert template_version_problems(audit) == [(case.case_id, problem)]
+    with pytest.raises(SystemExit, match="1 verdicts disagree with their prompt.md"):
+        _collect_cli(board, audit, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert template_version_problems(audit) == []
 
 
 def test_a_dropped_verdict_takes_only_its_own_sidecar(tmp_path):

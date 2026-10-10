@@ -421,8 +421,8 @@ def _judged_prompt(case: AuditCase, case_dir: Path, verdict: bytes) -> bytes | N
     A sidecar that records ``verdict_sha256`` must describe ``verdict``:
     otherwise it is another verdict's record, such as one a runner has
     published and whose verdict has not arrived yet. The case is rendered on
-    the version the sidecar records (absent: v1; an unknown version gives
-    None). Those bytes must be prompt.md's exactly, and, when the sidecar
+    the version the sidecar records (absent: v1; an unknown version, or no
+    sidecar, gives None). Those bytes must be prompt.md's exactly, and, when the sidecar
     records ``prompt_sha256`` (the hash of the bytes its judge read), hash to
     it. Without prompt.md, that hash is the only evidence of what the judge
     read, so a sidecar without one gives None.
@@ -493,10 +493,12 @@ def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
 
     A tree may mix versions: a release's carried seeds keep the version they
     were judged on, while its new and re-opened cases use the one its driver
-    names. Every verdict must have its prompt.md, its sidecar must name a
-    known version (absent: v1), and prompt.md must begin with that version's
-    header. Returns ``(case_id, problem)`` for each case that fails, in case
-    order.
+    names. Every verdict must have its sidecar and its prompt.md, its
+    sidecar must name a known version (absent: v1), and prompt.md must begin
+    with that version's header. A verdict without a sidecar has no record of
+    the bytes its judge read: one a runner published can lose its sidecar to
+    an audit-prepare racing it. Returns ``(case_id, problem)`` for each case
+    that fails, in case order.
     """
     problems: list[tuple[str, str]] = []
     cases_root = audit_dir / "cases"
@@ -508,7 +510,9 @@ def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
         meta = _sidecar(case_dir)
         recorded = recorded_template_version(meta)
         prompt_path = case_dir / "prompt.md"
-        if recorded is None:
+        if meta is None:
+            problem = "a verdict without its sidecar (verdict.meta.json)"
+        elif recorded is None:
             problem = (
                 f"its sidecar's {TEMPLATE_VERSION_FIELD} "
                 f"{meta.get(TEMPLATE_VERSION_FIELD)!r} names no template "

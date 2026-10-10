@@ -19,8 +19,9 @@ the template means adding a version.
 
 Each verdict's provenance sidecar (``verdict.meta.json``) records the version
 of the prompt it was judged on as ``judge_template_version``. A sidecar
-without the field, or a verdict without a sidecar, predates the versions and
-was judged on v1.
+without the field predates the versions and was judged on v1. A verdict
+without a sidecar has no record of what its judge read, so it has no
+recorded version: audit-prepare re-opens it and audit-collect refuses it.
 
 Version selection is explicit: every renderer
 (:func:`policybench.audit.render_case_prompt`,
@@ -143,11 +144,14 @@ def template_version_of(prompt: str | bytes) -> int | None:
 def recorded_template_version(meta: Mapping | None) -> int | None:
     """The version a verdict's sidecar records it was judged on.
 
-    No sidecar (None), or one without the field, means v1. A value that names
-    no version (null, a string, a boolean, an unknown number) gives None: the
-    verdict's template is unknown.
+    A sidecar without the field means v1: it predates the versions. No
+    sidecar (None) records nothing, so it gives None, and so does a value
+    that names no version (null, a string, a boolean, an unknown number):
+    the verdict's template is unknown.
     """
-    if meta is None or TEMPLATE_VERSION_FIELD not in meta:
+    if meta is None:
+        return None
+    if TEMPLATE_VERSION_FIELD not in meta:
         return UNRECORDED_TEMPLATE_VERSION
     value = meta[TEMPLATE_VERSION_FIELD]
     if type(value) is int and value in JUDGE_TEMPLATE_HEADERS:

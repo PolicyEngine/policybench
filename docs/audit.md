@@ -80,9 +80,14 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   publishes the sidecar before the verdict. An interrupted publish can leave
   a sidecar without a verdict, which the next run removes, but never a new
   verdict without its sidecar.
-- A sidecar without the field, or a verdict without a sidecar, was judged on
-  v1 (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars
-  written before versions existed, not a guess from the prompt.
+- A sidecar without the field was judged on v1
+  (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars written
+  before versions existed, not a guess from the prompt.
+- A verdict without a sidecar has no record of what its judge read.
+  `audit-prepare` re-opens it and `audit-collect` refuses it. A runner's
+  verdict can lose its sidecar to an `audit-prepare` racing it, so this is
+  what keeps such a verdict out. Every verdict in releases 20260929 and
+  20260930 has a sidecar.
 - `audit-prepare` renders a case that already has a verdict with the version
   its sidecar records. The verdict stands only if that reproduces
   `prompt.md` byte for byte and, when the sidecar records `prompt_sha256`
@@ -102,8 +107,10 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   bytes its judge did not read. That holds because a runner never leaves a
   new verdict without its sidecar, `audit-prepare` never removes another
   verdict's sidecar, and `audit-collect` checks each recorded hash. A
-  verdict judged before a racing `audit-prepare` rewrote its case is
-  refused, not kept. Run `audit-collect` after both finish.
+  verdict that ends up without its sidecar all the same, in whatever
+  interleaving, is refused and re-opened. A verdict judged before a racing
+  `audit-prepare` rewrote its case is refused, not kept. Run `audit-collect`
+  after both finish.
 - Each release driver names the version its new and re-opened cases render
   on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
   versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,
