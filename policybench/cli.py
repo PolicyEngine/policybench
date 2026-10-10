@@ -982,6 +982,17 @@ def main():
         help="Validate and write the pointer without uploading",
     )
 
+    from policybench import release_tags
+
+    release_commit_parser = subparsers.add_parser(
+        "release-commit", help=release_tags.RELEASE_COMMIT_HELP
+    )
+    release_tags.configure_release_commit_parser(release_commit_parser)
+    seal_release_parser = subparsers.add_parser(
+        "seal-release", help=release_tags.SEAL_HELP
+    )
+    release_tags.configure_seal_parser(seal_release_parser)
+
     run_parser = subparsers.add_parser(
         "run",
         help="Supervised benchmark run: per-scenario work queue, adaptive "
@@ -1809,6 +1820,16 @@ def main():
         print(f"{action} {args.source} -> {pointer['url']}")
         print(f"sha256: {pointer['sha256']}")
         print(f"Pointer written to {args.pointer_output}")
+
+    elif args.command == "release-commit":
+        from policybench.release_tags import run_release_commit
+
+        run_release_commit(args)
+
+    elif args.command == "seal-release":
+        from policybench.release_tags import run_seal
+
+        run_seal(args)
 
     else:
         parser.print_help()

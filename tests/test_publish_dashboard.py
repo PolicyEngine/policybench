@@ -78,6 +78,9 @@ def test_upload_creates_release_when_absent(payload_file, tmp_path):
     assert ("release", "view") in commands
     assert ("release", "create") in commands
     assert ("release", "upload") in commands
+    create_call = next(args for args in calls if args[1:3] == ["release", "create"])
+    # Not Latest until its PR merges and the Seal release workflow seals it.
+    assert "--latest=false" in create_call
     upload_call = next(args for args in calls if args[1:3] == ["release", "upload"])
     assert upload_call[3] == "dashboard-data-20260610"
     assert upload_call[4].endswith("dashboard-data.json")
