@@ -1,5 +1,6 @@
 """reference_audit/2026-10-09-engine-upgrade/scripts/sweep_timing.py: the
-2026-10-09 move's timing record and publication check, on MOCK PyPI data."""
+October 2026 engine move's timing record and publication check, on MOCK PyPI
+data."""
 
 import importlib.util
 import json

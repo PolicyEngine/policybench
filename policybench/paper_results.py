@@ -71,7 +71,7 @@ SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 
-# The 2026-10-09 move's audit: its builder, and the timing record and
+# The October 2026 engine move's audit: its builder, and the timing record and
 # publication check scripts/sweep_timing.py writes there.
 OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
 OCTOBER_SWEEP_TIMING = (
@@ -1807,7 +1807,7 @@ class PaperResults:
     @cached_property
     def engine_upgrade_timing(self) -> dict | None:
         """The last upgrade's sweep timing record, when that upgrade is the
-        2026-10-09 audit's build and the record is written (None before)."""
+        October 2026 audit's build and the record is written (None before)."""
         last = self.last_engine_upgrade
         if last is None or not str(last.revision.get("builder", "")).startswith(
             OCTOBER_UPGRADE_AUDIT
