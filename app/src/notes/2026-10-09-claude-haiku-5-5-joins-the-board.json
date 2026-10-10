@@ -8,7 +8,7 @@
     "The release also moves PolicyBench's references from policyengine-us {previousEngine} to {engineVersion}, a release that fixes engine defects behind outputs PolicyBench had stopped scoring. The move returns {restored:words} of those outputs to scoring at the new version's values, each within $1 of its audited corrected value. {restoredFixes} PolicyBench still builds each reference from the stated facts and from law published before it froze the references on 2026-07-03, under the same publication conventions.",
     "Two rulings of October 6 apply too. PolicyBench's reference adversary flags the scored outputs where many models, or several of the strongest, agree on an answer the reference does not give, and a judge that cannot yet see the engine's derivation works each one from primary law. It led to {adversaryOutputs:words} exclusions. Four were engine defects, in Arizona, Ohio, Colorado and New York; the new version fixes them, so those outputs are scored again. The other four are the federal and state income tax of a Pennsylvania and a Missouri household whose dependent earns $45,000 of wages and must file their own return. The output definitions do not say whether the household's income tax includes that return, so PolicyBench stops scoring them. It also stops scoring {louisianaOutputs:words} Louisiana households' state income tax, whose reference rests on a 2026 standard deduction computed from published price indexes; Louisiana published the amount itself on September 28, after the freeze.",
     "The new version counts Indiana county income tax in local income tax, and the prompt names no county, so PolicyBench stops scoring the local income tax of {indianaOutputs:words} Indiana households. It also counts Idaho's $10 permanent building fund tax in state income tax, which moves one household's reference from ${idahoBefore} to ${idahoAfter}. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs; PolicyBench excludes the other {excluded}.",
-    "Against the previous release, the new references and exclusions raise the exact rate of every one of the {incumbents} earlier models, by {driftMin} to {driftMax} points."
+    "Against the previous release, the exact rate of every one of the {incumbents} earlier models falls, by {fallMin} to {fallMax} points. The cause is the {newlyScored} restored outputs that the previous release did not score, which few models get right: the median one is answered within $1 by {newlyScoredMedianMatched:words} of the {nModels} models, and {newlyScoredUnmatched:words} by none. Had they stayed excluded, every earlier model's rate would have risen, by {riseWithoutMin} to {riseWithoutMax} points."
   ],
   "facts": {
     "releaseDate": "2026-10-09",
@@ -38,8 +38,13 @@
     "totalOutputs": 1984,
     "excluded": 69,
     "incumbents": 46,
-    "driftMin": 0.12,
-    "driftMax": 0.63
+    "fallMin": 0.26,
+    "fallMax": 1.41,
+    "newlyScored": 15,
+    "newlyScoredMedianMatched": 1,
+    "newlyScoredUnmatched": 5,
+    "riseWithoutMin": 0.39,
+    "riseWithoutMax": 0.71
   },
   "data": [
     {

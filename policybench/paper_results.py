@@ -1901,6 +1901,82 @@ class PaperResults:
         return f"The restored outputs take the upstream fixes for {_series(parts)}."
 
     @property
+    def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
+        """The last upgrade's restored outputs by how their corrected value is
+        known (the sidecar's ``target.kind``): ``record`` for the value the
+        exclusion record carries, ``fix_modules`` for the value the audit's
+        fix modules give on a later engine that still has the defect. Refuses
+        an entry whose engine value is not within its tolerance of its target,
+        a tolerance above $1, a ``record`` target that is not the record's
+        value, and a ``fix_modules`` target whose engine shows no defect."""
+        last = self.last_engine_upgrade
+        targets: dict[str, list[dict]] = {"record": [], "fix_modules": []}
+        for entry in [] if last is None else last.revision["regenerated_exclusions"]:
+            target, key = entry["target"], _key(entry)
+            if target["kind"] not in targets:
+                raise ValueError(f"{key} has an unknown target kind {target['kind']!r}")
+            tolerance = entry["tolerance"]
+            if not 0 <= tolerance <= 1:
+                raise ValueError(f"{key} is restored on a tolerance of {tolerance}")
+            if abs(entry["regenerated"] - target["value"]) > tolerance:
+                raise ValueError(f"{key} is restored off its target")
+            if target["kind"] == "record":
+                if target["value"] != entry["record"]["alternative_value"]:
+                    raise ValueError(f"{key}'s target is not its record's value")
+            else:
+                if abs(target["engine_value"] - target["value"]) <= tolerance:
+                    raise ValueError(f"{key}'s fix modules move nothing there")
+                carried = entry["record"]["alternative_value"]
+                if abs(target["value"] - carried) <= tolerance:
+                    raise ValueError(f"{key}'s record already carries its target")
+            targets[target["kind"]].append(entry)
+        return targets
+
+    @property
+    def engine_upgrade_restored_target_sentence(self) -> str:
+        """How the restored outputs' corrected values are known: by the
+        exclusion record, or by the audit's fix modules on a later engine."""
+        targets = self.engine_upgrade_restored_targets
+        by_record, by_modules = targets["record"], targets["fix_modules"]
+        total = len(by_record) + len(by_modules)
+        if not total:
+            return ""
+        if not by_modules:
+            subject = "It lands" if total == 1 else "Each lands"
+            carries = "its exclusion record carries"
+            return f"{subject} within $1 of the corrected value {carries}."
+        engines = sorted({e["target"]["engine"] for e in by_modules})
+        if len(engines) != 1:
+            raise ValueError(f"fix-module targets name several engines: {engines}")
+        some = bool(by_record)
+        if len(by_modules) == 1:
+            modules = (
+                f"{'The other one' if some else 'It'} is held"
+                f"{' instead' if some else ''} to the value the audit's fix "
+                f"modules give on {engines[0]}, which still has the defect, "
+                "because that value differs from the one its record carries; "
+                "it lands within $1 of it."
+            )
+        else:
+            subject = f"The other {count_word(len(by_modules))}" if some else "They"
+            modules = (
+                f"{subject} are held{' instead' if some else ''} to the values "
+                f"the audit's fix modules give on {engines[0]}, which still "
+                "has the defects, because those values differ from the ones "
+                "their records carry; each lands within $1 of its own."
+            )
+        if not some:
+            return modules
+        if len(by_record) == 1:
+            landing = "one lands within $1 of the corrected value its record carries"
+        else:
+            landing = (
+                f"{count_word(len(by_record))} land within $1 of the corrected "
+                "values their exclusion records carry"
+            )
+        return f"Of the {count_word(total)}, {landing}. {modules}"
+
+    @property
     def engine_upgrade_scored_change_sentence(self) -> str:
         """One sentence naming what the last upgrade changed in the scored
         references beyond the tolerance."""

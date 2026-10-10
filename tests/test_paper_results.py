@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from policybench.analysis import model_cost_latency
@@ -1607,7 +1607,128 @@ def test_the_upgrade_sentences_name_what_the_sidecar_records():
     ):
         assert f"`{{python}} r.{accessor}`" in paper
         assert f"{{r.{accessor}}}" in paper
+    assert "`{python} r.engine_upgrade_restored_target_sentence`" in paper
     assert "RELEASE AUTHOR" not in paper
+
+
+def _MOCK_fix_modules_target(entry: dict, engine: str = "policyengine-us 9.9.9"):
+    """MOCK: turn a restored output's target into the fix-module kind, with a
+    record value and a defective engine value both beyond the tolerance."""
+    value = entry["regenerated"]
+    entry["record"]["alternative_value"] = value + 50.0
+    entry["target"] = {
+        "kind": "fix_modules",
+        "value": value,
+        "engine": engine,
+        "engine_value": value + 200.0,
+    }
+
+
+def _with_restored(edit) -> PaperResults:
+    """MOCK edit of the frozen sidecar's restored entries."""
+    results = PaperResults()
+    results.reference_revisions = deepcopy(r.reference_revisions)
+    edit(results.reference_revisions[-1]["regenerated_exclusions"])
+    return results
+
+
+def test_the_restored_target_sentence_follows_the_frozen_sidecar():
+    """Every restored output is counted under how its corrected value is
+    known, and lands within its tolerance of that value."""
+    targets = r.engine_upgrade_restored_targets
+    entries = r.last_engine_upgrade.revision["regenerated_exclusions"]
+    assert len(targets["record"]) + len(targets["fix_modules"]) == len(entries)
+    for entry in entries:
+        assert abs(entry["regenerated"] - entry["target"]["value"]) <= 1.0
+    for entry in targets["record"]:
+        assert entry["target"]["value"] == entry["record"]["alternative_value"]
+    for entry in targets["fix_modules"]:
+        target, carried = entry["target"], entry["record"]["alternative_value"]
+        assert abs(target["engine_value"] - target["value"]) > entry["tolerance"]
+        assert abs(target["value"] - carried) > entry["tolerance"]
+    sentence = r.engine_upgrade_restored_target_sentence
+    assert sentence.count("within $1") == (2 if targets["fix_modules"] else 1)
+    for entry in targets["fix_modules"]:
+        assert entry["target"]["engine"] in sentence
+
+
+@given(st.data())
+@settings(max_examples=40, deadline=None)
+def test_the_restored_target_sentence_counts_each_kind(data):
+    """MOCK edits: whichever restored outputs are held to fix modules, the
+    sentence counts both kinds, names the fix modules' engine and never
+    starts with a numeral."""
+    from policybench.paper_results import count_word
+
+    total = r.engine_upgrade_restored_count
+    assume(total > 0)
+    chosen = data.draw(st.sets(st.integers(0, total - 1)))
+
+    def edit(entries):
+        for index in chosen:
+            _MOCK_fix_modules_target(entries[index])
+
+    results = _with_restored(edit)
+    targets = results.engine_upgrade_restored_targets
+    assert len(targets["fix_modules"]) == len(chosen)
+    assert len(targets["record"]) == total - len(chosen)
+    sentence = results.engine_upgrade_restored_target_sentence
+    assert not sentence[0].isdigit()
+    assert ("policyengine-us 9.9.9" in sentence) == bool(chosen)
+    if chosen and len(chosen) < total:
+        assert sentence.startswith(f"Of the {count_word(total)}, ")
+        other = "one" if len(chosen) == 1 else count_word(len(chosen))
+        assert f"The other {other} " in sentence
+        kept = total - len(chosen)
+        assert f", {count_word(kept)} land" in sentence
+    elif chosen:
+        assert sentence.startswith(("They are held to", "It is held to"))
+    else:
+        assert sentence == r.engine_upgrade_restored_target_sentence
+
+
+def test_a_restored_output_off_its_target_stops_the_sentence():
+    """MOCK edits: each way a restored entry can contradict the sentence is
+    refused instead of described."""
+
+    def off_target(entries):
+        entries[0]["regenerated"] = entries[0]["target"]["value"] + 1.5
+
+    def loose(entries):
+        entries[0]["tolerance"] = 2.0
+
+    def not_the_records(entries):
+        entries[0]["record"]["alternative_value"] += 0.25
+
+    def no_defect(entries):
+        _MOCK_fix_modules_target(entries[0])
+        entries[0]["target"]["engine_value"] = entries[0]["target"]["value"]
+
+    def already_carried(entries):
+        _MOCK_fix_modules_target(entries[0])
+        entries[0]["record"]["alternative_value"] = entries[0]["target"]["value"]
+
+    def unknown_kind(entries):
+        entries[0]["target"]["kind"] = "MOCK_kind"
+
+    for edit, message in (
+        (off_target, "is restored off its target"),
+        (loose, "is restored on a tolerance of 2.0"),
+        (not_the_records, "target is not its record's value"),
+        (no_defect, "fix modules move nothing there"),
+        (already_carried, "record already carries its target"),
+        (unknown_kind, "unknown target kind 'MOCK_kind'"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            _with_restored(edit).engine_upgrade_restored_target_sentence
+    if r.engine_upgrade_restored_count > 1:
+
+        def two_engines(entries):
+            _MOCK_fix_modules_target(entries[0])
+            _MOCK_fix_modules_target(entries[1], "policyengine-us 8.8.8")
+
+        with pytest.raises(ValueError, match="name several engines"):
+            _with_restored(two_engines).engine_upgrade_restored_target_sentence
 
 
 def test_every_engine_defect_still_excluded_has_a_paper_name():

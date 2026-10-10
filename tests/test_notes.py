@@ -11,6 +11,7 @@ from collections import Counter
 from datetime import date, datetime, timezone
 from functools import cache
 from pathlib import Path
+from statistics import median
 
 import pytest
 
@@ -4722,6 +4723,68 @@ def test_bbce_note_describes_the_later_release() -> None:
 HAIKU_SENSITIVITY = ROOT / "sensitivity/data/claude-haiku-5-5-thinking.json"
 
 
+@cache
+def _release_20261009_scoring() -> dict:
+    """What moves the earlier models' rates between release 20261006 and this
+    one, recomputed from the frozen predictions and weights: every model's
+    exact rate on this release's scored references (``now``), the same with
+    the restored outputs release 20261006 had excluded left unscored
+    (``without``), those outputs (``newly_scored``) and how many models'
+    answers the payload marks exact on each (``matched``)."""
+    import pandas as pd
+
+    from policybench.paper_results import PaperResults
+    from policybench.scorer_vectors import canonical_filtered_scores
+    from policybench.spec import output_group_id
+
+    def excluded_at(root: Path) -> set[tuple[str, str]]:
+        return {
+            (e["scenario_id"], e["variable"])
+            for e in _load_json(_in(root, EXCLUSIONS_PATH))["exclusions"]
+        }
+
+    payload = _dashboard()
+    reference = pd.read_csv(REFERENCES_PATH)
+    excluded = excluded_at(ROOT)
+    restored = PaperResults().last_engine_upgrade.restored
+    assert not restored & excluded
+    newly_scored = sorted(restored & excluded_at(_release_root(RELEASE_20261006)))
+    predictions = pd.DataFrame(
+        [
+            (model, scenario_id, variable, entry.get("prediction"))
+            for scenario_id, outputs in payload["scenarioPredictions"].items()
+            for variable, by_model in outputs.items()
+            for model, entry in by_model.items()
+        ],
+        columns=["model", "scenario_id", "variable", "prediction"],
+    )
+    weights: dict[str, float] = {}
+    for variable, weight in payload["globalWeights"]["household"].items():
+        group = output_group_id(variable)
+        weights[group] = weights.get(group, 0.0) + weight
+
+    def board(unscored: set[tuple[str, str]]) -> dict[str, float]:
+        keys = zip(reference["scenario_id"], reference["variable"], strict=True)
+        scored = reference[[key not in unscored for key in keys]]
+        scores, _ = canonical_filtered_scores(
+            scored, predictions, weights, set(weights), "all", "exact"
+        )
+        return scores
+
+    return {
+        "now": board(excluded),
+        "without": board(excluded | set(newly_scored)),
+        "newly_scored": newly_scored,
+        "matched": {
+            key: sum(
+                entry["exact"] == 1.0
+                for entry in payload["scenarioPredictions"][key[0]][key[1]].values()
+            )
+            for key in newly_scored
+        },
+    }
+
+
 def _release_20261009_facts() -> dict:
     """The Claude Haiku 5.5 release note's facts, recomputed from the frozen
     release's payload, sidecar and exclusion record, from release 20261006's
@@ -4737,7 +4800,10 @@ def _release_20261009_facts() -> dict:
         for row in _payload_at(_release_root(RELEASE_20261006))["modelStats"]
         if row["condition"] == "no_tools"
     }
-    drift = [by_model[model]["exact"] - exact for model, exact in then.items()]
+    fall = [exact - by_model[model]["exact"] for model, exact in then.items()]
+    scoring = _release_20261009_scoring()
+    rise = [scoring["without"][model] - exact for model, exact in then.items()]
+    matched = median(scoring["matched"].values())
     haiku, haiku45 = by_model["claude-haiku-5.5"], by_model["claude-haiku-4.5"]
     sensitivity = _load_json(HAIKU_SENSITIVITY)["sensitivity"]
     last = r.last_engine_upgrade
@@ -4775,8 +4841,15 @@ def _release_20261009_facts() -> dict:
         "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
         "excluded": r.excluded_output_count,
         "incumbents": len(then),
-        "driftMin": round(min(drift), 2),
-        "driftMax": round(max(drift), 2),
+        "fallMin": round(min(fall), 2),
+        "fallMax": round(max(fall), 2),
+        "newlyScored": len(scoring["newly_scored"]),
+        "newlyScoredMedianMatched": int(matched)
+        if matched == int(matched)
+        else matched,
+        "newlyScoredUnmatched": sum(n == 0 for n in scoring["matched"].values()),
+        "riseWithoutMin": round(min(rise), 2),
+        "riseWithoutMax": round(max(rise), 2),
     }
 
 
@@ -4784,6 +4857,7 @@ def test_release_20261009_note() -> None:
     """The Claude Haiku 5.5 release note: its facts recompute from the frozen
     release and from release 20261006 at its commit, and the claims its
     sentences make hold on the records."""
+    from policybench.analysis import metric_type_for_output, row_hit_scores
     from policybench.paper_results import PaperResults
 
     note = _note(HAIKU_NOTE)
@@ -4807,11 +4881,32 @@ def test_release_20261009_note() -> None:
         "claude-opus-5.5",
         "gpt-5.6-sol",
     ]
-    # Every earlier model's rate rises.
-    assert 0 < facts["driftMin"] <= facts["driftMax"]
+    # Every earlier model's rate falls, and would have risen had the restored
+    # outputs release 20261006 excluded stayed unscored. The recomputed board
+    # is the payload's, and the payload's exact marks are the scorer's.
+    scoring = _release_20261009_scoring()
+    assert 0 < facts["fallMin"] <= facts["fallMax"]
+    assert 0 < facts["riseWithoutMin"] <= facts["riseWithoutMax"]
+    assert set(scoring["now"]) == {row["model"] for row in board}
+    for row in board:
+        assert scoring["now"][row["model"]] == pytest.approx(row["exact"], abs=1e-9)
+    restored = r.last_engine_upgrade.restored
+    assert 0 < facts["newlyScored"] <= facts["restored"] == len(restored)
+    assert set(scoring["newly_scored"]) <= restored
+    # "Few models get right": the median output, by at most a tenth of them.
+    assert facts["newlyScoredMedianMatched"] <= facts["nModels"] / 10
+    for (scenario_id, variable), matched in scoring["matched"].items():
+        # "Within $1" is the scorer's exact rule for an amount output.
+        assert metric_type_for_output(variable) == "amount"
+        entries = r.dashboard["scenarioPredictions"][scenario_id][variable]
+        assert len(entries) == facts["nModels"]
+        assert all(entry["scored"] for entry in entries.values())
+        assert matched == sum(
+            row_hit_scores(variable, entry["groundTruth"], entry["prediction"])["exact"]
+            for entry in entries.values()
+        )
     # The four defects the adversary found are among the restored outputs,
     # and the other four of its eight, with Louisiana's two, stay excluded.
-    restored = r.last_engine_upgrade.restored
     ruled = r.ruled_records
     defects = [e for e in ruled if e["reason_code"] == "reference_engine_defect"]
     assert len(defects) == 4 and all(
