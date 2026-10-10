@@ -1585,7 +1585,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "462b27f4268801580f0cc34c372177fe5b758ff9",
+  "registry_commit": "0562d77a9d263c14bb9c9fa93ba3c765fcff95a9",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",
