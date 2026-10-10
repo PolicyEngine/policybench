@@ -82,6 +82,11 @@ classify_one() {
   # even if audit-prepare rewrites prompt.md meanwhile.
   judged=$(mktemp "${TMPDIR:-/tmp}/pb-codex-prompt.XXXXXX") || {
     echo "[FAIL] $(basename "$case_dir") (cannot copy prompt.md)"; return 0; }
+  # Each case runs in its own background subshell: a worker terminated
+  # mid-case still removes its copy.
+  trap 'rm -f "$judged"' EXIT
+  trap 'rm -f "$judged"; exit 143' TERM
+  trap 'rm -f "$judged"; exit 130' INT
   cp "$prompt" "$judged" || {
     rm -f "$judged"; echo "[FAIL] $(basename "$case_dir") (cannot copy prompt.md)"
     return 0; }
@@ -97,8 +102,12 @@ classify_one() {
     - < "$judged" > "$case_dir/codex.log" 2>&1
   if verdict_ok "$tmp" && write_provenance "$tmp" "$case_dir/codex.log" \
       "$case_dir/verdict.meta.json.tmp" "$judged" "$prompt"; then
-    mv -f "$tmp" "$out"
+    # The sidecar first: an interrupted publish leaves at most a sidecar
+    # without a verdict, which the next run removes, and never a verdict
+    # without its sidecar, which audit-prepare would read as a legacy v1
+    # verdict with no record of the bytes its judge read.
     mv -f "$case_dir/verdict.meta.json.tmp" "$case_dir/verdict.meta.json"
+    mv -f "$tmp" "$out"
     echo "[ok] $(basename "$case_dir")"
   else
     rm -f "$tmp" "$case_dir/verdict.meta.json.tmp"

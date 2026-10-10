@@ -23,6 +23,7 @@ from freeze_snapshot import (  # noqa: E402
 
 from policybench.audit import (  # noqa: E402
     AUDIT_OUTPUT_SCHEMA,
+    prompt_hash_problems,
     template_version_problems,
 )
 from policybench.judge_template import template_header  # noqa: E402
@@ -583,3 +584,73 @@ def test_codex_publishes_no_verdict_for_a_prompt_rewritten_while_it_judged(
     assert not (case_dir / "verdict.meta.json").exists()
     assert list(copies.iterdir()) == []
     assert (case_dir / "prompt.md").read_text() == v2
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+@pytest.mark.parametrize("runner", ["run_audit_claude.sh", "run_audit_codex.sh"])
+def test_an_interrupted_publish_never_leaves_a_verdict_without_its_sidecar(
+    tmp_path: Path, runner
+):
+    """A worker killed between publishing its two files leaves at most a
+    sidecar without a verdict, never a verdict that audit-prepare would read
+    as a legacy v1 verdict with no record of the bytes its judge read. Here
+    the first move succeeds and the worker is then terminated. The next run
+    judges the case again and publishes both."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path)
+    (case_dir / "prompt.md").write_text(
+        template_header(1) + "\nCOUNTRY: US\nClassify this miss.\n"
+    )
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    _fake_cli(shim / "mv", '/bin/mv "$@" || exit $?\nkill -TERM "$PPID"\n')
+    interrupted = subprocess.run(
+        ["bash", str(ROOT / "scripts" / runner), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env={**env, "PATH": f"{shim}:{env['PATH']}"},
+        cwd=tmp_path,
+    )
+    assert f"[ok] {case_dir.name}" not in interrupted.stdout, interrupted.stdout
+    assert not (case_dir / "verdict.json").exists()
+    assert template_version_problems(audit_dir) == []
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts" / runner), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    meta = json.loads((case_dir / "verdict.meta.json").read_text())
+    assert meta["judge_runner"] == f"scripts/{runner}"
+    assert meta["judge_template_version"] == 1
+    assert (
+        meta["prompt_sha256"]
+        == hashlib.sha256((case_dir / "prompt.md").read_bytes()).hexdigest()
+    )
+    assert template_version_problems(audit_dir) == []
+    assert prompt_hash_problems(audit_dir) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash runners")
+def test_a_terminated_codex_worker_removes_its_prompt_copy(tmp_path: Path):
+    """The worker judging a case is terminated while Codex runs: it removes
+    its private copy of prompt.md and publishes nothing."""
+    audit_dir, case_dir, env = _claude_audit(tmp_path)
+    copies = tmp_path / "copies"
+    copies.mkdir()
+    _fake_cli(
+        tmp_path / "bin" / "codex",
+        'cat >/dev/null\necho "model: gpt-5.6-sol"\nkill -TERM "$PPID"\n',
+    )
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/run_audit_codex.sh"), str(audit_dir)],
+        capture_output=True,
+        text=True,
+        env={**env, "TMPDIR": str(copies)},
+        cwd=tmp_path,
+    )
+    assert "audit complete: 0/1" in result.stdout, result.stdout + result.stderr
+    assert list(copies.iterdir()) == []
+    assert not (case_dir / "verdict.json").exists()
+    assert not (case_dir / "verdict.meta.json").exists()

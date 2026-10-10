@@ -1407,16 +1407,19 @@ def main():
 
         country_dir = Path(args.country_dir)
         out = collect_audit(country_dir, Path(args.audit_dir))
-        template = out["template"]
-        if not template.empty:
+        template, prompt_hash = out["template"], out["prompt_hash"]
+        if not (template.empty and prompt_hash.empty):
             # A verdict judged on other words than its prompt.md's is not
             # this case's verdict.
             for case_id, problem in template.itertuples(index=False):
                 print(f"TEMPLATE: {case_id}: {problem}")
+            for case_id, problem in prompt_hash.itertuples(index=False):
+                print(f"PROMPT: {case_id}: {problem}")
+            disagree = {*template["case_id"], *prompt_hash["case_id"]}
             raise SystemExit(
-                f"{len(template)} verdicts disagree with their prompt.md on the "
-                "judge template version; re-run audit-prepare, which re-opens "
-                "them, and re-judge"
+                f"{len(disagree)} verdicts disagree with their prompt.md on the "
+                "judge template version or the bytes their judge read; re-run "
+                "audit-prepare, which re-opens them, and re-judge"
             )
         hedged = out["hedged"]
         if not hedged.empty and not args.allow_hedged:

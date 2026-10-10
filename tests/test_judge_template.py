@@ -49,6 +49,7 @@ from policybench.audit import (
     build_audit_cases,
     collect_audit,
     prepare_audit,
+    prompt_hash_problems,
     render_case_prompt,
     template_version_problems,
 )
@@ -404,6 +405,7 @@ def test_prepare_keeps_each_judged_case_on_its_own_template(plan, version):
                     cases[scenario], template_version=version
                 ).encode("utf-8")
         assert template_version_problems(audit) == []
+        assert prompt_hash_problems(audit) == []
         prepare_audit(board, audit, template_version=version)
         assert _tree(audit) == after
 
@@ -643,6 +645,36 @@ def test_a_sidecar_hash_that_is_not_the_prompt_reopens_the_case(tmp_path):
     board, audit, case, case_dir = _judged_case(tmp_path, prompt_sha256="0" * 64)
     prepare_audit(board, audit, template_version=1)
     assert not (case_dir / "verdict.json").exists()
+
+
+def test_collect_refuses_a_verdict_published_on_rewritten_bytes(tmp_path):
+    """The review's race: a runner's judge reads the $250 case on v1; an
+    audit-prepare racing it re-runs m1 at $999 and rewrites prompt.md, on the
+    same version; then the runner publishes. The verdict's sidecar truthfully
+    hashes the $250 prompt, so audit-collect refuses it, and audit-prepare
+    re-opens it."""
+    board = _board(tmp_path / "us", {"s0": 250.0})
+    audit = tmp_path / "audit"
+    (case,) = prepare_audit(board, audit, template_version=1)
+    case_dir = audit / "cases" / case.case_id
+    judged = (case_dir / "prompt.md").read_bytes()
+    _board(board, {"s0": 999.0})
+    prepare_audit(board, audit, template_version=1)
+    rewritten = (case_dir / "prompt.md").read_bytes()
+    assert rewritten != judged
+    _judge(case_dir, {TEMPLATE_VERSION_FIELD: 1, "prompt_sha256": _sha256(judged)})
+    assert template_version_problems(audit) == []
+    problem = "prompt.md is not the bytes its judge read (its sidecar's prompt_sha256)"
+    assert prompt_hash_problems(audit) == [(case.case_id, problem)]
+    out = collect_audit(board, audit)
+    assert list(out["prompt_hash"].itertuples(index=False)) == [(case.case_id, problem)]
+    with pytest.raises(SystemExit, match="1 verdicts disagree with their prompt.md"):
+        _collect_cli(board, audit, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+    prepare_audit(board, audit, template_version=1)
+    assert not (case_dir / "verdict.json").exists()
+    assert (case_dir / "prompt.md").read_bytes() == rewritten
+    assert prompt_hash_problems(audit) == []
 
 
 def test_prompts_compare_and_keep_exact_bytes(tmp_path):
@@ -950,6 +982,7 @@ def test_a_verdict_is_kept_on_its_recorded_version_alone(
             assert not (case_dir / "verdict.meta.json").exists()
             assert (case_dir / "prompt.md").read_bytes() == renders[version]
         assert template_version_problems(audit) == []
+        assert prompt_hash_problems(audit) == []
 
 
 # --- Every committed prompt re-renders on its recorded version ------------------

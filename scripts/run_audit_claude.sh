@@ -691,8 +691,12 @@ classify_one() {
   rm -f "$judged"
   if [ "$extracted" = 0 ] && verdict_ok "$tmp"; then
     if problem=$(case_ok "$tmp" "$name" 2>&1); then
-      mv -f "$tmp" "$out"
+      # The sidecar first: an interrupted publish leaves at most a sidecar
+      # without a verdict, which the next run removes, and never a verdict
+      # without its sidecar, which audit-prepare would read as a legacy v1
+      # verdict with no record of the bytes its judge read.
       mv -f "$meta_tmp" "$case_dir/verdict.meta.json"
+      mv -f "$tmp" "$out"
       echo "[ok] $name"
     else
       # Answered, but not for this case's models: pending, and the run goes on.

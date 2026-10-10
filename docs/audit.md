@@ -75,7 +75,10 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   that copy's sha256 (`prompt_sha256`) and version (`judge_template_version`)
   in `verdict.meta.json`. A verdict is not published if `prompt.md` no longer
   holds those bytes. A prompt that begins with no version's header, one
-  `audit-prepare` did not write, records `null`.
+  `audit-prepare` did not write, records `null`. A runner publishes the
+  sidecar before the verdict. An interrupted publish can leave a sidecar
+  without a verdict, which the next run removes, but never a new verdict
+  without its sidecar.
 - A sidecar without the field, or a verdict without a sidecar, was judged on
   v1 (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars
   written before versions existed, not a guess from the prompt.
@@ -99,7 +102,10 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   kept case's prompt keeps the seed's bytes.
 - A tree may mix versions. `audit-collect` refuses a tree in which a verdict
   records an unknown version, or one other than the version its `prompt.md`
-  begins with (`policybench.audit.template_version_problems`). Re-running
+  begins with (`policybench.audit.template_version_problems`). It also
+  refuses a verdict whose sidecar's `prompt_sha256` is not `prompt.md`'s
+  bytes (`prompt_hash_problems`), such as a verdict published after an
+  `audit-prepare` that raced its runner rewrote the case. Re-running
   `audit-prepare` re-opens those cases.
 - A version's text never changes once a verdict is judged on it; changing the
   template means adding a version. `tests/test_judge_template.py` pins each

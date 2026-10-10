@@ -486,6 +486,39 @@ def template_version_problems(audit_dir: Path) -> list[tuple[str, str]]:
     return problems
 
 
+def prompt_hash_problems(audit_dir: Path) -> list[tuple[str, str]]:
+    """Each judged case whose prompt.md is not the bytes its judge read.
+
+    A runner records the sha256 of the bytes its judge read as the sidecar's
+    ``prompt_sha256`` (sidecars from before the runners did record none, and
+    are not checked). A verdict published after prompt.md was rewritten, say
+    by an audit-prepare racing the runner, keeps the hash of the old bytes,
+    so it disagrees. A verdict without prompt.md is
+    :func:`template_version_problems`' to report. Returns ``(case_id,
+    problem)`` for each case that fails, in case order.
+    """
+    problems: list[tuple[str, str]] = []
+    cases_root = audit_dir / "cases"
+    if not cases_root.is_dir():
+        return problems
+    for case_dir in sorted(cases_root.iterdir()):
+        prompt_path = case_dir / "prompt.md"
+        if not ((case_dir / "verdict.json").is_file() and prompt_path.is_file()):
+            continue
+        recorded = (_sidecar(case_dir) or {}).get("prompt_sha256")
+        if recorded is None:
+            continue
+        if hashlib.sha256(prompt_path.read_bytes()).hexdigest() != recorded:
+            problems.append(
+                (
+                    case_dir.name,
+                    "prompt.md is not the bytes its judge read (its sidecar's "
+                    "prompt_sha256)",
+                )
+            )
+    return problems
+
+
 # --- Hedge detection -----------------------------------------------------------
 
 # Published diagnoses must be definitive. These patterns catch the judge
@@ -580,7 +613,7 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
     """Fold verdicts into the annotation schema.
 
     Returns ``{"row": ..., "case": ..., "missing": ..., "hedged": ...,
-    "template": ...}``.
+    "template": ..., "prompt_hash": ...}``.
     ``row`` and ``case`` match the committed annotation CSV columns, extended
     with ``rationale`` and ``reference_suspect`` so the classifier's reasoning
     is preserved. ``missing`` lists cases whose verdict has not yet been
@@ -589,7 +622,8 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
     delete those ``verdict.json`` files and re-run the classifier rather than
     shipping them. ``template`` lists the judged cases whose prompt and
     verdict disagree on the judge template version
-    (:func:`template_version_problems`).
+    (:func:`template_version_problems`), and ``prompt_hash`` those whose
+    prompt.md is not the bytes their judge read (:func:`prompt_hash_problems`).
     """
     manifest = _load_manifest(audit_dir)
     cases_root = audit_dir / "cases"
@@ -737,5 +771,8 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
         "hedged": pd.DataFrame({"case_id": hedged}, columns=["case_id"]),
         "template": pd.DataFrame(
             template_version_problems(audit_dir), columns=["case_id", "problem"]
+        ),
+        "prompt_hash": pd.DataFrame(
+            prompt_hash_problems(audit_dir), columns=["case_id", "problem"]
         ),
     }
