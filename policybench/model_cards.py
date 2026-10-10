@@ -25,6 +25,8 @@ little scoring difference. The paper documents the asymmetry.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from policybench.completion_budget import MAX_ESCALATED_COMPLETION_TOKENS
@@ -611,6 +613,28 @@ MODEL_CARDS: dict[str, ModelCard] = {
 
 def card_for(model_id: str) -> ModelCard | None:
     return MODEL_CARDS.get(model_id)
+
+
+@contextmanager
+def provisional_card(card: ModelCard) -> Iterator[ModelCard]:
+    """Serve ``card`` from ``card_for`` inside the block if its model has none.
+
+    Yields the card in effect for ``card.litellm_id``: the model's own card
+    when it has one (``card`` is then unused), otherwise ``card``, which is
+    removed on exit, even when the block raises, so ``MODEL_CARDS`` is left
+    as it was. The onboarding gauntlet probes a new model this way under the
+    card it would derive. Not thread-safe: other threads calling
+    ``card_for`` for the same id see ``card`` while the block runs.
+    """
+    existing = card_for(card.litellm_id)
+    if existing is not None:
+        yield existing
+        return
+    MODEL_CARDS[card.litellm_id] = card
+    try:
+        yield card
+    finally:
+        MODEL_CARDS.pop(card.litellm_id, None)
 
 
 def completion_budget_ceiling_for(model_id: str) -> int:
