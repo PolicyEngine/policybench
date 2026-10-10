@@ -268,8 +268,10 @@ def write_rows(path: Path, rows: list[dict]) -> str:
 
 def sweep(args) -> dict:
     engine = args.engine
-    first = Path(args.first_output)
-    installed = dist_info(Path(args.venv), engine)
+    first = Path(args.first_output).resolve()
+    venv = Path(args.venv).resolve()
+    installed = dist_info(venv, engine)
+    install = engine_install(venv, engine)
     first_at = utc(first.stat().st_birthtime)
     pypi = read_pypi()
     read_at = now_utc()
@@ -298,6 +300,7 @@ def sweep(args) -> dict:
             "engine": engine,
             "engine_installed_at_utc": installed_at,
             "engine_installed_evidence": relative(installed),
+            "engine_install": install,
             "script": (
                 "reference_audit/2026-10-09-engine-upgrade/scripts/"
                 "build_references_upgrade.py (first pass, empty actions)"
@@ -394,6 +397,98 @@ def build_problems(
     return computed, excluded, pins
 
 
+# Run under a venv's interpreter with the sweep's environment: which
+# policyengine_us that interpreter imports, and whether its files are the
+# installed wheel's. A version label alone can sit beside older code (an
+# editable install whose checkout moved, a source tree shadowing the wheel).
+VERIFY_ENGINE = r"""
+import base64, hashlib, importlib.metadata as md, importlib.util, json, pathlib, sys
+dist = md.distribution("policyengine-us")
+spec = importlib.util.find_spec("policyengine_us")
+origin = pathlib.Path(spec.origin).resolve()
+site = pathlib.Path(dist.locate_file("")).resolve()
+package = (site / "policyengine_us").resolve()
+direct = dist.read_text("direct_url.json")
+editable = bool(direct and json.loads(direct).get("dir_info", {}).get("editable"))
+recorded, mismatched = set(), []
+for entry in dist.files or []:
+    name = str(entry)
+    if not name.startswith("policyengine_us/") or "__pycache__" in name:
+        continue
+    recorded.add(name)
+    if not entry.hash or entry.hash.mode != "sha256":
+        mismatched.append(name)
+        continue
+    path = pathlib.Path(dist.locate_file(entry))
+    digest = hashlib.sha256(path.read_bytes()).digest() if path.is_file() else b""
+    if base64.urlsafe_b64encode(digest).rstrip(b"=").decode() != entry.hash.value:
+        mismatched.append(name)
+unrecorded = sorted(
+    str(p.relative_to(site))
+    for p in package.rglob("*.py")
+    if "__pycache__" not in p.parts and str(p.relative_to(site)) not in recorded
+)
+print(json.dumps({
+    "version": dist.version,
+    "origin": str(origin),
+    "imported_from_package": origin.is_relative_to(package),
+    "editable": editable,
+    "files_verified": len(recorded) - len(mismatched),
+    "files_mismatched": mismatched[:5],
+    "files_unrecorded": unrecorded[:5],
+}))
+"""
+
+
+def sweep_env() -> dict[str, str]:
+    """The environment a sweep runs in: no inherited Python overrides."""
+    return {
+        **{k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")},
+        "PYTHONPATH": str(ROOT),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "OPENBLAS_NUM_THREADS": "1",
+    }
+
+
+def engine_install(venv: Path, engine: str) -> dict:
+    """What the venv's interpreter imports as policyengine_us, in the sweep's
+    environment, checked: the release's version, imported from the installed
+    package, not an editable install, every package file the wheel's RECORD
+    lists at its recorded sha256, and no unrecorded module beside them."""
+    ran = subprocess.run(
+        [str(venv / "bin" / "python"), "-c", VERIFY_ENGINE],
+        env=sweep_env(),
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        found = json.loads(ran.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        raise Refusal(
+            f"{venv}: could not read its policyengine_us ({ran.stderr.strip()[-300:]})"
+        ) from None
+    problems = []
+    if found["version"] != engine:
+        problems.append(f"version {found['version']}, not {engine}")
+    if not found["imported_from_package"]:
+        problems.append(f"imports policyengine_us from {found['origin']}")
+    if found["editable"]:
+        problems.append("an editable install")
+    if found["files_mismatched"] or not found["files_verified"]:
+        problems.append(f"files unlike the wheel's RECORD {found['files_mismatched']}")
+    if found["files_unrecorded"]:
+        problems.append(f"modules the wheel lacks {found['files_unrecorded']}")
+    if problems:
+        raise Refusal(f"{venv} is not policyengine-us {engine} as released: {problems}")
+    return {
+        "version": found["version"],
+        "files_verified": found["files_verified"],
+        "editable": False,
+        "imported_from_package": True,
+    }
+
+
 def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]:
     """The check sweep, run here: this audit's builder, a first pass with
     empty actions naming ``engine``, under the venv's interpreter. The builder
@@ -423,13 +518,9 @@ def run_check_sweep(venv: Path, engine: str, out_dir: Path) -> tuple[Path, dict]
         str(out_dir),
         "--allow-draft",
     ]
-    env = {
-        **{k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")},
-        "PYTHONPATH": str(ROOT),
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "OPENBLAS_NUM_THREADS": "1",
-    }
-    ran = subprocess.run(command, env=env, cwd=ROOT, capture_output=True, text=True)
+    ran = subprocess.run(
+        command, env=sweep_env(), cwd=ROOT, capture_output=True, text=True
+    )
     (out_dir / "sweep.log").write_text(ran.stdout + ran.stderr)
     computed = out_dir / "computed.csv"
     if not computed.is_file():
@@ -484,16 +575,17 @@ def check(args) -> dict:
             f"policyengine-us {latest} is newer than the reference engine {engine}: "
             "pass --check-venv, a venv holding it, and check runs the sweep"
         )
-    venv = Path(args.check_venv)
+    venv = Path(args.check_venv).resolve()
     installed = dist_info(venv, latest)
+    install = engine_install(venv, latest)
     installed_at = utc(installed.stat().st_birthtime)
+    scratch = ROOT / "results/local"
+    scratch.mkdir(parents=True, exist_ok=True)
     work = (
         Path(
             getattr(args, "work_dir", None)
-            or tempfile.mkdtemp(
-                prefix=f"check-sweep-{latest}-", dir=ROOT / "results/local"
-            )
-        )
+            or tempfile.mkdtemp(prefix=f"check-sweep-{latest}-", dir=scratch)
+        ).resolve()
         / "sweep"
     )
     check_path, receipt = run_check_sweep(venv, latest, work)
@@ -514,7 +606,7 @@ def check(args) -> dict:
         "engine_installed_evidence": relative(installed),
         "check_computed": relative(check_path),
         "check_computed_sha256": sha256(check_path),
-        "check_sweep": receipt,
+        "check_sweep": {**receipt, "engine_install": install},
         "output_at_utc": output_at,
         "output": relative(out),
         "output_sha256": digest,

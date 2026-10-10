@@ -169,6 +169,9 @@ def _sweep_args(tmp_path: Path):
     )
 
 
+MOCK_INSTALL = {"version": "MOCK", "files_verified": 1, "editable": False}
+
+
 @pytest.mark.parametrize("offset, ok", [(600, True), (-600, False)])
 def test_the_sweep_refuses_an_engine_that_was_not_the_newest(
     tmp_path, monkeypatch, offset, ok
@@ -176,6 +179,7 @@ def test_the_sweep_refuses_an_engine_that_was_not_the_newest(
     """MOCK: a release newer than the engine uploaded before the sweep's first
     output means the engine was not the newest when the sweep began."""
     args = _sweep_args(tmp_path)
+    monkeypatch.setattr(timing, "engine_install", lambda venv, engine: MOCK_INSTALL)
     monkeypatch.setattr(timing, "read_pypi", lambda url=None: _pypi_around_now(offset))
     if ok:
         record = timing.sweep(args)
@@ -197,6 +201,7 @@ def test_the_sweep_refuses_an_engine_uploaded_after_its_output(tmp_path, monkeyp
     """MOCK: an output older than its engine's wheel (an earlier rehearsal's
     file, say) cannot date the sweep."""
     args = _sweep_args(tmp_path)
+    monkeypatch.setattr(timing, "engine_install", lambda venv, engine: MOCK_INSTALL)
     monkeypatch.setattr(
         timing, "read_pypi", lambda url=None: _pypi_around_now(7200, offset_engine=3600)
     )
@@ -366,6 +371,7 @@ def test_the_check_stops_the_publish_when_a_scored_output_moves(
         tmp_path, monkeypatch, _pypi_around_now(-1800, offset_engine=-7200)
     )
     venv = _venv(tmp_path / "check-venv", "2.39.0")
+    monkeypatch.setattr(timing, "engine_install", lambda venv, engine: MOCK_INSTALL)
     monkeypatch.setattr(timing, "run_check_sweep", _MOCK_sweep({**VALUES, **moved}))
     monkeypatch.setattr(timing.tempfile, "mkdtemp", lambda **kw: str(tmp_path / "w"))
     monkeypatch.setattr(timing, "SNAPSHOT", snapshot)
@@ -379,6 +385,7 @@ def test_the_check_stops_the_publish_when_a_scored_output_moves(
     assert check["engine"] == "2.39.0" and check["scored_outputs"] == 2
     assert bool(check["scored_differ"]) is not publishes
     assert check["check_sweep"]["MOCK"] is True
+    assert check["check_sweep"]["engine_install"] == MOCK_INSTALL
     # A venv installed before the newer release's wheel was uploaded does not
     # hold that release.
     monkeypatch.setattr(
@@ -412,3 +419,132 @@ def test_the_check_sweep_is_run_and_must_write_its_output(tmp_path, monkeypatch)
     assert calls[0][0] == str(venv / "bin/python") and "--allow-draft" in calls[0]
     with pytest.raises(timing.Refusal, match="wrote no computed.csv"):
         timing.run_check_sweep(tmp_path / "silent-venv", "2.39.0", tmp_path / "b")
+
+
+def test_a_relative_check_venv_is_the_one_found_and_run(tmp_path, monkeypatch):
+    """MOCK: --check-venv given relative to a caller outside the repository is
+    resolved once, so discovery, the install check and the sweep all use it."""
+    build, snapshot = _check_setup(
+        tmp_path, monkeypatch, _pypi_around_now(-1800, offset_engine=-7200)
+    )
+    venv = _venv(tmp_path / "check-venv", "2.39.0").resolve()
+    seen = []
+
+    def install(found, engine):
+        seen.append(found)
+        return MOCK_INSTALL
+
+    def sweep(found, engine, out_dir):
+        seen.append(found)
+        return _MOCK_sweep(VALUES)(found, engine, out_dir)
+
+    monkeypatch.setattr(timing, "engine_install", install)
+    monkeypatch.setattr(timing, "run_check_sweep", sweep)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    timing.check(_check_args(build, snapshot, "../check-venv", tmp_path / "w"))
+    assert seen == [venv, venv]
+
+
+def _fake_install(root: Path, version: str, files: dict[str, str]) -> Path:
+    """MOCK site-packages: a policyengine-us wheel's dist-info whose RECORD
+    pins ``files`` as written."""
+    import base64
+    import hashlib
+
+    site = root / "site"
+    record = []
+    for name, text in files.items():
+        path = site / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        digest = base64.urlsafe_b64encode(hashlib.sha256(text.encode()).digest())
+        record.append(f"{name},sha256={digest.rstrip(b'=').decode()},{len(text)}")
+    info = site / f"policyengine_us-{version}.dist-info"
+    info.mkdir()
+    (info / "METADATA").write_text(
+        f"Metadata-Version: 2.1\nName: policyengine-us\nVersion: {version}\n"
+    )
+    (info / "RECORD").write_text("\n".join(record) + "\n")
+    return site
+
+
+def _verify(*paths: Path) -> dict:
+    """Run the verifier as engine_install does, with ``paths`` first on the
+    import path (as a shadowing tree or a .pth redirect would put them)."""
+    import os
+    import subprocess
+    import sys
+
+    ran = subprocess.run(
+        [sys.executable, "-c", timing.VERIFY_ENGINE],
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(str(p) for p in paths)},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(ran.stdout.strip().splitlines()[-1])
+
+
+PACKAGE = {"policyengine_us/__init__.py": "X = 1\n", "policyengine_us/m.py": "Y = 2\n"}
+
+
+def test_the_verifier_sees_what_is_imported_not_the_label(tmp_path):
+    """MOCK installs, real verifier: a clean wheel passes; a source tree
+    shadowing it under the same version label, an editable install, a file
+    changed after install and a module the wheel lacks are each reported."""
+    site = _fake_install(tmp_path / "clean", "9.9.9", PACKAGE)
+    clean = _verify(site)
+    assert clean["version"] == "9.9.9" and clean["imported_from_package"]
+    assert clean["files_verified"] == 2 and not clean["files_mismatched"]
+    assert not clean["editable"] and not clean["files_unrecorded"]
+    # An older source tree ahead of the wheel on the import path.
+    shadow = tmp_path / "shadow"
+    (shadow / "policyengine_us").mkdir(parents=True)
+    (shadow / "policyengine_us" / "__init__.py").write_text("X = 0\n")
+    assert not _verify(shadow, site)["imported_from_package"]
+    # An editable install's direct_url.json.
+    editable = _fake_install(tmp_path / "editable", "9.9.9", PACKAGE)
+    (editable / "policyengine_us-9.9.9.dist-info" / "direct_url.json").write_text(
+        json.dumps({"url": "file:///src", "dir_info": {"editable": True}})
+    )
+    assert _verify(editable)["editable"]
+    # A file changed after install, and a module the wheel does not list.
+    changed = _fake_install(tmp_path / "changed", "9.9.9", PACKAGE)
+    (changed / "policyengine_us" / "m.py").write_text("Y = 3\n")
+    (changed / "policyengine_us" / "extra.py").write_text("Z = 4\n")
+    found = _verify(changed)
+    assert found["files_mismatched"] == ["policyengine_us/m.py"]
+    assert found["files_unrecorded"] == ["policyengine_us/extra.py"]
+
+
+@pytest.mark.parametrize(
+    "found, problem",
+    [
+        ({"version": "9.9.8"}, "version 9.9.8, not 9.9.9"),
+        ({"imported_from_package": False, "origin": "/src"}, "imports policyengine_us"),
+        ({"editable": True}, "an editable install"),
+        ({"files_mismatched": ["policyengine_us/m.py"]}, "RECORD"),
+        ({"files_verified": 0}, "RECORD"),
+        ({"files_unrecorded": ["policyengine_us/x.py"]}, "modules the wheel lacks"),
+    ],
+)
+def test_engine_install_refuses_each_kind_of_mismatch(
+    tmp_path, monkeypatch, found, problem
+):
+    """MOCK verifier output: each problem the verifier reports stops the sweep."""
+    report = {
+        "version": "9.9.9",
+        "origin": "/site/policyengine_us/__init__.py",
+        "imported_from_package": True,
+        "editable": False,
+        "files_verified": 2,
+        "files_mismatched": [],
+        "files_unrecorded": [],
+        **found,
+    }
+    ran = type("Ran", (), {"stdout": json.dumps(report), "stderr": ""})()
+    monkeypatch.setattr(timing.subprocess, "run", lambda *a, **k: ran)
+    with pytest.raises(timing.Refusal, match=problem):
+        timing.engine_install(tmp_path, "9.9.9")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import hashlib
 import json
 import re
 import sys
@@ -5015,6 +5016,37 @@ def test_release_20261009_note_claims() -> None:
     assert "A request with no thinking parameter returns a thinking block" in (
         card.notes
     )
+    # The probes themselves (docs/haiku55/serving_probes.json): neither request
+    # sets thinking; the unforced one, with no tools, answered with a thinking
+    # block (119 of its 123 output tokens, as the card says); the forced-tool
+    # one answered with the tool call alone and no thinking tokens.
+    probes = _load_json(ROOT / "docs/haiku55/serving_probes.json")["probes"]
+    unforced, forced = probes["no_thinking_parameter"], probes["forced_tool"]
+    for probe in (unforced, forced):
+        assert (
+            probe["status"] == 200 and probe["request"]["model"] == "claude-haiku-5-5"
+        )
+        assert not probe["request"]["has_thinking_parameter"]
+    assert (
+        unforced["request"]["tools"] == []
+        and unforced["request"]["tool_choice"] is None
+    )
+    assert "thinking" in unforced["content_block_types"]
+    usage = unforced["usage"]
+    assert f"({usage['thinking_tokens']} of {usage['output_tokens']} output tokens" in (
+        card.notes
+    )
+    assert forced["request"]["tool_choice"] == {"type": "tool", "name": "answer"}
+    assert forced["content_block_types"] == ["tool_use"]
+    assert forced["usage"]["thinking_tokens"] == 0
+    # Where the source probes are on this machine, the fixture is theirs.
+    source = Path("/Users/maxghenis/PolicyEngine/policybench/results/local/haiku55")
+    for probe in (unforced, forced):
+        path = source / probe["source"]
+        if path.is_file():
+            assert (
+                hashlib.sha256(path.read_bytes()).hexdigest() == probe["source_sha256"]
+            )
     assert "as Claude Opus 5's row does" in card.notes
     # "Under the same publication conventions": the move keeps every
     # convention module of the move before it.
