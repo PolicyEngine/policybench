@@ -1,0 +1,123 @@
+{
+  "release": {
+    "tag": "dashboard-data-20261010",
+    "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+    "inputs": {
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv.meta.json": "d534cfeacf7f8a8b7f6fca477adbb02c5bb52b226778d63cc10fd117ec70c54b",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json": "089e01e1f699aa19f2171e1ac5b6dc2ce775f9898c94420e6a0b06ff5f773626",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/predictions.csv.gz": "0183ab75931b354d6b177b147bbf57fbb79d9d0ac5b98a0304fa32eb329007ae",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz": "535a51db14f13284b7054f2980b3663c3bc4317037eb3a0cc65e392096df5a90"
+    }
+  },
+  "engine": {
+    "package": "policyengine-us",
+    "version": "2.38.6",
+    "policyengine_core": "3.32.29",
+    "role": "the release's own engine, as uv.lock pins it"
+  },
+  "files": {
+    "law/excerpts.md": {
+      "sha256": "fb9ccf61a0c6f3671aaa7d0316ed5ec4d84fe89a9cd8b75f486684cf0594bcad",
+      "bytes": 12282
+    },
+    "law/excerpts_check.json": {
+      "sha256": "51d5a88fbcad95e595637ab791bf0489436a3cd4d61860f47f299b27fb082755",
+      "bytes": 1666
+    },
+    "law/irs_tax_table_2025.csv": {
+      "sha256": "28413dd5b1b475731c4025e2df95a1a015170b096a40c7e4051afb494a910703",
+      "bytes": 66167
+    },
+    "law/irs_tax_table_2026_draft.csv": {
+      "sha256": "7ea5ce5678132f9f5e78130412566d407fbcd5584e76093b2da713a71d31b493",
+      "bytes": 66101
+    },
+    "law/sources.json": {
+      "sha256": "a2498e6f720707cbdf37dbc785793378d4c72144f2ec6935c789cf4bfd7d8a85",
+      "bytes": 11170
+    },
+    "law/state_tax_table_claims.json": {
+      "sha256": "75bb3b42c173400959c28d77feeacfa99f4d55083df64b80b5ed731aebf526c3",
+      "bytes": 10325
+    },
+    "scripts/build_manifest.py": {
+      "sha256": "db1c80eab5fd4ff420ac7b4234ff2a507dc7100306b825b29814c57c38171233",
+      "bytes": 2336
+    },
+    "scripts/independent_scorer.py": {
+      "sha256": "ff4bb951c920b84a355bb52795e29a2f932698824f0a4c7dceb41f636f3c9215",
+      "bytes": 6512
+    },
+    "scripts/law_sources.py": {
+      "sha256": "a63133304776edc17e4137be79177cf995c13b622d2951e704a0d8a28c14d7a9",
+      "bytes": 16841
+    },
+    "scripts/leaderboard_impact.py": {
+      "sha256": "73c6eb6a09d1a85d3bb294552d208b74054bb46fcfe4a1c392f9c99b98a0709a",
+      "bytes": 27026
+    },
+    "scripts/mutants_tax_table.py": {
+      "sha256": "e8f237c434dfbee8d80f2778f1755b7165ca944fdb3d09fc221510ef87614b79",
+      "bytes": 11731
+    },
+    "scripts/parse_irs_tax_table.py": {
+      "sha256": "a9f799eea88a945d57629775fe1b5b79b762e16d73729849b473fef197a67685",
+      "bytes": 2506
+    },
+    "scripts/release.py": {
+      "sha256": "8be0335a1ec72557df7567b0f7c60c1ff08ae1d1814360f7eb8e6b06cfb6534f",
+      "bytes": 2542
+    },
+    "scripts/state_tax_tables.py": {
+      "sha256": "139322c89078423b3e92fd35cf00b0871379559b6e9f3d05a80b334b23aa4b3c",
+      "bytes": 8692
+    },
+    "scripts/sweep_tax_table.py": {
+      "sha256": "ce105438eb226ec30a1ac4b7b9d1040243de0f5eb442429c6a110d05c54c97ee",
+      "bytes": 17275
+    },
+    "scripts/tax_table.py": {
+      "sha256": "85fde6c49a0a92c6002595841f22cd4fb7bc608d0e9aae7d8ae14fec5ba804a5",
+      "bytes": 7412
+    },
+    "verification/federal_cells.csv": {
+      "sha256": "0d94dbb85843fb122e5d24fbee4a15ff7ae284297958604e708ec994168999c8",
+      "bytes": 15764
+    },
+    "verification/leaderboard_impact.json": {
+      "sha256": "6a017ccd737e7b7d2e226853ab4b05be170bad936e8a28214c181376c18e459b",
+      "bytes": 8513
+    },
+    "verification/leaderboard_impact_models.csv": {
+      "sha256": "cc6eacd4b2078231447e877f1ee8d220cf01e5e5b51d2a014ed264de1b7874ed",
+      "bytes": 15864
+    },
+    "verification/model_answers.csv": {
+      "sha256": "5d9cada906e6a1fd74ab9b31ae8781f1d0a4e22dc7a4162e1b28703b5872efda",
+      "bytes": 208149
+    },
+    "verification/model_counts.csv": {
+      "sha256": "d663a097eedf6911de43e6a1d6699e5860c209a577bbf29d2d5196741fdf475d",
+      "bytes": 1594
+    },
+    "verification/state_tax_tables.json": {
+      "sha256": "2148e00841874c1e723c08c6c1ef0eaaec33a699f4e3857271f384a02eb938d0",
+      "bytes": 20587
+    },
+    "verification/sweep_summary.json": {
+      "sha256": "850884bcac1511450fd5ee9d41d8bc38af3c9f11e61cb979692ad0bdfd92bf6d",
+      "bytes": 3060
+    },
+    "verification/sweep_tax_table.csv": {
+      "sha256": "e748f5be4d2e1cacbebfefc052d85ec05f0e8e7f7d1eb067ad62070cdcde04d3",
+      "bytes": 176758
+    },
+    "verification/tax_units.csv": {
+      "sha256": "337b326db0e30f59283a463796028d944c5f0eb18b616e653ee6383101a55324",
+      "bytes": 25150
+    }
+  }
+}

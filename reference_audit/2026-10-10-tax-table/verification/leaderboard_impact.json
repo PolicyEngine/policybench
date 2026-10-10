@@ -1,0 +1,337 @@
+{
+  "published_payload_reproduced": true,
+  "release": {
+    "tag": "dashboard-data-20261010",
+    "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
+  },
+  "inputs": {
+    "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+    "scenarios.csv.meta.json": "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb",
+    "reference_outputs.csv": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371",
+    "reference_outputs.csv.meta.json": "d534cfeacf7f8a8b7f6fca477adbb02c5bb52b226778d63cc10fd117ec70c54b",
+    "reference_exclusions.json": "089e01e1f699aa19f2171e1ac5b6dc2ce775f9898c94420e6a0b06ff5f773626",
+    "predictions.csv.gz": "0183ab75931b354d6b177b147bbf57fbb79d9d0ac5b98a0304fa32eb329007ae",
+    "data.json.gz": "535a51db14f13284b7054f2980b3663c3bc4317037eb3a0cc65e392096df5a90"
+  },
+  "sweep_sha256": "e748f5be4d2e1cacbebfefc052d85ec05f0e8e7f7d1eb067ad62070cdcde04d3",
+  "models": 47,
+  "scored_outputs_per_model": {
+    "schedule": 1926,
+    "table": 1926,
+    "exclude": 1903
+  },
+  "federal_references": {
+    "all": 100,
+    "scored": 84,
+    "scored_nonzero": 36,
+    "scored_by_taxable_income": {
+      "zero": 45,
+      "under_100000": 33,
+      "100000_or_more": 6
+    },
+    "all_by_taxable_income": {
+      "zero": 49,
+      "under_100000": 38,
+      "100000_or_more": 13
+    },
+    "scored_where_table_applies": 33,
+    "scored_itemizers_where_table_applies": 0,
+    "scored_through_a_capital_gain_worksheet_where_table_applies": 6,
+    "scored_where_whole_dollar_look_up_differs": [
+      {
+        "scenario_id": "scenario_042",
+        "table": 2359.0,
+        "table_whole_dollar": 2365.0
+      }
+    ],
+    "scored_changed_by_any_amount": 30,
+    "scored_differing_by_more_than_1": 21,
+    "scored_differing_by_1_or_less": 9,
+    "scored_unchanged": 54,
+    "difference_distribution_among_changed": {
+      "min": -2.96484375,
+      "p25": -0.256103515625,
+      "median": 1.1431884765625,
+      "p75": 1.886474609375,
+      "max": 3.9716796875,
+      "mean": 0.85789794921875,
+      "mean_abs": 1.59913330078125,
+      "table_higher": 20,
+      "table_lower": 10
+    },
+    "abs_difference_histogram": {
+      "0-1": 9,
+      "1-2": 11,
+      "2-3": 8,
+      "3-4": 2,
+      "4-5": 0,
+      "5-6": 0,
+      "over 6": 0
+    }
+  },
+  "scored_outputs_the_table_changes": {
+    "federal_income_tax_before_refundable_credits": {
+      "changed": 30,
+      "beyond_1": 21,
+      "max_abs_delta": 3.9716796875
+    },
+    "federal_refundable_credits": {
+      "changed": 2,
+      "beyond_1": 2,
+      "max_abs_delta": 2.4892578125
+    }
+  },
+  "excluded_outputs_the_table_changes": {
+    "federal_income_tax_before_refundable_credits": 5,
+    "federal_refundable_credits": 1,
+    "state_income_tax_before_refundable_credits": 1
+  },
+  "answers_on_federal_cells_moved_beyond_1": {
+    "rows": 987,
+    "schedule": 157,
+    "table": 2,
+    "both": 16,
+    "neither": 812,
+    "whole_dollar_answers": 626,
+    "explanations_mentioning_tax_table": 3,
+    "models_with_a_table_only_match": 2
+  },
+  "all_federal_answers": {
+    "rows": 4700,
+    "explanations_mentioning_tax_table": 6
+  },
+  "scorer_agreement": {
+    "schedule": {
+      "max_abs_gap_repo_vs_independent": 2.842170943040401e-14,
+      "max_abs_gap_function_vs_cli": 0.0
+    },
+    "either": {
+      "max_abs_gap_repo_vs_independent": 2.842170943040401e-14
+    },
+    "table": {
+      "max_abs_gap_repo_vs_independent": 2.842170943040401e-14,
+      "max_abs_gap_function_vs_cli": 0.0
+    },
+    "exclude": {
+      "max_abs_gap_repo_vs_independent": 1.4210854715202004e-14,
+      "max_abs_gap_function_vs_cli": 0.0
+    }
+  },
+  "conventions": {
+    "either": {
+      "exact_delta_pp": {
+        "min": 0.0,
+        "max": 0.2269341042114803,
+        "mean": 0.009368454391850406
+      },
+      "models_gaining": 2,
+      "models_losing": 0,
+      "exact_rank_changes": {
+        "gemini-3.1-flash-lite-preview": {
+          "schedule": 35,
+          "either": 36
+        },
+        "deepseek-v4-pro": {
+          "schedule": 36,
+          "either": 35
+        }
+      },
+      "leader": "gpt-6-sol",
+      "leader_exact": 95.58331934063155
+    },
+    "table": {
+      "exact_delta_pp": {
+        "min": -3.252610898796206,
+        "max": 0.21338325220548882,
+        "mean": -0.6822431933807301
+      },
+      "models_gaining": 1,
+      "models_losing": 21,
+      "exact_rank_changes": {
+        "gpt-6.1-sol": {
+          "schedule": 9,
+          "table": 10
+        },
+        "gpt-5.6-luna": {
+          "schedule": 10,
+          "table": 12
+        },
+        "gpt-5.5": {
+          "schedule": 12,
+          "table": 14
+        },
+        "grok-4.7": {
+          "schedule": 14,
+          "table": 9
+        },
+        "deepseek-v4.1-flash": {
+          "schedule": 16,
+          "table": 18
+        },
+        "grok-4.6": {
+          "schedule": 17,
+          "table": 16
+        },
+        "gemini-3.8-flash": {
+          "schedule": 18,
+          "table": 17
+        },
+        "gemini-3.7-flash": {
+          "schedule": 24,
+          "table": 25
+        },
+        "gemini-3.6-flash": {
+          "schedule": 25,
+          "table": 24
+        },
+        "glm-5.3": {
+          "schedule": 28,
+          "table": 30
+        },
+        "gemini-3-flash-preview": {
+          "schedule": 29,
+          "table": 28
+        },
+        "claude-opus-4.7": {
+          "schedule": 30,
+          "table": 31
+        },
+        "grok-4.3": {
+          "schedule": 31,
+          "table": 29
+        },
+        "gemini-3.1-flash-lite-preview": {
+          "schedule": 35,
+          "table": 36
+        },
+        "deepseek-v4-pro": {
+          "schedule": 36,
+          "table": 35
+        },
+        "claude-opus-4.8": {
+          "schedule": 40,
+          "table": 41
+        },
+        "minimax-m3": {
+          "schedule": 41,
+          "table": 40
+        }
+      },
+      "leader": "gpt-6-sol",
+      "leader_exact": 92.33070844183534
+    },
+    "exclude": {
+      "exact_delta_pp": {
+        "min": 1.0522821551310528,
+        "max": 4.216439296227875,
+        "mean": 3.130985972261305
+      },
+      "models_gaining": 47,
+      "models_losing": 0,
+      "exact_rank_changes": {
+        "gpt-6-luna": {
+          "schedule": 5,
+          "exclude": 6
+        },
+        "gpt-6-astra": {
+          "schedule": 6,
+          "exclude": 7
+        },
+        "claude-fable-5.1": {
+          "schedule": 7,
+          "exclude": 5
+        },
+        "kimi-k3": {
+          "schedule": 8,
+          "exclude": 9
+        },
+        "gpt-6.1-sol": {
+          "schedule": 9,
+          "exclude": 10
+        },
+        "gpt-5.6-luna": {
+          "schedule": 10,
+          "exclude": 12
+        },
+        "gpt-5.5": {
+          "schedule": 12,
+          "exclude": 14
+        },
+        "inkling": {
+          "schedule": 13,
+          "exclude": 15
+        },
+        "grok-4.7": {
+          "schedule": 14,
+          "exclude": 8
+        },
+        "gpt-5.6-terra": {
+          "schedule": 15,
+          "exclude": 13
+        },
+        "deepseek-v4.1-flash": {
+          "schedule": 16,
+          "exclude": 18
+        },
+        "grok-4.6": {
+          "schedule": 17,
+          "exclude": 16
+        },
+        "gemini-3.8-flash": {
+          "schedule": 18,
+          "exclude": 17
+        },
+        "claude-fable-5": {
+          "schedule": 21,
+          "exclude": 23
+        },
+        "deepseek-v4-pro-0813": {
+          "schedule": 22,
+          "exclude": 21
+        },
+        "deepseek-v4-flash-0731": {
+          "schedule": 23,
+          "exclude": 22
+        },
+        "gemini-3.7-flash": {
+          "schedule": 24,
+          "exclude": 25
+        },
+        "gemini-3.6-flash": {
+          "schedule": 25,
+          "exclude": 24
+        },
+        "glm-5.3": {
+          "schedule": 28,
+          "exclude": 30
+        },
+        "gemini-3-flash-preview": {
+          "schedule": 29,
+          "exclude": 28
+        },
+        "claude-opus-4.7": {
+          "schedule": 30,
+          "exclude": 31
+        },
+        "grok-4.3": {
+          "schedule": 31,
+          "exclude": 29
+        },
+        "gemini-3.5-flash": {
+          "schedule": 34,
+          "exclude": 35
+        },
+        "gemini-3.1-flash-lite-preview": {
+          "schedule": 35,
+          "exclude": 34
+        }
+      },
+      "leader": "gpt-6-sol",
+      "leader_exact": 96.6356014957626
+    }
+  },
+  "leader_schedule": {
+    "model": "gpt-6-sol",
+    "exact": 95.58331934063155
+  }
+}

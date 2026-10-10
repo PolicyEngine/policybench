@@ -1,0 +1,41 @@
+Each line breaks scripts/tax_table.py, scripts/parse_irs_tax_table.py or
+scripts/independent_scorer.py one way and runs tests/test_tax_table_audit.py (-x),
+without the manifest test, which would fail on any edit.
+scripts/mutants_tax_table.py holds each break's exact text. A mutant is
+killed only when pytest ran and a test failed (exit status 1).
+
+Unmodified: 48 passed, 1 deselected in 11.17s
+
+ 1. killed    a half dollar rounds down [tax_table.py]: 1 failed, 2 passed, 1 deselected in 2.06s
+ 2. killed    the tax is truncated to a dollar [tax_table.py]: 1 failed, 2 passed, 1 deselected in 2.00s
+ 3. killed    the tax is taken at the band's lower bound [tax_table.py]: 1 failed, 2 passed, 1 deselected in 2.00s
+ 4. killed    the tax is taken at the band's upper bound [tax_table.py]: 1 failed, 2 passed, 1 deselected in 3.12s
+ 5. killed    $25 bands run to $5,000 [tax_table.py]: 1 failed, 14 passed, 1 deselected in 3.56s
+ 6. killed    every band above $25 is $50 wide [tax_table.py]: 1 failed, 1 passed, 1 deselected in 1.38s
+ 7. killed    the first band runs to $10 [tax_table.py]: 1 failed, 6 passed, 1 deselected in 3.75s
+ 8. killed    a 2026 single threshold is $50 off [tax_table.py]: 1 failed, 4 passed, 1 deselected in 3.53s
+ 9. killed    a 2026 joint threshold is $50 off [tax_table.py]: 1 failed, 18 passed, 1 deselected in 3.57s
+10. killed    a 2025 head of household threshold is $50 off [tax_table.py]: 1 failed, 21 passed, 1 deselected in 3.58s
+11. killed    the 12 percent rate is 15 percent [tax_table.py]: 1 failed, 15 passed, 1 deselected in 3.60s
+12. killed    the top rate is 39 percent [tax_table.py]: 1 failed, 23 passed, 1 deselected in 3.58s
+13. killed    the ceiling is $110,000 [tax_table.py]: 1 failed, 14 passed, 1 deselected in 3.58s
+14. killed    the table is used at exactly the ceiling [tax_table.py]: 1 failed, 5 passed, 1 deselected in 5.97s
+15. killed    a surviving spouse reads the single column [tax_table.py]: 1 failed, 39 passed, 1 deselected in 8.65s
+16. killed    the schedule skips the top of a bracket [tax_table.py]: 1 failed, 3 passed, 1 deselected in 2.74s
+17. killed    the parser accepts a table with bands missing [parse_irs_tax_table.py]: 1 failed, 36 passed, 1 deselected in 4.80s
+18. killed    the parser reads past the Tax Table [parse_irs_tax_table.py]: 1 failed, 36 passed, 1 deselected in 3.97s
+19. killed    the exact-match bound is exclusive [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 24.67s
+20. killed    the exact-match bound is two dollars [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 18.63s
+21. killed    a missing answer is scored as zero [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 5.54s
+22. killed    excluded outputs are scored [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 13.23s
+23. killed    a group's weight is not split over its outputs [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 14.72s
+24. killed    a household's weights are not scaled to one [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 11.54s
+25. killed    flags are scored as amounts [independent_scorer.py]: 1 failed, 37 passed, 1 deselected in 5.85s
+26. killed    an answer that is not 0 or 1 counts as eligible [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 7.21s
+27. killed    the second accepted value is ignored [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 14.85s
+28. killed    the second accepted value replaces the reference [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 17.68s
+29. killed    a person's outputs are not grouped [independent_scorer.py]: 1 failed, 37 passed, 1 deselected in 4.96s
+30. killed    the shorter person suffix is matched first [independent_scorer.py]: 1 failed, 37 passed, 1 deselected in 4.77s
+31. killed    a model's rate is a sum over households [independent_scorer.py]: 1 failed, 38 passed, 1 deselected in 13.82s
+
+31 of 31 mutants killed, 0 survived, 0 errored

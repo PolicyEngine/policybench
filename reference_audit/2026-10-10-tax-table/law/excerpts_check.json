@@ -1,0 +1,59 @@
+{
+  "read_on": "2026-10-10",
+  "excerpts": 32,
+  "excerpts_found": 32,
+  "excerpts_not_found": [],
+  "by_source": {
+    "ecfr_1.3-1.txt": 1,
+    "f1040es.raw.txt": 2,
+    "govinfo_usc26_1.txt": 3,
+    "govinfo_usc26_3.txt": 5,
+    "govinfo_usc26_4.txt": 1,
+    "govinfo_usc26_6102.txt": 2,
+    "i1040gi.raw.txt": 8,
+    "i1040sd.raw.txt": 2,
+    "irs_drafts_1040.txt": 1,
+    "p1040_dft.raw.txt": 4,
+    "plaw119-21.txt": 1,
+    "rp-25-32.raw.txt": 2
+  },
+  "rate_tables_equal_to_tax_table_py": {
+    "2025 joint": true,
+    "2025 head_of_household": true,
+    "2025 single": true,
+    "2025 separate": true,
+    "2026 joint": true,
+    "2026 head_of_household": true,
+    "2026 single": true,
+    "2026 separate": true
+  },
+  "tax_tables": {
+    "2025": {
+      "publication": "p1040_2025.raw.txt",
+      "csv": "irs_tax_table_2025.csv",
+      "csv_sha256": "28413dd5b1b475731c4025e2df95a1a015170b096a40c7e4051afb494a910703",
+      "parse_equals_committed_csv": true,
+      "amounts": 8248,
+      "amounts_equal_to_constructed_table": 8248
+    },
+    "2026": {
+      "publication": "p1040_dft.raw.txt",
+      "csv": "irs_tax_table_2026_draft.csv",
+      "csv_sha256": "7ea5ce5678132f9f5e78130412566d407fbcd5584e76093b2da713a71d31b493",
+      "parse_equals_committed_csv": true,
+      "amounts": 8248,
+      "amounts_equal_to_constructed_table": 8248
+    }
+  },
+  "occurrences_of_midpoint_or_middle": {
+    "i1040gi.raw.txt": 0,
+    "i1040sd.raw.txt": 0,
+    "p1040_2025.raw.txt": 0,
+    "p1040_dft.raw.txt": 0,
+    "f1040es.raw.txt": 0,
+    "rp-25-32.raw.txt": 0,
+    "rp-24-40.raw.txt": 0
+  },
+  "pub_l_119_21_amends_section_3": false,
+  "all_checks_pass": true
+}

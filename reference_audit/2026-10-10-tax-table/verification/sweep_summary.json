@@ -1,0 +1,112 @@
+{
+  "engine": "policyengine-us 2.38.6",
+  "policyengine_core": "3.32.29",
+  "reference_system": {
+    "fixes": "reference_audit/2026-09-28/fixes/latest_final.py",
+    "fixes_sha256": "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e",
+    "harness": "reference_audit/2026-09-28/scripts/sweep.py",
+    "harness_sha256": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69",
+    "builder": "reference_audit/2026-10-09-engine-upgrade/scripts/build_references_upgrade.py",
+    "builder_sha256": "9fd003be76a7a00ae83e5e17bc652dc7cdee3a7c351fb3efb26308d93c0ca6f5"
+  },
+  "release": {
+    "tag": "dashboard-data-20261010",
+    "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
+  },
+  "inputs": {
+    "scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+    "reference_outputs.csv": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371",
+    "reference_outputs.csv.meta.json": "d534cfeacf7f8a8b7f6fca477adbb02c5bb52b226778d63cc10fd117ec70c54b",
+    "reference_exclusions.json": "089e01e1f699aa19f2171e1ac5b6dc2ce775f9898c94420e6a0b06ff5f773626"
+  },
+  "engine_brackets_2026": {
+    "rates_percent": [
+      10,
+      12,
+      22,
+      24,
+      32,
+      35,
+      37
+    ],
+    "thresholds": {
+      "single": [
+        12400.0,
+        50400.0,
+        105700.0,
+        201775.0,
+        256225.0,
+        640600.0
+      ],
+      "joint": [
+        24800.0,
+        100800.0,
+        211400.0,
+        403550.0,
+        512450.0,
+        768700.0
+      ],
+      "separate": [
+        12400.0,
+        50400.0,
+        105700.0,
+        201775.0,
+        256225.0,
+        384350.0
+      ],
+      "head_of_household": [
+        17700.0,
+        67450.0,
+        105700.0,
+        201750.0,
+        256200.0,
+        640600.0
+      ]
+    },
+    "equal_rev_proc_2025_32": true
+  },
+  "households": 100,
+  "outputs": 1984,
+  "scored_outputs": 1926,
+  "baseline_reproduces_scored_references": true,
+  "baseline_max_abs_gap_to_scored_reference": 5.684341886080802e-14,
+  "schedule_copy_identical_to_baseline": true,
+  "federal_outputs": 100,
+  "federal_scored": 84,
+  "table_moves_by_variable": {
+    "federal_income_tax_before_refundable_credits": {
+      "moved": 26,
+      "scored": 21
+    },
+    "federal_refundable_credits": {
+      "moved": 2,
+      "scored": 2
+    }
+  },
+  "table_changes_any_amount_by_variable": {
+    "federal_income_tax_before_refundable_credits": {
+      "changed": 35,
+      "scored": 30,
+      "max_abs_delta": 5.4296875
+    },
+    "federal_refundable_credits": {
+      "changed": 3,
+      "scored": 2,
+      "max_abs_delta": 2.4892578125
+    },
+    "state_income_tax_before_refundable_credits": {
+      "changed": 1,
+      "scored": 0,
+      "max_abs_delta": 0.0048828125
+    }
+  },
+  "whole_dollar_variant_differs_from_table": [
+    {
+      "scenario_id": "scenario_042",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "table": 2359.0,
+      "table_whole_dollar": 2365.0
+    }
+  ],
+  "foreign_earned_income_exclusion_households": 0
+}

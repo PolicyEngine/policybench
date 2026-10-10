@@ -1,0 +1,288 @@
+{
+  "read_on": "2026-10-10",
+  "committed": "law/excerpts.md and the two Tax Table CSVs. No whole document is committed; each is public at the address given.",
+  "copyright": "Works of the United States Government; no copyright (17 U.S.C. 105).",
+  "sources": [
+    {
+      "document": "26 U.S.C. 3 (United States Code, 2024 Edition)",
+      "used_for": "the Tax Table tax is imposed in lieu of the section 1 tax",
+      "saved_from": "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleA-chap1-subchapA-partI-sec3.htm",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "govinfo_usc26_3.htm",
+        "sha256": "c6a26b9bc27f9e4c224bdc09a00d72893c657691258ab3209a650a0b57bd7642",
+        "bytes": 16640
+      },
+      "extraction": {
+        "name": "govinfo_usc26_3.txt",
+        "made_with": "tags stripped",
+        "sha256": "16073087dbdd0b30e1b9c1136724c563c4b155e7ab530df8789a679346f5d779",
+        "bytes": 11929
+      }
+    },
+    {
+      "document": "26 U.S.C. 4 (United States Code, 2024 Edition)",
+      "used_for": "the rules for the elective table are repealed",
+      "saved_from": "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleA-chap1-subchapA-partI-sec4.htm",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "govinfo_usc26_4.htm",
+        "sha256": "655ad062171f1929525814e29866aa6bd149c879dc1ff2450ecb3c9b3e51df04",
+        "bytes": 2612
+      },
+      "extraction": {
+        "name": "govinfo_usc26_4.txt",
+        "made_with": "tags stripped",
+        "sha256": "044c00876309dd3db201858f734f395fc533905affcc84e5dd8e1b52d8cb01ff",
+        "bytes": 1101
+      }
+    },
+    {
+      "document": "26 U.S.C. 1 (United States Code, 2024 Edition)",
+      "used_for": "the rate schedules; section 1(h)'s reference to them",
+      "saved_from": "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleA-chap1-subchapA-partI-sec1.htm",
+      "note": "govinfo's most recent edition on the day read (govinfo.gov/link/uscode/26/1?type=usc&year=mostrecent returned the same bytes). uscode.house.gov, which carries later amendments, was under maintenance.",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "govinfo_usc26_1.htm",
+        "sha256": "725cb94c9ca65ec6258643eda0c5c9c551efdb11dfc1ed3fac103c31d7c5ab7a",
+        "bytes": 276756
+      },
+      "extraction": {
+        "name": "govinfo_usc26_1.txt",
+        "made_with": "tags stripped",
+        "sha256": "14a6831e2f4851149f654d795c3a364446a61d54eaf3a5ef1fcc655b04c8244d",
+        "bytes": 219080
+      }
+    },
+    {
+      "document": "26 U.S.C. 6102 (United States Code, 2024 Edition)",
+      "used_for": "whole-dollar amounts are the filer's option",
+      "saved_from": "https://www.govinfo.gov/content/pkg/USCODE-2024-title26/html/USCODE-2024-title26-subtitleF-chap61-subchapB-sec6102.htm",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "govinfo_usc26_6102.htm",
+        "sha256": "4364fa6900d0bb2df81960bd4ba7e4be7742e6323340572dbeb2aa5757318f7c",
+        "bytes": 3494
+      },
+      "extraction": {
+        "name": "govinfo_usc26_6102.txt",
+        "made_with": "tags stripped",
+        "sha256": "ff0265627a0e5b4ed7d8c0cf71ae71285d735e7c15568ebc6a0cd1818744feb9",
+        "bytes": 1787
+      }
+    },
+    {
+      "document": "Pub. L. 119-21, section 70101",
+      "used_for": "the section 1(j) rate tables continue after 2025",
+      "saved_from": "https://www.govinfo.gov/content/pkg/PLAW-119publ21/html/PLAW-119publ21.htm",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "plaw119-21.htm",
+        "sha256": "84000b07c382db50ead04ce65b70983e2dcd699a931d80cd3d2edac584e9004d",
+        "bytes": 1217741
+      },
+      "extraction": {
+        "name": "plaw119-21.txt",
+        "made_with": "tags stripped",
+        "sha256": "c58b617d3652532d57a67e910cbb70c0aac5412e025f25783af5dcac375e6430",
+        "bytes": 932359
+      }
+    },
+    {
+      "document": "26 CFR 1.3-1 (eCFR, as of 2026-07-01)",
+      "used_for": "the regulation predates the present table",
+      "saved_from": "https://www.ecfr.gov/api/versioner/v1/full/2026-07-01/title-26.xml?part=1&section=1.3-1",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "ecfr_1.3-1.xml",
+        "sha256": "afb18613c512842ec75458898865541a5f085f32bd27cf7d1876d32d4d8531c2",
+        "bytes": 7587
+      },
+      "extraction": {
+        "name": "ecfr_1.3-1.txt",
+        "made_with": "tags stripped",
+        "sha256": "123cc504dbd54435678e8382be9146ca29570eca705fbb2eff5a99aca47b2f5a",
+        "bytes": 7173
+      }
+    },
+    {
+      "document": "Rev. Proc. 2025-32",
+      "used_for": "the 2026 rate tables (section 4.01)",
+      "saved_from": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "rp-25-32.pdf",
+        "sha256": "e9ada115fb43a4af5ea326ca91edd40ab0bf29b9be01d2c13d7b8fa96214635b",
+        "bytes": 260406
+      },
+      "extraction": {
+        "name": "rp-25-32.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "ebb842fe13d74b98e22c553d6cc3e6c3c0ae9cc5a3c757c5ddb7872bf751ba83",
+        "bytes": 56301
+      },
+      "pdf": {
+        "title": "26 CFR 601.602:  Tax forms and instructions.",
+        "created": "Fri Oct 17 15:43:06 2025 EDT",
+        "modified": "Fri Oct 17 15:52:58 2025 EDT",
+        "pages": "36"
+      }
+    },
+    {
+      "document": "Rev. Proc. 2024-40",
+      "used_for": "the 2025 rate tables (section 3.01), for the check on the 2025 table",
+      "saved_from": "https://www.irs.gov/pub/irs-drop/rp-24-40.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "rp-24-40.pdf",
+        "sha256": "4de9db6b6662b5c305a59100a027051628823b42fd5817ea4e383ad4c302af1f",
+        "bytes": 249076
+      },
+      "extraction": {
+        "name": "rp-24-40.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "e107a4fe719e24e5876719fb9a080a9d3b36506a7eb119cf2a5741c2c6fb47b9",
+        "bytes": 45696
+      },
+      "pdf": {
+        "title": "RP 24",
+        "created": "Tue Oct 22 08:18:47 2024 EDT",
+        "modified": "Tue Oct 22 09:23:36 2024 EDT",
+        "pages": "27"
+      }
+    },
+    {
+      "document": "2026 Form 1040-ES",
+      "used_for": "the IRS's 2026 Tax Rate Schedules, published before the freeze",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/f1040es.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "f1040es.pdf",
+        "sha256": "396ffad25baa737b33a67d27624f7444be3ac4e7245d287aebe5f89864f90b54",
+        "bytes": 331490
+      },
+      "extraction": {
+        "name": "f1040es.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "2cea38c3c98d03da00de93e5dee51ad3d1842067edd1ffd1da0f8b4bec9a901b",
+        "bytes": 58931
+      },
+      "pdf": {
+        "title": "2026 Form 1040-ES",
+        "created": "Thu Feb 12 06:17:45 2026 EST",
+        "modified": "Fri Feb 13 07:28:41 2026 EST",
+        "pages": "16"
+      }
+    },
+    {
+      "document": "2025 Instructions for Form 1040 (and 1040-SR)",
+      "used_for": "line 16; the capital gain worksheet; rounding; the Tax Table",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/i1040gi.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "i1040gi.pdf",
+        "sha256": "482e9c487c608f1bbeaceef35bc3c0933e8b35443cfff447e4279d590468364a",
+        "bytes": 4434643
+      },
+      "extraction": {
+        "name": "i1040gi.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "f552224153b01f04bae34768fc7bec1354f2c7e45b890f50595e00cf58652567",
+        "bytes": 611229
+      },
+      "pdf": {
+        "title": "2025 Instruction 1040",
+        "created": "Wed Feb 25 15:15:22 2026 EST",
+        "modified": "Thu Feb 26 09:00:22 2026 EST",
+        "pages": "126"
+      }
+    },
+    {
+      "document": "2025 Instructions for Schedule D (Form 1040)",
+      "used_for": "the Schedule D Tax Worksheet, lines 44 and 46",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/i1040sd.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "i1040sd.pdf",
+        "sha256": "650643a686378b7573e4f4476ee4e7c9f9bab1384314dca32dc336f7b2276002",
+        "bytes": 298718
+      },
+      "extraction": {
+        "name": "i1040sd.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "48e378ccc647d1418735404496614639cca09e26af2ad15eb0da1d86dcd7febd",
+        "bytes": 90642
+      },
+      "pdf": {
+        "title": "2025 Instructions for Schedule D (Form 1040)",
+        "created": "Thu Dec 11 09:38:20 2025 EST",
+        "modified": "Tue Dec 16 16:26:15 2025 EST",
+        "pages": "16"
+      }
+    },
+    {
+      "document": "Publication 1040 (2025), Tax and Earned Income Credit Tables",
+      "used_for": "the published 2025 Tax Table (law/irs_tax_table_2025.csv)",
+      "saved_from": "https://www.irs.gov/pub/irs-prior/p1040--2025.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "p1040_2025.pdf",
+        "sha256": "8ae019bd3b28b07b37e46e18597d8e899222a2224ce7482c015b130033403532",
+        "bytes": 1452403
+      },
+      "extraction": {
+        "name": "p1040_2025.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "1f00c36b9bcb4ff22d80da8febde6b7c467ed1bb94a9085cff04440fa0253ec6",
+        "bytes": 173307
+      },
+      "pdf": {
+        "title": "2025 Publication 1040",
+        "created": "Wed Sep 17 13:52:35 2025 EDT",
+        "modified": "Thu Jan 15 02:41:41 2026 EST",
+        "pages": "28"
+      }
+    },
+    {
+      "document": "Publication 1040 (2026), early release draft",
+      "used_for": "the draft 2026 Tax Table (law/irs_tax_table_2026_draft.csv)",
+      "saved_from": "https://www.irs.gov/pub/irs-dft/p1040--dft.pdf",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "p1040_dft.pdf",
+        "sha256": "407bc35ab09aaf034689341d7469b9b082cd2ceaa652e38ca5874c1dd1c3f12e",
+        "bytes": 2705378
+      },
+      "extraction": {
+        "name": "p1040_dft.raw.txt",
+        "made_with": "pdftotext -raw",
+        "sha256": "11eb9ef77f12e35f482e71d27a34f723c361bb1a78117168ecb690f9b5b5b414",
+        "bytes": 178299
+      },
+      "pdf": {
+        "title": "2026 Publication 1040",
+        "created": "Fri Aug 28 09:11:01 2026 EDT",
+        "modified": "Wed Sep 16 10:21:06 2026 EDT",
+        "pages": "29"
+      }
+    },
+    {
+      "document": "IRS.gov draft tax forms listing, search '1040'",
+      "used_for": "the date the draft Publication 1040 (2026) was posted",
+      "saved_from": "https://www.irs.gov/draft-tax-forms?find=1040&items_per_page=200",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "irs_drafts_1040.html",
+        "sha256": "11df6e65d8bfc6726e19312e7aab7d3d1e650554a81197a5e844b81c13ab6965",
+        "bytes": 189424
+      },
+      "extraction": {
+        "name": "irs_drafts_1040.txt",
+        "made_with": "tags stripped",
+        "sha256": "fa2c8e6bfca46112e2d00946783807212f0b86b1760f7c9f22b7dba8947d079b",
+        "bytes": 14656
+      }
+    }
+  ]
+}
