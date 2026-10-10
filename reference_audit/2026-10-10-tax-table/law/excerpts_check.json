@@ -1,7 +1,7 @@
 {
   "read_on": "2026-10-10",
-  "excerpts": 43,
-  "excerpts_found": 43,
+  "excerpts": 44,
+  "excerpts_found": 44,
   "excerpts_not_found": [],
   "by_source": {
     "ecfr_1.3-1.txt": 1,
@@ -10,7 +10,7 @@
     "govinfo_usc26_3.txt": 5,
     "govinfo_usc26_4.txt": 1,
     "govinfo_usc26_6102.txt": 2,
-    "i1040gi.raw.txt": 16,
+    "i1040gi.raw.txt": 17,
     "i1040sd.raw.txt": 2,
     "irs_drafts_1040.txt": 1,
     "irs_forms_1040es.txt": 1,

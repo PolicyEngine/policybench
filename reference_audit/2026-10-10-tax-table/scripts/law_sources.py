@@ -382,6 +382,10 @@ def draft_listing_history(law_dir: Path) -> dict:
         rows = listing_rows(saved.read_text(encoding="utf-8", errors="replace"))
         if len(rows) != 25:
             raise SystemExit(f"{name}: expected 25 listing rows, read {len(rows)}")
+        size = re.search(
+            r"Showing\s+[\d,]+\s*-\s*[\d,]+\s+of\s+([\d,]+)",
+            re.sub(r"<[^>]+>", " ", saved.read_text(encoding="utf-8", errors="replace")),
+        )
         captured = f"{timestamp[:4]}-{timestamp[4:6]}-{timestamp[6:8]}"
         query = f"?page={page}" if page else ""
         captures.append(
@@ -391,6 +395,7 @@ def draft_listing_history(law_dir: Path) -> dict:
                 "address": f"https://web.archive.org/web/{timestamp}id_/{LISTING}{query}",
                 "sha256": sha256(saved.read_bytes()),
                 "rows": len(rows),
+                "drafts_in_the_whole_listing": int(size.group(1).replace(",", "")),
                 "first_posted": min(row["posted"] for row in rows),
                 "last_posted": max(row["posted"] for row in rows),
                 "tax_table_products": [row for row in rows if is_tax_table_product(row)],
@@ -408,8 +413,8 @@ def draft_listing_history(law_dir: Path) -> dict:
         "freeze": FREEZE,
         "listing": LISTING,
         "note": (
-            "Each capture is one 25-row page of a listing of about 1,220 drafts, "
-            "newest posting first. A draft is listed once, at its latest posting. "
+            "Each capture is one 25-row page of the whole listing (its size at "
+            "each capture is recorded below), newest posting first. A draft is listed once, at its latest posting. "
             "The captures do not show every draft posted in the period: pages "
             "for some days were not archived, and none shows a posting before "
             "the earliest date below. A range below is the earliest and latest "
@@ -417,6 +422,10 @@ def draft_listing_history(law_dir: Path) -> dict:
             "posted between them is on one."
         ),
         "captures_on_or_before_freeze": len(before),
+        "drafts_in_the_whole_listing_on_or_before_freeze": [
+            min(c["drafts_in_the_whole_listing"] for c in before),
+            max(c["drafts_in_the_whole_listing"] for c in before),
+        ],
         "distinct_rows_seen_on_or_before_freeze": len(seen),
         "posting_dates_covered_on_or_before_freeze": merge(
             [(c["first_posted"], c["last_posted"]) for c in before]

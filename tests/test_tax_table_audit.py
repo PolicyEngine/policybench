@@ -738,7 +738,7 @@ def test_the_law_record_was_checked_against_the_documents():
     check = json.loads((AUDIT / "law/excerpts_check.json").read_text())
     quotes = law.excerpts()
     assert check["all_checks_pass"] is True
-    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 43
+    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 44
     assert check["excerpts_not_found"] == []
     assert all(check["rate_tables_equal_to_tax_table_py"].values())
     assert len(check["rate_tables_equal_to_tax_table_py"]) == 8
@@ -825,6 +825,13 @@ def test_no_tax_table_draft_is_in_the_archived_listings_before_the_freeze():
         ["2026-06-10", "2026-07-01"],
     ]
     assert history["distinct_rows_seen_on_or_before_freeze"] == 251
+    # Each capture is 25 rows of a much longer listing: a sample of it.
+    sizes = [c["drafts_in_the_whole_listing"] for c in before]
+    assert history["drafts_in_the_whole_listing_on_or_before_freeze"] == [
+        min(sizes),
+        max(sizes),
+    ]
+    assert [min(sizes), max(sizes)] == [1215, 1219]
     seen = history["rows_seen_on_or_before_freeze"]
     assert len(seen) == len({tuple(row.values()) for row in seen}) == 251
     assert not any(law.is_tax_table_product(row) for row in seen)

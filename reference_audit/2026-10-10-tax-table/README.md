@@ -32,7 +32,7 @@ Reading 2: keep the rate schedule, and state the definition in the benchmark car
 
 Its cost should be stated with it. On the current release the prompt does not say which computation is wanted. The line 16 instructions say a filer under $100,000 "must use the Tax Table", and where that governs a household's return, an answer that follows it is scored a miss: 21 federal cells in the sweep. Two answers are within $1 of the table value alone today.
 
-How the models answer shows which reading the current prompt draws out. It does not show which reading is correct. 173 of the 987 answers on the 21 cells match the schedule value, and 2 match the table value alone.
+The models' answers do not show which reading is correct, or how any model read the question. What they show is a count: 173 of the 987 answers on the 21 cells are within $1 of the schedule value, and 2 are within $1 of the table value alone.
 
 The case for each other option:
 
@@ -44,7 +44,7 @@ If the schedule is kept, one thing is worth watching on later boards: a model wh
 
 ## The law
 
-Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 43 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
+Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 44 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
 
 - **26 U.S.C. 3(a)(1).** "In lieu of the tax imposed by section 1", a tax "determined under tables ... prescribed by the Secretary" is imposed on an individual who does not itemize and whose taxable income does not exceed the ceiling amount. Section 3(a)(2) lets the Secretary set the ceiling, at $20,000 or more. Section 3(a)(3) lets the Secretary extend the table to itemizers. Section 3(c) treats the table tax as tax imposed by section 1. The section was last amended in 1986. Pub. L. 119-21 does not touch it.
 - **The instructions.** The 2025 Instructions for Form 1040, line 16: "If your taxable income is less than $100,000, you must use the Tax Table". At $100,000 or more the Tax Computation Worksheet applies, which is the schedule exactly. The instruction does not distinguish itemizers. Five other methods replace it for some returns: Form 8615, the Schedule D Tax Worksheet, the Qualified Dividends and Capital Gain Tax Worksheet, Schedule J and the Foreign Earned Income Tax Worksheet.
@@ -57,7 +57,7 @@ Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` ea
   - The earliest 2026 table found is the IRS's early release draft of Publication 1040 (2026). Its cover is dated Aug 28, 2026, IRS.gov lists it as posted 09/16/2026, and every page is marked "DRAFT—NOT FOR FILING". It keeps the $100,000 ceiling.
   - The Internet Archive holds 14 copies of pages of the IRS's draft listing captured from 2026-05-20 to 08:09 UTC on 2026-07-03. They show 251 drafts, whose posting dates run from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table (`law/draft_listing_history.json` lists them).
 
-  The captures are single pages of a listing of about 1,220 drafts, so they sample it. The search does not cover a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since.
+  The captures are single pages of a listing that held 1,215 to 1,219 drafts over those weeks, so they sample it. The search does not cover a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since.
 
 So the table is the law's tax for a non-itemizer under the ceiling, and the instructions' rule for line 16 and the worksheet look-ups of a return under it. No scored reference turns on the itemizer question: none of the 33 scored returns the table applies to itemizes.
 
@@ -104,7 +104,7 @@ Every household is one federal return in the engine. Of the 100 returns, 49 have
 
 Whether another method could replace the look-up on these 38 returns was checked as far as the households' facts go:
 
-- **Form 8615** needs a filer under 24. The filer is 25 or older in 36 of the 38. The other two are 22 and 23 (scenario_091 and scenario_082, both among the 21 moved cells below). Form 8615 would also need each to be a full-time student with a living parent, which no household states, and the prompt treats an unlisted status as false.
+- **Form 8615** needs a filer under 24. The filer is 25 or older in 36 of the 38. The other two are 22 and 23 (scenario_091 and scenario_082, both among the 21 moved cells below). Form 8615 would also need each to be a full-time student and to have a living parent. No household states either, and the prompt treats an unlisted status as false.
 - **Schedule J** needs income from farming or fishing and is the filer's choice. Two of the 38 have farm income, a loss in each (scenario_042 and scenario_064, also among the 21). Schedule J was not read.
 
 Three scored references do not change although the table applies: in scenario_026, scenario_028 and scenario_119, nonrefundable credits use up the whole regular tax under either convention, so the output is $0 both ways.

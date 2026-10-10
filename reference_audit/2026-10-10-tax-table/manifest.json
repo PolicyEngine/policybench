@@ -20,15 +20,15 @@
   },
   "files": {
     "law/draft_listing_history.json": {
-      "sha256": "ba7fc4f6dd34d261a6640558e271490fff5c7df756ea33f6da15860cd1b7456f",
-      "bytes": 53529
+      "sha256": "b7b2dd05d9a48ad7f06d202ade199b553ec22653aca9f9266f4d3822f9fbb920",
+      "bytes": 54413
     },
     "law/excerpts.md": {
-      "sha256": "6e64dafd7e23f5b22288deddf8cbde405c415f7c3baa86a1594ebdac8608256b",
-      "bytes": 16541
+      "sha256": "3720a550ce6a7a3b74a5f302533c64a71cc4736d268ff1c28b4eff9f360015d3",
+      "bytes": 16733
     },
     "law/excerpts_check.json": {
-      "sha256": "18d50c9872a0fc502b96416a5e1e9ef19f01a719f62c5d45d52d97d9e8b3b0cd",
+      "sha256": "c6b8bcf6228a35deca6cce59ab5662980fbd906098f626d40d2a14514d5462cc",
       "bytes": 1820
     },
     "law/irs_tax_table_2025.csv": {
@@ -56,8 +56,8 @@
       "bytes": 6512
     },
     "scripts/law_sources.py": {
-      "sha256": "67d1723c19578234413b388274cf15f8a352880d9d0620f28f4c99a0ef18704f",
-      "bytes": 24572
+      "sha256": "af4f025985036c4b169e9eae3282245e2c398b64c20470c8ab7a358587a7b613",
+      "bytes": 25081
     },
     "scripts/leaderboard_impact.py": {
       "sha256": "4847ee02bb127eaf6be6b80ef0a72280ab04673683ad0bddab17d326f134022c",
