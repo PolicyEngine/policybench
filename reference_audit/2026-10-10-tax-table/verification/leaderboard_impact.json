@@ -13,7 +13,7 @@
     "predictions.csv.gz": "0183ab75931b354d6b177b147bbf57fbb79d9d0ac5b98a0304fa32eb329007ae",
     "data.json.gz": "535a51db14f13284b7054f2980b3663c3bc4317037eb3a0cc65e392096df5a90"
   },
-  "sweep_sha256": "e748f5be4d2e1cacbebfefc052d85ec05f0e8e7f7d1eb067ad62070cdcde04d3",
+  "sweep_sha256": "da81c11c174ba9ba284d36a999c5241d548d7a5ee79ccb4ce73c9cb8f2b994f9",
   "models": 47,
   "scored_outputs_per_model": {
     "schedule": 1926,
@@ -37,13 +37,16 @@
     "scored_where_table_applies": 33,
     "scored_itemizers_where_table_applies": 0,
     "scored_through_a_capital_gain_worksheet_where_table_applies": 6,
-    "scored_where_whole_dollar_look_up_differs": [
-      {
-        "scenario_id": "scenario_042",
-        "table": 2359.0,
-        "table_whole_dollar": 2365.0
-      }
-    ],
+    "look_up_rounding_sensitivity": {
+      "scored_changed_by_any_amount": 6,
+      "scored_moved_by_more_than_1": [
+        {
+          "scenario_id": "scenario_042",
+          "table": 2359.0,
+          "table_whole_dollar": 2365.0
+        }
+      ]
+    },
     "scored_changed_by_any_amount": 30,
     "scored_differing_by_more_than_1": 21,
     "scored_differing_by_1_or_less": 9,
@@ -95,6 +98,11 @@
     "whole_dollar_answers": 626,
     "explanations_mentioning_tax_table": 3,
     "models_with_a_table_only_match": 2
+  },
+  "answers_on_scored_outputs_changed_by_1_or_less": {
+    "outputs": 9,
+    "rows": 423,
+    "exact_differs_between_the_two_values": 0
   },
   "all_federal_answers": {
     "rows": 4700,

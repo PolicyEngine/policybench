@@ -55,7 +55,7 @@ scenario_002,WA,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_002,WA,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_002,WA,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_002,WA,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_003,TX,federal_income_tax_before_refundable_credits,22400.654296875,True,22400.654296875,22400.654296875,22400.654296875,22400.654296875,0.0,False,0.0,False
+scenario_003,TX,federal_income_tax_before_refundable_credits,22400.654296875,True,22400.654296875,22400.654296875,22400.654296875,22400.599609375,0.0,False,-0.0546875,False
 scenario_003,TX,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_003,TX,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_003,TX,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -95,7 +95,7 @@ scenario_004,NY,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_004,NY,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_004,NY,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_004,NY,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_005,CA,federal_income_tax_before_refundable_credits,106505.8984375,False,108525.578125,108525.578125,108525.578125,108525.578125,0.0,False,0.0,False
+scenario_005,CA,federal_income_tax_before_refundable_credits,106505.8984375,False,108525.578125,108525.578125,108525.578125,108525.5,0.0,False,-0.078125,False
 scenario_005,CA,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_005,CA,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_005,CA,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -317,7 +317,7 @@ scenario_018,AZ,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_018,AZ,state_income_tax_before_refundable_credits,1137.30224609375,True,1137.30224609375,1137.30224609375,1137.30224609375,1137.30224609375,0.0,False,0.0,False
 scenario_018,AZ,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_018,AZ,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_020,TX,federal_income_tax_before_refundable_credits,68056.7109375,False,68334.734375,68334.734375,68334.734375,68334.734375,0.0,False,0.0,False
+scenario_020,TX,federal_income_tax_before_refundable_credits,68056.7109375,False,68334.734375,68334.734375,68334.734375,68334.875,0.0,False,0.140625,False
 scenario_020,TX,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_020,TX,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_020,TX,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -803,7 +803,7 @@ scenario_048,OH,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_048,OH,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_048,OH,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_048,OH,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_049,NH,federal_income_tax_before_refundable_credits,30702.58984375,True,30702.58984375,30702.58984375,30702.58984375,30702.58984375,0.0,False,0.0,False
+scenario_049,NH,federal_income_tax_before_refundable_credits,30702.58984375,True,30702.58984375,30702.58984375,30702.58984375,30702.5390625,0.0,False,-0.05078125,False
 scenario_049,NH,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_049,NH,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_049,NH,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -839,7 +839,7 @@ scenario_051,LA,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_051,LA,state_income_tax_before_refundable_credits,820.3499755859375,False,820.260009765625,820.260009765625,820.260009765625,820.260009765625,0.0,False,0.0,False
 scenario_051,LA,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_051,LA,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_052,TX,federal_income_tax_before_refundable_credits,104211.40625,False,104225.2578125,104225.2578125,104225.2578125,104225.2578125,0.0,False,0.0,False
+scenario_052,TX,federal_income_tax_before_refundable_credits,104211.40625,False,104225.2578125,104225.2578125,104225.2578125,104225.3046875,0.0,False,0.046875,False
 scenario_052,TX,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_052,TX,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_052,TX,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -903,7 +903,7 @@ scenario_054,NC,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_054,NC,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_054,NC,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_054,NC,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_055,FL,federal_income_tax_before_refundable_credits,25238.578125,True,25238.578125,25238.578125,25238.578125,25238.578125,0.0,False,0.0,False
+scenario_055,FL,federal_income_tax_before_refundable_credits,25238.578125,True,25238.578125,25238.578125,25238.578125,25238.48046875,0.0,False,-0.09765625,False
 scenario_055,FL,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_055,FL,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_055,FL,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1241,7 +1241,7 @@ scenario_077,LA,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_077,LA,state_income_tax_before_refundable_credits,305.13525390625,False,305.0452575683594,305.0452575683594,305.0452575683594,305.0452575683594,0.0,False,0.0,False
 scenario_077,LA,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_077,LA,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_078,MD,federal_income_tax_before_refundable_credits,24164.45703125,False,24164.45703125,24164.45703125,24164.45703125,24164.45703125,0.0,False,0.0,False
+scenario_078,MD,federal_income_tax_before_refundable_credits,24164.45703125,False,24164.45703125,24164.45703125,24164.45703125,24164.48046875,0.0,False,0.0234375,False
 scenario_078,MD,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_078,MD,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_078,MD,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1293,7 +1293,7 @@ scenario_080,PA,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_080,PA,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_080,PA,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_080,PA,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_081,MA,federal_income_tax_before_refundable_credits,26932.2734375,False,26932.2734375,26932.2734375,26932.2734375,26932.2734375,0.0,False,0.0,False
+scenario_081,MA,federal_income_tax_before_refundable_credits,26932.2734375,False,26932.2734375,26932.2734375,26932.2734375,26932.16015625,0.0,False,-0.11328125,False
 scenario_081,MA,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_081,MA,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_081,MA,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1541,7 +1541,7 @@ scenario_098,IL,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_098,IL,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_098,IL,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_098,IL,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_099,CA,federal_income_tax_before_refundable_credits,10711.484375,True,10711.484375,10711.484375,10711.484375,10711.484375,0.0,False,0.0,False
+scenario_099,CA,federal_income_tax_before_refundable_credits,10711.484375,True,10711.484375,10711.484375,10711.484375,10711.419921875,0.0,False,-0.064453125,False
 scenario_099,CA,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_099,CA,free_school_meals_eligible,1.0,True,1.0,1.0,1.0,1.0,0.0,False,0.0,False
 scenario_099,CA,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1723,7 +1723,7 @@ scenario_109,FL,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_109,FL,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_109,FL,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_109,FL,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_110,OH,federal_income_tax_before_refundable_credits,25747.7734375,True,25747.7734375,25747.7734375,25747.7734375,25747.7734375,0.0,False,0.0,False
+scenario_110,OH,federal_income_tax_before_refundable_credits,25747.7734375,True,25747.7734375,25747.7734375,25747.7734375,25747.84375,0.0,False,0.0703125,False
 scenario_110,OH,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_110,OH,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_110,OH,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1827,7 +1827,7 @@ scenario_116,FL,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_116,FL,state_income_tax_before_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_116,FL,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_116,FL,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_117,AR,federal_income_tax_before_refundable_credits,24961.33984375,False,24961.33984375,24961.33984375,24961.33984375,24961.33984375,0.0,False,0.0,False
+scenario_117,AR,federal_income_tax_before_refundable_credits,24961.33984375,False,24961.33984375,24961.33984375,24961.33984375,24961.259765625,0.0,False,-0.080078125,False
 scenario_117,AR,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_117,AR,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_117,AR,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
@@ -1909,7 +1909,7 @@ scenario_119,VA,ssi,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_119,VA,state_income_tax_before_refundable_credits,1859.0943603515625,False,1859.0943603515625,1859.0943603515625,1859.0943603515625,1859.0943603515625,0.0,False,0.0,False
 scenario_119,VA,state_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_119,VA,tanf,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
-scenario_120,CT,federal_income_tax_before_refundable_credits,40021.81640625,False,40423.17578125,40423.17578125,40423.17578125,40423.17578125,0.0,False,0.0,False
+scenario_120,CT,federal_income_tax_before_refundable_credits,40021.81640625,False,40423.17578125,40423.17578125,40423.17578125,40423.23828125,0.0,False,0.0625,False
 scenario_120,CT,federal_refundable_credits,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_120,CT,free_school_meals_eligible,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False
 scenario_120,CT,local_income_tax,0.0,True,0.0,0.0,0.0,0.0,0.0,False,0.0,False

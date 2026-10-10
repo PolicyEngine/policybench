@@ -1,0 +1,233 @@
+{
+  "freeze": "2026-07-03",
+  "listing": "https://www.irs.gov/draft-tax-forms",
+  "note": "Each capture is one 25-row page of a listing of about 1,220 drafts, newest posting first. A draft is listed once, at its latest posting. The captures do not show every draft posted in the period: pages for some days were not archived, and none shows a posting before the earliest date below.",
+  "captures_on_or_before_freeze": 14,
+  "distinct_rows_seen_on_or_before_freeze": 251,
+  "posting_dates_covered_on_or_before_freeze": [
+    [
+      "2026-03-23",
+      "2026-06-08"
+    ],
+    [
+      "2026-06-10",
+      "2026-07-01"
+    ]
+  ],
+  "tax_table_products_listed_on_or_before_freeze": [],
+  "tax_table_products_listed_in_later_captures": [],
+  "tax_table_products_listed_on_read_date": [
+    {
+      "product": "Publication 1040",
+      "title": "Tax and Earned Income Credit Tables",
+      "revision": "2026",
+      "posted": "2026-09-16"
+    },
+    {
+      "product": "Instruction 1040",
+      "title": "Instructions for Form 1040 (and Form 1040-SR)",
+      "revision": "2025",
+      "posted": "2026-02-26"
+    }
+  ],
+  "captures": [
+    {
+      "captured_utc": "2026-05-20T01:47Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260520014706id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "3b0a876dd430c5d9e724926c60636e12c817179ab9a98a7061d27aaadd8f7436",
+      "rows": 25,
+      "first_posted": "2026-05-14",
+      "last_posted": "2026-05-19",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-05-27T22:46Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260527224622id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "ab2a44689002f194230b3525027a7c9826dbb1150f0b4fd3c32bfe3bca555766",
+      "rows": 25,
+      "first_posted": "2026-05-21",
+      "last_posted": "2026-05-27",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-05T13:57Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260605135701id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "c6807e1cfe8087e1a47e4643f814504213cf9e37d68e5fc085e4e8da11c5836e",
+      "rows": 25,
+      "first_posted": "2026-06-01",
+      "last_posted": "2026-06-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-06T19:55Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260606195555id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "59ad165486ae63a00baa45194f4a2acb861b5288d9567179742677f8bdefb537",
+      "rows": 25,
+      "first_posted": "2026-06-01",
+      "last_posted": "2026-06-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:10Z",
+      "page": 1,
+      "address": "https://web.archive.org/web/20260614191000id_/https://www.irs.gov/draft-tax-forms?page=1",
+      "sha256": "105aa038f01e34338658cbc1ccd42bc0da9763ba8ffbd18e7814209e877ce9ea",
+      "rows": 25,
+      "first_posted": "2026-06-03",
+      "last_posted": "2026-06-08",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:13Z",
+      "page": 2,
+      "address": "https://web.archive.org/web/20260614191329id_/https://www.irs.gov/draft-tax-forms?page=2",
+      "sha256": "698416290b60ebd92a5c9c2e588664c0c6de80a4a36818e76cae3925eb6b60b7",
+      "rows": 25,
+      "first_posted": "2026-05-29",
+      "last_posted": "2026-06-03",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:16Z",
+      "page": 3,
+      "address": "https://web.archive.org/web/20260614191635id_/https://www.irs.gov/draft-tax-forms?page=3",
+      "sha256": "9b3b066b47d942dda8dda43a731d148f3b037629fbfdc8062b9a9700d963af6a",
+      "rows": 25,
+      "first_posted": "2026-05-21",
+      "last_posted": "2026-05-29",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:17Z",
+      "page": 4,
+      "address": "https://web.archive.org/web/20260614191701id_/https://www.irs.gov/draft-tax-forms?page=4",
+      "sha256": "61a3f26602a7363d9571b9b201e4aa71cc54c2593b460c55303f85606cb7c6df",
+      "rows": 25,
+      "first_posted": "2026-05-19",
+      "last_posted": "2026-05-21",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:25Z",
+      "page": 6,
+      "address": "https://web.archive.org/web/20260614192542id_/https://www.irs.gov/draft-tax-forms?page=6",
+      "sha256": "73e2dc935b14b9106d09ad289f8238782a0465b51087b2aeecc7a82754d2c0b6",
+      "rows": 25,
+      "first_posted": "2026-05-05",
+      "last_posted": "2026-05-13",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:27Z",
+      "page": 7,
+      "address": "https://web.archive.org/web/20260614192754id_/https://www.irs.gov/draft-tax-forms?page=7",
+      "sha256": "b836a1bb45401a06ef538b03803f27749874b34e544d3e12a5da78970d481577",
+      "rows": 25,
+      "first_posted": "2026-04-23",
+      "last_posted": "2026-05-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:30Z",
+      "page": 8,
+      "address": "https://web.archive.org/web/20260614193027id_/https://www.irs.gov/draft-tax-forms?page=8",
+      "sha256": "c046d0e86431070f4110a29cf4349836a6cd19b1f18c998352ca411d54810b6b",
+      "rows": 25,
+      "first_posted": "2026-03-23",
+      "last_posted": "2026-04-22",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-17T21:48Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260617214824id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "0ab342453d6cf621d6ddad27fa35946f4b70f3cc284e3050b68a2a6e81992d08",
+      "rows": 25,
+      "first_posted": "2026-06-10",
+      "last_posted": "2026-06-17",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-23T16:06Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260623160616id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "93bd7a91e2f23ccfe10182421482a539e54f36dba80174bd58d5a6c0dbb76392",
+      "rows": 25,
+      "first_posted": "2026-06-12",
+      "last_posted": "2026-06-22",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-07-03T08:09Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260703080914id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "0ec75b4a9b093b22c4ba6e87374a6ad8888b2f81c674d1ef5d7f290ec12bb7fe",
+      "rows": 25,
+      "first_posted": "2026-06-18",
+      "last_posted": "2026-07-01",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-07-24T14:31Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260724143117id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "f3744c8c3ac5dc06a1540671b2fc083a8a4219312ba04346c1975b900c370e71",
+      "rows": 25,
+      "first_posted": "2026-07-08",
+      "last_posted": "2026-07-23",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-08-08T05:52Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260808055206id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "03d7f1b76c3dc569d81a269d08adb512877d1c16a58686eee53ceeeed11817fd",
+      "rows": 25,
+      "first_posted": "2026-07-30",
+      "last_posted": "2026-08-07",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-09-08T01:24Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260908012431id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "ae66dba9002f2af37d00aee5b367da98add70a9b5d97b25cc764ecabf613079c",
+      "rows": 25,
+      "first_posted": "2026-08-31",
+      "last_posted": "2026-09-04",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-09-10T20:57Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260910205726id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "c48b724b78ea6e4ba0b51f16b003f12ebf53113deff12858f8ebbdda04803770",
+      "rows": 25,
+      "first_posted": "2026-09-02",
+      "last_posted": "2026-09-10",
+      "tax_table_products": [],
+      "before_freeze": false
+    }
+  ]
+}

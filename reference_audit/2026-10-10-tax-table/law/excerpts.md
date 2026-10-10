@@ -94,7 +94,19 @@ The four individual tables, as read (thresholds; rates of 10, 12, 22, 24, 32, 35
 
 `scripts/law_sources.py` reads these amounts out of the extraction and compares them with `scripts/tax_table.py`; so does it for the 2025 tables of Rev. Proc. 2024-40, section 3.01 (PDF dated 2024-10-22).
 
-### 2026 Form 1040-ES (PDF dated 2026-02-12): the IRS's own 2026 method before the freeze
+The IRS announced the procedure on October 9, 2025:
+
+<!-- source: irs_news_2026_adjustments.txt -->
+> IR-2025-103, Oct. 9, 2025
+
+### 2026 Form 1040-ES: a 2026 computation the IRS published before the freeze, for estimated tax
+
+IRS.gov lists the form as posted 02/13/2026 (its PDF is dated 2026-02-12):
+
+<!-- source: irs_forms_1040es.txt -->
+> Form 1040-ES Estimated Tax For Individuals 2026 02/13/2026
+
+It figures estimated tax, not the tax on a return, and says so:
 
 <!-- source: f1040es.raw.txt -->
 > Tax. Figure your tax on the amount on line 3 by using the 2026 Tax Rate Schedules.
@@ -111,6 +123,25 @@ The four individual tables, as read (thresholds; rates of 10, 12, 22, 24, 32, 35
 
 <!-- source: i1040gi.raw.txt -->
 > However, don’t use the Tax Table or Tax Computation Worksheet to figure your tax if any of the following applies.
+
+Five methods follow. Each is named here by its opening words:
+
+<!-- source: i1040gi.raw.txt -->
+> Form 8615. Form 8615 must generally be used to figure the tax on your unearned income over $2,700 if you are under age 18, and in certain situations if you are older.
+
+<!-- source: i1040gi.raw.txt -->
+> Schedule D Tax Worksheet. Use the Schedule D Tax Worksheet in the Instructions for Schedule D to figure the amount to enter on Form 1040 or 1040-SR, line 16, if:
+
+<!-- source: i1040gi.raw.txt -->
+> Qualified Dividends and Capital Gain Tax Worksheet. Use the Qualified Dividends and Capital Gain Tax Worksheet, later, to figure your tax if you don’t have to use the Schedule D Tax Worksheet and if any of the following applies.
+
+<!-- source: i1040gi.raw.txt -->
+> Schedule J. If you had income from farming or fishing, your tax may be less if you choose to figure it using income averaging on Schedule J.
+
+<!-- source: i1040gi.raw.txt -->
+> Foreign Earned Income Tax Worksheet. If you claimed the foreign earned income exclusion, housing exclusion, or housing deduction on Form 2555, you must figure your tax using the Foreign Earned Income Tax Worksheet.
+
+The two capital gain worksheets and the foreign earned income worksheet send their own look-ups back to the Tax Table (below). Form 8615 and Schedule J were not read for this audit, and policyengine-us 2.38.6 computes neither: its federal code has no Form 8615 tax and no income averaging.
 
 The instruction draws no line between filers who itemize and filers who do not.
 
@@ -138,6 +169,13 @@ The instruction draws no line between filers who itemize and filers who do not.
 <!-- source: i1040sd.raw.txt -->
 > Figure the tax on the amount on line 1. If the amount on line 1 is less than $100,000, use the Tax Table to figure the tax. If the amount on line 1 is $100,000 or more, use the Tax Computation Worksheet
 
+### Foreign Earned Income Tax Worksheet, line 5
+
+<!-- source: i1040gi.raw.txt -->
+> Figure the tax on the amount on line 2c. If the amount on line 2c is less than $100,000, use the Tax Table to figure this tax. If the amount on line 2c is $100,000 or more, use the Tax Computation Worksheet
+
+No benchmark household claims the exclusion.
+
 ### Tax Computation Worksheet (the method at $100,000 or more)
 
 <!-- source: i1040gi.raw.txt -->
@@ -152,10 +190,17 @@ Each row multiplies the amount by the bracket's rate and subtracts a fixed amoun
 
 ## The 2026 Tax Table
 
-No 2026 Tax Table was published before PolicyBench froze its references on 2026-07-03. What exists on 2026-10-10:
+No 2026 Tax Table dated or posted before PolicyBench froze its references on 2026-07-03 was found. That is a statement about a search, which covered:
 
-- The IRS's early release draft of Publication 1040 (2026), "Tax and Earned Income Credit Tables". Its cover carries the date Aug 28, 2026 (the PDF was created that day and modified 2026-09-16), and IRS.gov/DraftForms lists it as posted 09/16/2026. Every page is marked as a draft.
-- No final 2026 Instructions for Form 1040. The address `irs.gov/pub/irs-pdf/i1040gi.pdf` still serves the 2025 instructions, and `irs.gov/pub/irs-dft/i1040gi--dft.pdf` holds the 2025 instructions' own draft cover.
+- **The final table.** On 2026-10-10, IRS.gov's listing of current forms and publications gives Publication 1040 at its 2025 revision, and the address `irs.gov/pub/irs-pdf/i1040gi.pdf` serves the 2025 Instructions for Form 1040. The address `irs.gov/pub/irs-dft/i1040gi--dft.pdf` holds the 2025 instructions' own draft cover.
+
+<!-- source: irs_forms_p1040.txt -->
+> Publication 1040 Tax and Earned Income Credit Tables 2025 01/15/2026
+
+- **The draft.** The earliest 2026 table found is the IRS's early release draft of Publication 1040 (2026), "Tax and Earned Income Credit Tables". Its cover carries the date Aug 28, 2026 (the PDF was created that day and modified 2026-09-16), and IRS.gov/DraftForms lists it as posted 09/16/2026. Every page is marked as a draft.
+- **The draft listing before the freeze.** The Internet Archive holds copies of IRS.gov's draft listing, which shows 25 drafts to a page with the newest posting first. Fourteen copies captured from 2026-05-20 to 2026-07-03, the last at 08:09 UTC on the freeze day, show 251 distinct drafts posted from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table. Four copies captured from 2026-07-24 to 2026-09-10 show none either. `draft_listing_history.json` has each capture's address, sha256 and range of posting dates.
+
+What the search does not cover: a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since. The listing shows a draft once, at its latest posting.
 
 <!-- source: p1040_dft.raw.txt -->
 > Caution: DRAFT—NOT FOR FILING
@@ -176,4 +221,4 @@ The draft keeps the $100,000 ceiling: its 2026 Tax Computation Worksheet begins 
 
 ## What no document read states
 
-None of the documents above says how the IRS computes a Tax Table amount: the word "midpoint" appears in none of the 2025 instructions, either Publication 1040, the Schedule D instructions, Form 1040-ES or either revenue procedure, and "middle" appears only as "middle initial" on Form 1040-ES's payment vouchers. Section 3(a)(1) requires only that the amounts be "computed on the basis of the rates prescribed by section 1". The rule in `scripts/tax_table.py` (the tax on the band's midpoint, rounded to a dollar, a half rounding up) is inferred, and it reproduces all 8,248 amounts of the 2025 table and all 8,248 of the 2026 draft.
+None of the documents above was found to say how the IRS computes a Tax Table amount. The line 16 instructions, the Tax Table's heading, example and footnote, and the Tax Computation Worksheet were read, and every extraction was searched for "midpoint", "mid-point" and "middle": the 2025 instructions, both Publications 1040, the Schedule D instructions, Form 1040-ES and both revenue procedures. The only hits are "middle initial" on Form 1040-ES's payment vouchers. A description in other words, somewhere unread, would not have been caught. Section 3(a)(1) requires only that the amounts be "computed on the basis of the rates prescribed by section 1". The rule in `scripts/tax_table.py` (the tax on the band's midpoint, rounded to a dollar, a half rounding up) is inferred, and it reproduces all 8,248 amounts of the 2025 table and all 8,248 of the 2026 draft.

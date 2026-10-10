@@ -100,13 +100,18 @@
       "max_abs_delta": 0.0048828125
     }
   },
-  "whole_dollar_variant_differs_from_table": [
-    {
-      "scenario_id": "scenario_042",
-      "variable": "federal_income_tax_before_refundable_credits",
-      "table": 2359.0,
-      "table_whole_dollar": 2365.0
-    }
-  ],
+  "look_up_rounding_sensitivity": {
+    "outputs_differing_from_table": 13,
+    "max_abs_difference_at_100000_or_more": 0.140625,
+    "differing_by_more_than_1": [
+      {
+        "scenario_id": "scenario_042",
+        "variable": "federal_income_tax_before_refundable_credits",
+        "scored": true,
+        "table": 2359.0,
+        "table_whole_dollar": 2365.0
+      }
+    ]
+  },
   "foreign_earned_income_exclusion_households": 0
 }

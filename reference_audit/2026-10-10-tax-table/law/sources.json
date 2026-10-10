@@ -283,6 +283,57 @@
         "sha256": "fa2c8e6bfca46112e2d00946783807212f0b86b1760f7c9f22b7dba8947d079b",
         "bytes": 14656
       }
+    },
+    {
+      "document": "IRS.gov forms, instructions and publications listing, search 'Publication 1040'",
+      "used_for": "the current final Publication 1040 is the 2025 revision",
+      "saved_from": "https://www.irs.gov/forms-instructions-and-publications?find=Publication+1040&items_per_page=200",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "irs_forms_p1040.html",
+        "sha256": "607e753cc6fc79488ba46a531d0aaa6ee11f569cb4ea32f862d61d345e435f2e",
+        "bytes": 107799
+      },
+      "extraction": {
+        "name": "irs_forms_p1040.txt",
+        "made_with": "tags stripped",
+        "sha256": "3312a704fc9d750da4d67a542ee0896f7ff9bec1c0f3361bf96e75f01701c3c1",
+        "bytes": 6753
+      }
+    },
+    {
+      "document": "IRS.gov forms, instructions and publications listing, search '1040-ES'",
+      "used_for": "the date the 2026 Form 1040-ES was posted",
+      "saved_from": "https://www.irs.gov/forms-instructions-and-publications?find=1040-ES&items_per_page=200",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "irs_forms_1040es.html",
+        "sha256": "b1878cc60aaa729d17e857295c5239ca17c2b023f878761c667fad45f8c792fe",
+        "bytes": 106169
+      },
+      "extraction": {
+        "name": "irs_forms_1040es.txt",
+        "made_with": "tags stripped",
+        "sha256": "e9c27ea733b562070ce4fec309a184cd2c542ecf06971b6af45c7c990cfff023",
+        "bytes": 6381
+      }
+    },
+    {
+      "document": "IRS news release IR-2025-103",
+      "used_for": "the date the IRS announced Rev. Proc. 2025-32",
+      "saved_from": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "read_on": "2026-10-10",
+      "saved_file": {
+        "name": "irs_news_2026_adjustments.html",
+        "sha256": "00ec0e0fe1cb0f6a85000b7d9a3f8da6c9d918d4366869d35bd41e6ce3586046",
+        "bytes": 106175
+      },
+      "extraction": {
+        "name": "irs_news_2026_adjustments.txt",
+        "made_with": "tags stripped",
+        "sha256": "c19fcdb30b477fc945ffbae468e734bde4cce1d4b799fad8cdc884bca928bbaf",
+        "bytes": 12331
+      }
     }
   ]
 }

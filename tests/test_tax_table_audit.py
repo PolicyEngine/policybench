@@ -68,7 +68,8 @@ statuses = st.sampled_from(T.STATUSES)
 years = st.sampled_from(YEARS)
 # Amounts in cents up to $2,000,000. Dollars and cents are drawn apart because
 # Hypothesis draws an integer range wider than 24 bits mostly from its small
-# end: drawn as cents, 8 runs in 40 never reached the 37 percent bracket.
+# end: drawn as cents, 13 of 40 seeded runs missed a wrong top rate
+# (scripts/top_rate_detection.py, verification/top_rate_detection.json).
 wide_cents = st.builds(
     lambda dollars, cents: 100 * dollars + cents,
     st.integers(min_value=0, max_value=2_000_000),
@@ -503,8 +504,9 @@ def test_the_sweep_baseline_is_the_release_reference():
 
 
 def test_the_recorded_returns_follow_the_construction():
-    """Each return's tax at the ordinary rates, as the engine computed it under
-    the schedule and under the table, against scripts/tax_table.py."""
+    """Each return's two look-ups (the amount taxed at the ordinary rates, and
+    all taxable income), as the engine computed them under the schedule and
+    under the table, against scripts/tax_table.py."""
     units = _units()
     assert (units.groupby(["system", "scenario_id"]).size() == 1).all()
     base = units[units.system == "baseline"].set_index("scenario_id")
@@ -530,6 +532,29 @@ def test_the_recorded_returns_follow_the_construction():
             looked_up += amount > 0
         else:
             assert under_table == unit.income_tax_main_rates
+        # The second look-up: the tax on all taxable income, which caps the
+        # regular tax of a return with capital gains (worksheet lines 24, 46).
+        total = float(max(np.float32(0), np.float32(unit.taxable_income)))
+        on_all = unit.tax_on_taxable_income_at_main_rates
+        assert on_all == pytest.approx(T.schedule_tax(total, column, YEAR), abs=0.05)
+        on_all_table = table.loc[scenario_id].tax_on_taxable_income_at_main_rates
+        if 0 <= total < T.CEILING:
+            assert on_all_table == T.table_tax(total, column, YEAR)
+        else:
+            assert on_all_table == on_all
+        # The regular tax is the first look-up plus the capped tax on the gains.
+        for system, row in (("schedule", unit), ("table", table.loc[scenario_id])):
+            capped = min(
+                row.capital_gains_tax,
+                max(
+                    0.0,
+                    row.tax_on_taxable_income_at_main_rates - row.income_tax_main_rates,
+                ),
+            )
+            assert row.capital_gains_tax == pytest.approx(capped, abs=1e-6), system
+            assert row.regular_tax_before_credits == pytest.approx(
+                row.income_tax_main_rates + row.capital_gains_tax, abs=0.01
+            )
     assert looked_up == 38
 
 
@@ -571,10 +596,42 @@ def test_the_recorded_counts_follow_from_the_recorded_cells():
         == 21
     )
     assert (scored.differs_beyond_1 == (scored.difference.abs() > 1)).all()
+    # The classes follow from each return's taxable income, and the counts
+    # from the classes.
+    classes = cells.taxable_income.map(
+        lambda income: (
+            "zero"
+            if income <= 0
+            else "under_100000"
+            if income < T.CEILING
+            else "100000_or_more"
+        )
+    )
+    assert (cells.taxable_income_class == classes).all()
+    assert (
+        summary["scored_by_taxable_income"]
+        == classes[cells.scored].value_counts().to_dict()
+    )
+    assert summary["all_by_taxable_income"] == classes.value_counts().to_dict()
     assert summary["scored_by_taxable_income"] == {
         "zero": 45,
         "under_100000": 33,
         "100000_or_more": 6,
+    }
+    rounding = summary["look_up_rounding_sensitivity"]
+    differs = (scored.constructed_table_value - scored.table_whole_dollar_value).abs()
+    assert rounding["scored_changed_by_any_amount"] == int((differs > 1e-6).sum())
+    assert [row["scenario_id"] for row in rounding["scored_moved_by_more_than_1"]] == (
+        list(scored.scenario_id[differs > 1])
+    )
+    assert rounding["scored_moved_by_more_than_1"] == [
+        {"scenario_id": "scenario_042", "table": 2359.0, "table_whole_dollar": 2365.0}
+    ]
+    small = _impact()["answers_on_scored_outputs_changed_by_1_or_less"]
+    assert small == {
+        "outputs": 9,
+        "rows": 423,
+        "exact_differs_between_the_two_values": 0,
     }
     assert summary["scored_itemizers_where_table_applies"] == 0
     assert changed.difference.min() == pytest.approx(-2.9648, abs=1e-3)
@@ -681,7 +738,7 @@ def test_the_law_record_was_checked_against_the_documents():
     check = json.loads((AUDIT / "law/excerpts_check.json").read_text())
     quotes = law.excerpts()
     assert check["all_checks_pass"] is True
-    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 32
+    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 41
     assert check["excerpts_not_found"] == []
     assert all(check["rate_tables_equal_to_tax_table_py"].values())
     assert len(check["rate_tables_equal_to_tax_table_py"]) == 8
@@ -694,6 +751,114 @@ def test_the_law_record_was_checked_against_the_documents():
         assert table["parse_equals_committed_csv"] is True
         assert table["amounts"] == table["amounts_equal_to_constructed_table"] == 8248
     assert not any(check["occurrences_of_midpoint_or_middle"].values())
+
+
+class _Statuses:
+    """A filing status array, as the engine hands one to a formula."""
+
+    def __init__(self, names):
+        self.names = names
+
+    def decode_to_str(self):
+        return np.array(self.names)
+
+
+class _Period:
+    def __init__(self, year):
+        self.start = type("Start", (), {"year": year})()
+
+
+def test_the_look_up_rounding_variant_crosses_the_ceiling_onto_the_worksheet():
+    """The sweep's look-up: the table under the ceiling; with the amount
+    rounded to a whole dollar, an amount that rounds up to $100,000 takes the
+    worksheet on $100,000, not the schedule tax on the unrounded amount."""
+    sweep = _script("sweep_tax_table")
+    amounts = np.array([99_999.40, 99_999.60, 21_749.71, 0.0, 150_000.25])
+    statuses = _Statuses(["SINGLE", "SINGLE", "SINGLE", "JOINT", "SURVIVING_SPOUSE"])
+    columns = ["single", "single", "single", "joint", "joint"]
+    schedule = np.array(
+        [T.schedule_tax(a, c, YEAR) for a, c in zip(amounts, columns, strict=True)]
+    )
+    args = (amounts, statuses, schedule, _Period(YEAR))
+    plain = sweep.look_up("table")(*args)
+    assert list(plain) == [
+        T.table_tax(99_999.40, "single", YEAR),
+        T.table_tax(99_999.60, "single", YEAR),
+        2359,
+        0,
+        schedule[4],
+    ]
+    rounded = sweep.look_up("table_whole_dollar")(*args)
+    assert rounded[0] == T.table_tax(99_999, "single", YEAR)
+    assert rounded[1] == T.schedule_tax(100_000, "single", YEAR)
+    assert rounded[1] != schedule[1] and rounded[1] != plain[1]
+    assert rounded[2] == 2365
+    assert rounded[3] == 0
+    assert rounded[4] == T.schedule_tax(150_000, "joint", YEAR)
+    # The copied formulas, and every other year, keep the schedule.
+    assert list(sweep.look_up("schedule_copy")(*args)) == list(schedule)
+    for variant in ("table", "table_whole_dollar"):
+        other_year = sweep.look_up(variant)(amounts, statuses, schedule, _Period(2025))
+        assert list(other_year) == list(schedule)
+
+
+def test_no_tax_table_draft_is_in_the_archived_listings_before_the_freeze():
+    """What the search behind "none found" covers, and that it found none."""
+    law = _script("law_sources")
+    history = json.loads((AUDIT / "law/draft_listing_history.json").read_text())
+    captures = history["captures"]
+    before = [c for c in captures if c["before_freeze"]]
+    assert history["freeze"] == "2026-07-03"
+    assert len(captures) == len(law.ARCHIVED_LISTINGS) == 18
+    assert history["captures_on_or_before_freeze"] == len(before) == 14
+    assert all(c["captured_utc"][:10] <= "2026-07-03" for c in before)
+    assert max(c["captured_utc"] for c in before) == "2026-07-03T08:09Z"
+    assert all(c["rows"] == 25 and not c["tax_table_products"] for c in captures)
+    assert history["tax_table_products_listed_on_or_before_freeze"] == []
+    assert history["tax_table_products_listed_in_later_captures"] == []
+    assert history["posting_dates_covered_on_or_before_freeze"] == law.merge(
+        [(c["first_posted"], c["last_posted"]) for c in before]
+    )
+    # One day in the period is on no archived page.
+    assert history["posting_dates_covered_on_or_before_freeze"] == [
+        ["2026-03-23", "2026-06-08"],
+        ["2026-06-10", "2026-07-01"],
+    ]
+    assert history["distinct_rows_seen_on_or_before_freeze"] == 251
+    today = {
+        row["product"]: row for row in history["tax_table_products_listed_on_read_date"]
+    }
+    assert today["Publication 1040"]["revision"] == "2026"
+    assert today["Publication 1040"]["posted"] == "2026-09-16"
+    assert today["Instruction 1040"]["revision"] == "2025"
+    # Ranges join when one starts the day after another ends, and not otherwise.
+    assert law.merge([("2026-05-14", "2026-05-19"), ("2026-05-05", "2026-05-13")]) == [
+        ["2026-05-05", "2026-05-19"]
+    ]
+    assert law.merge([("2026-06-10", "2026-06-17"), ("2026-06-03", "2026-06-08")]) == [
+        ["2026-06-03", "2026-06-08"],
+        ["2026-06-10", "2026-06-17"],
+    ]
+    assert law.is_tax_table_product(
+        {"product": "Publication 1040", "title": "", "revision": "", "posted": ""}
+    )
+    assert not law.is_tax_table_product(
+        {
+            "product": "Form 8615",
+            "title": "Tax for Certain Children",
+            "revision": "",
+            "posted": "",
+        }
+    )
+
+
+def test_the_income_generator_reaches_the_top_bracket():
+    """The recorded experiment behind the wide generator above."""
+    record = json.loads((VERIFICATION / "top_rate_detection.json").read_text())
+    missed = record["runs_that_missed_the_fault"]
+    assert record["runs_per_generator"] == 40
+    assert missed["cents"] > 0
+    assert missed["dollars_and_cents"] == 0
 
 
 def test_the_state_record_counts_the_release_references():

@@ -1,7 +1,7 @@
 {
   "read_on": "2026-10-10",
-  "excerpts": 32,
-  "excerpts_found": 32,
+  "excerpts": 41,
+  "excerpts_found": 41,
   "excerpts_not_found": [],
   "by_source": {
     "ecfr_1.3-1.txt": 1,
@@ -10,9 +10,12 @@
     "govinfo_usc26_3.txt": 5,
     "govinfo_usc26_4.txt": 1,
     "govinfo_usc26_6102.txt": 2,
-    "i1040gi.raw.txt": 8,
+    "i1040gi.raw.txt": 14,
     "i1040sd.raw.txt": 2,
     "irs_drafts_1040.txt": 1,
+    "irs_forms_1040es.txt": 1,
+    "irs_forms_p1040.txt": 1,
+    "irs_news_2026_adjustments.txt": 1,
     "p1040_dft.raw.txt": 4,
     "plaw119-21.txt": 1,
     "rp-25-32.raw.txt": 2
@@ -55,5 +58,6 @@
     "rp-24-40.raw.txt": 0
   },
   "pub_l_119_21_amends_section_3": false,
+  "tax_table_drafts_listed_on_or_before_freeze": 0,
   "all_checks_pass": true
 }

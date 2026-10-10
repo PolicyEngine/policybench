@@ -6,40 +6,62 @@ Release audited: dashboard-data-20261010 (commit 5a8164a0), 47 models, reference
 
 ## Findings
 
-- **The law.** The Tax Table is the tax the statute imposes, in place of the schedule tax, on a filer who does not itemize and is under the ceiling (26 U.S.C. 3(a)(1)). The same paragraph requires its amounts to be "computed on the basis of the rates prescribed by section 1". The instructions set the ceiling at $100,000 and apply the table to every filer and every look-up under it, including the two inside each capital gain worksheet.
-- **2026.** No 2026 Tax Table existed when PolicyBench froze its references on 2026-07-03. The 2026 rate schedule did (Rev. Proc. 2025-32), and the IRS's own 2026 form published before the freeze, Form 1040-ES, computes tax from the schedule. The IRS posted an early release draft of the 2026 table on 2026-09-16. The final table is not published.
-- **The construction.** No document read says how the IRS fills the table. The rule inferred here (the schedule's tax on the band's midpoint, rounded to a dollar, a half rounding up) reproduces all 8,248 amounts of the published 2025 table and all 8,248 of the 2026 draft. Values built with it are labelled constructed.
+- **The law.** The Tax Table is the tax the statute imposes, in place of the schedule tax, on a filer who does not itemize and is under the ceiling (26 U.S.C. 3(a)(1)). The same paragraph requires its amounts to be "computed on the basis of the rates prescribed by section 1". The instructions set the ceiling at $100,000 and send line 16 and the capital gain worksheets' look-ups to the table under it, for itemizers too.
+- **2026.** No 2026 Tax Table dated or posted before the 2026-07-03 freeze was found. The earliest found is the IRS's early release draft, dated Aug 28, 2026 and posted 09/16/2026. Archived copies of the IRS's draft listing up to the freeze day show none, though they do not cover every day. The final table is not published. The 2026 rate schedule was announced on October 9, 2025 (Rev. Proc. 2025-32).
+- **The construction.** No document read says how the IRS fills the table. The rule inferred here (the schedule's tax on the band's midpoint, rounded to a dollar, a half rounding up) reproduces all 8,248 amounts of the published 2025 table and all 8,248 of the 2026 draft. Values built with it are labelled constructed: they equal the IRS's draft, and the IRS has published no final 2026 table.
 - **The engine.** policyengine-us 2.38.6 has no Tax Table logic. It applies the schedule in two variables, `income_tax_main_rates` and `tax_on_taxable_income_at_main_rates`.
 - **What moves.** Of the 84 scored federal income tax references, the table changes 30 and moves 21 by more than the $1 tolerance, by -$2.96 to +$3.97. It also moves two scored federal refundable credit references. No scored state output changes.
-- **What models answer.** On the 21 moved cells, 173 of 987 answers are within $1 of the schedule value and 18 within $1 of the table value; 16 of those 18 are within $1 of both. Two answers match the table alone, and neither model says it used a table. Of 4,700 federal income tax explanations, 6 use the words "tax table", and none of those six answers is within $1 of either value.
+- **What models answer.** On the 21 moved cells, 173 of 987 answers are within $1 of the schedule value and 18 within $1 of the table value; 16 of those 18 are within $1 of both. Two answers match the table alone, and neither explanation mentions a table. Of 4,700 federal income tax explanations, 6 use the words "tax table", and none of those six answers is within $1 of either value.
 - **Scores.** Accepting either value raises two models' exact rates by 0.21 and 0.23 points and swaps ranks 35 and 36. Moving the references to table values lowers 21 models by up to 3.25 points and changes 17 ranks.
+
+## The decision is what the output means
+
+The evidence settles what a return shows and what the references compute. It does not settle which of the two the benchmark's output is. Three readings are open:
+
+1. **The tax on the return.** The amount a filed 2026 return shows. For a return under $100,000 that is the table amount, so 21 scored federal references and 2 scored refundable credit references are off by more than $1. Option (c) follows, or (b) while the IRS's 2026 table is a draft.
+2. **The tax computed from the section 1 rates, to the cent.** The references are right as they stand, and the definition has to be stated. Option (a) follows.
+3. **What a careful reader could compute from law published before the freeze.** Both values are defensible, and (b) or exclusion follows.
 
 ## Recommendation
 
-Keep the rate schedule, and state the convention in the benchmark card, the paper and the v2 prompt (PolicyEngine/policybench#165).
+Reading 2: keep the rate schedule, and state the definition in the benchmark card, the paper and the v2 prompt (PolicyEngine/policybench#165). These are judgments about what the benchmark should measure. They are not findings of law.
 
-1. Under the benchmark's own rule (law published before the freeze), the schedule is the 2026 computation the IRS had published, in Rev. Proc. 2025-32 and Form 1040-ES. The table had not been, and the statute ties its amounts to the schedule's rates.
-2. The models already answer on the schedule. Table references would mark the leading models wrong on cells they compute correctly from the published rates: GPT-6 Sol would fall from 95.58% to 92.33%.
-3. The table convention has a loose end of its own. A filer may round the return to whole dollars, and rounding the looked-up amount moves scenario_042 into the next band ($2,365 against $2,359).
-4. Once the prompt states the convention, nothing is left for a careful reader to take two ways.
+1. The schedule needs no convention beyond the published rates. The table adds three: its bands, the midpoint rule, which no document read states, and whether the looked-up amount is rounded. The earliest 2026 table found postdates the freeze and is a draft.
+2. PolicyBench's amounts are computations to the cent, with a $1 tolerance. A return is not one: the filer may round every amount on it to whole dollars.
+3. It changes no score.
 
-Accepting either value is the fallback if the current release should not mark the form's own line 16 amount wrong. It costs one rank swap, and it needs a second accepted value per output in both scorers and the payload. A flip condition worth recording with the ruling: move to accepting either value if a model on a later board matches the table value alone on three or more of these 21 cells. The most any model matches today is one.
+Its cost should be stated with it. On the current release the prompt does not say which computation is wanted, the instruction to use the table is mandatory for these returns, and an answer that follows it is scored a miss on 21 federal cells. Two answers are within $1 of the table value alone today.
+
+How the models answer shows which reading the current prompt draws out. It does not show which reading is correct. 173 of the 987 answers on the 21 cells match the schedule value, and 2 match the table value alone.
+
+The case for each other option:
+
+- **(b) Accept either value.** The current prompt leaves the convention open, and a reader who follows the form's instructions gives the table value. Accepting both marks neither reading wrong, whether or not any model gives the table value today. It needs a second accepted value in both scorers and the payload. Two models' rates rise, and ranks 35 and 36 swap.
+- **(c) Table values.** If the output is the return's tax, section 3 and the instructions are the strongest ground there is, and the constructed values equal the IRS's draft in every amount. It rests on a draft and on a rule inferred from the tables, it needs a ruling on rounding, and it lowers 21 models' rates by up to 3.25 points.
+- **Exclusion.** PolicyBench's usual treatment of a reference a careful reader could take two ways. It removes the 23 outputs the table moves by more than $1. It leaves the 9 the table changes by less, on which no answer's exact match differs between the two values. Every model's rate rises, and 24 ranks change.
+
+If the schedule is kept, one thing is worth watching on later boards. A model whose answers match the table value alone on several of these cells is reading the question as the return's tax. The most any model has today is one.
 
 ## The law
 
-Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 32 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
+Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 41 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
 
 - **26 U.S.C. 3(a)(1).** "In lieu of the tax imposed by section 1", a tax "determined under tables ... prescribed by the Secretary" is imposed on an individual who does not itemize and whose taxable income does not exceed the ceiling amount. Section 3(a)(2) lets the Secretary set the ceiling, at $20,000 or more. Section 3(a)(3) lets the Secretary extend the table to itemizers. Section 3(c) treats the table tax as tax imposed by section 1. The section was last amended in 1986. Pub. L. 119-21 does not touch it.
-- **The instructions.** The 2025 Instructions for Form 1040, line 16: "If your taxable income is less than $100,000, you must use the Tax Table". At $100,000 or more the Tax Computation Worksheet applies, which is the schedule exactly. The instruction does not distinguish itemizers.
-- **The worksheets.** The Qualified Dividends and Capital Gain Tax Worksheet looks up two amounts (lines 22 and 24), and the Schedule D Tax Worksheet two (lines 44 and 46). Each look-up uses the Tax Table when its amount is under $100,000.
-- **Rounding.** Whole-dollar amounts are the filer's option (26 U.S.C. 6102(b); "You can round off cents to whole dollars").
-- **The regulation.** 26 CFR 1.3-1 still describes the elective table of 1970 and says nothing about today's.
-- **2026 rates.** Rev. Proc. 2025-32, section 4.01 (PDF dated 2025-10-17), gives the 2026 rate tables under section 1(j)(2). Pub. L. 119-21, section 70101, removed that subsection's 2025 end date. The 2026 Form 1040-ES (PDF dated 2026-02-12) tells filers to "Figure your tax ... by using the 2026 Tax Rate Schedules".
-- **The 2026 table.** The earliest one found is the IRS's early release draft of Publication 1040 (2026). Its cover is dated Aug 28, 2026, IRS.gov lists it as posted 09/16/2026, and every page is marked "DRAFT—NOT FOR FILING". It keeps the $100,000 ceiling. The final 2026 instructions are not published: `irs.gov/pub/irs-pdf/i1040gi.pdf` still serves the 2025 instructions.
+- **The instructions.** The 2025 Instructions for Form 1040, line 16: "If your taxable income is less than $100,000, you must use the Tax Table". At $100,000 or more the Tax Computation Worksheet applies, which is the schedule exactly. The instruction does not distinguish itemizers. Five other methods replace it for some returns: Form 8615, the Schedule D Tax Worksheet, the Qualified Dividends and Capital Gain Tax Worksheet, Schedule J and the Foreign Earned Income Tax Worksheet.
+- **The worksheets.** The Qualified Dividends and Capital Gain Tax Worksheet looks up two amounts (lines 22 and 24), the Schedule D Tax Worksheet two (lines 44 and 46), and the Foreign Earned Income Tax Worksheet's line 5 one more. Each look-up uses the Tax Table when its amount is under $100,000. Form 8615 and Schedule J were not read.
+- **Rounding.** Whole-dollar amounts are the filer's option (26 U.S.C. 6102(b); "You can round off cents to whole dollars"). A filer who rounds must round every amount.
+- **The regulation.** 26 CFR 1.3-1 still describes the elective table of the early 1970s and says nothing about today's.
+- **2026 rates.** Rev. Proc. 2025-32, section 4.01, gives the 2026 rate tables under section 1(j)(2). The IRS announced it on October 9, 2025 (IR-2025-103). Pub. L. 119-21, section 70101, removed that subsection's 2025 end date. The 2026 Form 1040-ES, which IRS.gov lists as posted 02/13/2026, figures estimated tax "by using the 2026 Tax Rate Schedules". It is a form for estimated payments and does not settle the tax on a return.
+- **The 2026 table.** None dated or posted before the freeze was found. What the search covered:
+  - On 2026-10-10, IRS.gov lists Publication 1040 at its 2025 revision (posted 01/15/2026), and `irs.gov/pub/irs-pdf/i1040gi.pdf` serves the 2025 instructions. So no final 2026 table is published.
+  - The earliest 2026 table found is the IRS's early release draft of Publication 1040 (2026). Its cover is dated Aug 28, 2026, IRS.gov lists it as posted 09/16/2026, and every page is marked "DRAFT—NOT FOR FILING". It keeps the $100,000 ceiling.
+  - The Internet Archive holds 14 copies of pages of the IRS's draft listing captured from 2026-05-20 to 08:09 UTC on 2026-07-03. They show 251 drafts posted from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table (`law/draft_listing_history.json`).
 
-So the table is the law's tax for a non-itemizer under the ceiling, and the instructions' rule for everyone under it. No scored reference turns on the itemizer question: none of the 33 scored returns the table applies to itemizes.
+  The search does not cover a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since.
 
-PolicyBench's rule is that a scored reference follows from law published before the freeze. The 2026 table is prescribed each year by the Secretary and was not published by then. Its amounts are a function of rates that were.
+So the table is the law's tax for a non-itemizer under the ceiling, and the instructions' rule for line 16 and the worksheet look-ups of any return under it. No scored reference turns on the itemizer question: none of the 33 scored returns the table applies to itemizes.
+
+PolicyBench's rule is that a scored reference follows from law published before the freeze. No 2026 table from before the freeze was found, and its amounts are a function of rates that were published by then. Whether that makes the schedule or the table the answer under the rule is part of the decision.
 
 ## The engine
 
@@ -49,9 +71,10 @@ Read in policyengine-us 2.38.6 as installed from `uv.lock`.
 - `income_tax_main_rates` applies it to taxable income less the gains and dividends taxed at capital gain rates. That is line 16 for a return without them, and line 22 or 44 of the worksheets.
 - `tax_on_taxable_income_at_main_rates` applies it to all taxable income (lines 24 and 46). `capital_gains_tax` caps the tax on the gains at the difference.
 - `regular_tax_before_credits` adds `income_tax_main_rates` and `capital_gains_tax`.
-- The words "tax table" appear in the federal income tax code once, in a docstring. No formula looks anything up.
+- The words "tax table" appear in the federal income tax code once, in a variable's documentation text. No formula looks anything up.
+- The engine has no Form 8615 tax and no Schedule J income averaging: no file under its federal variables or parameters names Form 8615, Schedule J or income averaging. (Its alternative minimum tax exemption has a rule for children subject to the kiddie tax, which is a different computation.) It does model the foreign earned income exclusion, which no benchmark household claims.
 
-The sweep checks that the engine's 2026 brackets equal Rev. Proc. 2025-32's.
+The sweep checks that the engine's 2026 brackets equal Rev. Proc. 2025-32's. It covers the computations the engine represents, not every method a return could use.
 
 ## Method
 
@@ -59,7 +82,7 @@ The sweep checks that the engine's 2026 brackets equal Rev. Proc. 2025-32's.
 2. **Sweep.** `scripts/sweep_tax_table.py` recomputes all 1,984 outputs for the 100 households on the release's reference system: policyengine-us 2.38.6 with the pre-freeze conventions and the Maryland adapter, through the reference builder's own `compute_outputs`. Its baseline reproduces all 1,926 scored references. It then reruns every household with the two formulas above copied and their look-up swapped:
    - `schedule_copy`: the look-up left as the schedule. Every output is bit-identical to the baseline, so the copies are the engine's formulas.
    - `table`: the constructed 2026 table for an amount under $100,000.
-   - `table_whole_dollar`: the same, with the amount rounded to a whole dollar first.
+   - `table_whole_dollar`: a sensitivity. The same, with each looked-up amount rounded to a whole dollar first, and the worksheet applied to the rounded amount at $100,000 or more. Nothing else on the return is rounded.
 
    Everything downstream is the engine's: the capital gain cap, the alternative minimum tax, the limit on nonrefundable credits, the refundable credits and each state's tax. Outputs: `verification/sweep_tax_table.csv`, `tax_units.csv` and `sweep_summary.json`.
 3. **Score.** `scripts/leaderboard_impact.py` scores the frozen run, read from git at the release commit, under the conventions below. Outputs: `verification/federal_cells.csv`, `model_answers.csv`, `model_counts.csv`, `leaderboard_impact_models.csv` and `leaderboard_impact.json`.
@@ -126,9 +149,9 @@ In the first three the regular tax rises under the table, nonrefundable credits 
 
 In all, the table changes 32 scored outputs (30 federal income tax, 2 refundable credits) and moves 23 of them by more than $1.
 
-### Rounding the looked-up amount
+### Rounding the looked-up amount: a sensitivity
 
-A filer who rounds the return looks up a whole-dollar amount. That changes one output in the sweep. scenario_042's amount is $21,749.71, which rounds to $21,750 and into the next band: $2,365 against $2,359. So the table convention is itself two conventions on that cell, $6 apart.
+A filer who rounds the return looks up a whole-dollar amount. The sweep's `table_whole_dollar` variant rounds only that amount, so it is a sensitivity of the look-up and not a whole-dollar return, which rounds every amount. It moves one scored reference by more than $1. scenario_042's amount is $21,749.71, which rounds to $21,750 and into the next band: $2,365 against $2,359. Five scored references with $100,000 or more of taxable income change by at most 14 cents, because the worksheet is applied to the rounded amount. So the table convention is itself two conventions on scenario_042, $6 apart.
 
 ## What the models answered
 
@@ -144,7 +167,7 @@ On the 21 scored federal cells that move by more than $1, each of the 47 models 
 - The two table-only answers are DeepSeek V4 Pro's $1,351.00 on scenario_091, $1.0012 from the schedule value, and Claude Opus 5.5's $9,578.20 on scenario_082. Neither explanation mentions a table.
 - 21 models have at least one schedule-only match (GPT-6 Sol 16, Kimi K3 14). 25 models match neither value on any of the 21 cells.
 - 626 of the 987 answers are whole dollars.
-- Of all 4,700 federal income tax explanations in the release, 6 contain "tax table", from three models. Five use it for the bracket schedule ("2026 HoH tax tables: 10% up to $20,550"). The sixth, Claude Sonnet 5's on scenario_000, cites "slight rounding to standard IRS tax tables" for an answer $298 from either value. None of the six answers is within $1 of either value.
+- Of all 4,700 federal income tax explanations in the release, 6 contain "tax table", from three models. Four are Claude Haiku 4.5's, two of which go on to list bracket thresholds ("2026 HoH tax tables: 10% up to $20,550"). Gemini 3.1 Flash Lite Preview's says "Calculated based on 2026 tax tables" and gives no method. Claude Sonnet 5's, on scenario_000, cites "slight rounding to standard IRS tax tables" for an answer of $3,204, about $298 from the schedule value and $299 from the table value. None of the six answers is within $1 of either value.
 
 `verification/model_answers.csv` has every answer on the 32 changed outputs and `model_counts.csv` the count for each model.
 
@@ -161,7 +184,7 @@ The headline is the household-equal, population-weighted exact rate. From `verif
 
 - **(b) Either.** Claude Opus 5.5 rises from 94.41% to 94.64% and DeepSeek V4 Pro from 79.69% to 79.90%, which takes it past Gemini 3.1 Flash Lite Preview for 35th. No other model's rate changes.
 - **(c) Table.** The 21 models with a schedule match lose 0.20 to 3.25 points. GPT-6 Sol loses the most, Kimi K3 2.86 and Claude Opus 5.5 2.32. DeepSeek V4 Pro gains 0.21. The first eight ranks hold. Grok 4.7, which matches neither value on any of the 21 cells, rises from 14th to 9th. Within-1% rates move by at most 0.21 points and bounded scores by at most 0.003.
-- **Exclusion** is PolicyBench's usual remedy for a reference a careful reader could take two ways, so it is scored for comparison. It removes cells the leading models get right on the schedule, which is why it changes the most ranks.
+- **Exclusion** is PolicyBench's usual remedy for a reference a careful reader could take two ways, so it is scored for comparison. It removes the 23 outputs the table moves by more than $1. Most are cells the leading models match on the schedule, which is why it changes the most ranks. The 9 outputs the table changes by $1 or less stay scored: on all 423 answers to them, the exact match is the same against either value.
 
 The first ten models (all 47 are in `verification/leaderboard_impact_models.csv`):
 
@@ -197,10 +220,12 @@ All 31 scored state income tax references with a nonzero value sit in 21 states.
 
 - **A table is prescribed in 12:** CA, NJ, MD, NY, VA, OK, MN, AL, CT, WI, AR and WV. They hold 16 of the 31 references.
 - **The instructions make it mandatory in 8** (CA, MD, NY, OK, MN, AL, WI and WV), which hold 11. It is optional in VA and CT, and in AR unless the filer itemizes. New Jersey's two sources word it differently.
-- **Ceilings** are $100,000 of taxable income in most. Minnesota's is $86,800, New York's is $65,000 of taxable income with adjusted gross income of $107,650 or less, and Connecticut's is $102,000 of adjusted gross income.
+- **Ceilings** are $100,000 of taxable income in most. Minnesota's is $86,800, New York's is $65,000 of taxable income with adjusted gross income of $107,650 or less, and Connecticut's is $102,000 of adjusted gross income. Virginia's table runs to $98,356.
 - **No table in 9:** NC, IN, AZ, MI, PA and IL tax at a flat rate, GA at a flat rate rounded to the dollar, and OH and ID from a schedule or worksheet.
 
-All 16 references in the table states carry cents, so none is a table amount. The instructions read are for tax year 2025; no state's 2026 table was looked for. Whether any of the 16 moves by more than $1 is the follow-up question, and the answer to the federal question should decide the states' too.
+The documents read are each state's 2025 instructions or forms, with two exceptions: New Jersey's table is labelled 2018 and posted as the current one, and Pennsylvania's rate is from an undated page of its revenue department. No state's 2026 table was looked for.
+
+For the 16 references in the table states, nothing here establishes whether the state's table applies to the return or what it would change. That is the follow-up question, and the answer to the federal question should decide the states' too.
 
 ## Invariants and tests
 
@@ -223,7 +248,9 @@ Differential tests:
 - the independent scorer agrees with the repo's scorer on generated runs with exclusions, missing answers and a second accepted value, and accepting a second value never lowers a rate;
 - the recorded sweep's schedule tax and table tax on each return equal `scripts/tax_table.py`'s, and the recorded rates under (a) equal the published payload's.
 
-`manifest.json` pins every file here and the release's inputs, and a test rebuilds it. `verification/mutants_tax_table.txt` records a mutation run: each of 31 deliberate faults in the construction, the table parser and the independent scorer fails a test. The first run left two standing, a 39% top rate and a parser that read past the table. The random property test missed the first in 8 of 40 seeded runs, because the income generator rarely reached the top bracket. A test of each bracket's printed formula, a generator that reaches every bracket and a parser test with rows after the table now hold both.
+`manifest.json` pins the release's inputs and every file here except this README, the manifest itself and the logs of the test and mutation runs. A test rebuilds it. `verification/mutants_tax_table.txt` records a mutation run: each of 34 deliberate faults in the construction, the table parser, the sweep's look-up and the independent scorer fails a test.
+
+The first mutation run of this audit, which was not kept, left two faults standing: a 39% top rate and a parser that read past the table. `scripts/top_rate_detection.py` reproduces the first. With the income generator the test first used, a random property test misses that fault in 13 of 40 seeded runs, because few draws reach the top bracket; with the generator it uses now, in none (`verification/top_rate_detection.json`). A test of each bracket's printed formula and a parser test with rows after the table now hold both.
 
 ## What each option would take
 
@@ -237,7 +264,7 @@ Related: decision d1252 asks whether to keep scoring scenario_039's federal inco
 
 ## Files
 
-- `law/`: the excerpts, the sources, the excerpt check, both IRS Tax Tables as CSV, and the state claims.
-- `scripts/`: `tax_table.py` (the construction), `parse_irs_tax_table.py`, `law_sources.py`, `release.py` (the frozen run, read from git), `sweep_tax_table.py`, `independent_scorer.py`, `leaderboard_impact.py`, `state_tax_tables.py`, `mutants_tax_table.py` and `build_manifest.py`.
+- `law/`: the excerpts, the sources, the excerpt check, the archived draft listings' record, both IRS Tax Tables as CSV, and the state claims.
+- `scripts/`: `tax_table.py` (the construction), `parse_irs_tax_table.py`, `law_sources.py`, `release.py` (the frozen run, read from git), `sweep_tax_table.py`, `independent_scorer.py`, `leaderboard_impact.py`, `state_tax_tables.py`, `mutants_tax_table.py`, `top_rate_detection.py` and `build_manifest.py`.
 - `verification/`: the sweep, the per-return detail, the cells, the answers, the scores, the state check, and the test and mutation runs.
-- `manifest.json`: the sha256 of every file above and of the release's inputs.
+- `manifest.json`: the sha256 of the release's inputs and of every file above but this README and the two run logs.

@@ -25,9 +25,13 @@ formulas and writes every output under each:
                       which shows the copies are the engine's formulas.
   table               the look-up is the constructed 2026 Tax Table
                       (scripts/tax_table.py) for an amount under $100,000.
-  table_whole_dollar  as table, with the amount rounded to a whole dollar before
-                      the look-up, as a filer who rounds the return would enter
-                      it (26 U.S.C. 6102; "Rounding Off to Whole Dollars").
+  table_whole_dollar  a look-up rounding sensitivity: as table, with each
+                      looked-up amount rounded to a whole dollar first (a half
+                      rounds up). At $100,000 or more the worksheet, which is
+                      the schedule, is applied to the rounded amount. Nothing
+                      else on the return is rounded, so this is not the
+                      instructions' whole-dollar return, which rounds every
+                      amount ("Rounding Off to Whole Dollars").
 
 Everything downstream is the engine's: the capital gain cap, the alternative
 minimum tax, the limit on nonrefundable credits, the refundable credits, and each
@@ -144,12 +148,17 @@ def look_up(variant: str):
             return schedule_tax
         out = schedule_tax.copy()
         names = filing_status.decode_to_str()
+        rounded = variant == "table_whole_dollar"
         for i, value in enumerate(np.asarray(amount, dtype=float)):
-            if variant == "table_whole_dollar":
-                value = float(np.floor(value + 0.5))
+            column = tax_table.COLUMN_FOR_FILING_STATUS[str(names[i])]
+            value = float(np.floor(value + 0.5)) if rounded else float(value)
             if 0 <= value < tax_table.CEILING:
-                column = tax_table.COLUMN_FOR_FILING_STATUS[str(names[i])]
-                out[i] = tax_table.table_tax(float(value), column, YEAR)
+                out[i] = tax_table.table_tax(value, column, YEAR)
+            elif rounded:
+                # The rounded amount is at or over the ceiling: the Tax
+                # Computation Worksheet on that amount, not the schedule tax on
+                # the unrounded one.
+                out[i] = tax_table.schedule_tax(value, column, YEAR)
         return out
 
     return figure
@@ -394,13 +403,24 @@ def main() -> None:
                 "variable"
             )
         },
-        "whole_dollar_variant_differs_from_table": [
-            {"scenario_id": r.scenario_id, "variable": r.variable,
-             "table": r.table, "table_whole_dollar": r.table_whole_dollar}
-            for r in sweep[
-                (sweep["table"] - sweep["table_whole_dollar"]).abs() > 1e-6
-            ].itertuples()
-        ],
+        "look_up_rounding_sensitivity": {
+            "outputs_differing_from_table": int(
+                ((sweep["table"] - sweep["table_whole_dollar"]).abs() > 1e-6).sum()
+            ),
+            "max_abs_difference_at_100000_or_more": float(
+                (sweep["table"] - sweep["table_whole_dollar"])
+                .abs()[sweep["table"] == sweep["baseline"]]
+                .max()
+            ),
+            "differing_by_more_than_1": [
+                {"scenario_id": r.scenario_id, "variable": r.variable,
+                 "scored": bool(r.scored), "table": r.table,
+                 "table_whole_dollar": r.table_whole_dollar}
+                for r in sweep[
+                    (sweep["table"] - sweep["table_whole_dollar"]).abs() > 1
+                ].itertuples()
+            ],
+        },
         "foreign_earned_income_exclusion_households": int(
             (units["foreign_earned_income_exclusion"] != 0).sum()
         ),

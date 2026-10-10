@@ -515,15 +515,28 @@ def main() -> None:
                     & federal_scored["capital_gain_worksheet"]
                 ).sum()
             ),
-            "scored_where_whole_dollar_look_up_differs": [
-                {
-                    "scenario_id": r.scenario_id,
-                    "table": float(r.constructed_table_value),
-                    "table_whole_dollar": float(r.table_whole_dollar_value),
-                }
-                for r in federal_scored.itertuples()
-                if abs(r.constructed_table_value - r.table_whole_dollar_value) > 1e-6
-            ],
+            # Rounding only the looked-up amount to a whole dollar (the sweep's
+            # table_whole_dollar variant), against the table variant.
+            "look_up_rounding_sensitivity": {
+                "scored_changed_by_any_amount": int(
+                    (
+                        (
+                            federal_scored["constructed_table_value"]
+                            - federal_scored["table_whole_dollar_value"]
+                        ).abs()
+                        > 1e-6
+                    ).sum()
+                ),
+                "scored_moved_by_more_than_1": [
+                    {
+                        "scenario_id": r.scenario_id,
+                        "table": float(r.constructed_table_value),
+                        "table_whole_dollar": float(r.table_whole_dollar_value),
+                    }
+                    for r in federal_scored.itertuples()
+                    if abs(r.constructed_table_value - r.table_whole_dollar_value) > 1
+                ],
+            },
             "scored_changed_by_any_amount": int(len(nonzero)),
             "scored_differing_by_more_than_1": int(len(moved)),
             "scored_differing_by_1_or_less": int(len(nonzero) - len(moved)),
@@ -577,6 +590,16 @@ def main() -> None:
                 federal_answers["explanation_mentions_tax_table"].sum()
             ),
             "models_with_a_table_only_match": int((counts["matches_table"] > 0).sum()),
+        },
+        "answers_on_scored_outputs_changed_by_1_or_less": {
+            "outputs": int((~changed["table_moves"]).sum()),
+            "rows": int((~answers["table_moves_beyond_1"]).sum()),
+            "exact_differs_between_the_two_values": int(
+                (
+                    ~answers["table_moves_beyond_1"]
+                    & (answers["within_1_of_schedule"] != answers["within_1_of_table"])
+                ).sum()
+            ),
         },
         "all_federal_answers": {
             "rows": int((predictions["variable"] == FEDERAL).sum()),

@@ -15,7 +15,13 @@ address and sha256). Given the directory they were saved in, this script
    compares thresholds, rates and base amounts with scripts/tax_table.py;
 5. re-parses both Publications 1040 and compares with the committed CSVs;
 6. confirms that no IRS document read uses the word "midpoint" or "middle"
-   (other than "middle initial" on Form 1040-ES's vouchers).
+   (other than "middle initial" on Form 1040-ES's vouchers). A description in
+   other words would not be caught;
+7. reads archived copies of IRS.gov's draft-forms listing (Internet Archive
+   captures from before and after the 2026-07-03 freeze) and writes
+   law/draft_listing_history.json: which posting dates the captures cover, and
+   whether any listed draft is a Publication 1040, the Instructions for Form
+   1040 or a tax table.
 
   python3 -I reference_audit/2026-10-10-tax-table/scripts/law_sources.py \\
     --law-dir ~/reviews/policybench-tax-table-2026-10-10/law
@@ -132,6 +138,48 @@ SOURCES = [
         "saved_from": "https://www.irs.gov/draft-tax-forms?find=1040&items_per_page=200",
         "file": "irs_drafts_1040.html",
     },
+    {
+        "document": "IRS.gov forms, instructions and publications listing, search 'Publication 1040'",
+        "used_for": "the current final Publication 1040 is the 2025 revision",
+        "saved_from": "https://www.irs.gov/forms-instructions-and-publications?find=Publication+1040&items_per_page=200",
+        "file": "irs_forms_p1040.html",
+    },
+    {
+        "document": "IRS.gov forms, instructions and publications listing, search '1040-ES'",
+        "used_for": "the date the 2026 Form 1040-ES was posted",
+        "saved_from": "https://www.irs.gov/forms-instructions-and-publications?find=1040-ES&items_per_page=200",
+        "file": "irs_forms_1040es.html",
+    },
+    {
+        "document": "IRS news release IR-2025-103",
+        "used_for": "the date the IRS announced Rev. Proc. 2025-32",
+        "saved_from": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+        "file": "irs_news_2026_adjustments.html",
+    },
+]
+FREEZE = "2026-07-03"
+LISTING = "https://www.irs.gov/draft-tax-forms"
+# Internet Archive captures of the listing (capture time in UTC, page, saved as).
+# Each page holds 25 drafts, newest posting first; page 0 is the first.
+ARCHIVED_LISTINGS = [
+    ("20260520014706", 0, "wayback/drafts_20260520_p0.html"),
+    ("20260527224622", 0, "wayback/drafts_20260527_p0.html"),
+    ("20260605135701", 0, "wayback/drafts_20260605_p0.html"),
+    ("20260606195555", 0, "wayback/drafts_20260606_p0.html"),
+    ("20260614191000", 1, "wayback/drafts_20260614_p1.html"),
+    ("20260614191329", 2, "wayback/drafts_20260614_p2.html"),
+    ("20260614191635", 3, "wayback/drafts_20260614_p3.html"),
+    ("20260614191701", 4, "wayback/drafts_20260614_p4.html"),
+    ("20260614192542", 6, "wayback/drafts_20260614_p6.html"),
+    ("20260614192754", 7, "wayback/drafts_20260614_p7.html"),
+    ("20260614193027", 8, "wayback/drafts_20260614_p8.html"),
+    ("20260617214824", 0, "wayback/drafts_20260617_p0.html"),
+    ("20260623160616", 0, "wayback/drafts_20260623_p0.html"),
+    ("20260703080914", 0, "wayback/drafts_20260703_p0.html"),
+    ("20260724143117", 0, "wayback/drafts_20260724_p0.html"),
+    ("20260808055206", 0, "wayback/drafts_20260808_p0.html"),
+    ("20260908012431", 0, "wayback/drafts_20260908_p0.html"),
+    ("20260910205726", 0, "wayback/drafts_20260910_p0.html"),
 ]
 IRS_TEXTS = (
     "i1040gi.raw.txt",
@@ -281,6 +329,109 @@ def rate_tables(layout: str, year: int) -> dict:
     return out
 
 
+def listing_rows(page: str) -> list[dict]:
+    """The rows of a draft-forms listing page: product, title, revision, posted."""
+    rows = []
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", page, flags=re.S):
+        cells = [
+            re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", cell))).strip()
+            for cell in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, flags=re.S)
+        ]
+        if len(cells) >= 4 and cells[0] != "Product Number":
+            month, day, year = cells[3].split("/")
+            rows.append(
+                {
+                    "product": cells[0],
+                    "title": cells[1],
+                    "revision": cells[2],
+                    "posted": f"{year}-{month}-{day}",
+                }
+            )
+    return rows
+
+
+def is_tax_table_product(row: dict) -> bool:
+    return (
+        row["product"] in ("Publication 1040", "Instruction 1040")
+        or row["product"].startswith("Instruction 1040 (Tax")
+        or "tax table" in row["title"].lower()
+        or "Tax and Earned Income Credit Tables" in row["title"]
+    )
+
+
+def merge(ranges: list[tuple[str, str]]) -> list[list[str]]:
+    """Posting-date ranges, joined where one starts by the next day after another
+    ends (ISO dates sort as text; adjacency is checked on the calendar)."""
+    from datetime import date, timedelta
+
+    merged: list[list[str]] = []
+    for first, last in sorted(ranges):
+        if merged:
+            end = date.fromisoformat(merged[-1][1])
+            if date.fromisoformat(first) <= end + timedelta(days=1):
+                merged[-1][1] = max(merged[-1][1], last)
+                continue
+        merged.append([first, last])
+    return merged
+
+
+def draft_listing_history(law_dir: Path) -> dict:
+    captures, seen = [], {}
+    for timestamp, page, name in ARCHIVED_LISTINGS:
+        saved = law_dir / name
+        rows = listing_rows(saved.read_text(encoding="utf-8", errors="replace"))
+        if len(rows) != 25:
+            raise SystemExit(f"{name}: expected 25 listing rows, read {len(rows)}")
+        captured = f"{timestamp[:4]}-{timestamp[4:6]}-{timestamp[6:8]}"
+        query = f"?page={page}" if page else ""
+        captures.append(
+            {
+                "captured_utc": f"{captured}T{timestamp[8:10]}:{timestamp[10:12]}Z",
+                "page": page,
+                "address": f"https://web.archive.org/web/{timestamp}id_/{LISTING}{query}",
+                "sha256": sha256(saved.read_bytes()),
+                "rows": len(rows),
+                "first_posted": min(row["posted"] for row in rows),
+                "last_posted": max(row["posted"] for row in rows),
+                "tax_table_products": [row for row in rows if is_tax_table_product(row)],
+                "before_freeze": captured <= FREEZE,
+            }
+        )
+        if captured <= FREEZE:
+            for row in rows:
+                seen[tuple(row.values())] = row
+    before = [c for c in captures if c["before_freeze"]]
+    current = listing_rows(
+        (law_dir / "irs_drafts_1040.html").read_text(encoding="utf-8", errors="replace")
+    )
+    return {
+        "freeze": FREEZE,
+        "listing": LISTING,
+        "note": (
+            "Each capture is one 25-row page of a listing of about 1,220 drafts, "
+            "newest posting first. A draft is listed once, at its latest posting. "
+            "The captures do not show every draft posted in the period: pages "
+            "for some days were not archived, and none shows a posting before "
+            "the earliest date below."
+        ),
+        "captures_on_or_before_freeze": len(before),
+        "distinct_rows_seen_on_or_before_freeze": len(seen),
+        "posting_dates_covered_on_or_before_freeze": merge(
+            [(c["first_posted"], c["last_posted"]) for c in before]
+        ),
+        "tax_table_products_listed_on_or_before_freeze": [
+            row for c in before for row in c["tax_table_products"]
+        ],
+        "tax_table_products_listed_in_later_captures": [
+            row for c in captures if not c["before_freeze"] for row in c["tax_table_products"]
+        ],
+        "tax_table_products_listed_on_read_date": [
+            row for row in current if is_tax_table_product(row)
+        ],
+        "captures": captures,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--law-dir", required=True)
@@ -379,6 +530,10 @@ def main() -> None:
         )
         for name in IRS_TEXTS
     }
+    history = draft_listing_history(law_dir)
+    (LAW / "draft_listing_history.json").write_text(
+        json.dumps(history, indent=2) + "\n"
+    )
     act = texts["plaw119-21.txt"]
     check = {
         "read_on": READ_ON,
@@ -395,6 +550,9 @@ def main() -> None:
         "pub_l_119_21_amends_section_3": bool(
             re.search(r"Section 3\(a\) is amended|tax tables for individuals", act, re.I)
         ),
+        "tax_table_drafts_listed_on_or_before_freeze": len(
+            history["tax_table_products_listed_on_or_before_freeze"]
+        ),
     }
     ok = (
         not missing
@@ -403,6 +561,7 @@ def main() -> None:
         and all(t["amounts_equal_to_constructed_table"] == t["amounts"] for t in tables.values())
         and not any(midpoint.values())
         and not check["pub_l_119_21_amends_section_3"]
+        and not check["tax_table_drafts_listed_on_or_before_freeze"]
     )
     check["all_checks_pass"] = ok
     (LAW / "sources.json").write_text(

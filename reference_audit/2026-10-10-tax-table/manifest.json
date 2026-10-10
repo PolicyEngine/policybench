@@ -19,13 +19,17 @@
     "role": "the release's own engine, as uv.lock pins it"
   },
   "files": {
+    "law/draft_listing_history.json": {
+      "sha256": "fdd26eaf22e4277a146e3439bdb610bf0fbdab7bed22ec2016f8503cfc90f015",
+      "bytes": 8533
+    },
     "law/excerpts.md": {
-      "sha256": "fb9ccf61a0c6f3671aaa7d0316ed5ec4d84fe89a9cd8b75f486684cf0594bcad",
-      "bytes": 12282
+      "sha256": "9587f13d6779b718107861f8c0157b5de562890c4cd2543743f05d4594083817",
+      "bytes": 15758
     },
     "law/excerpts_check.json": {
-      "sha256": "51d5a88fbcad95e595637ab791bf0489436a3cd4d61860f47f299b27fb082755",
-      "bytes": 1666
+      "sha256": "e6d9199c29a058c04a4d73c0d48e20b4a6d52c4c95f6ce784a95d3483f8581a5",
+      "bytes": 1820
     },
     "law/irs_tax_table_2025.csv": {
       "sha256": "28413dd5b1b475731c4025e2df95a1a015170b096a40c7e4051afb494a910703",
@@ -36,8 +40,8 @@
       "bytes": 66101
     },
     "law/sources.json": {
-      "sha256": "a2498e6f720707cbdf37dbc785793378d4c72144f2ec6935c789cf4bfd7d8a85",
-      "bytes": 11170
+      "sha256": "850fe00f494af3ca5030350f1a8f1c933c4bc1956ca9149c553b853d43f43a3b",
+      "bytes": 13356
     },
     "law/state_tax_table_claims.json": {
       "sha256": "75bb3b42c173400959c28d77feeacfa99f4d55083df64b80b5ed731aebf526c3",
@@ -52,16 +56,16 @@
       "bytes": 6512
     },
     "scripts/law_sources.py": {
-      "sha256": "a63133304776edc17e4137be79177cf995c13b622d2951e704a0d8a28c14d7a9",
-      "bytes": 16841
+      "sha256": "5538fff7d5801a3e8be3bd2ef4804548f600c3d30dbc172fc4b45386fe83d10d",
+      "bytes": 24256
     },
     "scripts/leaderboard_impact.py": {
-      "sha256": "73c6eb6a09d1a85d3bb294552d208b74054bb46fcfe4a1c392f9c99b98a0709a",
-      "bytes": 27026
+      "sha256": "8d96d312b8b1525a55c86793ad86c4b7b842c2bf6b2324472218142c09f948c4",
+      "bytes": 28064
     },
     "scripts/mutants_tax_table.py": {
-      "sha256": "e8f237c434dfbee8d80f2778f1755b7165ca944fdb3d09fc221510ef87614b79",
-      "bytes": 11731
+      "sha256": "72619d1f91cef0c914808f5673cf8822d71f9b25291ee2ca776242ff631e365a",
+      "bytes": 12488
     },
     "scripts/parse_irs_tax_table.py": {
       "sha256": "a9f799eea88a945d57629775fe1b5b79b762e16d73729849b473fef197a67685",
@@ -76,20 +80,24 @@
       "bytes": 8692
     },
     "scripts/sweep_tax_table.py": {
-      "sha256": "ce105438eb226ec30a1ac4b7b9d1040243de0f5eb442429c6a110d05c54c97ee",
-      "bytes": 17275
+      "sha256": "665eebb1047760a376426e05b75d68657fbd0d4c5a9f3c4a779bab454dba13c9",
+      "bytes": 18333
     },
     "scripts/tax_table.py": {
       "sha256": "85fde6c49a0a92c6002595841f22cd4fb7bc608d0e9aae7d8ae14fec5ba804a5",
       "bytes": 7412
     },
+    "scripts/top_rate_detection.py": {
+      "sha256": "00ed61eda8a46b6fa22e13eb1f71abc127994ba763e49a78ab89c1a1711d6be5",
+      "bytes": 3263
+    },
     "verification/federal_cells.csv": {
-      "sha256": "0d94dbb85843fb122e5d24fbee4a15ff7ae284297958604e708ec994168999c8",
-      "bytes": 15764
+      "sha256": "f469f48e164ec2d650d050fb31811bf447266216a38a88d4c7d1077398667272",
+      "bytes": 15760
     },
     "verification/leaderboard_impact.json": {
-      "sha256": "6a017ccd737e7b7d2e226853ab4b05be170bad936e8a28214c181376c18e459b",
-      "bytes": 8513
+      "sha256": "4490aa44225765e44b5bf6c129eedebc7b4455c27479f65c225d757d47f40cf7",
+      "bytes": 8738
     },
     "verification/leaderboard_impact_models.csv": {
       "sha256": "cc6eacd4b2078231447e877f1ee8d220cf01e5e5b51d2a014ed264de1b7874ed",
@@ -108,16 +116,20 @@
       "bytes": 20587
     },
     "verification/sweep_summary.json": {
-      "sha256": "850884bcac1511450fd5ee9d41d8bc38af3c9f11e61cb979692ad0bdfd92bf6d",
-      "bytes": 3060
+      "sha256": "0dab4558caac4d1f422c5ff55c289534834941eb8c7d69b71ffe1460f1f93a4d",
+      "bytes": 3219
     },
     "verification/sweep_tax_table.csv": {
-      "sha256": "e748f5be4d2e1cacbebfefc052d85ec05f0e8e7f7d1eb067ad62070cdcde04d3",
-      "bytes": 176758
+      "sha256": "da81c11c174ba9ba284d36a999c5241d548d7a5ee79ccb4ce73c9cb8f2b994f9",
+      "bytes": 176834
     },
     "verification/tax_units.csv": {
       "sha256": "337b326db0e30f59283a463796028d944c5f0eb18b616e653ee6383101a55324",
       "bytes": 25150
+    },
+    "verification/top_rate_detection.json": {
+      "sha256": "85ae66ca3528d14e658e639c3b62485591f703c57a04481de379df826fc84638",
+      "bytes": 242
     }
   }
 }

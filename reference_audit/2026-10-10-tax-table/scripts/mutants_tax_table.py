@@ -1,5 +1,6 @@
-"""Break the Tax Table construction, the table parser and the independent
-scorer one way at a time, and run tests/test_tax_table_audit.py against each.
+"""Break the Tax Table construction, the table parser, the sweep's look-up and
+the independent scorer one way at a time, and run tests/test_tax_table_audit.py
+against each.
 
 The unmodified tests must pass first. Each mutant then replaces one exact piece
 of source text (it must occur once), the tests run with -x, and the source is
@@ -39,6 +40,7 @@ SCRIPTS = "reference_audit/2026-10-10-tax-table/scripts"
 TABLE = f"{SCRIPTS}/tax_table.py"
 PARSER = f"{SCRIPTS}/parse_irs_tax_table.py"
 SCORER = f"{SCRIPTS}/independent_scorer.py"
+SWEEP = f"{SCRIPTS}/sweep_tax_table.py"
 TESTS = "tests/test_tax_table_audit.py"
 MANIFEST_TEST = f"{TESTS}::test_the_manifest_pins_every_evidence_file"
 SAVED = ".before-mutation"
@@ -152,6 +154,24 @@ MUTANTS = [
         PARSER,
         "    for line in text[:end].splitlines():",
         "    for line in text.splitlines():",
+    ),
+    (
+        "an amount that rounds up to the ceiling keeps the unrounded schedule tax",
+        SWEEP,
+        "            elif rounded:",
+        "            elif False:",
+    ),
+    (
+        "the looked-up amount is truncated, not rounded",
+        SWEEP,
+        "            value = float(np.floor(value + 0.5)) if rounded else float(value)",
+        "            value = float(np.floor(value)) if rounded else float(value)",
+    ),
+    (
+        "the table is looked up in every year",
+        SWEEP,
+        '        if variant == "schedule_copy" or period.start.year != YEAR:',
+        '        if variant == "schedule_copy":',
     ),
     (
         "the exact-match bound is exclusive",
@@ -298,8 +318,9 @@ def main() -> int:
     if status != 0:
         raise SystemExit(f"the unmodified tests do not pass ({tail}); nothing to mutate")
     lines = [
-        "Each line breaks scripts/tax_table.py, scripts/parse_irs_tax_table.py or",
-        f"scripts/independent_scorer.py one way and runs {TESTS} (-x),",
+        "Each line breaks scripts/tax_table.py, scripts/parse_irs_tax_table.py,",
+        "scripts/sweep_tax_table.py's look-up or scripts/independent_scorer.py one way",
+        f"and runs {TESTS} (-x),",
         "without the manifest test, which would fail on any edit.",
         "scripts/mutants_tax_table.py holds each break's exact text. A mutant is",
         "killed only when pytest ran and a test failed (exit status 1).",
