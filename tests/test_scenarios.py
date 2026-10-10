@@ -1716,7 +1716,8 @@ def test_uk_rounding_keeps_the_displayed_number(value):
     rounded = scenarios_module.round_uk_prompt_number(value)
     assert rounded == int(rounded)
     if rounded == 0:
-        # Shown as £0 (or £-0) before; now unlisted, which the prompt reads as 0.
+        # Extraction leaves an amount shown as £0 (or £-0) unlisted, which the
+        # prompt reads as 0.
         assert scenarios_module._uk_promptable_value(value) is None
         return
     # The prompt shows the rounded value exactly as it showed the raw one, so
@@ -1731,3 +1732,111 @@ def test_uk_promptable_values_are_whole_and_drop_amounts_shown_as_zero():
     assert scenarios_module._uk_promptable_value(-107_891.4) == -107_891.0
     assert scenarios_module._uk_promptable_value(0.4) is None
     assert scenarios_module._uk_promptable_value(0.6) == 1.0
+
+
+def test_canonical_uk_person_keeps_explicit_zeros_and_rates():
+    from policybench.prompts import describe_person
+
+    person = Person(
+        name="adult1",
+        age=66,
+        employment_income=0.0,
+        inputs={
+            "months_since_last_birthday": 0,
+            "full_rate_vat_expenditure_rate": 0.25,
+            "savings_interest_income": 0.4,
+        },
+    )
+    canonical = scenarios_module.canonical_uk_person(person)
+    # An explicit zero is a stated fact: dropping it would let PE-UK use its
+    # own default (six months), moving the date of birth.
+    assert canonical.inputs["months_since_last_birthday"] == 0.0
+    assert canonical.inputs["full_rate_vat_expenditure_rate"] == 0.25
+    assert canonical.inputs["savings_interest_income"] == 0.0
+    lines = describe_person(person, country="uk")
+    assert "- months since last birthday: 0" in lines
+    assert "- savings interest income: £0" in lines
+
+
+def test_canonical_uk_person_states_statuses_pe_uk_would_impute():
+    from policybench.prompts import describe_person
+
+    teenager = Person(name="child1", age=17, employment_income=0.0)
+    canonical = scenarios_module.canonical_uk_person(teenager)
+    # PE-UK imputes non-advanced education at 17; the prompt's rule is that an
+    # unlisted status is false.
+    assert canonical.inputs["current_education"] == "NOT_IN_EDUCATION"
+    assert scenarios_module.UK_EDUCATION_ENTRY_FIELD not in canonical.inputs
+    assert "- current education: not in education or training" in describe_person(
+        teenager, country="uk"
+    )
+    assert (
+        "current_education"
+        not in scenarios_module.canonical_uk_person(
+            Person(name="child1", age=12, employment_income=0.0)
+        ).inputs
+    )
+
+    trader = Person(
+        name="adult1",
+        age=40,
+        employment_income=0.0,
+        inputs={"self_employment_income": 3_900.0},
+    )
+    canonical = scenarios_module.canonical_uk_person(trader)
+    assert canonical.inputs[scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD] is False
+    assert (
+        "- determined to be in gainful self-employment for Universal Credit: no"
+        in describe_person(trader, country="uk")
+    )
+    stated = scenarios_module.canonical_uk_person(
+        Person(
+            name="adult1",
+            age=40,
+            employment_income=0.0,
+            inputs={
+                "self_employment_income": 3_900.0,
+                scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD: True,
+            },
+        )
+    )
+    assert stated.inputs[scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD] is True
+
+
+def test_describe_person_and_describe_household_agree_for_uk():
+    from policybench.prompts import describe_household, describe_person
+
+    scenario = _uk_renter(
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=15_095.16,
+                inputs={"self_employment_income": 3_900.4},
+            )
+        ],
+        children=[Person(name="child1", age=17, employment_income=0.0)],
+    )
+    household = describe_household(scenario)
+    for person in scenario.all_people:
+        assert describe_person(person, country="uk") in household
+
+
+@pytest.mark.slow
+def test_pe_uk_applies_no_minimum_income_floor_without_a_determination():
+    from policyengine_uk import Simulation
+
+    scenario = _uk_renter(
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=0.0,
+                inputs={"self_employment_income": 3_900.0},
+            )
+        ],
+        household_inputs={"tenure_type": "OWNED_OUTRIGHT"},
+    )
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    assert not bool(sim.calculate("uc_mif_applies", 2026).any())
+    assert float(sim.calculate("universal_credit", 2026).sum()) > 0

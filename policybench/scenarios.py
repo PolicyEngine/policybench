@@ -756,16 +756,54 @@ class Scenario:
         }
 
 
+# Fields the prompt shows as a fraction rather than a whole number. The
+# renderer formats by the same suffixes.
+RATE_OR_RATIO_FIELD_SUFFIXES = ("_rate", "_ratio")
+UK_GAINFUL_SELF_EMPLOYMENT_FIELD = "uc_is_in_gainful_self_employment"
+
+
 def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Each numeric input as the prompt shows it. An explicit zero is a stated
+    fact and is kept; rates keep their precision."""
     canonical: dict[str, Any] = {}
     for key, value in inputs.items():
         if isinstance(value, (bool, np.bool_, str)) or value is None:
             canonical[key] = value
-            continue
-        number = round_uk_prompt_number(value)
-        if number != 0:
-            canonical[key] = number
+        elif key.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
+            canonical[key] = float(value)
+        else:
+            canonical[key] = round_uk_prompt_number(value)
     return canonical
+
+
+def canonical_uk_person(person: Person) -> Person:
+    """A UK person holding exactly the facts the prompt states about them.
+
+    Besides whole-number amounts, three statuses PE-UK would otherwise fill in
+    itself are made explicit, each following the prompt's rule that an
+    unlisted status is false:
+
+    - someone aged 16 to 19 with no education status is not in education
+      (PE-UK imputes enrolment from age);
+    - someone in non-advanced education with no entry age began it at
+      ``UK_EDUCATION_ENTRY_AGE``;
+    - someone with self-employment income and no gainful self-employment
+      determination has none (PE-UK presumes one, applying the Universal
+      Credit minimum income floor).
+    """
+    inputs = _canonical_uk_inputs(person.inputs)
+    if int(person.age) in UK_EDUCATION_PROMPT_AGES:
+        inputs.setdefault("current_education", "NOT_IN_EDUCATION")
+    if inputs.get("current_education") == "POST_SECONDARY":
+        inputs.setdefault(UK_EDUCATION_ENTRY_FIELD, float(UK_EDUCATION_ENTRY_AGE))
+    if inputs.get("self_employment_income"):
+        inputs.setdefault(UK_GAINFUL_SELF_EMPLOYMENT_FIELD, False)
+    return Person(
+        name=person.name,
+        age=person.age,
+        employment_income=round_uk_prompt_number(person.employment_income),
+        inputs=inputs,
+    )
 
 
 def canonical_uk_scenario(scenario: "Scenario") -> "Scenario":
@@ -775,28 +813,15 @@ def canonical_uk_scenario(scenario: "Scenario") -> "Scenario":
     scenario loaded from a manifest gives the same facts to each as one built
     from the transfer data:
 
-    - every amount is the whole number the prompt shows, and an amount shown
-      as 0 is unlisted;
+    - every amount is the whole number the prompt shows;
+    - each person is canonical (:func:`canonical_uk_person`);
     - a private renter without a Broad Rental Market Area gets the fixed one
-      for the region (``UK_REGION_BRMA``);
-    - someone in non-advanced education without an entry age gets
-      ``UK_EDUCATION_ENTRY_AGE``.
+      for the region (``UK_REGION_BRMA``).
 
     Idempotent. Scenarios of other countries are returned unchanged.
     """
     if scenario.country != "uk":
         return scenario
-
-    def person(original: Person) -> Person:
-        inputs = _canonical_uk_inputs(original.inputs)
-        if inputs.get("current_education") == "POST_SECONDARY":
-            inputs.setdefault(UK_EDUCATION_ENTRY_FIELD, float(UK_EDUCATION_ENTRY_AGE))
-        return Person(
-            name=original.name,
-            age=original.age,
-            employment_income=round_uk_prompt_number(original.employment_income),
-            inputs=inputs,
-        )
 
     household_inputs = _canonical_uk_inputs(scenario.household_inputs)
     if (
@@ -813,8 +838,8 @@ def canonical_uk_scenario(scenario: "Scenario") -> "Scenario":
         id=scenario.id,
         state=scenario.state,
         filing_status=scenario.filing_status,
-        adults=[person(adult) for adult in scenario.adults],
-        children=[person(child) for child in scenario.children],
+        adults=[canonical_uk_person(adult) for adult in scenario.adults],
+        children=[canonical_uk_person(child) for child in scenario.children],
         tax_unit_inputs=scenario.tax_unit_inputs,
         spm_unit_inputs=scenario.spm_unit_inputs,
         household_inputs=household_inputs,

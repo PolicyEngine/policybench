@@ -1,8 +1,10 @@
 """Prompt templates for PolicyBench evaluations."""
 
 from policybench.scenarios import (
+    RATE_OR_RATIO_FIELD_SUFFIXES,
     Person,
     Scenario,
+    canonical_uk_person,
     canonical_uk_scenario,
     is_excluded_prompt_input_name,
 )
@@ -88,7 +90,17 @@ INPUT_LABEL_OVERRIDES = {
     "early_withdrawal_penalty": "early withdrawal penalty",
     "educator_expense": "educator expense",
     "employment_income": "gross wages and salaries",
-    "employee_pension_contributions_reported": "employee pension contributions",
+    "employee_pension_contributions_reported": (
+        "employee pension contributions (net pay arrangement: taken from pay "
+        "before tax)"
+    ),
+    "personal_pension_contributions": (
+        "personal pension contributions (relief at source)"
+    ),
+    "uc_is_in_gainful_self_employment": (
+        "determined to be in gainful self-employment for Universal Credit"
+    ),
+    "months_since_last_birthday": "months since last birthday",
     "estate_income": "estate income",
     "excess_withheld_payroll_tax": "excess withheld payroll tax",
     "farm_income": "farm income",
@@ -219,6 +231,7 @@ INPUT_LABEL_OVERRIDES = {
 
 
 NON_MONETARY_NUMERIC_FIELDS = {
+    "months_since_last_birthday",
     "age_started_or_accepted_current_education_or_training",
     "weekly_hours_worked",
     "hours_worked_last_week",
@@ -273,11 +286,6 @@ UK_EDUCATION_DESCRIPTIONS = {
     ),
     "TERTIARY": "advanced (higher) education",
 }
-
-RATE_OR_RATIO_FIELD_SUFFIXES = (
-    "_rate",
-    "_ratio",
-)
 
 
 def _currency_symbol(country: str) -> str:
@@ -375,6 +383,9 @@ def _person_heading(person: Person, country: str = "us") -> str:
 
 def describe_person(person: Person, country: str = "us") -> str:
     """Create a structured description of a person."""
+    if country == "uk":
+        # The same canonical person the UK reference is built from.
+        person = canonical_uk_person(person)
     lines = [
         f"{_person_heading(person, country=country)}:",
         f"- age: {person.age}",
