@@ -441,9 +441,12 @@ workflow (`.github/workflows/seal-release.yml`) moves the tag to the release
 PR's merge commit when the PR merges.
 
 1. Freeze and render the release, then run the tests.
-2. Check that the tag is free: `gh release view <tag>` must fail and
-   `git ls-remote origin refs/tags/<tag>` must print nothing. A tag can exist
-   without a release, as `dashboard-data-20260705b` does.
+2. Check that the tag is free: `gh release view <tag>` must fail,
+   `git ls-remote origin refs/tags/<tag>` must print nothing, and
+   `git log --oneline -S '"<tag>"' origin/main -- app/src/data.artifact.json`
+   must print nothing. A tag can exist without a release, as
+   `dashboard-data-20260705b` does, and main may have named a tag whose
+   release is gone.
 3. Create the release with its assets, not marked Latest:
    `gh release create <tag> --latest=false --title <tag> --notes "…" <assets>`.
    `policybench publish-dashboard --tag <tag>` does the same for the payload
@@ -459,13 +462,18 @@ PR's merge commit when the PR merges.
 7. Check prod on policybench.org.
 
 Each run of the workflow reads main as it is when the run starts, not the
-commit of the push that started it. It seals every release that main first
-names after `SEALING_STARTS_AFTER` in `policybench/release_tags.py` (the merge
-of release 20261010), so a run GitHub cancels in favour of a newer one loses
-nothing. It leaves alone the tag of every release main named by then, even
-when main points back at it or its asset is replaced. Before and after each
-move it reads the release's asset digest again, and it refuses the move, or
-reports it, when the asset changed. A move GitHub refuses does not stop the
+commit of the push that started it. It seals every release that a
+first-parent commit of main names after `SEALING_STARTS_AFTER` in
+`policybench/release_tags.py` (the merge of release 20261010), so a run
+GitHub cancels in favour of a newer one loses nothing. The run refuses to
+start if that commit is not on main's first-parent line. It never moves the
+tag of a release main named by then. When main points back at one of those
+releases, the run passes over it. When main names one of those tags with
+bytes it did not name by then, the run moves nothing for it and fails, naming
+the tag; check the release and seal it by hand with
+`uv run policybench seal-release --tag <tag> --apply`. Before and after each
+move the run reads the release's asset digest again, and it refuses the move,
+or reports it, when the asset changed. A move GitHub refuses does not stop the
 others; the run fails after trying them all. It marks Latest the release main
 serves, unless that release's own move failed.
 

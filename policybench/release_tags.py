@@ -159,19 +159,6 @@ def live_pointer(
     return pointer["tag"], pointer["sha256"]
 
 
-def is_ancestor(commit: str, of: str, *, root: str = ".") -> bool:
-    """Whether ``commit`` is ``of`` or an ancestor of it."""
-    result = subprocess.run(
-        ["git", "-C", root, "merge-base", "--is-ancestor", commit, of],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode not in (0, 1):
-        detail = result.stderr.strip() or result.stdout.strip()
-        raise ReleaseTagError(f"git merge-base failed: {detail}")
-    return result.returncode == 0
-
-
 def commit_subject(commit: str, *, root: str = ".") -> str:
     return _git(root, "log", "-1", "--format=%s", commit).strip()
 
@@ -195,7 +182,9 @@ def _gh_api(*args: str) -> object:
         raise ReleaseTagError("GitHub CLI (gh) not found") from exc
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.strip() or exc.stdout.strip()
-        if "HTTP 404" in detail:
+        # A 404 on a read means the object is absent. On a write it is a
+        # refusal like any other (GitHub also answers 404 for missing scopes).
+        if "HTTP 404" in detail and args[0] != "-X":
             raise _NotFound(detail) from exc
         raise ReleaseTagError(f"gh api {args[-1]} failed: {detail}") from exc
     return json.loads(result.stdout) if result.stdout.strip() else None
@@ -326,25 +315,49 @@ def plan_landed(
 ) -> list[TagPlan]:
     """A plan for every release that landed on ``ref`` after ``after``.
 
-    A tag counts when main first names it after ``after``. A tag that main
-    named at or before ``after`` belongs to an earlier release, whatever asset
-    it holds now, and is left out: those tags are re-pointed by hand. A plan
-    with no board stays in, so the caller can report it.
+    ``after`` must be on ``ref``'s first-parent line. A tag counts when a
+    first-parent commit after ``after`` names it. A tag that ``after``'s own
+    history names belongs to an earlier release, and its tag is re-pointed by
+    hand. When main points back at such a release, it is passed over. When
+    main names such a tag with bytes it did not name by ``after``, the plan has
+    no board and says so, so the caller reports it instead of moving it. Any
+    other plan with no board also stays in, for the caller to report.
     """
     history = pointer_history(ref, root=root)
-    if not is_ancestor(after, ref, root=root):
+    start = _git(root, "rev-parse", "--verify", f"{after}^{{commit}}").strip()
+    line = _git(root, "rev-list", "--first-parent", ref).split()
+    if start not in line:
         raise ReleaseTagError(
-            f"{after[:12]} is not {ref} or an ancestor of it, so the releases "
+            f"{start[:12]} is not on {ref}'s first-parent line, so the releases "
             "that landed after it are unknown"
         )
-    landed = set(_git(root, "rev-list", f"{after}..{ref}").split())
-    earlier = {e.tag for e in history if e.commit not in landed}
-    tags = dict.fromkeys(e.tag for e in history if e.commit in landed)
-    return [
-        plan_tag(tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history)
-        for tag in tags
-        if tag not in earlier
-    ]
+    landed = set(line[: line.index(start)])
+    before = pointer_history(start, root=root)
+    earlier_tags = {e.tag for e in before}
+    earlier_pairs = {(e.tag, e.sha256) for e in before}
+    plans = []
+    for tag in dict.fromkeys(e.tag for e in history if e.commit in landed):
+        if tag not in earlier_tags:
+            plans.append(
+                plan_tag(
+                    tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+                )
+            )
+            continue
+        named = {(e.tag, e.sha256) for e in history if e.commit in landed}
+        if any(pair[0] == tag and pair not in earlier_pairs for pair in named):
+            plans.append(
+                TagPlan(
+                    tag,
+                    None,
+                    None,
+                    None,
+                    "main named this tag before sealing began and now names "
+                    "other bytes under it; check the release and seal it by "
+                    "hand with seal-release --tag",
+                )
+            )
+    return plans
 
 
 def _require_digest(repo: str, plan: TagPlan, when: str) -> None:

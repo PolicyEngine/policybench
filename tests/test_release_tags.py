@@ -72,6 +72,16 @@ class Scratch:
         (self.root / rt.POINTER_PATH).unlink()
         return self.commit("drop the pointer")
 
+    def crlf(self) -> str:
+        """Switch the pointer's line endings between LF and CRLF."""
+        pointer = self.root / rt.POINTER_PATH
+        data = pointer.read_bytes()
+        if b"\r\n" in data:
+            pointer.write_bytes(data.replace(b"\r\n", b"\n"))
+        else:
+            pointer.write_bytes(data.replace(b"\n", b"\r\n"))
+        return self.commit("switch the pointer's line endings")
+
     def newline(self) -> str:
         """Add or drop the pointer's trailing newline, and nothing else."""
         pointer = self.root / rt.POINTER_PATH
@@ -112,6 +122,9 @@ class Scratch:
         elif kind == "newline":
             if (self.root / rt.POINTER_PATH).exists():
                 self.newline()
+        elif kind == "crlf":
+            if (self.root / rt.POINTER_PATH).exists():
+                self.crlf()
         else:
             self.merge(step[1])
 
@@ -121,17 +134,16 @@ def scratch(tmp_path):
     return Scratch(tmp_path / "repo")
 
 
-def raw_blob(root: Path, commit: str) -> str:
+def raw_blob(root: Path, commit: str) -> bytes:
     """The pointer's exact bytes at ``commit``; raises when it has none."""
     return subprocess.run(
         ["git", "-C", str(root), "show", f"{commit}:{rt.POINTER_PATH}"],
         check=True,
         capture_output=True,
-        text=True,
     ).stdout
 
 
-def first_parent_blobs(root: Path, ref: str = "main") -> list[tuple[str, str]]:
+def first_parent_blobs(root: Path, ref: str = "main") -> list[tuple[str, bytes]]:
     """Every first-parent commit, oldest first, with its pointer's bytes or
     None: the slow reference the path-limited history must agree with."""
     commits = git(root, "rev-list", "--first-parent", "--reverse", ref).split()
@@ -241,6 +253,7 @@ STEP = st.one_of(
     st.tuples(st.just("delete")),
     st.tuples(st.just("reformat")),
     st.tuples(st.just("newline")),
+    st.tuples(st.just("crlf")),
 )
 STEPS = st.lists(
     st.one_of(
@@ -335,6 +348,7 @@ class FakeGitHub:
         self.drift = None  # a commit a moved tag lands on instead of the asked one
         self.after_move = None  # called after each tag move
         self.deny = set()  # tags whose move GitHub refuses
+        self.deny_latest = False  # GitHub refuses to mark a release Latest
         self.calls = []
         self.latest = []
 
@@ -362,6 +376,8 @@ class FakeGitHub:
                     self.after_move()
                 return {"ref": f"refs/tags/{tag}"}
             assert fields == {"make_latest": "true"}
+            if self.deny_latest:
+                raise rt.ReleaseTagError(f"gh api {path} failed: HTTP 404")
             self.latest.append(int(path.rsplit("/", 1)[1]))
             return {}
         if args[0] == "--paginate":
@@ -528,24 +544,52 @@ def test_an_older_release_main_points_back_at_is_left_alone(scratch, github):
     assert github.writes == [] and github.tags[T1] == "1" * 40
 
 
-def test_an_earlier_release_stays_out_even_after_its_asset_is_replaced(scratch, github):
-    # Replace release T1's asset and land a pointer naming the new bytes after
-    # sealing began: T1 was named before, so its tag stays a manual re-point.
+def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
+    scratch, github, monkeypatch, capsys
+):
+    # Replace release T1's asset, or reuse its name for a new release, and land
+    # a pointer naming the new bytes after sealing began. T1 was named before,
+    # so the run moves nothing, names it for a manual seal, and fails.
     old_board = scratch.release(T1, SHAS["a"])
     start = scratch.other()
     scratch.release(T1, SHAS["c"])
     github.tags = {T1: old_board}
     github.release(T1, SHAS["c"], release_id=1)
-    assert rt.plan_landed(start, **where(scratch)) == []
+    (plan,) = rt.plan_landed(start, **where(scratch))
+    assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
+    assert "seal it by hand" in plan.reason
+    monkeypatch.chdir(scratch.root)
+    argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
+    with pytest.raises(SystemExit, match=f"cannot seal {T1}: .*seal it by hand"):
+        rt.main(argv)
+    assert github.writes == [] and github.tags[T1] == old_board
 
 
-def test_a_start_that_is_not_an_ancestor_of_the_ref_is_refused(scratch, github):
+def test_a_start_off_the_refs_line_is_refused(scratch, github):
     scratch.release(T1, SHAS["a"])
     git(scratch.root, "checkout", "-q", "-b", "elsewhere", "HEAD~1")
     elsewhere = scratch.other()
     git(scratch.root, "checkout", "-q", "main")
-    with pytest.raises(rt.ReleaseTagError, match="not main or an ancestor"):
+    with pytest.raises(rt.ReleaseTagError, match="not on main's first-parent line"):
         rt.plan_landed(elsewhere, **where(scratch))
+    assert github.calls == []
+
+
+def test_a_start_reached_only_through_a_second_parent_is_refused(scratch, github):
+    # Main becomes a merge whose first parent is a side line that names T1,
+    # with the old main, the start, as its second parent. Were the start
+    # accepted, T1 would look first named after it and its tag would move.
+    root_commit = git(scratch.root, "rev-parse", "HEAD")
+    scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    git(scratch.root, "checkout", "-q", "-b", "side", root_commit)
+    scratch.release(T1, SHAS["a"])
+    git(scratch.root, "merge", "-q", "--no-ff", "-X", "theirs", "-m", "m", "main")
+    git(scratch.root, "checkout", "-q", "main")
+    git(scratch.root, "reset", "-q", "--hard", "side")
+    assert git(scratch.root, "rev-parse", "main^2") == start
+    with pytest.raises(rt.ReleaseTagError, match="not on main's first-parent line"):
+        rt.plan_landed(start, **where(scratch))
     assert github.calls == []
 
 
@@ -675,6 +719,30 @@ def test_plan_all_covers_every_release_tag_and_apply_moves_only_the_moves(
         "sealed",
         "leave",
     ]
+
+
+def test_a_refused_latest_is_reported_after_the_moves(
+    scratch, github, landed, monkeypatch, capsys
+):
+    _, merge = landed
+    github.deny_latest = True
+    monkeypatch.chdir(scratch.root)
+    with pytest.raises(SystemExit, match="HTTP 404"):
+        rt.main(["seal-release", "--live", "--ref", "main", "--apply", "--latest"])
+    assert github.tags[T2] == merge and github.latest == []
+    out = capsys.readouterr().out
+    assert "Moved 1 tag" in out and "Latest" not in out
+
+
+def test_a_404_on_a_write_is_a_failure_not_a_missing_object(monkeypatch):
+    def run(args, **kwargs):
+        raise subprocess.CalledProcessError(1, args, stderr="gh: Not Found (HTTP 404)")
+
+    monkeypatch.setattr(rt.subprocess, "run", run)
+    with pytest.raises(rt.ReleaseTagError, match="HTTP 404"):
+        rt.move_tag(REPO, T1, "e" * 40)
+    with pytest.raises(rt.ReleaseTagError, match="HTTP 404"):
+        rt.make_latest(REPO, Release(id=7, sha256=None))
 
 
 def test_gh_api_tells_a_404_from_other_failures(monkeypatch):
