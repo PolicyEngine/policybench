@@ -1,6 +1,6 @@
 # Tax Table or rate schedule in the federal income tax references, October 10, 2026
 
-This directory audits one convention behind every federal income tax reference in PolicyBench: the references apply the section 1 rate schedule exactly, where the Form 1040 instructions send a filer with taxable income under $100,000 to the Tax Table. It changes no reference, exclusion, score, payload, card, paper or snapshot. Which convention PolicyBench uses is Max's call, queued as decision DECISION_ID.
+This directory audits one convention behind every federal income tax reference in PolicyBench: the references apply the section 1 rate schedule exactly, where the Form 1040 instructions send a filer with taxable income under $100,000 to the Tax Table. It changes no reference, exclusion, score, payload, card, paper or snapshot. Which convention PolicyBench uses is Max's call, queued as decision d1263.
 
 Release audited: dashboard-data-20261010 (commit 5a8164a0), 47 models, references from policyengine-us 2.38.6.
 
