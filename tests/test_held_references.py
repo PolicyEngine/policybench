@@ -5,6 +5,7 @@ list's two records, and the evidence behind them
 from __future__ import annotations
 
 import copy
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -652,6 +653,9 @@ def _prepare_cli(*argv: str) -> None:
         cli.main()
 
 
+PACKINGS = ("plain", "gzip", "wrapped", "wrapped-gzip")
+
+
 def _write_inputs(
     tmp_path: Path,
     payload: dict,
@@ -660,15 +664,20 @@ def _write_inputs(
     flags_from: dict | None = None,
     params: ConsensusParams = PARAMS,
     claims: str | None = "this payload",
+    packing: str = "plain",
 ) -> list[str]:
     """Write the payload, the flags (computed from ``flags_from`` when it is
     another payload) and the records; return the command's arguments.
 
     ``claims`` is the payload hash the flags report records: this payload's
     (whatever the flags were computed from), a given string, or none.
+    ``packing`` is how the payload file holds the payload: as it is, inside a
+    release's ``{"countries": {"us": ...}}`` wrapper, and gzipped or not.
     """
-    payload_path = tmp_path / "data.json"
-    payload_path.write_text(json.dumps(payload))
+    wrapped = {"countries": {"us": payload}} if "wrapped" in packing else payload
+    data = json.dumps(wrapped).encode()
+    payload_path = tmp_path / ("data.json.gz" if "gzip" in packing else "data.json")
+    payload_path.write_bytes(gzip.compress(data) if "gzip" in packing else data)
     if claims == "this payload":
         claims = file_sha256(payload_path)
     report = consensus_report(
@@ -686,6 +695,24 @@ def _write_inputs(
         (tmp_path / "held.json").write_text(json.dumps(_document(*records)))
         argv += ["--held-references", str(tmp_path / "held.json")]
     return argv
+
+
+def _prepared(tmp_path: Path) -> dict[str, bytes]:
+    """A directory an earlier preparation with holds left, as its bytes: the
+    manifest, the schemas, the other cell's case and the held listing."""
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), [_tax_record()]))
+    return _snapshot(tmp_path)
+
+
+def _snapshot(tmp_path: Path) -> dict[str, bytes]:
+    root = tmp_path / "adv"
+    files = {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+    assert {"cases.jsonl", "held_references.json", "schema_verdict.json"} <= set(files)
+    return files
 
 
 def _cases(tmp_path: Path) -> list[str]:
@@ -770,11 +797,13 @@ def test_a_loose_pass_tolerance_does_not_stretch_a_record(tmp_path: Path, capsys
 @pytest.mark.parametrize("claims", ["", None, "0" * 64, "another payload"])
 def test_prepare_needs_flags_that_record_this_payload(tmp_path: Path, claims):
     """Flags with no payload hash, or another payload's, are refused before
-    any record is applied, whatever they contain."""
+    any record is applied, whatever they contain, and an existing directory
+    is left as it was."""
+    before = _prepared(tmp_path)
     argv = _write_inputs(tmp_path, _payload(), [_tax_record()], claims=claims)
     with pytest.raises(SystemExit, match="--held-references needs flags computed"):
         _prepare_cli(*argv)
-    assert not (tmp_path / "adv").exists()
+    assert _snapshot(tmp_path) == before
 
 
 def test_old_flags_cannot_hide_a_consensus_that_formed_since(tmp_path: Path):
@@ -783,13 +812,14 @@ def test_old_flags_cannot_hide_a_consensus_that_formed_since(tmp_path: Path):
     applying them would list the cell as held and the new consensus would
     never be judged. They are refused, with or without the right hash."""
     old, new = _payload(), _payload(newcomers=6000.0)
+    before = _prepared(tmp_path)
     for claims in ("", "this payload"):
         argv = _write_inputs(
             tmp_path, new, [_tax_record()], flags_from=old, claims=claims
         )
         with pytest.raises(SystemExit, match="consensus|needs flags computed"):
             _prepare_cli(*argv)
-        assert not (tmp_path / "adv").exists()
+        assert _snapshot(tmp_path) == before
     # The payload's own flags carry both clusters, and the cell is judged.
     _prepare_cli(*_write_inputs(tmp_path, new, [_tax_record()]))
     assert TAX_CASE in _cases(tmp_path)
@@ -810,7 +840,9 @@ def test_old_flags_cannot_hide_a_consensus_that_formed_since(tmp_path: Path):
 def test_prepare_recomputes_the_flags_it_is_given(tmp_path: Path, stale):
     """A recorded hash is a claim. Flags that carry this payload's hash but
     are not what the trigger computes from it are refused: a moved reference,
-    a changed answer, another household, a new consensus."""
+    a changed answer, another household, a new consensus. An existing
+    directory is left as it was."""
+    before = _prepared(tmp_path)
     argv = _write_inputs(
         tmp_path, _payload(**stale), [_tax_record()], flags_from=_payload()
     )
@@ -822,7 +854,58 @@ def test_prepare_recomputes_the_flags_it_is_given(tmp_path: Path, stale):
         )
     with pytest.raises(SystemExit, match="is not what the consensus trigger computes"):
         _prepare_cli(*argv)
-    assert not (tmp_path / "adv").exists()
+    assert _snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize("packing", PACKINGS)
+def test_prepare_reads_every_form_of_payload_a_release_ships(tmp_path: Path, packing):
+    """Plain or gzipped, bare or inside a release's wrapper: the hash is the
+    file's, the flags are recomputed from the US payload inside, and the cell
+    is held all the same."""
+    argv = _write_inputs(tmp_path, _payload(), [_tax_record()], packing=packing)
+    _prepare_cli(*argv)
+    assert _cases(tmp_path) == [MEDICAID_CASE]
+    listing = _listing(tmp_path)
+    assert [_cell(row) for row in listing["held"]] == [("scenario_001", TAX)]
+    (payload_path,) = tmp_path.glob("data.json*")
+    assert listing["payload_sha256"] == file_sha256(payload_path)
+    # The hash is the file's bytes, not the payload's: the same flags under
+    # the hash of the bare JSON are refused once the file is packed.
+    report = json.loads((tmp_path / "flags.json").read_text())
+    before = _snapshot(tmp_path)
+    (tmp_path / "flags.json").write_text(
+        json.dumps(report | {"source_sha256": _sha(json.dumps(_payload()))})
+    )
+    if packing != "plain":
+        with pytest.raises(SystemExit, match="--held-references needs flags computed"):
+            _prepare_cli(*argv)
+        assert _snapshot(tmp_path) == before
+
+
+def _integral(value):
+    """A JSON document with whole floats written as integers."""
+    if isinstance(value, dict):
+        return {key: _integral(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_integral(item) for item in value]
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+def test_prepare_accepts_the_same_flags_written_another_way(tmp_path: Path):
+    """The flags are compared by value: key order, and 4452 for 4452.0, do
+    not make them another payload's."""
+    argv = _write_inputs(tmp_path, _payload(), [_tax_record()])
+    report = json.loads((tmp_path / "flags.json").read_text())
+    rewritten = json.dumps(_integral(report), sort_keys=True)
+    assert rewritten != json.dumps(report) and json.loads(rewritten) == report
+    assert '"answer": 4452,' in rewritten and '"reference": 0,' in rewritten
+    (tmp_path / "flags.json").write_text(rewritten)
+    _prepare_cli(*argv)
+    assert _cases(tmp_path) == [MEDICAID_CASE]
+    (held,) = _listing(tmp_path)["held"]
+    assert held["clusters"][0]["predictions"]["top-c"] == 4452
 
 
 def test_prepare_refuses_edited_flags_and_flags_without_parameters(tmp_path: Path):
@@ -981,10 +1064,27 @@ def _records() -> dict:
     return {_cell(record): record for record in archived}
 
 
-def _release_report(**overrides) -> dict:
+# The parameters of the 2026-10-10 runs, as their committed reports record
+# them. The trigger's defaults may change; what was run that day does not.
+PARAMS_20261010 = {
+    "": {
+        "min_models": 15,
+        "top_k": 5,
+        "min_top": 3,
+        "tolerance": 1.0,
+        "answer_rounding": "nearest",
+        "zero_cluster_min_models": 15,
+        "binary_outputs": "mismatch",
+    },
+}
+PARAMS_20261010["_min_top_2"] = PARAMS_20261010[""] | {"min_top": 2}
+
+
+def _release_report(suffix: str = "") -> dict:
+    """The trigger on the release's payload, at one run's own parameters."""
     return consensus_report(
         _release(),
-        ConsensusParams(**overrides),
+        ConsensusParams(**PARAMS_20261010[suffix]),
         source=PAYLOAD_PATH,
         source_sha256=RELEASE_SHA256,
     )
@@ -1077,7 +1177,7 @@ def test_the_trigger_flags_ohio_and_not_yet_virginia_on_the_release():
     assert [_cell(r) for r in listing["not_flagged"]] == [VA_039]
     assert listing["not_applied"] == []
 
-    wider = _release_report(min_top=2)
+    wider = _release_report("_min_top_2")
     assert wider["flagged_cells"] == 71
     flags = {_cell(f): f for f in wider["flags"]}
     (cluster,) = flags[VA_039]["clusters"]
@@ -1090,7 +1190,7 @@ def test_the_trigger_flags_ohio_and_not_yet_virginia_on_the_release():
 
 
 def _release_flag(cell: tuple[str, str]) -> dict:
-    (flag,) = [f for f in _release_report(min_top=2)["flags"] if _cell(f) == cell]
+    (flag,) = [f for f in _release_report("_min_top_2")["flags"] if _cell(f) == cell]
     return copy.deepcopy(flag)
 
 
@@ -1135,13 +1235,12 @@ def test_the_records_do_not_follow_their_scenario_ids_to_another_household(cell)
     assert _apply([flag])[1]["not_applied"][0]["reason"] == "reference_moved"
 
 
-@pytest.mark.parametrize(
-    ("suffix", "overrides"), [("", {}), ("_min_top_2", {"min_top": 2})]
-)
-def test_the_committed_flags_and_listings_reproduce(suffix, overrides):
+@pytest.mark.parametrize("suffix", sorted(PARAMS_20261010))
+def test_the_committed_flags_and_listings_reproduce(suffix):
     flags_name = f"consensus_flags_20261010{suffix}.json"
     flags_path = AUDIT / "verification" / flags_name
-    report = _release_report(**overrides)
+    assert json.loads(flags_path.read_text())["params"] == PARAMS_20261010[suffix]
+    report = _release_report(suffix)
     assert flags_path.read_text() == json.dumps(report, indent=2) + "\n"
     listing = json.loads(
         (AUDIT / "verification" / f"held_on_20261010{suffix}.json").read_text()

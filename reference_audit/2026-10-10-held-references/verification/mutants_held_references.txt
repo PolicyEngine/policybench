@@ -3,7 +3,7 @@ branch of policybench/cli.py one way and runs tests/test_held_references.py (-x)
 scripts/mutants_held_references.py holds each break's exact text. A mutant
 is killed only when pytest ran and a test failed (exit status 1).
 
-Unmodified: 88 passed
+Unmodified: 93 passed
 
  1. killed    the prompt is never compared [policybench/held_references.py]: 1 failed, 20 passed
  2. killed    a missing prompt counts as the checked one [policybench/held_references.py]: 1 failed, 20 passed
@@ -31,11 +31,11 @@ Unmodified: 88 passed
 24. killed    the flags' recorded payload is never compared [policybench/cli.py]: 1 failed, 50 passed
 25. killed    flags that record no payload are accepted [policybench/cli.py]: 1 failed, 50 passed
 26. killed    the flags are not recomputed from the payload [policybench/cli.py]: 1 failed, 54 passed
-27. killed    the held cells' cases are not looked for [policybench/cli.py]: 1 failed, 60 passed
-28. killed    a runner's files for a cell that became held are deleted [policybench/cli.py]: 1 failed, 60 passed
-29. killed    only a published stage 1 or verdict protects a case [policybench/cli.py]: 1 failed, 62 passed
-30. killed    a stale record of a covered cell is said to be judged [policybench/cli.py]: 1 failed, 70 passed
-31. killed    the listing outlives a preparation without the option [policybench/cli.py]: 1 failed, 68 passed
+27. killed    the held cells' cases are not looked for [policybench/cli.py]: 1 failed, 65 passed
+28. killed    a runner's files for a cell that became held are deleted [policybench/cli.py]: 1 failed, 65 passed
+29. killed    only a published stage 1 or verdict protects a case [policybench/cli.py]: 1 failed, 67 passed
+30. killed    a stale record of a covered cell is said to be judged [policybench/cli.py]: 1 failed, 75 passed
+31. killed    the listing outlives a preparation without the option [policybench/cli.py]: 1 failed, 73 passed
 32. killed    covered cells are counted with held ones [policybench/cli.py]: 1 failed, 46 passed
 
 32 of 32 mutants killed, 0 survived, 0 errored
