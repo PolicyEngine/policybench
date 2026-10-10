@@ -115,6 +115,18 @@ The defaults round answers to the nearest dollar, which merges answers such as
 model whose own answer is within the tolerance of an amount reference counts as
 exact and never toward a wrong cluster, even when its rounded key misses.
 
+### The UK leg
+
+`consensus-flags` and `adversary-prepare` take `--country uk`. They read the
+`uk/data.json` that `export-full-run --country uk` writes, or the `uk` entry
+of a combined payload. UK cases get UK prompts: the 2026-27 fiscal year,
+legislation.gov.uk and GOV.UK as primary sources, pounds, the region, and a
+2026-10-10 law freeze (policyengine-uk 2.125.1). The UK board has six models,
+so pass thresholds that fit it, for example `--min-models 2 --top-k 3
+--min-top 2 --zero-cluster-min-models 2`. A UK derivation is the
+engine's own computation log, pruned to the steps that carry a value, in
+`uk_case_reference_explanations.csv`. US prompts are unchanged byte for byte.
+
 ## Two stages
 
 - **Stage 1, law first.** The judge sees the household prompt, the output's

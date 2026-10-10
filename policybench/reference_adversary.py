@@ -68,6 +68,10 @@ if TYPE_CHECKING:
 # reference_audit/2026-09-28/fixes/latest_final.py encodes law published before
 # this date.
 REFERENCE_FREEZE = "2026-07-03"
+# The UK leg's references come from policyengine-uk 2.125.1, released on
+# 2026-10-10; the law it encodes is the reference's law for the UK.
+REFERENCE_FREEZES = {"us": REFERENCE_FREEZE, "uk": "2026-10-10"}
+UK_FISCAL_YEAR = f"{TAX_YEAR}-{str(TAX_YEAR + 1)[-2:]}"
 
 VERDICTS = (
     "reference_holds",
@@ -270,6 +274,24 @@ VERDICT_SCHEMA: dict = {
         "confidence",
     ],
 }
+
+
+def schema_for_country(schema: dict, country: str) -> dict:
+    """``schema`` with its citations' freeze date set for ``country``.
+
+    Only the ``pre_freeze`` description differs, so every country's outputs
+    validate against the same structure.
+    """
+    freeze = REFERENCE_FREEZES.get(country)
+    if freeze is None:
+        raise ValueError(f"no reference freeze for country {country!r}")
+    if freeze == REFERENCE_FREEZE:
+        return schema
+    text = json.dumps(schema).replace(
+        f"True if published before {REFERENCE_FREEZE}, ",
+        f"True if published before {freeze}, ",
+    )
+    return json.loads(text)
 
 
 def canonical_json(document: Any) -> str:
@@ -801,6 +823,139 @@ return as reference_holds.
 Return only the JSON object the schema asks for."""
 
 
+_UK_FREEZE = REFERENCE_FREEZES["uk"]
+_UK_YEAR_SPAN = (
+    f"the UK fiscal year {UK_FISCAL_YEAR} "
+    f"(6 April {TAX_YEAR} to 5 April {TAX_YEAR + 1})"
+)
+
+_UK_STAGE1_HEADER = f"""\
+You are a reference adversary for a UK tax-and-benefit benchmark. Each \
+benchmark question gives a household and asks for policy quantities for \
+{_UK_YEAR_SPAN}. A microsimulation engine produced the reference answer. On \
+the question below, one or more AI models answering from memory, without \
+tools, gave an answer other than the reference. Agreement among models proves \
+nothing, and neither does the engine. Your job is to find out what the law \
+gives.
+
+This is stage 1 of 2. In this stage you work the answer out yourself from \
+primary law, before you see anything about how the engine computed its value.
+
+How to work:
+1. Use web search and web fetch to find and read primary law in force for \
+{UK_FISCAL_YEAR}: Acts and statutory instruments on legislation.gov.uk \
+(including the {TAX_YEAR} up-rating orders and rates regulations), the rates \
+and thresholds HMRC and DWP publish on GOV.UK for {UK_FISCAL_YEAR}, HMRC \
+manuals, and DWP's Advice for decision making. Prefer legislation.gov.uk and \
+gov.uk.
+2. Apply the household prompt's conventions exactly as the models were told \
+them: treat any unlisted numeric input as 0 and any other unlisted fact, \
+boolean or status as false; assume program take-up when required; do not \
+infer unlisted income, expenses, assets, benefit receipt or rent.
+3. Read the output definition literally. It decides which people, benefit \
+units, taxes or benefits the number covers. Where it lists components, decide \
+for each candidate amount whether the definition includes it.
+4. Cite every rule you rely on: the source, a pinpoint (section, regulation, \
+paragraph, table or page), the URL you read, the publication or effective \
+date, and a short verbatim quote. The reference's law was frozen on \
+{_UK_FREEZE}: set pre_freeze to true if the source was published before that \
+date, false if after, and null if you cannot tell. If an amount for \
+{UK_FISCAL_YEAR} (a rate, threshold, allowance or benefit amount) had not been \
+published before {_UK_FREEZE}, say so in computation and say what had been \
+published.
+5. {_SOURCE_RULES}
+6. Say which answer the law supports: "reference", "consensus", "neither", or \
+"both_readings" (the reference under one reasonable reading of the definition \
+or the facts, the consensus under another).
+7. In definition_reading, say how you read the output definition for this \
+household. In ambiguity, describe any second reading that the definition or \
+the household prompt genuinely admits, and the answer it gives; use "" if \
+there is none.
+8. independent_answer is your own number, an annual amount in pounds. Use \
+null only when the stated facts and the law leave it genuinely undetermined, \
+and say why in ambiguity.
+
+Return only the JSON object the schema asks for."""
+
+_UK_STAGE2_HEADER = f"""\
+You are a reference adversary for a UK tax-and-benefit benchmark. Each \
+benchmark question gives a household and asks for policy quantities for \
+{_UK_YEAR_SPAN}. A microsimulation engine produced the reference answer. On \
+the question below, one or more AI models answering from memory, without \
+tools, gave an answer other than the reference.
+
+This is stage 2 of 2: reconciliation. In stage 1, a judge who had not seen \
+how the engine derived the reference worked the question from primary law. \
+Its result appears below exactly as it was recorded, with its sha256. Stage 1 \
+is frozen and you may not revise it. If the engine derivation or the law \
+shows that stage 1 erred (it misread a fact, missed or misapplied a rule, or \
+used the wrong year's amount), say so in stage1_error and name the error. Do \
+not silently change course: if your independent_answer, or your view of which \
+answer the law supports, differs from stage 1's, stage1_error must say why. \
+Use "" for stage1_error only when stage 1 stands.
+
+Only now do you see how the engine derived the reference. The derivation is \
+the engine's own computation log for this output and household: each variable \
+it computed for {UK_FISCAL_YEAR} with its value (annual amounts in pounds; a \
+variable over several people lists one value per person), indented under the \
+variable that used it, then every parameter it read with its value (a \
+parameter's own period, such as week or month, applies). Compare each step \
+with the law and with the output definition, and decide:
+- reference_holds: the reference is what the law and the output definition \
+give on the stated facts.
+- reference_wrong: the engine misapplies the law on the stated facts, or \
+uses an amount or rule the law had not published (for example a \
+{UK_FISCAL_YEAR} amount the engine projected itself where the government had \
+published a different one, or none, before {_UK_FREEZE}).
+- definition_mismatch: the engine computes something other than what the \
+output definition describes (it includes or leaves out people, taxes or \
+benefits that the definition covers or excludes).
+- prompt_ambiguous: the stated facts or the definition genuinely admit more \
+than one answer (for example the answer turns on an input the prompt does not \
+list).
+
+engine_step_at_issue names the derivation step that departs from the law or \
+the definition; use "" when the reference holds.
+
+suggested_adjudication:
+- affirmed: the reference holds.
+- regenerated: the reference should be recomputed under a stated convention \
+or a corrected input; the output stays scored.
+- engine_defect: the engine misapplies the law on the stated facts.
+- unlisted_input: the answer turns on an input the prompt does not list.
+- later_law: the reference rests on law or an amount published after \
+{_UK_FREEZE}, or never published.
+- definition_exclusion: the engine's quantity does not match the output \
+definition, so the output should be excluded.
+- none: you suggest nothing.
+Pair them this way: reference_holds with affirmed; reference_wrong with \
+engine_defect, later_law or regenerated; definition_mismatch with \
+definition_exclusion or regenerated; prompt_ambiguous with unlisted_input or \
+definition_exclusion. "none" goes with any verdict.
+
+reference_value is the engine reference below. consensus_value is the answer \
+of the models you weighed (null if none applies).
+
+Cite the law you rely on as in stage 1: source, pinpoint, URL, date, \
+pre_freeze and a short quote. The engine derivation is not a citation. \
+{_SOURCE_RULES}
+
+Your verdict changes no score. A developer adjudicates every case you do not \
+return as reference_holds.
+
+Return only the JSON object the schema asks for."""
+
+_STAGE1_HEADERS = {"us": _STAGE1_HEADER, "uk": _UK_STAGE1_HEADER}
+_STAGE2_HEADERS = {"us": _STAGE2_HEADER, "uk": _UK_STAGE2_HEADER}
+
+
+def _country_template(templates: dict, country: str) -> str:
+    try:
+        return templates[country]
+    except KeyError:
+        raise ValueError(f"no reference-adversary prompt for country {country!r}")
+
+
 def _block(title: str, text: str) -> str:
     return f"----- BEGIN {title} -----\n{text}\n----- END {title} -----"
 
@@ -809,7 +964,7 @@ def _reference_text(case: AdversaryCase) -> str:
     value = case.reference_value
     if case.metric_type == "binary":
         return f"{_number(value)} ({'eligible' if value else 'not eligible'})"
-    rounded = f"${value:,.2f}"
+    rounded = f"{'£' if case.country == 'uk' else '$'}{value:,.2f}"
     if round(value, 2) == value:
         return rounded
     return f"{rounded} (engine output {_number(value)})"
@@ -817,14 +972,25 @@ def _reference_text(case: AdversaryCase) -> str:
 
 def _case_sections(case: AdversaryCase) -> list[str]:
     """The case as both stages show it; never the derivation."""
-    kind = (
-        "an eligibility flag, 1 or 0"
-        if case.metric_type == "binary"
-        else "an annual dollar amount"
-    )
+    if case.country == "uk":
+        kind = "an annual amount in pounds"
+        header = [
+            f"UK FISCAL YEAR: {UK_FISCAL_YEAR}    REFERENCE LAW FROZEN: "
+            f"{REFERENCE_FREEZES['uk']}",
+            f"REGION: {case.state or 'see the household prompt'}",
+        ]
+    else:
+        kind = (
+            "an eligibility flag, 1 or 0"
+            if case.metric_type == "binary"
+            else "an annual dollar amount"
+        )
+        header = [
+            f"TAX YEAR: {TAX_YEAR}    REFERENCE LAW FROZEN: {REFERENCE_FREEZE}",
+            f"STATE: {case.state or 'see the household prompt'}",
+        ]
     lines = [
-        f"TAX YEAR: {TAX_YEAR}    REFERENCE LAW FROZEN: {REFERENCE_FREEZE}",
-        f"STATE: {case.state or 'see the household prompt'}",
+        *header,
         f"OUTPUT: {case.variable} ({kind})",
         f"OUTPUT DEFINITION, as the models saw it: {case.definition}",
         "",
@@ -856,7 +1022,8 @@ def _case_sections(case: AdversaryCase) -> list[str]:
 
 def render_stage1_prompt(case: AdversaryCase) -> str:
     """The law-first prompt: everything about the case except the derivation."""
-    return "\n".join([_STAGE1_HEADER, "", *_case_sections(case)])
+    header = _country_template(_STAGE1_HEADERS, case.country)
+    return "\n".join([header, "", *_case_sections(case)])
 
 
 def render_stage2_prompt(case: AdversaryCase, stage1: dict, stage1_sha256: str) -> str:
@@ -869,7 +1036,7 @@ def render_stage2_prompt(case: AdversaryCase, stage1: dict, stage1_sha256: str) 
     derivation = case.derivation or "(no derivation was recorded for this case)"
     return "\n".join(
         [
-            _STAGE2_HEADER,
+            _country_template(_STAGE2_HEADERS, case.country),
             "",
             *_case_sections(case),
             "",
@@ -921,11 +1088,14 @@ def prepare_adversary(
     if duplicates:
         raise ValueError(f"duplicate adversary cases: {duplicates}")
     adversary_dir.mkdir(parents=True, exist_ok=True)
+    countries = sorted({case.country for case in cases}) or ["us"]
+    if len(countries) > 1:
+        raise ValueError(f"adversary cases mix countries: {countries}")
     (adversary_dir / STAGE1_SCHEMA_FILE).write_text(
-        json.dumps(STAGE1_SCHEMA, indent=2) + "\n"
+        json.dumps(schema_for_country(STAGE1_SCHEMA, countries[0]), indent=2) + "\n"
     )
     (adversary_dir / VERDICT_SCHEMA_FILE).write_text(
-        json.dumps(VERDICT_SCHEMA, indent=2) + "\n"
+        json.dumps(schema_for_country(VERDICT_SCHEMA, countries[0]), indent=2) + "\n"
     )
     cases_root = adversary_dir / "cases"
     derivations_root = adversary_dir / "derivations"
