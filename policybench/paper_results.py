@@ -347,6 +347,48 @@ def engine_version_count_phrase(counts: dict[str, int]) -> str:
     return ", ".join(clauses)
 
 
+def restored_split_sentence(restored: int, ruled: int, ruling_date: str) -> str:
+    """Two sentences on the outputs an engine upgrade fixes: ``restored - ruled``
+    that earlier releases excluded return to scoring at the new version's
+    values, and ``ruled`` that rulings on ``ruling_date`` decided while they
+    were still scored stay scored at them."""
+    if not 0 <= ruled <= restored:
+        raise ValueError(f"{ruled} ruled of {restored} restored outputs")
+    if not restored:
+        return ""
+    returned = restored - ruled
+    defects = "defect" if restored == 1 else "defects"
+    noun = "output" if restored == 1 else "outputs"
+    lead = f"The move fixes the engine {defects} behind {count_word(restored)} {noun}."
+    if not ruled:
+        if restored == 1:
+            return (
+                f"{lead} An earlier release excluded it, and it returns to "
+                "scoring at the new version's values."
+            )
+        return (
+            f"{lead} Earlier releases excluded them, and they return to scoring "
+            "at the new version's values."
+        )
+    if not returned:
+        them, were, stay = (
+            ("it", "it was", "it stays")
+            if ruled == 1
+            else ("them", "they were", "they stay")
+        )
+        return (
+            f"{lead} The {ruling_date} rulings decided {them} while {were} still "
+            f"scored, and {stay} scored at the new version's values."
+        )
+    which = "which returns" if returned == 1 else "which return"
+    stays = "stays" if ruled == 1 else "stay"
+    return (
+        f"{lead} Earlier releases excluded {count_word(returned)} of them, {which} "
+        f"to scoring at the new version's values; the other {count_word(ruled)}, "
+        f"ruled on {ruling_date} while still scored, {stays} scored at those values."
+    )
+
+
 def _key(entry: dict) -> tuple[str, str]:
     return entry["scenario_id"], entry.get("variable", "snap")
 
@@ -1816,6 +1858,30 @@ class PaperResults:
     @property
     def engine_upgrade_restored_count_word(self) -> str:
         return count_word(self.engine_upgrade_restored_count)
+
+    @property
+    def engine_upgrade_restored_ruled_count(self) -> int:
+        """Restored outputs the 2026-10-06 rulings had decided to exclude. No
+        published board excluded them: they were still scored when the rulings
+        came, so they stay scored rather than return to scoring."""
+        last = self.last_engine_upgrade
+        if last is None:
+            return 0
+        ruled = {_key(record) for record in self.ruled_records}
+        return sum(
+            _key(entry) in ruled for entry in last.revision["regenerated_exclusions"]
+        )
+
+    @property
+    def engine_upgrade_restored_split_sentence(self) -> str:
+        """The last upgrade's fixed outputs, split by whether a published board
+        had excluded them (they return to scoring) or the 2026-10-06 rulings
+        decided them while they were still scored (they stay scored)."""
+        return restored_split_sentence(
+            self.engine_upgrade_restored_count,
+            self.engine_upgrade_restored_ruled_count,
+            RULING_DATE,
+        )
 
     @cached_property
     def engine_upgrade_timing(self) -> dict | None:

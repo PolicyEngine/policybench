@@ -148,6 +148,19 @@ def version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
+def birth_time(path: Path) -> float:
+    """The file's birth time (st_birthtime). The record dates the install and
+    the outputs by birth times, which macOS keeps and Linux's stat does not;
+    there this refuses rather than date them by a modification time."""
+    try:
+        return path.stat().st_birthtime
+    except AttributeError:
+        raise Refusal(
+            f"{path}: this platform's stat keeps no birth time (st_birthtime); "
+            "run sweep_timing.py on macOS"
+        ) from None
+
+
 def utc(timestamp: float) -> str:
     return (
         datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
@@ -326,13 +339,13 @@ def sweep(args) -> dict:
     venv = Path(args.venv).resolve()
     installed = dist_info(venv, engine)
     install = engine_install(venv, engine)
-    first_at = utc(first.stat().st_birthtime)
+    first_at = utc(birth_time(first))
     pypi = read_pypi()
     read_at = now_utc()
     uploads = wheel_uploads(pypi)
     if engine not in uploads:
         raise Refusal(f"PyPI lists no wheel for policyengine-us {engine}")
-    installed_at = utc(installed.stat().st_birthtime)
+    installed_at = utc(birth_time(installed))
     sweep_order_problems(uploads[engine], installed_at, first_at, engine)
     earlier = newer_before(uploads, engine, first_at)
     if earlier:
@@ -679,7 +692,7 @@ def check(args) -> dict:
     venv = Path(args.check_venv).resolve()
     installed = dist_info(venv, latest)
     engine_install(venv, latest)  # fail fast; the sweep's own process checks again
-    installed_at = utc(installed.stat().st_birthtime)
+    installed_at = utc(birth_time(installed))
     scratch = ROOT / "results/local"
     scratch.mkdir(parents=True, exist_ok=True)
     work = (
@@ -690,7 +703,7 @@ def check(args) -> dict:
         / "sweep"
     )
     check_path, receipt = run_check_sweep(venv, latest, work)
-    output_at = utc(check_path.stat().st_birthtime)
+    output_at = utc(birth_time(check_path))
     sweep_order_problems(uploads[latest], installed_at, output_at, latest)
     rows, summary = compare(
         computed, read_computed(check_path), engine, latest, excluded
@@ -747,7 +760,7 @@ def main(argv: list[str] | None = None) -> None:
             Path(args.venv).resolve(), args.engine, Path(args.receipt), builder_args
         )
         if computed is not None and (
-            not computed.is_file() or computed.stat().st_birthtime < started - 1
+            not computed.is_file() or birth_time(computed) < started - 1
         ):
             raise Refusal(
                 f"the build on {args.engine} wrote no new {computed} "

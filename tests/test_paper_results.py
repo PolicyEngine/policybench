@@ -1649,6 +1649,59 @@ def _with_restored(edit) -> PaperResults:
     return results
 
 
+def test_the_fixed_outputs_split_into_returned_and_still_scored():
+    """Of the outputs the 2.38.6 move fixes, the 14 release 20261006 excluded
+    return to scoring; the four the 2026-10-06 rulings decided were still
+    scored and stay scored (final review finding 2). The paper says so instead
+    of returning all of them to scoring."""
+    restored = r.engine_upgrade_restored_count
+    ruled = r.engine_upgrade_restored_ruled_count
+    assert (restored, ruled) == (18, 4)
+    assert ruled == r.ruled_regenerated_count
+    note = json.loads(
+        (
+            ROOT / "app/src/notes/2026-10-10-claude-haiku-5-5-joins-the-board.json"
+        ).read_text()
+    )
+    assert restored - ruled == note["facts"]["newlyScored"]
+    assert ruled == note["facts"]["restoredRuled"]
+    assert r.engine_upgrade_restored_split_sentence == (
+        "The move fixes the engine defects behind 18 outputs. Earlier releases "
+        "excluded 14 of them, which return to scoring at the new version's "
+        "values; the other four, ruled on 2026-10-06 while still scored, stay "
+        "scored at those values."
+    )
+    paper = (ROOT / "paper/index.qmd").read_text()
+    assert "`{python} r.engine_upgrade_restored_split_sentence`" in paper
+    assert "excluded outputs to scoring" not in paper
+    assert "PolicyBench excluded `{python} r.ruled_exclusion_count_word`" not in paper
+
+
+@given(st.integers(0, 40), st.data())
+def test_the_split_sentence_counts_both_kinds(restored, data):
+    """For any split, the sentence names the total, says "return" only when
+    some outputs return and "stay" only when some stay, and never starts a
+    sentence with a numeral."""
+    from policybench.paper_results import count_word, restored_split_sentence
+
+    ruled = data.draw(st.integers(0, restored))
+    sentence = restored_split_sentence(restored, ruled, "2026-10-06")
+    if not restored:
+        assert sentence == ""
+        return
+    returned = restored - ruled
+    assert f"behind {count_word(restored)} output" in sentence
+    assert ("return" in sentence) == (returned > 0)
+    assert ("stay" in sentence) == (ruled > 0)
+    if returned and ruled:
+        assert f"excluded {count_word(returned)} of them" in sentence
+        assert f"the other {count_word(ruled)}," in sentence
+    for part in sentence.split(". "):
+        assert not part[0].isdigit(), part
+    with pytest.raises(ValueError):
+        restored_split_sentence(restored, restored + 1, "2026-10-06")
+
+
 def test_the_restored_target_sentence_follows_the_frozen_sidecar():
     """Every restored output is counted under how its corrected value is
     known, and lands within its tolerance of that value."""

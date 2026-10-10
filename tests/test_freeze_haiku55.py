@@ -540,10 +540,15 @@ def test_freeze_rejects_pretty_json_before_any_workspace_mutation(freeze_preflig
 
 def test_the_default_tag_is_the_driver_release_tag(freeze_preflight, monkeypatch):
     stage, _, receipt = freeze_preflight
-    monkeypatch.setattr(driver, "RELEASE_TAG", "dashboard-data-20261010")
-    with pytest.raises(SystemExit, match="release tag 'dashboard-data-20261010'"):
+    # MOCK: another dated release, the day after the driver's, so the tag the
+    # freeze defaults to can only have come from the driver.
+    day = datetime.datetime.strptime(driver.RELEASE_TAG.rsplit("-", 1)[1], "%Y%m%d")
+    other = f"dashboard-data-{day + datetime.timedelta(days=1):%Y%m%d}"
+    assert other != driver.RELEASE_TAG
+    monkeypatch.setattr(driver, "RELEASE_TAG", other)
+    with pytest.raises(SystemExit, match=f"release tag '{other}'"):
         release.main(["--stage-dir", str(stage), "--dry-run"])
-    receipt["release_tag"] = "dashboard-data-20261010"
+    receipt["release_tag"] = other
     (stage / "release-ready.json").write_text(json.dumps(receipt))
     # Past the receipt, the spec still names the release it was written for.
     with pytest.raises(SystemExit, match="names another release or base"):
@@ -720,7 +725,7 @@ def test_the_freeze_refuses_a_spec_without_its_dates(spec, field, value, message
 
 def test_the_spec_names_this_release_and_its_snapshot_date():
     value = release.release_spec(driver.RELEASE_TAG)
-    assert value["snapshot_date"] == "2026-10-09"
+    assert value["snapshot_date"] == "2026-10-10"
     assert value["adjudications_written_on"] == WRITTEN_ON
 
 
@@ -1804,7 +1809,7 @@ def test_a_dry_run_of_a_releasable_stage_writes_nothing(frozen_board, capsys):
     out = capsys.readouterr().out
     assert f"Validated local release inputs: {driver.RELEASE_TAG}, 47 models" in out
     assert "74 exclusions (10 new)" in out
-    assert f"model responses {WINDOW}; snapshot 2026-10-09; nothing written" in out
+    assert f"model responses {WINDOW}; snapshot 2026-10-10; nothing written" in out
 
 
 def _live_version(versions: dict) -> dict:
@@ -1840,7 +1845,7 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     versions = json.loads((root / release.VERSIONS).read_text())
     previous = json.loads(base_blob(Path(release.VERSIONS)))
     live = _live_version(versions)
-    assert live["snapshotLabel"] == "Snapshot 2026-10-09"
+    assert live["snapshotLabel"] == "Snapshot 2026-10-10"
     assert live["description"].endswith(" - 47 models")
     assert (
         "the 74 excluded outputs keep the values they were decided on: 52 from "
@@ -1898,7 +1903,7 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     assert serving["registry_commit"] == "f" * 40
     # The freezer read the stage, as configured.
     [configured] = frozen_board.calls
-    assert configured["SNAPSHOT_DATE"] == "2026-10-09"
+    assert configured["SNAPSHOT_DATE"] == "2026-10-10"
     assert configured["SOURCE_RUN"] == stage / BUNDLE
     assert configured["SOURCE_US"] == stage / BUNDLE / "us"
     assert configured["SOURCE_ANNOTATIONS"] == staged_annotations
@@ -2017,7 +2022,7 @@ def test_verify_frozen_checks_what_the_freezer_wrote(frozen_board, defect, messa
     stage = frozen_board.stage
     release.main(["--stage-dir", str(stage)])
     annotations = release.ROOT / ANNOTATIONS_DIR
-    window, snapshot_date = WINDOW, "2026-10-09"
+    window, snapshot_date = WINDOW, "2026-10-10"
     if defect == "extra_file":
         (annotations / "notes.txt").write_text("Left behind.\n")
     elif defect == "unnamed_wave":
@@ -2026,7 +2031,7 @@ def test_verify_frozen_checks_what_the_freezer_wrote(frozen_board, defect, messa
     elif defect == "other_window":
         window = "2026-06-12 to 2026-10-09"
     else:
-        snapshot_date = "2026-10-10"
+        snapshot_date = "2026-10-11"
     pointer = json.loads((release.ROOT / release.POINTER).read_text())
     serving = json.loads(base_blob(SNAPSHOT_DIR / "model_serving_config.json"))
     arguments = dict(

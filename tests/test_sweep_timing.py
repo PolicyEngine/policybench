@@ -20,6 +20,39 @@ _spec = importlib.util.spec_from_file_location(
 timing = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(timing)
 
+# Linux's stat keeps no birth time, and the record's times are birth times.
+BIRTH_TIMES = hasattr(Path(__file__).stat(), "st_birthtime")
+REAL_BIRTH_TIME = timing.birth_time
+
+
+@pytest.fixture(autouse=True)
+def _birth_times(monkeypatch):
+    """MOCK, on a platform without birth times (Linux CI) only: date each file
+    by its modification time. These tests create every file they date once and
+    never rewrite it, so the two times agree; on macOS the real birth times
+    are read."""
+    if not BIRTH_TIMES:
+        monkeypatch.setattr(timing, "birth_time", lambda path: path.stat().st_mtime)
+
+
+def test_birth_time_refuses_a_platform_without_birth_times(tmp_path):
+    """Where stat keeps no birth time, the record refuses rather than date the
+    install or an output by a modification time."""
+    path = tmp_path / "computed.csv"
+    path.write_text("x\n")
+
+    class NoBirth:
+        def stat(self):
+            return type("Stat", (), {"st_mtime": 0.0})()
+
+        def __str__(self):
+            return str(path)
+
+    with pytest.raises(timing.Refusal, match="keeps no birth time"):
+        REAL_BIRTH_TIME(NoBirth())
+    if BIRTH_TIMES:
+        assert REAL_BIRTH_TIME(path) == path.stat().st_birthtime
+
 
 def _wheel(at, *, yanked=False, kind="bdist_wheel"):
     return {"packagetype": kind, "upload_time_iso_8601": at, "yanked": yanked}

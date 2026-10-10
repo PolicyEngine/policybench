@@ -1056,3 +1056,40 @@ def test_paper_results_count_the_rerun_sweeps_the_same_way(tree):
     assert results.publication_check_pypi_read_date == timing["read_at_utc"][:10]
     assert results.publication_check_pypi_read_utc == timing["read_at_utc"][11:16]
     assert results.publication_check_policyengine_us_version == timing["newest_at_read"]
+
+
+def test_the_october_upgrade_commits_the_actions_its_sidecar_pins():
+    """reference_audit/2026-10-09-engine-upgrade/final_actions.json is the
+    actions file the frozen sidecar's last upgrade names by sha256, so the
+    build can be checked against it. Its arrays give the counts the sidecar
+    does; its free-text note predates CA 099's move to the rechecks, as the
+    directory's README says, and stays as written."""
+    audit = ROOT / "reference_audit/2026-10-09-engine-upgrade"
+    actions_path = audit / "final_actions.json"
+    sidecar = json.loads((RUN_DIR / "reference_outputs.csv.meta.json").read_text())
+    upgrade = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"][-1]
+    assert upgrade["engine_version"] == "policyengine-us 2.38.6"
+    digest = hashlib.sha256(actions_path.read_bytes()).hexdigest()
+    assert digest == upgrade["provenance"]["actions_sha256"]
+    actions = json.loads(actions_path.read_text())
+    assert actions["draft"] is False
+    assert len(actions["regenerated_exclusions"]) == len(
+        upgrade["regenerated_exclusions"]
+    )
+    assert len(actions["excluded_rechecked"]) == len(
+        upgrade["excluded_outputs_rechecked"]
+    )
+    assert len(actions["new_exclusions"]) == len(upgrade["new_exclusions"])
+    assert (
+        len(actions["regenerated_exclusions"]),
+        len(actions["excluded_rechecked"]),
+    ) == (
+        18,
+        17,
+    )
+    # The erratum the README carries names the note's stale counts and the
+    # arrays' counts; if the note were rewritten, the pin above would fail.
+    assert "19 regenerations" in actions["note"] and "16 rechecks" in actions["note"]
+    readme = (audit / "README.md").read_text()
+    assert "19 regenerations and 16" in readme and "18 regenerations and 17" in readme
+    assert digest[:8] in readme

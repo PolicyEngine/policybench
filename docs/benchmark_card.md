@@ -268,8 +268,8 @@ four households in Minnesota, Colorado, Massachusetts and New York. They also
 move two federal income tax outputs that were already excluded, and no output
 that is still scored by any amount. No judge had flagged the eight.
 
-On 2026-10-06 PolicyBench excluded ten more outputs. Eight came from a
-reference adversary (`reference_audit/2026-10-05-reference-adversary/`), which
+On 2026-10-06 PolicyBench ruled to exclude ten more outputs. Eight came from
+a reference adversary (`reference_audit/2026-10-05-reference-adversary/`), which
 flags the scored outputs where many models, or several of the strongest, agree
 on an answer the reference does not give. A judge that cannot yet see the
 engine's derivation works each flagged output from primary law, and only then
