@@ -1827,6 +1827,36 @@ def _with_timing(tmp_path, monkeypatch, record: dict | None) -> PaperResults:
     return PaperResults()
 
 
+def test_a_landed_defect_record_with_no_stated_reason_is_refused():
+    """MOCK edit: a rechecked engine-defect record that lands on its corrected
+    value must say why it stays excluded (an unstated input in its note, or a
+    further engine defect in its recheck); otherwise the counts refuse."""
+    results = PaperResults()
+    results.reference_revisions = deepcopy(r.reference_revisions)
+    last = results.reference_revisions[-1]
+    field = "value_on_" + r.last_engine_upgrade.engine_version.replace(".", "_")
+    records = {(e["scenario_id"], e["variable"]): e for e in r.reference_exclusions}
+    for item in last["excluded_outputs_rechecked"]:
+        key = (item["scenario_id"], item["variable"])
+        if key in r.engine_defect_further_defect_keys:
+            item["reason"] = "MOCK reason that states nothing"
+            break
+    else:
+        for item in last["excluded_outputs_rechecked"]:
+            key = (item["scenario_id"], item["variable"])
+            record = records.get(key)
+            if record and record["reason_code"] == "reference_engine_defect":
+                item[field] = float(record["alternative_value"])
+                record_note = record.get("note", "")
+                if "(unlisted input)" not in record_note:
+                    item["reason"] = "MOCK reason that states nothing"
+                    break
+        else:
+            pytest.skip("no engine-defect record to edit")
+    with pytest.raises(ValueError, match="names neither"):
+        results.engine_defect_landed_keys
+
+
 def test_an_upload_on_another_day_names_its_date(tmp_path, monkeypatch):
     """MOCK record: a wheel uploaded the day before the sweep began is dated,
     so the sentence does not imply the sweep's day."""
@@ -1922,26 +1952,54 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     last = r.last_engine_upgrade
     field = "value_on_" + last.engine_version.replace(".", "_")
     records = {(e["scenario_id"], e["variable"]): e for e in r.reference_exclusions}
-    expected = set()
+    # The audit's fix-module evidence: corrected values on an engine that still
+    # has the defect (where later engine changes moved the output).
+    evidence: dict = {}
+    for path in (ROOT / "reference_audit/2026-10-09-engine-upgrade/evidence").glob(
+        "*.json"
+    ):
+        doc = json.loads(path.read_text())
+        if doc.get("kind") != "regeneration_evidence":
+            continue  # the request that produced it, say
+        for row in doc["items"]:
+            if moves_beyond_tolerance(
+                row["variable"], row["engine_value"], row["corrected_value"]
+            ):
+                key = (row["scenario_id"], row["variable"])
+                evidence.setdefault(key, []).append(row["corrected_value"])
+    expected, further = set(), set()
     for item in last.rechecked:
         key = (item["scenario_id"], item["variable"])
         record = records[key]
         if record["reason_code"] != "reference_engine_defect":
             continue
-        if not moves_beyond_tolerance(
-            key[1], float(record["alternative_value"]), float(item[field])
+        targets = [float(record["alternative_value"]), *evidence.get(key, [])]
+        if any(
+            not moves_beyond_tolerance(key[1], target, float(item[field]))
+            for target in targets
         ):
-            expected.add(key)
-            assert "unlisted input" in record["note"], key
-            assert "second reason" in item["reason"], key
+            # Each landed record stays excluded for one stated reason: the
+            # unstated input its note names, or a further engine defect.
+            if "(unlisted input)" in record["note"]:
+                expected.add(key)
+                assert "second reason" in item["reason"], key
+            else:
+                further.add(key)
+                assert "rests on a further engine defect" in item["reason"], key
     assert r.engine_defect_fixed_kept_keys == expected
-    assert expected, "the rehearsal keeps scenario_081's Massachusetts output"
-    assert (
-        r.engine_defect_unfixed_count + r.engine_defect_fixed_kept_count
-        == r.engine_defect_exclusion_count
-    )
+    assert r.engine_defect_further_defect_keys == further
+    assert expected, "the release keeps scenario_081's Massachusetts output"
     assert (
         r.engine_defect_unfixed_count
+        + r.engine_defect_fixed_kept_count
+        + r.engine_defect_further_defect_count
+        == r.engine_defect_exclusion_count
+    )
+    assert r.engine_defect_present_count == (
+        r.engine_defect_unfixed_count + r.engine_defect_further_defect_count
+    )
+    assert (
+        r.engine_defect_present_count
         + r.unstated_input_exclusion_total
         + r.later_law_exclusion_count
         == r.excluded_output_count
@@ -1955,7 +2013,12 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     assert f"policyengine-us {r.policyengine_us_version} computes" in sentence
     paper = (ROOT / "paper/index.qmd").read_text()
     assert "`{python} r.engine_defect_fixed_kept_sentence`" in paper
-    assert "`{python} r.engine_defect_unfixed_count` outputs whose references" in paper
+    assert "`{python} r.engine_defect_further_defect_sentence`" in paper
+    if r.engine_defect_further_defect_count:
+        assert f"found on {r.policyengine_us_version}" in (
+            r.engine_defect_further_defect_sentence
+        )
+    assert "`{python} r.engine_defect_present_count` outputs whose references" in paper
     # The September audit paragraph separates the defects the reference engine
     # still has from the records it fixes but keeps (pre-T review finding 4).
     assert (

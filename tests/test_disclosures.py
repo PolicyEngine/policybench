@@ -629,8 +629,10 @@ def _html_text() -> str:
 def _abstract_exclusion_sentence() -> str:
     # An engine-defect record whose defect the engine now fixes, kept for an
     # unstated input, counts with the unstated inputs.
+    # One whose recorded defect is fixed but whose reference rests on a further
+    # defect the engine has counts with the defects upstream has not fixed.
     counts = (
-        r.engine_defect_unfixed_count,
+        r.engine_defect_present_count,
         r.unstated_input_exclusion_total,
         r.later_law_exclusion_count,
     )
@@ -994,6 +996,8 @@ def test_card_counts_follow_the_frozen_records():
     ) in card
     if r.engine_defect_fixed_kept_count:
         assert r.engine_defect_fixed_kept_sentence in card
+    if r.engine_defect_further_defect_count:
+        assert r.engine_defect_further_defect_sentence in card
     else:
         # No fixed-but-kept records: the card must not still claim one.
         assert "at its corrected value; it stays excluded" not in card

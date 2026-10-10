@@ -71,6 +71,10 @@ SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 
+# The phrase an upgrade's recheck reason uses for an output whose recorded
+# defect the new engine fixes but whose reference rests on another one.
+FURTHER_DEFECT = "rests on a further engine defect"
+
 # The October 2026 engine move's audit: its builder, and the timing record and
 # publication check scripts/sweep_timing.py writes there.
 OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
@@ -2583,36 +2587,89 @@ class PaperResults:
         )
 
     @cached_property
-    def engine_defect_fixed_kept_keys(self) -> frozenset[tuple[str, str]]:
+    def engine_defect_landed_keys(self) -> dict[str, frozenset[tuple[str, str]]]:
         """Engine-defect records still excluded although the last upgrade's
         engine computes the record's corrected value (within the exact-match
-        tolerance). The defect is fixed there; the upgrade's recheck keeps
-        each excluded for the second reason its record names, an input the
-        prompt does not state."""
+        tolerance) or, where later engine changes moved the output, the
+        corrected value the audit's committed fix-module evidence gives on an
+        engine that still has the defect (upgrade_fix_evidence), so the
+        recorded defect is fixed there, split by why the
+        upgrade's recheck keeps each excluded: ``unlisted_input``, for the
+        second reason the record's note names (an input the prompt does not
+        state); ``further_defect``, because the recheck found the reference
+        rests on a further engine defect the new engine does not fix (its
+        reason says so). A landed record that is neither is refused."""
         last = self.last_engine_upgrade
+        kinds: dict[str, set] = {"unlisted_input": set(), "further_defect": set()}
         if last is None:
-            return frozenset()
+            return {k: frozenset(v) for k, v in kinds.items()}
         records = {
             _key(entry): entry
             for entry in self.reference_exclusions
             if entry["reason_code"] == ENGINE_DEFECT
         }
         field = "value_on_" + last.engine_version.replace(".", "_")
-        return frozenset(
-            _key(item)
-            for item in last.rechecked
-            if _key(item) in records
-            and field in item
-            and not moves_beyond_tolerance(
-                item["variable"],
-                float(records[_key(item)]["alternative_value"]),
-                float(item[field]),
-            )
-        )
+        for item in last.rechecked:
+            key = _key(item)
+            if key not in records or field not in item:
+                continue
+            record = records[key]
+            targets = [float(record["alternative_value"])]
+            targets += self.upgrade_fix_evidence.get(key, [])
+            if all(
+                moves_beyond_tolerance(item["variable"], target, float(item[field]))
+                for target in targets
+            ):
+                continue
+            if "(unlisted input)" in record.get("note", ""):
+                kinds["unlisted_input"].add(key)
+            elif FURTHER_DEFECT in item["reason"]:
+                kinds["further_defect"].add(key)
+            else:
+                raise ValueError(
+                    f"{key} lands on its corrected value but its recheck names "
+                    "neither an unstated input nor a further engine defect"
+                )
+        return {k: frozenset(v) for k, v in kinds.items()}
+
+    @cached_property
+    def upgrade_fix_evidence(self) -> dict[tuple[str, str], list[float]]:
+        """Per output, the corrected values the October audit's committed
+        fix-module evidence gives (reference_audit/2026-10-09-engine-upgrade/
+        evidence): each on an engine that still has the defect, kept only where
+        the modules moved the output beyond the exact-match tolerance there."""
+        found: dict[tuple[str, str], list[float]] = {}
+        for path in sorted((ROOT / OCTOBER_UPGRADE_AUDIT / "evidence").glob("*.json")):
+            doc = json.loads(path.read_text())
+            if doc.get("kind") != "regeneration_evidence":
+                continue
+            for item in doc["items"]:
+                if moves_beyond_tolerance(
+                    item["variable"], item["engine_value"], item["corrected_value"]
+                ):
+                    found.setdefault(_key(item), []).append(item["corrected_value"])
+        return found
+
+    @property
+    def engine_defect_fixed_kept_keys(self) -> frozenset[tuple[str, str]]:
+        """Engine-defect records whose defect the last upgrade's engine fixes
+        and which stay excluded for an input the prompt does not state."""
+        return self.engine_defect_landed_keys["unlisted_input"]
+
+    @property
+    def engine_defect_further_defect_keys(self) -> frozenset[tuple[str, str]]:
+        """Engine-defect records whose recorded defect the last upgrade's
+        engine fixes but whose reference rests on a further defect it does
+        not fix, so they stay excluded."""
+        return self.engine_defect_landed_keys["further_defect"]
 
     @property
     def engine_defect_fixed_kept_count(self) -> int:
         return len(self.engine_defect_fixed_kept_keys)
+
+    @property
+    def engine_defect_further_defect_count(self) -> int:
+        return len(self.engine_defect_further_defect_keys)
 
     @property
     def engine_defect_fixed_kept_sentence(self) -> str:
@@ -2634,21 +2691,67 @@ class PaperResults:
         )
 
     @property
+    def engine_defect_further_defect_sentence(self) -> str:
+        """What the paper says of the records kept for a further defect; empty
+        for none."""
+        count = self.engine_defect_further_defect_count
+        if count == 0:
+            return ""
+        version = self.policyengine_us_version
+        if count == 1:
+            return (
+                f"policyengine-us {version} computes one more at its recorded "
+                "corrected value, but its reference rests on a further engine "
+                f"defect, found on {version} and not fixed there, so it stays "
+                "excluded."
+            )
+        return (
+            f"policyengine-us {version} computes {count_word(count)} more at their "
+            "recorded corrected values, but each reference rests on a further "
+            f"engine defect, found on {version} and not fixed there, so they stay "
+            "excluded."
+        )
+
+    @property
     def engine_defect_unfixed_count(self) -> int:
-        """Engine-defect exclusions whose defect the current engine has."""
-        return self.engine_defect_exclusion_count - self.engine_defect_fixed_kept_count
+        """Engine-defect exclusions whose recorded defect the current engine
+        has."""
+        return (
+            self.engine_defect_exclusion_count
+            - self.engine_defect_fixed_kept_count
+            - self.engine_defect_further_defect_count
+        )
+
+    @property
+    def engine_defect_present_count(self) -> int:
+        """Engine-defect exclusions whose reference rests on a defect the
+        current engine has: the recorded one, or a further one."""
+        return (
+            self.engine_defect_unfixed_count + self.engine_defect_further_defect_count
+        )
 
     @property
     def engine_defect_unfixed_root_cause_count(self) -> int:
         """Distinct root causes behind the unfixed engine-defect exclusions."""
+        landed = (
+            self.engine_defect_fixed_kept_keys | self.engine_defect_further_defect_keys
+        )
         causes: set[str] = set()
         for entry in self.reference_exclusions:
-            if (
-                entry["reason_code"] == ENGINE_DEFECT
-                and _key(entry) not in self.engine_defect_fixed_kept_keys
-            ):
+            if entry["reason_code"] == ENGINE_DEFECT and _key(entry) not in landed:
                 causes.update(exclusion_basis(entry).split("+"))
         return len(causes)
+
+    @property
+    def engine_defect_present_root_cause_count(self) -> int:
+        """The unfixed root causes and the further defects, each a cause."""
+        last = self.last_engine_upgrade
+        reasons = {
+            item["reason"]
+            for item in ([] if last is None else last.rechecked)
+            if _key(item) in self.engine_defect_further_defect_keys
+        }
+        return self.engine_defect_unfixed_root_cause_count + len(reasons)
 
     @property
     def unstated_input_exclusion_total(self) -> int:
