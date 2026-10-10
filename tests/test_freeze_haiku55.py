@@ -2153,17 +2153,32 @@ def _builder_setup(inherited: dict) -> dict:
 
 
 def test_the_mock_setup_is_the_real_builders():
-    """The MOCK builds' setup is the one the real 2.37.2 rehearsal build
-    recorded, where that build is on this machine."""
-    meta = REPO / "results/local/rehearsal-2372/build" / driver.META_NAME
-    if not meta.is_file():
-        pytest.skip("needs the local 2.37.2 rehearsal build")
-    real = json.loads(meta.read_text())["revisions"][-1]
+    """The MOCK builds' setup is the one every real build recorded: the
+    committed snapshot's engine upgrade from 2.15.17 (once a freeze commits
+    one, so the check runs everywhere), and each local build on this machine
+    (the rehearsals and the release builds under results/local)."""
+    real = []
+    committed = json.loads((REPO / FROZEN_RUN / driver.META_NAME).read_text())
+    last = committed["revisions"][-1]
+    if (
+        last.get("kind") == "engine_upgrade"
+        and last.get("previous_engine_version") == driver.BASE_ENGINE
+    ):
+        real.append(("committed snapshot", last))
+    local = [REPO / "results/local/rehearsal-2372/build"]
+    local += sorted((REPO / "results/local/final").glob("*/build"))
+    for build in local:
+        meta = build / driver.META_NAME
+        if meta.is_file():
+            real.append((str(build), json.loads(meta.read_text())["revisions"][-1]))
+    if not real:
+        pytest.skip("no real engine-upgrade build is committed or on this machine")
     inherited = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
-    assert _builder_setup(inherited) == {
-        "fix_modules": real["fix_modules"],
-        "builder": real["builder"],
-    }
+    for where, revision in real:
+        assert _builder_setup(inherited) == {
+            "fix_modules": revision["fix_modules"],
+            "builder": revision["builder"],
+        }, where
 
 
 def _install_MOCK_build(

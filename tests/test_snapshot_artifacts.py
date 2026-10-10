@@ -1334,6 +1334,56 @@ def test_the_published_upgrades_pins_are_their_committed_bytes():
         freeze_snapshot.verify_fix_module_pins(
             upgrade["fix_modules"], upgrades[:index] if inherits else []
         )
+        freeze_snapshot.verify_regeneration_target_pins(upgrade)
+
+
+def test_a_regeneration_target_publishes_the_committed_modules_and_evidence():
+    """MOCK fix_modules targets, on the committed module and evidence paths:
+    the freeze accepts their committed bytes and refuses any other pin."""
+    from scripts import freeze_snapshot
+
+    def pin(module):
+        path = f"{freeze_snapshot.AUDIT_FIXES_DIR}/{module}"
+        return {"module": module, "sha256": freeze_snapshot.committed_sha256(path)}
+
+    evidence = "reference_audit/2026-10-09-engine-upgrade/evidence/pe2.37.2.json"
+    target = {
+        "kind": "fix_modules",
+        "modules": [pin("r02_ira_219g_v2.py")],
+        "dependencies": [pin("r02_ira_219g.py")],
+        "evidence": evidence,
+        "evidence_sha256": freeze_snapshot.committed_sha256(evidence),
+    }
+    assert all(item["sha256"] for item in target["modules"] + target["dependencies"])
+
+    def upgrade_with(**changes):
+        return {
+            "regenerated_exclusions": [
+                {
+                    "scenario_id": "MOCK",
+                    "variable": "v",
+                    "target": {**target, **changes},
+                },
+                {"scenario_id": "MOCK", "variable": "w", "target": {"kind": "record"}},
+            ]
+        }
+
+    freeze_snapshot.verify_regeneration_target_pins(upgrade_with())
+    for changes, message in (
+        (
+            {"modules": [{**pin("r02_ira_219g_v2.py"), "sha256": "0" * 64}]},
+            "not pinned",
+        ),
+        (
+            {"dependencies": [{**pin("r02_ira_219g.py"), "sha256": "0" * 64}]},
+            "not pinned",
+        ),
+        ({"modules": []}, "pins no module"),
+        ({"evidence_sha256": "0" * 64}, "evidence"),
+        ({"evidence": "reference_audit/MOCK_missing.json"}, "evidence"),
+    ):
+        with pytest.raises(SystemExit, match=message):
+            freeze_snapshot.verify_regeneration_target_pins(upgrade_with(**changes))
 
 
 def test_MOCK_reference_refresh_reads_the_latest_bundle_and_timestamp(

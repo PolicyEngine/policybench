@@ -1572,6 +1572,7 @@ def read_reference_engine_setup() -> dict[str, int]:
     if STATED_HOURS_INPUT not in builder and not inherited_builder:
         raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
     verify_fix_module_pins(fix_modules, upgrades[:-1] if inherited_builder else [])
+    verify_regeneration_target_pins(upgrade)
     return {
         "convention_count": len(conventions),
         "output_scope_adapter_count": len(OUTPUT_SCOPE_ADAPTERS),
@@ -1641,6 +1642,42 @@ def verify_fix_module_pins(fix_modules: list[dict], earlier: list[dict]) -> None
             raise SystemExit(
                 "the engine_upgrade conventions are not the earlier upgrade's: "
                 f"{sorted(inherited ^ latest)}"
+            )
+
+
+# Where an engine upgrade's regeneration targets find the audited fix modules
+# they apply (a "fix_modules" target; build_references_upgrade.py).
+AUDIT_FIXES_DIR = "reference_audit/2026-09-22/fixes"
+
+
+def verify_regeneration_target_pins(upgrade: dict) -> None:
+    """Each regenerated output held to the audit's fix modules publishes the
+    bytes that ran: every module and sibling its target pins is the file
+    committed under AUDIT_FIXES_DIR, and its evidence file is the committed
+    one. The builder and driver check this before the install; the freeze
+    checks what the published sidecar says."""
+    for entry in upgrade.get("regenerated_exclusions", []):
+        target = entry.get("target") or {}
+        if target.get("kind") != "fix_modules":
+            continue
+        key = f"{entry.get('scenario_id')}|{entry.get('variable')}"
+        pins = [*target.get("modules", []), *target.get("dependencies", [])]
+        if not target.get("modules"):
+            raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
+        for item in pins:
+            path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            if item.get("sha256") != committed_sha256(path):
+                raise SystemExit(
+                    f"regenerated {key}: {item.get('module')} is not pinned at the "
+                    f"bytes committed at {path}"
+                )
+        evidence = target.get("evidence")
+        if not isinstance(evidence, str) or target.get(
+            "evidence_sha256"
+        ) != committed_sha256(evidence):
+            raise SystemExit(
+                f"regenerated {key}: its evidence {evidence!r} is not pinned at the "
+                "committed bytes"
             )
 
 
