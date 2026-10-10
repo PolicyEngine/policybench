@@ -1666,15 +1666,15 @@ def verify_regeneration_target_pins(upgrade: dict) -> None:
             raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
         for item in pins:
             path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
-            if item.get("sha256") != committed_sha256(path):
+            committed = committed_sha256(path)
+            if committed is None or item.get("sha256") != committed:
                 raise SystemExit(
                     f"regenerated {key}: {item.get('module')} is not pinned at the "
                     f"bytes committed at {path}"
                 )
         evidence = target.get("evidence")
-        if not isinstance(evidence, str) or target.get(
-            "evidence_sha256"
-        ) != committed_sha256(evidence):
+        committed = committed_sha256(evidence) if isinstance(evidence, str) else None
+        if committed is None or target.get("evidence_sha256") != committed:
             raise SystemExit(
                 f"regenerated {key}: its evidence {evidence!r} is not pinned at the "
                 "committed bytes"

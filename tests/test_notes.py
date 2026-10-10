@@ -5011,6 +5011,10 @@ def test_release_20261009_note_claims() -> None:
     card = card_for("claude-haiku-5-5")
     assert card.answer_contract == "tool"
     assert "forced-tool probe returned no thinking block" in card.notes
+    # "where a request without the forced tool did": the unforced probe.
+    assert "A request with no thinking parameter returns a thinking block" in (
+        card.notes
+    )
     assert "as Claude Opus 5's row does" in card.notes
     # "Under the same publication conventions": the move keeps every
     # convention module of the move before it.

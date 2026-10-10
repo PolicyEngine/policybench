@@ -1381,6 +1381,9 @@ def test_a_regeneration_target_publishes_the_committed_modules_and_evidence():
         ({"modules": []}, "pins no module"),
         ({"evidence_sha256": "0" * 64}, "evidence"),
         ({"evidence": "reference_audit/MOCK_missing.json"}, "evidence"),
+        # Absent files with absent pins: both sides None must not compare equal.
+        ({"modules": [{"module": "MOCK_missing.py"}]}, "not pinned"),
+        ({"evidence": "MOCK_missing.json", "evidence_sha256": None}, "evidence"),
     ):
         with pytest.raises(SystemExit, match=message):
             freeze_snapshot.verify_regeneration_target_pins(upgrade_with(**changes))

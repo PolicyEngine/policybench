@@ -18,7 +18,15 @@ so it is refused rather than pinned short. The other ways are:
   ``__loader__``, an attribute ``.__file__`` such as
   ``sys.modules[__name__].__file__``, ``inspect``, ``globals()``, ``vars()``);
 - importing this repository's own package (``policybench``), whose code no
-  fix-module pin covers.
+  fix-module pin covers;
+- building a path from anything but ``__file__`` (``Path(stem + ".py")``,
+  ``Path.cwd() / name``, ``os.getcwd()``, ``Path.home()``), or opening a file
+  whose name is not a literal (``open(os.environ["X"])``).
+
+What this cannot see is code that reaches files only through names it
+computes at run time from data (a string read from a file, say); every
+module the engine-upgrade evidence applies is checked by a test to load
+its siblings only in the supported form.
 
 The builder (``reference_audit/2026-10-09-engine-upgrade/scripts/
 build_references_upgrade.py``) and the release driver
@@ -65,6 +73,10 @@ BANNED_NAMES = frozenset(
         "walk",
         "__spec__",
         "__loader__",
+        "cwd",
+        "getcwd",
+        "home",
+        "expanduser",
     }
 )
 # Modules whose import reaches code or files a fix-module pin does not cover:
@@ -149,6 +161,23 @@ def direct_dependencies(text: str, name: str = "<module>") -> list[str]:
             literal = outer.args[0]
             literals.add(id(literal))
             found.append((literal.lineno, literal.col_offset, literal.value))
+        elif (
+            isinstance(node, ast.Call)
+            and _is_path_call(node)
+            and not (
+                len(node.args) == 1
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "__file__"
+            )
+        ):
+            problems.append(f"{at(node)} builds a Path from something but __file__")
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "open"
+            and not (node.args and isinstance(node.args[0], ast.Constant))
+        ):
+            problems.append(f"{at(node)} opens a file whose name is not a literal")
         elif isinstance(node, ast.Name) and node.id in BANNED_BUILTINS:
             problems.append(f"{at(node)} calls {node.id}")
         elif isinstance(node, ast.Name) and node.id in BANNED_NAMES:

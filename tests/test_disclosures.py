@@ -994,6 +994,10 @@ def test_card_counts_follow_the_frozen_records():
     ) in card
     if r.engine_defect_fixed_kept_count:
         assert r.engine_defect_fixed_kept_sentence in card
+    else:
+        # No fixed-but-kept records: the card must not still claim one.
+        assert "at its corrected value; it stays excluded" not in card
+        assert "at their corrected values; they stay excluded" not in card
     # The root causes the card names as unfixed are ones the engine still has.
     unfixed = {
         cause

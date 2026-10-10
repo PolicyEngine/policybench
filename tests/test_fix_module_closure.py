@@ -87,6 +87,18 @@ def test_literal_siblings_are_found_transitively_in_source_order():
         ("g = globals()\n", "calls globals"),
         ("v = vars()\n", "calls vars"),
         ("from policybench.scenarios import load\n", "policybench"),
+        # The re-review's variation: a name built from pieces off the working
+        # directory, loaded with spec_from_file_location.
+        (
+            "p = Path.cwd() / ('helper' + '.p' + 'y')\n"
+            "s = spec_from_file_location('h', p)\n",
+            "uses .cwd",
+        ),
+        ("p = Path('helper' + '.py')\n", "builds a Path from something but __file__"),
+        ("p = os.getcwd()\n", "uses .getcwd"),
+        ("p = Path.home() / 'x'\n", "uses .home"),
+        ("f = open(os.environ['X'])\n", "opens a file whose name is not a literal"),
+        ("f = open(name)\n", "opens a file whose name is not a literal"),
         ("import policybench.scenarios\n", "policybench"),
         ("def f(:\n", "does not parse"),
     ],
@@ -166,7 +178,12 @@ def test_on_the_committed_fixes_it_agrees_with_literal_discovery_or_refuses():
         for path in FIXES.glob("*.py")
         if re.search(r"^\s*(from|import) policybench\b", path.read_text(), re.M)
     }
-    assert refused == wrappers | in_repo
+    computed_opens = {
+        path.name
+        for path in FIXES.glob("*.py")
+        if re.search(r"\bopen\((?![\'\"])", path.read_text())
+    }
+    assert refused == wrappers | in_repo | computed_opens
     evidence = json.loads(
         (
             FIXES.parents[1] / "2026-10-09-engine-upgrade/evidence/pe2.37.2.json"
