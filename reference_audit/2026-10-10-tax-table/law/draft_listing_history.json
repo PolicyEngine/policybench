@@ -1,0 +1,1763 @@
+{
+  "freeze": "2026-07-03",
+  "listing": "https://www.irs.gov/draft-tax-forms",
+  "note": "Each capture is one 25-row page of the whole listing (its size at each capture is recorded below), newest posting first. A draft is listed once, at its latest posting. The captures do not show every draft posted in the period: pages for some days were not archived, and none shows a posting before the earliest date below. A range below is the earliest and latest posting date on the captured pages, not a claim that every draft posted between them is on one.",
+  "captures_on_or_before_freeze": 14,
+  "drafts_in_the_whole_listing_on_or_before_freeze": [
+    1215,
+    1219
+  ],
+  "distinct_rows_seen_on_or_before_freeze": 251,
+  "posting_dates_covered_on_or_before_freeze": [
+    [
+      "2026-03-23",
+      "2026-06-08"
+    ],
+    [
+      "2026-06-10",
+      "2026-07-01"
+    ]
+  ],
+  "rows_seen_on_or_before_freeze": [
+    {
+      "product": "Publication 1099",
+      "title": "General Instructions for Certain Information Returns (Forms 1096, 1097, 1098, 1099, 3921, 3922, 5498, and W-2G)",
+      "revision": "2026",
+      "posted": "2026-03-23"
+    },
+    {
+      "product": "Form 1099-LPS",
+      "title": "Long-Term Care Premiums Paid Statement",
+      "revision": "Dec 2026",
+      "posted": "2026-03-27"
+    },
+    {
+      "product": "Form 2220",
+      "title": "Underpayment of Estimated Tax by Corporations",
+      "revision": "2026",
+      "posted": "2026-03-30"
+    },
+    {
+      "product": "Form 1096",
+      "title": "Annual Summary and Transmittal of U.S. Information Returns",
+      "revision": "2026",
+      "posted": "2026-04-01"
+    },
+    {
+      "product": "Form 1099-R",
+      "title": "Distributions From Pensions, Annuities, Retirement or Profit-Sharing Plans, IRAs, Insurance Contracts, etc.",
+      "revision": "2026",
+      "posted": "2026-04-03"
+    },
+    {
+      "product": "Form 5498-TA",
+      "title": "Trump Account Contribution Information",
+      "revision": "Dec 2026",
+      "posted": "2026-04-03"
+    },
+    {
+      "product": "Publication 505",
+      "title": "Tax Withholding and Estimated Tax",
+      "revision": "2026",
+      "posted": "2026-04-03"
+    },
+    {
+      "product": "Form 8955-SSA",
+      "title": "Annual Registration Statement Identifying Separated Participants with Deferred Vested Benefits",
+      "revision": "2026",
+      "posted": "2026-04-07"
+    },
+    {
+      "product": "Form 8804-W",
+      "title": "Installment Payments of Section 1446 Tax for Partnerships",
+      "revision": "2027",
+      "posted": "2026-04-13"
+    },
+    {
+      "product": "Form 2290",
+      "title": "Heavy Highway Vehicle Use Tax Return",
+      "revision": "Jul 2026",
+      "posted": "2026-04-14"
+    },
+    {
+      "product": "Form 2290 (sp)",
+      "title": "Heavy Highway Vehicle Use Tax Return (Spanish Version)",
+      "revision": "Jul 2026",
+      "posted": "2026-04-14"
+    },
+    {
+      "product": "Form 8941",
+      "title": "Credit for Small Employer Health Insurance Premiums",
+      "revision": "2026",
+      "posted": "2026-04-14"
+    },
+    {
+      "product": "Instruction 1062",
+      "title": "Instructions for Form 1062, Deferral of Tax on Gain From the Sale or Exchange of Qualified Farmland Property to Qualified Farmers",
+      "revision": "Dec 2026",
+      "posted": "2026-04-14"
+    },
+    {
+      "product": "Form 8858",
+      "title": "Information Return of U.S. Persons With Respect to Foreign Disregarded Entities (FDEs) and Foreign Branches (FBs)",
+      "revision": "Dec 2026",
+      "posted": "2026-04-15"
+    },
+    {
+      "product": "Instruction 2290",
+      "title": "Instructions for Form 2290, Heavy Highway Vehicle Use Tax Return",
+      "revision": "Jul 2026",
+      "posted": "2026-04-15"
+    },
+    {
+      "product": "Form 8813",
+      "title": "Partnership Withholding Tax Payment Voucher (Section 1446)",
+      "revision": "Dec 2026",
+      "posted": "2026-04-17"
+    },
+    {
+      "product": "Form 8992 (Schedule A)",
+      "title": "Schedule A, for Global Intangible Low-Taxed Income (GILTI)",
+      "revision": "Dec 2026",
+      "posted": "2026-04-17"
+    },
+    {
+      "product": "Form 1310",
+      "title": "Statement of Person Claiming Refund Due a Deceased Taxpayer",
+      "revision": "Dec 2026",
+      "posted": "2026-04-20"
+    },
+    {
+      "product": "Form 4137",
+      "title": "Social Security and Medicare Tax on Unreported Tip Income",
+      "revision": "2026",
+      "posted": "2026-04-20"
+    },
+    {
+      "product": "Form 8992",
+      "title": "Calculation of Net Controlled Foreign Corporation Tested Income (NCTI)",
+      "revision": "Dec 2026",
+      "posted": "2026-04-20"
+    },
+    {
+      "product": "Form 7218",
+      "title": "Clean Fuel Production Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-04-21"
+    },
+    {
+      "product": "Form 8827",
+      "title": "Credit For Prior Year Minimum Tax - Corporations",
+      "revision": "Dec 2025",
+      "posted": "2026-04-21"
+    },
+    {
+      "product": "Instruction 1099-MISC and 1099-NEC",
+      "title": "Instructions for Forms 1099-MISC and 1099-NEC, Miscellaneous Infomation and Nonemployee Compensation",
+      "revision": "Dec 2026",
+      "posted": "2026-04-21"
+    },
+    {
+      "product": "Form 56",
+      "title": "Notice Concerning Fiduciary Relationship",
+      "revision": "Jun 2026",
+      "posted": "2026-04-22"
+    },
+    {
+      "product": "Form 8992 (Schedule B)",
+      "title": "Calculation of Net CFC Tested Income for Members of a U.S. Consolidated Group",
+      "revision": "Dec 2026",
+      "posted": "2026-04-22"
+    },
+    {
+      "product": "Form 8979",
+      "title": "Partnership Representative Designation or Resignation",
+      "revision": "Dec 2026",
+      "posted": "2026-04-23"
+    },
+    {
+      "product": "Instruction 2290 (sp)",
+      "title": "Instructions for Form 2290, Heavy Highway Vehicle Use Tax Return (Spanish Version)",
+      "revision": "Jul 2026",
+      "posted": "2026-04-23"
+    },
+    {
+      "product": "Form 8865 (Schedule K-1)",
+      "title": "Partner's Share of Income, Deductions, Credits, etc.",
+      "revision": "2026",
+      "posted": "2026-04-24"
+    },
+    {
+      "product": "Form 1040 (Schedule F)",
+      "title": "Profit or Loss From Farming",
+      "revision": "2026",
+      "posted": "2026-04-27"
+    },
+    {
+      "product": "Form 5471 (Schedule J)",
+      "title": "Accumulated Earnings and Profits (E&P) of Foreign Corporation",
+      "revision": "Dec 2026",
+      "posted": "2026-04-28"
+    },
+    {
+      "product": "Form 5471 (Schedule Q)",
+      "title": "CFC/FCFC Income by CFC/FCFC Income Groups",
+      "revision": "Dec 2026",
+      "posted": "2026-04-28"
+    },
+    {
+      "product": "Form W-3",
+      "title": "Transmittal of Wage and Tax Statements",
+      "revision": "2027",
+      "posted": "2026-04-28"
+    },
+    {
+      "product": "Form W-3SS",
+      "title": "Transmittal of Wage and Tax Statements",
+      "revision": "2027",
+      "posted": "2026-04-28"
+    },
+    {
+      "product": "Instruction 1099-DA",
+      "title": "Instructions for Form 1099-DA, Digital Asset Proceeds From Broker Transactions",
+      "revision": "2026",
+      "posted": "2026-04-28"
+    },
+    {
+      "product": "Form 1041-T",
+      "title": "Allocation of Estimated Tax Payments to Beneficiaries (Under Code section 643(g))",
+      "revision": "2026",
+      "posted": "2026-04-29"
+    },
+    {
+      "product": "Form 1120-S (Schedule K-1)",
+      "title": "Shareholder's Share of Income, Deductions, Credits, etc.",
+      "revision": "2026",
+      "posted": "2026-04-29"
+    },
+    {
+      "product": "Form 56-F",
+      "title": "Notice Concerning Fiduciary Relationship of Financial Institution",
+      "revision": "Jun 2026",
+      "posted": "2026-04-29"
+    },
+    {
+      "product": "Form 1040 (Schedule F) (sp)",
+      "title": "Profit or Loss From Farming (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-04-30"
+    },
+    {
+      "product": "Form 1042",
+      "title": "Annual Withholding Tax Return for U.S. Source Income of Foreign Persons",
+      "revision": "2026",
+      "posted": "2026-04-30"
+    },
+    {
+      "product": "Form 1042-T",
+      "title": "Annual Summary and Transmittal of Forms 1042-S",
+      "revision": "2026",
+      "posted": "2026-04-30"
+    },
+    {
+      "product": "Instruction 1099-K",
+      "title": "Instructions for Form 1099-K, Payment Card and Third Party Network Transactions",
+      "revision": "Dec 2026",
+      "posted": "2026-04-30"
+    },
+    {
+      "product": "Form 5471 (Schedule E)",
+      "title": "Income, War Profits, and Excess Profits Taxes Paid or Accrued",
+      "revision": "Dec 2026",
+      "posted": "2026-05-01"
+    },
+    {
+      "product": "Form 5471 (Schedule P)",
+      "title": "Previously Taxed Earnings and Profits of the U.S. Person With Respect to the Foreign Corporation",
+      "revision": "Dec 2026",
+      "posted": "2026-05-01"
+    },
+    {
+      "product": "Form 1099-K",
+      "title": "Payment Card and Third Party Network Transactions",
+      "revision": "Dec 2026",
+      "posted": "2026-05-04"
+    },
+    {
+      "product": "Form 1120-POL",
+      "title": "U.S. Income Tax Return for Certain Political Organizations",
+      "revision": "2026",
+      "posted": "2026-05-04"
+    },
+    {
+      "product": "Form 8809",
+      "title": "Application for Extension of Time to File Information Returns",
+      "revision": "Dec 2026",
+      "posted": "2026-05-04"
+    },
+    {
+      "product": "Form 8853",
+      "title": "Archer MSAs and Long-Term Care Insurance Contracts",
+      "revision": "2026",
+      "posted": "2026-05-04"
+    },
+    {
+      "product": "Form W-9",
+      "title": "Request for Taxpayer Identification Number and Certification",
+      "revision": "Jun 2026",
+      "posted": "2026-05-04"
+    },
+    {
+      "product": "Form 1120-F (Schedule P)",
+      "title": "List of Foreign Partner's Interests in Partnerships",
+      "revision": "2026",
+      "posted": "2026-05-05"
+    },
+    {
+      "product": "Form 5471 (Schedule I-1)",
+      "title": "Information for Net Controlled Foreign Corporation (CFC) Tested Income",
+      "revision": "Dec 2026",
+      "posted": "2026-05-05"
+    },
+    {
+      "product": "Form 706 (Schedule J)",
+      "title": "Funeral Expenses and Expenses Incurred In Administering Property Subject to Claims",
+      "revision": "Jul 2026",
+      "posted": "2026-05-05"
+    },
+    {
+      "product": "Form 940",
+      "title": "Employer's Annual Federal Unemployment (FUTA) Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-05"
+    },
+    {
+      "product": "Form 940 (Schedule A)",
+      "title": "Multi-State Employer and Credit Reduction Information",
+      "revision": "2026",
+      "posted": "2026-05-05"
+    },
+    {
+      "product": "Form 1099-NEC",
+      "title": "Nonemployee Compensation",
+      "revision": "Dec 2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 2441",
+      "title": "Child and Dependent Care Expenses",
+      "revision": "2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 3800",
+      "title": "General Business Credit",
+      "revision": "2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 8879-F",
+      "title": "IRS e-file Signature Authorization for Form 1041",
+      "revision": "2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 941",
+      "title": "Employer's QUARTERLY Federal Tax Return",
+      "revision": "Mar 2027",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 944",
+      "title": "Employer's ANNUAL Federal Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 945",
+      "title": "Annual Return of Withheld Federal Income Tax",
+      "revision": "2026",
+      "posted": "2026-05-06"
+    },
+    {
+      "product": "Form 8027",
+      "title": "Employer's Annual Information Return of Tip Income and Allocated Tips",
+      "revision": "2026",
+      "posted": "2026-05-07"
+    },
+    {
+      "product": "Form 8889",
+      "title": "Health Savings Accounts (HSAs)",
+      "revision": "2026",
+      "posted": "2026-05-07"
+    },
+    {
+      "product": "Form 706-GSD",
+      "title": "Generation-Skipping Transfer Tax Return for Distributions",
+      "revision": "Dec 2026",
+      "posted": "2026-05-08"
+    },
+    {
+      "product": "Form 706-GSDN",
+      "title": "Generation-Skipping Trust Distribution Notification",
+      "revision": "Dec 2026",
+      "posted": "2026-05-08"
+    },
+    {
+      "product": "Form 8453-EG",
+      "title": "E-file Declaration for Forms 709, 709-NA, 706, 706-A, 706-GSD, 706-GST, 706-NA, 706-QDT, and 708",
+      "revision": "Dec 2026",
+      "posted": "2026-05-08"
+    },
+    {
+      "product": "Form 943",
+      "title": "Employer's Annual Federal Tax Return for Agricultural Employees",
+      "revision": "2026",
+      "posted": "2026-05-08"
+    },
+    {
+      "product": "Form 8804-C",
+      "title": "Certificate of Partner-Level Items to Reduce Section 1446 Withholding",
+      "revision": "Dec 2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form 8805",
+      "title": "Foreign Partner's Information Statement of Section 1446 Withholding Tax",
+      "revision": "Dec 2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form 8846",
+      "title": "Credit for Employer Social Security and Medicare Taxes Paid on Certain Employee Tips",
+      "revision": "Dec 2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form 8962",
+      "title": "Premium Tax Credit (PTC)",
+      "revision": "2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form 8994",
+      "title": "Employer Credit for Paid Family and Medical Leave",
+      "revision": "Dec 2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form CT-1",
+      "title": "Employer's Annual Railroad Retirement Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-11"
+    },
+    {
+      "product": "Form 8933",
+      "title": "Carbon Oxide Sequestration Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-05-12"
+    },
+    {
+      "product": "Form 1116",
+      "title": "Foreign Tax Credit (Individual, Estate, or Trust)",
+      "revision": "2026",
+      "posted": "2026-05-13"
+    },
+    {
+      "product": "Instruction 5498-TA",
+      "title": "Instructions for Form 5498-TA, Trump Account Contribution Information",
+      "revision": "Dec 2026",
+      "posted": "2026-05-13"
+    },
+    {
+      "product": "Form 8815",
+      "title": "Exclusion of Interest From Series EE and I U.S. Savings Bonds Issued After 1989",
+      "revision": "2026",
+      "posted": "2026-05-14"
+    },
+    {
+      "product": "Form 8880",
+      "title": "Credit for Qualified Retirement Savings Contributions",
+      "revision": "2026",
+      "posted": "2026-05-14"
+    },
+    {
+      "product": "Form 1040 (Schedule C)",
+      "title": "Profit or Loss From Business (Sole Proprietorship)",
+      "revision": "2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 1040 (Schedule D)",
+      "title": "Capital Gains and Losses",
+      "revision": "2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 1040 (Schedule R)",
+      "title": "Credit for the Elderly or the Disabled",
+      "revision": "2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 4868",
+      "title": "Application for Automatic Extension of Time to File U.S. Individual Income Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 706-GST",
+      "title": "Generation-Skipping Transfer Tax Return For Terminations",
+      "revision": "Dec 2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 8843",
+      "title": "Statement for Exempt Individuals and Individuals With a Medical Condition",
+      "revision": "2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 8879-EG",
+      "title": "E-file Authorization for Forms 709, 709-NA, 706, 706-A, 706-GSD, 706-GST, 706-NA, 706-QDT, and 708",
+      "revision": "Dec 2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Instruction W-9",
+      "title": "Instructions for the Requester of Form W-9, Request for Taxpayer Identification Number and Certification",
+      "revision": "Jun 2026",
+      "posted": "2026-05-15"
+    },
+    {
+      "product": "Form 1041 (Schedule I)",
+      "title": "Alternative Minimum Tax-Estates and Trusts",
+      "revision": "2026",
+      "posted": "2026-05-18"
+    },
+    {
+      "product": "Form 8840",
+      "title": "Closer Connection Exception Statement for Aliens",
+      "revision": "2026",
+      "posted": "2026-05-18"
+    },
+    {
+      "product": "Form 8919",
+      "title": "Uncollected Social Security and Medicare Tax on Wages",
+      "revision": "2026",
+      "posted": "2026-05-18"
+    },
+    {
+      "product": "Form W-9 (sp)",
+      "title": "Request for Taxpayer Identification Number and Certification (Spanish Version)",
+      "revision": "Jun 2026",
+      "posted": "2026-05-18"
+    },
+    {
+      "product": "Form 1040 (Schedule 8812)",
+      "title": "Credits for Qualifying Children and Other Dependents",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 1040 (Schedule E)",
+      "title": "Supplemental Income and Loss",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 4720",
+      "title": "Return of Certain Excise Taxes Under Chapters 41 and 42 of the Internal Revenue Code",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 7206",
+      "title": "Self-Employed Health Insurance Deduction",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8849",
+      "title": "Claim for Refund of Excise Taxes",
+      "revision": "May 2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8849 (Schedule 5)",
+      "title": "Section 4081(e) and 6435 Claims",
+      "revision": "May 2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8865",
+      "title": "Return of U.S. Persons With Respect to Certain Foreign Partnerships",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8888",
+      "title": "Allocation of Refund",
+      "revision": "Nov 2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8936",
+      "title": "Clean Vehicle Credits",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 8936 (Schedule A)",
+      "title": "Clean Vehicle Credit Amount",
+      "revision": "2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Instruction 8849 (Schedule 5)",
+      "title": "Instructions for Schedule 5 (Form 8849), Section 4081(e) and 6435 claims",
+      "revision": "May 2026",
+      "posted": "2026-05-19"
+    },
+    {
+      "product": "Form 1040 (Schedule B)",
+      "title": "Interest and Ordinary Dividends",
+      "revision": "2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 1065 (Schedule D)",
+      "title": "Capital Gains and Losses",
+      "revision": "2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 4797",
+      "title": "Sales of Business Property",
+      "revision": "2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 7210",
+      "title": "Clean Hydrogen Production Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 8829",
+      "title": "Expenses for Business Use of Your Home",
+      "revision": "2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 8832",
+      "title": "Entity Classification Election",
+      "revision": "Dec 2026",
+      "posted": "2026-05-20"
+    },
+    {
+      "product": "Form 1040 (Schedule C) (sp)",
+      "title": "Profit or Loss From Business (Sole Proprietorship) (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 1040 (Schedule H) (sp)",
+      "title": "Household Employment Taxes (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 1040 (Schedule SE)",
+      "title": "Self-Employment Tax (Schedule SE)",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 1065 (Schedule K-1)",
+      "title": "Partner's Share of Income, Deductions, Credits, etc.",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 2106",
+      "title": "Employee Business Expenses",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 5074",
+      "title": "Allocation of Individual Income Tax to Guam or the Commonwealth of the Northern Mariana Islands.",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 7211",
+      "title": "Clean Electricity Production Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 8610",
+      "title": "Annual Low-Income Housing Credit Agencies Report",
+      "revision": "2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 8874",
+      "title": "New Markets Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 8993",
+      "title": "Section 250 Deduction for Foreign-Derived Deduction Eligible Income (FDDEI) and Net CFC Tested Income (NCTI)",
+      "revision": "Dec 2026",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 941 (Schedule R)",
+      "title": "Allocation Schedule for Aggregate Form 941 Filers",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 941-X",
+      "title": "Adjusted Employer's QUARTERLY Federal Tax Return or Claim for Refund",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 943 (Schedule R)",
+      "title": "Allocation Schedule for Aggregate Form 943 Filers",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 943-X",
+      "title": "Adjusted Employer's Annual Federal Tax Return for Agricultural Employees or Claim for Refund",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 944-X",
+      "title": "Adjusted Employer's ANNUAL Federal Tax Return or Claim for Refund",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 945-X",
+      "title": "Adjusted ANNUAL Return of Withheld Federal Income Tax or Claim for Refund",
+      "revision": "Feb 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form CT-1X",
+      "title": "Adjusted Employer's Annual Railroad Retirement Tax Return or Claim for Refund",
+      "revision": "Apr 2027",
+      "posted": "2026-05-21"
+    },
+    {
+      "product": "Form 1041",
+      "title": "U.S. Income Tax Return for Estates and Trusts",
+      "revision": "2026",
+      "posted": "2026-05-22"
+    },
+    {
+      "product": "Form 1094-C",
+      "title": "Transmittal of Employer-Provided Health Insurance Offer and Coverage Information Returns",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 1095-C",
+      "title": "Employer-Provided Health Insurance Offer and Coverage",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 5329",
+      "title": "Additional Taxes on Qualified Plans (Including IRAs) and Other Tax-Favored Accounts",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 5695",
+      "title": "Carryforward of Residential Energy Credit",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 8831",
+      "title": "Excise Taxes on Excess Inclusions of REMIC Residual Interests",
+      "revision": "Dec 2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 8863",
+      "title": "Education Credits (American Opportunity and Lifetime Learning Credits)",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 8949",
+      "title": "Sales and Other Dispositions of Capital Assets",
+      "revision": "2026",
+      "posted": "2026-05-26"
+    },
+    {
+      "product": "Form 1040-V",
+      "title": "Payment Voucher for Individuals",
+      "revision": "2026",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 1041 (Schedule D)",
+      "title": "Capital Gains and Losses",
+      "revision": "2026",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 1099-MISC",
+      "title": "Miscellaneous Information",
+      "revision": "Dec 2026",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 3468",
+      "title": "Investment Credit",
+      "revision": "2026",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 4255",
+      "title": "Certain Credit Recapture, Excessive Payments, and Penalties",
+      "revision": "Dec 2026",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 8879-EMP",
+      "title": "E-file Authorization for Employment Tax Returns",
+      "revision": "Apr 2027",
+      "posted": "2026-05-27"
+    },
+    {
+      "product": "Form 1040 (Schedule C)",
+      "title": "Profit or Loss From Business (Sole Proprietorship)",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 4136",
+      "title": "Credit for Federal Tax Paid on Fuels",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 4835",
+      "title": "Farm Rental Income and Expenses",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 4868 (sp)",
+      "title": "Application for Automatic Extension of Time to File U.S. Individual Income Tax Return (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 6251",
+      "title": "Alternative Minimum Tax - Individuals",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 709",
+      "title": "United States Gift (and Generation - Skipping Transfer) Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 8453-EMP",
+      "title": "E-file Declaration for Employment Tax Returns",
+      "revision": "Apr 2027",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 8881",
+      "title": "Credits for Small Employer Pension Plan Startup Costs, Contributions, Auto-Enrollment, and Military Spouse Participation",
+      "revision": "Dec 2026",
+      "posted": "2026-05-28"
+    },
+    {
+      "product": "Form 1040-NR (Schedule A)",
+      "title": "Itemized Deductions",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 1118",
+      "title": "Foreign Tax Credit - Corporations",
+      "revision": "Dec 2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 1120-L",
+      "title": "U.S. Life Insurance Company Income Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 1120-PC",
+      "title": "U.S. Property and Casualty Insurance Company Income Tax Return",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 4952",
+      "title": "Investment Interest Expense Deduction",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 8959",
+      "title": "Additional Medicare Tax",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 8995",
+      "title": "Qualified Business Income Deduction Simplified Computation",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 8995-A",
+      "title": "Qualified Business Income Deduction",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 8995-A (Schedule A)",
+      "title": "Specified Service Trades or Businesses",
+      "revision": "2026",
+      "posted": "2026-05-29"
+    },
+    {
+      "product": "Form 1041 (Schedule K-1)",
+      "title": "Beneficiary's Share of Income, Deductions, Credits, etc.",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1066",
+      "title": "U.S. Real Estate Mortgage Investment Conduit (REMIC) Income Tax Return",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1066 (Schedule Q)",
+      "title": "Quarterly Notice to Residual Interest Holder of REMIC Taxable Income or Net Loss Allocation",
+      "revision": "Dec 2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1120",
+      "title": "U.S. Corporation Income Tax Return",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1120-H",
+      "title": "U.S. Income Tax Return for Homeowners Associations",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1120-S (Schedule D)",
+      "title": "Capital Gains and Losses and Built-In Gains",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 4562",
+      "title": "Depreciation (Including Information on Listed Property)",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 8453-FE",
+      "title": "U.S. Estate or Trust Declaration for an IRS e-file Return",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 8960",
+      "title": "Net Investment Income Tax - Individuals, Estates, and Trusts",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 990 (Schedule I)",
+      "title": "Grants and Other Assistance to Organizations, Governments, and Individuals in the United States",
+      "revision": "Dec 2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 990-T",
+      "title": "Exempt Organization Business Income Tax Return (and proxy tax under section 6033(e))",
+      "revision": "2026",
+      "posted": "2026-06-01"
+    },
+    {
+      "product": "Form 1120-RIC",
+      "title": "U.S. Income Tax Return For Regulated Investment Companies",
+      "revision": "2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Form 1120-S",
+      "title": "U.S. Income Tax Return for an S Corporation",
+      "revision": "2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Form 5472",
+      "title": "Information Return of a 25% Foreign Owned U.S. Corporation or a Foreign Corporation Engaged in a U.S. Trade or Business",
+      "revision": "Dec 2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Form 8689",
+      "title": "Allocation of Individual Income Tax to the U.S. Virgin Islands",
+      "revision": "2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Form 8882",
+      "title": "Employer-Provided Child Care Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Instruction W-9 (sp)",
+      "title": "Instructions for the Requester of Form W-9, Request for Taxpayer Identification Number and Certification (Spanish Version)",
+      "revision": "Jun 2026",
+      "posted": "2026-06-02"
+    },
+    {
+      "product": "Form 1120-REIT",
+      "title": "U.S. Income Tax Return for Real Estate Investment Trusts",
+      "revision": "2026",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Form 8908",
+      "title": "Energy Efficient Home Credit",
+      "revision": "Dec 2026",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Form 940 (sp)",
+      "title": "Employer's Annual Federal Unemployment (FUTA) Tax Return (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Form 941 (sp)",
+      "title": "Employer's QUARTERLY Federal Tax Return (Spanish Version)",
+      "revision": "Mar 2027",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Form 990 (Schedule D)",
+      "title": "Supplemental Financial Statements",
+      "revision": "Dec 2026",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Instruction 8849 (Schedule 6)",
+      "title": "Instructions for Schedule 6 (Form 8849), Other Claims",
+      "revision": "Jun 2026",
+      "posted": "2026-06-03"
+    },
+    {
+      "product": "Form 1040 (Schedule 2)",
+      "title": "Additional Taxes",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 2210",
+      "title": "Underpayment of Estimated Tax by Individuals, Estates and Trusts",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 2555",
+      "title": "Foreign Earned Income",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 8453",
+      "title": "U.S. Individual Income Tax Transmittal for an IRS e-file Return",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 940 (Schedule A) (sp)",
+      "title": "Multi-State Employer and Credit Reduction Information (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 990 (Schedule J)",
+      "title": "Compensation Information",
+      "revision": "Dec 2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 990-PF",
+      "title": "Return of Private Foundation or Section 4947(a)(1) Trust Treated as Private Foundation",
+      "revision": "2026",
+      "posted": "2026-06-04"
+    },
+    {
+      "product": "Form 1065",
+      "title": "U.S. Return of Partnership Income",
+      "revision": "2026",
+      "posted": "2026-06-05"
+    },
+    {
+      "product": "Form 1120 (Schedule N)",
+      "title": "Foreign Operations of U.S. Corporations",
+      "revision": "2026",
+      "posted": "2026-06-05"
+    },
+    {
+      "product": "Form 1120-F (Schedule H)",
+      "title": "Deductions Allocated to Effectively Connected Income Under Regulations Section 1.861-8",
+      "revision": "2026",
+      "posted": "2026-06-05"
+    },
+    {
+      "product": "Form 1120-F (Schedule I)",
+      "title": "Interest Expense Allocation Under Regulations Section 1.882-5",
+      "revision": "2026",
+      "posted": "2026-06-05"
+    },
+    {
+      "product": "Form 990",
+      "title": "Return of Organization Exempt From Income Tax",
+      "revision": "2026",
+      "posted": "2026-06-05"
+    },
+    {
+      "product": "Form 1040 (Schedule 1)",
+      "title": "Additional Income and Adjustments to Income",
+      "revision": "2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 1040 (Schedule 3)",
+      "title": "Additional Credits and Payments",
+      "revision": "2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 1040 (Schedule A)",
+      "title": "Itemized Deductions",
+      "revision": "2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 1040 (Schedule EIC)",
+      "title": "Earned Income Credit Qualifying Child Information",
+      "revision": "2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 1120-F (Schedule M-3)",
+      "title": "Net Income (Loss) Reconciliation for Foreign Corporations With Reportable Assets of $10 Million or More",
+      "revision": "Dec 2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 720",
+      "title": "Quarterly Federal Excise Tax Return",
+      "revision": "Jun 2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 8839",
+      "title": "Qualified Adoption Expenses",
+      "revision": "2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Instruction 56-F",
+      "title": "Instructions for Form 56-F, Notice Concerning Fiduciary Relationship of Financial Institution",
+      "revision": "Jun 2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Instruction 720",
+      "title": "Instructions for Form 720, Quarterly Federal Excise Tax Return",
+      "revision": "Jun 2026",
+      "posted": "2026-06-08"
+    },
+    {
+      "product": "Form 8966",
+      "title": "FATCA Report",
+      "revision": "Dec 2026",
+      "posted": "2026-06-10"
+    },
+    {
+      "product": "Form 1116 (Schedule B)",
+      "title": "Foreign Tax Carryover Reconciliation Schedule",
+      "revision": "Dec 2026",
+      "posted": "2026-06-11"
+    },
+    {
+      "product": "Form 1120-S (Schedule K-2)",
+      "title": "Shareholders' Pro Rata Share Items-International",
+      "revision": "2026",
+      "posted": "2026-06-11"
+    },
+    {
+      "product": "Form 1120-S (Schedule K-3)",
+      "title": "Shareholder's Share of Income, Deductions, Credits, etc. - International",
+      "revision": "2026",
+      "posted": "2026-06-11"
+    },
+    {
+      "product": "Form 944 (sp)",
+      "title": "Employer's ANNUAL Federal Tax Return (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-11"
+    },
+    {
+      "product": "Form 990 (Schedule R)",
+      "title": "Related Organizations and Unrelated Partnerships",
+      "revision": "Dec 2026",
+      "posted": "2026-06-11"
+    },
+    {
+      "product": "Form 1042-S",
+      "title": "Foreign Person's U.S. Source Income Subject to Withholding",
+      "revision": "2027",
+      "posted": "2026-06-12"
+    },
+    {
+      "product": "Form 5498",
+      "title": "IRA Contribution Information",
+      "revision": "2026",
+      "posted": "2026-06-12"
+    },
+    {
+      "product": "Form 8879",
+      "title": "IRS e-file Signature Authorization",
+      "revision": "Dec 2026",
+      "posted": "2026-06-12"
+    },
+    {
+      "product": "Form 1098-E",
+      "title": "Student Loan Interest Statement",
+      "revision": "2027",
+      "posted": "2026-06-15"
+    },
+    {
+      "product": "Form 8835",
+      "title": "Renewable Electricity Production Credit",
+      "revision": "2026",
+      "posted": "2026-06-15"
+    },
+    {
+      "product": "Form 1040 (Schedule 1) (sp)",
+      "title": "Additional Income and Adjustments to Income (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-16"
+    },
+    {
+      "product": "Form 1040 (Schedule 2) (sp)",
+      "title": "Additional Taxes (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-16"
+    },
+    {
+      "product": "Form 1098",
+      "title": "Mortgage Interest Statement",
+      "revision": "Dec 2027",
+      "posted": "2026-06-16"
+    },
+    {
+      "product": "Form 461",
+      "title": "Limitation on Business Losses",
+      "revision": "2026",
+      "posted": "2026-06-16"
+    },
+    {
+      "product": "Form 8453 (sp)",
+      "title": "U.S. Individual Income Tax Transmittal for an IRS e-file Return (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-16"
+    },
+    {
+      "product": "Form 1040 (Schedule 3) (sp)",
+      "title": "Additional Credits and Payments (Spanish Version)",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 1065 (Schedule K-2)",
+      "title": "Partners' Distributive Share Items - International",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 1065 (Schedule K-3)",
+      "title": "Partner's Share of Income, Deductions, Credits, etc. - International",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 1120-C",
+      "title": "U.S. Income Tax Return for Cooperative Associations",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 13930",
+      "title": "Central Withholding Agreement Application",
+      "revision": "Jun 2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 8804 (Schedule A)",
+      "title": "Penalty for Underpayment of Estimated Section 1446 Tax by Partnerships",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 990-T (Schedule A)",
+      "title": "Unrelated Business Taxable Income from an Unrelated Trade or Business",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Instruction 1099-R and 5498",
+      "title": "Instructions for Forms 1099-R and 5498",
+      "revision": "2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Instruction 8849 (Schedule 6)",
+      "title": "Instructions for Schedule 6 (Form 8849), Other Claims",
+      "revision": "Jun 2026",
+      "posted": "2026-06-17"
+    },
+    {
+      "product": "Form 8801",
+      "title": "Credit For Prior Year Minimum Tax--Individuals, Estates, and Trusts",
+      "revision": "2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Form 8804-C",
+      "title": "Certificate of Partner-Level Items to Reduce Section 1446 Withholding",
+      "revision": "Dec 2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Form 8992 (Schedule A)",
+      "title": "Schedule of Controlled Foreign Corporation (CFC/Foreign Controlled Foreign Corporation (FCFC)) Information To Compute Net CFC Tested Income (NCTI)",
+      "revision": "Dec 2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Form 990-T (Schedule A)",
+      "title": "Unrelated Business Taxable Income From an Unrelated Trade or Business",
+      "revision": "2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Instruction 1045",
+      "title": "Instructions for Form 1045, Application for Tentative Refund",
+      "revision": "2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Instruction 1099-R and 5498",
+      "title": "Instructions for Forms 1099-R and 5498, Distributions From Pensions, Annuities, Retirement or Profit-Sharing Plans, IRAs, Insurance Contracts, etc.",
+      "revision": "2026",
+      "posted": "2026-06-18"
+    },
+    {
+      "product": "Form 720",
+      "title": "Quarterly Federal Excise Tax Return",
+      "revision": "Jun 2026",
+      "posted": "2026-06-22"
+    },
+    {
+      "product": "Form 720-X",
+      "title": "Amended Quarterly Federal Excise Tax Return",
+      "revision": "Jun 2026",
+      "posted": "2026-06-22"
+    },
+    {
+      "product": "Form 8809",
+      "title": "Application for Extension of Time to File Information Returns",
+      "revision": "Dec 2026",
+      "posted": "2026-06-22"
+    },
+    {
+      "product": "Form 1045",
+      "title": "Application for Tentative Refund",
+      "revision": "2026",
+      "posted": "2026-06-23"
+    },
+    {
+      "product": "Form 1120-X",
+      "title": "Amended U.S. Corporation Income Tax Return",
+      "revision": "Dec 2026",
+      "posted": "2026-06-23"
+    },
+    {
+      "product": "Form 4562-B",
+      "title": "Amortization",
+      "revision": "Dec 2026",
+      "posted": "2026-06-23"
+    },
+    {
+      "product": "Form 6252",
+      "title": "Installment Sale Income",
+      "revision": "2026",
+      "posted": "2026-06-23"
+    },
+    {
+      "product": "Instruction 720",
+      "title": "Instructions for Form 720, Quarterly Federal Excise Tax Return",
+      "revision": "Jun 2026",
+      "posted": "2026-06-23"
+    },
+    {
+      "product": "Form 1098-T",
+      "title": "Tuition Statement",
+      "revision": "2027",
+      "posted": "2026-06-24"
+    },
+    {
+      "product": "Form 5227",
+      "title": "Split-Interest Trust Information Return",
+      "revision": "2026",
+      "posted": "2026-06-25"
+    },
+    {
+      "product": "Form 990 (Schedule C)",
+      "title": "Political Campaign and Lobbying Activities",
+      "revision": "2026",
+      "posted": "2026-06-25"
+    },
+    {
+      "product": "Instruction 1099-MISC and 1099-NEC",
+      "title": "Instructions for Forms 1099-MISC and 1099-NEC, Miscellaneous Infomation and Nonemployee Compensation",
+      "revision": "Dec 2026",
+      "posted": "2026-06-25"
+    },
+    {
+      "product": "Form 1120-S",
+      "title": "U.S. Income Tax Return for an S Corporation",
+      "revision": "2026",
+      "posted": "2026-06-26"
+    },
+    {
+      "product": "Form 990 or 990-EZ (Sch L)",
+      "title": "Transactions with Interested Persons",
+      "revision": "Dec 2026",
+      "posted": "2026-06-26"
+    },
+    {
+      "product": "Instruction 720-X",
+      "title": "Instructions for Form 720-X",
+      "revision": "Jun 2026",
+      "posted": "2026-06-26"
+    },
+    {
+      "product": "Form 1041-V",
+      "title": "Payment Voucher for Estates and Trusts",
+      "revision": "2026",
+      "posted": "2026-06-29"
+    },
+    {
+      "product": "Form 8615",
+      "title": "Tax for Certain Children Who Have Unearned Income",
+      "revision": "2026",
+      "posted": "2026-06-30"
+    },
+    {
+      "product": "Form 8879 (sp)",
+      "title": "IRS e-file Signature Authorization (Spanish Version)",
+      "revision": "Dec 2026",
+      "posted": "2026-06-30"
+    },
+    {
+      "product": "Form 8990",
+      "title": "Limitation on Business Interest Expense Under Section 163(j)",
+      "revision": "Dec 2026",
+      "posted": "2026-06-30"
+    },
+    {
+      "product": "Instruction 8941",
+      "title": "Instructions for Form 8941, Credit for Small Employer Health Insurance Premiums",
+      "revision": "2026",
+      "posted": "2026-06-30"
+    },
+    {
+      "product": "Form 3903",
+      "title": "Moving Expenses",
+      "revision": "2026",
+      "posted": "2026-07-01"
+    },
+    {
+      "product": "Form W-3 (PR) (en-sp)",
+      "title": "Transmittal of Withholding Statements (Puerto Rico Version) (Puerto Rico Version)",
+      "revision": "2027",
+      "posted": "2026-07-01"
+    }
+  ],
+  "tax_table_products_listed_on_or_before_freeze": [],
+  "tax_table_products_listed_in_later_captures": [],
+  "tax_table_products_listed_on_read_date": [
+    {
+      "product": "Publication 1040",
+      "title": "Tax and Earned Income Credit Tables",
+      "revision": "2026",
+      "posted": "2026-09-16"
+    },
+    {
+      "product": "Instruction 1040",
+      "title": "Instructions for Form 1040 (and Form 1040-SR)",
+      "revision": "2025",
+      "posted": "2026-02-26"
+    }
+  ],
+  "captures": [
+    {
+      "captured_utc": "2026-05-20T01:47Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260520014706id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "3b0a876dd430c5d9e724926c60636e12c817179ab9a98a7061d27aaadd8f7436",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1215,
+      "first_posted": "2026-05-14",
+      "last_posted": "2026-05-19",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-05-27T22:46Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260527224622id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "ab2a44689002f194230b3525027a7c9826dbb1150f0b4fd3c32bfe3bca555766",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1215,
+      "first_posted": "2026-05-21",
+      "last_posted": "2026-05-27",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-05T13:57Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260605135701id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "c6807e1cfe8087e1a47e4643f814504213cf9e37d68e5fc085e4e8da11c5836e",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1215,
+      "first_posted": "2026-06-01",
+      "last_posted": "2026-06-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-06T19:55Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260606195555id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "59ad165486ae63a00baa45194f4a2acb861b5288d9567179742677f8bdefb537",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1215,
+      "first_posted": "2026-06-01",
+      "last_posted": "2026-06-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:10Z",
+      "page": 1,
+      "address": "https://web.archive.org/web/20260614191000id_/https://www.irs.gov/draft-tax-forms?page=1",
+      "sha256": "105aa038f01e34338658cbc1ccd42bc0da9763ba8ffbd18e7814209e877ce9ea",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-06-03",
+      "last_posted": "2026-06-08",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:13Z",
+      "page": 2,
+      "address": "https://web.archive.org/web/20260614191329id_/https://www.irs.gov/draft-tax-forms?page=2",
+      "sha256": "698416290b60ebd92a5c9c2e588664c0c6de80a4a36818e76cae3925eb6b60b7",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-05-29",
+      "last_posted": "2026-06-03",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:16Z",
+      "page": 3,
+      "address": "https://web.archive.org/web/20260614191635id_/https://www.irs.gov/draft-tax-forms?page=3",
+      "sha256": "9b3b066b47d942dda8dda43a731d148f3b037629fbfdc8062b9a9700d963af6a",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-05-21",
+      "last_posted": "2026-05-29",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:17Z",
+      "page": 4,
+      "address": "https://web.archive.org/web/20260614191701id_/https://www.irs.gov/draft-tax-forms?page=4",
+      "sha256": "61a3f26602a7363d9571b9b201e4aa71cc54c2593b460c55303f85606cb7c6df",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-05-19",
+      "last_posted": "2026-05-21",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:25Z",
+      "page": 6,
+      "address": "https://web.archive.org/web/20260614192542id_/https://www.irs.gov/draft-tax-forms?page=6",
+      "sha256": "73e2dc935b14b9106d09ad289f8238782a0465b51087b2aeecc7a82754d2c0b6",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-05-05",
+      "last_posted": "2026-05-13",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:27Z",
+      "page": 7,
+      "address": "https://web.archive.org/web/20260614192754id_/https://www.irs.gov/draft-tax-forms?page=7",
+      "sha256": "b836a1bb45401a06ef538b03803f27749874b34e544d3e12a5da78970d481577",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-04-23",
+      "last_posted": "2026-05-05",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-14T19:30Z",
+      "page": 8,
+      "address": "https://web.archive.org/web/20260614193027id_/https://www.irs.gov/draft-tax-forms?page=8",
+      "sha256": "c046d0e86431070f4110a29cf4349836a6cd19b1f18c998352ca411d54810b6b",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1216,
+      "first_posted": "2026-03-23",
+      "last_posted": "2026-04-22",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-17T21:48Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260617214824id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "0ab342453d6cf621d6ddad27fa35946f4b70f3cc284e3050b68a2a6e81992d08",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1217,
+      "first_posted": "2026-06-10",
+      "last_posted": "2026-06-17",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-06-23T16:06Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260623160616id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "93bd7a91e2f23ccfe10182421482a539e54f36dba80174bd58d5a6c0dbb76392",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1217,
+      "first_posted": "2026-06-12",
+      "last_posted": "2026-06-22",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-07-03T08:09Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260703080914id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "0ec75b4a9b093b22c4ba6e87374a6ad8888b2f81c674d1ef5d7f290ec12bb7fe",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1219,
+      "first_posted": "2026-06-18",
+      "last_posted": "2026-07-01",
+      "tax_table_products": [],
+      "before_freeze": true
+    },
+    {
+      "captured_utc": "2026-07-24T14:31Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260724143117id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "f3744c8c3ac5dc06a1540671b2fc083a8a4219312ba04346c1975b900c370e71",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1221,
+      "first_posted": "2026-07-08",
+      "last_posted": "2026-07-23",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-08-08T05:52Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260808055206id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "03d7f1b76c3dc569d81a269d08adb512877d1c16a58686eee53ceeeed11817fd",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1223,
+      "first_posted": "2026-07-30",
+      "last_posted": "2026-08-07",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-09-08T01:24Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260908012431id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "ae66dba9002f2af37d00aee5b367da98add70a9b5d97b25cc764ecabf613079c",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1232,
+      "first_posted": "2026-08-31",
+      "last_posted": "2026-09-04",
+      "tax_table_products": [],
+      "before_freeze": false
+    },
+    {
+      "captured_utc": "2026-09-10T20:57Z",
+      "page": 0,
+      "address": "https://web.archive.org/web/20260910205726id_/https://www.irs.gov/draft-tax-forms",
+      "sha256": "c48b724b78ea6e4ba0b51f16b003f12ebf53113deff12858f8ebbdda04803770",
+      "rows": 25,
+      "drafts_in_the_whole_listing": 1232,
+      "first_posted": "2026-09-02",
+      "last_posted": "2026-09-10",
+      "tax_table_products": [],
+      "before_freeze": false
+    }
+  ]
+}
