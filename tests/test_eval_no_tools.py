@@ -3962,3 +3962,107 @@ def test_chunk_override_env_runs_whole_scenario(monkeypatch):
     monkeypatch.setenv("POLICYBENCH_CHUNK_OVERRIDE", "none")
     assert _required_explanation_chunk_size("claude-fable-5", True) is None
     assert _required_explanation_chunk_size("claude-sonnet-5", True) is None
+
+
+def test_uk_prompt_states_role_specific_disability_and_birth_facts():
+    scenario = Scenario(
+        id="uk-disability",
+        country="uk",
+        state="WALES",
+        filing_status=None,
+        adults=[
+            Person(
+                name="adult1",
+                age=73,
+                employment_income=0.0,
+                inputs={
+                    "is_disabled_for_benefits": True,
+                    "date_of_birth": 19530403.0,
+                    "gender": "FEMALE",
+                    "hours_worked": 1_820.0,
+                },
+            )
+        ],
+        children=[
+            Person(
+                name="child1",
+                age=17,
+                employment_income=0.0,
+                inputs={
+                    "is_disabled_for_benefits": True,
+                    "current_education": "POST_SECONDARY",
+                },
+            ),
+            Person(
+                name="child2",
+                age=19,
+                employment_income=0.0,
+                inputs={"current_education": "TERTIARY"},
+            ),
+        ],
+        year=2026,
+    )
+
+    prompt = make_no_tools_batch_prompt(scenario, ["universal_credit"])
+
+    assert (
+        "- assessed as having limited capability for work and work-related "
+        "activity (LCWRA); if entitled to Universal Credit, the award has "
+        "included the LCWRA element since before 6 April 2026"
+    ) in prompt
+    assert (
+        "- is disabled (lower rate disabled child addition in Universal Credit)"
+    ) in prompt
+    assert "is disabled for benefits" not in prompt
+    assert "- date of birth: 3 April 1953" in prompt
+    assert "- gender: Female" in prompt
+    assert "- annual hours worked: 1,820" in prompt
+    assert (
+        "- current education: full-time non-advanced education (school or "
+        "college, below higher-education level)"
+    ) in prompt
+    assert "- age when the current education or training began: 16" in prompt
+    assert "- current education: advanced (higher) education" in prompt
+
+
+@pytest.mark.slow
+def test_pe_uk_gives_a_lone_lcwra_household_the_protected_health_element():
+    """The UK prompt says LCWRA was held before 6 April 2026; check PE-UK agrees.
+
+    PE-UK draws new-claimant status per benefit unit from a fixed seed. A
+    household simulated alone takes the first draw, which is an existing
+    claimant, so it gets more than the new-claimant rate. If PE-UK changes the
+    draw, this fails and the prompt wording has to change with it.
+    """
+    from policyengine_uk import CountryTaxBenefitSystem
+
+    from policybench.ground_truth import calculate_ground_truth
+
+    scenario = Scenario(
+        id="uk-lcwra",
+        country="uk",
+        state="NORTH_EAST",
+        filing_status=None,
+        adults=[
+            Person(
+                name="adult1",
+                age=35,
+                employment_income=0.0,
+                inputs={"is_disabled_for_benefits": True},
+            )
+        ],
+        household_inputs={"tenure_type": "OWNED_OUTRIGHT"},
+        year=2026,
+    )
+    from policyengine_uk import Simulation
+
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    lcwra = float(sim.calculate("uc_LCWRA_element", 2026)[0])
+    new_claimant_monthly = float(
+        CountryTaxBenefitSystem().parameters.gov.dwp.universal_credit.rebalancing.new_claimant_health_element(
+            "2026-06-01"
+        )
+    )
+    assert lcwra > new_claimant_monthly * 12
+    reference = calculate_ground_truth([scenario], ["universal_credit"], year=2026)
+    assert reference["value"].iloc[0] > 0

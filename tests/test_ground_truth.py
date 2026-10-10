@@ -282,61 +282,80 @@ class TestGroundTruthScalarExtraction:
         )
 
 
-def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
-    class FakeVariable:
-        def __init__(self, entity_key: str):
-            self.entity = SimpleNamespace(key=entity_key)
-
-    class FakeSimulation:
-        def __init__(self, dataset):
-            self.tax_benefit_system = SimpleNamespace(
-                variables={
-                    "income_tax": FakeVariable("person"),
-                    "child_benefit": FakeVariable("benunit"),
-                    "housing_costs": FakeVariable("household"),
-                }
+def _uk_scenario(scenario_id: str, *, rent: float, child_age: int | None = None):
+    children = (
+        [Person(name="child1", age=child_age, employment_income=0.0)]
+        if child_age is not None
+        else []
+    )
+    return Scenario(
+        id=scenario_id,
+        country="uk",
+        state="WEST_MIDLANDS",
+        filing_status=None,
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=18_000.0,
+                inputs={"gender": "FEMALE", "date_of_birth": 19860601.0},
             )
+        ],
+        children=children,
+        household_inputs={"rent": rent, "tenure_type": "RENT_PRIVATELY"},
+        metadata={"household_id": 1},
+    )
 
-        def calculate(self, variable, year, map_to, unweighted=True):
-            lookup = {
-                ("person_household_id", "person"): np.array([101, 101, 202]),
-                ("person_benunit_id", "person"): np.array([101, 101, 202]),
-                ("benunit_id", "benunit"): np.array([101, 202]),
-                ("household_id", "household"): np.array([101, 202]),
-                ("income_tax", "person"): np.array([100.0, 25.0, 80.0]),
-                ("child_benefit", "benunit"): np.array([40.0, 10.0]),
-                ("housing_costs", "household"): np.array([700.0, 300.0]),
+
+class _FakeUKSimulation:
+    """Records each situation and returns per-entity values derived from it."""
+
+    situations: list = []
+
+    def __init__(self, situation):
+        type(self).situations.append(situation)
+        self.situation = situation
+        self.tax_benefit_system = SimpleNamespace(
+            variables={
+                "income_tax": SimpleNamespace(entity=SimpleNamespace(key="person")),
+                "child_benefit": SimpleNamespace(entity=SimpleNamespace(key="benunit")),
+                "housing_costs": SimpleNamespace(
+                    entity=SimpleNamespace(key="household")
+                ),
             }
-            return lookup[(variable, map_to)]
+        )
 
+    def calculate(self, variable, period):
+        assert period == "2026"
+        people = self.situation["people"].values()
+        household = next(iter(self.situation["households"].values()))
+        if variable == "income_tax":
+            return np.array(
+                [
+                    person["employment_income_before_lsr"]["2026"] * 0.1
+                    for person in people
+                ]
+            )
+        if variable == "child_benefit":
+            children = sum(1 for person in people if person["age"]["2026"] < 16)
+            return np.array([children * 100.0])
+        if variable == "housing_costs":
+            return np.array([household["rent"]["2026"]])
+        raise KeyError(variable)
+
+
+def test_calculate_ground_truth_uk_runs_each_scenario_on_its_prompted_facts(
+    monkeypatch,
+):
+    _FakeUKSimulation.situations = []
     monkeypatch.setattr(
         ground_truth,
-        "make_uk_transfer_microsimulation",
-        lambda dataset_path: FakeSimulation(dataset_path),
+        "get_uk_situation_simulation_class",
+        lambda: _FakeUKSimulation,
     )
-    monkeypatch.setattr(
-        ground_truth,
-        "get_uk_dataset_path",
-        lambda: "/tmp/fake_enhanced_cps_uk.h5",
-    )
-
     scenarios = [
-        Scenario(
-            id="uk_1",
-            country="uk",
-            state="WEST_MIDLANDS",
-            filing_status=None,
-            adults=[Person(name="adult1", age=40, employment_income=0.0)],
-            metadata={"household_id": 101},
-        ),
-        Scenario(
-            id="uk_2",
-            country="uk",
-            state="LONDON",
-            filing_status=None,
-            adults=[Person(name="adult1", age=35, employment_income=0.0)],
-            metadata={"household_id": 202},
-        ),
+        _uk_scenario("uk_1", rent=7_000.0, child_age=4),
+        _uk_scenario("uk_2", rent=3_000.0),
     ]
 
     result = calculate_ground_truth(
@@ -347,16 +366,61 @@ def test_calculate_ground_truth_uk_aggregates_native_entities(monkeypatch):
 
     expected = pd.DataFrame(
         [
-            {"scenario_id": "uk_1", "variable": "child_benefit", "value": 40.0},
-            {"scenario_id": "uk_1", "variable": "housing_costs", "value": 700.0},
-            {"scenario_id": "uk_1", "variable": "income_tax", "value": 125.0},
-            {"scenario_id": "uk_2", "variable": "child_benefit", "value": 10.0},
-            {"scenario_id": "uk_2", "variable": "housing_costs", "value": 300.0},
-            {"scenario_id": "uk_2", "variable": "income_tax", "value": 80.0},
+            {"scenario_id": "uk_1", "variable": "child_benefit", "value": 100.0},
+            {"scenario_id": "uk_1", "variable": "housing_costs", "value": 7_000.0},
+            {"scenario_id": "uk_1", "variable": "income_tax", "value": 1_800.0},
+            {"scenario_id": "uk_2", "variable": "child_benefit", "value": 0.0},
+            {"scenario_id": "uk_2", "variable": "housing_costs", "value": 3_000.0},
+            {"scenario_id": "uk_2", "variable": "income_tax", "value": 1_800.0},
         ]
-    ).sort_values(["scenario_id", "variable"])
-
+    )
     pd.testing.assert_frame_equal(
         result.drop(columns="impact_weight").reset_index(drop=True),
         expected.reset_index(drop=True),
     )
+    # One simulation per scenario, so no household shares a simulation (and
+    # PE-UK's per-benefit-unit seeded draws) with another.
+    assert len(_FakeUKSimulation.situations) == 2
+    assert all(
+        len(situation["households"]) == 1 and len(situation["benunits"]) == 1
+        for situation in _FakeUKSimulation.situations
+    )
+
+
+def test_calculate_ground_truth_uk_does_not_depend_on_batch_composition(monkeypatch):
+    monkeypatch.setattr(
+        ground_truth,
+        "get_uk_situation_simulation_class",
+        lambda: _FakeUKSimulation,
+    )
+    programs = ["income_tax", "child_benefit", "housing_costs"]
+    first = _uk_scenario("uk_1", rent=7_000.0, child_age=4)
+    second = _uk_scenario("uk_2", rent=3_000.0)
+
+    together = calculate_ground_truth([second, first], programs=programs, year=2026)
+    alone = calculate_ground_truth([first], programs=programs, year=2026)
+
+    pd.testing.assert_frame_equal(
+        together[together["scenario_id"] == "uk_1"].reset_index(drop=True),
+        alone.reset_index(drop=True),
+    )
+
+
+def test_calculate_ground_truth_uk_rejects_unsupported_entities(monkeypatch):
+    class UnsupportedEntitySimulation(_FakeUKSimulation):
+        def __init__(self, situation):
+            super().__init__(situation)
+            self.tax_benefit_system.variables["income_tax"] = SimpleNamespace(
+                entity=SimpleNamespace(key="state")
+            )
+
+    monkeypatch.setattr(
+        ground_truth,
+        "get_uk_situation_simulation_class",
+        lambda: UnsupportedEntitySimulation,
+    )
+
+    with pytest.raises(ValueError, match="Unsupported UK entity"):
+        calculate_ground_truth(
+            [_uk_scenario("uk_1", rent=1.0)], programs=["income_tax"], year=2026
+        )

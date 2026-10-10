@@ -2,8 +2,11 @@
 
 import json
 
+import numpy as np
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 import policybench.scenarios as scenarios_module
 from policybench.scenarios import (
@@ -1256,3 +1259,626 @@ def test_unstated_or_zero_hours_keep_the_engine_default(hours):
     head = _hours_scenario(hours).to_pe_household()["people"]["head"]
     assert "hours_worked_last_week" not in head
     assert "weekly_hours_worked_before_lsr" not in head
+
+
+class _FakeUKVariable:
+    def __init__(self, entity_key: str):
+        self.entity = type("Entity", (), {"key": entity_key})()
+
+
+class _FakeUKTransferSimulation:
+    """Stored values are the 2025 survey year; 2026 values are uprated."""
+
+    STORED = {
+        "person_id": ("person", [1.0, 2.0]),
+        "person_household_id": ("person", [10.0, 10.0]),
+        "person_benunit_id": ("person", [20.0, 20.0]),
+        "age": ("person", [40.0, 17.0]),
+        "gender": ("person", ["FEMALE", "MALE"]),
+        "employment_income_before_lsr": ("person", [30_000.0, 0.0]),
+        "benunit_id": ("benunit", [20.0]),
+        "household_id": ("household", [10.0]),
+        "household_weight": ("household", [1.0]),
+        "region": ("household", ["NORTH_WEST"]),
+        "rent": ("household", [6_000.0]),
+    }
+    UPRATED = {"employment_income_before_lsr": 1.034, "rent": 1.02}
+    COMPUTED = {
+        "state_pension": [0.0, 0.0],
+        "current_education": ["NOT_IN_EDUCATION", "POST_SECONDARY"],
+        "date_of_birth": [19860601, 20090401],
+    }
+
+    def __init__(self, extra_stored=None, drop_computed=()):
+        stored = dict(self.STORED, **(extra_stored or {}))
+        self.stored = stored
+        variables = {
+            name: _FakeUKVariable(entity) for name, (entity, _) in stored.items()
+        }
+        for name in self.COMPUTED:
+            if name not in drop_computed:
+                variables[name] = _FakeUKVariable("person")
+        for name in extra_stored or {}:
+            if name.startswith("unknown_"):
+                variables.pop(name)
+        self.tax_benefit_system = type("TBS", (), {"variables": variables})()
+        self.periods = set()
+
+    def calculate(self, variable, period, map_to=None, unweighted=True):
+        self.periods.add(period)
+        if variable in self.COMPUTED:
+            return np.asarray(self.COMPUTED[variable])
+        values = np.asarray(self.stored[variable][1])
+        if period == "2026" and variable in self.UPRATED:
+            return values * self.UPRATED[variable]
+        return values
+
+
+def _patch_uk_transfer(monkeypatch, sim):
+    import policybench.policyengine_runtime as runtime
+
+    class FakeDataset:
+        time_period = 2025
+
+        def __init__(self, file_path):
+            self.file_path = file_path
+
+        def load(self):
+            return {
+                name: np.asarray(values) for name, (_, values) in sim.stored.items()
+            }
+
+    monkeypatch.setattr(scenarios_module, "get_uk_dataset_path", lambda: "fake.h5")
+    monkeypatch.setattr(
+        runtime, "get_uk_single_year_dataset_class", lambda: FakeDataset
+    )
+    monkeypatch.setattr(runtime, "make_uk_transfer_microsimulation", lambda path: sim)
+
+
+def test_load_uk_transfer_frames_prompts_reference_period_values(monkeypatch):
+    sim = _FakeUKTransferSimulation()
+    _patch_uk_transfer(monkeypatch, sim)
+
+    person_df, household_df, dataset_year = scenarios_module.load_uk_transfer_frames()
+
+    assert dataset_year == 2025
+    assert sim.periods == {"2026"}
+    # The prompt must show the uprated 2026-27 amounts the reference uses,
+    # not the stored 2025 survey values.
+    assert person_df["employment_income_before_lsr"].tolist() == pytest.approx(
+        [31_020.0, 0.0]
+    )
+    assert household_df["rent"].tolist() == pytest.approx([6_120.0])
+    assert person_df["current_education"].tolist() == [
+        "NOT_IN_EDUCATION",
+        "POST_SECONDARY",
+    ]
+    assert person_df["date_of_birth"].tolist() == [19860601, 20090401]
+
+
+def test_load_uk_transfer_frames_rejects_variables_the_engine_dropped(monkeypatch):
+    sim = _FakeUKTransferSimulation(
+        extra_stored={"unknown_pip_dl_reported": ("person", [0.0, 0.0])}
+    )
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="does not define"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_load_uk_transfer_frames_rejects_renamed_computed_inputs(monkeypatch):
+    sim = _FakeUKTransferSimulation(drop_computed=("current_education",))
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="no longer defines 'current_education'"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_load_uk_transfer_frames_rejects_benefit_unit_inputs(monkeypatch):
+    sim = _FakeUKTransferSimulation(extra_stored={"benunit_rent": ("benunit", [100.0])})
+    _patch_uk_transfer(monkeypatch, sim)
+
+    with pytest.raises(ValueError, match="benefit-unit inputs"):
+        scenarios_module.load_uk_transfer_frames()
+
+
+def test_uk_current_education_is_prompted_only_for_ages_16_to_19():
+    def person_row(age):
+        return pd.Series(
+            {
+                "person_id": 1,
+                "person_household_id": 1,
+                "person_benunit_id": 1,
+                "age": age,
+                "employment_income_before_lsr": 0.0,
+                "current_education": "POST_SECONDARY",
+            }
+        )
+
+    prompted = {
+        age: "current_education"
+        in scenarios_module._extract_uk_person_inputs(person_row(age))
+        for age in (15, 16, 19, 20)
+    }
+    assert prompted == {15: False, 16: True, 19: True, 20: False}
+
+
+UK_PROMPTED_PERSON_INPUTS = {
+    "savings_interest_income": st.integers(min_value=1, max_value=10**6),
+    "dividend_income": st.integers(min_value=1, max_value=10**6),
+    "property_income": st.integers(min_value=-(10**5), max_value=10**6).filter(bool),
+    "pip_dl_category": st.sampled_from(["STANDARD", "ENHANCED"]),
+    "is_disabled_for_benefits": st.just(True),
+    "gender": st.sampled_from(["MALE", "FEMALE"]),
+    # Age 40 on 6 October 2026.
+    "date_of_birth": st.sampled_from([19860101, 19860601, 19851231]),
+}
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    adult_inputs=st.fixed_dictionaries(
+        {},
+        optional={name: strat for name, strat in UK_PROMPTED_PERSON_INPUTS.items()},
+    ),
+    household_inputs=st.fixed_dictionaries(
+        {},
+        optional={
+            "rent": st.integers(min_value=1, max_value=10**5),
+            "savings": st.integers(min_value=1, max_value=10**6),
+            "tenure_type": st.sampled_from(["RENT_PRIVATELY", "OWNED_OUTRIGHT"]),
+        },
+    ),
+    num_children=st.integers(min_value=0, max_value=3),
+    wage=st.integers(min_value=0, max_value=10**6),
+)
+def test_uk_situation_holds_exactly_the_prompted_facts(
+    adult_inputs, household_inputs, num_children, wage
+):
+    from policybench.prompts import describe_household, describe_person
+
+    scenario = Scenario(
+        id="uk",
+        country="uk",
+        state="SCOTLAND",
+        filing_status=None,
+        adults=[
+            Person(name="adult1", age=40, employment_income=wage, inputs=adult_inputs)
+        ],
+        children=[
+            Person(
+                name=f"child{i + 1}",
+                age=17,
+                employment_income=0.0,
+                inputs={"current_education": "POST_SECONDARY"},
+            )
+            for i in range(num_children)
+        ],
+        household_inputs=household_inputs,
+        year=2026,
+    )
+
+    situation = scenario.to_pe_uk_situation(prefix="s__")
+    prompt = describe_household(scenario)
+
+    people = situation["people"]
+    assert set(people) == {f"s__{p.name}" for p in scenario.all_people}
+    adult = people["s__adult1"]
+    structural = {"age", "employment_income_before_lsr", "is_claimant_or_partner"}
+    assert set(adult) == structural | set(adult_inputs)
+    assert adult["is_claimant_or_partner"] == {"2026": True}
+    assert adult["employment_income_before_lsr"] == {"2026": wage}
+    adult_lines = describe_person(scenario.adults[0], country="uk")
+    for key, value in adult_inputs.items():
+        assert adult[key] == {"2026": value}
+        # Every input the situation holds is one the prompt states.
+        if key == "is_disabled_for_benefits":
+            assert "limited capability for work" in adult_lines
+        else:
+            label = key.replace("_", " ") if key != "pip_dl_category" else "PIP"
+            assert label.split()[0].lower() in adult_lines.lower()
+    for i in range(num_children):
+        child = people[f"s__child{i + 1}"]
+        assert child["is_claimant_or_partner"] == {"2026": False}
+        assert child[scenarios_module.UK_EDUCATION_ENTRY_FIELD] == {
+            "2026": scenarios_module.UK_EDUCATION_ENTRY_AGE
+        }
+        assert "age when the current education or training began: 16" in prompt
+    (benunit,) = situation["benunits"].values()
+    (household,) = situation["households"].values()
+    assert benunit["members"] == household["members"] == list(people)
+    assert benunit["is_married"] == {"2026": False}
+    expected_household = {"members", "region", *household_inputs}
+    if household_inputs.get("tenure_type") == "RENT_PRIVATELY":
+        expected_household.add("brma")
+        assert "Broad Rental Market Area" in prompt
+    assert set(household) == expected_household
+    assert household["region"] == {"2026": "SCOTLAND"}
+
+
+def test_uk_situation_rejects_inputs_the_prompt_cannot_show():
+    base = dict(
+        id="uk",
+        country="uk",
+        state="WALES",
+        filing_status=None,
+        year=2026,
+    )
+    hidden = Scenario(
+        **base,
+        adults=[
+            Person(
+                name="adult1",
+                age=70,
+                employment_income=0.0,
+                inputs={"state_pension_reported": 9_000.0},
+            )
+        ],
+    )
+    with pytest.raises(ValueError, match="inputs the prompt does not show"):
+        hidden.to_pe_uk_situation()
+    tax_unit = Scenario(
+        **base,
+        adults=[Person(name="adult1", age=40, employment_income=0.0)],
+        tax_unit_inputs={"anything": 1},
+    )
+    with pytest.raises(ValueError, match="tax-unit or benefit inputs"):
+        tax_unit.to_pe_uk_situation()
+
+
+def _uk_renter(**overrides) -> Scenario:
+    fields = dict(
+        id="uk",
+        country="uk",
+        state="SCOTLAND",
+        filing_status=None,
+        adults=[Person(name="adult1", age=40, employment_income=15_095.1591796875)],
+        household_inputs={"tenure_type": "RENT_PRIVATELY", "rent": 7_200.4},
+        year=2026,
+    )
+    fields.update(overrides)
+    return Scenario(**fields)
+
+
+def test_uk_private_renters_get_their_region_brma_in_prompt_and_reference():
+    from policybench.prompts import describe_household
+
+    scenario = _uk_renter()
+    (household,) = scenario.to_pe_uk_situation()["households"].values()
+    assert household["brma"] == {"2026": "GREATER_GLASGOW"}
+    assert (
+        "Broad Rental Market Area (for the Local Housing Allowance): Greater Glasgow"
+        in describe_household(scenario)
+    )
+
+    stated = _uk_renter(
+        household_inputs={"tenure_type": "RENT_PRIVATELY", "brma": "LOTHIAN"}
+    )
+    (household,) = stated.to_pe_uk_situation()["households"].values()
+    assert household["brma"] == {"2026": "LOTHIAN"}
+
+    owner = _uk_renter(household_inputs={"tenure_type": "OWNED_OUTRIGHT"})
+    (household,) = owner.to_pe_uk_situation()["households"].values()
+    assert "brma" not in household
+    assert "Broad Rental Market Area" not in describe_household(owner)
+
+    with pytest.raises(ValueError, match="no Broad Rental Market Area"):
+        _uk_renter(state="ATLANTIS").to_pe_uk_situation()
+
+
+def test_a_loaded_uk_manifest_gives_prompt_and_reference_the_same_facts(tmp_path):
+    from policybench.prompts import describe_household
+
+    # A manifest written before the conventions: unrounded amounts, no BRMA.
+    manifest = tmp_path / "scenarios.csv"
+    scenario_manifest([_uk_renter()]).to_csv(manifest, index=False)
+    (loaded,) = load_scenarios_from_manifest(manifest)
+    assert loaded.adults[0].employment_income == 15_095.1591796875
+
+    situation = loaded.to_pe_uk_situation()
+    (person,) = situation["people"].values()
+    (household,) = situation["households"].values()
+    prompt = describe_household(loaded)
+    assert person["employment_income_before_lsr"] == {"2026": 15_095.0}
+    assert "gross wages and salaries: £15,095" in prompt
+    assert household["rent"] == {"2026": 7_200.0}
+    assert "rent: £7,200" in prompt
+    assert household["brma"] == {"2026": "GREATER_GLASGOW"}
+    assert "Greater Glasgow" in prompt
+
+
+@pytest.mark.parametrize("entry_age", [18, 19])
+def test_an_explicit_uk_education_entry_age_is_kept_and_stated(entry_age):
+    from policybench.prompts import describe_household
+
+    scenario = _uk_renter(
+        children=[
+            Person(
+                name="child1",
+                age=19,
+                employment_income=0.0,
+                inputs={
+                    "current_education": "POST_SECONDARY",
+                    scenarios_module.UK_EDUCATION_ENTRY_FIELD: entry_age,
+                },
+            )
+        ]
+    )
+    child = scenario.to_pe_uk_situation()["people"]["child1"]
+    assert child[scenarios_module.UK_EDUCATION_ENTRY_FIELD] == {"2026": entry_age}
+    assert (
+        f"age when the current education or training began: {entry_age}"
+        in describe_household(scenario)
+    )
+
+
+def test_uk_situation_rejects_household_inputs_the_prompt_cannot_show():
+    hidden = _uk_renter(
+        household_inputs={
+            "tenure_type": "OWNED_OUTRIGHT",
+            "bus_fare_spending_reported": 300.0,
+        }
+    )
+    assert scenarios_module.is_excluded_prompt_input_name("bus_fare_spending_reported")
+    with pytest.raises(ValueError, match="household inputs the prompt does not show"):
+        hidden.to_pe_uk_situation()
+
+
+uk_numbers = st.floats(min_value=-1e6, max_value=1e6, allow_nan=False)
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    wage=uk_numbers,
+    savings=uk_numbers,
+    rent=uk_numbers,
+    tenure=st.sampled_from(["RENT_PRIVATELY", "OWNED_OUTRIGHT"]),
+    child_in_education=st.booleans(),
+)
+def test_canonical_uk_scenario_is_idempotent(
+    wage, savings, rent, tenure, child_in_education
+):
+    scenario = _uk_renter(
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=wage,
+                inputs={"savings_interest_income": savings, "gender": "FEMALE"},
+            )
+        ],
+        children=[
+            Person(
+                name="child1",
+                age=17,
+                employment_income=0.0,
+                inputs={"current_education": "POST_SECONDARY"}
+                if child_in_education
+                else {},
+            )
+        ],
+        household_inputs={"tenure_type": tenure, "rent": rent},
+    )
+    once = scenarios_module.canonical_uk_scenario(scenario)
+    twice = scenarios_module.canonical_uk_scenario(once)
+    assert scenarios_module.scenario_to_dict(once) == scenarios_module.scenario_to_dict(
+        twice
+    )
+    # The original is untouched.
+    assert scenario.adults[0].employment_income == wage
+
+
+@pytest.mark.slow
+def test_pe_uk_reads_a_prompted_couple_as_an_unmarried_couple():
+    """The prompt says two adults are a couple, not married. PE-UK would
+    otherwise presume a 37/18 pair to be a parent and child, and presume any
+    couple married (scenario_056 and the Marriage Allowance cells)."""
+    from policyengine_uk import Simulation
+
+    scenario = Scenario(
+        id="uk",
+        country="uk",
+        state="WALES",
+        filing_status=None,
+        adults=[
+            Person(name="adult1", age=37, employment_income=30_000.0),
+            Person(name="adult2", age=18, employment_income=0.0),
+        ],
+        household_inputs={"tenure_type": "OWNED_OUTRIGHT"},
+        year=2026,
+    )
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    assert bool(sim.calculate("is_couple", 2026)[0])
+    assert not bool(sim.calculate("is_married", 2026)[0])
+    assert float(sim.calculate("marriage_allowance", 2026).sum()) == 0
+
+
+def test_uk_situation_rejects_us_scenarios():
+    scenario = Scenario(
+        id="us",
+        state="CA",
+        filing_status="single",
+        adults=[Person(name="adult1", age=40, employment_income=1.0)],
+    )
+    with pytest.raises(ValueError, match="only supported for UK"):
+        scenario.to_pe_uk_situation()
+
+
+@settings(max_examples=500, deadline=None)
+@given(
+    value=st.floats(
+        min_value=-1e7, max_value=1e7, allow_nan=False, allow_infinity=False
+    )
+)
+def test_uk_rounding_keeps_the_displayed_number(value):
+    from policybench.prompts import _format_input_line
+
+    rounded = scenarios_module.round_uk_prompt_number(value)
+    assert rounded == int(rounded)
+    if rounded == 0:
+        # Extraction leaves an amount shown as £0 (or £-0) unlisted, which the
+        # prompt reads as 0.
+        assert scenarios_module._uk_promptable_value(value) is None
+        return
+    # The prompt shows the rounded value exactly as it showed the raw one, so
+    # the reference uses the number the models read.
+    assert _format_input_line("savings", value, country="uk") == _format_input_line(
+        "savings", rounded, country="uk"
+    )
+
+
+def test_uk_promptable_values_are_whole_and_drop_amounts_shown_as_zero():
+    assert scenarios_module._uk_promptable_value(15_095.16) == 15_095.0
+    assert scenarios_module._uk_promptable_value(-107_891.4) == -107_891.0
+    assert scenarios_module._uk_promptable_value(0.4) is None
+    assert scenarios_module._uk_promptable_value(0.6) == 1.0
+
+
+def test_canonical_uk_person_keeps_explicit_zeros_and_rates():
+    from policybench.prompts import describe_person
+
+    person = Person(
+        name="adult1",
+        age=66,
+        employment_income=0.0,
+        inputs={
+            "months_since_last_birthday": 0,
+            "full_rate_vat_expenditure_rate": 0.25,
+            "savings_interest_income": 0.4,
+        },
+    )
+    canonical = scenarios_module.canonical_uk_person(person)
+    # An explicit zero is a stated fact: dropping it would let PE-UK use its
+    # own default (six months), moving the date of birth.
+    assert canonical.inputs["months_since_last_birthday"] == 0.0
+    assert canonical.inputs["full_rate_vat_expenditure_rate"] == 0.25
+    assert canonical.inputs["savings_interest_income"] == 0.0
+    lines = describe_person(person, country="uk")
+    assert "- months since last birthday: 0" in lines
+    assert "- savings interest income: £0" in lines
+
+
+def test_canonical_uk_rate_is_the_rate_the_prompt_shows():
+    from policybench.prompts import describe_household
+
+    scenario = _uk_renter(
+        household_inputs={
+            "tenure_type": "OWNED_OUTRIGHT",
+            "full_rate_vat_expenditure_rate": 0.123456789,
+        }
+    )
+    canonical = scenarios_module.canonical_uk_scenario(scenario)
+    assert canonical.household_inputs["full_rate_vat_expenditure_rate"] == 0.1235
+    assert "full-rate VAT expenditure share: 0.1235" in describe_household(scenario)
+    situation = scenario.to_pe_uk_situation()
+    (household,) = situation["households"].values()
+    assert household["full_rate_vat_expenditure_rate"] == {"2026": 0.1235}
+
+
+@settings(max_examples=300, deadline=None)
+@given(
+    rate=st.one_of(
+        st.floats(min_value=-10, max_value=10, allow_nan=False, allow_infinity=False),
+        # Around the thousands separator and .4g's switch to exponent form.
+        st.floats(
+            min_value=-200_000,
+            max_value=200_000,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        st.sampled_from(
+            [999.95, 1_000.0, 1_234.5, -1_234.5, 9_999.4, 9_999.6, 12_345.0]
+        ),
+    )
+)
+def test_uk_prompt_rate_round_trips_through_its_display(rate):
+    stored = scenarios_module.round_uk_prompt_rate(rate)
+    # The prompt's format prints the stored value exactly, and storing is
+    # idempotent, so the reference and the prompt hold the same rate.
+    assert float(f"{stored:,.4g}".replace(",", "")) == stored
+    assert f"{stored:,.4g}" == f"{rate:,.4g}"
+    assert scenarios_module.round_uk_prompt_rate(stored) == stored
+
+
+def test_canonical_uk_person_states_statuses_pe_uk_would_impute():
+    from policybench.prompts import describe_person
+
+    teenager = Person(name="child1", age=17, employment_income=0.0)
+    canonical = scenarios_module.canonical_uk_person(teenager)
+    # PE-UK imputes non-advanced education at 17; the prompt's rule is that an
+    # unlisted status is false.
+    assert canonical.inputs["current_education"] == "NOT_IN_EDUCATION"
+    assert scenarios_module.UK_EDUCATION_ENTRY_FIELD not in canonical.inputs
+    assert "- current education: not in education or training" in describe_person(
+        teenager, country="uk"
+    )
+    assert (
+        "current_education"
+        not in scenarios_module.canonical_uk_person(
+            Person(name="child1", age=12, employment_income=0.0)
+        ).inputs
+    )
+
+    trader = Person(
+        name="adult1",
+        age=40,
+        employment_income=0.0,
+        inputs={"self_employment_income": 3_900.0},
+    )
+    canonical = scenarios_module.canonical_uk_person(trader)
+    assert canonical.inputs[scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD] is False
+    assert (
+        "- determined to be in gainful self-employment for Universal Credit: no"
+        in describe_person(trader, country="uk")
+    )
+    stated = scenarios_module.canonical_uk_person(
+        Person(
+            name="adult1",
+            age=40,
+            employment_income=0.0,
+            inputs={
+                "self_employment_income": 3_900.0,
+                scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD: True,
+            },
+        )
+    )
+    assert stated.inputs[scenarios_module.UK_GAINFUL_SELF_EMPLOYMENT_FIELD] is True
+
+
+def test_describe_person_and_describe_household_agree_for_uk():
+    from policybench.prompts import describe_household, describe_person
+
+    scenario = _uk_renter(
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=15_095.16,
+                inputs={"self_employment_income": 3_900.4},
+            )
+        ],
+        children=[Person(name="child1", age=17, employment_income=0.0)],
+    )
+    household = describe_household(scenario)
+    for person in scenario.all_people:
+        assert describe_person(person, country="uk") in household
+
+
+@pytest.mark.slow
+def test_pe_uk_applies_no_minimum_income_floor_without_a_determination():
+    from policyengine_uk import Simulation
+
+    scenario = _uk_renter(
+        adults=[
+            Person(
+                name="adult1",
+                age=40,
+                employment_income=0.0,
+                inputs={"self_employment_income": 3_900.0},
+            )
+        ],
+        household_inputs={"tenure_type": "OWNED_OUTRIGHT"},
+    )
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    assert not bool(sim.calculate("uc_mif_applies", 2026).any())
+    assert float(sim.calculate("universal_credit", 2026).sum()) > 0

@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import MODELS, PROGRAMS, get_programs
 from policybench.eval_no_tools import (
     NO_TOOLS_RESULT_COLUMNS,
     _build_resume_metadata,
@@ -1540,3 +1540,61 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
         (run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
     )
     assert heartbeat["policyengine_provenance_recomputed"] == 0
+
+
+@pytest.fixture
+def uk_manifest(tmp_path: Path) -> Path:
+    path = tmp_path / "uk_scenarios.csv"
+    scenarios = [
+        Scenario(
+            id=f"scenario_{i:03d}",
+            country="uk",
+            state="WALES",
+            filing_status=None,
+            adults=[Person(name="adult1", age=35, employment_income=20_000)],
+            source_dataset="uk_calibrated_transfer_2025",
+        )
+        for i in range(N_SCENARIOS)
+    ]
+    pd.DataFrame(
+        {
+            "scenario_id": [scenario.id for scenario in scenarios],
+            "scenario_json": [
+                json.dumps(scenario_to_dict(scenario)) for scenario in scenarios
+            ],
+        }
+    ).to_csv(path, index=False)
+    return path
+
+
+def test_uk_workers_request_the_uk_country_and_output_set(
+    uk_manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(uk_manifest, tmp_path)
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+
+    (cmd,) = launched
+    assert cmd[cmd.index("--country") + 1] == "uk"
+    assert supervisor._expected_outputs_for_scenario(0) == get_programs("uk")
+    assert supervisor.initial_request_variables == get_programs("uk")
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256(
+            "\n".join(sorted(get_programs("uk"))).encode("utf-8")
+        ).hexdigest()
+    )
+
+
+def test_us_workload_fingerprint_is_unchanged_by_country_awareness(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256("\n".join(sorted(PROGRAMS)).encode("utf-8")).hexdigest()
+    )
