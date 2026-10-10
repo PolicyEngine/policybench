@@ -73,6 +73,36 @@ def bound_verdict(folder: Path) -> tuple[dict, dict]:
     return json.loads(raw), meta
 
 
+def judge_disagreements(entry: dict, verdict: dict, meta: dict) -> list[str]:
+    """Where a decision's judge fields depart from the verdict it names: the
+    judge, the classes, the UTC day, and the reference flag. The flag may be
+    set from an earlier run the verdict does not repeat, but only with its
+    judge_reference_suspect_source saying so."""
+    problems = []
+    expected = {
+        "judge_model": meta["judge_model_requested"],
+        "judge_failure_source": verdict["case_failure_source"],
+        "judge_failure_subtype": verdict["case_failure_subtype"],
+    }
+    for field, value in expected.items():
+        if entry.get(field) != value:
+            problems.append(f"{field} {entry.get(field)!r} != {value!r}")
+    day = entry.get("judge_rejudged_on") or entry.get("judged_on_utc")
+    if day != meta["judged_at_utc"][:10]:
+        problems.append(
+            f"judged on {day!r}, the verdict on {meta['judged_at_utc'][:10]}"
+        )
+    flagged, now = (
+        bool(entry.get("judge_reference_suspect")),
+        bool(verdict["reference_suspect"]),
+    )
+    if flagged != now and not (
+        flagged and not now and entry.get("judge_reference_suspect_source")
+    ):
+        problems.append(f"reference flag {flagged} != the verdict's {now}")
+    return problems
+
+
 def committed_record() -> dict:
     return json.loads((driver.ANNOTATIONS / driver.ADJUDICATIONS).read_text())
 
@@ -89,6 +119,10 @@ def restatements(stage: Path, record: dict) -> dict:
         if case not in reopened:
             continue
         verdict, meta = bound_verdict(stage / "audit" / "cases" / case)
+        wrong = judge_disagreements(entry, verdict, meta)
+        driver.require(
+            not wrong, f"{case}: the decision does not name its verdict: {wrong}"
+        )
         cases[case] = {
             "judge_model": meta["judge_model_requested"],
             "case_failure_source": verdict["case_failure_source"],
@@ -131,13 +165,30 @@ def fill_release() -> dict:
     }
 
 
-def new_waves(record: dict) -> dict[str, str]:
+def upgrade_day() -> str | None:
+    """The day of the committed sidecar's engine upgrade, if this release has one
+    (the last revision, after release 20261006's 2026-09-29 move)."""
+    meta = json.loads((driver.SNAPSHOT / "reference_outputs.csv.meta.json").read_text())
+    last = meta["revisions"][-1]
+    if last.get("kind") == "engine_upgrade" and last["date"] > BASE_WAVES[-1]:
+        return last["date"]
+    return None
+
+
+def new_waves(record: dict, upgrade: str | None = None) -> dict[str, str]:
     """This release's waves and the UTC day each one's decisions were written
     (the spec's adjudications_written_on for the 2026-10-06 rulings, its
-    upgrade_adjudications_written_on for the engine upgrade's wave)."""
+    upgrade_adjudications_written_on for the engine upgrade's wave). The waves
+    must be the 2026-10-06 rulings' and, with an engine upgrade, its day."""
     spec = driver.load_spec()
     waves = sorted(
         {e["adjudicated_on"] for e in record["adjudications"]} - set(BASE_WAVES)
+    )
+    allowed = {"2026-10-06"} | ({upgrade} if upgrade else set())
+    driver.require(
+        "2026-10-06" in waves and set(waves) <= allowed,
+        f"this release's waves are {waves}, not the 2026-10-06 rulings' and the "
+        f"engine upgrade's ({sorted(allowed)})",
     )
     written = {}
     for wave in waves:
@@ -186,7 +237,7 @@ def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
         }
         filled += 1
     driver.require(filled > 0, f"release 20261006 published no {FILL_WAVE} decisions")
-    for wave, written in new_waves(record).items():
+    for wave, written in new_waves(record, upgrade_day()).items():
         waves[wave] = {
             "commit": None,
             "release": driver.RELEASE_TAG,
@@ -202,8 +253,14 @@ def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
                 # evidence now describes this wave's decision, which no release
                 # has published yet. The earlier release's evidence stays in
                 # git at that release's commit, where its tests read it.
+                verdict, meta = bound_verdict(folder)
+                wrong = judge_disagreements(entry, verdict, meta)
+                driver.require(
+                    not wrong,
+                    f"{case}: the decision does not name its verdict: {wrong}",
+                )
                 found = evidence["cases"].setdefault(case, {})
-                found["current"] = _evidence("stage", bound_verdict(folder))
+                found["current"] = _evidence("stage", (verdict, meta))
                 found.pop("published", None)
     evidence["wave_releases"] = dict(sorted(waves.items()))
     return evidence

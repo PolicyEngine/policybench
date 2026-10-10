@@ -1314,6 +1314,7 @@ def test_each_restatement_names_its_20261009_verdict(tmp_path):
             current["case_failure_subtype"],
             current["judged_at_utc"][:10],
         ), case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
         if case not in moved:
             decision = {
                 k: v
@@ -1342,3 +1343,87 @@ def test_each_restatement_names_its_20261009_verdict(tmp_path):
     assert set(verdicts) <= set(entries)
     assert replaced == 60
     assert set(verdicts) - set(base) == added
+    # The judge evidence names, for each of the new waves' decisions, the
+    # verdict that decision carries (its "current" verdict).
+    judged = _judge_evidence()["cases"]
+    for case, entry in entries.items():
+        if entry["adjudicated_on"] not in new_waves:
+            continue
+        current = judged[case]["current"]
+        assert "published" not in judged[case], case
+        assert (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+        ) == (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+            current["judged_at_utc"][:10],
+        ), case
+        assert current["verdict_sha256"] == verdicts[case]["verdict_sha256"], case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
+
+
+def _flag_agrees(entry: dict, flagged_now: bool) -> bool:
+    """A decision's reference flag is its verdict's, or set from an earlier
+    run the verdict does not repeat, which judge_reference_suspect_source
+    must say."""
+    flagged = bool(entry.get("judge_reference_suspect"))
+    if flagged == bool(flagged_now):
+        return True
+    return (
+        flagged
+        and not flagged_now
+        and bool(entry.get("judge_reference_suspect_source"))
+    )
+
+
+def test_the_evidence_script_refuses_a_decision_that_does_not_name_its_verdict():
+    """MOCK decision and verdict: scripts/date_haiku55_judge_verdicts.py
+    finds each way a decision's judge fields can depart from the verdict it
+    names, and accepts a flag set from an earlier run only with its source."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "date_haiku55_judge_verdicts", ROOT / "scripts/date_haiku55_judge_verdicts.py"
+    )
+    dating = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dating)
+
+    verdict = {
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "reference_suspect": False,
+    }
+    meta = {
+        "judge_model_requested": "claude-opus-5-5",
+        "judged_at_utc": "2026-10-10T03:00:00Z",
+    }
+    entry = {
+        "judge_model": "claude-opus-5-5",
+        "judge_failure_source": "llm_error",
+        "judge_failure_subtype": "thresholds_rates",
+        "judge_rejudged_on": "2026-10-10",
+        "judge_reference_suspect": False,
+    }
+    assert dating.judge_disagreements(entry, verdict, meta) == []
+    for field, value, found in (
+        ("judge_model", "claude-sonnet-5-5", "judge_model"),
+        ("judge_failure_subtype", "other", "judge_failure_subtype"),
+        ("judge_rejudged_on", "2026-10-09", "judged on"),
+        ("judge_reference_suspect", True, "reference flag"),
+    ):
+        problems = dating.judge_disagreements({**entry, field: value}, verdict, meta)
+        assert len(problems) == 1 and found in problems[0], (field, problems)
+    earlier = {
+        **entry,
+        "judge_reference_suspect": True,
+        "judge_reference_suspect_source": "MOCK earlier run",
+    }
+    assert dating.judge_disagreements(earlier, verdict, meta) == []
+    unflagged = dating.judge_disagreements(
+        entry, {**verdict, "reference_suspect": True}, meta
+    )
+    assert unflagged and "reference flag" in unflagged[0]
