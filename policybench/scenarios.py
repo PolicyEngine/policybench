@@ -1428,6 +1428,16 @@ def scenarios_from_cps_frame(
     return scenarios
 
 
+def round_uk_prompt_number(value: float) -> float:
+    """A UK numeric input as the prompt shows it: to the whole unit.
+
+    The prompt formats every UK amount, hour count and date with no decimals
+    (Python's round-half-even, as the formatter rounds), so storing the
+    rounded value makes the reference use exactly the stated fact.
+    """
+    return float(round(float(value)))
+
+
 def _uk_promptable_value(value: Any) -> Any | None:
     if pd.isna(value):
         return None
@@ -1439,10 +1449,10 @@ def _uk_promptable_value(value: Any) -> Any | None:
             return None
         return cleaned
     try:
-        numeric = float(value)
+        numeric = round_uk_prompt_number(value)
     except (TypeError, ValueError):
         return value
-    if abs(numeric) <= 1e-6:
+    if numeric == 0:
         return None
     return numeric
 
@@ -1490,7 +1500,7 @@ def _build_uk_person(row: pd.Series, label: str) -> Person:
             continue
         value = pd.to_numeric(row[column], errors="coerce")
         if not pd.isna(value):
-            employment_income = float(value)
+            employment_income = round_uk_prompt_number(value)
             break
     return Person(
         name=label,

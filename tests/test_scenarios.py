@@ -1477,3 +1477,32 @@ def test_uk_situation_rejects_us_scenarios():
     )
     with pytest.raises(ValueError, match="only supported for UK"):
         scenario.to_pe_uk_situation()
+
+
+@settings(max_examples=500, deadline=None)
+@given(
+    value=st.floats(
+        min_value=-1e7, max_value=1e7, allow_nan=False, allow_infinity=False
+    )
+)
+def test_uk_rounding_keeps_the_displayed_number(value):
+    from policybench.prompts import _format_input_line
+
+    rounded = scenarios_module.round_uk_prompt_number(value)
+    assert rounded == int(rounded)
+    if rounded == 0:
+        # Shown as £0 (or £-0) before; now unlisted, which the prompt reads as 0.
+        assert scenarios_module._uk_promptable_value(value) is None
+        return
+    # The prompt shows the rounded value exactly as it showed the raw one, so
+    # the reference uses the number the models read.
+    assert _format_input_line("savings", value, country="uk") == _format_input_line(
+        "savings", rounded, country="uk"
+    )
+
+
+def test_uk_promptable_values_are_whole_and_drop_amounts_shown_as_zero():
+    assert scenarios_module._uk_promptable_value(15_095.16) == 15_095.0
+    assert scenarios_module._uk_promptable_value(-107_891.4) == -107_891.0
+    assert scenarios_module._uk_promptable_value(0.4) is None
+    assert scenarios_module._uk_promptable_value(0.6) == 1.0
