@@ -72,6 +72,13 @@ class Scratch:
         (self.root / rt.POINTER_PATH).unlink()
         return self.commit("drop the pointer")
 
+    def newline(self) -> str:
+        """Add or drop the pointer's trailing newline, and nothing else."""
+        pointer = self.root / rt.POINTER_PATH
+        text = pointer.read_text()
+        pointer.write_text(text[:-1] if text.endswith("\n") else text + "\n")
+        return self.commit("touch the pointer's last line")
+
     def reformat(self) -> str:
         """Rewrite the pointer's bytes without changing its tag or sha256."""
         pointer = self.root / rt.POINTER_PATH
@@ -102,6 +109,9 @@ class Scratch:
         elif kind == "reformat":
             if (self.root / rt.POINTER_PATH).exists():
                 self.reformat()
+        elif kind == "newline":
+            if (self.root / rt.POINTER_PATH).exists():
+                self.newline()
         else:
             self.merge(step[1])
 
@@ -111,6 +121,16 @@ def scratch(tmp_path):
     return Scratch(tmp_path / "repo")
 
 
+def raw_blob(root: Path, commit: str) -> str:
+    """The pointer's exact bytes at ``commit``; raises when it has none."""
+    return subprocess.run(
+        ["git", "-C", str(root), "show", f"{commit}:{rt.POINTER_PATH}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
 def first_parent_blobs(root: Path, ref: str = "main") -> list[tuple[str, str]]:
     """Every first-parent commit, oldest first, with its pointer's bytes or
     None: the slow reference the path-limited history must agree with."""
@@ -118,7 +138,7 @@ def first_parent_blobs(root: Path, ref: str = "main") -> list[tuple[str, str]]:
     out = []
     for commit in commits:
         try:
-            out.append((commit, git(root, "show", f"{commit}:{rt.POINTER_PATH}")))
+            out.append((commit, raw_blob(root, commit)))
         except subprocess.CalledProcessError:
             out.append((commit, None))
     return out
@@ -220,6 +240,7 @@ STEP = st.one_of(
     st.tuples(st.just("other")),
     st.tuples(st.just("delete")),
     st.tuples(st.just("reformat")),
+    st.tuples(st.just("newline")),
 )
 STEPS = st.lists(
     st.one_of(
@@ -313,6 +334,7 @@ class FakeGitHub:
         self.releases = {}
         self.drift = None  # a commit a moved tag lands on instead of the asked one
         self.after_move = None  # called after each tag move
+        self.deny = set()  # tags whose move GitHub refuses
         self.calls = []
         self.latest = []
 
@@ -333,6 +355,8 @@ class FakeGitHub:
             if "/git/refs/tags/" in path:
                 tag = path.rsplit("/git/refs/tags/", 1)[1]
                 assert fields == {"sha": fields["sha"], "force": "true"}
+                if tag in self.deny:
+                    raise rt.ReleaseTagError(f"gh api {path} failed: HTTP 403")
                 self.tags[tag] = self.drift or fields["sha"]
                 if self.after_move:
                     self.after_move()
@@ -383,7 +407,7 @@ def test_a_move_puts_the_tag_on_the_merge_commit_and_checks_it(scratch, github, 
     before, merge = landed
     plan = rt.plan_one(T2, **where(scratch))
     assert (plan.action, plan.current, plan.board) == ("move", before, merge)
-    assert rt.apply_plans([plan]) == [T2]
+    assert rt.apply_plans([plan]) == ([T2], {})
     assert github.tags[T2] == merge
     assert github.writes == [
         (
@@ -407,13 +431,13 @@ def test_a_sealed_tag_is_not_moved_again(scratch, github, landed):
     github.tags[T2] = merge
     plan = rt.plan_one(T2, **where(scratch))
     assert plan.action == "sealed"
-    assert rt.apply_plans([plan]) == [] and github.writes == []
+    assert rt.apply_plans([plan]) == ([], {}) and github.writes == []
 
 
 def test_a_move_github_does_not_show_is_refused(scratch, github, landed):
     github.drift = "e" * 40
     with pytest.raises(rt.ReleaseTagError, match="after the move"):
-        rt.apply_plans([rt.plan_one(T2, **where(scratch))])
+        rt.checked_move(rt.plan_one(T2, **where(scratch)))
 
 
 def test_an_asset_replaced_after_planning_is_refused_before_the_move(
@@ -423,7 +447,7 @@ def test_an_asset_replaced_after_planning_is_refused_before_the_move(
     plan = rt.plan_one(T2, **where(scratch))
     github.release(T2, SHAS["c"])
     with pytest.raises(rt.ReleaseTagError, match="changed before the move"):
-        rt.apply_plans([plan])
+        rt.checked_move(plan)
     assert github.writes == []
 
 
@@ -433,7 +457,7 @@ def test_an_asset_replaced_during_the_move_is_reported(scratch, github, landed):
     with pytest.raises(
         rt.ReleaseTagError, match=f"changed after the move.*{merge[:12]}"
     ):
-        rt.apply_plans([rt.plan_one(T2, **where(scratch))])
+        rt.checked_move(rt.plan_one(T2, **where(scratch)))
 
 
 @pytest.mark.parametrize(
@@ -488,7 +512,7 @@ def test_every_release_landed_since_sealing_began_is_sealed_in_one_run(scratch, 
         (T1, "move", first),
         (T2, "move", second),
     ]
-    assert rt.apply_plans(plans) == [T1, T2]
+    assert rt.apply_plans(plans) == ([T1, T2], {})
     assert rt.plan_landed(start, **where(scratch))[0].action == "sealed"
 
 
@@ -500,8 +524,78 @@ def test_an_older_release_main_points_back_at_is_left_alone(scratch, github):
     github.release(T1, SHAS["a"], release_id=1)
     github.release(T2, SHAS["b"], release_id=2)
     assert rt.plan_landed(start, **where(scratch)) == []
-    assert rt.apply_plans(rt.plan_landed(start, **where(scratch))) == []
+    assert rt.apply_plans(rt.plan_landed(start, **where(scratch))) == ([], {})
     assert github.writes == [] and github.tags[T1] == "1" * 40
+
+
+def test_an_earlier_release_stays_out_even_after_its_asset_is_replaced(scratch, github):
+    # Replace release T1's asset and land a pointer naming the new bytes after
+    # sealing began: T1 was named before, so its tag stays a manual re-point.
+    old_board = scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    scratch.release(T1, SHAS["c"])
+    github.tags = {T1: old_board}
+    github.release(T1, SHAS["c"], release_id=1)
+    assert rt.plan_landed(start, **where(scratch)) == []
+
+
+def test_a_start_that_is_not_an_ancestor_of_the_ref_is_refused(scratch, github):
+    scratch.release(T1, SHAS["a"])
+    git(scratch.root, "checkout", "-q", "-b", "elsewhere", "HEAD~1")
+    elsewhere = scratch.other()
+    git(scratch.root, "checkout", "-q", "main")
+    with pytest.raises(rt.ReleaseTagError, match="not main or an ancestor"):
+        rt.plan_landed(elsewhere, **where(scratch))
+    assert github.calls == []
+
+
+def test_a_shallow_clone_is_refused(scratch, tmp_path):
+    scratch.release(T1, SHAS["a"])
+    scratch.other()
+    scratch.release(T2, SHAS["b"])
+    shallow = tmp_path / "shallow"
+    url = f"file://{scratch.root}"
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", url, str(shallow)], check=True
+    )
+    with pytest.raises(rt.ReleaseTagError, match="shallow"):
+        rt.pointer_history("HEAD", root=str(shallow))
+
+
+def test_a_refused_move_does_not_stop_the_others_or_latest(
+    scratch, github, monkeypatch, capsys
+):
+    start = git(scratch.root, "rev-parse", "HEAD")
+    first = scratch.release(T1, SHAS["a"])
+    second = scratch.release(T2, SHAS["b"])
+    github.tags = {T1: start, T2: first}
+    github.release(T1, SHAS["a"], release_id=1)
+    github.release(T2, SHAS["b"], release_id=2)
+    github.deny = {T1}
+    monkeypatch.chdir(scratch.root)
+    argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
+    with pytest.raises(SystemExit, match=f"cannot move {T1}: .*HTTP 403"):
+        rt.main([*argv, "--latest"])
+    assert github.tags == {T1: start, T2: second}
+    assert github.latest == [2]
+    assert "Moved 1 tag\nMarked " + T2 + " Latest" in capsys.readouterr().out
+
+
+def test_latest_is_left_alone_when_the_live_releases_own_move_fails(
+    scratch, github, monkeypatch
+):
+    start = git(scratch.root, "rev-parse", "HEAD")
+    first = scratch.release(T1, SHAS["a"])
+    scratch.release(T2, SHAS["b"])
+    github.tags = {T1: start, T2: first}
+    github.release(T1, SHAS["a"], release_id=1)
+    github.release(T2, SHAS["b"], release_id=2)
+    github.deny = {T2}
+    monkeypatch.chdir(scratch.root)
+    argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
+    with pytest.raises(SystemExit, match=f"left Latest alone: {T2}"):
+        rt.main([*argv, "--latest"])
+    assert github.tags[T1] == first and github.latest == []
 
 
 def test_a_landed_release_that_cannot_be_sealed_fails_the_run_after_the_others(
@@ -574,7 +668,7 @@ def test_plan_all_covers_every_release_tag_and_apply_moves_only_the_moves(
         (T2, "move"),
         (T3, "leave"),
     ]
-    assert rt.apply_plans(plans) == [T2]
+    assert rt.apply_plans(plans) == ([T2], {})
     assert github.tags == {T1: first, T2: second, T3: second, "v1.0": first}
     assert [p.action for p in rt.plan_all(**where(scratch))] == [
         "sealed",

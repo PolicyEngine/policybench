@@ -459,21 +459,25 @@ PR's merge commit when the PR merges.
 7. Check prod on policybench.org.
 
 Each run of the workflow reads main as it is when the run starts, not the
-commit of the push that started it. It seals every release whose board commit
-comes after `SEALING_STARTS_AFTER` in `policybench/release_tags.py` (the merge
+commit of the push that started it. It seals every release that main first
+names after `SEALING_STARTS_AFTER` in `policybench/release_tags.py` (the merge
 of release 20261010), so a run GitHub cancels in favour of a newer one loses
-nothing. It leaves alone the tag of any earlier release, including one that
-main points back at. It marks Latest the release main serves. Before and after
-each move it reads the release's asset digest again, and it refuses the move,
-or reports it, when the asset changed.
+nothing. It leaves alone the tag of every release main named by then, even
+when main points back at it or its asset is replaced. Before and after each
+move it reads the release's asset digest again, and it refuses the move, or
+reports it, when the asset changed. A move GitHub refuses does not stop the
+others; the run fails after trying them all. It marks Latest the release main
+serves, unless that release's own move failed.
 
 GitHub has been reported to refuse a tag pushed with `GITHUB_TOKEN` when the
 tagged commit's `.github/workflows/` differs from that of every branch head
 ([community discussion 151442](https://github.com/orgs/community/discussions/151442)).
 The workflow moves tags through the REST API, which may meet the same check.
-A run that starts right after the merge targets main's head, where the two
-match. If a later run fails this way, seal the release by hand with the
-command in step 6, using a token with the `workflow` scope.
+A run that starts right after a release merges moves that release's tag to
+main's head, where the two match. A tag the run moves to an older commit, for
+a release an earlier run failed to seal, may not match. If a run fails this
+way, seal the release by hand with the command in step 6, using a token with
+the `workflow` scope.
 
 ### Which commit holds a release's board
 

@@ -33,8 +33,8 @@ POINTER_PATH = "app/src/data.artifact.json"
 ASSET_NAME = "dashboard-data.json"
 TAG_PATTERN = re.compile(r"dashboard-data-\d{8}[a-z]?")
 # The merge of PR #208, which holds release dashboard-data-20261010: the last
-# board before the Seal release workflow. The workflow seals releases whose
-# board commits come after it; tags of earlier releases are re-pointed by hand.
+# board before the Seal release workflow. The workflow seals releases main first
+# names after it; tags of earlier releases are re-pointed by hand.
 SEALING_STARTS_AFTER = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
 
 
@@ -122,7 +122,13 @@ def pointer_history(
 ) -> list[PointerCommit]:
     """Each commit on ``ref``'s first-parent line that changed the pointer,
     oldest first, with the tag and sha256 it committed. A commit that deleted
-    the pointer is left out."""
+    the pointer is left out. A shallow clone is refused: its history may
+    start after a release's first commit, and a later one would pass for it."""
+    if _git(root, "rev-parse", "--is-shallow-repository").strip() != "false":
+        raise ReleaseTagError(
+            "this clone is shallow, so a release's first commit may be missing; "
+            "run git fetch --unshallow"
+        )
     commits = _git(
         root, "log", "--first-parent", "--reverse", "--format=%H", ref, "--", path
     ).split()
@@ -151,6 +157,19 @@ def live_pointer(
     if pointer is None:
         raise ReleaseTagError(f"{ref} has no {path}")
     return pointer["tag"], pointer["sha256"]
+
+
+def is_ancestor(commit: str, of: str, *, root: str = ".") -> bool:
+    """Whether ``commit`` is ``of`` or an ancestor of it."""
+    result = subprocess.run(
+        ["git", "-C", root, "merge-base", "--is-ancestor", commit, of],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode not in (0, 1):
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise ReleaseTagError(f"git merge-base failed: {detail}")
+    return result.returncode == 0
 
 
 def commit_subject(commit: str, *, root: str = ".") -> str:
@@ -307,21 +326,25 @@ def plan_landed(
 ) -> list[TagPlan]:
     """A plan for every release that landed on ``ref`` after ``after``.
 
-    A tag counts when a commit after ``after`` names it and its board commit
-    is not ``after`` or an ancestor of it. A tag whose board comes earlier (main
-    pointed back at an older release) is left out: those tags are re-pointed by
-    hand. A plan with no board stays in, so the caller can report it.
+    A tag counts when main first names it after ``after``. A tag that main
+    named at or before ``after`` belongs to an earlier release, whatever asset
+    it holds now, and is left out: those tags are re-pointed by hand. A plan
+    with no board stays in, so the caller can report it.
     """
     history = pointer_history(ref, root=root)
-    landed = set(_git(root, "rev-list", f"{after}..{ref}").split())
-    plans = []
-    for tag in dict.fromkeys(e.tag for e in history if e.commit in landed):
-        plan = plan_tag(
-            tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+    if not is_ancestor(after, ref, root=root):
+        raise ReleaseTagError(
+            f"{after[:12]} is not {ref} or an ancestor of it, so the releases "
+            "that landed after it are unknown"
         )
-        if plan.board is None or plan.board in landed:
-            plans.append(plan)
-    return plans
+    landed = set(_git(root, "rev-list", f"{after}..{ref}").split())
+    earlier = {e.tag for e in history if e.commit not in landed}
+    tags = dict.fromkeys(e.tag for e in history if e.commit in landed)
+    return [
+        plan_tag(tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history)
+        for tag in tags
+        if tag not in earlier
+    ]
 
 
 def _require_digest(repo: str, plan: TagPlan, when: str) -> None:
@@ -347,14 +370,22 @@ def checked_move(plan: TagPlan, *, repo: str = DEFAULT_REPO) -> None:
     _require_digest(repo, plan, "after")
 
 
-def apply_plans(plans: list[TagPlan], *, repo: str = DEFAULT_REPO) -> list[str]:
-    """Move every tag whose plan is ``move``; return the tags moved."""
-    moved = []
+def apply_plans(
+    plans: list[TagPlan], *, repo: str = DEFAULT_REPO
+) -> tuple[list[str], dict[str, str]]:
+    """Move every tag whose plan is ``move``. A failed move does not stop the
+    others. Return the tags moved and, for each tag that failed, why."""
+    moved, failed = [], {}
     for plan in plans:
-        if plan.action == "move":
+        if plan.action != "move":
+            continue
+        try:
             checked_move(plan, repo=repo)
+        except ReleaseTagError as exc:
+            failed[plan.tag] = str(exc)
+        else:
             moved.append(plan.tag)
-    return moved
+    return moved, failed
 
 
 def promote_live(
@@ -409,7 +440,7 @@ def configure_seal_parser(parser: argparse.ArgumentParser) -> None:
         nargs="?",
         const=SEALING_STARTS_AFTER,
         metavar="COMMIT",
-        help="Seal every release whose board commit comes after COMMIT "
+        help="Seal every release that --ref first names after COMMIT "
         f"(default {SEALING_STARTS_AFTER[:12]}, the last board before sealing "
         "began)",
     )
@@ -477,10 +508,24 @@ def run_seal(args: argparse.Namespace) -> None:
             plans = [plan_one(tag, **where)]
             if plans[0].action == "leave":
                 raise ReleaseTagError(f"cannot seal {tag}: {plans[0].reason}")
-        moved = apply_plans(plans, repo=args.repo) if args.apply else []
-        latest = promote_live(**where) if args.latest else None
     except ReleaseTagError as exc:
         raise SystemExit(str(exc)) from exc
+    moved, failed = apply_plans(plans, repo=args.repo) if args.apply else ([], {})
+    problems = [f"cannot move {tag}: {why}" for tag, why in failed.items()]
+    if args.landed_after:
+        problems += [
+            f"cannot seal {p.tag}: {p.reason}" for p in plans if p.action == "leave"
+        ]
+    latest = None
+    if args.latest:
+        try:
+            live = live_pointer(args.ref, root=root)[0]
+            if live in failed:
+                problems.append(f"left Latest alone: {live}'s tag did not move")
+            else:
+                latest = promote_live(**where)
+        except ReleaseTagError as exc:
+            problems.append(str(exc))
     if args.json:
         print(json.dumps([_plan_record(plan) for plan in plans], indent=2))
     else:
@@ -491,11 +536,8 @@ def run_seal(args: argparse.Namespace) -> None:
         print(f"{verb} {count} tag{'' if count == 1 else 's'}")
         if latest:
             print(f"Marked {latest} Latest")
-    stuck = [p for p in plans if p.action == "leave"]
-    if args.landed_after and stuck:
-        raise SystemExit(
-            "cannot seal " + ", ".join(f"{p.tag} ({p.reason})" for p in stuck)
-        )
+    if problems:
+        raise SystemExit("\n".join(problems))
 
 
 def main(argv: list[str] | None = None) -> None:
