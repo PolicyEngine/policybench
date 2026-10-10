@@ -350,6 +350,15 @@ def main() -> None:
 
     federal = sweep[sweep["variable"] == FEDERAL]
     moved = sweep[sweep["table_moves"]]
+    # Federal income tax outputs of returns with $100,000 or more of taxable
+    # income, where the look-up is the worksheet under every variant.
+    at_or_over = set(
+        units[
+            (units["system"] == "baseline")
+            & (units["taxable_income"] >= tax_table.CEILING)
+        ]["scenario_id"]
+    )
+    federal_over = federal[federal["scenario_id"].isin(at_or_over)]
     summary = {
         "engine": f"policyengine-us {installed}",
         "policyengine_core": version("policyengine-core"),
@@ -407,9 +416,10 @@ def main() -> None:
             "outputs_differing_from_table": int(
                 ((sweep["table"] - sweep["table_whole_dollar"]).abs() > 1e-6).sum()
             ),
-            "max_abs_difference_at_100000_or_more": float(
-                (sweep["table"] - sweep["table_whole_dollar"])
-                .abs()[sweep["table"] == sweep["baseline"]]
+            "federal_outputs_of_returns_at_100000_or_more": int(len(federal_over)),
+            "max_abs_difference_among_them": float(
+                (federal_over["table"] - federal_over["table_whole_dollar"])
+                .abs()
                 .max()
             ),
             "differing_by_more_than_1": [

@@ -45,6 +45,25 @@
           "table": 2359.0,
           "table_whole_dollar": 2365.0
         }
+      ],
+      "scored_max_abs_change_at_100000_or_more": 0.09765625
+    },
+    "returns_where_table_applies": {
+      "all": 38,
+      "head_24_or_older": 36,
+      "head_under_24": [
+        {
+          "scenario_id": "scenario_082",
+          "head_age": 23
+        },
+        {
+          "scenario_id": "scenario_091",
+          "head_age": 22
+        }
+      ],
+      "with_farm_income": [
+        "scenario_042",
+        "scenario_064"
       ]
     },
     "scored_changed_by_any_amount": 30,

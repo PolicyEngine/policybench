@@ -43,6 +43,7 @@ import argparse
 import csv
 import gzip
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -224,6 +225,38 @@ def ranks(series: pd.Series) -> pd.Series:
     return series.rank(ascending=False, method="min").astype(int)
 
 
+FARM_INPUTS = ("farm_income", "farm_operations_income", "farm_rent_income")
+
+
+def filers() -> dict[str, dict]:
+    """Each household's tax unit head: age, and any farm income in the household.
+
+    Form 8615 needs a filer under 24 and Schedule J needs income from farming or
+    fishing, so these two facts bound where either could replace the look-up.
+    """
+    scenarios = pd.read_csv(io.BytesIO(release.read("scenarios.csv")))
+    out = {}
+    for scenario_id, text in zip(scenarios["scenario_id"], scenarios["scenario_json"]):
+        adults = json.loads(text)["adults"]
+        heads = [a for a in adults if a.get("inputs", {}).get("is_tax_unit_head")]
+        if len(heads) != 1:
+            raise SystemExit(f"{scenario_id}: not one tax unit head")
+        out[scenario_id] = {
+            "head_age": int(heads[0]["age"]),
+            "farm_income": sum(
+                float(a.get("inputs", {}).get(name) or 0.0)
+                for a in adults
+                for name in ("farm_income", "farm_rent_income")
+            ),
+            "has_farm_income": any(
+                float(a.get("inputs", {}).get(name) or 0.0) != 0.0
+                for a in adults
+                for name in FARM_INPUTS
+            ),
+        }
+    return out
+
+
 def federal_cells(sweep: pd.DataFrame, units: pd.DataFrame) -> pd.DataFrame:
     """Each federal income tax reference, with its return's Tax Table look-up.
 
@@ -236,6 +269,7 @@ def federal_cells(sweep: pd.DataFrame, units: pd.DataFrame) -> pd.DataFrame:
         raise SystemExit("a household has more than one federal return")
     base = units[units["system"] == "baseline"].set_index("scenario_id")
     table = units[units["system"] == "table"].set_index("scenario_id")
+    people = filers()
     rows = []
     for row in sweep[sweep["variable"] == FEDERAL].itertuples():
         unit, other = base.loc[row.scenario_id], table.loc[row.scenario_id]
@@ -251,6 +285,8 @@ def federal_cells(sweep: pd.DataFrame, units: pd.DataFrame) -> pd.DataFrame:
             "state": row.state,
             "scored": bool(row.scored),
             "filing_status": unit.filing_status,
+            "head_age": people[row.scenario_id]["head_age"],
+            "has_farm_income": people[row.scenario_id]["has_farm_income"],
             "itemizes": bool(unit.itemizes),
             "capital_gain_worksheet": bool(unit.has_qdiv_or_ltcg and taxable > 0),
             "taxable_income": round(taxable, 2),
@@ -536,6 +572,33 @@ def main() -> None:
                     for r in federal_scored.itertuples()
                     if abs(r.constructed_table_value - r.table_whole_dollar_value) > 1
                 ],
+                "scored_max_abs_change_at_100000_or_more": float(
+                    (
+                        federal_scored["constructed_table_value"]
+                        - federal_scored["table_whole_dollar_value"]
+                    )
+                    .abs()[federal_scored["taxable_income_class"] == "100000_or_more"]
+                    .max()
+                ),
+            },
+            # Where another method could replace the look-up: Form 8615 needs a
+            # filer under 24, Schedule J income from farming or fishing.
+            "returns_where_table_applies": {
+                "all": int(cells["tax_table_applies"].sum()),
+                "head_24_or_older": int(
+                    (cells["tax_table_applies"] & (cells["head_age"] >= 24)).sum()
+                ),
+                "head_under_24": [
+                    {"scenario_id": r.scenario_id, "head_age": int(r.head_age)}
+                    for r in cells[
+                        cells["tax_table_applies"] & (cells["head_age"] < 24)
+                    ].itertuples()
+                ],
+                "with_farm_income": list(
+                    cells[cells["tax_table_applies"] & cells["has_farm_income"]][
+                        "scenario_id"
+                    ]
+                ),
             },
             "scored_changed_by_any_amount": int(len(nonzero)),
             "scored_differing_by_more_than_1": int(len(moved)),

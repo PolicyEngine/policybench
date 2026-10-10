@@ -141,7 +141,18 @@ Five methods follow. Each is named here by its opening words:
 <!-- source: i1040gi.raw.txt -->
 > Foreign Earned Income Tax Worksheet. If you claimed the foreign earned income exclusion, housing exclusion, or housing deduction on Form 2555, you must figure your tax using the Foreign Earned Income Tax Worksheet.
 
-The two capital gain worksheets and the foreign earned income worksheet send their own look-ups back to the Tax Table (below). Form 8615 and Schedule J were not read for this audit, and policyengine-us 2.38.6 computes neither: its federal code has no Form 8615 tax and no income averaging.
+The two capital gain worksheets and the foreign earned income worksheet send their own look-ups back to the Tax Table (below). Form 8615 and Schedule J themselves were not read for this audit, and policyengine-us 2.38.6 computes neither: its federal code has no Form 8615 tax and no income averaging. The line 16 instructions do say who must file Form 8615:
+
+<!-- source: i1040gi.raw.txt -->
+> You must file Form 8615 if you meet all of the following conditions.
+
+<!-- source: i1040gi.raw.txt -->
+> 3. You were either:
+> a. Under age 18 at the end of 2025,
+> b. Age 18 at the end of 2025 and didn’t have earned income that was more than half of your support, or
+> c. A full-time student at least age 19 but under age 24 at the end of 2025 and didn’t have earned income that was more than half of your support.
+
+So a filer who is 24 or older does not file it.
 
 The instruction draws no line between filers who itemize and filers who do not.
 
@@ -200,7 +211,7 @@ No 2026 Tax Table dated or posted before PolicyBench froze its references on 202
 - **The draft.** The earliest 2026 table found is the IRS's early release draft of Publication 1040 (2026), "Tax and Earned Income Credit Tables". Its cover carries the date Aug 28, 2026 (the PDF was created that day and modified 2026-09-16), and IRS.gov/DraftForms lists it as posted 09/16/2026. Every page is marked as a draft.
 - **The draft listing before the freeze.** The Internet Archive holds copies of IRS.gov's draft listing, which shows 25 drafts to a page with the newest posting first. Fourteen copies captured from 2026-05-20 to 2026-07-03, the last at 08:09 UTC on the freeze day, show 251 distinct drafts posted from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table. Four copies captured from 2026-07-24 to 2026-09-10 show none either. `draft_listing_history.json` has each capture's address, sha256 and range of posting dates.
 
-What the search does not cover: a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since. The listing shows a draft once, at its latest posting.
+What the search does not cover: a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since. The listing shows a draft once, at its latest posting. The captures are single pages of a listing of about 1,220 drafts, so they sample it; the dates above are the earliest and latest postings on the captured pages. `draft_listing_history.json` lists the 251 rows.
 
 <!-- source: p1040_dft.raw.txt -->
 > Caution: DRAFT—NOT FOR FILING

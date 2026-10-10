@@ -7,8 +7,8 @@ Release audited: dashboard-data-20261010 (commit 5a8164a0), 47 models, reference
 ## Findings
 
 - **The law.** The Tax Table is the tax the statute imposes, in place of the schedule tax, on a filer who does not itemize and is under the ceiling (26 U.S.C. 3(a)(1)). The same paragraph requires its amounts to be "computed on the basis of the rates prescribed by section 1". The instructions set the ceiling at $100,000 and send line 16 and the capital gain worksheets' look-ups to the table under it, for itemizers too.
-- **2026.** No 2026 Tax Table dated or posted before the 2026-07-03 freeze was found. The earliest found is the IRS's early release draft, dated Aug 28, 2026 and posted 09/16/2026. Archived copies of the IRS's draft listing up to the freeze day show none, though they do not cover every day. The final table is not published. The 2026 rate schedule was announced on October 9, 2025 (Rev. Proc. 2025-32).
-- **The construction.** No document read says how the IRS fills the table. The rule inferred here (the schedule's tax on the band's midpoint, rounded to a dollar, a half rounding up) reproduces all 8,248 amounts of the published 2025 table and all 8,248 of the 2026 draft. Values built with it are labelled constructed: they equal the IRS's draft, and the IRS has published no final 2026 table.
+- **2026.** No 2026 Tax Table dated or posted before the 2026-07-03 freeze was found. The earliest found is the IRS's early release draft, dated Aug 28, 2026 and posted 09/16/2026. Archived pages of the IRS's draft listing up to the freeze day show none, though they are a sample and do not cover every day. No final 2026 table was found. The 2026 rate schedule was announced on October 9, 2025 (Rev. Proc. 2025-32).
+- **The construction.** No document read says how the IRS fills the table. The rule inferred here (the schedule's tax on the band's midpoint, rounded to a dollar, a half rounding up) reproduces all 8,248 amounts of the published 2025 table and all 8,248 of the 2026 draft. Values built with it are labelled constructed: they equal the IRS's draft, and no final 2026 table was found.
 - **The engine.** policyengine-us 2.38.6 has no Tax Table logic. It applies the schedule in two variables, `income_tax_main_rates` and `tax_on_taxable_income_at_main_rates`.
 - **What moves.** Of the 84 scored federal income tax references, the table changes 30 and moves 21 by more than the $1 tolerance, by -$2.96 to +$3.97. It also moves two scored federal refundable credit references. No scored state output changes.
 - **What models answer.** On the 21 moved cells, 173 of 987 answers are within $1 of the schedule value and 18 within $1 of the table value; 16 of those 18 are within $1 of both. Two answers match the table alone, and neither explanation mentions a table. Of 4,700 federal income tax explanations, 6 use the words "tax table", and none of those six answers is within $1 of either value.
@@ -16,9 +16,9 @@ Release audited: dashboard-data-20261010 (commit 5a8164a0), 47 models, reference
 
 ## The decision is what the output means
 
-The evidence settles what a return shows and what the references compute. It does not settle which of the two the benchmark's output is. Three readings are open:
+The audit shows what the references compute, and what the same computation gives when each look-up under $100,000 uses the constructed table. It does not establish what any household's filed return would show. That also depends on the methods not read (Form 8615 and Schedule J), on whether the filer rounds the return, and on a 2026 table the IRS has so far published only as a draft. Three readings of the output are open:
 
-1. **The tax on the return.** The amount a filed 2026 return shows. For a return under $100,000 that is the table amount, so 21 scored federal references and 2 scored refundable credit references are off by more than $1. Option (c) follows, or (b) while the IRS's 2026 table is a draft.
+1. **The tax on the return.** Where a return under $100,000 is figured through line 16 or a capital gain worksheet, the instructions give the table amount. On that basis 21 scored federal references and 2 scored refundable credit references differ from it by more than $1. Those counts are sensitivities of the engine's computation, not verified filing amounts. Option (c) follows, or (b) while the IRS's 2026 table is a draft.
 2. **The tax computed from the section 1 rates, to the cent.** The references are right as they stand, and the definition has to be stated. Option (a) follows.
 3. **What a careful reader could compute from law published before the freeze.** Both values are defensible, and (b) or exclusion follows.
 
@@ -30,7 +30,7 @@ Reading 2: keep the rate schedule, and state the definition in the benchmark car
 2. PolicyBench's amounts are computations to the cent, with a $1 tolerance. A return is not one: the filer may round every amount on it to whole dollars.
 3. It changes no score.
 
-Its cost should be stated with it. On the current release the prompt does not say which computation is wanted, the instruction to use the table is mandatory for these returns, and an answer that follows it is scored a miss on 21 federal cells. Two answers are within $1 of the table value alone today.
+Its cost should be stated with it. On the current release the prompt does not say which computation is wanted. The line 16 instructions say a filer under $100,000 "must use the Tax Table", and where that governs a household's return, an answer that follows it is scored a miss: 21 federal cells in the sweep. Two answers are within $1 of the table value alone today.
 
 How the models answer shows which reading the current prompt draws out. It does not show which reading is correct. 173 of the 987 answers on the 21 cells match the schedule value, and 2 match the table value alone.
 
@@ -40,11 +40,11 @@ The case for each other option:
 - **(c) Table values.** If the output is the return's tax, section 3 and the instructions are the strongest ground there is, and the constructed values equal the IRS's draft in every amount. It rests on a draft and on a rule inferred from the tables, it needs a ruling on rounding, and it lowers 21 models' rates by up to 3.25 points.
 - **Exclusion.** PolicyBench's usual treatment of a reference a careful reader could take two ways. It removes the 23 outputs the table moves by more than $1. It leaves the 9 the table changes by less, on which no answer's exact match differs between the two values. Every model's rate rises, and 24 ranks change.
 
-If the schedule is kept, one thing is worth watching on later boards. A model whose answers match the table value alone on several of these cells is reading the question as the return's tax. The most any model has today is one.
+If the schedule is kept, one thing is worth watching on later boards: a model whose answers match the table value alone on several of these cells. The matches would not show how it computed, so its explanations would need reading. The most any model has today is one.
 
 ## The law
 
-Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 41 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
+Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` each document's address, dates and sha256. `scripts/law_sources.py` found all 43 excerpts verbatim in the saved documents (`law/excerpts_check.json`).
 
 - **26 U.S.C. 3(a)(1).** "In lieu of the tax imposed by section 1", a tax "determined under tables ... prescribed by the Secretary" is imposed on an individual who does not itemize and whose taxable income does not exceed the ceiling amount. Section 3(a)(2) lets the Secretary set the ceiling, at $20,000 or more. Section 3(a)(3) lets the Secretary extend the table to itemizers. Section 3(c) treats the table tax as tax imposed by section 1. The section was last amended in 1986. Pub. L. 119-21 does not touch it.
 - **The instructions.** The 2025 Instructions for Form 1040, line 16: "If your taxable income is less than $100,000, you must use the Tax Table". At $100,000 or more the Tax Computation Worksheet applies, which is the schedule exactly. The instruction does not distinguish itemizers. Five other methods replace it for some returns: Form 8615, the Schedule D Tax Worksheet, the Qualified Dividends and Capital Gain Tax Worksheet, Schedule J and the Foreign Earned Income Tax Worksheet.
@@ -53,13 +53,13 @@ Read on 2026-10-10. `law/excerpts.md` has the passages and `law/sources.json` ea
 - **The regulation.** 26 CFR 1.3-1 still describes the elective table of the early 1970s and says nothing about today's.
 - **2026 rates.** Rev. Proc. 2025-32, section 4.01, gives the 2026 rate tables under section 1(j)(2). The IRS announced it on October 9, 2025 (IR-2025-103). Pub. L. 119-21, section 70101, removed that subsection's 2025 end date. The 2026 Form 1040-ES, which IRS.gov lists as posted 02/13/2026, figures estimated tax "by using the 2026 Tax Rate Schedules". It is a form for estimated payments and does not settle the tax on a return.
 - **The 2026 table.** None dated or posted before the freeze was found. What the search covered:
-  - On 2026-10-10, IRS.gov lists Publication 1040 at its 2025 revision (posted 01/15/2026), and `irs.gov/pub/irs-pdf/i1040gi.pdf` serves the 2025 instructions. So no final 2026 table is published.
+  - On 2026-10-10, IRS.gov lists Publication 1040 at its 2025 revision (posted 01/15/2026), and `irs.gov/pub/irs-pdf/i1040gi.pdf` serves the 2025 instructions. No final 2026 table was found at either.
   - The earliest 2026 table found is the IRS's early release draft of Publication 1040 (2026). Its cover is dated Aug 28, 2026, IRS.gov lists it as posted 09/16/2026, and every page is marked "DRAFT—NOT FOR FILING". It keeps the $100,000 ceiling.
-  - The Internet Archive holds 14 copies of pages of the IRS's draft listing captured from 2026-05-20 to 08:09 UTC on 2026-07-03. They show 251 drafts posted from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table (`law/draft_listing_history.json`).
+  - The Internet Archive holds 14 copies of pages of the IRS's draft listing captured from 2026-05-20 to 08:09 UTC on 2026-07-03. They show 251 drafts, whose posting dates run from 03/23/2026 to 07/01/2026. None is a Publication 1040, the Instructions for Form 1040 or a tax table (`law/draft_listing_history.json` lists them).
 
-  The search does not cover a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since.
+  The captures are single pages of a listing of about 1,220 drafts, so they sample it. The search does not cover a draft posted before 03/23/2026, or on a day whose listing page was not archived (06/09/2026 is one), and replaced since.
 
-So the table is the law's tax for a non-itemizer under the ceiling, and the instructions' rule for line 16 and the worksheet look-ups of any return under it. No scored reference turns on the itemizer question: none of the 33 scored returns the table applies to itemizes.
+So the table is the law's tax for a non-itemizer under the ceiling, and the instructions' rule for line 16 and the worksheet look-ups of a return under it. No scored reference turns on the itemizer question: none of the 33 scored returns the table applies to itemizes.
 
 PolicyBench's rule is that a scored reference follows from law published before the freeze. No 2026 table from before the freeze was found, and its amounts are a function of rates that were published by then. Whether that makes the schedule or the table the answer under the rule is part of the decision.
 
@@ -101,6 +101,11 @@ Every household is one federal return in the engine. Of the 100 returns, 49 have
 | Changed by the table | 35 | 30 |
 | Moved by more than $1 | 26 | 21 |
 | Changed by $1 or less | 9 | 9 |
+
+Whether another method could replace the look-up on these 38 returns was checked as far as the households' facts go:
+
+- **Form 8615** needs a filer under 24. The filer is 25 or older in 36 of the 38. The other two are 22 and 23 (scenario_091 and scenario_082, both among the 21 moved cells below). Form 8615 would also need each to be a full-time student with a living parent, which no household states, and the prompt treats an unlisted status as false.
+- **Schedule J** needs income from farming or fishing and is the filer's choice. Two of the 38 have farm income, a loss in each (scenario_042 and scenario_064, also among the 21). Schedule J was not read.
 
 Three scored references do not change although the table applies: in scenario_026, scenario_028 and scenario_119, nonrefundable credits use up the whole regular tax under either convention, so the output is $0 both ways.
 
@@ -151,7 +156,7 @@ In all, the table changes 32 scored outputs (30 federal income tax, 2 refundable
 
 ### Rounding the looked-up amount: a sensitivity
 
-A filer who rounds the return looks up a whole-dollar amount. The sweep's `table_whole_dollar` variant rounds only that amount, so it is a sensitivity of the look-up and not a whole-dollar return, which rounds every amount. It moves one scored reference by more than $1. scenario_042's amount is $21,749.71, which rounds to $21,750 and into the next band: $2,365 against $2,359. Five scored references with $100,000 or more of taxable income change by at most 14 cents, because the worksheet is applied to the rounded amount. So the table convention is itself two conventions on scenario_042, $6 apart.
+A filer who rounds the return looks up a whole-dollar amount. The sweep's `table_whole_dollar` variant rounds only that amount, so it is a sensitivity of the look-up and not a whole-dollar return, which rounds every amount. It moves one scored reference by more than $1. scenario_042's amount is $21,749.71, which rounds to $21,750 and into the next band: $2,365 against $2,359. Five scored references with $100,000 or more of taxable income change by less than 10 cents, because the worksheet is applied to the rounded amount. So the table convention is itself two conventions on scenario_042, $6 apart.
 
 ## What the models answered
 

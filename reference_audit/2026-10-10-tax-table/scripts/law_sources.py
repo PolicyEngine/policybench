@@ -412,12 +412,17 @@ def draft_listing_history(law_dir: Path) -> dict:
             "newest posting first. A draft is listed once, at its latest posting. "
             "The captures do not show every draft posted in the period: pages "
             "for some days were not archived, and none shows a posting before "
-            "the earliest date below."
+            "the earliest date below. A range below is the earliest and latest "
+            "posting date on the captured pages, not a claim that every draft "
+            "posted between them is on one."
         ),
         "captures_on_or_before_freeze": len(before),
         "distinct_rows_seen_on_or_before_freeze": len(seen),
         "posting_dates_covered_on_or_before_freeze": merge(
             [(c["first_posted"], c["last_posted"]) for c in before]
+        ),
+        "rows_seen_on_or_before_freeze": sorted(
+            seen.values(), key=lambda row: (row["posted"], row["product"], row["title"])
         ),
         "tax_table_products_listed_on_or_before_freeze": [
             row for c in before for row in c["tax_table_products"]

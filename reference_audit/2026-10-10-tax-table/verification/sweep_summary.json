@@ -102,7 +102,8 @@
   },
   "look_up_rounding_sensitivity": {
     "outputs_differing_from_table": 13,
-    "max_abs_difference_at_100000_or_more": 0.140625,
+    "federal_outputs_of_returns_at_100000_or_more": 13,
+    "max_abs_difference_among_them": 0.140625,
     "differing_by_more_than_1": [
       {
         "scenario_id": "scenario_042",

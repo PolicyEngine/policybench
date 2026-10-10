@@ -738,7 +738,7 @@ def test_the_law_record_was_checked_against_the_documents():
     check = json.loads((AUDIT / "law/excerpts_check.json").read_text())
     quotes = law.excerpts()
     assert check["all_checks_pass"] is True
-    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 41
+    assert check["excerpts"] == check["excerpts_found"] == len(quotes) == 43
     assert check["excerpts_not_found"] == []
     assert all(check["rate_tables_equal_to_tax_table_py"].values())
     assert len(check["rate_tables_equal_to_tax_table_py"]) == 8
@@ -825,6 +825,16 @@ def test_no_tax_table_draft_is_in_the_archived_listings_before_the_freeze():
         ["2026-06-10", "2026-07-01"],
     ]
     assert history["distinct_rows_seen_on_or_before_freeze"] == 251
+    seen = history["rows_seen_on_or_before_freeze"]
+    assert len(seen) == len({tuple(row.values()) for row in seen}) == 251
+    assert not any(law.is_tax_table_product(row) for row in seen)
+    assert {row["posted"] for row in seen} <= {
+        day
+        for first, last in history["posting_dates_covered_on_or_before_freeze"]
+        for day in pd.date_range(first, last).strftime("%Y-%m-%d")
+    }
+    assert min(row["posted"] for row in seen) == "2026-03-23"
+    assert max(row["posted"] for row in seen) == "2026-07-01"
     today = {
         row["product"]: row for row in history["tax_table_products_listed_on_read_date"]
     }
@@ -850,6 +860,61 @@ def test_no_tax_table_draft_is_in_the_archived_listings_before_the_freeze():
             "posted": "",
         }
     )
+
+
+def test_the_filers_ages_and_farm_income_are_the_release_households():
+    """Form 8615 needs a filer under 24 and Schedule J income from farming or
+    fishing: the recorded facts that bound where either could apply."""
+    scenarios = _release_csv("scenarios.csv")
+    cells = _cells().set_index("scenario_id")
+    farm_inputs = ("farm_income", "farm_operations_income", "farm_rent_income")
+    for scenario_id, text in zip(scenarios.scenario_id, scenarios.scenario_json):
+        adults = json.loads(text)["adults"]
+        heads = [a for a in adults if a.get("inputs", {}).get("is_tax_unit_head")]
+        assert len(heads) == 1
+        assert cells.loc[scenario_id, "head_age"] == heads[0]["age"]
+        farm = any(
+            float(a.get("inputs", {}).get(name) or 0) != 0
+            for a in adults
+            for name in farm_inputs
+        )
+        assert bool(cells.loc[scenario_id, "has_farm_income"]) == farm
+    applies = cells[cells.tax_table_applies]
+    recorded = _impact()["federal_references"]["returns_where_table_applies"]
+    assert recorded["all"] == len(applies) == 38
+    assert recorded["head_24_or_older"] == int((applies.head_age >= 24).sum()) == 36
+    assert recorded["head_under_24"] == [
+        {"scenario_id": "scenario_082", "head_age": 23},
+        {"scenario_id": "scenario_091", "head_age": 22},
+    ]
+    assert recorded["with_farm_income"] == ["scenario_042", "scenario_064"]
+    assert recorded["with_farm_income"] == list(applies.index[applies.has_farm_income])
+
+
+def test_the_look_up_rounding_sensitivity_is_summarized_over_the_right_returns():
+    sweep, units = _sweep(), _units()
+    summary = json.loads((VERIFICATION / "sweep_summary.json").read_text())
+    rounding = summary["look_up_rounding_sensitivity"]
+    base = units[units.system == "baseline"]
+    over = set(base.scenario_id[base.taxable_income >= T.CEILING])
+    federal_over = sweep[(sweep.variable == FEDERAL) & sweep.scenario_id.isin(over)]
+    gap = (federal_over.table - federal_over.table_whole_dollar).abs()
+    assert rounding["federal_outputs_of_returns_at_100000_or_more"] == len(gap) == 13
+    assert rounding["max_abs_difference_among_them"] == pytest.approx(gap.max())
+    # At or over the ceiling the table variant is the schedule, so only the
+    # rounding of the looked-up amount can move the output: under a dollar's tax.
+    assert (federal_over.table == federal_over.baseline).all()
+    assert gap.max() < 0.37
+    every = (sweep.table - sweep.table_whole_dollar).abs()
+    assert rounding["outputs_differing_from_table"] == int((every > 1e-6).sum())
+    assert [row["scenario_id"] for row in rounding["differing_by_more_than_1"]] == list(
+        sweep.scenario_id[every > 1]
+    )
+    scored_max = _impact()["federal_references"]["look_up_rounding_sensitivity"][
+        "scored_max_abs_change_at_100000_or_more"
+    ]
+    scored_gap = gap[federal_over.scored]
+    assert scored_max == pytest.approx(scored_gap.max()) and scored_max < 0.10
 
 
 def test_the_income_generator_reaches_the_top_bracket():
