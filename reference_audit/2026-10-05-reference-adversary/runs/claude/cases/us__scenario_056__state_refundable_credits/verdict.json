@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Section 1, N.J.S.A. 54A:4-7 paragraph (4)",
+      "pre_freeze": true,
+      "published": "2024-01-09",
+      "quote": "Calculation of the New Jersey earned income tax credit available to individuals pursuant to this paragraph shall be predicated on the federal maximum amount for taxpayers with no qualifying child for each taxable year beginning on and after January 1, 2020.",
+      "source": "N.J.S.A. 54A:4-7, current-law text as reproduced in Senate Bill S1557 (2024 session)",
+      "url": "https://pub.njleg.gov/Bills/2024/S2000/1557_I1.HTM"
+    },
+    {
+      "pinpoint": "Eligibility: '18 years old without a dependent'",
+      "pre_freeze": true,
+      "published": "2025-12-03",
+      "quote": "Your NJEITC is a specific amount designated yearly; you do not need to calculate a federal EITC to determine your New Jersey percentage.",
+      "source": "NJ Division of Taxation, NJ Earned Income Tax Credit - Know NJEITC",
+      "url": "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml"
+    },
+    {
+      "pinpoint": "How much is the NJEITC",
+      "pre_freeze": true,
+      "published": "2025-12-03",
+      "quote": "For 2025, the NJEITC amount is 40% of the federal credit amount.",
+      "source": "NJ Division of Taxation, NJ Earned Income Tax Credit - Calculate NJEITC",
+      "url": "https://nj.gov/treasury/taxation/eitc/howmucheitc.shtml"
+    },
+    {
+      "pinpoint": "Earned Income Tax Credit",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "$664 with no qualifying children",
+      "source": "IRS, IRS releases tax inflation adjustments for tax year 2026 (Rev. Proc. 2025-32)",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "Section 1, credit percentage schedule",
+      "pre_freeze": true,
+      "published": "2026-01-13",
+      "quote": "40% for taxable years beginning on or after January 1, 2020",
+      "source": "Senate Bill S2198 (2026 session), showing current-law text of N.J.S.A. 54A:4-7",
+      "url": "https://pub.njleg.gov/Bills/2026/S2500/2198_I1.HTM"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 265.6,
+  "reference_value": 265.6,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under N.J.S.A. 54A:4-7, a New Jersey resident aged 18 or older with no qualifying child can claim the NJ EITC when age is the only reason they cannot take the federal credit. For these filers the credit is \"predicated on the federal maximum amount for taxpayers with no qualifying child.\" The Division of Taxation treats that as a fixed amount set each year: $260 for 2025, which is 40% \u00d7 $649. For 2026, Rev. Proc. 2025-32 sets the federal maximum at $664, so the credit is 40% \u00d7 $664 = $265.60. That matches the engine's output. The engine narrative's mention of a phase-in to $308.55 that is then 'reduced' misdescribes how it got there, but the final value is the statutory fixed amount. The consensus of 0 wrongly applies the federal 25\u201364 age limit to the NJ credit.",
+  "verdict": "reference_holds"
+}

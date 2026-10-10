@@ -1,0 +1,11 @@
+# pytest after rebase onto origin/main 2d399987 (HEAD bec3b244), 2026-10-06T02:05:16Z
+# OPENBLAS_NUM_THREADS=1 PYTHONPATH=. .venv/bin/python -m pytest tests/test_consensus.py tests/test_definition_conformance.py tests/test_publication_sources.py tests/test_reference_adversary.py tests/test_reference_adversary_runner.py tests/test_audit.py -q
+........................................................................ [ 19%]
+........................................................................ [ 39%]
+........................................................................ [ 59%]
+........................................................................ [ 79%]
+........................................................................ [ 99%]
+.                                                                        [100%]
+361 passed in 1506.79s (0:25:06)
+
+[exited with code 0]

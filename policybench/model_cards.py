@@ -278,6 +278,46 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "$2/$10 per 1M with $0.20 cache reads."
         ),
     ),
+    # Every field below comes from the 2026-10-08 onboarding record in
+    # results/local/haiku55/ (haiku55_onboard.md, the thinking-default and
+    # forced-tool probes, and the Models API entry):
+    # - answer_contract "tool": unlike Sonnet 5.5 and Opus 5.5, the API
+    #   accepts forced tool use on this model, so the row takes the board's
+    #   forced answer tool. Anthropic models skip thinking under a forced
+    #   tool (eval_no_tools._tool_choice_for), and the forced-tool probe
+    #   returned no thinking block, so the row answers without extended
+    #   thinking, as Claude Opus 5's does.
+    # - explanation_chunk_size None: 16/16 on the canonical whole-scenario
+    #   request (chunking is closed to new models anyway).
+    # - thinking_budget True: a request with no thinking parameter returns a
+    #   thinking block, so the row is in the thinking-default class (16,384
+    #   tokens, the class's 300s timeout).
+    # - request_timeout_seconds None: the class default; the slowest probe
+    #   took 4s, under the gauntlet's own 150s trigger for a longer timeout.
+    # - provider_max_completion_tokens 128_000: the Models API max_tokens.
+    # - expected_cost_per_scenario_usd 0.001: the gauntlet's full-scenario
+    #   probe at $0.10/$0.50 per 1M.
+    "claude-haiku-5-5": ModelCard(
+        litellm_id="claude-haiku-5-5",
+        answer_contract="tool",
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.001,
+        notes=(
+            "Onboarded 2026-10-08, the day after release (the Models API "
+            "lists the id with created_at 2026-10-07). A request with no "
+            "thinking parameter returns a thinking block (119 of 123 output "
+            "tokens on a one-question probe), but unlike Sonnet 5.5 and Opus "
+            "5.5 the API accepts forced tool use on this model, and the "
+            "forced-tool probe returned no thinking block. The row therefore "
+            "takes the board's forced answer tool, under which it answers "
+            "without extended thinking, as Claude Opus 5's row does. "
+            "Gauntlet: 3/3 and 16/16 parsed on the tool contract (355 and "
+            "1,004 completion tokens, 2s and 4s); the gauntlet's cost "
+            "estimate is $0.001 per scenario at $0.10/$0.50 per 1M with "
+            "$0.01 cache reads."
+        ),
+    ),
     "xai/grok-4.5": ModelCard(
         litellm_id="xai/grok-4.5",
         answer_contract="tool",

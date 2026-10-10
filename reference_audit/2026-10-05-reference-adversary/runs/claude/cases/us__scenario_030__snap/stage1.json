@@ -1,0 +1,98 @@
+{
+  "ambiguity": "Educational assistance could be counted. Federal and Texas rules exempt it only when it is provided to an enrolled student, and the prompt lists no student status, so student status defaults to false. Counting it gives gross income of $2,500 a month, above the $2,152 limit, so the household is ineligible and the answer is $0, matching the consensus. This reading is weaker: the input is itself labelled educational assistance, and Texas exempts it \"regardless of the source.\" A separate timing point: if the FY2027 values effective Oct 1, 2026 ($25 minimum, published after the freeze) are applied to Oct\u2013Dec, the annual amount is $291, not $288.",
+  "citations": [
+    {
+      "pinpoint": "\u00a72017(a)",
+      "pre_freeze": true,
+      "published": "current code (provision predates 2026)",
+      "quote": "for households of one and two persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member",
+      "source": "Food and Nutrition Act of 2008, 7 U.S.C. 2017",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(C)",
+      "pre_freeze": true,
+      "published": "current CFR (provision predates 2026)",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit.",
+      "source": "7 CFR 273.10 (USDA FNS SNAP regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "\u00a72014(d) intro; (d)(3); (e)(2); (e)(5)(A)",
+      "pre_freeze": true,
+      "published": "current code (provisions predate 2026)",
+      "quote": "Household income for purposes of the supplemental nutrition assistance program shall include all income from whatever source excluding only\u2014",
+      "source": "Food and Nutrition Act of 2008, 7 U.S.C. 2014",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "\u00a72014(e)(5)(A)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "A household containing an elderly or disabled member shall be entitled ... to an excess medical expense deduction",
+      "source": "Food and Nutrition Act of 2008, 7 U.S.C. 2014",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "B-471, B-472 (Revision 15-4, eff. Oct. 1, 2015)",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "Categorically eligible households are not subject to the resource and gross or net income limits.",
+      "source": "Texas Works Handbook (Texas HHSC), B-470 Categorically Eligible Households",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households"
+    },
+    {
+      "pinpoint": "B-471",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "has gross income less than or equal to 165 percent of the Federal Poverty Income Limit (FPIL) for its size.",
+      "source": "Texas Works Handbook (Texas HHSC), B-471",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households"
+    },
+    {
+      "pinpoint": "A-1322.1 Educational Assistance (Rev. 15-4)",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "Educational assistance, including educational loans, scholarships, fellowships, grant monies, and work study, are exempt, regardless of the source.",
+      "source": "Texas Works Handbook (Texas HHSC), A-1320 Types of Income",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income"
+    },
+    {
+      "pinpoint": "Cash gifts/contributions entry (Rev. 18-1)",
+      "pre_freeze": true,
+      "published": "2018-01-01",
+      "quote": "unearned income unless they are made by a private, nonprofit organization on the basis of need",
+      "source": "Texas Works Handbook (Texas HHSC), A-1320 Types of Income",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income"
+    },
+    {
+      "pinpoint": "Minimum benefit; standard deduction; maximum allotment (48 states & DC)",
+      "pre_freeze": true,
+      "published": "2025-08-13",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $24.",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "C-121 income limits table, household size 1 (165% column)",
+      "pre_freeze": false,
+      "published": "2026-10-01 (Revision 26-4 effective date)",
+      "quote": "1 | $1,696 | $1,305 | $2,152",
+      "source": "Texas Works Handbook (Texas HHSC), C-120 SNAP",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-120-supplemental-nutrition-assistance-program"
+    },
+    {
+      "pinpoint": "C-1431 (Revision 26-4, eff. Oct. 1, 2026)",
+      "pre_freeze": false,
+      "published": "2026-10-01",
+      "quote": "The minimum monthly, not prorated Supplemental Nutrition Assistance Program (SNAP) allotment for a one-or two-person household is $25.",
+      "source": "Texas Works Handbook (Texas HHSC), C-1430 SNAP Allotment Charts",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-1430-snap-allotment-charts"
+    }
+  ],
+  "computation": "1. SNAP household size is 1: the head alone. An unborn child does not add to SNAP household size. Pregnancy exempts the head from the ABAWD time limit, and she works 35 hours a week anyway.\n2. Countable gross income, using 7 USC 2014(d), which counts \"all income from whatever source excluding only\" the listed exclusions:\n   - Wages: $13,000 / 12 = $1,083.33 a month earned.\n   - Financial assistance: $12,000 / 12 = $1,000 a month unearned. Texas TWH A-1320 counts cash gifts and contributions as unearned income. Even if this were need-based nonprofit charity, only $300 a quarter would be excluded, leaving $900 a month, and the result below would not change.\n   - Educational assistance of $5,000: exempt under Texas TWH A-1322.1 (\"exempt, regardless of the source\") and 7 USC 2014(d)(3).\n   - Gross income is $2,083.33 a month.\n3. Eligibility:\n   - Gross income is above 130% FPL ($1,696) but within Texas's expanded categorical eligibility limit of 165% FPIL ($2,152 for one person, FY2026).\n   - Countable resources are $190, under the $5,000 TANF non-cash limit in TWH B-471.\n   - So the household is categorically eligible. Under TWH B-472 it is \"not subject to the resource and gross or net income limits.\"\n4. Net income, per 7 CFR 273.10(e)(1):\n   - 20% earned income deduction: $216.67 (7 USC 2014(e)(2)).\n   - FY2026 standard deduction for 1\u20133 people: $209.\n   - No medical deduction, because the head is not elderly or disabled (7 USC 2014(e)(5)(A)).\n   - No shelter or dependent care deduction (rent and those costs are 0).\n   - Net income: $2,083.33 \u2212 $216.67 \u2212 $209 = $1,657.67.\n5. Benefit:\n   - 30% of net income is $497.30, rounded up to $498 (TWH C-122).\n   - $298 maximum allotment \u2212 $498 is below zero, so the formula benefit is $0.\n   - The household is an eligible one-person household, so it gets the minimum benefit (7 USC 2017(a); 7 CFR 273.10(e)(2)(ii)(C)). That is 8% \u00d7 $298 = $23.84, which rounds to $24.\n6. Annual amount: $24 \u00d7 12 = $288.\n\nPublication timing: when law was frozen on 2026-07-03, only the FY2026 values had been published (USDA COLA memo of August 2025: $298 maximum, $209 standard deduction, $24 minimum). The FY2027 values took effect Oct 1, 2026 and appeared after the freeze: Texas TWH revision 26-4 lists a $25 minimum and a $217 standard deduction. Using those for Oct\u2013Dec 2026 gives 9 \u00d7 $24 + 3 \u00d7 $25 = $291. The formula benefit is still $0 under FY2027 values, so the minimum still applies.\n\nWhy most of the consensus is wrong: those models used the 130% gross-income test or the net-income test. Texas's expanded categorical eligibility waives both, and the minimum benefit then applies.",
+  "confidence": "high",
+  "definition_reading": "The output is the SNAP allotment for calendar year 2026 for this one-person Texas household (the pregnant head alone). It is the sum of the monthly allotments. Wages and the $12,000 of financial assistance count as income. Educational assistance is exempt. Texas expanded categorical eligibility makes the household eligible, so the one-person minimum benefit applies even though the formula benefit is $0.",
+  "independent_answer": 288,
+  "law_supports": "reference"
+}

@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 435.229(b) and (c)(3)",
+      "pre_freeze": true,
+      "published": "current eCFR",
+      "quote": "The agency may provide Medicaid to individuals under age 19 ... who meet the definition of an optional targeted low-income child in \u00a7 435.4 and have household income at or below the income standard established by the agency",
+      "source": "42 CFR 435.229 Optional targeted low-income children",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.229"
+    },
+    {
+      "pinpoint": "definition of 'Optional targeted low-income child', para. (2) No other coverage",
+      "pre_freeze": true,
+      "published": "current eCFR",
+      "quote": "An optional targeted low-income child is not covered under a group health plan or health insurance coverage",
+      "source": "42 CFR 435.4 Definitions (Optional targeted low-income child)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.4"
+    },
+    {
+      "pinpoint": "\u00a7 435.118(c)(2) maximum income standard",
+      "pre_freeze": true,
+      "published": "current eCFR",
+      "quote": "The maximum income standard for each of the age groups ... children age 6 through age 18 is the higher of\u2014(i) 133 percent FPL; (ii) The highest effective income level for each age group in effect under the Medicaid State plan ... as of March 23, 2010 or December 31, 2013",
+      "source": "42 CFR 435.118 Infants and children under age 19",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "Summary; approved 2023-09-11, effective 2023-04-01",
+      "pre_freeze": true,
+      "published": "2023-09-18",
+      "quote": "Through these SPAs, the state transitions all children from the state's separate CHIP to a Medicaid expansion CHIP.",
+      "source": "CMS, CHIP SPA NC-23-0008 and NC-23-0010 summary",
+      "url": "https://www.medicaid.gov/chip-spa/2023-09-18/153066"
+    },
+    {
+      "pinpoint": "SPA summary; approved 2023-07-28, effective 2023-04-01",
+      "pre_freeze": true,
+      "published": "2023-07-31",
+      "quote": "adopt a new Medicaid eligibility group for certain children under age 19; and align the income standard for all children under age 19 at 211 percent of the federal poverty level",
+      "source": "CMS, Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    },
+    {
+      "pinpoint": "introductory clause and (3)",
+      "pre_freeze": true,
+      "published": "as amended through S.L. 2026-1",
+      "quote": "The Department shall provide Medicaid coverage for individuals in accordance with federal statutes and regulations ... Children through the age of 18 with family incomes equal to or less than two hundred eleven percent (211%) of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "The 'older child' step: the engine treated MAGI of 2.13\u00d7 FPL as within NC's 211% limit for ages 6\u201318 (plus the 5-point disregard) without checking that the 133\u2013211% band is the CHIP-funded optional targeted low-income child group (42 CFR 435.229), which excludes children covered under a group health plan. Child 1 has employer-sponsored insurance.",
+  "independent_answer": 0,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "Child 1 is 11 and has employer-sponsored insurance all year. Federally, NC can cover children aged 6\u201318 only up to 133% FPL in the mandatory group under 42 CFR 435.118 (138% with the 5-point disregard), because its historical Medicaid level for that age group was no higher. The 133\u2013211% band, the former NC Health Choice population, came into Medicaid in 2023 as Medicaid-expansion CHIP under the optional targeted low-income child group (42 CFR 435.229), and that group's definition in 42 CFR 435.4 excludes any child covered under a group health plan. The engine took MAGI of 2.13\u00d7 FPL and tested it against the 211% older-child limit plus the disregard without looking at the child's coverage. With ESI, the 133% group is the only one that applies, and 213% FPL is above it, so Child 1 is not eligible (0), which matches stage 1 and the consensus.",
+  "verdict": "reference_wrong"
+}

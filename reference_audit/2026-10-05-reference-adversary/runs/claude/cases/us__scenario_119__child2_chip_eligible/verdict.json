@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "12VAC30-141-100 (uninsured requirement; income eligibility)",
+      "pre_freeze": true,
+      "published": "2019-06-26",
+      "quote": "Only uninsured children shall be eligible for FAMIS. ... Any child covered under a group health plan or under health insurance coverage, as defined in \u00a7 2791 of the Public Health Services Act ... shall not be eligible for FAMIS.",
+      "source": "Virginia Administrative Code 12VAC30-141-100, General conditions of eligibility (FAMIS)",
+      "url": "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/"
+    },
+    {
+      "pinpoint": "\u00a7 457.310(b)(2)",
+      "pre_freeze": true,
+      "published": "2016-11-30",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act",
+      "source": "42 CFR 457.310 Targeted low-income child",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "\u00a7 1397jj(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "in force; current codification",
+      "quote": "covered under a group health plan or under health insurance coverage (as such terms are defined in section 300gg\u201391 of this title)",
+      "source": "42 U.S. Code \u00a7 1397jj (Social Security Act \u00a7 2110), definition of 'targeted low-income child'",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "48 contiguous states and DC, household of 3",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "3 | $27,320",
+      "source": "HHS ASPE, 2026 Poverty Guidelines",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under federal CHIP law and Virginia's FAMIS rule, a child covered by a group health plan cannot be a targeted low-income child. Child 2 'has employer-sponsored insurance', and the prompt holds that coverage constant all year, so Child 2 is not CHIP/FAMIS-eligible. The answer is 0, which matches the reference. On income alone Child 2 would pass: MAGI is about $52,569, or about 192% of the 2026 FPL of $27,320, under the 200% limit plus the 5% disregard. The 15-model consensus applied only that income test and missed the uninsured requirement. The engine's narrative credits the 0 to income, which may be a misdescription, but it does not change the output the law requires on these facts. Stage 1 stands.",
+  "verdict": "reference_holds"
+}

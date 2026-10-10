@@ -1,0 +1,60 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.6341085999999999,
+  "duration_ms": 114356,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:42:07.787723+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "982a84494020d5b70e62a7b2572b6cc7a3a772def973df8d62528cce1c2d8fff",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "b21c2dbe35905669548a839c13f2e2548b9593462e0c48820c511ff10ec80b33",
+  "session_id": "a33bdba4-88f1-4798-a303-630892b240fc",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "794fcb60bef84f72ce507623a79725cc92c5c7c339612644267c9b5d87953098",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.fns.usda.gov/snap/allotment/cola",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/BP/Public/BEM/213.pdf",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/RF/Public/RFT/250.pdf",
+      "https://www.law.cornell.edu/uscode/text/7/2017"
+    ],
+    "searches": [
+      "SNAP fiscal year 2027 cost-of-living adjustments minimum benefit maximum allotment one person",
+      "fns.usda.gov SNAP FY 2027 COLA memo minimum benefit 48 States",
+      "Michigan BEM 213 categorical eligibility FAP gross income 200 percent SDV member"
+    ]
+  }
+}

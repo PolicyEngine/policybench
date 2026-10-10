@@ -9,6 +9,8 @@ import {
   interpolateNoteText,
 } from "../src/components/NotesContent";
 import { notes } from "../src/notes";
+import artifact from "../src/data.artifact.json";
+import paperSnapshot from "../src/paperSnapshot.json";
 
 describe("notes", () => {
   test("the index is newest first", () => {
@@ -51,19 +53,22 @@ describe("notes", () => {
       "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
     );
     expect(markup).toContain("release dashboard-data-20260922");
-    // The BBCE note moved to the release that excludes the Michigan worker.
-    expect(markup).toContain("release dashboard-data-20260922b");
+    // The BBCE note keeps release dashboard-data-20260930, and the October 6
+    // release note its own release.
+    expect(markup).toContain("release dashboard-data-20260930");
+    expect(markup).toContain(
+      "PolicyBench stops scoring eight tax outputs whose references turn on facts the prompts never state",
+    );
+    expect(markup).toContain("release dashboard-data-20261006");
     // Cents stay as written; whole-dollar facts get thousands separators.
     expect(markup).toContain("GPT-6 Sol answers $1,208.40");
-    // The unrounded October minimum keeps all four decimals, so nine months
-    // of $23.84 and three of it add up to the $287.68 beside them.
     expect(markup).toContain(
-      "$23.84 a month through September and a projected $24.3744 from October",
+      "six households, four of them among the five here, at $287.68 each",
     );
     expect(markup).toContain("$12,000 of financial assistance");
-    expect(markup).toContain("holds $48,000 in savings");
+    expect(markup).toContain("hold $48,000 and $58,700 in savings");
     // Whole-number shares are not board rates, so they keep no decimal.
-    expect(markup).toContain("75% come in above $0, against 19%");
+    expect(markup).toContain("77% come in above $0, against 17%");
     // The September 22 notes close with the later release's figures; board
     // rates keep one decimal there too.
     expect(markup).toContain(
@@ -74,7 +79,21 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
+  test("the newest note is the frozen release's, ahead of the October 6 one", () => {
+    // The live pointer names the frozen release (src/data.artifact.json).
+    expect(notes[0].slug).toContain("claude-haiku-5-5-joins-the-board");
+    expect(notes[0].release).toBe(artifact.tag);
+    expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
+    expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+    expect(notes[1].slug).toBe(
+      "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
+    );
+    expect(notes[1].release).toBe("dashboard-data-20261006");
+    expect(notes[1].boardSnapshot).toBe("2026-09-30");
+  });
+
   test("a words placeholder spells out whole numbers under ten", () => {
+    // Any note serves as the template; its facts and paragraphs are replaced.
     const note = {
       ...notes[0],
       facts: { small: 4, large: 12, zero: 0, cents: "4.50" },
@@ -93,25 +112,120 @@ describe("notes", () => {
 
   test("the BBCE note links each household by description", () => {
     const note = notes.find(
-      (entry) => entry.slug === "2026-09-23-five-snap-households-bbce",
+      (entry) => entry.slug === "2026-10-05-five-snap-households-bbce",
     );
     expect(note).toBeDefined();
+    expect(note!.date).toBe("2026-10-05");
+    expect(note!.release).toBe("dashboard-data-20260930");
+    const description = interpolateNoteText(note!, note!.paragraphs[0]);
+    expect(description.length).toBeLessThan(600);
+    expect(description).toEndWith(
+      "Of the 230 answers PolicyBench requests for these households, 190 come to $0 and seven match the reference.",
+    );
+    expect(note!.paragraphs[1]).toStartWith(
+      "PolicyBench grades answers against references from PolicyEngine",
+    );
+    expect(note!.paragraphs[1]).toContain(
+      "USDA published the ${minimumFromOctober} minimum",
+    );
+    expect(note!.paragraphs[2]).toStartWith(
+      "Each household qualifies only through broad-based categorical eligibility (BBCE).",
+    );
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(">Connecticut couple</a>");
+    expect(markup).toContain(">Arizona resident</a>");
     expect(markup).toContain(
-      "For each of four households that qualify for SNAP food benefits, most of the 42 models on PolicyBench answer $0.",
-    );
-    expect(markup).toContain("GPT-6 Astra gets three of the four households right");
-    expect(markup).toContain(
-      "PolicyBench revised this note on September 24. Its first version, published September 23, reported 172 of 210 answers at $0 across five households, among them a Michigan worker who pays child support.",
+      "For each of five households that qualify for SNAP food benefits, most of the 46 models on PolicyBench answer $0.",
     );
     expect(markup).toContain(
-      "stopped scoring the worker&#x27;s SNAP amount. PolicyEngine merged its fix, policyengine-us #9586, the same day, and from release dashboard-data-20260922c PolicyBench scores that amount against the corrected $0.",
+      "$288 for 2026 for four households, and $240 for an Arizona resident who qualifies from March",
     );
+    expect(markup).toContain(
+      "$24 a month through September 2026 and $25 from October",
+    );
+    expect(markup).toContain("GPT-6 Astra gets three of the five households right");
+    expect(markup).toContain(
+      "GPT-6.1 Sol gets two right, the Michigan and Wisconsin households",
+    );
+    expect(markup).toContain(
+      "The version of this note published September 23 counted the worker among its households.",
+    );
+    expect(markup).not.toContain("revised this note");
+    expect(markup).not.toContain("updated this note");
     expect(markup).toContain(">policyengine-us #9586 (SNAP child support treatment)</a>");
     expect(markup).not.toContain("scenario_045");
+    expect(markup).not.toMatch(/>scenario_\d+<\/a>/);
+  });
+
+  test("the BBCE note closes with the later release", () => {
+    const note = notes.find(
+      (entry) => entry.slug === "2026-10-05-five-snap-households-bbce",
+    );
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
+    );
+    // Its numbers stay release dashboard-data-20260930's.
+    expect(markup).toContain("GPT-5.6 Sol and GPT-6 Luna, #3 and #4 on PolicyBench");
+    expect(markup).toContain(
+      "A later release, dashboard-data-20261006, stops scoring eight tax outputs and changes no SNAP reference or answer. On it, GPT-6 Luna is #5 on PolicyBench, below Claude Sonnet 5.5, and every other figure in this note stays the same.",
+    );
+    expect(markup).toContain(
+      'href="/notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261006"',
+    );
+  });
+
+  test("the October 6 release note renders its figures", () => {
+    const note = notes.find(
+      (entry) =>
+        entry.slug === "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
+    );
+    expect(note).toBeDefined();
+    expect(note!.date).toBe("2026-10-06");
+    const description = interpolateNoteText(note!, note!.paragraphs[0]);
+    expect(description.length).toBeLessThan(600);
+    expect(description).toStartWith(
+      "PolicyBench stops scoring eight tax outputs, in six households, whose references turn on facts the prompts never state.",
+    );
+    expect(description).toEndWith(
+      "Every model is now scored on 1,920 of its 1,984 requested outputs, down from 1,928, and PolicyBench excludes 64.",
+    );
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
+    );
+    // Cents stay as written.
+    expect(markup).toContain(
+      "the outputs are $11,895.23 in California, $26,991.31 in Massachusetts, and $11,137.31 in Virginia, against references of $11,113.57, $26,932.27, and $10,729.61.",
+    );
+    expect(markup).toContain("the standard Part B premium, $2,434.80 for 2026");
+    expect(markup).toContain(
+      "35 answers match the reference within $1: six for Minnesota, 16 for Colorado, nine for Massachusetts, and four for New York. Another 82 match",
+    );
+    // Rises are not board rates, so they keep their two decimals; board
+    // rates keep one decimal, a whole one too.
+    expect(markup).toContain("rises by 0.67 to 1.35 points");
+    expect(markup).toContain("GPT-6 Sol still leads at 95.8%, ahead of Claude Opus 5.5 (95.1%)");
+    expect(markup).toContain(
+      "Claude Sonnet 5.5 (93.3%) passes GPT-6 Luna (93.0%) for fourth.",
+    );
+    expect(markup).toContain(
+      "Inkling moves above Grok 4.7, Gemini 3 Flash Preview above Claude Opus 4.7, and Gemini 3.1 Flash Lite Preview above DeepSeek V4 Pro.",
+    );
+    expect(markup).toContain(
+      "from June 12 to September 29, 2026, ending on the UTC date of the last answer",
+    );
+    expect(markup).toContain("California&#x27;s $230 monthly income disregard");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/pull/173"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260930"',
+    );
+    expect(markup).toContain(">Virginia household</a>");
     expect(markup).not.toMatch(/>scenario_\d+<\/a>/);
   });
 
@@ -123,15 +237,16 @@ describe("notes", () => {
       createElement(NoteArticle, { note: note!, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "A later note, first published September 23 and revised September 24, corrects this one. On release dashboard-data-20260922c, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0",
+      "A later note, published October 5, corrects this one. From release dashboard-data-20260922c on, PolicyBench scores the SNAP amounts of four of these six households at $288 each, and scores a Michigan worker who pays child support at $0: PolicyEngine counts that child support in gross income, as Michigan does (policyengine-us #9586), and the worker does not qualify.",
     );
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260922c"',
     );
     expect(markup).not.toContain("scenario_045 and scenario_112");
     expect(markup).toContain(
-      'href="/notes/2026-09-23-five-snap-households-bbce"',
+      'href="/notes/2026-10-05-five-snap-households-bbce"',
     );
+    expect(markup).not.toContain("2026-09-23-five-snap-households-bbce");
   });
 
   test("only the September 3 note carries the unrounded-reference footnote", () => {

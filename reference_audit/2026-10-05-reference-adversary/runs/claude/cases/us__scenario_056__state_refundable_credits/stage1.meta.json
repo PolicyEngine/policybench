@@ -1,0 +1,75 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.389728,
+  "duration_ms": 264548,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:32:11.809864+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "6f02dfa400366c114cce942f0f5a640f6d2c7a9f598446bac0874421ef87b9fc",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "55e9877d2e529e0506540dd9045de4991c66faba73c0d9eb00704d21518c5657",
+  "session_id": "a5d5d879-60ed-4f66-8cc3-5f0f78ce3dc4",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml",
+      "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml",
+      "https://nj.gov/treasury/taxation/eitc/howmucheitc.shtml",
+      "https://law.justia.com/codes/new-jersey/title-54a/section-54a-4-7/",
+      "https://www.nj.gov/treasury/taxation/pdf/eitcnotice.pdf",
+      "https://www.nj.gov/treasury/taxation/pdf/current/1040i.pdf",
+      "https://nj.gov/treasury/taxation/eitc/eitcfaq.shtml",
+      "https://nj.gov/treasury/taxation/eitc/prioryear.shtml",
+      "https://pub.njleg.gov/Bills/2024/S2000/1557_I1.HTM",
+      "https://pub.njleg.gov/bills/2020/A9999/5345_I1.HTM",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.nj.gov/treasury/taxation/njit35.shtml",
+      "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables",
+      "https://www.currentfederaltaxdevelopments.com/blog/2025/10/9/2026-inflation-adjustments-for-tax-professionals-revenue-procedure-2025-32-analysis",
+      "https://pub.njleg.gov/Bills/2026/S2500/2198_I1.HTM",
+      "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml",
+      "https://pub.njleg.gov/Bills/2024/S2000/1557_I1.HTM",
+      "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml"
+    ],
+    "searches": [
+      "New Jersey Earned Income Tax Credit age 18 without qualifying children eligibility nj.gov",
+      "Rev. Proc. 2025-32 earned income credit 2026 maximum amount no qualifying children $664",
+      "New Jersey EITC without qualifying children maximum credit regardless of income law P.L.2025 54A:4-7",
+      "NJ-1040 instructions 2025 earned income tax credit \"not eligible for the federal\" age \"$260\"",
+      "\"54A:4-7\" \"at least 18 years of age\" earned income tax credit \"would have been allowed\" New Jersey statute text",
+      "nj.gov property tax credit \"not required to file\" \"65 or older or blind or disabled\" $50 refundable",
+      "New Jersey earned income tax credit 2026 change budget FY2027 NJEITC percentage",
+      "\"P.L.2026\" New Jersey earned income tax credit signed Sherrill"
+    ]
+  }
+}

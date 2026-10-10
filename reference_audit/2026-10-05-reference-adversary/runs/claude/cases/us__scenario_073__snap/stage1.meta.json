@@ -1,0 +1,84 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.8051193999999997,
+  "duration_ms": 342104,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:39:17.711389+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "794fcb60bef84f72ce507623a79725cc92c5c7c339612644267c9b5d87953098",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "0f2288603e7e61d45d26ff4a7b06aa1b92cdf6394972d117cff02dcbc505b6af",
+  "session_id": "f4616388-2a40-4d2a-b7c5-a950ff779239",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/exf/BP/Public/BEM/213.pdf",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/BP/Public/BEM/213.pdf",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/RF/Public/RFT/250.pdf",
+      "https://michiganlegalhelp.org/resources/public-assistance/income-and-asset-limits-food-assistance-program-fap-or-food-stamps",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/exf/BP/Public/BPB/2024-005.pdf",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-A/section-273.2",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.2",
+      "https://www.govregs.com/regulations/expand/title7_chapterII_part273_subpartA_section273.2",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.law.cornell.edu/uscode/text/7/2017",
+      "https://www.house.mi.gov/hfa/PDF/Alpha/Fiscal_Brief_FAP_Eligibility_and_Oversight_Mar19.pdf",
+      "https://sfa.senate.michigan.gov/Publications/Notes/2020Notes/NotesWin20jm.pdf",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/ex/BP/Public/BEM/556.pdf",
+      "https://www.fna.usda.gov/snap/broad-based-categorical-eligibility",
+      "https://mdhhs-pres-prod.michigan.gov/olmweb/EXF/BP/Public/BEM/550.pdf",
+      "https://gsaindexed.apps.lara.state.mi.us/MOAHR/2013/06/201323708.pdf",
+      "https://gsaindexed.apps.lara.state.mi.us/MOAHR/2011/02/2011-22727.pdf",
+      "https://mfia.state.mi.us/SI-Screens/nes_SG/WebHelp/FAP_Order_and_Reference_Guide.htm",
+      "https://gsaindexed.apps.lara.state.mi.us/MOAHR/2024/24-007917.pdf",
+      "https://www.fns.usda.gov/snap/recipient/eligibility",
+      "https://www.publicnow.com/view/FCC4C4B63E9116B346D946AAFFBBFAF9C0245CA3"
+    ],
+    "searches": [
+      "Michigan BEM 213 categorical eligibility FAP 200% poverty SDV net income test",
+      "SNAP FY 2026 cost-of-living adjustment minimum benefit $24 maximum allotment $298 standard deduction $209",
+      "\"categorically eligible\" FAP Michigan \"200 percent\" \"SDV\" \"net income\" BEM 213 \"Groups which contain an SDV member\"",
+      "7 CFR 273.2(j)(2) \"categorically eligible\" \"resource limits\" \"gross and net income\" households \"one- and two-person\" minimum benefit",
+      "Michigan Food Assistance Program income limit 200% federal poverty level categorical eligibility site:michigan.gov",
+      "FNS broad-based categorical eligibility chart states gross income limit Michigan 200 percent asset test",
+      "Michigan FAP \"minimum benefit\" one or two person group \"categorically eligible\" BEM 550 $24",
+      "\"BEM 213\" FAP \"categorically eligible\" \"200 percent\" \"net income\" hearing decision SDV group minimum benefit",
+      "Michigan FAP SDV group gross income below 200 percent categorically eligible \"does not have to meet\" net income limit minimum benefit $24 one person",
+      "\"BEM 550\" OR \"BEM 213\" \"automatically eligible for the minimum benefit\" FAP",
+      "Michigan BEM 213 \"Categorically eligible groups\" \"automatically meet\" asset income limits FAP \"200 percent of the poverty\""
+    ]
+  }
+}

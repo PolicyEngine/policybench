@@ -1,0 +1,51 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.12810039999999998,
+  "duration_ms": 26112,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:36:48.478257+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a3d264282a9c66c362fce66a2f33f8b463b68c6320896cb71de3db5dc4b25674",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "5756babb641bf019daef2d0e64c380bc3cf7826c02c65bbe1bd25430d5ca643f",
+  "session_id": "046fcc55-8ca9-4b09-b61c-85c6a044907c",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "ac670a350aed9af23b2acf20219922da3272312988e5cb3512c3621c4181a685",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/uscode/text/42/426",
+      "https://www.medicare.gov/basics/get-started-with-medicare/before-65"
+    ],
+    "searches": []
+  }
+}

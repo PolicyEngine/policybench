@@ -1,0 +1,76 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.2755304,
+  "duration_ms": 291721,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:11:08.110916+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "07576cd3798c390fc7e9c69bf380c4507c8977396da5f491a34032d8e19ddbc3",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "50ac219c76a7d911f0f3e1057884e964080f6811049a5a751f8dcfe145ee4d74",
+  "session_id": "098c82f0-ea07-4fb5-bc25-4b44588022c4",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/eligibility-and-countable-income/determination-of-qualifying-categorical-relationship/determining-categorical-relationship-for-the-family-planning-wai1.html",
+      "https://www.law.cornell.edu/cfr/text/42/435.119",
+      "https://www.law.cornell.edu/cfr/text/42/435.603",
+      "https://www.law.cornell.edu/uscode/text/42/1396a",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://ballotpedia.org/Oklahoma_State_Question_802,_Medicaid_Expansion_Initiative_(June_2020)",
+      "https://en.wikipedia.org/wiki/2020_Oklahoma_State_Question_802",
+      "https://oksenate.gov/sites/default/files/2022-05/oc25a_3.pdf",
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/eligibility-and-countable-income/countable-income-and-resources/third-party-resources--insurance--workers--compensation-and-medi.html",
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/eligibility-and-countable-income/countable-income-and-resources/third-party-resources--insurance--workers--compensation-and-medi.html",
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/eligibility-and-countable-income/countable-income-and-resources/reserved.html",
+      "https://www.oklahoma.gov/content/dam/ok/en/okhca/docs/individuals/files-and-documents/OHCA%20MAGI%20Fact%20Sheet.pdf",
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/soonercare-for-pregnant-women-and-families-with-children/countable-income-for-magi/countable-sources-of-income.html",
+      "https://oklahoma.gov/ohca/policies-and-rules/xpolicy/medical-assistance-for-adults-and-children-eligibility/soonercare-for-pregnant-women-and-families-with-children/determination-of-eligibility-for-soonercare-health-benefits-for-/general-calculation-of-countable-income-for-magi-eligibility-gro.html",
+      "https://oklahoma.gov/ohca/individuals/mysoonercare/apply-for-soonercare-online/eligibility/income-guidelines.html",
+      "https://www.law.cornell.edu/uscode/text/26/102",
+      "https://www.law.cornell.edu/uscode/text/42/1396a",
+      "https://oklahoma.gov/ohca/individuals/mysoonercare/work-requirements.html"
+    ],
+    "searches": [
+      "Oklahoma Administrative Code 317:35 expansion adults 19-64 income 133% federal poverty level SoonerCare",
+      "Oklahoma Medicaid work requirements 2026 start date Oklahoma Health Care Authority expansion adults",
+      "2026 HHS poverty guidelines Federal Register one person 48 contiguous states",
+      "Oklahoma Constitution Article 2 Section 40 Medicaid expansion State Question 802 \"133 percent\"",
+      "OAC 317:35 SoonerCare \"other health insurance\" third party liability does not affect eligibility expansion adult employer sponsored insurance",
+      "Oklahoma Constitution \"Section 40\" Medicaid \"eligible for medical assistance under 42 U.S.C.\" \"133%\" text SQ 802 article",
+      "Oklahoma Constitution Article XXV-A section 1 \"shall provide medical assistance\" \"nineteen\" OR \"eighteen\" \"not exceed\" \"federal poverty\"",
+      "oklahoma.gov ohca policy 317:35-6-39 financial eligibility modified adjusted gross income expansion adults countable income",
+      "oklahoma.gov ohca \"countable-income-for-magi\" sources of income MAGI taxable interest gifts not counted",
+      "SoonerCare income guidelines 2026 expansion adults household size 1 monthly 138% FPL oklahoma.gov ohca"
+    ]
+  }
+}

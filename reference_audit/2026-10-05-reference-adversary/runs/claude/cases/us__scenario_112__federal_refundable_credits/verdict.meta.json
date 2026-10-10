@@ -1,0 +1,50 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.1813172,
+  "duration_ms": 36122,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:51:41.451042+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "c2515aa8a0a9b52fb1be2b7981cf08018e8f8d93e1d0272e4b0d2e36711ae639",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "4f71ccfe1d3d128a445641b4d63e32759cb8b896e9081ef251b6863c0b1e60f9",
+  "session_id": "64a152e6-d98a-441f-bfd7-2293030a1496",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "3d171f4929c64eef30836aadd9e4423230b8eb278f66868d585b16c8dd8b6f13",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.irs.gov/irb/2025-45_IRB"
+    ],
+    "searches": []
+  }
+}

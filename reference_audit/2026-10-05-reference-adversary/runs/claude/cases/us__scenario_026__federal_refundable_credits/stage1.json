@@ -1,0 +1,82 @@
+{
+  "ambiguity": "1) Tax Table rounding: if tax is taken from the official Tax Table (required when taxable income is under $100,000) rather than the rate schedule, the answer is $2,011. The 2026 table had not been published before the freeze. This is still essentially the reference, not the consensus.\n2) Car-loan interest: if the $378 were treated as qualified interest under \u00a7163(h)(4), the answer would be $2,058.76 (Cluster 2). The prompt lists none of the required facts (new vehicle, US final assembly, loan after 2024), so the deduction does not apply.\n3) Cluster 1's $0 rests on arithmetic mistakes: it ignores the \u00a7225 overtime deduction and/or uses a pre-OBBBA CTC. With 2026 law, tax ($4,586.60) is below the $6,600 CTC.",
+  "citations": [
+    {
+      "pinpoint": "Standard deduction; tax rate thresholds",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "For tax year 2026, the standard deduction increases to $32,200 for married couples filing jointly.",
+      "source": "IRS News Release IR-2025-103, IRS releases tax inflation adjustments for tax year 2026",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "Tax rates paragraph",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "22% for incomes over $50,400 ($100,800 for married couples filing jointly); 12% for incomes over $12,400 ($24,800 for married couples filing jointly).",
+      "source": "IRS News Release IR-2025-103",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "Child tax credit section (\u00a7 24(a), \u00a7 24(d)(1)(A) amounts); EITC table; \u00a7 1(j) MFJ table",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "the maximum amount of the credit allowed under \u00a7 24(a) is $2,200 ... the amount used in \u00a7 24(d)(1)(A) to determine the amount of the credit under \u00a7 24 that may be refundable is $1,700",
+      "source": "Rev. Proc. 2025-32, Internal Revenue Bulletin 2025-45",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "EITC table, Completed Phaseout Amount (Married Filing Jointly), three or more qualifying children",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Completed Phaseout Amount (Married Filing Jointly) ... $70,244",
+      "source": "Rev. Proc. 2025-32, Internal Revenue Bulletin 2025-45",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "IRA deduction phase-out; Saver's Credit income limit",
+      "pre_freeze": true,
+      "published": "2025-11-13",
+      "quote": "The income limit for the Saver's Credit (also known as the Retirement Savings Contributions Credit) for low- and moderate-income workers is $80,500 for married couples filing jointly",
+      "source": "IRS News Release IR-2025-111, 401(k) limit increases to $24,500 for 2026",
+      "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500"
+    },
+    {
+      "pinpoint": "\u00a7 225(a), (b), (c)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "There shall be allowed as a deduction an amount equal to the qualified overtime compensation received during the taxable year",
+      "source": "26 U.S.C. \u00a7 225 (Qualified overtime compensation), added by Pub. L. 119-21",
+      "url": "https://www.law.cornell.edu/uscode/text/26/225"
+    },
+    {
+      "pinpoint": "\u00a7 63(b)(6), (7)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "(6) the deduction provided in section 225, (7) so much of the deduction allowed by section 163(a) as is attributable to the exception under section 163(h)(4)(A)",
+      "source": "26 U.S.C. \u00a7 63(b)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/63"
+    },
+    {
+      "pinpoint": "\u00a7 163(h)(4) definitions of qualified passenger vehicle loan interest / applicable passenger vehicle",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "indebtedness incurred by the taxpayer after December 31, 2024, for the purchase of, and that is secured by a first lien on, an applicable passenger vehicle for personal use",
+      "source": "26 U.S.C. \u00a7 163(h)(4)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/163"
+    },
+    {
+      "pinpoint": "\u00a7 24(d)(1)(A)-(B)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "15 percent of so much of the taxpayer's earned income ... which is taken into account in computing taxable income for the taxable year as exceeds $2,500",
+      "source": "26 U.S.C. \u00a7 24(d)(1)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/24"
+    }
+  ],
+  "computation": "1) Filing status and dependents: married filing jointly with 3 qualifying children under 17 (ages 11, 11 and 9).\n2) Wages: the $85,209 already includes overtime. Traditional 401(k) deferrals of $2,778 are excluded from income, so taxable wages are $82,431. The Roth 401(k) and Roth IRA contributions do not reduce income.\n3) IRA deduction: the spouse's $130 traditional IRA contribution is fully deductible. The spouse is an active plan participant, but the 2026 joint-return phase-out starts at $129,000 (IR-2025-111). AGI is therefore 82,431 \u2212 130 = $82,301.\n4) Deductions: the 2026 joint standard deduction is $32,200 (Rev. Proc. 2025-32 / IR-2025-103). Itemizing doesn't help: no mortgage interest is listed, and medical expenses plus NC state income tax are far below $32,200.\n5) Overtime deduction: \u00a7225 allows the FLSA overtime premium of $7,746 (cap $25,000 on a joint return; MAGI is far below $300,000). Under \u00a763(b)(6), non-itemizers can take this deduction.\n6) Car-loan interest: the $378 is NOT deductible under \u00a7163(h)(4). That requires a new vehicle whose original use began with the taxpayer, final assembly in the US, and a first-lien loan taken out after 2024. None of these facts is listed, so under the prompt's rules they are false. Cluster 2 (2,058.76) deducted this $378.\n7) Taxable income: 82,301 \u2212 32,200 \u2212 7,746 = $42,355.\n8) Tax under the 2026 joint rate schedule: 2,480 + 12% \u00d7 (42,355 \u2212 24,800) = 2,480 + 2,106.60 = $4,586.60.\n9) Other nonrefundable credits: no saver's credit, because AGI of $82,301 exceeds the 2026 joint limit of $80,500. There are no child-care or education credits.\n10) Child tax credit: 3 \u00d7 $2,200 = $6,600, with no phase-out below $400,000. The nonrefundable part is min(6,600, 4,586.60) = $4,586.60, leaving $2,013.40 unused.\n11) Refundable child tax credit under \u00a724(d)(1): the lesser of the unused $2,013.40, the per-child cap of 3 \u00d7 $1,700 = $5,100, and 15% \u00d7 (82,431 \u2212 2,500) = $11,989.65. That gives $2,013.40.\n12) EITC: $0, because AGI of $82,301 exceeds the 2026 joint completed phase-out of $70,244 for 3 or more children. No other refundable credits apply (no education credit; one earner, so no excess Social Security credit). The Premium Tax Credit is excluded by the definition.\nTotal refundable credits = $2,013.40. This matches the reference of $2,013.49 within float precision.\nPublication status: all 2026 parameters used here (brackets, standard deduction, CTC $2,200 / $1,700, EITC phase-out, saver's-credit limit, IRA phase-out) were published in Oct\u2013Nov 2025, before the freeze. The official 2026 Tax Table, which taxpayers with taxable income under $100,000 must use, comes with the 2026 Form 1040 instructions and had not been published by 2026-07-03. Using a table computed at the $42,350\u201342,400 bracket midpoint gives tax of $4,589 and a refundable CTC of $2,011.",
+  "confidence": "high",
+  "definition_reading": "The household is one joint tax unit. The output is the sum of all federal refundable income tax credits for that return, excluding the Premium Tax Credit. Here that means the EITC ($0) plus the refundable additional child tax credit, which is the CTC left over after the $4,586.60 regular tax is fully offset ($2,013.40). Nothing else qualifies.",
+  "independent_answer": 2013.4,
+  "law_supports": "reference"
+}

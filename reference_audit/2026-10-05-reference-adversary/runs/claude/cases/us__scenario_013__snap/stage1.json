@@ -1,0 +1,82 @@
+{
+  "ambiguity": "There are three alternative readings.\n(a) Oct\u2013Dec 2026 is FY2027. If the actual FY2027 minimum benefit of $25 (published after the 2026-07-03 freeze) is used, the total is $243 instead of $240.\n(b) I could not open the DES manual to confirm the March 1, 2026 effective date of the 185% \u2192 200% change; it comes from search-index text attributed to the DES change log. If 200% applied all year, the answer is 12 \u00d7 $24 = $288. If 185% applied all year, the answer is $0, which matches the consensus. The USDA table updated 2026-06-29 shows 200% before the freeze.\n(c) The two $298 premium fields may be one expense or two. Either way the medical deduction is too small to matter.",
+  "citations": [
+    {
+      "pinpoint": "Arizona row",
+      "pre_freeze": true,
+      "published": "2026-06-29",
+      "quote": "Arizona: All households are eligible (referral on application) | No limit on assets | 200%",
+      "source": "USDA FNS, Broad-Based Categorical Eligibility (BBCE) state table",
+      "url": "https://fns-prod.azureedge.us/snap/broad-based-categorical-eligibility"
+    },
+    {
+      "pinpoint": "FAA6.B .04 NA Expanded Categorical Eligibility Standard (title as indexed; page returned HTTP 403; change to 200% reported effective 2026-03-01)",
+      "pre_freeze": null,
+      "published": "2026-03-01 (reported effective date; not directly verified)",
+      "quote": ".04 NA Expanded Categorical Eligibility Standard (200% ...",
+      "source": "Arizona DES Cash and Nutrition Assistance Policy (CNAP) Manual, FAA6",
+      "url": "https://dbmefaapolicy.azdes.gov/FAA6/NA_Expanded_Categorical_Eligibility_Standard.html"
+    },
+    {
+      "pinpoint": "Archived Policy, 185% of Federal Poverty Level (Expanded Categorical Eligibility)",
+      "pre_freeze": null,
+      "published": "unknown (superseded)",
+      "quote": "AZTECS determines when the gross income of an NA Expanded categorically eligible budgetary unit exceeds 185% of the current federal poverty level (FPL)... the budgetary unit is not categorically eligible.",
+      "source": "Arizona DES CNAP Manual, archived FAA5 Expanded Categorical Eligibility (185% FPL)",
+      "url": "https://dbmefaapolicy.azdes.gov/Archived_Policy/185__of_Federal_Poverty_Level_(Expanded_Categ.html"
+    },
+    {
+      "pinpoint": "\u00a72014(a)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "households in which each member receives benefits under a State program funded under part A of title IV of the Social Security Act...shall be eligible to participate in the supplemental nutrition assistance program.",
+      "source": "7 U.S.C. 2014 (Food and Nutrition Act, eligibility)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "\u00a72017(a)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "for households of one and two persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member, as determined by the Secretary under section 2012 of this title, rounded to the nearest whole dollar increment.",
+      "source": "7 U.S.C. 2017 (value of allotment)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(C); \u00a7273.10(e)(2)(iii) intro",
+      "pre_freeze": true,
+      "published": "current regulation",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit. The minimum benefit is 8 percent of the maximum allotment for a household of one, rounded to the nearest whole dollar.",
+      "source": "7 CFR 273.10",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Minimum benefit / maximum allotment, 48 states & DC (content from search index; direct fetch returned 403)",
+      "pre_freeze": true,
+      "published": "2025-08-13",
+      "quote": "The minimum benefit for the 48 states and D.C. will increase to $24.",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/guidance-documents/snap/fns/snap-fy-2026-cost-living-adjustments"
+    },
+    {
+      "pinpoint": "Minimum benefit paragraph",
+      "pre_freeze": false,
+      "published": "2026-09-29",
+      "quote": "The minimum benefit amount will increase from $24 to $25 effective October 1, 2026",
+      "source": "Pennsylvania DHS news release on FY2027 SNAP COLA",
+      "url": "https://www.pa.gov/agencies/dhs/newsroom/increases-to-snap-benefit-amounts-following-annual-adjustment"
+    },
+    {
+      "pinpoint": "2026 guideline, 1 person, 48 states",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "$15,960 for a household of one (48 contiguous states and DC)",
+      "source": "HHS, Annual Update of the HHS Poverty Guidelines (Federal Register)",
+      "url": "https://www.federalregister.gov/documents/2026/01/15/2026-00755/annual-update-of-the-hhs-poverty-guidelines"
+    }
+  ],
+  "computation": "One-person SNAP household: Head, age 80 and disabled. Shelter costs: none listed (only a mortgage balance, no payments). Utilities: none listed.\n\n1) Gross monthly income: Social Security $23,736/12 = $1,978.00. Pension $6,720/12 = $560.00. Dividends $16/12 = $1.33. Capital gains $72/12 = $6.00, which may be excluded as proceeds from selling a resource. Total is about $2,539\u2013$2,545 a month.\n\n2) Arizona broad-based categorical eligibility (BBCE, which Arizona calls Expanded Categorical Eligibility; 7 U.S.C. 2014(a), 7 CFR 273.2(j)(2)): every household gets the TANF/MOE-funded referral on the application. The USDA BBCE table, updated 2026-06-29 (before the freeze), lists Arizona as \"No limit on assets | 200%\". Arizona's policy manual current page is titled \"NA Expanded Categorical Eligibility Standard (200% \u2026)\". The archived text used 185%: when gross income \"exceeds 185% of the current federal poverty level \u2026 the budgetary unit is not categorically eligible.\"\n- The 185% \u2192 200% change is recorded as effective 2026-03-01. I could not open the DES manual directly (HTTP 403); that date comes from search-index text attributed to the DES FAA5 change log.\n- Jan\u2013Feb 2026, at 185%: the limit is $15,650\u00d71.85/12 = $2,413, or $2,461 using the 2026 guideline of $15,960. Income of about $2,540 is over both, so the household is not categorically eligible.\n- Mar\u2013Dec 2026, at 200%: the limit is $2,608 (2025 guideline) or $2,660 (2026 guideline). Income of about $2,540 is under both, so the household is categorically eligible. That means no asset test and no net income test.\n\n3) Jan\u2013Feb under regular rules: an elderly/disabled household skips the gross income test but must pass the net income test. Net income \u2248 $2,545 \u2212 $209 standard deduction \u2212 at most about $31 excess medical ($796/yr \u00f7 12 \u2212 $35) \u2248 $2,305. That is above 100% of the poverty line (about $1,305), and assets of $58,700 exceed the $4,500 elderly/disabled limit. Benefit is $0.\n\n4) Mar\u2013Dec allotment (7 CFR 273.10(e)(2)(ii)(A)): $298 maximum allotment \u2212 30% \u00d7 about $2,305 = negative. But 7 U.S.C. 2017(a) and 7 CFR 273.10(e)(2)(ii)(C) give every eligible one- or two-person household the minimum benefit. That is 8% \u00d7 $298 = $23.84, rounded to $24 for FY2026 (Oct 2025\u2013Sep 2026). The zero-benefit denial rule in (e)(2)(iii) covers only households of three or more.\n\n5) Oct\u2013Dec 2026 falls in FY2027. Those values (minimum benefit $25, maximum $306) were published after 2026-07-03. Under the frozen law, the FY2026 $24 carries forward.\n\nAnnual total under frozen law: 7 \u00d7 $24 (Mar\u2013Sep) + 3 \u00d7 $24 (Oct\u2013Dec) = $240. Using the FY2027 $25 for Oct\u2013Dec gives $168 + $75 = $243. If 200% had applied all year, the total would be $288.\n\nThe consensus answer of $0 uses the old 185% limit, or regular rules for the whole year. It misses that the household is categorically eligible from March and that one-person households get the minimum benefit.",
+  "confidence": "medium",
+  "definition_reading": "\"Annual SNAP benefit amount\" means the total SNAP allotment for the one-person SNAP household (Head) across calendar 2026: the sum of monthly allotments, with each month under the rules in force that month. Take-up of Arizona's TANF/MOE referral, which confers BBCE, is assumed under the prompt's take-up convention.",
+  "independent_answer": 240,
+  "law_supports": "reference"
+}

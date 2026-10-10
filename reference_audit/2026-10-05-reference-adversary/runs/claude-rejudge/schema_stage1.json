@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "independent_answer": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Your own answer from the law (1 or 0 for an eligibility output); null only if the law leaves it undetermined on the stated facts."
+    },
+    "computation": {
+      "type": "string",
+      "description": "Your step-by-step computation from the stated facts, naming the rule behind each step."
+    },
+    "citations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "The statute, regulation, publication, form or instructions, named as its issuer names it."
+          },
+          "pinpoint": {
+            "type": "string",
+            "description": "Section, subsection, line, table or page."
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL you read."
+          },
+          "published": {
+            "type": "string",
+            "description": "Publication or effective date as the source states it (YYYY-MM-DD where known)."
+          },
+          "pre_freeze": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True if published before 2026-07-03, false if after, null if unknown."
+          },
+          "quote": {
+            "type": "string",
+            "description": "A short verbatim quote of the rule relied on."
+          }
+        },
+        "required": [
+          "source",
+          "pinpoint",
+          "url",
+          "published",
+          "pre_freeze",
+          "quote"
+        ]
+      }
+    },
+    "law_supports": {
+      "type": "string",
+      "enum": [
+        "reference",
+        "consensus",
+        "neither",
+        "both_readings"
+      ]
+    },
+    "definition_reading": {
+      "type": "string",
+      "description": "How you read the output definition for this household."
+    },
+    "ambiguity": {
+      "type": "string",
+      "description": "A second reading the definition or prompt genuinely admits and the answer it gives; \"\" if none."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    }
+  },
+  "required": [
+    "independent_answer",
+    "computation",
+    "citations",
+    "law_supports",
+    "definition_reading",
+    "ambiguity",
+    "confidence"
+  ]
+}

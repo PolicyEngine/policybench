@@ -2539,7 +2539,13 @@ def test_explanation_repair_rejects_knobs_on_the_responses_transport(
 
 @pytest.mark.parametrize(
     "model_id",
-    ["claude-fable-5", "claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5"],
+    [
+        "claude-fable-5",
+        "claude-fable-5-1",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
+    ],
 )
 def test_local_claude_models_resolve_without_remote_cost_map(model_id):
     """Every Claude model eval_no_tools registers locally routes to Anthropic
@@ -2943,13 +2949,14 @@ def test_claude_sonnet_5_is_a_public_default():
 
 def test_claude_sonnet_5_5_is_a_public_default():
     """Sonnet 5.5 is a default model priced at the standard $2 / $10 rate with
-    $0.20 cache reads and $2.50 five-minute cache writes (pricing page, read
-    2026-09-28)."""
+    $2.50 five-minute cache writes (pricing page, read 2026-09-28) and $0.10
+    cache reads, 0.05x base input (the same page's footnote 2, read
+    2026-10-08)."""
     assert MODELS["claude-sonnet-5.5"] == "claude-sonnet-5-5"
     assert PRICE_OVERRIDES_PER_1M["claude-sonnet-5.5"] == {
         "input": 2.0,
         "output": 10.0,
-        "cache_read": 0.20,
+        "cache_read": 0.10,
         "cache_write": 2.50,
     }
 
@@ -2964,7 +2971,7 @@ def test_claude_sonnet_5_5_is_a_public_default():
     [
         (0, 0, 0, 2.0),
         (1_000_000, 0, 0, 12.0),
-        (0, 1_000_000, 0, 0.20),
+        (0, 1_000_000, 0, 0.10),
         (0, 0, 1_000_000, 2.50),
     ],
 )
@@ -2985,6 +2992,116 @@ def test_claude_sonnet_5_5_override_reconstructs_token_costs(
 
     assert reconstructed.usd == pytest.approx(expected)
     assert reconstructed.is_estimated is False
+
+
+def test_claude_haiku_5_5_is_a_public_default():
+    """Haiku 5.5 is a default model priced at $0.10 / $0.50 per 1M with $0.01
+    cache reads and $0.125 five-minute cache writes, the rates the pricing
+    page gives for prompts up to 100,000 tokens (read 2026-10-08); every
+    PolicyBench prompt is far below that line."""
+    assert MODELS["claude-haiku-5.5"] == "claude-haiku-5-5"
+    assert PRICE_OVERRIDES_PER_1M["claude-haiku-5.5"] == {
+        "input": 0.10,
+        "output": 0.50,
+        "cache_read": 0.01,
+        "cache_write": 0.125,
+    }
+
+
+@pytest.mark.parametrize(
+    (
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        (0, 0, 0, 0.10),
+        (1_000_000, 0, 0, 0.60),
+        (0, 1_000_000, 0, 0.01),
+        (0, 0, 1_000_000, 0.125),
+    ],
+)
+def test_claude_haiku_5_5_override_reconstructs_token_costs(
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-haiku-5.5",
+        model_id="claude-haiku-5-5",
+        prompt_tokens=1_000_000,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_local_claude_registration_works_without_the_remote_cost_map():
+    """With litellm's remote cost map off (LITELLM_LOCAL_MODEL_COST_MAP), its
+    bundled backup lacks the newest Claude ids, and importing eval_no_tools
+    must register each at the configured override prices. The parametrized
+    test above reads the already-loaded map, which the remote fetch can fill,
+    so it cannot fail when a local entry is missing; this one runs a fresh
+    interpreter where only the local registration can supply the entry."""
+    import subprocess
+    import sys
+
+    code = """
+import json, os
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+import litellm
+from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
+newest = ("claude-haiku-5-5", "claude-sonnet-5-5")
+missing = [m for m in newest if m in litellm.model_cost]
+import policybench.eval_no_tools as harness
+out = {"bundled_already": missing, "models": {}}
+for display in harness._LOCAL_CLAUDE_MODELS:
+    entry = litellm.model_cost.get(MODELS[display])
+    prices = PRICE_OVERRIDES_PER_1M[display]
+    out["models"][display] = entry is not None and all(
+        abs(entry[key] - prices[name] / 1e6) < 1e-15
+        for key, name in (
+            ("input_cost_per_token", "input"),
+            ("output_cost_per_token", "output"),
+            ("cache_read_input_token_cost", "cache_read"),
+            ("cache_creation_input_token_cost", "cache_write"),
+        )
+    ) and entry["litellm_provider"] == "anthropic"
+print("RESULT " + json.dumps(out))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=300
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    line = next(row for row in result.stdout.splitlines() if row.startswith("RESULT "))
+    out = json.loads(line.removeprefix("RESULT "))
+    # The premise: the bundled backup does not carry these ids, so the entries
+    # checked below can only come from the local registration.
+    assert out["bundled_already"] == []
+    assert "claude-haiku-5.5" in out["models"]
+    assert all(out["models"].values()), out["models"]
+
+
+def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
+    """Haiku 5.5 thinks when the request omits the thinking parameter, so it
+    is a thinking-default Claude: provider-default thinking, the thinking
+    class's 300s timeout and 16,384-token budget. It accepts the board's
+    forced answer tool (Sonnet 5.5 and Opus 5.5 reject it), so its row runs
+    the tool contract, under which Anthropic models skip thinking."""
+    from policybench.eval_no_tools import (
+        THINKING_DEFAULT_CLAUDE_MODELS,
+        _answer_contract_for_model,
+    )
+
+    assert "claude-haiku-5-5" in THINKING_DEFAULT_CLAUDE_MODELS
+    assert _thinking_configuration("claude-haiku-5-5") == {"mode": "provider_default"}
+    assert _answer_contract_for_model("claude-haiku-5-5", env={}) == "tool"
+    assert _request_timeout_seconds("claude-haiku-5-5") == 300
 
 
 def test_gpt_55_uses_longer_full_output_timeout():

@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Subsection A",
+      "pre_freeze": true,
+      "published": "in force for taxable years beginning after 2000-12-31 (current ARS text)",
+      "quote": "Twelve thousand five hundred dollars or less for a single person or a married person filing separately",
+      "source": "Arizona Revised Statutes \u00a743-1072.01 (Credit for increased excise taxes paid)",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection C",
+      "pre_freeze": true,
+      "published": "current ARS text",
+      "quote": "The amount of the credit shall not exceed twenty-five dollars for each person ... but not more than one hundred dollars for all persons in the taxpayer's household",
+      "source": "Arizona Revised Statutes \u00a743-1072.01",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection D",
+      "pre_freeze": true,
+      "published": "current ARS text",
+      "quote": "If the allowable amount of the credit exceeds the income taxes otherwise due on the claimant's income, the amount of the claim not used as an offset against income taxes shall be paid in the same manner as a refund",
+      "source": "Arizona Revised Statutes \u00a743-1072.01",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Increased Excise Tax Credit",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "The amount of the credit is $25 for each resident of Arizona and for whom a personal or dependent exemption is allowed on the Arizona return.",
+      "source": "Arizona Department of Revenue, Tax Credits page",
+      "url": "https://azdor.gov/individuals/income-tax-filing-assistance/tax-credits"
+    },
+    {
+      "pinpoint": "\u00a786(b)(1), (c)(1)",
+      "pre_freeze": true,
+      "published": "current USC",
+      "quote": "one-half of the social security benefits received during the taxable year, exceeds ... the base amount",
+      "source": "26 U.S.C. \u00a786 (Social security and tier 1 railroad retirement benefits)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 25,
+  "reference_value": 25,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under A.R.S. \u00a743-1072.01, a single filer who is not claimed as a dependent and has federal AGI of $12,500 or less gets $25 per resident person, capped at $100. Subsection D pays as a refund any amount above tax due. None of the Social Security is federally taxable: $6,808 of other income plus half of the benefits ($11,868) is $18,676, under the $25,000 base. Federal AGI is therefore about $6.7\u20136.8k, so this one-person unit gets $25. The engine's $25 matches this. Its AGI figure of $6,736 differs from stage 1's $6,808 only in how the $72 of non-Schedule D gains is handled, and that does not affect eligibility. The $0 consensus overlooks the credit or tests total income rather than federal AGI.",
+  "verdict": "reference_holds"
+}

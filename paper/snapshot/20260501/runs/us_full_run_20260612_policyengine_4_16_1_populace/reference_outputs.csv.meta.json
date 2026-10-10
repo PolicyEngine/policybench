@@ -11,7 +11,7 @@
       "policyengine_version": "6.1.2",
       "bundled_policyengine_version": "6.1.2",
       "model_package": "policyengine-us",
-      "model_version": "2.15.17",
+      "model_version": "2.38.6",
       "model_direct_url": null,
       "bundled_model_version": "2.2.1",
       "model_version_source": "installed package",
@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
+  "reference_csv_sha256": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -1155,7 +1155,1123 @@
           "basis": "Moves by $1 or less on policyengine-us 2.15.17; no score changes at the exact-match tolerance."
         }
       ]
+    },
+    {
+      "date": "2026-10-10",
+      "kind": "engine_upgrade",
+      "root_cause": "engine_upgrade_policyengine_us_2_38_6",
+      "outputs": "every scored output",
+      "rule": "A scored reference follows from the stated facts and from law published before the 2026-07-03 reference freeze. References come from the newest policyengine-us release when PolicyBench begins the reference sweep; at publication PolicyBench checks that the newest release gives the same values. Max, 2026-10-09, on waiting for the release that fixes the engine defects behind PolicyBench's exclusions: 'yes i want to wait for hte fixed engine'. An excluded output whose engine defect the new release fixes, landing on its audited corrected value, is regenerated and its exclusion record removed; every other excluded output keeps the value it was decided on.",
+      "engine_version": "policyengine-us 2.38.6",
+      "previous_engine_version": "policyengine-us 2.15.17",
+      "policyengine_py": "policyengine 6.1.2, provenance only: its certified US bundle is policyengine-us 2.2.1",
+      "fix_modules": [
+        {
+          "module": "latest_c_ca_hold_2025.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_ca_hold_2025.py",
+          "sha256": "f19a47b9583032a0602a31e52f995eee824a427a76e87a9d4257d6682a016fa2"
+        },
+        {
+          "module": "latest_c_irs_sales_tax_2025.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_irs_sales_tax_2025.py",
+          "sha256": "7f7fd235b29c45d1d5cceded0c3391aceb38740518dfda770e3aebcc3003228e"
+        },
+        {
+          "module": "latest_c_wi_published_2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_wi_published_2026.py",
+          "sha256": "4edf4c714c05d300e6fa32c4b56879aad8aa0de1d9ddd9a77987eefe3b06acce"
+        },
+        {
+          "module": "latest_c_id_hold_2025.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_id_hold_2025.py",
+          "sha256": "39fb99292691600cd273a1c6ef3c90847453e21e4d7b872603bcaac71727f8a5"
+        },
+        {
+          "module": "latest_c_mn_published_2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_mn_published_2026.py",
+          "sha256": "02a8ccc1fce71485fc9411d4a55f33226de4c8de09cf6375f99866b79da70522"
+        },
+        {
+          "module": "latest_c_md_2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_md_2026.py",
+          "sha256": "8111c77ffd2e43d434d083994a7e8506ba42461a0845b33ac47ce0df988c2c76"
+        },
+        {
+          "module": "latest_c_mi_published_2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_mi_published_2026.py",
+          "sha256": "787cf837422e0bdf331a8e01a6fa8e8f2e3b78c35c248a4da83f3b2dbfa9ef9e"
+        },
+        {
+          "module": "latest_c_mo_published_2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_mo_published_2026.py",
+          "sha256": "0474524c83a7eb0c8440abf06bbeee38d4394e08260464d0dacb195ed3a8d916"
+        },
+        {
+          "module": "latest_c_snap_hold_fy2026.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_c_snap_hold_fy2026.py",
+          "sha256": "3a8709ef36582af2248e460136db618fd319d490b7aeed94adbd6143ad9c07dd"
+        },
+        {
+          "module": "latest_conventions.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_conventions.py",
+          "sha256": "4155ed4a0be72c907815b33e2b3603cf0b5ea3eca351ad7509f8bd9ea5bb8ddb"
+        },
+        {
+          "module": "latest_md_local_output_scope.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py",
+          "sha256": "53a6de3cd9b149467e5d86a5bb1fcc258e859478a7c16b7d3df951c713e423dd"
+        },
+        {
+          "module": "latest_final.py",
+          "path": "reference_audit/2026-09-28/fixes/latest_final.py",
+          "sha256": "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e"
+        },
+        {
+          "module": "r19_irs_sales_tax_2025.json",
+          "path": "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json",
+          "sha256": "7cf93799aad6a8c3a6fc70e7df4acc6043202a1ecc083f2c3101f76b87a85eae"
+        }
+      ],
+      "builder": "reference_audit/2026-10-09-engine-upgrade/scripts/build_references_upgrade.py; households from policybench.scenarios.Scenario.to_pe_household through reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the 2026-09-29 upgrade",
+      "provenance": {
+        "builder_sha256": "9fd003be76a7a00ae83e5e17bc652dc7cdee3a7c351fb3efb26308d93c0ca6f5",
+        "harness": "reference_audit/2026-09-28/scripts/sweep.py",
+        "harness_sha256": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69",
+        "actions_sha256": "ef23b50ec389598a231850d0b87c3635c1306bac965e1ee08cf402d7aad9e201",
+        "release_spec_sha256": "5e7856a42548746bc37760adea1af718050429e0b9c87c4d62755c7d036dab71",
+        "base_commit": "9ce4ade8382962a9134860c23f56d92509b5e57f",
+        "policyengine_core": "3.32.29"
+      },
+      "excluded_outputs_untouched": true,
+      "kept_exclusions_from_release": [
+        {
+          "scenario_id": "scenario_051",
+          "variable": "state_income_tax_before_refundable_credits"
+        },
+        {
+          "scenario_id": "scenario_077",
+          "variable": "state_income_tax_before_refundable_credits"
+        },
+        {
+          "scenario_id": "scenario_093",
+          "variable": "federal_income_tax_before_refundable_credits"
+        },
+        {
+          "scenario_id": "scenario_093",
+          "variable": "state_income_tax_before_refundable_credits"
+        },
+        {
+          "scenario_id": "scenario_123",
+          "variable": "federal_income_tax_before_refundable_credits"
+        },
+        {
+          "scenario_id": "scenario_123",
+          "variable": "state_income_tax_before_refundable_credits"
+        }
+      ],
+      "excluded_outputs_rechecked": [
+        {
+          "scenario_id": "scenario_005",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 106505.8984375,
+          "value_on_2_38_6": 108525.578125,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $108,525.58, on the record's corrected value $108,525.58, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input).); the record keeps $106,505.90."
+        },
+        {
+          "scenario_id": "scenario_007",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 755.7783203125,
+          "value_on_2_38_6": 771.5570068359375,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $771.56, $110.24 from the record's corrected value $661.32, so the defect (r07_idaho_health_premiums) is not fixed in this release; the record keeps $755.78."
+        },
+        {
+          "scenario_id": "scenario_020",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 68056.7109375,
+          "value_on_2_38_6": 68334.734375,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $68,056.71, and policyengine-us 2.38.6 gives $68,334.73. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_023",
+          "variable": "snap",
+          "kept_value": 461.3397216796875,
+          "value_on_2_38_6": 408.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $461.34, and policyengine-us 2.38.6 gives $408.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_042",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 284.74090576171875,
+          "value_on_2_38_6": 464.18280029296875,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $464.18, $464.18 from the record's corrected value $0.00, so the defect (r06_wi_act15_before_refundable+r32_wi_capital_gain_distributions) is not fixed in this release; the record keeps $284.74. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_052",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 104211.40625,
+          "value_on_2_38_6": 104225.2578125,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $104,225.26, on the record's corrected value $104,225.26, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input).); the record keeps $104,211.41."
+        },
+        {
+          "scenario_id": "scenario_053",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 2435.2783203125,
+          "value_on_2_38_6": 2451.05712890625,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $2,451.06, $265.00 from the record's corrected value $2,186.06, so the defect (r07_idaho_health_premiums) is not fixed in this release; the record keeps $2,435.28."
+        },
+        {
+          "scenario_id": "scenario_056",
+          "variable": "snap",
+          "kept_value": 1140.0,
+          "value_on_2_38_6": 95.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on weekly_hours_worked_before_lsr and whether the listed home mortgage interest is on the home the SNAP household occupies (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $1,140.00, and policyengine-us 2.38.6 gives $95.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_057",
+          "variable": "snap",
+          "kept_value": 2669.217041015625,
+          "value_on_2_38_6": 2628.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,669.22, and policyengine-us 2.38.6 gives $2,628.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_080",
+          "variable": "snap",
+          "kept_value": 3596.039794921875,
+          "value_on_2_38_6": 3576.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $3,576.00, $336.00 from the record's corrected value $3,240.00, so the defect (r30_snap_heat_and_eat_sua) is not fixed in this release; the record keeps $3,596.04. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_081",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 8238.40625,
+          "value_on_2_38_6": 8232.900390625,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $8,232.90, on the record's corrected value $8,232.90, but the record names a second reason that a new engine does not settle (Corrected value applies ma_part_a_loss_offset with every publication convention and upstream fix. The output also moves under r23_ma_interest_source (unlisted input).); the record keeps $8,238.41."
+        },
+        {
+          "scenario_id": "scenario_091",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 843.6614990234375,
+          "value_on_2_38_6": 895.8131103515625,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $895.81, $17.30 from the record's corrected value $878.52, so the defect (r32_wi_capital_gain_distributions) is not fixed in this release; the record keeps $843.66. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "state_income_tax_before_refundable_credits",
+          "kept_value": 4493.7431640625,
+          "value_on_2_38_6": 4588.48388671875,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $4,588.48, on the record's audited corrected value, but the reference rests on a further engine defect the new engine does not fix. California does not conform to the federal above-the-line deduction for educator expenses (R&TC 17072; FTB 2025 Instructions for Schedule CA (540), Section C, line 11: 'California law does not conform to federal law regarding educator expenses'), so California AGI adds back the spouse's $337.50 educator expense; policyengine-us sets ca_agi to federal AGI ($159,729.30) without it, and the tax is about $26.90 lower than the law gives. Found by the release's Opus 5.5 judge (reference flag on the re-opened case, 2026-10-10) and confirmed against the FTB instructions; not yet fixed upstream."
+        },
+        {
+          "scenario_id": "scenario_100",
+          "variable": "snap",
+          "kept_value": 8625.8896484375,
+          "value_on_2_38_6": 8556.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $8,625.89, and policyengine-us 2.38.6 gives $8,556.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_112",
+          "variable": "snap",
+          "kept_value": 287.68316650390625,
+          "value_on_2_38_6": 0.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on weekly_hours_worked_before_lsr (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $287.68, and policyengine-us 2.38.6 gives $0.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_118",
+          "variable": "snap",
+          "kept_value": 2903.9404296875,
+          "value_on_2_38_6": 2868.0,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the reference depends on whether the listed home mortgage interest is on the home the SNAP household occupies (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,903.94, and policyengine-us 2.38.6 gives $2,868.00. The value is 2.15.17's, rechecked on 2026-09-29 (the first engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "kept_value": 40021.81640625,
+          "value_on_2_38_6": 40423.17578125,
+          "reason": "Stays excluded on policyengine-us 2.38.6: the engine gives $40,423.18, on the record's corrected value $40,423.18, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input). The output also moves under the state income tax withheld reading (unlisted input): the reference's SALT uses the Connecticut withholding estimate ($12,010.05); with the engine's own liability ($11,917.18) the 2.15.17 value is $40,438.95, and with no state income tax paid it is $43,619.93. With r02's IRA fix on 2.15.17 the value is $40,423.18 under the withholding estimate, $40,445.46 under the liability and $43,629.21 with no state income tax paid. policyengine-us 2.15.17 also leaves the household's Connecticut paid leave contributions ($827.98) out of SALT (Rev. Rul. 2025-4); with them the 2.15.17 value is $40,217.95.); the record keeps $40,021.82."
+        }
+      ],
+      "regenerated_exclusions": [
+        {
+          "scenario_id": "scenario_003",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r01_ira_compensation",
+          "decided_on": "2026-09-22",
+          "kept_value": 22154.69921875,
+          "value_on_2_38_6": 22400.654296875,
+          "audited_alternative_value": 22400.654297,
+          "target": {
+            "kind": "record",
+            "value": 22400.654297,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 22400.654296875,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $22,400.65, within $1 of the corrected value $22,400.65 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return).",
+          "record": {
+            "scenario_id": "scenario_003",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r01_ira_compensation",
+            "alternative_reading": "A filer deducts traditional IRA contributions only up to their own compensation (wages plus net self-employment earnings), or the couple's combined compensation on a joint return, and a dependent's contributions never reach the parents' return.",
+            "frozen_value": 22154.69921875,
+            "alternative_value": 22400.654297,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
+            "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_005",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g+r11_ca_itemized_conformity",
+          "decided_on": "2026-09-22",
+          "kept_value": 41051.51171875,
+          "value_on_2_38_6": 40975.25390625,
+          "audited_alternative_value": 40920.402344,
+          "target": {
+            "kind": "fix_modules",
+            "value": 40975.25390625,
+            "engine": "policyengine-us 2.37.2",
+            "engine_value": 41267.01171875,
+            "modules": [
+              {
+                "module": "r02_ira_219g_v2.py",
+                "sha256": "937514fb1199c4ca172dfc5252db7f2483adade193922e6e5283d0b6ab4c4c8c"
+              },
+              {
+                "module": "r11_ca_itemized_conformity_v2.py",
+                "sha256": "2bcb8ba6694c053f3c9a8509b96bfee4976ba00e3fb676c0c504e06c2d6c046d"
+              }
+            ],
+            "dependencies": [
+              {
+                "module": "r02_ira_219g.py",
+                "sha256": "295a0b975ced8964fc1b2c5d52c47bce177eed399f49735eafb88441e7561b84"
+              }
+            ],
+            "evidence": "reference_audit/2026-10-09-engine-upgrade/evidence/pe2.37.2.json",
+            "evidence_sha256": "4ccc7160b0d8513dedab1fb60ef57bfbd08cb495f445e7ca955141cb6c6c17a6",
+            "value_with_modules": 40975.25390625
+          },
+          "regenerated": 40975.25390625,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10034",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10034) is regenerated with the fix: policyengine-us 2.38.6 gives $40,975.25, within $1 of the corrected value $40,975.25 its fix modules (r02_ira_219g_v2.py + r11_ca_itemized_conformity_v2.py) give on policyengine-us 2.37.2, which still has the defect ($41,267.01 without them) (r02_ira_219g+r11_ca_itemized_conformity: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions).",
+          "record": {
+            "scenario_id": "scenario_005",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g+r11_ca_itemized_conformity",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing. California itemizers deduct charitable gifts without the federal 0.5%-of-AGI floor and deduct miscellaneous expenses above 2% of AGI.",
+            "frozen_value": 41051.51171875,
+            "alternative_value": 40920.402344,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); Cal. R&TC 17024.5 (conformity date), 17076",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r02_ira_219g_v2 and r11_ca_itemized_conformity_v2 together with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_008",
+          "variable": "payroll_tax",
+          "root_cause": "r05_nj_worker_ui",
+          "decided_on": "2026-09-22",
+          "kept_value": 2162.760009765625,
+          "value_on_2_38_6": 2276.659912109375,
+          "audited_alternative_value": 2276.659912,
+          "target": {
+            "kind": "record",
+            "value": 2276.659912,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 2276.659912109375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10031",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10031) is regenerated with the fix: policyengine-us 2.38.6 gives $2,276.66, within $1 of the corrected value $2,276.66 the 2026-09-22 record computed (r05_nj_worker_ui: PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax).",
+          "record": {
+            "scenario_id": "scenario_008",
+            "variable": "payroll_tax",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r05_nj_worker_ui",
+            "alternative_reading": "New Jersey workers contribute 0.3825% of wages to unemployment insurance and 0.0425% to the workforce funds, up to the 2026 wage base of $44,800, alongside the TDI and FLI contributions.",
+            "frozen_value": 2162.760009765625,
+            "alternative_value": 2276.659912,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax",
+            "law": "N.J.S.A. 43:21-7(d)(1); NJDOL 2026 contribution rates",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r05_nj_worker_ui_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_018",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "az_standard_deduction_indexing",
+          "decided_on": "2026-10-06",
+          "kept_value": 1146.05224609375,
+          "value_on_2_38_6": 1137.30224609375,
+          "audited_alternative_value": 1137.302246,
+          "target": {
+            "kind": "record",
+            "value": 1137.302246,
+            "engine": "policyengine-us 2.15.17"
+          },
+          "regenerated": 1137.30224609375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9928",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9928) is regenerated with the fix: policyengine-us 2.38.6 gives $1,137.30, within $1 of the corrected value $1,137.30 the 2026-10-06 record computed (az_standard_deduction_indexing: policyengine-us puts the Arizona standard deduction's uprating on the parent parameter node, which policyengine-core does not propagate to the filing-status children, so the 2025 amount ($15,750 single) carries into 2026 unindexed).",
+          "record": {
+            "scenario_id": "scenario_018",
+            "variable": "state_income_tax_before_refundable_credits",
+            "frozen_value": 1146.05224609375,
+            "alternative_value": 1137.302246,
+            "engine_version": "policyengine-us 2.15.17",
+            "decided_on": "2026-10-06",
+            "decided_by": "developer",
+            "decision": "d1022",
+            "law": "A.R.S. 43-1041(A)(1) and (H), as amended by Laws 2026, Ch. 140 (HB 4168, approved 2026-06-13); 26 U.S.C. 63(c)(7)(B); Rev. Proc. 2025-32 s. 4.14",
+            "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_018__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/az_018.md). Alternative value: engine counterfactual: policyengine-us 2.15.17 with latest_final and az_standard_deduction = 16,100 (verification/probes/az_standard_deduction_scenario_018.json).",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "az_standard_deduction_indexing",
+            "alternative_reading": "HB 4168 set the single standard deduction at $15,750 'subject to subsection H', and subsection H requires the department to adjust it 'in the same manner in which the federal basic standard deduction is adjusted for inflation pursuant to section 63'. The federal basic standard deduction starts from the same $15,750 and is $16,100 for 2026 (Rev. Proc. 2025-32), so Arizona's 2026 single deduction is $16,100.",
+            "defect": "policyengine-us puts the Arizona standard deduction's uprating on the parent parameter node, which policyengine-core does not propagate to the filing-status children, so the 2025 amount ($15,750 single) carries into 2026 unindexed",
+            "upstream": "PolicyEngine/policyengine-us#9928"
+          }
+        },
+        {
+          "scenario_id": "scenario_022",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r11_ca_itemized_conformity",
+          "decided_on": "2026-09-22",
+          "kept_value": 2439.650146484375,
+          "value_on_2_38_6": 1968.805419921875,
+          "audited_alternative_value": 1968.80542,
+          "target": {
+            "kind": "record",
+            "value": 1968.80542,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 1968.805419921875,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10034",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10034) is regenerated with the fix: policyengine-us 2.38.6 gives $1,968.81, within $1 of the corrected value $1,968.81 the 2026-09-22 record computed (r11_ca_itemized_conformity: PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions).",
+          "record": {
+            "scenario_id": "scenario_022",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r11_ca_itemized_conformity",
+            "alternative_reading": "California itemizers deduct charitable gifts without the federal 0.5%-of-AGI floor and deduct miscellaneous expenses above 2% of AGI.",
+            "frozen_value": 2439.650146484375,
+            "alternative_value": 1968.80542,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions",
+            "law": "Cal. R&TC 17024.5 (conformity date), 17076",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r11_ca_itemized_conformity_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_025",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "oh_medical_deduction_premiums",
+          "decided_on": "2026-10-06",
+          "kept_value": 1921.57275390625,
+          "value_on_2_38_6": 1916.606201171875,
+          "audited_alternative_value": 1916.604,
+          "target": {
+            "kind": "record",
+            "value": 1916.604,
+            "engine": "policyengine-us 2.15.17"
+          },
+          "regenerated": 1916.606201171875,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10020; related: PolicyEngine/policyengine-us#9925",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10020; related: PolicyEngine/policyengine-us#9925) is regenerated with the fix: policyengine-us 2.38.6 gives $1,916.61, within $1 of the corrected value $1,916.60 the 2026-10-06 record computed (oh_medical_deduction_premiums: policyengine-us counts health insurance premiums toward Ohio's 7.5%-of-federal-AGI medical deduction only when the person is Medicare-eligible AND has no employer-paid plan, where Ohio's worksheet line 3 reads 'Medicare or an employer-paid health care plan', so a non-Medicare filer with employer coverage gets no premium credit).",
+          "record": {
+            "scenario_id": "scenario_025",
+            "variable": "state_income_tax_before_refundable_credits",
+            "frozen_value": 1921.57275390625,
+            "alternative_value": 1916.604,
+            "engine_version": "policyengine-us 2.15.17",
+            "decided_on": "2026-10-06",
+            "decided_by": "developer",
+            "decision": "d1022",
+            "law": "R.C. 5747.01(A)(10)(b)-(c) (effective 2026-03-05); 26 U.S.C. 213(d)(1)(D); Ohio IT 1040 instructions, unreimbursed medical and health care expense worksheet line 3",
+            "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_025__state_income_tax_before_refundable_credits) and verified independently on 2026-10-06 (verification/independent/oh_025.md). Alternative value: hand computation from the engine's Ohio AGI, exemptions, rate schedule and retirement income credit (verification/independent/oh_025.md section 4).",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "oh_medical_deduction_premiums",
+            "alternative_reading": "R.C. 5747.01(A)(10)(b) deducts unreimbursed medical care above 7.5% of federal AGI, and (A)(10)(c) defines medical care by IRC 213(d), which includes insurance premiums. The head's $6,500 of after-tax non-employer premiums plus $800 of other medical expenses ($7,300) exceed 7.5% of federal AGI ($7,119.40) by $180.60.",
+            "defect": "policyengine-us counts health insurance premiums toward Ohio's 7.5%-of-federal-AGI medical deduction only when the person is Medicare-eligible AND has no employer-paid plan, where Ohio's worksheet line 3 reads 'Medicare or an employer-paid health care plan', so a non-Medicare filer with employer coverage gets no premium credit",
+            "upstream": "PolicyEngine/policyengine-us#10020; related: PolicyEngine/policyengine-us#9925"
+          }
+        },
+        {
+          "scenario_id": "scenario_039",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r03_estate_income",
+          "decided_on": "2026-09-22",
+          "kept_value": 1345.510498046875,
+          "value_on_2_38_6": 8596.0283203125,
+          "audited_alternative_value": 8596.02832,
+          "target": {
+            "kind": "record",
+            "value": 8596.02832,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 8596.0283203125,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10027",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $8,596.03, within $1 of the corrected value $8,596.03 the 2026-09-22 record computed (r03_estate_income: PolicyEngine leaves estate income out of gross income while counting it as qualified business income).",
+          "record": {
+            "scenario_id": "scenario_039",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r03_estate_income",
+            "alternative_reading": "Income from an interest in an estate is gross income to the beneficiary; the corrected value adds it to AGI and treats it as non-qualified business income, as the prompt's rule that unlisted flags are false implies.",
+            "frozen_value": 1345.510498046875,
+            "alternative_value": 8596.02832,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
+            "law": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
+            "upstream": "related: PolicyEngine/policyengine-us#9304",
+            "note": "Corrected value applies r03_estate_income__qbi_false_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_039",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r03_estate_income",
+          "decided_on": "2026-09-22",
+          "kept_value": 514.4984130859375,
+          "value_on_2_38_6": 1975.7982177734375,
+          "audited_alternative_value": 1975.798218,
+          "target": {
+            "kind": "record",
+            "value": 1975.798218,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 1975.7982177734375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9633",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9633) is regenerated with the fix: policyengine-us 2.38.6 gives $1,975.80, within $1 of the corrected value $1,975.80 the 2026-09-22 record computed (r03_estate_income: PolicyEngine leaves estate income out of gross income while counting it as qualified business income).",
+          "record": {
+            "scenario_id": "scenario_039",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r03_estate_income",
+            "alternative_reading": "Income from an interest in an estate is gross income to the beneficiary; the corrected value adds it to AGI and treats it as non-qualified business income, as the prompt's rule that unlisted flags are false implies.",
+            "frozen_value": 514.4984130859375,
+            "alternative_value": 1975.798218,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
+            "law": "26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
+            "upstream": "related: PolicyEngine/policyengine-us#9304",
+            "note": "Corrected value applies r03_estate_income__qbi_false_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_043",
+          "variable": "state_refundable_credits",
+          "root_cause": "co_sales_tax_refund_surplus",
+          "decided_on": "2026-10-06",
+          "kept_value": 19.0,
+          "value_on_2_38_6": 0.0,
+          "audited_alternative_value": 0.0,
+          "target": {
+            "kind": "record",
+            "value": 0.0,
+            "engine": "policyengine-us 2.15.17"
+          },
+          "regenerated": 0.0,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9946",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9946) is regenerated with the fix: policyengine-us 2.38.6 gives $0.00, within $1 of the corrected value $0.00 the 2026-10-06 record computed (co_sales_tax_refund_surplus: policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026).",
+          "record": {
+            "scenario_id": "scenario_043",
+            "variable": "state_refundable_credits",
+            "frozen_value": 19.0,
+            "alternative_value": 0.0,
+            "engine_version": "policyengine-us 2.15.17",
+            "decided_on": "2026-10-06",
+            "decided_by": "developer",
+            "decision": "d1022",
+            "law": "C.R.S. 39-22-2003(2), 39-22-2002(2)(a), 39-3-209; Colorado Legislative Council Staff forecasts of December 2025, March 2026 and June 2026 (tax year 2026 refund table $0 in every tier); OSPB forecast of 2026-06-18",
+            "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_043__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/co_043.md). Alternative value: law: no tax year 2026 sales tax refund; the household has no other Colorado refundable credit (verification/independent/co_043.md section 5).",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "co_sales_tax_refund_surplus",
+            "alternative_reading": "C.R.S. 39-22-2003(2) allows the refund for a tax year only 'if there were excess state revenues for the fiscal year ending in that tax year'. Each Legislative Council Staff forecast before the freeze (December 2025, March and June 2026) published a tax year 2026 refund table of $0 in every tier, OSPB's June 2026 outlook put FY 2025-26 $15.3 million below the cap and anticipated no refunds, and no pre-freeze official source described a tax year 2026 six-tier refund; the State Controller certified a $175.9 million shortfall on 2026-09-08.",
+            "defect": "policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026",
+            "upstream": "PolicyEngine/policyengine-us#9946"
+          }
+        },
+        {
+          "scenario_id": "scenario_049",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g",
+          "decided_on": "2026-09-22",
+          "kept_value": 30543.908203125,
+          "value_on_2_38_6": 30702.58984375,
+          "audited_alternative_value": 30702.589844,
+          "target": {
+            "kind": "record",
+            "value": 30702.589844,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 30702.58984375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $30,702.59, within $1 of the corrected value $30,702.59 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out).",
+          "record": {
+            "scenario_id": "scenario_049",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing.",
+            "frozen_value": 30543.908203125,
+            "alternative_value": 30702.589844,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_064",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r01_ira_compensation",
+          "decided_on": "2026-09-22",
+          "kept_value": 4439.28955078125,
+          "value_on_2_38_6": 4441.455078125,
+          "audited_alternative_value": 4441.455078,
+          "target": {
+            "kind": "record",
+            "value": 4441.455078,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 4441.455078125,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9801",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9801) is regenerated with the fix: policyengine-us 2.38.6 gives $4,441.46, within $1 of the corrected value $4,441.46 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return).",
+          "record": {
+            "scenario_id": "scenario_064",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r01_ira_compensation",
+            "alternative_reading": "A filer deducts traditional IRA contributions only up to their own compensation (wages plus net self-employment earnings), or the couple's combined compensation on a joint return, and a dependent's contributions never reach the parents' return.",
+            "frozen_value": 4439.28955078125,
+            "alternative_value": 4441.455078,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
+            "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_064",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r01_ira_compensation",
+          "decided_on": "2026-09-22",
+          "kept_value": 4605.9970703125,
+          "value_on_2_38_6": 4599.62158203125,
+          "audited_alternative_value": 4599.621582,
+          "target": {
+            "kind": "record",
+            "value": 4599.621582,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 4599.62158203125,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9801",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9801) is regenerated with the fix: policyengine-us 2.38.6 gives $4,599.62, within $1 of the corrected value $4,599.62 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return).",
+          "record": {
+            "scenario_id": "scenario_064",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r01_ira_compensation",
+            "alternative_reading": "A filer deducts traditional IRA contributions only up to their own compensation (wages plus net self-employment earnings), or the couple's combined compensation on a joint return, and a dependent's contributions never reach the parents' return.",
+            "frozen_value": 4605.9970703125,
+            "alternative_value": 4599.621582,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return",
+            "law": "26 U.S.C. 219(a), 219(b)(1)(B), 219(c), 219(f)(1); IRS Notice 2025-67",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r01_ira_compensation_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g",
+          "decided_on": "2026-09-22",
+          "kept_value": 9563.052734375,
+          "value_on_2_38_6": 9579.767578125,
+          "audited_alternative_value": 9564.916992,
+          "target": {
+            "kind": "fix_modules",
+            "value": 9579.767578125,
+            "engine": "policyengine-us 2.37.2",
+            "engine_value": 9577.90234375,
+            "modules": [
+              {
+                "module": "r02_ira_219g_v2.py",
+                "sha256": "937514fb1199c4ca172dfc5252db7f2483adade193922e6e5283d0b6ab4c4c8c"
+              }
+            ],
+            "dependencies": [
+              {
+                "module": "r02_ira_219g.py",
+                "sha256": "295a0b975ced8964fc1b2c5d52c47bce177eed399f49735eafb88441e7561b84"
+              }
+            ],
+            "evidence": "reference_audit/2026-10-09-engine-upgrade/evidence/pe2.37.2.json",
+            "evidence_sha256": "4ccc7160b0d8513dedab1fb60ef57bfbd08cb495f445e7ca955141cb6c6c17a6",
+            "value_with_modules": 9579.767578125
+          },
+          "regenerated": 9579.767578125,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $9,579.77, within $1 of the corrected value $9,579.77 its fix modules (r02_ira_219g_v2.py) give on policyengine-us 2.37.2, which still has the defect ($9,577.90 without them) (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out).",
+          "record": {
+            "scenario_id": "scenario_082",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing.",
+            "frozen_value": 9563.052734375,
+            "alternative_value": 9564.916992,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_refundable_credits",
+          "root_cause": "ny_cdcc_606_c2",
+          "decided_on": "2026-10-06",
+          "kept_value": 667.0,
+          "value_on_2_38_6": 1187.5478515625,
+          "audited_alternative_value": 1187.611,
+          "target": {
+            "kind": "record",
+            "value": 1187.611,
+            "engine": "policyengine-us 2.15.17"
+          },
+          "regenerated": 1187.5478515625,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#9948",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9948) is regenerated with the fix: policyengine-us 2.38.6 gives $1,187.55, within $1 of the corrected value $1,187.61 the 2026-10-06 record computed (ny_cdcc_606_c2: policyengine-us computes New York's 2026 child and dependent care credit with the pre-2026 formula (a percentage of the federal credit), which L.2026 ch. 59 limited to tax years beginning before 2026 and replaced with the refundable 606(c-2) credit on qualifying expenses).",
+          "record": {
+            "scenario_id": "scenario_082",
+            "variable": "state_refundable_credits",
+            "frozen_value": 667.0,
+            "alternative_value": 1187.611,
+            "engine_version": "policyengine-us 2.15.17",
+            "decided_on": "2026-10-06",
+            "decided_by": "developer",
+            "decision": "d1022",
+            "law": "N.Y. Tax Law 606(c)(1) and 606(c-2), as amended and added by L.2026, ch. 59, Part A (S.9009-C/A.10009-C, signed 2026-05-28)",
+            "note": "Found 2026-10-05 by the reference adversary (runs/claude/cases/us__scenario_082__state_refundable_credits) and verified independently on 2026-10-06 (verification/independent/ny_082.md). Alternative value: hand computation from the engine's New York AGI and Empire State child credit (verification/independent/ny_082.md section 3).",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "ny_cdcc_606_c2",
+            "alternative_reading": "Tax Law 606(c-2) gives, for tax years beginning on or after 2026-01-01, a refundable credit of the applicable percentage (55%, less 0.00025 percentage points per dollar of New York AGI above $15,000, floor 4%) of qualifying expenses up to $3,000 for one child. At New York AGI of $117,585.15 that is 29.3537% of $3,000 = $880.61, plus the $307 Empire State child credit.",
+            "defect": "policyengine-us computes New York's 2026 child and dependent care credit with the pre-2026 formula (a percentage of the federal credit), which L.2026 ch. 59 limited to tax years beginning before 2026 and replaced with the refundable 606(c-2) credit on qualifying expenses",
+            "upstream": "PolicyEngine/policyengine-us#9948"
+          }
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g",
+          "decided_on": "2026-09-22",
+          "kept_value": 10679.75,
+          "value_on_2_38_6": 10711.484375,
+          "audited_alternative_value": 10711.484375,
+          "target": {
+            "kind": "record",
+            "value": 10711.484375,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 10711.484375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $10,711.48, within $1 of the corrected value $10,711.48 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out).",
+          "record": {
+            "scenario_id": "scenario_099",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing.",
+            "frozen_value": 10679.75,
+            "alternative_value": 10711.484375,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g+r03_estate_income",
+          "decided_on": "2026-09-22",
+          "kept_value": 23897.443359375,
+          "value_on_2_38_6": 25747.7734375,
+          "audited_alternative_value": 25747.773438,
+          "target": {
+            "kind": "record",
+            "value": 25747.773438,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 25747.7734375,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $25,747.77, within $1 of the corrected value $25,747.77 the 2026-09-22 record computed (r02_ira_219g+r03_estate_income: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income).",
+          "record": {
+            "scenario_id": "scenario_110",
+            "variable": "federal_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g+r03_estate_income",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing. Income from an interest in an estate is gross income to the beneficiary; the corrected value adds it to AGI and treats it as non-qualified business income, as the prompt's rule that unlisted flags are false implies.",
+            "frozen_value": 23897.443359375,
+            "alternative_value": 25747.773438,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
+            "upstream": "related: PolicyEngine/policyengine-us#9304",
+            "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g+r03_estate_income",
+          "decided_on": "2026-09-22",
+          "kept_value": 4057.47216796875,
+          "value_on_2_38_6": 4236.8076171875,
+          "audited_alternative_value": 4236.807617,
+          "target": {
+            "kind": "record",
+            "value": 4236.807617,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 4236.8076171875,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $4,236.81, within $1 of the corrected value $4,236.81 the 2026-09-22 record computed (r02_ira_219g+r03_estate_income: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income).",
+          "record": {
+            "scenario_id": "scenario_110",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g+r03_estate_income",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing. Income from an interest in an estate is gross income to the beneficiary; the corrected value adds it to AGI and treats it as non-qualified business income, as the prompt's rule that unlisted flags are false implies.",
+            "frozen_value": 4057.47216796875,
+            "alternative_value": 4236.807617,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges); 26 U.S.C. 61(a)(14), 662(a), 199A(c)(3)(A)(ii)",
+            "upstream": "related: PolicyEngine/policyengine-us#9304",
+            "note": "Corrected value applies r02_ira_219g_v2 and r03_estate_income__qbi_false_v2 together with every publication convention and upstream fix."
+          }
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "state_income_tax_before_refundable_credits",
+          "root_cause": "r02_ira_219g",
+          "decided_on": "2026-09-22",
+          "kept_value": 11917.18359375,
+          "value_on_2_38_6": 11919.0576171875,
+          "audited_alternative_value": 11919.057617,
+          "target": {
+            "kind": "record",
+            "value": 11919.057617,
+            "engine": "policyengine-us 1.755.4"
+          },
+          "regenerated": 11919.0576171875,
+          "tolerance": 1.0,
+          "upstream": "PolicyEngine/policyengine-us#10032",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $11,919.06, within $1 of the corrected value $11,919.06 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out).",
+          "record": {
+            "scenario_id": "scenario_120",
+            "variable": "state_income_tax_before_refundable_credits",
+            "reason_code": "reference_engine_defect",
+            "root_cause": "r02_ira_219g",
+            "alternative_reading": "A filer who defers wages into a 401(k) or 403(b) is an active participant, and above the 2026 phase-out range ($81,000 to $91,000 single or head of household, $129,000 to $149,000 joint) deducts nothing.",
+            "frozen_value": 11917.18359375,
+            "alternative_value": 11919.057617,
+            "engine_version": "policyengine-us 1.755.4",
+            "decided_on": "2026-09-22",
+            "decided_by": "developer",
+            "defect": "PolicyEngine deducts traditional IRA contributions without the active-participant phase-out",
+            "law": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
+            "upstream": "to be filed",
+            "note": "Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix."
+          }
+        }
+      ],
+      "new_exclusions": [
+        {
+          "scenario_id": "scenario_015",
+          "variable": "local_income_tax",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "frozen_value": 670.5501098632812,
+          "alternative_value": 0.0,
+          "decided_on": "2026-10-10"
+        },
+        {
+          "scenario_id": "scenario_067",
+          "variable": "local_income_tax",
+          "reason_code": "reference_depends_on_unlisted_input",
+          "frozen_value": 1348.83203125,
+          "alternative_value": 0.0,
+          "decided_on": "2026-10-10"
+        }
+      ],
+      "changed": [
+        {
+          "scenario_id": "scenario_003",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 22154.69921875,
+          "previous": 22154.69921875,
+          "regenerated": 22400.654296875,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $22,400.65, within $1 of the corrected value $22,400.65 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return)."
+        },
+        {
+          "scenario_id": "scenario_005",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 41051.51171875,
+          "previous": 41051.51171875,
+          "regenerated": 40975.25390625,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10034) is regenerated with the fix: policyengine-us 2.38.6 gives $40,975.25, within $1 of the corrected value $40,975.25 its fix modules (r02_ira_219g_v2.py + r11_ca_itemized_conformity_v2.py) give on policyengine-us 2.37.2, which still has the defect ($41,267.01 without them) (r02_ira_219g+r11_ca_itemized_conformity: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions)."
+        },
+        {
+          "scenario_id": "scenario_008",
+          "variable": "payroll_tax",
+          "frozen": 2162.760009765625,
+          "previous": 2162.760009765625,
+          "regenerated": 2276.659912109375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10031) is regenerated with the fix: policyengine-us 2.38.6 gives $2,276.66, within $1 of the corrected value $2,276.66 the 2026-09-22 record computed (r05_nj_worker_ui: PolicyEngine leaves the New Jersey worker unemployment and workforce contributions out of employee payroll tax)."
+        },
+        {
+          "scenario_id": "scenario_015",
+          "variable": "local_income_tax",
+          "frozen": 0.0,
+          "previous": 0.0,
+          "regenerated": 670.5501098632812,
+          "cause": "excluded_reference_depends_on_unlisted_input",
+          "basis": "Newly excluded from scoring on 2026-10-10 (reference_exclusions.json): county of residence (Indiana county income tax)"
+        },
+        {
+          "scenario_id": "scenario_018",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 1146.05224609375,
+          "previous": 1146.05224609375,
+          "regenerated": 1137.30224609375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9928) is regenerated with the fix: policyengine-us 2.38.6 gives $1,137.30, within $1 of the corrected value $1,137.30 the 2026-10-06 record computed (az_standard_deduction_indexing: policyengine-us puts the Arizona standard deduction's uprating on the parent parameter node, which policyengine-core does not propagate to the filing-status children, so the 2025 amount ($15,750 single) carries into 2026 unindexed)."
+        },
+        {
+          "scenario_id": "scenario_022",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 2439.650146484375,
+          "previous": 2439.650146484375,
+          "regenerated": 1968.805419921875,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10034) is regenerated with the fix: policyengine-us 2.38.6 gives $1,968.81, within $1 of the corrected value $1,968.81 the 2026-09-22 record computed (r11_ca_itemized_conformity: PolicyEngine applies the federal charitable deduction floor and the suspension of miscellaneous deductions to California itemized deductions)."
+        },
+        {
+          "scenario_id": "scenario_025",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 1921.57275390625,
+          "previous": 1921.57275390625,
+          "regenerated": 1916.606201171875,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10020; related: PolicyEngine/policyengine-us#9925) is regenerated with the fix: policyengine-us 2.38.6 gives $1,916.61, within $1 of the corrected value $1,916.60 the 2026-10-06 record computed (oh_medical_deduction_premiums: policyengine-us counts health insurance premiums toward Ohio's 7.5%-of-federal-AGI medical deduction only when the person is Medicare-eligible AND has no employer-paid plan, where Ohio's worksheet line 3 reads 'Medicare or an employer-paid health care plan', so a non-Medicare filer with employer coverage gets no premium credit)."
+        },
+        {
+          "scenario_id": "scenario_039",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 1345.510498046875,
+          "previous": 1345.510498046875,
+          "regenerated": 8596.0283203125,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $8,596.03, within $1 of the corrected value $8,596.03 the 2026-09-22 record computed (r03_estate_income: PolicyEngine leaves estate income out of gross income while counting it as qualified business income)."
+        },
+        {
+          "scenario_id": "scenario_039",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 514.4984130859375,
+          "previous": 514.4984130859375,
+          "regenerated": 1975.7982177734375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9633) is regenerated with the fix: policyengine-us 2.38.6 gives $1,975.80, within $1 of the corrected value $1,975.80 the 2026-09-22 record computed (r03_estate_income: PolicyEngine leaves estate income out of gross income while counting it as qualified business income)."
+        },
+        {
+          "scenario_id": "scenario_043",
+          "variable": "state_refundable_credits",
+          "frozen": 19.0,
+          "previous": 19.0,
+          "regenerated": 0.0,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9946) is regenerated with the fix: policyengine-us 2.38.6 gives $0.00, within $1 of the corrected value $0.00 the 2026-10-06 record computed (co_sales_tax_refund_surplus: policyengine-us pays Colorado's six-tier state sales tax refund without the statute's condition that the fiscal year ending in the tax year had excess state revenues, carrying the tax year 2025 table into 2026)."
+        },
+        {
+          "scenario_id": "scenario_049",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 30543.908203125,
+          "previous": 30543.908203125,
+          "regenerated": 30702.58984375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $30,702.59, within $1 of the corrected value $30,702.59 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out)."
+        },
+        {
+          "scenario_id": "scenario_064",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 4439.28955078125,
+          "previous": 4439.28955078125,
+          "regenerated": 4441.455078125,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9801) is regenerated with the fix: policyengine-us 2.38.6 gives $4,441.46, within $1 of the corrected value $4,441.46 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return)."
+        },
+        {
+          "scenario_id": "scenario_064",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 4605.9970703125,
+          "previous": 4605.9970703125,
+          "regenerated": 4599.62158203125,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9801) is regenerated with the fix: policyengine-us 2.38.6 gives $4,599.62, within $1 of the corrected value $4,599.62 the 2026-09-22 record computed (r01_ira_compensation: PolicyEngine deducts traditional IRA contributions above the compensation limit and counts a dependent's contributions on the filers' return)."
+        },
+        {
+          "scenario_id": "scenario_067",
+          "variable": "local_income_tax",
+          "frozen": 0.0,
+          "previous": 0.0,
+          "regenerated": 1348.83203125,
+          "cause": "excluded_reference_depends_on_unlisted_input",
+          "basis": "Newly excluded from scoring on 2026-10-10 (reference_exclusions.json): county of residence (Indiana county income tax)"
+        },
+        {
+          "scenario_id": "scenario_076",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 6806.78662109375,
+          "previous": 6818.34423828125,
+          "regenerated": 6828.34423828125,
+          "cause": "id_permanent_building_fund_tax",
+          "basis": "Idaho's $10 permanent building fund tax counts in state income tax: on policyengine-us 2.38.6, state_income_tax_before_refundable_credits adds id_pbf ($10 for a filer liable for it, id_pbf_liable; Idaho Form 40 instructions) to Idaho income tax before refundable credits, since policyengine-us 2.30.0 (PolicyEngine/policyengine-us#9810)."
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 9563.052734375,
+          "previous": 9563.052734375,
+          "regenerated": 9579.767578125,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $9,579.77, within $1 of the corrected value $9,579.77 its fix modules (r02_ira_219g_v2.py) give on policyengine-us 2.37.2, which still has the defect ($9,577.90 without them) (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out)."
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_refundable_credits",
+          "frozen": 650.5,
+          "previous": 667.0,
+          "regenerated": 1187.5478515625,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#9948) is regenerated with the fix: policyengine-us 2.38.6 gives $1,187.55, within $1 of the corrected value $1,187.61 the 2026-10-06 record computed (ny_cdcc_606_c2: policyengine-us computes New York's 2026 child and dependent care credit with the pre-2026 formula (a percentage of the federal credit), which L.2026 ch. 59 limited to tax years beginning before 2026 and replaced with the refundable 606(c-2) credit on qualifying expenses)."
+        },
+        {
+          "scenario_id": "scenario_099",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 10679.75,
+          "previous": 10679.75,
+          "regenerated": 10711.484375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $10,711.48, within $1 of the corrected value $10,711.48 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out)."
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 23897.443359375,
+          "previous": 23897.443359375,
+          "regenerated": 25747.7734375,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $25,747.77, within $1 of the corrected value $25,747.77 the 2026-09-22 record computed (r02_ira_219g+r03_estate_income: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income)."
+        },
+        {
+          "scenario_id": "scenario_110",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 4057.47216796875,
+          "previous": 4057.47216796875,
+          "regenerated": 4236.8076171875,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032; PolicyEngine/policyengine-us#10027) is regenerated with the fix: policyengine-us 2.38.6 gives $4,236.81, within $1 of the corrected value $4,236.81 the 2026-09-22 record computed (r02_ira_219g+r03_estate_income: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out; PolicyEngine leaves estate income out of gross income while counting it as qualified business income)."
+        },
+        {
+          "scenario_id": "scenario_120",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 11917.18359375,
+          "previous": 11917.18359375,
+          "regenerated": 11919.0576171875,
+          "cause": "regenerated_upstream_fix",
+          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10032) is regenerated with the fix: policyengine-us 2.38.6 gives $11,919.06, within $1 of the corrected value $11,919.06 the 2026-09-22 record computed (r02_ira_219g: PolicyEngine deducts traditional IRA contributions without the active-participant phase-out)."
+        },
+        {
+          "scenario_id": "scenario_082",
+          "variable": "state_income_tax_before_refundable_credits",
+          "frozen": 5598.55224609375,
+          "previous": 5598.55224609375,
+          "regenerated": 5599.1435546875,
+          "cause": "engine_upgrade_within_1",
+          "basis": "Moves by $1 or less on policyengine-us 2.38.6; no score changes at the exact-match tolerance."
+        },
+        {
+          "scenario_id": "scenario_085",
+          "variable": "federal_income_tax_before_refundable_credits",
+          "frozen": 2322.760009765625,
+          "previous": 2322.760009765625,
+          "regenerated": 2322.8486328125,
+          "cause": "engine_upgrade_within_1",
+          "basis": "Moves by $1 or less on policyengine-us 2.38.6; no score changes at the exact-match tolerance."
+        }
+      ]
     }
   ],
-  "regenerated_at_utc": "2026-09-29T15:04:45.724738+00:00"
+  "regenerated_at_utc": "2026-10-10T06:39:57.084656+00:00"
 }

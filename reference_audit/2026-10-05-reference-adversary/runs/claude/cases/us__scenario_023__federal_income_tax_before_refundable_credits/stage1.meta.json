@@ -1,0 +1,61 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.7160681999999997,
+  "duration_ms": 180510,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:32:20.838747+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "006420f456982bc5f00c4525769ddb63d37fce0196cf5b15196738fce5640d47",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "c0583160981f2a20a710a42fc5d72401a739146e9c48cc7633791a349f6c873a",
+  "session_id": "631551d4-7ae9-4dd2-a63e-0cf74c166fce",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/uscode/text/26/25B",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/irb/2025-45_IRB",
+      "https://www.law.cornell.edu/uscode/text/26/25A",
+      "https://www.law.cornell.edu/uscode/text/26/22",
+      "https://www.law.cornell.edu/uscode/text/26/72",
+      "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
+      "https://www.irs.gov/instructions/i8880",
+      "https://www.irs.gov/forms-pubs/about-form-8880",
+      "https://www.irs.gov/publications/p590a"
+    ],
+    "searches": [
+      "Rev. Proc. 2025-32 2026 standard deduction $16,100 single tax rate table irs.gov",
+      "IRS releases tax inflation adjustments for tax year 2026 including amendments from One Big Beautiful Bill standard deduction $16,100",
+      "Notice 2025-67 2026 IRA deduction phase-out active participant single $81,000 $91,000 saver's credit AGI limit"
+    ]
+  }
+}

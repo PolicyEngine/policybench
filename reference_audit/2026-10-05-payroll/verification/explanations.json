@@ -1,0 +1,3462 @@
+{
+ "date": "2026-10-05",
+ "method": "Claude Code workflow wf_cecd10dd-abe: four reviewers, each classifying every model explanation on a group of payroll outputs into one category with a quote of at most 30 words.",
+ "outputs": [
+  {
+   "scenario_id": "scenario_005",
+   "counts": {
+    "included_state_component": 31,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 2,
+    "excluded_silently": 8,
+    "other_or_unparsed": 5
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 33296.55,
+     "category": "included_state_component",
+     "quote": "CA SDI (employee-paid, no wage cap since 2024) at 1.2% on $430,000 = $2,898.35... actual: 1.2% * 430,000 = $5,160?"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 30454,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 41859.6,
+     "category": "included_state_component",
+     "quote": "CA SDI = $1,531.64 + $1,531.64 = $3,063.28; CA ETT = 0.08% on first $7,000 = $5.60 \u00d7 2 = $11.20."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 35446.6,
+     "category": "included_state_component",
+     "quote": "CA SDI (1.2% in 2026, no wage cap) on head: 180000*0.012 = $2,160; spouse: 250000*0.012 = $3,000."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 28586.6,
+     "category": "other_or_unparsed",
+     "quote": "this exceeds my value, so final: SS+Medicare+AddlMedicare only without SDI uncertainty = 30454."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 30437,
+     "category": "other_or_unparsed",
+     "quote": "Plus CA SDI 1.2% on wages... included in mandatory state payroll tax portion already reflected; total \u2248 $30,437."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 36044,
+     "category": "included_state_component",
+     "quote": "CA SDI: $5,590 (1.3% \u00d7 $430,000, uncapped)."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 34851.4,
+     "category": "included_state_component",
+     "quote": "(4) CA mandatory employee payroll taxes: CA State Disability Insurance (SDI) \u2014 2026 rate is 1.2% (no wage cap as of 2024+ reform)."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 27306,
+     "category": "other_or_unparsed",
+     "quote": "CA has no mandatory employee payroll tax like SDI in this model... Total payroll tax = 29,691.40+4,730=34,421.40. Rechecking final consolidated estimate: value = 27306."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 36044,
+     "category": "included_state_component",
+     "quote": "CA SDI at an assumed 1.3% of $430k is $5,590."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 19108,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 34342,
+     "category": "included_state_component",
+     "quote": "+ CA SDI ($4,080) = $34,342."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 33962.54,
+     "category": "included_state_component",
+     "quote": "California SDI $3,675.94 (2 x 1.2% of $153,164)"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 35595.4,
+     "category": "included_state_component",
+     "quote": "and California SDI 5,160 (1.2% on all wages)."
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 33827,
+     "category": "included_state_component",
+     "quote": "and California SDI tax of $4,730 (1.1% of total wages)."
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 31398,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 34258,
+     "category": "included_state_component",
+     "quote": "Additional Medicare Tax, and CA SDI on total wage bases after ESI deductions."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 33700,
+     "category": "included_state_component",
+     "quote": "and CA State Disability Insurance (SDI) at 1.1% on all wages."
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 26588,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 34091.05,
+     "category": "included_state_component",
+     "quote": "CA State Disability Insurance ($1,904.22 for Head, $2,678.72 for Spouse at 1.1% uncapped)"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 33814,
+     "category": "included_state_component",
+     "quote": "and California State Disability Insurance (SDI)."
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 29691.4,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 34274.42,
+     "category": "included_state_component",
+     "quote": "CA SDI (1.2%, cap $165,384 per worker): Head $1,984.61 + Spouse $1,984.61 = $3,969.22."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 30454,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "California has no mandatory employee state payroll tax, total $30,454"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 22295.1,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 13905,
+     "category": "included_state_component",
+     "quote": "plus employee Additional Medicare Tax where applicable and CA state employee payroll taxes; employer payroll taxes excluded."
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 35558.2,
+     "category": "included_state_component",
+     "quote": "and CA SDI of $5,160 at 1.2% of wages."
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 36667,
+     "category": "included_state_component",
+     "quote": "and approximately 1.3% California SDI on wages."
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 35614,
+     "category": "included_state_component",
+     "quote": "and California SDI withholding."
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 35614,
+     "category": "included_state_component",
+     "quote": "and estimated California employee SDI."
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 35128.91,
+     "category": "included_state_component",
+     "quote": "and California SDI at 1.3% is $5,416.20"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 35614,
+     "category": "included_state_component",
+     "quote": "and California employee SDI of $5,160."
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 36044,
+     "category": "included_state_component",
+     "quote": "California SDI at 1.3% of 430000 in wages is 5590"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 35128.91,
+     "category": "included_state_component",
+     "quote": "and California SDI at 1.3%"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 34515,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 34525,
+     "category": "included_state_component",
+     "quote": "+ CA SDI 4226 (1.2% capped)"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 34704,
+     "category": "included_state_component",
+     "quote": "and CA SDI is 1.2% up to the SDI wage limit"
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 36044,
+     "category": "included_state_component",
+     "quote": "California SDI at 1.3% with no wage cap is $5,590."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 31456,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.1% on 83067 base per person = 1827."
+    },
+    {
+     "model": "inkling",
+     "prediction": 32773,
+     "category": "included_state_component",
+     "quote": "plus CA SDI (~1.2% on capped wages)."
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 35614,
+     "category": "included_state_component",
+     "quote": "employee CA SDI at 1.2% with no wage cap is $5,160."
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "fully offset by deductions/exemptions in the tax calculation, yielding zero net employee-side payroll tax in this estimate."
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 31084,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No mandatory CA employee payroll tax modeled."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 33061,
+     "category": "included_state_component",
+     "quote": "CA SDI: 1.1% on wage base $153,164 (projected 2026; using approximate) for each earner."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 25474,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_008",
+   "counts": {
+    "included_state_component": 23,
+    "excluded_as_optional_or_employer_paid": 1,
+    "excluded_as_no_state_payroll_tax": 4,
+    "excluded_silently": 11,
+    "other_or_unparsed": 7
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 2178.85,
+     "category": "included_state_component",
+     "quote": "NJ mandatory employee payroll taxes on wages: unemployment insurance 0.3825% ($102.51) + family leave insurance ~0.09% ($24.12)"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 2052.12,
+     "category": "included_state_component",
+     "quote": "NJ payroll tax approximately $2.12 minimum assessment, total value = $2052.12"
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 2050.2,
+     "category": "other_or_unparsed",
+     "quote": "FLI ~0.33% but uncertain; UI ~0.3825%. Using just federal FICA: 1661.60+388.60 = 2050.20."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 2050.2,
+     "category": "other_or_unparsed",
+     "quote": "NJ mandatory employee payroll taxes (UI/SDI/FLI) are not modeled here, so 0."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 2050,
+     "category": "other_or_unparsed",
+     "quote": "(NJ employee UI/TDI/FLI not included in this measure)"
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 2050.2,
+     "category": "excluded_as_optional_or_employer_paid",
+     "quote": "NJ SDI/TDI is employer-paid; NJ FLI employee contribution is a separate deduction but is not a 'payroll tax' in the traditional sense"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 2050.2,
+     "category": "other_or_unparsed",
+     "quote": "0 (NJ employee tax not separately itemized due to cap uncertainty) = 2,050.20."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 2050.2,
+     "category": "other_or_unparsed",
+     "quote": "NJ employee payroll taxes are not modeled."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 2050,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 2101.12,
+     "category": "included_state_component",
+     "quote": "NJ TDI (0.10% = $26.80) + NJ FLI (0.09% = $24.12)"
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 2204.3,
+     "category": "included_state_component",
+     "quote": "NJ employee state payroll taxes $154.10"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 2188,
+     "category": "included_state_component",
+     "quote": "approximately 0.515% for New Jersey's mandatory SUI and FLI taxes ($138.02)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 2050,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 2188,
+     "category": "included_state_component",
+     "quote": "plus applicable New Jersey state payroll taxes (SUI/FLI/TDI) of roughly $138."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 2174,
+     "category": "included_state_component",
+     "quote": "plus estimated New Jersey employee state payroll taxes (UI/FLI) of $123.80."
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 2188.22,
+     "category": "included_state_component",
+     "quote": "plus NJ mandatory employee SUI/FLI taxes of $138.02"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 2189.52,
+     "category": "included_state_component",
+     "quote": "plus New Jersey state payroll taxes (FLI/SUI/WF) total $2,189.52"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 2050.2,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or NJ employee state payroll tax modeled"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 4097,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no additional Medicare tax or mandatory state employee payroll tax is indicated"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 1525,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 2302.79,
+     "category": "included_state_component",
+     "quote": "NJ employee UI/WF/SWF, TDI, and FLI contributions at 0.9425%*26800=252.59"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 2303.46,
+     "category": "included_state_component",
+     "quote": "$253.26 of NJ employee payroll contributions"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 2314.18,
+     "category": "included_state_component",
+     "quote": "estimated mandatory New Jersey employee payroll contributions are 263.98."
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 2252.54,
+     "category": "included_state_component",
+     "quote": "estimated mandatory NJ employee payroll contributions are $202.34"
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 2276.66,
+     "category": "included_state_component",
+     "quote": "estimated mandatory NJ unemployment, workforce, disability and family-leave contributions total 226.46"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 2314.18,
+     "category": "included_state_component",
+     "quote": "estimated mandatory NJ employee payroll contributions are $263.98."
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 2276.66,
+     "category": "included_state_component",
+     "quote": "approximately 226.46 of mandatory New Jersey employee contributions"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 2265.27,
+     "category": "included_state_component",
+     "quote": "estimated NJ employee unemployment/workforce, disability, and family-leave contributions total 215.07"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 2050,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 2098,
+     "category": "included_state_component",
+     "quote": "Plus NJ mandatory employee TDI + FLI at combined 0.18% = $48.24."
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 2228,
+     "category": "included_state_component",
+     "quote": "NJ mandatory employee UI (0.3825%) plus TDI/FLI add about $178."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 2314.18,
+     "category": "included_state_component",
+     "quote": "New Jersey mandatory employee UI/workforce 0.425%, TDI 0.23%, and FLI 0.33% total 0.985% of wages, or $263.98."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 2050,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no additional Medicare or state payroll taxes."
+    },
+    {
+     "model": "inkling",
+     "prediction": 2177,
+     "category": "included_state_component",
+     "quote": "NJ mandatory employee taxes (UI ~0.3825% and FLI ~0.09%) add about $127."
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 2308.15,
+     "category": "included_state_component",
+     "quote": "New Jersey employee UI/workforce, temporary disability, and family-leave contributions add 257.95"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 2050,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 2050.2,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory employee NJ payroll tax modeled."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 2152.71,
+     "category": "included_state_component",
+     "quote": "So NJ employee payroll = 0.3825% \u00d7 $26,800 = $102.51."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 2050.2,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_022",
+   "counts": {
+    "included_state_component": 29,
+    "excluded_as_optional_or_employer_paid": 2,
+    "excluded_as_no_state_payroll_tax": 4,
+    "excluded_silently": 9,
+    "other_or_unparsed": 2
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 4557.61,
+     "category": "included_state_component",
+     "quote": "CA SDI employee tax at 1.2% (no wage cap in 2026) = $631.62"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 4026.58,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 4028.27,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No mandatory California state payroll taxes apply."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "CA SDI 2026 rate 1.2% = $631.62 (no wage cap in CA SDI as of 2024+)."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 4026.58,
+     "category": "excluded_as_optional_or_employer_paid",
+     "quote": "CA has no mandatory employee payroll tax (SDI applies but is excluded as not required here per instructions to count Social Security and Medicare)."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 4026,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CA has no mandatory employee income-based payroll tax modeled here."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 4711,
+     "category": "included_state_component",
+     "quote": "CA SDI is about 1.3% \u00d7 52,635 = 684."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 4605.57,
+     "category": "included_state_component",
+     "quote": "California mandatory employee-side payroll tax: SDI (State Disability Insurance) rate for 2026 is 1.1% on all wages (CA removed the wage base cap)"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 3264.37,
+     "category": "excluded_as_optional_or_employer_paid",
+     "quote": "CA has no mandatory employee-side state payroll tax (SDI is voluntary/paid by employer in aggregate but here treated as not applicable as a separate mandatory employee tax"
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 4710.84,
+     "category": "included_state_component",
+     "quote": "CA SDI at an assumed 1.3% = 684.26."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 4026.61,
+     "category": "other_or_unparsed",
+     "quote": "Wages below Social Security wage base and below Additional Medicare threshold, no state payroll tax included."
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 4605,
+     "category": "included_state_component",
+     "quote": "CA SDI tax: $579."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% $631.62"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% * 52,635 = 631.62"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 4605.57,
+     "category": "included_state_component",
+     "quote": "California SDI tax (1.1% of $52,635 = $578.99, as the SDI cap is removed)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 4027,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 4606,
+     "category": "included_state_component",
+     "quote": "and 1.1% CA SDI ($579) on $52,635 of wages."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 4606,
+     "category": "included_state_component",
+     "quote": "and CA SDI tax of 1.1% ($579) on gross wages of $52,635."
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 4027,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 4500.3,
+     "category": "included_state_component",
+     "quote": "CA State Disability Insurance tax (0.9% of $52,635 = $473.72)"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 4500.29,
+     "category": "included_state_component",
+     "quote": "and California SDI on wages of $52,635."
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 4026.58,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "CA SDI (mandatory state payroll tax): 1.2% \u00d7 $52,635 = $631.62."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 4026,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 4030,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax at this income level and no state employee payroll tax in CA."
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 3308,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "plus estimated California SDI at 1.2%"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 4710.84,
+     "category": "included_state_component",
+     "quote": "and California SDI of 1.3% on $52,635 of wages"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 4711,
+     "category": "included_state_component",
+     "quote": "estimated California SDI withholding is about $684."
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 4027,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 4710.83,
+     "category": "included_state_component",
+     "quote": "1.3% California SDI for 2026."
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "plus estimated California SDI at 1.2%"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 4711,
+     "category": "included_state_component",
+     "quote": "estimated California employee SDI at 1.3% adds 684"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 4710.83,
+     "category": "included_state_component",
+     "quote": "and 1.3% California SDI."
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 4027,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "CA SDI at 1.2%*52635=632"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "Employee-side FICA and mandatory CA SDI on wages of 52,635"
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "mandatory CA SDI at 1.2% is $631.62."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "CA SDI at projected 1.2% rate 52635*0.012=632"
+    },
+    {
+     "model": "inkling",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "California SDI at about 1.2% = $632"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 4658.2,
+     "category": "included_state_component",
+     "quote": "plus mandatory CA employee SDI at 1.2% with no wage cap = 631.62"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 4026,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 4658,
+     "category": "included_state_component",
+     "quote": "plus mandatory California employee SDI at 1.2% = $632."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 4605.57,
+     "category": "included_state_component",
+     "quote": "CA SDI 2026 rate ~1.1% on wages up to ~$153,164 = $52,635 * 0.011 = $578.99."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 4026.58,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory employee state payroll taxes apply."
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_023",
+   "counts": {
+    "included_state_component": 30,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 5,
+    "excluded_silently": 7,
+    "other_or_unparsed": 4
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 1531.4,
+     "category": "included_state_component",
+     "quote": "CA employee SDI 1.13% (2026 rate, no wage cap) = $197.11."
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 1334.39,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 1335.85,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "California does not have a mandatory state payroll income tax on wages."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 1543.71,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% (2026) = $209.32."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 1467.32,
+     "category": "included_state_component",
+     "quote": "CA SDI 0.9% = $156.99."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 1546,
+     "category": "included_state_component",
+     "quote": "plus CA SDI 1.2% = $209.32."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 1561.15,
+     "category": "included_state_component",
+     "quote": "California SDI at about 1.3% of $17,443 is $226.76."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 1526.26,
+     "category": "included_state_component",
+     "quote": "CA SDI: $17,443 \u00d7 1.1% = $191.87."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 1334.39,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "California has no mandatory employee-side state payroll tax (CA SDI was repealed as a separate wage-base tax structure change is not assumed here"
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 1334.39,
+     "category": "other_or_unparsed",
+     "quote": "CA SDI is not included."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 716,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No Additional Medicare Tax and no state payroll tax."
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 827.83,
+     "category": "included_state_component",
+     "quote": "CA SDI tax = 1.2% * $9,354 = $112.25."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 1526.26,
+     "category": "included_state_component",
+     "quote": "California SDI 1.1% x 17,443 = 191.87"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 1543.71,
+     "category": "included_state_component",
+     "quote": "6.2% Social Security + 1.45% Medicare + 1.2% CA SDI"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 1526.26,
+     "category": "included_state_component",
+     "quote": "California State Disability Insurance (estimated at 1.1% of $17,443 = $191.87)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 1334.44,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 818,
+     "category": "included_state_component",
+     "quote": "FICA (Social Security and Medicare) and California State Disability Insurance (SDI) are calculated on taxable gross wages"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 818,
+     "category": "included_state_component",
+     "quote": "1.1% CA SDI on FICA-taxable wages of $9,354"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 1595,
+     "category": "included_state_component",
+     "quote": "plus California SDI, totaling $1,595."
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 1526.26,
+     "category": "included_state_component",
+     "quote": "1.1% CA SDI tax ($191.87)"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 809.12,
+     "category": "included_state_component",
+     "quote": "and California State Disability Insurance (SDI) on taxable wages total $809.12."
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 1526.26,
+     "category": "included_state_component",
+     "quote": "plus California SDI at 1.1% ($191.87)"
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 1543.71,
+     "category": "included_state_component",
+     "quote": "CA SDI (mandatory employee state payroll tax): 1.2% \u00d7 $17,443 = $209.32."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 1329,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "California has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 1375.966,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory state payroll tax in California."
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 1208,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 1543.71,
+     "category": "included_state_component",
+     "quote": "plus estimated California SDI at 1.2%"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 1561.15,
+     "category": "included_state_component",
+     "quote": "estimated California SDI withholding at 1.3% is $226.76"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 1561.15,
+     "category": "included_state_component",
+     "quote": "estimated 2026 California SDI at 1.3% is $226.76"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 1334.39,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 1561.15,
+     "category": "included_state_component",
+     "quote": "California SDI adds 1.3%."
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 1544,
+     "category": "included_state_component",
+     "quote": "California employee SDI at an estimated 1.2% adds about $209"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 1561.15,
+     "category": "included_state_component",
+     "quote": "plus California SDI at 1.3%"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 837.18,
+     "category": "included_state_component",
+     "quote": "plus California SDI at 1.3%, produce the annual payroll tax."
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 1334,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 1544,
+     "category": "included_state_component",
+     "quote": "plus CA SDI mandatory employee payroll tax at projected 1.2% = 209.32"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 1544,
+     "category": "included_state_component",
+     "quote": "plus mandatory California SDI at the 1.2% rate ($209.32)"
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 1543.71,
+     "category": "included_state_component",
+     "quote": "California SDI at the carried 1.2% rate is 209.32."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 1283,
+     "category": "included_state_component",
+     "quote": "CA mandatory employee SDI tax 1.1% = $161."
+    },
+    {
+     "model": "inkling",
+     "prediction": 828,
+     "category": "included_state_component",
+     "quote": "CA SDI at 1.2% adds $112.25"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 1334,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 1544,
+     "category": "included_state_component",
+     "quote": "mandatory CA employee SDI 1.2% \u00d7 $17,443 = $209."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 1334.39,
+     "category": "other_or_unparsed",
+     "quote": "California SDI is a mandatory state payroll tax: 1.1% \u00d7 $17,443 = $191.87. Grand total = $1,334.39 + $191.87 = $1,526.26. value = 1334.39"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 261.65,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_028",
+   "counts": {
+    "included_state_component": 12,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 17,
+    "excluded_silently": 15,
+    "other_or_unparsed": 2
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 5730,
+     "category": "included_state_component",
+     "quote": "Total FICA $4,590 plus PA employee SUI $42 = $4,632."
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA state payroll tax: $0 (PA has no employee-side income tax withheld from wages for state purposes"
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Wait - PA has employee unemployment tax 0.07%. Total = 3720+870+42=4632."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee payroll tax counted here."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Pennsylvania has no mandatory employee-side state payroll tax (PA has a flat state income tax but no separate employee payroll tax)."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Pennsylvania has no mandatory employee-side state payroll tax (no state disability/UI employee contribution)."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No PA employee state payroll tax is modeled."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare (below 200,000) and no PA state employee payroll tax"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "with no Additional Medicare Tax or state payroll tax = $4,590"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "the Pennsylvania employee unemployment compensation tax ($60,000 x 0.07% = $42)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Pennsylvania's employee-side SUI tax of 0.07% ($42) on the $60,000 gross wages"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Pennsylvania imposes an employee-paid state unemployment compensation tax of 0.07% ($42)"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "plus PA employee unemployment compensation tax of 0.07% ($42), totaling $4,632"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "and 0.07% PA SUI ($42), totaling $4,632"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee state payroll tax"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory state payroll tax applies in PA"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 4600,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory PA employee payroll tax included"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 4597,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment tax of 7"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "plus an estimated $42 Pennsylvania employee unemployment contribution"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment contributions at 0.07% are $42"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory employee state payroll tax is specified."
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment contributions are 0.07%, or 42"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 4632,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment contributions are $42"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax and no PA employee payroll tax."
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Pennsylvania has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "inkling",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no PolicyEngine-modeled employee state payroll tax applies in PA."
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 4590,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee-side state payroll tax (no state disability/unemployment deduction from employees beyond income tax withholding"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 4590,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_032",
+   "counts": {
+    "included_state_component": 7,
+    "excluded_as_optional_or_employer_paid": 1,
+    "excluded_as_no_state_payroll_tax": 19,
+    "excluded_silently": 16,
+    "other_or_unparsed": 3
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Minnesota has no mandatory employee state payroll tax in 2026"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax and no modeled mandatory MN employee payroll tax"
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 2175.9,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Minnesota has no mandatory state payroll tax on employees."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "MN has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "MN has no mandatory employee payroll tax."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax and no mandatory MN employee payroll tax"
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Minnesota has no mandatory employee-side state payroll tax (MN does not impose a separate employee payroll tax beyond federal)"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Minnesota has no mandatory state payroll tax (no state disability or paid family leave employee contribution in 2026 for this scenario)"
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "I assumed no other mandatory employee state payroll tax is modeled for MN."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No Additional Medicare Tax and no employee state payroll tax."
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 2320,
+     "category": "included_state_component",
+     "quote": "MN PFML employee share 0.35%=$101.50"
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 2320,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no employee state payroll tax applies, for a total of $2,218.50. value = 2218.5"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "MN Paid Leave employee share 0.44% * $29,000 = $127.60"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 2219,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 4428.6,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no additional Medicare tax or mandatory state employee payroll tax in Minnesota"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 1520,
+     "category": "other_or_unparsed",
+     "quote": "mandatory MN employee payroll tax is included only if applicable as state payroll taxes are not specified, so using standard FICA only"
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "Minnesota paid-leave employee premium 127.6"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "with no additional or state payroll tax"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "the estimated employee half of Minnesota's 0.88% Paid Leave premium is $127.60"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 2219,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "Minnesota employee paid-leave premiums at 0.44% add $127.60"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no other employee-side payroll tax is indicated"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "plus $127.60 for Minnesota's 0.44% employee paid-leave contribution"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory Minnesota employee payroll tax applies"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No Additional Medicare Tax and no Minnesota employee-side payroll tax."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 2218.5,
+     "category": "excluded_as_optional_or_employer_paid",
+     "quote": "Minnesota has no mandatory employee state payroll tax (paid-leave withholding is optional)"
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "inkling",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or state employee payroll taxes apply"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 2346.1,
+     "category": "included_state_component",
+     "quote": "The 50% employee share of Minnesota's 0.88% 2026 paid-leave premium adds $127.60"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 2219,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 2218.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Minnesota levies no mandatory employee payroll tax"
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 2219,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "MN has no mandatory employee state payroll tax (no state disability insurance tax like CA/NY)"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 2218.5,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_043",
+   "counts": {
+    "included_state_component": 18,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 14,
+    "excluded_silently": 11,
+    "other_or_unparsed": 3
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 315.14,
+     "category": "included_state_component",
+     "quote": "Including the mandatory CO FAMLI employee premium of 0.45%: total = 331.14. Submitting FICA plus FAMLI \u2248 331.14... value = 315.14"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no modeled mandatory Colorado employee payroll tax"
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 313,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No mandatory state payroll taxes apply in Colorado."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 312.73,
+     "category": "other_or_unparsed",
+     "quote": "Actually CO FAMLI employee = 0.45%. But the standard payroll calc here: SS 253.46 + Medicare 59.28 = 312.74. Excluding FAMLI as state UI-like."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado has no mandatory employee payroll tax applicable here"
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 313,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado has no mandatory employee-side state payroll tax."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado has no mandatory employee-side state payroll tax (no state disability/UI employee contribution) applicable here."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee share 0.44% = 17.99"
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado has no employee state payroll tax"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee share 0.45% = $18.40"
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 337.26,
+     "category": "included_state_component",
+     "quote": "Colorado's mandatory employee FAMLI payroll premium ($24.53)"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee share 0.44% = $17.99"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "the taxable wage base for FICA and CO FAMLI taxes is $0, resulting in no payroll tax liability"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI premiums (0.45% of $4,088 = $18.40)"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 312.74,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "0.45% Colorado FAMLI employee tax ($18.40)"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee contributions (0.45% of $4,088 = $18.40)"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee premium = $4,088 \u00d7 0.45% = $18.396."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 313,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 312,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or state employee payroll tax applies in Colorado"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "the provided wages are treated as not subject/insufficient for the modeled employee-side components in this output setup"
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax and no mandatory Colorado employee payroll tax included"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado employee FAMLI payroll premiums at 0.45% are $18.40"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "the estimated Colorado FAMLI employee premium at 0.45% is $18.40"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 312.732,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "plus Colorado FAMLI employee contributions at 0.44% of wages"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "including Colorado's estimated 0.44% employee FAMLI premium gives $330.72"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI contributions at 0.44% are $17.99"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "Colorado's 2026 employee FAMLI contribution of 0.44% adds $17.99"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 313,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or Colorado employee payroll tax"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No Additional Medicare Tax and no Colorado employee payroll tax."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 330.72,
+     "category": "included_state_component",
+     "quote": "Colorado FAMLI employee share is 0.44% (half of the 0.88% 2026 premium)"
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 313,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No Additional Medicare Tax or mandatory state payroll taxes apply."
+    },
+    {
+     "model": "inkling",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "Colorado Family and Medical Leave Insurance employee tax is 0.45% of $4,088 ($18.396)"
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 331.13,
+     "category": "included_state_component",
+     "quote": "the Colorado FAMLI employee share at 0.45% adds $18.40"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 313,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 312.73,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado does not have a mandatory employee state payroll tax."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 312.73,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Colorado does not impose a mandatory employee payroll income tax."
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_081",
+   "counts": {
+    "included_state_component": 22,
+    "excluded_as_optional_or_employer_paid": 1,
+    "excluded_as_no_state_payroll_tax": 7,
+    "excluded_silently": 9,
+    "other_or_unparsed": 7
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 13268.7,
+     "category": "other_or_unparsed",
+     "quote": "PolicyEngine-style employee payroll tax typically counts SS + Medicare only when state payroll tax not modeled"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 13387.65,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 13383.41,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Massachusetts does not have a separate mandatory employee payroll tax beyond federal taxes."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 12321.73,
+     "category": "other_or_unparsed",
+     "quote": "employee pays ~0.18% family + 0% medical for small employers. Estimating MA PFML employee contribution ~$0."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 12717.62,
+     "category": "other_or_unparsed",
+     "quote": "MA has mandatory employee Paid Family and Medical Leave contributions, but those are not modeled here as 0 absent rate."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 13385,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "MA has no mandatory employee payroll tax counted here beyond PFML: ~0."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 13387.65,
+     "category": "other_or_unparsed",
+     "quote": "The MA Paid Family and Medical Leave (PFML) employee contribution (about $805 at 0.46%) is excluded on the assumption the model does not include it."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 14444.66,
+     "category": "included_state_component",
+     "quote": "MA PFML employee share = $175,002 \u00d7 0.00604 = $1,057.01; Total = $14,444.66."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 12318.65,
+     "category": "excluded_as_optional_or_employer_paid",
+     "quote": "Massachusetts has no mandatory employee-side state payroll tax (no state disability/paid leave employee contribution assumed here beyond employer-side PFML, which is excluded)."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 13387.65,
+     "category": "other_or_unparsed",
+     "quote": "I did not include any MA paid family and medical leave contribution."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 13387.65,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "MA has no employee state payroll tax"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 14053,
+     "category": "included_state_component",
+     "quote": "full SS (6.2%), Medicare (1.45%), and MA PFML employee share (0.38%) apply"
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 13593.41,
+     "category": "included_state_component",
+     "quote": "MA PFML employee contribution is $656.26 (0.375%), for a total of $14,043.91"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 14157.66,
+     "category": "included_state_component",
+     "quote": "MA PFML employee share = 175002 * 0.0044 = 770.01; total = 14157.66"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 13944.16,
+     "category": "included_state_component",
+     "quote": "the Massachusetts Paid Family and Medical Leave employee contribution ($556.51, estimated at 0.318% of wages)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 11843,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 13402,
+     "category": "included_state_component",
+     "quote": "plus estimated MA PFML tax"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 13224,
+     "category": "included_state_component",
+     "quote": "Massachusetts Paid Family and Medical Leave contribution of approximately 0.24% ($402)"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 14133,
+     "category": "included_state_component",
+     "quote": "plus MA PFML tax of $765.01"
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 12822.4,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 13444,
+     "category": "included_state_component",
+     "quote": "plus MA PFML employee contributions"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 13387.65,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 14319,
+     "category": "included_state_component",
+     "quote": "MA PFML employee contribution \u2248 0.532% \u00d7 $175,002 = $931"
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 13387.65,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Massachusetts mandatory employee payroll tax"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 13389.37,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 5420,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 14192.66,
+     "category": "included_state_component",
+     "quote": "plus estimated MA PFML employee contributions at 0.46% of wages"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 14193,
+     "category": "included_state_component",
+     "quote": "Massachusetts PFML employee payroll tax approximately 805"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 14192.66,
+     "category": "included_state_component",
+     "quote": "Massachusetts PFML employee contributions of 0.46%"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 14350.16,
+     "category": "included_state_component",
+     "quote": "plus estimated Massachusetts employee PFML withholding of $962.51"
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 14192.66,
+     "category": "included_state_component",
+     "quote": "Massachusetts employee paid-leave contributions at 0.46% are $805.0092"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 13388,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 14192.6622,
+     "category": "included_state_component",
+     "quote": "Massachusetts employee paid-family-and-medical-leave contributions at 0.46% add 805.0092"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 14192.66,
+     "category": "included_state_component",
+     "quote": "$805.01 Massachusetts employee paid-family-and-medical-leave contributions"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 15926,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 13944,
+     "category": "included_state_component",
+     "quote": "MA PFML mandatory employee contribution at 0.318% is 556"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 14193,
+     "category": "included_state_component",
+     "quote": "Mandatory Massachusetts PFML employee tax is 0.0046 * 175002 = 805.01"
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 14192.66,
+     "category": "included_state_component",
+     "quote": "Mandatory MA PFML employee contribution at 0.46% is $805.01"
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 13388,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no state payroll tax"
+    },
+    {
+     "model": "inkling",
+     "prediction": 14193,
+     "category": "included_state_component",
+     "quote": "Massachusetts mandatory PFML employee contribution is about 0.46% (~$805)"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 13835.66,
+     "category": "included_state_component",
+     "quote": "the 2026 Massachusetts employee PFML rate of 0.256% adds 448.01"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "value=0"
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 13387.65,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Massachusetts levies no mandatory employee payroll tax modeled here."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 14525.24,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No mandatory state payroll taxes apply in Massachusetts beyond standard income tax withholding which is not a payroll tax."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 13922,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_082",
+   "counts": {
+    "included_state_component": 22,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 6,
+    "excluded_silently": 12,
+    "other_or_unparsed": 6
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 7664.92,
+     "category": "other_or_unparsed",
+     "quote": "NY has no mandatory employee state payroll tax modeled beyond negligible PFL/SDI, which is excluded here."
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 7664.92,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 8304.92,
+     "category": "included_state_component",
+     "quote": "NY state mandatory payroll tax (Paid Family Leave Insurance) is approximately 0.62% of wages up to the state wage base: $100,195 \u00d7 0.0062 = $621.21."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 7745.43,
+     "category": "included_state_component",
+     "quote": "Using SDI $31.20 + PFL ~$49.31 \u2248 $80.51."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 7664.92,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "NY has no mandatory employee payroll tax."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 7665,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "NY does not impose a mandatory employee payroll tax counted here."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 7664.92,
+     "category": "other_or_unparsed",
+     "quote": "no mandatory NY employee payroll tax is modeled."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 8042.77,
+     "category": "included_state_component",
+     "quote": "Total: $6,212.09 + $1,452.83 + $31.20 + $346.65 = $8,042.77."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 7794.31,
+     "category": "included_state_component",
+     "quote": "Adding NY SDI/PFL employee contribution estimate (~$129.39, capped small amount per NY 2026 rates) brings total to approximately $7,794.31."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 7664.92,
+     "category": "other_or_unparsed",
+     "quote": "No NY payroll tax is modeled."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 7651,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "there are no mandatory employee state payroll taxes in NY"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 7696.12,
+     "category": "included_state_component",
+     "quote": "NY SDI contribution $31.20. Total $7,696.12."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 8034.6,
+     "category": "included_state_component",
+     "quote": "New York Paid Family Leave maximum annual employee contribution is $369.68"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 8128.96,
+     "category": "included_state_component",
+     "quote": "NY PFL $432.84 + NY DBL $31.20 = $8,128.96"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 8029,
+     "category": "included_state_component",
+     "quote": "approximately $333 for New York Paid Family Leave, and $31 for New York Disability Insurance"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 7665,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 6368.33,
+     "category": "included_state_component",
+     "quote": "plus NY Paid Family Leave ($294.62) and NY SDI ($31.20)"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 6436.5,
+     "category": "included_state_component",
+     "quote": "plus approximately $394 for NY State Paid Family Leave"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 7664.92,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 6313,
+     "category": "included_state_component",
+     "quote": "plus state disability and paid family leave contributions"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 6376,
+     "category": "included_state_component",
+     "quote": "plus NY state mandatory payroll deductions (SDI/PFL)"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 7664.92,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 8069.38,
+     "category": "included_state_component",
+     "quote": "Total = $6,212.09 + $1,452.83 + $31.20 + $373.26 = $8,069.38."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 7765,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "NY has no employee-side state payroll tax"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 7660,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory employee state payroll tax in NY"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 7659,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 8050.65,
+     "category": "included_state_component",
+     "quote": "adding estimated NY employee PFL/DBL contributions of $385.73"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 7696.12,
+     "category": "included_state_component",
+     "quote": "New York employee disability payroll tax is approximately $31.20"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 7664.92,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 7654,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 8128.96,
+     "category": "included_state_component",
+     "quote": "estimated New York paid-family-leave contributions are $432.84 and disability contributions are $31.20"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 8108.03,
+     "category": "included_state_component",
+     "quote": "adding estimated 2026 NY paid-family-leave contributions capped at $411.91 and NY disability contributions of $31.20"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 8108.03,
+     "category": "included_state_component",
+     "quote": "estimated mandatory NY paid-family-leave and disability contributions add 411.91 and 31.20"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 8108.03,
+     "category": "included_state_component",
+     "quote": "$411.91 New York paid-family-leave contributions and $31.20 disability contributions"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 7665,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 6042,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no NY employee payroll tax"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 8032,
+     "category": "included_state_component",
+     "quote": "NY Paid Family Leave is a mandatory employee payroll tax of about 367 on the 2026 PFL wage base."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 7665,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 6029,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "inkling",
+     "prediction": 8061,
+     "category": "included_state_component",
+     "quote": "NY mandatory employee payroll taxes (SDI capped ~$31 and PFL ~$365) add ~$396."
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 8107.98,
+     "category": "included_state_component",
+     "quote": "New York Paid Family Leave is capped at $411.86 and employee disability insurance is $0.60 for 52 weeks, or $31.20."
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 7665,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 7665,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 7464.33,
+     "category": "other_or_unparsed",
+     "quote": "Using final calculation: $6,212.09 + $1,452.83 + NY mandatory ~$-200 = value = 7464.33"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 7752.42,
+     "category": "other_or_unparsed",
+     "quote": "No mandatory employee state payroll tax is included."
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_099",
+   "counts": {
+    "included_state_component": 29,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 2,
+    "excluded_silently": 10,
+    "other_or_unparsed": 5
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 14118,
+     "category": "included_state_component",
+     "quote": "CA SDI employee tax 1.2% (no wage cap in 2026): $85,000*0.012 = $1,020 plus $80,000*0.012 = $960, total $1,980."
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 12622.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 12622.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "California has no state-mandated employee payroll tax for income tax withholding (payroll taxes exclude state income tax withholding as per definition)."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 13197.5,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% on $165,000 = $1,980."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 12622.5,
+     "category": "other_or_unparsed",
+     "quote": "However payroll_tax here focuses on federal FICA per typical benchmark; combining SS+Medicare = 5270+1232.50+4960+1160 = 12622.50."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 12622,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "CA SDI of $2,145 assumes a 1.3% rate on $165,000."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 14437.5,
+     "category": "included_state_component",
+     "quote": "CA SDI applies to all wages with no wage base cap at 1.1% rate"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 12903.5,
+     "category": "other_or_unparsed",
+     "quote": "CA has no mandatory employee-side state payroll tax (SDI is voluntary/not modeled here as mandatory in this calc)... Using standard SS/Medicare only: 12622.50. Final combined value = 12903.50"
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "CA SDI at an assumed 1.3% of $165,000 = $2,145."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 14438,
+     "category": "included_state_component",
+     "quote": "plus CA SDI ~1.1% on $165,000 = $1,815"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 12285,
+     "category": "included_state_component",
+     "quote": "CA SDI = 1.1% \u00d7 $140,403 = $1,544."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 12285.26,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.1% ($1,544.43)"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% on $165,000 = $1,980."
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 14437.5,
+     "category": "included_state_component",
+     "quote": "California State Disability Insurance ($1,815, which is 1.1% of $165,000)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 12622.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 12285.26,
+     "category": "included_state_component",
+     "quote": "California SDI is 1.1% of $140,403, which is $1,544.43."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 14437.5,
+     "category": "included_state_component",
+     "quote": "1.1% CA State Disability Insurance ($1,815)"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 12963,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 13280,
+     "category": "included_state_component",
+     "quote": "Employee payroll taxes (Social Security, Medicare, and California SDI) total $13,280."
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 12425.67,
+     "category": "included_state_component",
+     "quote": "Medicare, and California State Disability Insurance (SDI) taxes on taxable wages."
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 14103,
+     "category": "included_state_component",
+     "quote": "comprising Social Security, Medicare, and California SDI equal 14103"
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 12632.4,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "plus mandatory CA SDI at 1.2% with no wage cap = $1,980"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 12622,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 13577,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "plus estimated California SDI at 1.2% of wages ($1,980)"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 14312.4,
+     "category": "included_state_component",
+     "quote": "plus approximately 1.2% California SDI"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "estimated California SDI is 1980"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 14603,
+     "category": "included_state_component",
+     "quote": "California SDI is about $1,980."
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "California SDI equals $165000 \u00d7 1.3%."
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "estimated California SDI withholding at 1.3% adds $2,145"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "estimated California SDI withholding at 1.3% adds 2145"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 14767.5,
+     "category": "included_state_component",
+     "quote": "California SDI at 1.3% adds $2,145."
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 12623,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 14438,
+     "category": "included_state_component",
+     "quote": "plus CA SDI 1.1% on 165000"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "Mandatory CA SDI at 1.2% on $165,000 adds $1,980."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 14602.5,
+     "category": "included_state_component",
+     "quote": "California SDI at 1.2% with no wage cap adds $1,980."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 10741,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "inkling",
+     "prediction": 14603,
+     "category": "included_state_component",
+     "quote": "CA SDI 1.2% ($1,980)"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 25290,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 12622.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no modeled employee-side state payroll tax applies."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 12622.5,
+     "category": "other_or_unparsed",
+     "quote": "Total = $12,622.50 + $1,815 = $14,437.50. Wait, let me recalculate without SDI first and then add. Actually the base calculation gives $12,622.50. value = 12622.5"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 13094.7,
+     "category": "included_state_component",
+     "quote": "California State Disability Insurance is $472.20 at 1.2% of $85,000 for the head."
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_120",
+   "counts": {
+    "included_state_component": 20,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 11,
+    "excluded_silently": 9,
+    "other_or_unparsed": 6
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 13736.63,
+     "category": "included_state_component",
+     "quote": "CT mandatory employee payroll tax: Paid Family and Medical Leave = 0.5% x 165,597 = 827.99 (below SS wage cap)."
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 12668.17,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 12619.41,
+     "category": "other_or_unparsed",
+     "quote": "CT payroll tax (approximated at -$48.79 net from itemizations) = $12,619.41."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "CT mandatory employee payroll tax: CT Paid Family and Medical Leave 0.5% on wages up to SS base: 165597 \u00d7 0.5% = $827.99."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 12668.17,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CT has no mandatory employee payroll tax included here besides standard."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 10680,
+     "category": "other_or_unparsed",
+     "quote": "CT has a mandatory employee paid-leave payroll tax of 0.5% (828). Total \u2248 10,680 after accounting for PolicyEngine's employee payroll tax computation."
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 12668,
+     "category": "other_or_unparsed",
+     "quote": "The CT paid-leave contribution is not included, on the assumption that PolicyEngine does not model it."
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "CT PFMLA employee contribution = $165,597 \u00d7 0.5% = $827.99."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 12668.17,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Connecticut has no mandatory employee-side state payroll tax (no state disability/UI employee withholding)."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 12668.17,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No state payroll tax was counted."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 12054,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Connecticut has no employee payroll tax."
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 12891,
+     "category": "included_state_component",
+     "quote": "CT Paid Family Leave (0.5%) is $790.84."
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 13496,
+     "category": "included_state_component",
+     "quote": "Connecticut Paid Family and Medical Leave $827.99 on $165,597 of wages"
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 12668.17,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 13496,
+     "category": "included_state_component",
+     "quote": "$828 for the mandatory Connecticut Paid Leave premium (0.5% of $165,597)."
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 14197,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 12891,
+     "category": "included_state_component",
+     "quote": "plus Connecticut's 0.5% Paid Family and Medical Leave (PFML) tax."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 12890.7,
+     "category": "included_state_component",
+     "quote": "and CT PFML is 0.5% ($790.84), totaling $12,890.70."
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 14352.19,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 12890.7,
+     "category": "included_state_component",
+     "quote": "and 0.5% CT Paid Family Leave ($790.84) on FICA wages of $158,168."
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 12891,
+     "category": "included_state_component",
+     "quote": "Connecticut paid family leave payroll tax on covered wages"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 12891.1,
+     "category": "included_state_component",
+     "quote": "plus Connecticut Paid Family and Medical Leave (0.5% up to the Social Security taxable maximum)"
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 12044.31,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 12668,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CT has no employee payroll tax."
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 10087,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Connecticut has no mandatory employee state payroll tax"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 6180,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 13496,
+     "category": "included_state_component",
+     "quote": "and Connecticut paid-leave tax of 0.5% on $165,597 of wages"
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 13590.67,
+     "category": "included_state_component",
+     "quote": "Connecticut paid-family-leave withholding of $922.50"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "Connecticut paid-leave contributions estimated at 0.5%"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 12621,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 12890.69,
+     "category": "included_state_component",
+     "quote": "and 0.5% Connecticut paid-leave contributions."
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "Connecticut paid-leave contribution of 0.5% on $165,597 wages"
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "Connecticut paid-leave contributions are approximately 827.99"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 12890.69,
+     "category": "included_state_component",
+     "quote": "Connecticut paid-leave contributions are $790.84"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 12668,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 12668,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no employee state payroll tax in CT."
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 13496,
+     "category": "included_state_component",
+     "quote": "CT PFML 0.5% adds 828."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 13496.16,
+     "category": "included_state_component",
+     "quote": "Connecticut Paid Leave employee tax is $827.99 (0.5%)."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 12668,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no other employee payroll taxes."
+    },
+    {
+     "model": "inkling",
+     "prediction": 12668,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CT has no mandatory employee state payroll taxes."
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "value = 0"
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 12668,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CT has no mandatory employee payroll tax."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 12668.18,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "CT has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 9655,
+     "category": "excluded_silently",
+     "quote": ""
+    }
+   ]
+  },
+  {
+   "scenario_id": "scenario_123",
+   "counts": {
+    "included_state_component": 15,
+    "excluded_as_optional_or_employer_paid": 0,
+    "excluded_as_no_state_payroll_tax": 16,
+    "excluded_silently": 11,
+    "other_or_unparsed": 4
+   },
+   "per_model": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 11663.35,
+     "category": "included_state_component",
+     "quote": "PA SUI employee withholding 0.07% of wages = $70 + $31.50 = $101.50"
+    },
+    {
+     "model": "claude-fable-5.1",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 11741.39,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Pennsylvania has no state income tax and no mandatory state payroll tax."
+    },
+    {
+     "model": "claude-opus-4.7",
+     "prediction": 11092.5,
+     "category": "other_or_unparsed",
+     "quote": "PA has no employee-side mandatory state payroll tax beyond minimal SUI; using $11,092.50."
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 11097.5,
+     "category": "included_state_component",
+     "quote": "Employee payroll tax = Social Security (6.2%) + Medicare (1.45%) + PA SUI employee tax (0.07% in 2026)."
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-opus-5.5",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 11106.5,
+     "category": "included_state_component",
+     "quote": "PA employees do pay into the UC fund at 0.07% on first $10,000. Head: $7, Child 1: $7 = $14 total."
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee-side state payroll tax (no state disability/UI employee withholding)."
+    },
+    {
+     "model": "claude-sonnet-5.5",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No employee state payroll tax is modeled."
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or mandatory state payroll tax applies."
+    },
+    {
+     "model": "deepseek-v4.1-flash",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "plus Pennsylvania's mandatory employee unemployment compensation tax estimated at 0.07% of gross wages ($145,000 * 0.0007 = $101.50)"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 11108,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "plus Pennsylvania's 0.07% employee state unemployment tax ($101.50)."
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "PA employee unemployment compensation tax is approximately 0.07% of wages ($101.50)."
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 11138,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "and PA employee UC tax of 0.07% ($101.50) on $145,000 gross wages"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "PA employee SUI tax (0.07% of $145,000 = $101.50)"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "glm-5.2",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee-side state payroll tax."
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee payroll tax."
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 12366,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "No mandatory employee state payroll tax is assumed in PA"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 15399,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no other mandatory employee state payroll taxes provided separately"
+    },
+    {
+     "model": "gpt-5.5",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "plus Pennsylvania employee unemployment contribution of 0.07% or $101.50."
+    },
+    {
+     "model": "gpt-5.6-luna",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment contributions add $101.50"
+    },
+    {
+     "model": "gpt-5.6-sol",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "Pennsylvania's 0.07% employee unemployment contribution adds 101.5"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 11092.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "gpt-6-astra",
+     "prediction": 11179.5,
+     "category": "included_state_component",
+     "quote": "and $87 Pennsylvania employee unemployment contributions"
+    },
+    {
+     "model": "gpt-6-luna",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare Tax or Pennsylvania employee payroll tax applies."
+    },
+    {
+     "model": "gpt-6-sol",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "Pennsylvania employee unemployment contributions at 0.07% add 101.50"
+    },
+    {
+     "model": "gpt-6.1-sol",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "$101.50 Pennsylvania employee unemployment contributions at 0.07%."
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 11107.5,
+     "category": "excluded_silently",
+     "quote": ""
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no mandatory PA employee state payroll tax."
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no mandatory employee-side state payroll tax."
+    },
+    {
+     "model": "grok-4.7",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "Pennsylvania has no mandatory employee state payroll tax."
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "no Additional Medicare (earned income $145000 < $250000 MFJ threshold) or mandatory state employee payroll tax."
+    },
+    {
+     "model": "inkling",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "State mandatory employee payroll taxes are zero."
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "category": "other_or_unparsed",
+     "quote": ""
+    },
+    {
+     "model": "kimi-k3",
+     "prediction": 11194,
+     "category": "included_state_component",
+     "quote": "PA employee UC withholding is 101.50 at 0.07%."
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 0,
+     "category": "other_or_unparsed",
+     "quote": "however this benchmark output reports 0 for this scenario per the structured household inputs."
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA levies no mandatory employee payroll tax."
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 11092.5,
+     "category": "excluded_as_no_state_payroll_tax",
+     "quote": "PA has no state payroll taxes (employee-side income tax is separate)."
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 10851.95,
+     "category": "other_or_unparsed",
+     "quote": "rounded to $10,851.95 to match PolicyEngine's state payroll-tax rounding."
+    }
+   ]
+  }
+ ]
+}

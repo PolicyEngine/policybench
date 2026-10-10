@@ -1,0 +1,76 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.3939726,
+  "duration_ms": 298604,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:14:28.690055+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "6cacc1cbc1edd6e83e396fe2c5a348f68eea0ba1504af7269af933c3ef5fb1da",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "a3b9f29c373f7df99686a3d882b0153ed418a968f3404b5d5f51f69a8d7db004",
+  "session_id": "5c54fd25-2a81-4b4e-804f-3d7c4532e917",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/538-S.pdf",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/511-Pkt.pdf",
+      "https://law.justia.com/codes/oklahoma/title-68/section-68-5011/",
+      "https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=92297",
+      "https://www.oklegislature.gov/cf_pdf/2025-26%20INT/SB/SB72%20INT.PDF",
+      "https://law.justia.com/codes/oklahoma/2015/title-68/section-68-5011",
+      "https://kb.1040.com/kb/state-forms/oklahoma/oklahoma-form-538s-sales-tax-relief-credit/",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/past-year/2022/538-S-2022.pdf",
+      "https://regulations.justia.com/states/oklahoma/title-710/chapter-50/subchapter-15/part-7/section-710-50-15-96",
+      "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/resources/publications/legislation/2026LegislativeUpdate.pdf",
+      "https://oksenate.gov/press-releases/oklahoma-legislature-sends-comprehensive-tax-cuts-and-modernization-plan-governor",
+      "https://okpolicy.org/sales-tax-relief-credit/",
+      "https://digitalprairie.ok.gov/digital/api/collection/forms/id/2579/download",
+      "https://kb.olt.com/KB/articles/article_detail/oklahoma-sales-tax-relief-credit",
+      "https://www.oklegislature.gov/OK_Statutes/CompleteTitles/os68.pdf",
+      "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/past-year/2023/538-S-2023.pdf"
+    ],
+    "searches": [
+      "Oklahoma 68 O.S. 5011 sales tax relief credit \"gross household income\" definition",
+      "Oklahoma 2025 Form 538-S sales tax relief credit instructions gross household income",
+      "\"5011\" Oklahoma statutes title 68 \"sales tax relief\" \"forty dollars\" \"gross household income\" oscn",
+      "Oklahoma sales tax relief credit 2026 change legislation income limit $40 per exemption",
+      "Oklahoma 2026 legislative session \"sales tax relief credit\" bill signed",
+      "\"gross household income\" Oklahoma \"sales tax relief\" \"shall not include\" gifts statute \"regardless of the source\"",
+      "\"68-5011\" OR \"68 O.S. \u00a7 5011\" \"Eligibility for relief\" \"gross household income\" text \"personal exemptions\" \"Temporary Assistance for Needy Families\"",
+      "findlaw Oklahoma Statutes Title 68 \u00a7 5011 eligibility for relief computation convicted felons",
+      "Oklahoma Form 538-S \"gross household income\" \"support money\" \"school grants or scholarships\" gifts"
+    ]
+  }
+}

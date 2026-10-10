@@ -1,0 +1,56 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.43278740000000004,
+  "duration_ms": 115015,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:05:30.517855+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "447741f848b94f9503c1d238fb4707ebfaec1e22cb484441e823d39316199e8b",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "d9444439aeaa02fd9630723c283ef2a97027ee58cb68252cdde45b0709707316",
+  "session_id": "675b1037-a28f-4560-8234-a51f2b6f57e8",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/",
+      "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/",
+      "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/",
+      "https://tax.idaho.gov/document-mngr/forms_EFO00089/",
+      "https://legislature.idaho.gov/sessioninfo/2026/legislation/H0605/"
+    ],
+    "searches": [
+      "Idaho grocery credit 2026 legislature $155 change tax year 2026",
+      "Idaho Form 40 instructions 2025 grocery credit line refundable $155",
+      "Idaho 2026 legislative session income tax bill food tax credit amended 63-3024A"
+    ]
+  }
+}

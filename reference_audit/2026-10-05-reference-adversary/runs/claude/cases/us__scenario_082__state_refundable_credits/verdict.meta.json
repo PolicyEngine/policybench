@@ -1,0 +1,55 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.404396,
+  "duration_ms": 78352,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:48:05.097268+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "be9e84074adce48ebc8effa54a2ce673202f126299d06bb0b0a4dc0304a2cf07",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "dfffa126d7e20dfe5c6c27ea06ea841c64aad89388464656921fc02d118603e7",
+  "session_id": "18bda3bf-a21a-40da-b4ed-cbacb862de0e",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "f020715f10a54ef0a9615c4f2c4d742e368bd826b432bf1876256dd2ef7f3fb2",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/bills/2025/S9009/amendment/C",
+      "https://www.tax.ny.gov/pit/credits/child_care_credit.htm"
+    ],
+    "searches": []
+  }
+}

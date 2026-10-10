@@ -84,7 +84,7 @@ const EXCLUDED_REFERENCE_BASIS: Record<string, string> = {
     "which assumes one reading of the unlisted input described above",
   reference_engine_defect: "which carries the engine defect described above",
   reference_law_published_after_freeze:
-    "which uses the engine's projection described above",
+    "which uses the engine's own 2026 figure described above",
 };
 
 /**

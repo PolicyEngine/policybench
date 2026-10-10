@@ -55,6 +55,11 @@ from policybench.spec import metric_type_for_output
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 
+# The 2026-09-29 move from policyengine-us 1.755.4 to 2.15.17. Its audit,
+# reference_audit/2026-09-28, holds the publication check, the sweep timing
+# and the re-run sweeps below; they describe that upgrade, whichever upgrades
+# follow it (the engine_upgrade_* accessors follow the last).
+SEPTEMBER_UPGRADE_DATE = "2026-09-29"
 UPGRADE_VERIFICATION = ROOT / "reference_audit" / "2026-09-28" / "verification"
 # The sweep that rechecked every reference on the newest policyengine-us
 # release when PolicyBench checked PyPI before publishing, with the fix module
@@ -65,6 +70,104 @@ PUBLICATION_CHECK_SWEEP = UPGRADE_VERIFICATION / "latest_final_2170.csv"
 SWEEP_TIMING = UPGRADE_VERIFICATION / "sweep_timing.json"
 # What each exclusion sweep re-run on the reference engine moves.
 RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
+
+# The phrase an upgrade's recheck reason uses for an output whose recorded
+# defect the new engine fixes but whose reference rests on another one.
+FURTHER_DEFECT = "rests on a further engine defect"
+
+# The October 2026 engine move's audit: its builder, and the timing record and
+# publication check scripts/sweep_timing.py writes there.
+OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
+OCTOBER_SWEEP_TIMING = (
+    ROOT / OCTOBER_UPGRADE_AUDIT / "verification" / "sweep_timing.json"
+)
+
+# How the paper names each engine defect an upgrade can fix, after the audits'
+# own statements of them (reference_audit/2026-09-22/root_causes.json and
+# reference_audit/2026-10-05-reference-adversary/proposed_changes.json). An
+# upgrade that restores an output whose root cause has no name here stops the
+# render, so a new fix is named before it is published.
+ROOT_CAUSE_LABELS = {
+    "az_standard_deduction_indexing": "Arizona's standard deduction indexing",
+    "oh_medical_deduction_premiums": (
+        "Ohio's medical deduction for health insurance premiums"
+    ),
+    "co_sales_tax_refund_surplus": "Colorado's 2026 sales tax refund",
+    "ny_cdcc_606_c2": "New York's 2026 child and dependent care credit",
+    "r01_ira_compensation": (
+        "the IRA deduction's compensation limit and a dependent's contributions"
+    ),
+    "r02_ira_219g": "the IRA deduction's active-participant phase-out",
+    "r03_estate_income": "estate income in gross income",
+    "r05_nj_worker_ui": "New Jersey's worker unemployment and workforce contributions",
+    "r06_wi_act15_before_refundable": (
+        "Wisconsin's retirement income exclusion before refundable credits"
+    ),
+    "r07_idaho_health_premiums": "Idaho's subtraction for health insurance premiums",
+    "r08_eitc_earned_income_deferrals": (
+        "elective deferrals in the earned income behind the EITC"
+    ),
+    "r11_ca_itemized_conformity": "California's itemized deduction conformity",
+    "r22_ma_part_a_loss_offset": "Massachusetts's Part A capital loss offset",
+    "r30_snap_heat_and_eat_sua": "the heat-and-eat SNAP utility allowance",
+    "r32_wi_capital_gain_distributions": (
+        "Wisconsin's capital gain subtraction for distributions"
+    ),
+}
+# The same for the cause of a scored reference an upgrade changes.
+CHANGE_CAUSE_LABELS = {
+    "id_permanent_building_fund_tax": (
+        "Idaho's $10 permanent building fund tax (Idaho Code 63-3082), which "
+        "policyengine-us now counts in state income tax"
+    ),
+}
+UPSTREAM_PR = re.compile(r"policyengine-us#(\d+)")
+
+# The 2026-10-05 review of release dashboard-data-20260930. Each of its three
+# audits recomputed every output on the reference engine under readings of an
+# input the prompt never states. Each entry names the sweep's CSV, the column
+# holding the reference system's own value (the sweep's baseline), and the
+# columns holding the readings and checks it ran. The records the review added
+# carry ``decided_on`` = REVIEW_DATE.
+REVIEW_DATE = "2026-10-05"
+# The day Max ruled on the reference adversary's records (d1022) and the
+# Louisiana records (d994); each such record names its ruling in ``decision``.
+RULING_DATE = "2026-10-06"
+REVIEW_SWEEPS: dict[str, tuple[Path, str, tuple[str, ...]]] = {
+    # State income tax in the federal SALT deduction
+    # (reference_audit/2026-10-05/README.md).
+    "salt_withholding": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05"
+        / "verification"
+        / "sweep_salt_withholding.csv",
+        "baseline",
+        ("liability", "net", "zero"),
+    ),
+    # Medicare enrollment and the Part B premium in medical expenses
+    # (reference_audit/2026-10-05-medicare-part-b/README.md).
+    "medicare_part_b": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05-medicare-part-b"
+        / "verification"
+        / "sweep_part_b.csv",
+        "baseline",
+        ("no_part_b", "not_enrolled", "not_enrolled_direct", "irmaa_from_2026_income"),
+    ),
+    # The optional employer pass-through of state paid-leave premiums
+    # (reference_audit/2026-10-05-payroll/README.md).
+    "payroll_optional_shares": (
+        ROOT
+        / "reference_audit"
+        / "2026-10-05-payroll"
+        / "verification"
+        / "sweep_payroll_scope.csv",
+        "final",
+        ("scoped",),
+    ),
+}
 
 NUMBER_WORDS = {
     0: "no",
@@ -79,6 +182,27 @@ NUMBER_WORDS = {
     9: "nine",
     10: "ten",
 }
+
+
+def _series(parts: list[str]) -> str:
+    """'a', 'a and b', or 'a, b and c'."""
+    if len(parts) <= 2:
+        return " and ".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def uploaded_phrase(uploaded: str, day: str) -> str:
+    """When a wheel went up, as the timing sentences state it: the clock time,
+    and the date too when the upload was not on ``day`` (the sweep's)."""
+    clock = uploaded[11:16]
+    if uploaded[:10] == day:
+        return f"uploaded {clock} UTC"
+    return f"uploaded {uploaded[:10]} at {clock} UTC"
+
+
+def count_word(n: int) -> str:
+    """A count as the paper writes it: a word up to ten, digits above."""
+    return NUMBER_WORDS.get(n, f"{n:,}")
 
 
 def moves_beyond_tolerance(variable: str, before: float, after: float) -> bool:
@@ -120,24 +244,73 @@ def partition_rerun_sweep_moves(
     return groups
 
 
-def partition_engine_upgrade_changes(
-    changes: list[dict], excluded: frozenset[tuple[str, str]] | set[tuple[str, str]]
-) -> dict[str, list[dict]]:
-    """Split an engine upgrade's changed outputs into three disjoint groups.
+def partition_review_sweep_moves(
+    moves: list[tuple[str, str, str, float, float]],
+    excluded_before: frozenset[tuple[str, str]] | set[tuple[str, str]],
+    excluded_now: frozenset[tuple[str, str]] | set[tuple[str, str]],
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Split what the 2026-10-05 review's sweeps move.
 
-    A change to an output the exclusion record now lists is a new exclusion.
-    A scored change moves beyond the exact-match tolerance ($1 for an amount,
-    any change for a 0/1 flag) or within it. Every change lands in exactly one
-    group, so the three counts add up to the revision's changed list.
+    Each move is (sweep, scenario_id, variable, baseline, recomputed) for one
+    reading or check whose value differs from the sweep's baseline. A move of
+    an output excluded before the review is ``excluded_before``; of an output
+    the review excluded, ``newly_excluded``; of an output still scored,
+    ``scored_beyond_tolerance`` or ``scored_within_tolerance``. Every move
+    lands in exactly one group, keyed (sweep, scenario_id, variable).
     """
+    groups: dict[str, list[tuple[str, str, str]]] = {
+        "excluded_before": [],
+        "newly_excluded": [],
+        "scored_beyond_tolerance": [],
+        "scored_within_tolerance": [],
+    }
+    for sweep, scenario_id, variable, baseline, recomputed in moves:
+        output = (scenario_id, variable)
+        key = (sweep, scenario_id, variable)
+        if output in excluded_before:
+            groups["excluded_before"].append(key)
+        elif output in excluded_now:
+            groups["newly_excluded"].append(key)
+        elif moves_beyond_tolerance(variable, baseline, recomputed):
+            groups["scored_beyond_tolerance"].append(key)
+        else:
+            groups["scored_within_tolerance"].append(key)
+    if sum(len(group) for group in groups.values()) != len(moves):
+        raise AssertionError("review sweep partition lost or duplicated a move")
+    return groups
+
+
+def partition_engine_upgrade_changes(
+    changes: list[dict],
+    excluded: frozenset[tuple[str, str]] | set[tuple[str, str]],
+    restored: frozenset[tuple[str, str]] | set[tuple[str, str]] = frozenset(),
+) -> dict[str, list[dict]]:
+    """Split an engine upgrade's changed outputs into four disjoint groups.
+
+    ``excluded`` is the exclusion record once the upgrade was decided, and
+    ``restored`` the excluded outputs the upgrade returned to scoring at the
+    new engine's values. A change to an excluded output is a new exclusion; a
+    change to a restored output is a restoration. Any other change is scored,
+    and moves beyond the exact-match tolerance ($1 for an amount, any change
+    for a 0/1 flag) or within it. Every change lands in exactly one group, so
+    the four counts add up to the revision's changed list.
+    """
+    both = set(excluded) & set(restored)
+    if both:
+        raise ValueError(f"outputs both excluded and restored: {sorted(both)}")
     partition: dict[str, list[dict]] = {
         "scored_changes": [],
         "within_tolerance": [],
         "new_exclusions": [],
+        "restored": [],
     }
     for change in changes:
-        if (change["scenario_id"], change["variable"]) in excluded:
+        key = (change["scenario_id"], change["variable"])
+        if key in excluded:
             partition["new_exclusions"].append(change)
+            continue
+        if key in restored:
+            partition["restored"].append(change)
             continue
         moved = abs(change["regenerated"] - change["previous"])
         amount = metric_type_for_output(change["variable"]) == "amount"
@@ -150,6 +323,254 @@ def partition_engine_upgrade_changes(
             f"of {len(changes)}"
         )
     return partition
+
+
+def engine_version_number(label: str) -> str:
+    """'policyengine-us 2.15.17' -> '2.15.17' (a bare version is returned as is)."""
+    return label.removeprefix("policyengine-us ")
+
+
+def engine_version_key(version: str) -> tuple[int, ...]:
+    """Numeric sort key of a policyengine-us release, so 2.4.0 < 2.15.17."""
+    return tuple(int(part) for part in engine_version_number(version).split("."))
+
+
+def engine_version_count_phrase(counts: dict[str, int]) -> str:
+    """'52 computed with policyengine-us 1.755.4, 12 with 2.15.17': one clause
+    per engine, oldest release first, for any number of engines."""
+    ordered = sorted(counts, key=engine_version_key)
+    clauses = [f"{counts[version]:,} with {version}" for version in ordered]
+    if clauses:
+        clauses[0] = (
+            f"{counts[ordered[0]]:,} computed with policyengine-us {ordered[0]}"
+        )
+    return ", ".join(clauses)
+
+
+def restored_split_sentence(restored: int, ruled: int, ruling_date: str) -> str:
+    """Two sentences on the outputs an engine upgrade fixes: ``restored - ruled``
+    that earlier releases excluded return to scoring at the new version's
+    values, and ``ruled`` that rulings on ``ruling_date`` decided while they
+    were still scored stay scored at them."""
+    if not 0 <= ruled <= restored:
+        raise ValueError(f"{ruled} ruled of {restored} restored outputs")
+    if not restored:
+        return ""
+    returned = restored - ruled
+    defects = "defect" if restored == 1 else "defects"
+    noun = "output" if restored == 1 else "outputs"
+    lead = f"The move fixes the engine {defects} behind {count_word(restored)} {noun}."
+    if not ruled:
+        if restored == 1:
+            return (
+                f"{lead} An earlier release excluded it, and it returns to "
+                "scoring at the new version's values."
+            )
+        return (
+            f"{lead} Earlier releases excluded them, and they return to scoring "
+            "at the new version's values."
+        )
+    if not returned:
+        them, were, stay = (
+            ("it", "it was", "it stays")
+            if ruled == 1
+            else ("them", "they were", "they stay")
+        )
+        return (
+            f"{lead} The {ruling_date} rulings decided {them} while {were} still "
+            f"scored, and {stay} scored at the new version's values."
+        )
+    which = "which returns" if returned == 1 else "which return"
+    stays = "stays" if ruled == 1 else "stay"
+    return (
+        f"{lead} Earlier releases excluded {count_word(returned)} of them, {which} "
+        f"to scoring at the new version's values; the other {count_word(ruled)}, "
+        f"ruled on {ruling_date} while still scored, {stays} scored at those values."
+    )
+
+
+def _key(entry: dict) -> tuple[str, str]:
+    return entry["scenario_id"], entry.get("variable", "snap")
+
+
+def exclusions_in_place(
+    exclusions: list[dict], revisions: list[dict], date: str, *, include_day: bool
+) -> list[dict]:
+    """The exclusion records in place just before ``date`` (UTC day) or, with
+    ``include_day``, at its end: records decided by then and not yet removed.
+
+    ``exclusions`` is the current record. A revision that returns excluded
+    outputs to scoring lists each in ``regenerated_exclusions`` with the
+    record it removes (``record``), so the record as it stood at any earlier
+    date can be rebuilt: a record a later revision removed was still in place.
+    """
+
+    def by_then(day: str) -> bool:
+        return day <= date if include_day else day < date
+
+    history = [(record, None) for record in exclusions] + [
+        (entry["record"], revision["date"])
+        for revision in revisions
+        for entry in revision.get("regenerated_exclusions", [])
+    ]
+    return [
+        record
+        for record, removed_on in history
+        if by_then(record["decided_on"])
+        and (removed_on is None or not by_then(removed_on))
+    ]
+
+
+class EngineUpgrade:
+    """One ``engine_upgrade`` revision of the reference sidecar, with the
+    exclusion record as it stood around it.
+
+    ``excluded_before`` holds the outputs excluded when the upgrade began:
+    records decided before its date and not removed before it. ``excluded``
+    holds those excluded once it was decided: records decided by the end of
+    its date and not removed by then. A record decided after the upgrade never
+    counts here, and a record a later revision removed still does.
+    ``restored`` holds the outputs the upgrade returned to scoring (its
+    ``regenerated_exclusions``).
+    """
+
+    def __init__(
+        self,
+        revision: dict,
+        excluded_before: frozenset[tuple[str, str]],
+        excluded: frozenset[tuple[str, str]],
+    ):
+        self.revision = revision
+        self.excluded_before = excluded_before
+        self.excluded = excluded
+        self.restored = frozenset(
+            _key(entry) for entry in revision.get("regenerated_exclusions", [])
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"EngineUpgrade({self.date}: {self.previous_engine_version} -> "
+            f"{self.engine_version})"
+        )
+
+    @property
+    def date(self) -> str:
+        return self.revision["date"]
+
+    @property
+    def engine_version(self) -> str:
+        return engine_version_number(self.revision["engine_version"])
+
+    @property
+    def previous_engine_version(self) -> str:
+        return engine_version_number(self.revision["previous_engine_version"])
+
+    @property
+    def changes(self) -> list[dict]:
+        return self.revision["changed"]
+
+    @cached_property
+    def partition(self) -> dict[str, list[dict]]:
+        """The changed outputs, split into scored changes beyond the
+        exact-match tolerance, scored changes within it, new exclusions and
+        restorations. Refuses a change to an output excluded both before and
+        after the upgrade: an excluded output keeps the value it was decided
+        on (rule 5)."""
+        kept = (self.excluded_before & self.excluded) - self.restored
+        touched = sorted(kept & {_key(change) for change in self.changes})
+        if touched:
+            raise ValueError(
+                f"the {self.date} upgrade changes outputs it kept excluded: {touched}"
+            )
+        return partition_engine_upgrade_changes(
+            self.changes, self.excluded - self.excluded_before, self.restored
+        )
+
+    @property
+    def scored_change_count(self) -> int:
+        return len(self.partition["scored_changes"])
+
+    @property
+    def within_tolerance_count(self) -> int:
+        return len(self.partition["within_tolerance"])
+
+    @property
+    def new_exclusion_count(self) -> int:
+        return len(self.partition["new_exclusions"])
+
+    @property
+    def restored_count(self) -> int:
+        return len(self.restored)
+
+    @property
+    def rechecked(self) -> list[dict]:
+        """Excluded outputs whose value moves on the new engine; each stays
+        excluded with the value it was decided on."""
+        return self.revision.get("excluded_outputs_rechecked", [])
+
+    @property
+    def rechecked_count(self) -> int:
+        return len(self.rechecked)
+
+    def rechecked_value(self, record: dict) -> float:
+        """A rechecked output's value on the new engine (``value_on_<ver>``)."""
+        return record["value_on_" + self.engine_version.replace(".", "_")]
+
+
+def engine_upgrades_from(
+    revisions: list[dict], exclusions: list[dict]
+) -> list[EngineUpgrade]:
+    """The sidecar's engine upgrades, oldest first, each with the exclusion
+    record as it stood around it (``exclusions_in_place``). Refuses a chain
+    in which an upgrade does not start from the engine the one before it
+    moved to."""
+
+    def in_place(date: str, include_day: bool) -> frozenset[tuple[str, str]]:
+        return frozenset(
+            _key(record)
+            for record in exclusions_in_place(
+                exclusions, revisions, date, include_day=include_day
+            )
+        )
+
+    upgrades = [
+        EngineUpgrade(
+            revision,
+            excluded_before=in_place(revision["date"], False),
+            excluded=in_place(revision["date"], True),
+        )
+        for revision in revisions
+        if revision.get("kind") == "engine_upgrade"
+    ]
+    for before, after in zip(upgrades, upgrades[1:]):
+        if after.previous_engine_version != before.engine_version:
+            raise ValueError(
+                f"the {after.date} upgrade does not start from "
+                f"{before.engine_version}, the engine the {before.date} upgrade "
+                f"moved to: {after.previous_engine_version}"
+            )
+    return upgrades
+
+
+def references_as_of(
+    references: dict[tuple[str, str], float], revisions: list[dict], date: str
+) -> dict[tuple[str, str], float]:
+    """The references as they stood at the end of ``date``: ``references``
+    with every later revision's changes undone, newest first. Refuses a change
+    whose regenerated value is not where the later references stand."""
+    values = dict(references)
+    for revision in reversed(revisions):
+        if revision["date"] <= date:
+            continue
+        for change in reversed(revision.get("changed", [])):
+            key = _key(change)
+            if abs(values[key] - change["regenerated"]) > 1e-6:
+                raise ValueError(
+                    f"{key}: the {revision['date']} revision does not end at "
+                    f"the later reference ({change['regenerated']} != {values[key]})"
+                )
+            values[key] = change["previous"]
+    return values
 
 
 # Human-readable model names for the frozen roster. Aliases that do not
@@ -192,6 +613,7 @@ MODEL_DISPLAY_NAMES = {
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",
     "claude-sonnet-4.6": "Claude Sonnet 4.6",
+    "claude-haiku-5.5": "Claude Haiku 5.5",
     "claude-haiku-4.5": "Claude Haiku 4.5",
     "grok-4.3": "Grok 4.3",
     "gpt-5.5": "GPT-5.5",
@@ -1151,6 +1573,10 @@ class PaperResults:
         return sum(self.excluded_outputs_by_root_cause.values())
 
     @property
+    def later_law_exclusion_count_word(self) -> str:
+        return count_word(self.later_law_exclusion_count)
+
+    @property
     def excluded_output_households_fmt(self) -> str:
         return f"{len({e['scenario_id'] for e in self.reference_exclusions}):,}"
 
@@ -1294,8 +1720,9 @@ class PaperResults:
         """Scored outputs a convention or an upstream fix regenerated.
 
         These are the September 22 regenerations, made on the engine version
-        before the upgrade; the engine upgrade's own changes are counted by the
-        ``engine_upgrade_*`` properties.
+        before the first upgrade; each engine upgrade's own changes are counted
+        by ``engine_upgrades`` (the last one's by the ``engine_upgrade_*``
+        properties).
         """
         return {
             (change["scenario_id"], change.get("variable", "snap"))
@@ -1305,70 +1732,412 @@ class PaperResults:
         }
 
     @cached_property
+    def frozen_references(self) -> dict[tuple[str, str], float]:
+        """The frozen reference for every output, scored or excluded."""
+        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        frozen = pd.read_csv(run_dir / "reference_outputs.csv")
+        return {
+            (row.scenario_id, row.variable): float(row.value)
+            for row in frozen.itertuples(index=False)
+        }
+
+    def references_as_of(self, date: str) -> dict[tuple[str, str], float]:
+        """The references as they stood at the end of ``date`` (UTC day)."""
+        return references_as_of(self.frozen_references, self.reference_revisions, date)
+
+    def _exclusions_in_place(self, date: str, *, include_day: bool) -> list[dict]:
+        """Exclusion records in place just before ``date`` or, with
+        ``include_day``, at its end, whatever later releases added or removed."""
+        return exclusions_in_place(
+            self.reference_exclusions,
+            self.reference_revisions,
+            date,
+            include_day=include_day,
+        )
+
+    @cached_property
+    def engine_upgrades(self) -> list[EngineUpgrade]:
+        """Every engine upgrade the sidecar records, oldest first."""
+        return engine_upgrades_from(self.reference_revisions, self.reference_exclusions)
+
+    @property
+    def engine_upgrade_count(self) -> int:
+        return len(self.engine_upgrades)
+
+    @property
+    def last_engine_upgrade(self) -> EngineUpgrade | None:
+        """The upgrade behind the current references."""
+        return self.engine_upgrades[-1] if self.engine_upgrades else None
+
+    def engine_upgrade_on(self, date: str) -> EngineUpgrade:
+        """The engine upgrade dated ``date`` (UTC day)."""
+        matches = [u for u in self.engine_upgrades if u.date == date]
+        if len(matches) != 1:
+            raise ValueError(
+                f"no engine_upgrade revision dated {date}, or more than one: "
+                f"{[u.date for u in self.engine_upgrades]}"
+            )
+        return matches[0]
+
+    def engine_upgrade_to(self, version: str) -> EngineUpgrade:
+        """The engine upgrade that moved the references to ``version``."""
+        version = engine_version_number(version)
+        matches = [u for u in self.engine_upgrades if u.engine_version == version]
+        if len(matches) != 1:
+            raise ValueError(
+                f"no engine_upgrade revision to {version}, or more than one: "
+                f"{[u.engine_version for u in self.engine_upgrades]}"
+            )
+        return matches[0]
+
+    @property
+    def september_upgrade(self) -> EngineUpgrade:
+        """The 2026-09-29 move from policyengine-us 1.755.4 to 2.15.17, which
+        reference_audit/2026-09-28 records, however many upgrades follow."""
+        return self.engine_upgrade_on(SEPTEMBER_UPGRADE_DATE)
+
+    @property
     def engine_upgrade_revision(self) -> dict | None:
-        """The sidecar revision that moved the references to a newer engine."""
-        upgrades = [
-            revision
-            for revision in self.reference_revisions
-            if revision.get("kind") == "engine_upgrade"
-        ]
-        return upgrades[-1] if upgrades else None
+        """The sidecar revision that moved the references to the current
+        engine: the last engine upgrade."""
+        last = self.last_engine_upgrade
+        return None if last is None else last.revision
 
     @property
     def previous_policyengine_us_version(self) -> str:
-        """policyengine-us version behind the references before the upgrade,
-        the version the September 22 audit ran on."""
-        revision = self.engine_upgrade_revision
-        if revision is None:
-            return self.policyengine_us_version
-        return revision["previous_engine_version"].removeprefix("policyengine-us ")
-
-    @property
-    def engine_upgrade_date(self) -> str:
-        """UTC date PolicyBench rebuilt the references on the new engine: the
-        sidecar's ``regenerated_at_utc`` day, which is also the revision's own
-        ``date`` (tests/test_paper_results.py checks they agree)."""
-        if self.engine_upgrade_revision is None:
-            return ""
-        return self.reference_rebuilt_date
-
-    def _engine_upgrade_changes(self) -> list[dict]:
-        revision = self.engine_upgrade_revision
-        return [] if revision is None else revision["changed"]
-
-    @cached_property
-    def engine_upgrade_partition(self) -> dict[str, list[dict]]:
-        """The upgrade's changed outputs, split into scored changes beyond the
-        exact-match tolerance, scored changes within it, and new exclusions."""
-        return partition_engine_upgrade_changes(
-            self._engine_upgrade_changes(), self._excluded_output_keys
+        """policyengine-us version behind the references before the last
+        upgrade: that revision's own previous_engine_version."""
+        last = self.last_engine_upgrade
+        return (
+            self.policyengine_us_version
+            if last is None
+            else (last.previous_engine_version)
         )
 
     @property
+    def engine_upgrade_date(self) -> str:
+        """UTC date PolicyBench rebuilt the references on the current engine:
+        the sidecar's ``regenerated_at_utc`` day, which is also the last
+        upgrade's own ``date`` (tests/test_paper_results.py checks they agree)."""
+        if self.last_engine_upgrade is None:
+            return ""
+        return self.reference_rebuilt_date
+
+    @property
+    def engine_upgrade_partition(self) -> dict[str, list[dict]]:
+        """The last upgrade's changed outputs, split into scored changes beyond
+        the exact-match tolerance, scored changes within it, new exclusions and
+        restorations."""
+        last = self.last_engine_upgrade
+        if last is None:
+            return partition_engine_upgrade_changes([], frozenset())
+        return last.partition
+
+    @property
     def engine_upgrade_scored_change_count(self) -> int:
-        """Scored references the upgrade moved beyond the exact-match tolerance."""
+        """Scored references the last upgrade moved beyond the exact-match
+        tolerance."""
         return len(self.engine_upgrade_partition["scored_changes"])
 
     @property
     def engine_upgrade_within_tolerance_count(self) -> int:
-        """Scored references the upgrade moved within the $1 tolerance."""
+        """Scored references the last upgrade moved within the $1 tolerance."""
         return len(self.engine_upgrade_partition["within_tolerance"])
 
     @property
     def engine_upgrade_new_exclusion_count(self) -> int:
-        """Outputs scored before the upgrade that it removed from scoring."""
+        """Outputs scored before the last upgrade that it removed from scoring."""
         return len(self.engine_upgrade_partition["new_exclusions"])
+
+    @property
+    def engine_upgrade_restored_count(self) -> int:
+        """Excluded outputs the last upgrade returned to scoring."""
+        last = self.last_engine_upgrade
+        return 0 if last is None else last.restored_count
+
+    @property
+    def engine_upgrade_restored_count_word(self) -> str:
+        return count_word(self.engine_upgrade_restored_count)
+
+    @property
+    def engine_upgrade_restored_ruled_count(self) -> int:
+        """Restored outputs the 2026-10-06 rulings had decided to exclude. No
+        published board excluded them: they were still scored when the rulings
+        came, so they stay scored rather than return to scoring."""
+        last = self.last_engine_upgrade
+        if last is None:
+            return 0
+        ruled = {_key(record) for record in self.ruled_records}
+        return sum(
+            _key(entry) in ruled for entry in last.revision["regenerated_exclusions"]
+        )
+
+    @property
+    def engine_upgrade_restored_split_sentence(self) -> str:
+        """The last upgrade's fixed outputs, split by whether a published board
+        had excluded them (they return to scoring) or the 2026-10-06 rulings
+        decided them while they were still scored (they stay scored)."""
+        return restored_split_sentence(
+            self.engine_upgrade_restored_count,
+            self.engine_upgrade_restored_ruled_count,
+            RULING_DATE,
+        )
+
+    @cached_property
+    def engine_upgrade_timing(self) -> dict | None:
+        """The last upgrade's sweep timing record, when that upgrade is the
+        October 2026 audit's build and the record is written (None before)."""
+        last = self.last_engine_upgrade
+        if last is None or not str(last.revision.get("builder", "")).startswith(
+            OCTOBER_UPGRADE_AUDIT
+        ):
+            return None
+        if not OCTOBER_SWEEP_TIMING.is_file():
+            return None
+        timing = json.loads(OCTOBER_SWEEP_TIMING.read_text())
+        if timing["reference_sweep"]["engine"] != last.engine_version:
+            raise ValueError(
+                f"{OCTOBER_SWEEP_TIMING} times policyengine-us "
+                f"{timing['reference_sweep']['engine']}, not {last.engine_version}"
+            )
+        return timing
+
+    @property
+    def engine_upgrade_timing_sentence(self) -> str:
+        """When the last upgrade's sweep began and what the publication check
+        found, from its timing record; empty until the record is written."""
+        timing = self.engine_upgrade_timing
+        if timing is None:
+            return ""
+        engine = timing["reference_sweep"]["engine"]
+        began = timing["reference_sweep"]["first_output_at_utc"][:10]
+        uploaded = uploaded_phrase(
+            timing["pypi"]["wheel_uploaded_at_utc"][engine], began
+        )
+        read_at = timing["pypi"]["read_at_utc"]
+        check = timing.get("publication_check")
+        if check is None or check["engine"] != timing["pypi"]["newest_at_read"]:
+            raise ValueError(f"{OCTOBER_SWEEP_TIMING} records no publication check")
+        when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
+        if check["engine"] == engine:
+            checked = f"It was still the newest release when {when}."
+        elif check["same"] == check["outputs"]:
+            checked = (
+                f"policyengine-us {check['engine']}, the newest release when {when}, "
+                f"gives the same value as {engine} for all {check['outputs']:,} "
+                "outputs under the same conventions and adapter."
+            )
+        elif check["scored_same"] == check["scored_outputs"]:
+            moved = len(check["excluded_differ"])
+            checked = (
+                f"policyengine-us {check['engine']}, the newest release when {when}, "
+                f"gives the same value as {engine} for all "
+                f"{check['scored_outputs']:,} scored outputs under the same "
+                f"conventions and adapter, and moves {count_word(moved)} of the "
+                "excluded outputs, which keep the values they were decided on."
+            )
+        else:
+            raise ValueError(
+                f"policyengine-us {check['engine']} moves scored outputs "
+                f"{check['scored_differ']}; state what the publication check found "
+                "before publishing"
+            )
+        return (
+            f"policyengine-us {engine} was the newest release when PolicyBench began "
+            f"sweeping the references on {began} ({uploaded}). {checked}"
+        )
+
+    @property
+    def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
+        """The defects behind the outputs the last upgrade returned to scoring:
+        each one's name, how many outputs it restores and the upstream pull
+        requests its regenerated_exclusions entries name (not the related
+        ones), in the sidecar's order. A record with several root causes names
+        each."""
+        last = self.last_engine_upgrade
+        fixes: dict[str, tuple[int, list[str]]] = {}
+        for entry in [] if last is None else last.revision["regenerated_exclusions"]:
+            causes = entry["record"]["root_cause"].split("+")
+            unnamed = [c for c in causes if c not in ROOT_CAUSE_LABELS]
+            if unnamed:
+                raise ValueError(f"no paper name for the root causes {unnamed}")
+            label = " and ".join(ROOT_CAUSE_LABELS[c] for c in causes)
+            prs = UPSTREAM_PR.findall(entry["upstream"].split("; related")[0])
+            if not prs:
+                raise ValueError(f"{_key(entry)} names no upstream pull request")
+            count, known = fixes.get(label, (0, []))
+            fixes[label] = (count + 1, known + [p for p in prs if p not in known])
+        return [(label, count, prs) for label, (count, prs) in fixes.items()]
+
+    @property
+    def engine_upgrade_restored_fix_phrase(self) -> str:
+        """The fixes behind the restored outputs as one series, each with the
+        upstream pull requests it names and, past one, how many outputs."""
+        parts = []
+        for label, count, prs in self.engine_upgrade_restored_fixes:
+            numbers = ", ".join(f"#{pr}" for pr in prs)
+            outputs = "" if count == 1 else f"; {count_word(count)} outputs"
+            parts.append(f"{label} (policyengine-us {numbers}{outputs})")
+        return _series(parts)
+
+    @property
+    def engine_upgrade_restored_sentence(self) -> str:
+        """One sentence naming the fixes behind the restored outputs."""
+        phrase = self.engine_upgrade_restored_fix_phrase
+        if not phrase:
+            return ""
+        return f"The restored outputs take the upstream fixes for {phrase}."
+
+    @property
+    def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
+        """The last upgrade's restored outputs by how their corrected value is
+        known (the sidecar's ``target.kind``): ``record`` for the value the
+        exclusion record carries, ``fix_modules`` for the value the audit's
+        fix modules give on a later engine that still has the defect. Refuses,
+        as the builder's regeneration_target does, an entry whose engine value
+        is not within its tolerance of its target (a flag must equal it), a
+        tolerance above $1, a ``record`` target that is not the record's value,
+        and a ``fix_modules`` target whose modules did not move the output
+        beyond the exact-match tolerance on that engine (no defect there)."""
+        last = self.last_engine_upgrade
+        targets: dict[str, list[dict]] = {"record": [], "fix_modules": []}
+        for entry in [] if last is None else last.revision["regenerated_exclusions"]:
+            target, key = entry["target"], _key(entry)
+            if target["kind"] not in targets:
+                raise ValueError(f"{key} has an unknown target kind {target['kind']!r}")
+            tolerance = entry["tolerance"]
+            if not 0 <= tolerance <= 1:
+                raise ValueError(f"{key} is restored on a tolerance of {tolerance}")
+            variable = entry["variable"]
+            if abs(
+                entry["regenerated"] - target["value"]
+            ) > tolerance or moves_beyond_tolerance(
+                variable, target["value"], entry["regenerated"]
+            ):
+                raise ValueError(f"{key} is restored off its target")
+            if target["kind"] == "record":
+                if target["value"] != entry["record"]["alternative_value"]:
+                    raise ValueError(f"{key}'s target is not its record's value")
+            elif not moves_beyond_tolerance(
+                variable, target["engine_value"], target["value"]
+            ):
+                raise ValueError(f"{key}'s fix modules move nothing there")
+            targets[target["kind"]].append(entry)
+        return targets
+
+    @property
+    def engine_upgrade_restored_target_sentence(self) -> str:
+        """How the restored outputs' corrected values are known: by the
+        exclusion record, or by the audit's fix modules on a later engine."""
+        targets = self.engine_upgrade_restored_targets
+        by_record, by_modules = targets["record"], targets["fix_modules"]
+        total = len(by_record) + len(by_modules)
+        if not total:
+            return ""
+        if not by_modules:
+            subject = "It lands" if total == 1 else "Each lands"
+            carries = "its exclusion record carries"
+            return f"{subject} within $1 of the corrected value {carries}."
+        engines = sorted({e["target"]["engine"] for e in by_modules})
+        if len(engines) != 1:
+            raise ValueError(f"fix-module targets name several engines: {engines}")
+        some = bool(by_record)
+        if len(by_modules) == 1:
+            modules = (
+                f"{'The other one' if some else 'It'} is held"
+                f"{' instead' if some else ''} to the value the audit's fix "
+                f"modules give on {engines[0]}, an engine that still has the "
+                "defect; it lands within $1 of it."
+            )
+        else:
+            subject = f"The other {count_word(len(by_modules))}" if some else "They"
+            modules = (
+                f"{subject} are held{' instead' if some else ''} to the values "
+                f"the audit's fix modules give on {engines[0]}, an engine that "
+                "still has the defects; each lands within $1 of its own."
+            )
+        if not some:
+            return modules
+        if len(by_record) == 1:
+            landing = "one lands within $1 of the corrected value its record carries"
+        else:
+            landing = (
+                f"{count_word(len(by_record))} land within $1 of the corrected "
+                "values their exclusion records carry"
+            )
+        return f"Of the {count_word(total)}, {landing}. {modules}"
+
+    @property
+    def engine_upgrade_scored_change_sentence(self) -> str:
+        """One sentence naming what the last upgrade changed in the scored
+        references beyond the tolerance."""
+        last = self.last_engine_upgrade
+        changes = [] if last is None else last.partition["scored_changes"]
+        parts = []
+        for change in changes:
+            cause = change["cause"]
+            if cause not in CHANGE_CAUSE_LABELS:
+                raise ValueError(f"no paper name for the change cause {cause!r}")
+            prs = UPSTREAM_PR.findall(change["basis"])
+            numbers = f" (policyengine-us #{prs[-1]})" if prs else ""
+            part = f"{CHANGE_CAUSE_LABELS[cause]}{numbers}"
+            if part not in parts:
+                parts.append(part)
+        if not parts:
+            return ""
+        noun = "reference follows" if len(changes) == 1 else "references follow"
+        return f"The changed scored {noun} {_series(parts)}."
+
+    @property
+    def engine_upgrade_new_exclusion_sentence(self) -> str:
+        """One sentence naming the inputs behind the outputs the last upgrade
+        removed from scoring."""
+        last = self.last_engine_upgrade
+        if last is None or not last.partition["new_exclusions"]:
+            return ""
+        added = {_key(change) for change in last.partition["new_exclusions"]}
+        inputs = []
+        for record in self.reference_exclusions:
+            if _key(record) in added:
+                text = record.get("unlisted_input")
+                if not text:
+                    raise ValueError(f"{_key(record)} names no unlisted input")
+                if text not in inputs:
+                    inputs.append(text)
+        count = len(added)
+        noun = "output that leaves" if count == 1 else "outputs that leave"
+        verb = "depends" if count == 1 else "depend"
+        return (
+            f"The {count_word(count)} {noun} scoring {verb} on an input no prompt "
+            f"states: {_series(inputs)}."
+        )
+
+    @property
+    def engine_upgrade_scored_change_count_word(self) -> str:
+        return count_word(self.engine_upgrade_scored_change_count)
+
+    @property
+    def engine_upgrade_new_exclusion_count_word(self) -> str:
+        return count_word(self.engine_upgrade_new_exclusion_count)
 
     @property
     def excluded_outputs_by_engine_version(self) -> dict[str, int]:
         """Excluded outputs by the policyengine-us version behind the value
-        each keeps: the version its exclusion was decided on."""
-        return dict(
-            Counter(
-                entry["engine_version"].removeprefix("policyengine-us ")
-                for entry in self.reference_exclusions
-            )
+        each keeps (the version its exclusion was decided on), oldest first."""
+        counts = Counter(
+            engine_version_number(entry["engine_version"])
+            for entry in self.reference_exclusions
         )
+        return {
+            version: counts[version]
+            for version in sorted(counts, key=engine_version_key)
+        }
+
+    @property
+    def excluded_outputs_by_engine_version_phrase(self) -> str:
+        """'52 computed with policyengine-us 1.755.4, 12 with 2.15.17', for
+        however many engines the excluded outputs' values come from."""
+        return engine_version_count_phrase(self.excluded_outputs_by_engine_version)
 
     @property
     def excluded_outputs_on_previous_engine_count(self) -> int:
@@ -1399,9 +2168,12 @@ class PaperResults:
 
     @property
     def reference_engine_uploaded_utc(self) -> str:
-        """PyPI upload time (UTC, HH:MM) of the reference engine's wheel."""
-        uploaded = self.sweep_timing["pypi"]["wheel_uploaded_at_utc"]
-        return uploaded[self.policyengine_us_version][11:16]
+        """PyPI upload time (UTC, HH:MM) of the wheel the 2026-09-29 reference
+        sweep began on (sweep_timing.json's reference_sweep engine, 2.15.17),
+        however many upgrades follow it."""
+        engine = self.sweep_timing["reference_sweep"]["engine"]
+        self.engine_upgrade_to(engine)  # refuses a timing record of no upgrade
+        return self.sweep_timing["pypi"]["wheel_uploaded_at_utc"][engine][11:16]
 
     @property
     def publication_check_pypi_read_date(self) -> str:
@@ -1425,9 +2197,25 @@ class PaperResults:
         return json.loads(RERUN_SWEEPS.read_text())
 
     @cached_property
+    def _rerun_sweep_upgrade(self) -> EngineUpgrade:
+        """The upgrade to the engine the re-run sweeps ran on (2.15.17)."""
+        return self.engine_upgrade_to(self.rerun_sweeps["engine"])
+
+    @cached_property
+    def _excluded_while_rerun_engine_was_reference(self) -> frozenset:
+        """Outputs excluded while the re-run sweeps' engine was the reference
+        engine, at the latest: the current record, or, once a later upgrade
+        moved the references on, the record just before that upgrade."""
+        upgrades = self.engine_upgrades
+        index = upgrades.index(self._rerun_sweep_upgrade)
+        if index + 1 == len(upgrades):
+            return self._excluded_output_keys
+        return upgrades[index + 1].excluded_before
+
+    @cached_property
     def rerun_sweep_partition(self) -> dict[str, list[tuple[str, str, str]]]:
         return partition_rerun_sweep_moves(
-            self.rerun_sweeps, self._excluded_output_keys
+            self.rerun_sweeps, self._excluded_while_rerun_engine_was_reference
         )
 
     @property
@@ -1468,14 +2256,8 @@ class PaperResults:
     def rerun_sweep_new_excluded_outputs(self) -> list[tuple[str, str]]:
         """Outputs that a sweep first run on the reference engine moves
         beyond the exact-match tolerance, against its own baseline, and that
-        the exclusion record did not hold before the upgrade (no exclusion
-        decided on the previous engine)."""
-        previous = f"policyengine-us {self.previous_policyengine_us_version}"
-        held_before = {
-            (entry["scenario_id"], entry["variable"])
-            for entry in self.reference_exclusions
-            if entry["engine_version"] == previous
-        }
+        the exclusion record did not hold before that engine's upgrade."""
+        held_before = self._rerun_sweep_upgrade.excluded_before
         return sorted(
             {
                 (move["scenario_id"], move["variable"])
@@ -1493,12 +2275,292 @@ class PaperResults:
     def rerun_sweep_new_excluded_count_word(self) -> str:
         return NUMBER_WORDS[len(self.rerun_sweep_new_excluded_outputs)]
 
+    # ----- the 2026-10-05 review of release dashboard-data-20260930 ----------
+    @property
+    def review_date(self) -> str:
+        return REVIEW_DATE
+
+    @cached_property
+    def _excluded_at_review(self) -> list[dict]:
+        """Exclusion records in place once the review decided, whatever
+        records later releases added or removed."""
+        return self._exclusions_in_place(REVIEW_DATE, include_day=True)
+
+    @cached_property
+    def review_exclusions(self) -> list[dict]:
+        """Exclusion records the 2026-10-05 review added."""
+        return [
+            entry
+            for entry in self._excluded_at_review
+            if entry.get("decided_on") == REVIEW_DATE
+        ]
+
+    @property
+    def review_exclusion_keys(self) -> frozenset[tuple[str, str]]:
+        return frozenset(exclusion_keys(self.review_exclusions))
+
+    @property
+    def excluded_before_review_keys(self) -> frozenset[tuple[str, str]]:
+        """Outputs excluded before the review: every record in place once it
+        decided that it did not add."""
+        return frozenset(exclusion_keys(self._excluded_at_review)) - (
+            self.review_exclusion_keys
+        )
+
+    @property
+    def review_new_exclusion_count(self) -> int:
+        return len(self.review_exclusions)
+
+    @property
+    def review_new_exclusion_count_word(self) -> str:
+        return NUMBER_WORDS[self.review_new_exclusion_count]
+
+    @cached_property
+    def ruled_records(self) -> list[dict]:
+        """The records the 2026-10-06 rulings decided, in (scenario, variable)
+        order: those in the exclusion record, and those a later engine upgrade
+        regenerated, whose removed record its regenerated_exclusions keep."""
+        current = [
+            record
+            for record in self.reference_exclusions
+            if record.get("decided_on") == RULING_DATE
+        ]
+        removed = [
+            entry["record"]
+            for upgrade in self.engine_upgrades
+            for entry in upgrade.revision.get("regenerated_exclusions", [])
+            if entry.get("record", {}).get("decided_on") == RULING_DATE
+        ]
+        records = sorted(current + removed, key=_key)
+        unnamed = [_key(record) for record in records if not record.get("decision")]
+        if unnamed:
+            raise ValueError(f"2026-10-06 records name no ruling: {unnamed}")
+        return records
+
+    @property
+    def ruling_date(self) -> str:
+        return RULING_DATE
+
+    @property
+    def ruled_exclusion_count(self) -> int:
+        return len(self.ruled_records)
+
+    @property
+    def ruled_exclusion_count_word(self) -> str:
+        return count_word(self.ruled_exclusion_count)
+
+    def ruled_decision_count(self, decision: str) -> int:
+        """Records one ruling (d1022 or d994) decided."""
+        return sum(record["decision"] == decision for record in self.ruled_records)
+
+    def ruled_decision_count_word(self, decision: str) -> str:
+        return count_word(self.ruled_decision_count(decision))
+
+    @property
+    def ruled_regenerated_count(self) -> int:
+        """Ruled records a later engine upgrade regenerated."""
+        current = {_key(record) for record in self.reference_exclusions}
+        return sum(_key(record) not in current for record in self.ruled_records)
+
+    @property
+    def ruled_regenerated_count_word(self) -> str:
+        return count_word(self.ruled_regenerated_count)
+
+    @property
+    def ruled_kept_count(self) -> int:
+        return self.ruled_exclusion_count - self.ruled_regenerated_count
+
+    @property
+    def ruled_kept_count_word(self) -> str:
+        return count_word(self.ruled_kept_count)
+
+    @property
+    def ruled_exclusion_engine_version(self) -> str:
+        """policyengine-us version the ruled records were computed on."""
+        versions = {record["engine_version"] for record in self.ruled_records}
+        if len(versions) != 1:
+            raise ValueError(f"the 2026-10-06 records name several engines: {versions}")
+        return engine_version_number(versions.pop())
+
+    @property
+    def review_exclusion_engine_version(self) -> str:
+        """policyengine-us version the review's records were computed on."""
+        versions = {entry["engine_version"] for entry in self.review_exclusions}
+        if len(versions) != 1:
+            raise ValueError(f"review records mix engine versions: {versions}")
+        return versions.pop().removeprefix("policyengine-us ")
+
+    @property
+    def review_sweep_count(self) -> int:
+        return len(REVIEW_SWEEPS)
+
+    @property
+    def review_sweep_count_word(self) -> str:
+        return NUMBER_WORDS[self.review_sweep_count]
+
+    @cached_property
+    def review_sweep_rows(self) -> dict[str, pd.DataFrame]:
+        """Each review sweep's CSV: every output, its frozen reference, the
+        sweep's baseline and its value under each reading."""
+        return {name: pd.read_csv(path) for name, (path, _, _) in REVIEW_SWEEPS.items()}
+
+    def _review_sweep_moves(
+        self, sweep: str | None = None
+    ) -> list[tuple[str, str, str, float, float]]:
+        """(sweep, scenario_id, variable, baseline, recomputed) for every
+        reading or check that changes an output's value from the baseline."""
+        moves = []
+        for name, (_, baseline_column, readings) in REVIEW_SWEEPS.items():
+            if sweep is not None and name != sweep:
+                continue
+            frame = self.review_sweep_rows[name]
+            for row in frame.itertuples(index=False):
+                baseline = float(getattr(row, baseline_column))
+                for reading in readings:
+                    recomputed = float(getattr(row, reading))
+                    if recomputed != baseline:
+                        moves.append(
+                            (name, row.scenario_id, row.variable, baseline, recomputed)
+                        )
+        return moves
+
+    @cached_property
+    def review_sweep_partition(self) -> dict[str, list[tuple[str, str, str]]]:
+        return partition_review_sweep_moves(
+            self._review_sweep_moves(),
+            self.excluded_before_review_keys,
+            frozenset(exclusion_keys(self._excluded_at_review)),
+        )
+
+    def review_sweep_moved_outputs(self, sweep: str) -> list[tuple[str, str]]:
+        """Outputs a review sweep moves beyond the exact-match tolerance under
+        any of its readings, against its own baseline."""
+        return sorted(
+            {
+                (scenario_id, variable)
+                for _, scenario_id, variable, baseline, recomputed in (
+                    self._review_sweep_moves(sweep)
+                )
+                if moves_beyond_tolerance(variable, baseline, recomputed)
+            }
+        )
+
+    def review_sweep_moved_count(self, sweep: str) -> int:
+        return len(self.review_sweep_moved_outputs(sweep))
+
+    def review_sweep_moved_count_word(self, sweep: str) -> str:
+        return NUMBER_WORDS[self.review_sweep_moved_count(sweep)]
+
+    def review_sweep_moved_household_count_word(self, sweep: str) -> str:
+        """Households whose outputs a review sweep moves beyond tolerance."""
+        households = {s for s, _ in self.review_sweep_moved_outputs(sweep)}
+        return NUMBER_WORDS[len(households)]
+
+    def review_sweep_newly_excluded_count(self, sweep: str) -> int:
+        """Outputs the sweep moves that were scored before the review."""
+        return sum(
+            output not in self.excluded_before_review_keys
+            for output in self.review_sweep_moved_outputs(sweep)
+        )
+
+    def review_sweep_newly_excluded_count_word(self, sweep: str) -> str:
+        return NUMBER_WORDS[self.review_sweep_newly_excluded_count(sweep)]
+
+    def review_sweep_already_excluded_count_word(self, sweep: str) -> str:
+        """Outputs the sweep moves that were already excluded."""
+        return NUMBER_WORDS[
+            self.review_sweep_moved_count(sweep)
+            - self.review_sweep_newly_excluded_count(sweep)
+        ]
+
+    @property
+    def review_newly_excluded_moved_outputs(self) -> list[tuple[str, str]]:
+        return sorted(
+            {(s, v) for _, s, v in self.review_sweep_partition["newly_excluded"]}
+        )
+
+    @property
+    def review_already_excluded_moved_outputs(self) -> list[tuple[str, str]]:
+        """Outputs excluded before the review that its sweeps also move."""
+        return sorted(
+            {(s, v) for _, s, v in self.review_sweep_partition["excluded_before"]}
+        )
+
+    @property
+    def review_already_excluded_moved_count_word(self) -> str:
+        return NUMBER_WORDS[len(self.review_already_excluded_moved_outputs)]
+
+    @property
+    def review_still_scored_moves_phrase(self) -> str:
+        """'no output that is still scored', or how many still-scored outputs
+        the review's sweeps move by any amount."""
+        moved = {
+            (s, v)
+            for group in ("scored_beyond_tolerance", "scored_within_tolerance")
+            for _, s, v in self.review_sweep_partition[group]
+        }
+        count = len(moved)
+        if count in (0, 1):
+            return f"{NUMBER_WORDS[count]} output that is still scored"
+        return f"{NUMBER_WORDS.get(count, str(count))} outputs that are still scored"
+
+    @property
+    def review_scored_before_count(self) -> int:
+        """References scored before the review, which every review sweep's
+        baseline reproduces (refuses a sweep whose baseline misses one, or
+        whose reference column is not the frozen reference as it stood at the
+        review)."""
+        reference = self.references_as_of(REVIEW_DATE)
+        scored_before = set(reference) - self.excluded_before_review_keys
+        for name, (_, baseline_column, _) in REVIEW_SWEEPS.items():
+            frame = self.review_sweep_rows[name]
+            rows = {
+                (row.scenario_id, row.variable): (
+                    float(row.reference),
+                    float(getattr(row, baseline_column)),
+                )
+                for row in frame.itertuples(index=False)
+            }
+            if set(rows) != set(reference):
+                raise ValueError(f"review sweep {name} does not cover every output")
+            for key in scored_before:
+                swept_reference, baseline = rows[key]
+                if swept_reference != reference[key] or baseline != reference[key]:
+                    raise ValueError(
+                        f"review sweep {name}'s baseline does not reproduce {key}"
+                    )
+        return len(scored_before)
+
+    @property
+    def review_scored_before_count_fmt(self) -> str:
+        return f"{self.review_scored_before_count:,}"
+
+    @cached_property
+    def review_adjudications(self) -> list[dict]:
+        """The developer adjudications the review recorded."""
+        annotation_dir = ROOT / self.manifest["audit_annotation_artifacts"]["path"]
+        record = json.loads((annotation_dir / "us_adjudications.json").read_text())
+        return [
+            entry
+            for entry in record["adjudications"]
+            if entry.get("adjudicated_on") == REVIEW_DATE
+        ]
+
+    @property
+    def review_judge_flagged_count(self) -> int:
+        """Review outputs a judge had flagged reference-suspect (the paper
+        says none had)."""
+        return sum(
+            bool(entry.get("judge_reference_suspect"))
+            for entry in self.review_adjudications
+        )
+
     @property
     def engine_upgrade_rechecked_count(self) -> int:
-        """Excluded outputs whose value moved on the new engine and were
-        re-reviewed; they stay excluded."""
-        revision = self.engine_upgrade_revision
-        return 0 if revision is None else len(revision["excluded_outputs_rechecked"])
+        """Excluded outputs whose value moved on the last upgrade's engine and
+        were re-reviewed; they stay excluded."""
+        last = self.last_engine_upgrade
+        return 0 if last is None else last.rechecked_count
 
     def _regenerated_keys_of_kind(self, kind: str) -> set[tuple[str, str]]:
         return {
@@ -1589,6 +2651,180 @@ class PaperResults:
         return sum(
             1 for e in self.reference_exclusions if e["reason_code"] == LATER_LAW
         )
+
+    @cached_property
+    def engine_defect_landed_keys(self) -> dict[str, frozenset[tuple[str, str]]]:
+        """Engine-defect records still excluded although the last upgrade's
+        engine computes the record's corrected value (within the exact-match
+        tolerance) or, where later engine changes moved the output, the
+        corrected value the audit's committed fix-module evidence gives on an
+        engine that still has the defect (upgrade_fix_evidence), so the
+        recorded defect is fixed there, split by why the
+        upgrade's recheck keeps each excluded: ``unlisted_input``, for the
+        second reason the record's note names (an input the prompt does not
+        state); ``further_defect``, because the recheck found the reference
+        rests on a further engine defect the new engine does not fix (its
+        reason says so). A landed record that is neither is refused."""
+        last = self.last_engine_upgrade
+        kinds: dict[str, set] = {"unlisted_input": set(), "further_defect": set()}
+        if last is None:
+            return {k: frozenset(v) for k, v in kinds.items()}
+        records = {
+            _key(entry): entry
+            for entry in self.reference_exclusions
+            if entry["reason_code"] == ENGINE_DEFECT
+        }
+        field = "value_on_" + last.engine_version.replace(".", "_")
+        for item in last.rechecked:
+            key = _key(item)
+            if key not in records or field not in item:
+                continue
+            record = records[key]
+            targets = [float(record["alternative_value"])]
+            targets += self.upgrade_fix_evidence.get(key, [])
+            if all(
+                moves_beyond_tolerance(item["variable"], target, float(item[field]))
+                for target in targets
+            ):
+                continue
+            if "(unlisted input)" in record.get("note", ""):
+                kinds["unlisted_input"].add(key)
+            elif FURTHER_DEFECT in item["reason"]:
+                kinds["further_defect"].add(key)
+            else:
+                raise ValueError(
+                    f"{key} lands on its corrected value but its recheck names "
+                    "neither an unstated input nor a further engine defect"
+                )
+        return {k: frozenset(v) for k, v in kinds.items()}
+
+    @cached_property
+    def upgrade_fix_evidence(self) -> dict[tuple[str, str], list[float]]:
+        """Per output, the corrected values the October audit's committed
+        fix-module evidence gives (reference_audit/2026-10-09-engine-upgrade/
+        evidence): each on an engine that still has the defect, kept only where
+        the modules moved the output beyond the exact-match tolerance there."""
+        found: dict[tuple[str, str], list[float]] = {}
+        for path in sorted((ROOT / OCTOBER_UPGRADE_AUDIT / "evidence").glob("*.json")):
+            doc = json.loads(path.read_text())
+            if doc.get("kind") != "regeneration_evidence":
+                continue
+            for item in doc["items"]:
+                if moves_beyond_tolerance(
+                    item["variable"], item["engine_value"], item["corrected_value"]
+                ):
+                    found.setdefault(_key(item), []).append(item["corrected_value"])
+        return found
+
+    @property
+    def engine_defect_fixed_kept_keys(self) -> frozenset[tuple[str, str]]:
+        """Engine-defect records whose defect the last upgrade's engine fixes
+        and which stay excluded for an input the prompt does not state."""
+        return self.engine_defect_landed_keys["unlisted_input"]
+
+    @property
+    def engine_defect_further_defect_keys(self) -> frozenset[tuple[str, str]]:
+        """Engine-defect records whose recorded defect the last upgrade's
+        engine fixes but whose reference rests on a further defect it does
+        not fix, so they stay excluded."""
+        return self.engine_defect_landed_keys["further_defect"]
+
+    @property
+    def engine_defect_fixed_kept_count(self) -> int:
+        return len(self.engine_defect_fixed_kept_keys)
+
+    @property
+    def engine_defect_further_defect_count(self) -> int:
+        return len(self.engine_defect_further_defect_keys)
+
+    @property
+    def engine_defect_fixed_kept_sentence(self) -> str:
+        """What the paper says of the fixed-but-kept records; empty for none."""
+        count = self.engine_defect_fixed_kept_count
+        if count == 0:
+            return ""
+        if count == 1:
+            return (
+                f"policyengine-us {self.policyengine_us_version} computes one of "
+                "them at its corrected value; it stays excluded because it also "
+                "moves under an input the prompt does not state."
+            )
+        return (
+            f"policyengine-us {self.policyengine_us_version} computes "
+            f"{count_word(count)} of them at their corrected values; they stay "
+            "excluded because each also moves under an input the prompt does not "
+            "state."
+        )
+
+    @property
+    def engine_defect_further_defect_sentence(self) -> str:
+        """What the paper says of the records kept for a further defect; empty
+        for none."""
+        count = self.engine_defect_further_defect_count
+        if count == 0:
+            return ""
+        version = self.policyengine_us_version
+        if count == 1:
+            return (
+                f"policyengine-us {version} computes one more at its recorded "
+                "corrected value, but its reference rests on a further engine "
+                f"defect, found on {version} and not fixed there, so it stays "
+                "excluded."
+            )
+        return (
+            f"policyengine-us {version} computes {count_word(count)} more at their "
+            "recorded corrected values, but each reference rests on a further "
+            f"engine defect, found on {version} and not fixed there, so they stay "
+            "excluded."
+        )
+
+    @property
+    def engine_defect_unfixed_count(self) -> int:
+        """Engine-defect exclusions whose recorded defect the current engine
+        has."""
+        return (
+            self.engine_defect_exclusion_count
+            - self.engine_defect_fixed_kept_count
+            - self.engine_defect_further_defect_count
+        )
+
+    @property
+    def engine_defect_present_count(self) -> int:
+        """Engine-defect exclusions whose reference rests on a defect the
+        current engine has: the recorded one, or a further one."""
+        return (
+            self.engine_defect_unfixed_count + self.engine_defect_further_defect_count
+        )
+
+    @property
+    def engine_defect_unfixed_root_cause_count(self) -> int:
+        """Distinct root causes behind the unfixed engine-defect exclusions."""
+        landed = (
+            self.engine_defect_fixed_kept_keys | self.engine_defect_further_defect_keys
+        )
+        causes: set[str] = set()
+        for entry in self.reference_exclusions:
+            if entry["reason_code"] == ENGINE_DEFECT and _key(entry) not in landed:
+                causes.update(exclusion_basis(entry).split("+"))
+        return len(causes)
+
+    @property
+    def engine_defect_present_root_cause_count(self) -> int:
+        """The unfixed root causes and the further defects, each a cause."""
+        last = self.last_engine_upgrade
+        reasons = {
+            item["reason"]
+            for item in ([] if last is None else last.rechecked)
+            if _key(item) in self.engine_defect_further_defect_keys
+        }
+        return self.engine_defect_unfixed_root_cause_count + len(reasons)
+
+    @property
+    def unstated_input_exclusion_total(self) -> int:
+        """Excluded outputs that depend on an input the prompt does not state:
+        the unlisted-input records, and the engine-defect records whose defect
+        is fixed and which stay excluded for such an input."""
+        return self.unlisted_input_exclusion_count + self.engine_defect_fixed_kept_count
 
     @property
     def engine_defect_root_cause_count(self) -> int:
@@ -1747,6 +2983,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # September 28, 2026"); Models API created_at 2026-09-28
     # (api.anthropic.com/v1/models, read 2026-09-28)
     "claude-sonnet-5.5": "2026-09-28",
+    # platform.claude.com/docs/en/models/haiku-5-5/overview ("Released
+    # October 7, 2026"); Models API created_at 2026-10-07
+    # (api.anthropic.com/v1/models, read 2026-10-08)
+    "claude-haiku-5.5": "2026-10-07",
     # anthropic.com/news/claude-fable-5-mythos-5 (2026-06-09)
     "claude-fable-5": "2026-06-09",
     # announced and available 2026-07-24 (fortune.com, bloomberg.com,

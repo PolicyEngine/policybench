@@ -152,6 +152,35 @@ EXCLUDED_INPUT_VARIABLES = {
 # also the prompt's rule for unlisted numbers (0).
 PE_INPUT_ALIASES = {"hours_worked_last_week": "weekly_hours_worked_before_lsr"}
 
+# Manifest inputs policyengine-us has renamed. The manifests keep the name the
+# prompts were rendered from; the situation passes the value under the engine's
+# name. policyengine-us 1.728.0 renamed partnership_se_income. Every reference
+# build since then has applied the rename outside this builder: v1.1 in a
+# patched manifest, later builds in the RENAME map of
+# reference_audit/*/scripts/sweep.py.
+PE_INPUT_RENAMES = {
+    "partnership_se_income": "partnership_self_employment_net_earnings",
+}
+
+# Manifest inputs the situation leaves out, by entity. policyengine-us #9605
+# deletes the tax-unit first_home_mortgage_interest and
+# second_home_mortgage_interest inputs. Every household that lists them also
+# lists the same interest as the person-level home_mortgage_interest (on the
+# two that list a second home, the person value is the sum of both loans).
+# From 1.782.1, home_mortgage_interest_tax_unit falls back to the person-level
+# input when the tax-unit inputs are absent (from 1.804.1, #9276, it prefers
+# it), so leaving them out moves no reference on those engines. 1.620.0 through
+# 1.782.0 take the interest only from the tax-unit inputs (on 1.755.4 five
+# outputs move without them), so references built on those engines reproduce
+# from a commit before this change. The prompts still list the inputs. The
+# per-loan balances and origination years stay, since the acquisition-debt cap
+# reads them.
+PE_DROPPED_INPUTS = {
+    "tax_unit": frozenset(
+        {"first_home_mortgage_interest", "second_home_mortgage_interest"}
+    ),
+}
+
 EXCLUDED_INPUT_PREFIXES = (
     "takes_up_",
     "would_",
@@ -470,6 +499,22 @@ class Scenario:
     def _yearize(self, value: Any) -> dict[str, Any]:
         return {str(self.year): value}
 
+    def _pe_inputs(self, entity: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        """An entity's manifest inputs, yearized, under the engine's names."""
+        dropped = PE_DROPPED_INPUTS.get(entity, frozenset())
+        data: dict[str, Any] = {}
+        for key, value in inputs.items():
+            if key in dropped:
+                continue
+            name = PE_INPUT_RENAMES.get(key, key)
+            if name in data:
+                raise ValueError(
+                    f"Scenario {self.id} sets {name} twice on one {entity}: "
+                    f"directly and through the input it renames."
+                )
+            data[name] = self._yearize(value)
+        return data
+
     def to_pe_household(self) -> dict:
         """Convert to PolicyEngine-US household JSON format."""
         if self.country != "us":
@@ -483,8 +528,7 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+            person_data.update(self._pe_inputs("person", person.inputs))
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])
@@ -498,8 +542,7 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+            person_data.update(self._pe_inputs("person", person.inputs))
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])
@@ -513,14 +556,12 @@ class Scenario:
         tax_unit_data = {
             "members": all_names,
         }
-        for key, value in self.tax_unit_inputs.items():
-            tax_unit_data[key] = self._yearize(value)
+        tax_unit_data.update(self._pe_inputs("tax_unit", self.tax_unit_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["tax_unit"].items():
             tax_unit_data.setdefault(key, self._yearize(value))
 
         spm_unit_data = {"members": all_names}
-        for key, value in self.spm_unit_inputs.items():
-            spm_unit_data[key] = self._yearize(value)
+        spm_unit_data.update(self._pe_inputs("spm_unit", self.spm_unit_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["spm_unit"].items():
             spm_unit_data.setdefault(key, self._yearize(value))
 
@@ -528,8 +569,7 @@ class Scenario:
             "members": all_names,
             "state_code": self._yearize(self.state),
         }
-        for key, value in self.household_inputs.items():
-            household_data[key] = self._yearize(value)
+        household_data.update(self._pe_inputs("household", self.household_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["household"].items():
             household_data.setdefault(key, self._yearize(value))
 

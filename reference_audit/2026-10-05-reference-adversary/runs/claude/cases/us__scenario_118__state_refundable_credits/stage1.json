@@ -1,0 +1,50 @@
+{
+  "ambiguity": "1) Home market value isn't listed. Under the prompt's convention it is $0, so the head meets the $85,000 limit. A reader who assumed a home with an $82,237 mortgage is worth more than $85,000 would deny the credit and get $0, but the prompt says not to infer unlisted assets. 2) Qualifying property taxes are reduced by any STAR school tax relief credit allowed under \u00a7606(eee). No STAR credit is listed, and the prompt says not to infer benefit receipt, so there is no reduction. If an Enhanced STAR credit of more than about $884 were assumed, the credit would fall below $375 (50% \u00d7 (1,634 \u2212 STAR)). 3) Under the pre-2025 household-gross-income rule, the $2,800 of Social Security would count as income. Based on my recollection of the old table, the cap would then be about $341, not $375. That rule doesn't apply to tax year 2026.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7606(e)(1)(A)(ii), qualified taxpayer, taxable years beginning on or after Jan. 1, 2025, with percentage table",
+      "pre_freeze": true,
+      "published": "in force for taxable years beginning on or after 2025-01-01",
+      "quote": "For taxable years beginning on or after January first, two thousand twenty-five, 'qualified taxpayer' means a resident individual of the state who has occupied the same residence for six months or more of the taxable year, and has qualifying real property taxes ... in excess of the following percentages of federal adjusted gross income ... $3,000 or less 3 1/2",
+      "source": "New York Tax Law \u00a7606(e) (Real property tax circuit breaker credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7606(e)(1)(E)(ii), qualifying real property taxes (2025 on)",
+      "pre_freeze": true,
+      "published": "in force for taxable years beginning on or after 2025-01-01",
+      "quote": "'qualifying real property taxes' means all real property taxes, special ad valorem levies and special assessments, exclusive of penalties and interest, levied on the residence of a qualified taxpayer and paid during the taxable year less any school tax relief credit allowed under subsection (eee)",
+      "source": "New York Tax Law \u00a7606(e) (Real property tax circuit breaker credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "Eligibility, Homeowners, and credit amount sections",
+      "pre_freeze": true,
+      "published": "2025-11-18",
+      "quote": "If you, your spouse (if married filing jointly), or a dependent claimed is 65 or older, the credit can be as much as $375. If your credit is more than the taxes you owe, you can claim a refund.",
+      "source": "NYS Department of Taxation and Finance, Real property tax credit (web guidance)",
+      "url": "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm"
+    },
+    {
+      "pinpoint": "Eligibility list",
+      "pre_freeze": true,
+      "published": "2025-11-18",
+      "quote": "You are entitled to this refundable credit if: your federal adjusted gross income is $18,000 or less; you occupied the same New York residence for six months or more; ... the current market value of all real property you owned ... was $85,000 or less",
+      "source": "NYS Department of Taxation and Finance, Real property tax credit (web guidance)",
+      "url": "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm"
+    },
+    {
+      "pinpoint": "\u00a786(b)(1), \u00a786(c)(1)(A)",
+      "pre_freeze": true,
+      "published": "current through 2026",
+      "quote": "except as otherwise provided in subparagraph (B) or (C), $25,000",
+      "source": "26 U.S.C. \u00a786 (Social security and tier 1 railroad retirement benefits)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    }
+  ],
+  "computation": "1) Federal AGI. The only income is $2,800 of Social Security. With no dependent, the head files as single even though they are a surviving spouse. Under IRC \u00a786, provisional income is $0 + \u00bd \u00d7 $2,800 = $1,400. That is below the $25,000 base amount, so no Social Security is taxable and federal AGI is $0. Itemized amounts (mortgage interest, property tax, medical, employee business expenses) don't change AGI.\n2) NY real property tax credit (Tax Law \u00a7606(e); Form IT-214). For tax years from 2025 on, the statute measures income by federal AGI instead of household gross income. A qualified taxpayer is a resident who lived in the same residence for 6 months or more and whose qualifying property taxes exceed a share of federal AGI: 3.5% when AGI is $3,000 or less.\n3) Eligibility. Federal AGI of $0 is under $18,000. The head is a full-year NY resident who lives in the mortgaged home, can't be claimed as a dependent, and paid $1,634 of property tax, so the home isn't fully tax-exempt. Home market value isn't listed, so the prompt's convention treats it as $0, under the $85,000 limit. The head is 74, so the cap for 65 and older applies.\n4) Amount. Excess tax = $1,634 \u2212 3.5% \u00d7 $0 = $1,634. Half of that is $817 (the 50% rate comes from a secondary summary; I couldn't read the statute's paragraph (2)). The cap for 65 and older is $375, so the credit is $375. The cap holds unless the rate were below about 23%.\n5) Refund. NY tax is $0 because NY AGI is $0 and Social Security is excluded. The credit is refundable, so the full $375 is refunded.\n6) Other NY refundable credits are all $0. The Empire State child credit needs a child. The NY EITC needs earned income. The child and dependent care credit and the college tuition credit need expenses that aren't listed. The NYC school tax credit needs NYC residence, which isn't listed. The IT-229 real property tax relief credit was discontinued from tax year 2024.\nTotal = $375.\n2026 parameters: the 2026 IT-214 form and instructions weren't published before 2026-07-03. The statute's dollar amounts ($18,000 income limit, $85,000 value limit, $375 cap, percentage table) are fixed, not indexed. A secondary summary of the FY2027 budget (signed 2026-05-28) lists no change to this credit. So the rules for tax year 2025 also apply to 2026.",
+  "confidence": "high",
+  "definition_reading": "I read 'total refundable state individual income tax credits' as every refundable NY personal income tax credit for the head's single tax unit. Here that is only the real property tax credit on Form IT-214, a refundable credit under Tax Law \u00a7606(e). It equals $375, the cap for a filer 65 or older with federal AGI of $1,000 or less.",
+  "independent_answer": 375,
+  "law_supports": "reference"
+}

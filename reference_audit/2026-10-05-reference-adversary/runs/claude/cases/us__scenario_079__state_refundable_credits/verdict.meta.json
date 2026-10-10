@@ -1,0 +1,50 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.1123976,
+  "duration_ms": 16610,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:40:50.600874+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "47736c6425e4f243802347cc6a5ec4c1632222ac55a8fbe236b36b20cca6d691",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "6814035b8cad4145d46948d70e0037008e5f82cddafa89469444516e8b77eec7",
+  "session_id": "72e2c8ef-280f-418c-b488-3b14897d6f07",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "6d74213542c6112e8342685d5381f652ffde0d5aa001746cb8315c0f980aeba5",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.azleg.gov/ars/43/01072-01.htm"
+    ],
+    "searches": []
+  }
+}

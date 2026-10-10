@@ -1,0 +1,346 @@
+{
+  "scenario_id": "scenario_018",
+  "state": "AZ",
+  "reference_system": "policyengine-us 2.15.17 + latest_final (reference_audit/2026-09-28/fixes)",
+  "policyengine_core": "3.32.8",
+  "period": "2026",
+  "people": [
+    "head"
+  ],
+  "reproduction": {
+    "federal_income_tax_before_refundable_credits": {
+      "published": 5211.05078125,
+      "recomputed": 5211.050781,
+      "reproduces": true
+    },
+    "federal_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "payroll_tax": {
+      "published": 5202.38232421875,
+      "recomputed": 5202.382324,
+      "reproduces": true
+    },
+    "self_employment_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_income_tax_before_refundable_credits": {
+      "published": 1146.05224609375,
+      "recomputed": 1146.052246,
+      "reproduces": true
+    },
+    "state_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "local_income_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "snap": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "ssi": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "tanf": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "free_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "reduced_price_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    }
+  },
+  "all_scored_reproduce": true,
+  "variables": {
+    "az_standard_deduction": {
+      "entity": "tax_unit",
+      "label": "Arizona standard deduction",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 15750.0
+      }
+    },
+    "az_taxable_income": {
+      "entity": "tax_unit",
+      "label": "Arizona taxable income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 45842.089844
+      }
+    },
+    "az_income_tax_before_non_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "Arizona income tax before non-refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 1146.052246
+      }
+    },
+    "state_income_tax_before_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "state income tax before refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 1146.052246
+      }
+    }
+  },
+  "parameters": {
+    "gov.states.az.tax.income.deductions.standard.amount.SINGLE": {
+      "metadata": {
+        "unit": "currency-USD",
+        "period": "year"
+      },
+      "parent_metadata": {
+        "parameter": "gov.states.az.tax.income.deductions.standard.amount",
+        "label": "Arizona standard deduction",
+        "period": "year",
+        "unit": "currency-USD",
+        "breakdown": [
+          "az_filing_status"
+        ],
+        "reference": [
+          {
+            "title": "2025 Arizona Form 140 Resident Personal Income Tax Instructions",
+            "href": "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf#page=21"
+          },
+          {
+            "title": "2024 Arizona Form 140A - Arizona Resident Personal Income Tax Booklet",
+            "href": "https://azdor.gov/forms/individual/form-140a-arizona-resident-personal-income-tax-booklet"
+          },
+          {
+            "title": "2023 Arizona Form 140A - Arizona Resident Personal Income Tax Booklet",
+            "href": "https://azdor.gov/forms/individual/form-140a-arizona-resident-personal-income-tax-booklet"
+          },
+          {
+            "title": "2022 Arizona Form 140 Resident Personal Income Tax Booklet",
+            "href": "https://azdor.gov/forms/individual/form-140-arizona-resident-personal-income-tax-booklet"
+          },
+          {
+            "title": "2021 Arizona Form 140 Resident Personal Income Tax Booklet",
+            "href": "https://azdor.gov/sites/default/files/2023-03/FORMS_INDIVIDUAL_2021_140BOOKLET.pdf#page=43"
+          }
+        ],
+        "uprating": "gov.irs.uprating"
+      },
+      "value_2026": 15750,
+      "history": [
+        {
+          "from": "2025-01-01",
+          "value": 15750
+        },
+        {
+          "from": "2024-01-01",
+          "value": 14600
+        },
+        {
+          "from": "2023-01-01",
+          "value": 13850
+        },
+        {
+          "from": "2022-01-01",
+          "value": 12950
+        },
+        {
+          "from": "2021-01-01",
+          "value": 12550
+        },
+        {
+          "from": "2015-01-01",
+          "value": 12550
+        }
+      ]
+    },
+    "gov.irs.deductions.standard.amount.SINGLE": {
+      "metadata": {
+        "unit": "currency-USD",
+        "period": "year",
+        "propagate_metadata_to_children": true,
+        "reference": [
+          {
+            "title": "26 U.S. Code \u00a7 63(c) - Standard deduction",
+            "href": "https://www.law.cornell.edu/uscode/text/26/63#c"
+          },
+          {
+            "title": "2026 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf#page=18"
+          },
+          {
+            "title": "2025 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-24-40.pdf#page=12"
+          },
+          {
+            "title": "2024 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-23-34.pdf#page=14"
+          },
+          {
+            "title": "2023 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-22-38.pdf#page=13"
+          },
+          {
+            "title": "2022 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-21-45.pdf"
+          },
+          {
+            "title": "2021 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-20-45.pdf"
+          },
+          {
+            "title": "2020 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-19-44.pdf"
+          },
+          {
+            "title": "2019 IRS data release",
+            "href": "https://www.irs.gov/pub/irs-drop/rp-18-57.pdf"
+          },
+          {
+            "title": "CBO Tax Parameters and Effective Marginal Tax Rates | Feb 2024",
+            "href": "https://www.cbo.gov/system/files/2024-02/53724-2024-02-Tax-Parameters.xlsx"
+          },
+          {
+            "title": "CBO Tax Parameters and Effective Marginal Tax Rates | Jan 2025",
+            "href": "https://www.cbo.gov/system/files/2025-01/53724-2025-01-Tax-Parameters.xlsx"
+          }
+        ],
+        "uprating": {
+          "parameter": "gov.irs.uprating",
+          "rounding": {
+            "type": "downwards",
+            "interval": 50
+          }
+        }
+      },
+      "value_2026": 16100,
+      "history": [
+        {
+          "from": "2100-01-01",
+          "value": 68650.0
+        },
+        {
+          "from": "2099-01-01",
+          "value": 67300.0
+        },
+        {
+          "from": "2098-01-01",
+          "value": 66000.0
+        },
+        {
+          "from": "2097-01-01",
+          "value": 64750.0
+        },
+        {
+          "from": "2096-01-01",
+          "value": 63500.0
+        },
+        {
+          "from": "2095-01-01",
+          "value": 62250.0
+        },
+        {
+          "from": "2094-01-01",
+          "value": 61050.0
+        },
+        {
+          "from": "2093-01-01",
+          "value": 59900.0
+        }
+      ]
+    }
+  },
+  "counterfactual": {
+    "set": [
+      "tax_units.tax_unit.az_standard_deduction=16100"
+    ],
+    "outputs": {
+      "federal_income_tax_before_refundable_credits": 5211.050781,
+      "federal_refundable_credits": 0.0,
+      "payroll_tax": 5202.382324,
+      "self_employment_tax": 0.0,
+      "state_income_tax_before_refundable_credits": 1137.302246,
+      "state_refundable_credits": 0.0,
+      "local_income_tax": 0.0,
+      "snap": 0.0,
+      "ssi": 0.0,
+      "tanf": 0.0,
+      "head_wic_eligible": 0.0,
+      "head_medicaid_eligible": 0.0,
+      "head_chip_eligible": 0.0,
+      "head_medicare_eligible": 0.0,
+      "free_school_meals_eligible": 0.0,
+      "reduced_price_school_meals_eligible": 0.0
+    },
+    "variables": {
+      "az_standard_deduction": {
+        "entity": "tax_unit",
+        "label": "Arizona standard deduction",
+        "definition_period": "year",
+        "values": {
+          "tax_unit": 16100.0
+        }
+      },
+      "az_taxable_income": {
+        "entity": "tax_unit",
+        "label": "Arizona taxable income",
+        "definition_period": "year",
+        "values": {
+          "tax_unit": 45492.089844
+        }
+      },
+      "az_income_tax_before_non_refundable_credits": {
+        "entity": "tax_unit",
+        "label": "Arizona income tax before non-refundable credits",
+        "definition_period": "year",
+        "values": {
+          "tax_unit": 1137.302246
+        }
+      },
+      "state_income_tax_before_refundable_credits": {
+        "entity": "tax_unit",
+        "label": "state income tax before refundable credits",
+        "definition_period": "year",
+        "values": {
+          "tax_unit": 1137.302246
+        }
+      }
+    }
+  }
+}

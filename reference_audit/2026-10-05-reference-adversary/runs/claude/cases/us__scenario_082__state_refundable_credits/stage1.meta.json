@@ -1,0 +1,75 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.8779186,
+  "duration_ms": 456150,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:45:51.632648+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "f020715f10a54ef0a9615c4f2c4d742e368bd826b432bf1876256dd2ef7f3fb2",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "8cf9d6bb6552d49dfcff03cac0b441bb01e2cd35793c26c53f5166d3802b9da1",
+  "session_id": "218e9e7f-2354-4e40-b7e7-18fd0042be29",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.governor.ny.gov/news/governor-hochul-announces-agreement-fy-2027-state-budget",
+      "https://www.dfs.ny.gov/reports_and_publications/press_releases/pr2026052801",
+      "https://www.nysenate.gov/legislation/bills/2025/S9009/amendment/C",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it216i.pdf",
+      "https://kb.drakesoftware.com/kb/Drake-Tax/20080.htm",
+      "https://www.tax.ny.gov/pdf/2026/inc/it216i_2026.pdf",
+      "https://www.nysenate.gov/legislation/bills/2025/S9009/amendment/C",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.tax.ny.gov/pdf/2025/inc/it213i_2025.pdf",
+      "https://www.tax.ny.gov/pit/credits/empire_state_child_credit.htm",
+      "https://www.tax.ny.gov/forms/html-instructions/2025/it/it213i-2025.htm",
+      "https://www.osc.ny.gov/files/reports/pdf/enacted-budget-and-financial-plan-report-1.pdf",
+      "https://www.budget.ny.gov/pubs/archive/fy27/ex/book/revenueactions.pdf",
+      "https://www.osc.ny.gov/files/reports/pdf/sfy-2027-executive-budget-report.pdf",
+      "https://www.budget.ny.gov/pubs/archive/fy27/ex/artvii/revenue-memo.pdf"
+    ],
+    "searches": [
+      "New York Empire State child credit 2026 $1,000 under age 4 phase-out threshold Tax Law 606(c-1) amendment",
+      "New York state child and dependent care credit 2026 \"fifty-five percent\" new credit qualifying expenses budget enacted Part",
+      "FY 2027 New York enacted budget child and dependent care credit new credit 55 percent qualifying expenses 2026 tax year Hochul",
+      "\"New York state child and dependent care credit\" \"twenty-five hundred thousandths\" bill",
+      "New York 2026 child and dependent care credit 55 percent declines to 4 percent income $219,000 enacted budget",
+      "IT-213 2025 instructions Empire State child credit \"16.50\" excess divide by 1,000 round worksheet",
+      "FY 2027 enacted budget New York child and dependent care credit \"55 percent\" \"4 percent\" income phase down qualifying expenses $3,000 briefing book"
+    ]
+  }
+}

@@ -1,6 +1,8 @@
+import claudeHaiku55JoinsTheBoard from "./2026-10-10-claude-haiku-5-5-joins-the-board.json";
 import claudeFable51Added from "./2026-09-01-claude-fable-5-1-added.json";
 import claudeSonnet55DebutsFifth from "./2026-09-29-claude-sonnet-5-5-debuts-fifth.json";
-import fiveSnapHouseholdsBbce from "./2026-09-23-five-snap-households-bbce.json";
+import fiveSnapHouseholdsBbce from "./2026-10-05-five-snap-households-bbce.json";
+import stopsScoringEightTaxOutputs from "./2026-10-06-policybench-stops-scoring-eight-tax-outputs.json";
 import gpt6SolDebutsFirst from "./2026-09-22-gpt-6-sol-debuts-first.json";
 import referenceAudit from "./2026-09-22-reference-audit.json";
 import sixSnapHouseholds from "./2026-09-03-six-snap-households.json";
@@ -28,8 +30,10 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
-  claudeSonnet55DebutsFifth,
+  claudeHaiku55JoinsTheBoard,
+  stopsScoringEightTaxOutputs,
   fiveSnapHouseholdsBbce,
+  claudeSonnet55DebutsFifth,
   gpt6SolDebutsFirst,
   referenceAudit,
   gpt6AstraDebutsSecond,

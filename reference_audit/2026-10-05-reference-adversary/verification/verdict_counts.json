@@ -1,0 +1,46 @@
+{
+  "cases": 52,
+  "verdicts": 52,
+  "class_counts": {
+    "reference_holds": 45,
+    "reference_wrong": 6,
+    "definition_mismatch": 1,
+    "prompt_ambiguous": 0,
+    "contaminated_or_invalid": 0
+  },
+  "suggested_adjudication": {
+    "reference_holds/affirmed": 45,
+    "reference_wrong/engine_defect": 6,
+    "definition_mismatch/definition_exclusion": 1
+  },
+  "missing": [],
+  "inconsistent": [],
+  "queued_for_adjudication": 7,
+  "judge_calls": {
+    "total": 104,
+    "by_outcome": {
+      "ok": 104
+    },
+    "by_stage": {
+      "stage1": 52,
+      "stage2": 52
+    },
+    "by_run": {
+      "run1": 8,
+      "run2": 96
+    }
+  },
+  "rejected_calls": [],
+  "accepted_sidecars": {
+    "accepted_outputs": 104,
+    "reported_cost_usd": 91.22,
+    "judge_hours": 5.25,
+    "models_reported": {
+      "claude-haiku-4-5-20251001": 104,
+      "claude-opus-5-5": 104
+    },
+    "logins": {
+      "oauth_token (declared max@thesisinstitute.org)": 104
+    }
+  }
+}

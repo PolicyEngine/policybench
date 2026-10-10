@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "(b)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current eCFR text (in force before 2026)",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act, unless the plan or health insurance coverage program has been in operation since before July 1, 1997",
+      "source": "42 CFR \u00a7 457.310 (Targeted low-income child)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "42 U.S. Code \u00a7 1397jj (Social Security Act \u00a72110)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "E.4",
+      "pre_freeze": true,
+      "published": "2019-06-26",
+      "quote": "Eligible individuals shall be uninsured, that is, not have creditable health insurance coverage.",
+      "source": "Virginia Administrative Code 12VAC30-141-100 (FAMIS eligibility requirements)",
+      "url": "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/"
+    },
+    {
+      "pinpoint": "F.2.a",
+      "pre_freeze": true,
+      "published": "2019-06-26",
+      "quote": "Children from birth to age 19 years who have income above the Medicaid-eligible limit at or below 200% of the federal poverty level, with a 5% income disregard, shall be income eligible to participate in FAMIS.",
+      "source": "Virginia Administrative Code 12VAC30-141-100 (FAMIS eligibility requirements)",
+      "url": "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Child 1 is 14 and the household's MAGI is about 169\u2013192% FPL, so Child 1 meets FAMIS's age and income tests (above the Medicaid limit, at or below 200% FPL plus the 5% disregard). But federal CHIP law and Virginia's FAMIS rule exclude any child covered under a group health plan, and the stated facts say Child 1 has employer-sponsored insurance all year. The engine returns 0. Its narrative vaguely blames \"age or categorical requirements\"; the categorical bar is the existing group coverage. That matches the law, so stage 1 stands. The 15 models that answered 1 checked only income and age.",
+  "verdict": "reference_holds"
+}

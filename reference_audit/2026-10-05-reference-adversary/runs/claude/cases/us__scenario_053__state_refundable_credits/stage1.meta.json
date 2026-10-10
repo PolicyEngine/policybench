@@ -1,0 +1,63 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.636609,
+  "duration_ms": 173004,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:25:26.705526+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "1559ce55eb3a5e537f78adbc740b3bca36078d07fe3aff62b0a82a91944e8fbc",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "4141b09b33497513d9558d629f971609dec550c527641553aa6a5d95ab005010",
+  "session_id": "25dc6c29-6c97-407d-a432-b3ba3bc9bd62",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/",
+      "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/",
+      "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/",
+      "https://tax.idaho.gov/wp-content/uploads/forms/EIN00046/EIN00046_03-02-2026.pdf",
+      "https://tax.idaho.gov/document-mngr/forms_EFO00089/",
+      "https://www.law.cornell.edu/regulations/idaho/IDAPA-35.01.01.799",
+      "https://tax.idaho.gov/pressrelease/claim-your-food-tax-credit-even-if-you-dont-earn-enough-to-file-income-taxes/",
+      "https://www.law.cornell.edu/regulations/idaho/IDAPA-35.01.01.799",
+      "https://legislature.idaho.gov/wp-content/uploads/sessioninfo/2026/legislation/H0605.pdf",
+      "https://legislature.idaho.gov/sessioninfo/2026/legislation/H0605/",
+      "https://tax.idaho.gov/pressrelease/whats-new-for-2025-income-tax-returns/"
+    ],
+    "searches": [
+      "Idaho Code 63-3024A grocery credit $155 refundable",
+      "Idaho Form 40 2025 instructions food tax credit line \"payments and other credits\"",
+      "Idaho 2026 legislature food tax credit bill change amount 2026 tax year",
+      "Idaho Form 40 line 43 \"food tax credit\" \"payments and other credits\" withholding line 46"
+    ]
+  }
+}

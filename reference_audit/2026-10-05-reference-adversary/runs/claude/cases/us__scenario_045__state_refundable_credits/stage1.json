@@ -1,0 +1,66 @@
+{
+  "ambiguity": "The $21,208 'employer sponsored insurance premiums' could be read as premiums the Head paid out of pocket after tax. MCL 206.510 lets a person deduct premiums they paid from THR. Under that reading THR = $36,276 \u2212 $21,208 = $15,068 and the credit = 0.60 \u00d7 ($2,428.80 \u2212 $482.18) = $1,167.97. This reading is weak: the label points to the employer plan, employer contributions and pre-tax payroll premiums are not deductible, and the prompt says not to infer expenses. Neither reading gives the consensus answer of $0. Whole-dollar rounding on the form gives about $761 instead of $760.78.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7206.520(2)",
+      "pre_freeze": true,
+      "published": "2016-03-18",
+      "quote": "23% of the gross rent paid for tax years after the 2017 tax year",
+      "source": "Michigan Compiled Laws, Income Tax Act of 1967, MCL 206.520",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520"
+    },
+    {
+      "pinpoint": "\u00a7206.520(3)",
+      "pre_freeze": true,
+      "published": "2016-03-18",
+      "quote": "If the credit claimed under this section and section 522 exceeds the tax liability for the tax year or if there is no tax liability for the tax year, the amount of the claim not used as an offset against the tax liability shall, after examination and review, be approved for payment, without interest, to the claimant.",
+      "source": "Michigan Compiled Laws, MCL 206.520",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520"
+    },
+    {
+      "pinpoint": "\u00a7206.522(1)",
+      "pre_freeze": true,
+      "published": "2016-03-18",
+      "quote": "60% of the amount by which the property taxes on the homestead, or the credit for rental of the homestead for the tax year, exceeds ... 3.2% of the claimant's total household resources for the 2018 tax year and each tax year after 2018",
+      "source": "Michigan Compiled Laws, MCL 206.522",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-522"
+    },
+    {
+      "pinpoint": "\u00a7206.510(1)-(2)",
+      "pre_freeze": true,
+      "published": "2012-01-01",
+      "quote": "the sum of federal adjusted gross income as defined in the internal revenue code plus all income specifically excluded or exempt from the computations of the federal adjusted gross income ... Contributions by an employer to life, accident, or health insurance plans.",
+      "source": "Michigan Compiled Laws, MCL 206.510",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-510"
+    },
+    {
+      "pinpoint": "\u00a7206.508 (definition of total household resources)",
+      "pre_freeze": true,
+      "published": "2019-01-01",
+      "quote": "all income received by all persons of a household in a tax year while members of a household",
+      "source": "Michigan Compiled Laws, MCL 206.508",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-508"
+    },
+    {
+      "pinpoint": "Line 31 (health insurance premiums); Line 34 (3.2%); eligibility ($71,500 THR limit)",
+      "pre_freeze": true,
+      "published": "2026-01",
+      "quote": "do not include amounts paid through pre-tax payroll deductions",
+      "source": "Michigan Department of Treasury, 2025 MI-1040CR Instructions",
+      "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf"
+    },
+    {
+      "pinpoint": "\u00a7206.272(1)",
+      "pre_freeze": true,
+      "published": "2023-03-07",
+      "quote": "For tax years that begin after December 31, 2022, 30%.",
+      "source": "Michigan Compiled Laws, MCL 206.272 (Michigan earned income tax credit)",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-272"
+    }
+  ],
+  "computation": "Filer: a single renter in Michigan, age 44 (not a senior), with no dependents.\n\n1. Michigan EITC (MCL 206.272) is 30% of the federal EITC. The federal EITC is $0. A worker with no qualifying children loses the whole credit at about $19,540 of earned income in 2026, and wages here are $36,276. So the Michigan EITC is $0.\n\n2. Homestead property tax credit for renters (MCL 206.520 and 206.522):\n   a. Rent counted as property tax is 23% of gross rent: 0.23 \u00d7 $10,560 = $2,428.80. No subsidy is listed, so the 10% subsidized-housing rate does not apply.\n   b. Total household resources (THR) = federal AGI plus income excluded from AGI (MCL 206.508 and 206.510).\n      - Wages are $36,276 and there is no other income.\n      - Child support paid is not a deduction.\n      - Employer contributions to health plans are excluded from income (MCL 206.510(2)).\n      - The form's line for premiums the claimant paid does not cover pre-tax payroll deductions.\n      - The prompt does not say the $21,208 'employer sponsored insurance premiums' were paid by the Head after tax. Following the no-inference rule, nothing is deducted, so THR = $36,276.\n   c. The 3.2% floor: 0.032 \u00d7 $36,276 = $1,160.83.\n   d. The excess is $2,428.80 \u2212 $1,160.83 = $1,267.97. A non-senior gets 60%: 0.60 \u00d7 $1,267.968 = $760.78.\n   e. THR of $36,276 is far below the phase-out range ($62,500\u2013$71,500 in 2025). The credit is far below the cap ($1,900 in 2025).\n   f. The 2026 indexed cap and THR limit had not been published before 2026-07-03; only the 2025 values had. Neither would bind here.\n   g. The credit is refundable: any amount above tax liability is paid to the claimant (MCL 206.520(3)).\n   h. If you round each line to whole dollars as the form does: $2,429 \u2212 $1,161 = $1,268, and \u00d7 0.60 = $760.80, about $761.\n\n3. Home heating credit: the household's income is far above the income ceiling for one exemption, so it is $0.\n\nTotal refundable Michigan credits \u2248 $760.78. This matches the reference of $760.79; the gap is only floating-point rounding.",
+  "confidence": "high",
+  "definition_reading": "'Total refundable state individual income tax credits' means every Michigan credit claimed through the income tax system whose excess over liability is paid out. That covers the Michigan EITC (MCL 206.272), the homestead property tax credit (MCL 206.520(3)) and, if it applies, the home heating credit. There is one tax unit: the Head filing single. The homestead property tax credit for a renter is $760.78. The EITC and home heating credit are $0.",
+  "independent_answer": 760.78,
+  "law_supports": "reference"
+}

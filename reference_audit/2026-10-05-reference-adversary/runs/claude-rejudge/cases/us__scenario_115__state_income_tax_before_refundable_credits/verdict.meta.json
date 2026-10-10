@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.38643220000000006,
+  "duration_ms": 130450,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:55:09.469582+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a4f6edd25cf6e6963caf955fd03aa6b1b7c2a8e4a13f4c2abb3d57da5901a0da",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "236559b75be5f0ddbfba3b8995f8f71e19a9f6d2c65a0e4c414d3f4ad1bb39aa",
+  "session_id": "7abbe27e-62e4-4d17-a908-40f8839af7ec",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "471682dad1c8551f7d00807b14d8eb2f8a101773f728ed26eb1e2bce41803dcc",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.revenue.alabama.gov/wp-content/uploads/2025/01/24f40bk.pdf",
+      "https://www.law.cornell.edu/regulations/alabama/Ala-Admin-Code-r-810-3-14-.02",
+      "https://law.justia.com/codes/alabama/title-40/chapter-18/article-1/section-40-18-5/",
+      "https://law.onecle.com/alabama/title-40/40-18-5.html",
+      "https://law.onecle.com/alabama/title-40/40-18-19.html"
+    ],
+    "searches": [
+      "Alabama Form 40 instructions interest on obligations of other states taxable Schedule B",
+      "Alabama standard deduction single $3,000 adjusted gross income chart 2025 Form 40 personal exemption $1,500",
+      "Alabama 2026 income tax changes legislature rate standard deduction personal exemption bill signed 2026"
+    ]
+  }
+}

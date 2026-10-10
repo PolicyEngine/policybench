@@ -6,9 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# A new push to a pull request supersedes the run on its previous head, so
+# cancel that run instead of letting it wait for, then hold, runners the whole
+# PolicyEngine org shares (60 concurrent jobs on the GitHub Team plan). Pushes
+# to main get a group of their own per run, so they are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -21,6 +30,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # Slowest of 12 successful runs, 2026-10-05..08: 7.2 minutes. Fail a hung
+    # job instead of holding a shared runner for GitHub's 6-hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
@@ -36,6 +48,7 @@ jobs:
 
   app:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: app

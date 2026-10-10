@@ -424,8 +424,8 @@ def main(argv: list[str] | None = None) -> None:
                 "note": (
                     "The verdicts behind each adjudication restated by "
                     "scripts/restate_gpt61sol_adjudications.py: 'replaced' is the "
-                    "seed audit's verdict (release 20260929), now the last "
-                    "judge_previous item; 'current' is the stage's Opus 5.5 "
+                    "seed audit's verdict, now the last judge_previous item; "
+                    "'current' is the stage's Opus 5.5 "
                     "re-judge, now the entry's judge fields. Each is read from "
                     "verdict.json and its sha256-bound verdict.meta.json."
                 ),

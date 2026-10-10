@@ -48,7 +48,7 @@ import json
 import re
 import shutil
 import subprocess
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -85,7 +85,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 SNAPSHOT_DIR_NAME = "20260501"  # Stable id; reused across refreshes.
 SNAPSHOT_DATE = "2026-09-22"
-MODEL_RESPONSE_DATE = "2026-06-12 to 2026-09-22"
+# The response window runs from the first wave to the last answer. The first
+# waves' rows carry no request timestamps, so the start is the run label's date
+# (us_full_run_20260612); the end is derived from the predictions
+# (model_response_window), never taken from the release date.
+MODEL_RESPONSE_START = "2026-06-12"
+# A driver may name the window it expects; the freeze refuses unless the
+# predictions give the same one. None names no window.
+MODEL_RESPONSE_DATE: str | None = None
 
 RUN_LABEL = "us_full_run_20260612_policyengine_4_16_1_populace"
 # Completed runs live under the main clone's gitignored results/local. A
@@ -137,6 +144,9 @@ EXCLUSIONS_NAME = "reference_exclusions.json"
 # The publish bundle omits this immutable reference-generation sidecar. Reuse
 # the committed copy after checking the manifest's CSV and sidecar pins.
 REFERENCE_META_SOURCE = RUN_DEST / "reference_outputs.csv.meta.json"
+# An in-process release driver may bind a verified replacement build before
+# freezing it. None retains the committed manifest's reference pins.
+REFERENCE_PINS: dict[str, str] | None = None
 
 # Supervised-run state is the strongest available evidence for the treatment a
 # board row actually received. Older supervisor state files predate treatment
@@ -441,6 +451,71 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             "entries the judge flagged."
         ),
     }
+
+
+REQUEST_TIMESTAMP_COLUMNS = ("request_started_at", "request_completed_at")
+
+
+def _utc_date(seconds: float) -> date:
+    """The UTC calendar date of a Unix time, on any machine's clock.
+
+    Floor division, not ``datetime.fromtimestamp``, whose microsecond rounding
+    can carry a time just before midnight into the next day.
+    """
+    return date(1970, 1, 1) + timedelta(days=int(seconds // 86_400))
+
+
+def model_response_window(
+    predictions: Path, start: str, expected: str | None = None
+) -> str:
+    """The ``'<start> to <end>'`` window the predictions' answers fall in.
+
+    ``end`` is the UTC date of the latest ``request_completed_at`` (Unix
+    seconds) the predictions record, whatever the release is called and
+    wherever it is frozen. Rows without timestamps (the first waves, which
+    predate the columns, and the batch adapter's) cannot move it. ``start`` is
+    configured, since those first waves recorded no time. Every timestamp the
+    predictions do record must fall inside the window, by UTC date. Refuses
+    predictions that time no answer, and an ``expected`` window that differs.
+    """
+    columns = list(REQUEST_TIMESTAMP_COLUMNS)
+    missing = set(columns) - set(pd.read_csv(predictions, nrows=0).columns)
+    if missing:
+        raise SystemExit(
+            f"{predictions} has no {', '.join(sorted(missing))} column; "
+            "cannot date the model response window"
+        )
+    # round_trip keeps every recorded digit: the default parser can round a
+    # time just before UTC midnight up to midnight and so onto the next day.
+    frame = pd.read_csv(
+        predictions, usecols=columns, dtype="float64", float_precision="round_trip"
+    )
+    completed = frame["request_completed_at"].dropna()
+    if completed.empty:
+        raise SystemExit(
+            f"{predictions} times no answer; cannot date the model response window"
+        )
+    first, end = date.fromisoformat(start), _utc_date(completed.max())
+    timed = frame.to_numpy()
+    earliest, latest = _utc_date(np.nanmin(timed)), _utc_date(np.nanmax(timed))
+    if earliest < first:
+        raise SystemExit(
+            f"{predictions} records a request on {earliest}, before the "
+            f"configured model response start {start}"
+        )
+    if latest > end:
+        raise SystemExit(
+            f"{predictions} records a request on {latest}, after its last "
+            f"answer ({end})"
+        )
+    window = f"{first.isoformat()} to {end.isoformat()}"
+    if expected is not None and expected != window:
+        raise SystemExit(
+            f"The configured model response window ({expected}) is not the "
+            f"predictions' ({window}): the window ends on the last answer's "
+            "UTC date, not the release date"
+        )
+    return window
 
 
 def _response_window_phrase(window: str) -> str:
@@ -929,8 +1004,11 @@ def freeze_run() -> dict[str, str]:
         )
 
     publish_reference = SOURCE_US / "reference_outputs.csv"
-    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
-    reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    if REFERENCE_PINS is None:
+        manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+        reference_pins = manifest["source_run_artifacts"][RUN_LABEL]["files"]
+    else:
+        reference_pins = REFERENCE_PINS
     reference_digest = reference_pins["reference_outputs.csv"]
     if sha256_file(publish_reference) != reference_digest:
         raise SystemExit(
@@ -944,7 +1022,11 @@ def freeze_run() -> dict[str, str]:
     ):
         raise SystemExit("Reference metadata differs from the committed manifest pin.")
     reference_policyengine_bundles(
-        RUN_DEST / "reference_outputs.csv",
+        (
+            RUN_DEST / "reference_outputs.csv"
+            if REFERENCE_PINS is None
+            else publish_reference
+        ),
         "us",
         require_digest=True,
         manifest_reference_sha256=reference_digest,
@@ -1409,6 +1491,27 @@ OUTPUT_SCOPE_ADAPTERS = ("latest_md_local_output_scope.py",)
 # The scenario builder's alias the upgrade records: stated usual weekly hours
 # also reach the input SNAP's work rules read.
 STATED_HOURS_INPUT = "weekly_hours_worked_before_lsr"
+# The later builder pins the same household construction, composing the
+# inherited conventions through latest_final.py and pinning its sales-tax
+# table alongside the modules.
+UPGRADE_SUPPORT_MODULES = {"latest_final.py", "r19_irs_sales_tax_2025.json"}
+# Where each pinned module's bytes are committed: the conventions, composer,
+# adapter and latest_final.py under the 2026-09-28 fixes, the sales-tax table
+# under the 2026-09-22 ones. An entry without a path (the 2026-09-29 form)
+# names a 2026-09-28 fix.
+UPGRADE_FIXES_DIR = "reference_audit/2026-09-28/fixes"
+UPGRADE_MODULE_PATHS = {
+    "r19_irs_sales_tax_2025.json": (
+        "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
+    ),
+}
+UPGRADE_BUILDER = (
+    "reference_audit/2026-10-09-engine-upgrade/scripts/"
+    "build_references_upgrade.py; households from "
+    "policybench.scenarios.Scenario.to_pe_household through "
+    "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
+    "2026-09-29 upgrade"
+)
 
 
 def read_reference_engine_setup() -> dict[str, int]:
@@ -1420,25 +1523,162 @@ def read_reference_engine_setup() -> dict[str, int]:
     the record.
     """
     meta = json.loads(REFERENCE_META_SOURCE.read_text())
+    if not isinstance(meta, dict):
+        raise SystemExit("the reference sidecar must be an object")
+    revisions = meta.get("revisions", [])
+    if not isinstance(revisions, list) or any(
+        not isinstance(revision, dict) for revision in revisions
+    ):
+        raise SystemExit("the reference sidecar revisions must be a list of objects")
     upgrades = [
-        r for r in meta.get("revisions", []) if r.get("kind") == "engine_upgrade"
+        revision for revision in revisions if revision.get("kind") == "engine_upgrade"
     ]
-    if len(upgrades) != 1 or meta["revisions"][-1] is not upgrades[0]:
-        raise SystemExit(
-            "the reference sidecar needs one final engine_upgrade revision"
-        )
-    upgrade = upgrades[0]
-    modules = [entry["module"] for entry in upgrade["fix_modules"]]
+    if not upgrades or revisions[-1] is not upgrades[-1]:
+        raise SystemExit("the reference sidecar needs a final engine_upgrade revision")
+    upgrade = upgrades[-1]
+    fix_modules = upgrade.get("fix_modules")
+    if not isinstance(fix_modules, list):
+        raise SystemExit("engine_upgrade fix_modules must be a list of module objects")
+    for index, entry in enumerate(fix_modules):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("module"), str)
+            or not entry["module"].strip()
+        ):
+            raise SystemExit(
+                f"engine_upgrade fix_modules[{index}] needs a nonempty string module"
+            )
+    modules = [entry["module"] for entry in fix_modules]
+    twice = sorted({m for m in modules if modules.count(m) > 1})
+    if twice:
+        raise SystemExit(f"engine_upgrade fix_modules lists {twice} more than once")
     conventions = [m for m in modules if m.startswith(CONVENTION_MODULE_PREFIX)]
     others = sorted(set(modules) - set(conventions))
-    if others != sorted({CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}):
+    expected = {CONVENTIONS_COMPOSER, *OUTPUT_SCOPE_ADAPTERS}
+    if others not in (sorted(expected), sorted(expected | UPGRADE_SUPPORT_MODULES)):
         raise SystemExit(f"unexpected engine_upgrade fix_modules: {others}")
-    if STATED_HOURS_INPUT not in upgrade.get("builder", ""):
+    builder = upgrade.get("builder", "")
+    if not isinstance(builder, str):
+        raise SystemExit("the engine_upgrade builder note must be a string")
+    inherited_builder = (
+        builder == UPGRADE_BUILDER
+        and set(others) == expected | UPGRADE_SUPPORT_MODULES
+        and any(
+            isinstance(previous.get("builder"), str)
+            and STATED_HOURS_INPUT in previous["builder"]
+            for previous in upgrades[:-1]
+        )
+    )
+    if STATED_HOURS_INPUT not in builder and not inherited_builder:
         raise SystemExit("the engine_upgrade builder note names no stated-hours alias")
+    verify_fix_module_pins(fix_modules, upgrades[:-1] if inherited_builder else [])
+    verify_regeneration_target_pins(upgrade)
     return {
         "convention_count": len(conventions),
         "output_scope_adapter_count": len(OUTPUT_SCOPE_ADAPTERS),
     }
+
+
+# The repository this script is committed in: where the fix modules' bytes
+# are read, even when a test points ROOT at a scratch copy.
+SOURCE_REPOSITORY = Path(__file__).resolve().parents[1]
+
+
+def committed_sha256(path: str) -> str | None:
+    """The sha256 of a file's bytes as committed at HEAD, or None."""
+    shown = subprocess.run(
+        ["git", "show", f"HEAD:{path}"],
+        cwd=SOURCE_REPOSITORY,
+        check=False,
+        capture_output=True,
+    )
+    return sha256_bytes(shown.stdout) if shown.returncode == 0 else None
+
+
+def verify_fix_module_pins(fix_modules: list[dict], earlier: list[dict]) -> None:
+    """Each module the final engine_upgrade revision pins is the file its path
+    names, at the bytes committed there, so the published reproduction pin is
+    the one that ran: the path is the module's (UPGRADE_MODULE_PATHS, else
+    under UPGRADE_FIXES_DIR) and the sha256 the committed file's. A later
+    upgrade that inherits the conventions (``earlier``, the upgrades before
+    it) also keeps the earlier upgrades' modules at their earlier pins, and
+    their convention set."""
+    for entry in fix_modules:
+        module = entry["module"]
+        expected = UPGRADE_MODULE_PATHS.get(module, f"{UPGRADE_FIXES_DIR}/{module}")
+        path = entry.get("path", expected)
+        if path != expected:
+            raise SystemExit(
+                f"engine_upgrade fix_modules {module} names path {path!r}, "
+                f"not {expected}"
+            )
+        pinned = entry.get("sha256")
+        if not isinstance(pinned, str) or pinned != committed_sha256(path):
+            raise SystemExit(
+                f"engine_upgrade fix_modules {module} pins sha256 {pinned!r}, not the "
+                f"bytes committed at {path}"
+            )
+    pins = {entry["module"]: entry["sha256"] for entry in fix_modules}
+    for previous in earlier:
+        before = previous.get("fix_modules")
+        if not isinstance(before, list) or not all(
+            isinstance(item, dict) and isinstance(item.get("module"), str)
+            for item in before
+        ):
+            raise SystemExit("an earlier engine_upgrade's fix_modules are malformed")
+        for item in before:
+            if pins.get(item["module"]) != item.get("sha256"):
+                raise SystemExit(
+                    f"engine_upgrade fix_modules {item['module']} is not the earlier "
+                    "upgrade's pin it inherits"
+                )
+        inherited = {
+            item["module"]
+            for item in before
+            if item["module"].startswith(CONVENTION_MODULE_PREFIX)
+        }
+        latest = {m for m in pins if m.startswith(CONVENTION_MODULE_PREFIX)}
+        if inherited != latest:
+            raise SystemExit(
+                "the engine_upgrade conventions are not the earlier upgrade's: "
+                f"{sorted(inherited ^ latest)}"
+            )
+
+
+# Where an engine upgrade's regeneration targets find the audited fix modules
+# they apply (a "fix_modules" target; build_references_upgrade.py).
+AUDIT_FIXES_DIR = "reference_audit/2026-09-22/fixes"
+
+
+def verify_regeneration_target_pins(upgrade: dict) -> None:
+    """Each regenerated output held to the audit's fix modules publishes the
+    bytes that ran: every module and sibling its target pins is the file
+    committed under AUDIT_FIXES_DIR, and its evidence file is the committed
+    one. The builder and driver check this before the install; the freeze
+    checks what the published sidecar says."""
+    for entry in upgrade.get("regenerated_exclusions", []):
+        target = entry.get("target") or {}
+        if target.get("kind") != "fix_modules":
+            continue
+        key = f"{entry.get('scenario_id')}|{entry.get('variable')}"
+        pins = [*target.get("modules", []), *target.get("dependencies", [])]
+        if not target.get("modules"):
+            raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
+        for item in pins:
+            path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            committed = committed_sha256(path)
+            if committed is None or item.get("sha256") != committed:
+                raise SystemExit(
+                    f"regenerated {key}: {item.get('module')} is not pinned at the "
+                    f"bytes committed at {path}"
+                )
+        evidence = target.get("evidence")
+        committed = committed_sha256(evidence) if isinstance(evidence, str) else None
+        if committed is None or target.get("evidence_sha256") != committed:
+            raise SystemExit(
+                f"regenerated {key}: its evidence {evidence!r} is not pinned at the "
+                "committed bytes"
+            )
 
 
 def read_household_dataset() -> dict[str, str]:
@@ -1477,6 +1717,7 @@ def build_manifest(
     run_files: dict[str, str],
     committed: dict[str, str],
     annotation_files: dict[str, str],
+    response_window: str,
 ) -> dict:
     reference_refresh = read_reference_refresh()
     engine_setup = read_reference_engine_setup()
@@ -1532,7 +1773,7 @@ def build_manifest(
             "artifacts copied under "
             f"paper/snapshot/{SNAPSHOT_DIR_NAME}/runs/.",
             "Model responses were collected in waves between "
-            f"{_response_window_phrase(MODEL_RESPONSE_DATE)}, as models were "
+            f"{_response_window_phrase(response_window)}, as models were "
             "added to the board; each model's full 100-household run is a "
             "single consistent wave. PolicyBench computes each scored "
             "reference output with policyengine_us.Simulation from "
@@ -1567,7 +1808,7 @@ def build_manifest(
             "run metadata (scenarios.csv.meta.json) records the "
             "populace_us_2024 build actually loaded.",
             "Model APIs and upstream model aliases may change after the "
-            f"recorded {MODEL_RESPONSE_DATE} response window, so exact "
+            f"recorded {response_window} response window, so exact "
             "reruns can diverge even with the committed household inputs, "
             "reference outputs, parsed dashboard export, and analysis "
             "summaries.",
@@ -1583,7 +1824,7 @@ def build_manifest(
                 "subsets per model as recorded in model_serving_config.json."
             ),
         },
-        "model_response_date": MODEL_RESPONSE_DATE,
+        "model_response_date": response_window,
         "reference_output_refresh": reference_refresh,
         "household_dataset": household_dataset,
         "files": [
@@ -1764,13 +2005,17 @@ def main() -> None:
         raise SystemExit(f"Published dashboard not found: {PUBLISHED_DASHBOARD_SOURCE}")
     if not REFERENCE_META_SOURCE.exists():
         raise SystemExit(f"Reference metadata not found: {REFERENCE_META_SOURCE}")
+    # Dated from the rows freeze_run gzips into the snapshot, before any write.
+    response_window = model_response_window(
+        SOURCE_US / "predictions.csv", MODEL_RESPONSE_START, MODEL_RESPONSE_DATE
+    )
 
     remove_stale_artifacts()
     run_files = freeze_run()
     committed = freeze_committed_artifacts()
     annotation_files = freeze_annotations()
 
-    manifest = build_manifest(run_files, committed, annotation_files)
+    manifest = build_manifest(run_files, committed, annotation_files, response_window)
     # Pin the rendered-paper block to the served files. Falls back to the block
     # already recorded in the manifest when the paper has not been rendered yet.
     try:

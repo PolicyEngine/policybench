@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 1786(d)(1)",
+      "pre_freeze": true,
+      "published": "in force before 2026; long-standing statutory text",
+      "quote": "Participation in the program under this section shall be limited to pregnant, postpartum, and breastfeeding women, infants, and children from low-income families who are determined by a competent professional authority to be at nutritional risk.",
+      "source": "42 U.S. Code \u00a7 1786 (Special supplemental nutrition program for women, infants, and children)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1786"
+    },
+    {
+      "pinpoint": "\u00a7 1786(b)(10) and (b)(1)",
+      "pre_freeze": true,
+      "published": "in force before 2026; long-standing statutory text",
+      "quote": "women up to six months after termination of pregnancy ... women up to one year postpartum who are breastfeeding their infants",
+      "source": "42 U.S. Code \u00a7 1786 (Special supplemental nutrition program for women, infants, and children)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1786"
+    },
+    {
+      "pinpoint": "\u00a7 246.7(c)(1)",
+      "pre_freeze": true,
+      "published": "in force before 2026",
+      "quote": "To qualify for the Program, infants, children, and pregnant, postpartum, and breastfeeding women must: Reside within the jurisdiction of the State ... Meet the income criteria ... Meet the nutritional risk criteria",
+      "source": "7 CFR 246.7 Certification of participants",
+      "url": "https://www.law.cornell.edu/cfr/text/7/246.7"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Federal WIC law limits the program to pregnant, postpartum and breastfeeding women, infants, and children under 5. The Head is 40 and the prompt lists none of those statuses. By the prompt's rules, unlisted statuses count as false. The youngest child is 2, so the Head cannot be postpartum (up to 6 months) or breastfeeding (up to 1 year postpartum). The engine found the Head not eligible and Child 2 eligible, which matches the law. \"Receives wic\" records benefit receipt, most naturally on behalf of Child 2. It does not establish the Head's eligibility category. The reference of 0 holds, and stage 1 stands.",
+  "verdict": "reference_holds"
+}

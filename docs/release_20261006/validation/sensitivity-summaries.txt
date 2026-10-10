@@ -1,0 +1,5 @@
+claude-fable-5.1   board 92.070 (#7) auto 93.037 (would rank #5) delta +0.967
+claude-fable-5     board 84.892 (#21) auto 92.817 (would rank #6) delta +7.925
+claude-opus-5      board 85.223 (#20) auto 91.252 (would rank #9) delta +6.029
+claude-sonnet-5    board 73.794 (#44) auto 86.076 (would rank #20) delta +12.282
+scored outputs: 1,920; exclusions: 64; rows: 46
