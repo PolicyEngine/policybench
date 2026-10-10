@@ -1,6 +1,6 @@
 # Two references checked against a model consensus and held, October 10, 2026
 
-On 2026-10-10 a session checked two scored references of release dashboard-data-20261010 that several strong models agree against. Both references are what the law gives for the stated facts. This directory holds that check, the evidence it rests on, two independent reviews, and a second check of the whole of it made for this record.
+On 2026-10-10 a session checked two scored references of release dashboard-data-20261010 that several strong models agree against. In each cell the consensus applies a rule the law does not give, and the reference is what the statute's rate schedule gives for the stated facts as the engine reads them. Whether the prompt's wording fixes that reading is the open question below, and the Virginia review's point about the Tax Table is unresolved. This directory holds the check, the evidence it rests on, two independent reviews, and a second check of the whole of it made for this record.
 
 | Cell | Reference | Models' consensus | Verdict | The rule the consensus gets wrong |
 |---|---:|---:|---|---|
@@ -24,12 +24,21 @@ This output returned to scoring in release dashboard-data-20261010, when policye
 
 `reference_audit/held_references.json` is a standing list of references a check has held. Each record names the cell, the held reference, each consensus answer the check explained, and where the check is written up.
 
-`policybench adversary-prepare --held-references reference_audit/held_references.json` reads it (`policybench/held_references.py`). A flagged cell with a record gets no adversary case, and `<adversary-dir>/held_references.json` lists it as checked and held next to the explanation of each triggering cluster. The record applies only while:
+`policybench adversary-prepare --held-references reference_audit/held_references.json` reads it (`policybench/held_references.py`). A flagged cell with a record gets no adversary case, and `<adversary-dir>/held_references.json` lists it as checked and held next to the explanation of each triggering cluster. The record applies only while all of these are true:
 
-1. the flag's reference is within the flags' tolerance ($1) of the held value, and
-2. every triggering cluster's answer is within that tolerance of an answer the record explains.
+1. **The prompt is the one the check read.** The record carries the sha256 of the prompt the models answered: the preface, the household, every output's definition. A scenario id is a position in a run, so the same id can name another household later, and a reworded prompt is another question.
+2. **The reference is the held value**, within a dollar.
+3. **Each triggering cluster is an answer the record explains:** every member's own answer is within a dollar of the same explained answer.
 
-If the reference has moved, or models now agree on an answer the record does not explain, the cell is judged as usual and the listing says why the record no longer applied (`reference_moved` or `unexplained_consensus`). A record whose cell is not flagged is listed as `not_flagged`.
+The dollar is PolicyBench's exact-match tolerance and belongs to the record. The pass's own `--tolerance` is not used, so a pass run at a loose tolerance cannot stretch a record over another answer.
+
+Otherwise the cell is judged as usual, and the listing gives the first reason that fails: `prompt_changed`, `reference_moved` or `unexplained_consensus`. A record whose cell is not flagged is listed as `not_flagged`.
+
+Three guards keep the option from hiding or losing anything:
+
+- The flags must come from the payload they are applied with. A held flag gets no case, so the command checks it against the payload as it checks a flag that does get one, and refuses flags whose recorded payload hash is another's.
+- Preparing a directory removes the case of a cell no longer listed. If a cell that would now be listed as held already has judge output there, the command refuses and deletes nothing.
+- A record that no longer applies to a cell another audit covers (`--skip-cells`) is reported as covered elsewhere, not as judged.
 
 Run on the release's payload:
 
@@ -50,14 +59,15 @@ For this record every claim in that report was treated as a claim and checked ag
 
 | Claim | How it was checked | Result |
 |---|---|---|
-| Both references reproduce on main `75cdd8019e` (2.38.8) | policyengine-us installed from that commit in a clean environment, with policyengine-core 3.33.0; `scripts/trace_cells.py` run on the release's `scenarios.csv` | $8,596.03 and $1,916.61. All four trace files and both situations are byte-identical to the session's; `key_variables.txt` differs only in the install path on its first line. |
-| Both references reproduce on the release's own engine | The same script on policyengine-us 2.38.6 with policyengine-core 3.32.29, the environment `uv.lock` pins | $8,596.03 and $1,916.61 (`traces/policyengine-us-2.38.6/`). Both situations, all 77 listed values and both non-zero traces, which follow each output down through every non-zero node, equal the 2.38.8 run's. The full traces also print zero-valued subtrees, and differ in 36 lines for scenario_039 and 29 for scenario_025: repeated references to capital-gains variables that are zero, an `adjusted_earnings` node that 2.38.6 nests under `filer_adjusted_earnings`, and one reference that reads `employment_income` on 2.38.6 and `irs_employment_income` on 2.38.8. |
-| The hand derivations | `scripts/hand_derivations.py`, exact decimal arithmetic from the facts and the law's figures, with no engine | Every figure this README gives reproduces to the cent: both references, both consensus answers, each other model answer the report reconstructs, and each value the reviewers' other readings give (`verification/hand_derivations.json`). |
+| Both references reproduce on main `75cdd8019e` (2.38.8) | policyengine-us installed from that commit in a clean environment, with policyengine-core 3.33.0; `scripts/trace_cells.py` run on the release's `scenarios.csv` | $8,596.03 and $1,916.61. All four trace files and both situations are byte-identical to the session's; `key_variables.txt` differs only in the install path on its first line. The re-run's listed values, its install record and its files' hashes are in `traces/policyengine-us-2.38.8-75cdd8019e/rerun/`. |
+| Both references reproduce on the release's own engine | The same script on policyengine-us 2.38.6 with policyengine-core 3.32.29, the environment `uv.lock` pins | $8,596.03 and $1,916.61 (`traces/policyengine-us-2.38.6/`). Both situations, all 77 listed values and both short traces equal the 2.38.8 run's. A short trace (`*_trace.txt`) prints the tree under the output and prunes every zero-valued branch, with whatever lies under it. The full traces print those branches too, and differ in 36 lines for scenario_039 and 29 for scenario_025: repeated references to capital-gains variables that are zero, an `adjusted_earnings` node that 2.38.6 nests under `filer_adjusted_earnings`, and one reference that reads `employment_income` on 2.38.6 and `irs_employment_income` on 2.38.8. |
+| The hand derivations | `scripts/hand_derivations.py`, exact decimal arithmetic from the facts and the law's figures, with no engine | Virginia's reference reproduces to the cent. Ohio's statute figure is $1,916.60; with the fixed amount as the engine carries it, $332.00204, the same arithmetic gives the reference, $1,916.61. Both consensus answers, each other model answer the report reconstructs, and each value the reviewers' other readings give also reproduce to the cent (`verification/hand_derivations.json`). |
+| The situations the engine was run on | PolicyBench's own `Scenario.to_pe_household`, on the release's `scenarios.csv` | Equal to both committed situations. |
 | The models' answers | `model_answers.json` compared with the release's payload | All 94 answers and explanations match. The cluster sizes, ranks and quoted explanations are as reported. |
 | The law | Every statute excerpt compared with the Government Publishing Office's text or with codes.ohio.gov; each PDF downloaded again | No difference (`law/sources.json`). |
 | The data flag behind "is a surviving spouse" | policyengine-us-data `cps.py` and Microcosm `relationship_inputs.py` read on their main branches | Both set it from marital status code 4 ([Prompt labels](#prompt-labels)). |
 
-Three statements in the report need correcting or qualifying; see [Corrections to the report](#corrections-to-the-report).
+Four statements in the report need correcting or qualifying; see [Corrections to the report](#corrections-to-the-report).
 
 ## Virginia scenario_039: federal income tax before refundable credits
 
@@ -81,7 +91,7 @@ The engine takes the same steps (`traces/*/key_variables.txt`): `filing_status` 
 
 ### The consensus, $5,145.11
 
-Six models (claude-opus-5.5, claude-sonnet-5.5, gpt-6-astra, claude-fable-5.1, gpt-6.1-sol, gpt-5.5) reach the same adjusted gross income and change only the filing status. They take the $32,200 standard deduction and the joint table: $2,480 + 12% × ($47,009.22 - $24,800) = **$5,145.11**.
+Six models (claude-opus-5.5, claude-sonnet-5.5, gpt-6-astra, claude-fable-5.1, gpt-6.1-sol, gpt-5.5) compute income as the reference does and change only the filing status. Working from the prompt's whole-dollar loss, their adjusted gross income is $79,209.25. They take the $32,200 standard deduction and the joint table: $2,480 + 12% × ($47,009.25 - $24,800) = **$5,145.11**. To the cent of the underlying facts it is the same figure.
 
 All six say so. Claude Opus 5.5: "Filed as surviving spouse, which uses the joint brackets and joint standard deduction". None of the six mentions a child or a dependent. Four models match the reference (gpt-6-sol, gpt-6-luna, kimi-k3, ox-alpha), and two of them state the test. Kimi K3: "surviving spouse with no dependent child cannot use qualifying-surviving-spouse status".
 
@@ -139,7 +149,8 @@ Two GPT-6.1 Sol reviews, one per cell: `reviews/review_va039.md` and `reviews/re
 
 **Where they agree with the verdicts.**
 
-- Every number: $8,596.03 and $5,145.11 for Virginia; $1,916.60 and $1,589.56 for Ohio; and each reconstruction above.
+- The references and the consensus answers: $8,596.03 and $5,145.11 for Virginia; $1,916.60 and $1,589.56 for Ohio.
+- The reconstructions each review takes up. Virginia's: the joint-return answer, $4,484.79. Ohio's: $1,921.57, $1,742.81 and $1,319.63. The Ohio review does not take up gpt-5.6-sol's $1,950.25, which only the report reconstructs.
 - Virginia: the filing status is single. The reviewer puts its confidence "above 99% in the arithmetic and Single status for an ordinary widow with no qualifying child".
 - Ohio: "The rate schedule is settled in PolicyEngine's favor: $332, 2.75%, the frozen threshold and frozen exemptions are correct. B's consensus does not follow the statute."
 
@@ -175,7 +186,7 @@ The 2025 Form 1040 instructions say a filer with taxable income under $100,000 "
 
 Two labels did the misleading, and both are noted on the v2 prompt issue, PolicyEngine/policybench#165.
 
-- **"is a surviving spouse."** That is the Code's name for the filing status that gets the joint table. The data flag is only the survey's marital status. The label is in 12 of the 100 prompts, and none of those households lists a child. policyengine-us-data sets `is_surviving_spouse` from `A_MARITL == 4` (`policyengine_us_data/datasets/cps/cps.py` line 1212 at main `42ed5d45`), and Microcosm does the same (`packages/microcosm-build/src/microcosm/build/us_runtime/relationship_inputs.py` line 181 at main `aca40a69`). The engine adds the child test itself (`surviving_spouse_eligible`).
+- **"is a surviving spouse."** That is the Code's name for the filing status that gets the joint table. The data flag is only the survey's marital status. The label is in 12 of the 100 prompts, and none of those households lists a child. policyengine-us-data sets `is_surviving_spouse` from `A_MARITL == 4` (`policyengine_us_data/datasets/cps/cps.py` line 1212 at main `42ed5d45`), and Microcosm does the same (`packages/microcosm-build/src/microcosm/build/us_runtime/relationship_inputs.py` line 181 at main `aca40a69`). The engine adds the child test itself (`surviving_spouse_eligible`). `engine_sources.md` quotes all three.
 - **"estate income."** The label states no character, and the engine's meaning (ordinary Schedule E income) is not in the prompt. It is in two prompts: this one and scenario_110 (OH).
 
 "employer sponsored insurance premiums" is already on #165, which asks to label it employer-paid.
@@ -184,9 +195,10 @@ Two labels did the misleading, and both are noted on the v2 prompt issue, Policy
 
 1. **The independent reviews were not blind to the candidates.** The report says the reviewers "worked each cell from the law before seeing any answer". The briefs named the candidate answers and the reference, and the Ohio reviewer read the report as it then stood. The briefs did withhold the verdicts, as the report says.
 2. **The trigger does not flag scenario_039's federal income tax today.** The request behind this record expected the next pass to flag it. At the default parameters it does not ([above](#what-the-consensus-trigger-does-with-these-cells)).
-3. **The Department of Taxation's FAQ is not among the saved sources.** The report cites its questions 8 and 9. The session's `law/` folder holds no copy; the quotation is in the 2026-10-06 verification file, which fetched it then. Nothing in the verdict depends on it: the statute and the worksheet say the same.
+3. **The reviews do not confirm every reconstruction.** The report says they agree with "each reconstruction above". The Ohio review reconstructs three other answers and not $1,950.25.
+4. **The Department of Taxation's FAQ is not among the saved sources.** The report cites its questions 8 and 9. The session's `law/` folder holds no copy; the quotation is in the 2026-10-06 verification file, which fetched it then. Nothing in the verdict depends on it: the statute and the worksheet say the same.
 
-The report's three engine observations are outside both cells. Each matches the engine's source in policyengine-us 2.38.6, which is as far as this record checked them: `surviving_spouse_eligible` has no test of when the spouse died (PolicyEngine/policyengine-us#10059, open); `oh_employer_subsidized_health_plan_eligible` counts having or being offered employer coverage, whether or not the employer pays; and `oh_pension_based_retirement_income_credit` says in a comment that it does not check that the pension was received on account of retirement.
+The report's three engine observations are outside both cells. Each matches the engine's source in policyengine-us 2.38.6 (`engine_sources.md` quotes the lines), which is as far as this record checked them: `surviving_spouse_eligible` has no test of when the spouse died (PolicyEngine/policyengine-us#10059, open); `oh_employer_subsidized_health_plan_eligible` counts having or being offered employer coverage, whether or not the employer pays; and `oh_pension_based_retirement_income_credit` says in a comment that it does not check that the pension was received on account of retirement.
 
 ## Files
 
@@ -200,14 +212,15 @@ The report's three engine observations are outside both cells. Each matches the 
 | `prompt_households.json` | The two household blocks the models saw |
 | `model_answers.md`, `model_answers.json` | All 47 models' answers and explanations for both cells |
 | `law/excerpts.md`, `law/sources.json` | The passages relied on; each saved document's address, sha256 and recheck |
-| `traces/policyengine-us-2.38.8-75cdd8019e/` | The session's engine run: listed values, situations, non-zero traces and full traces |
+| `traces/policyengine-us-2.38.8-75cdd8019e/` | The session's engine run: listed values, situations, short traces and full traces. `rerun/` is this record's re-run on the same commit |
 | `traces/policyengine-us-2.38.6/` | The same run on the release's engine |
-| `scripts/trace_cells.py` | The script both runs used |
+| `scripts/trace_cells.py` | The script every run used |
+| `engine_sources.md` | The engine and data-builder lines the statements about them rest on |
 | `scripts/hand_derivations.py`, `verification/hand_derivations.json` | The hand derivations, executable |
 | `verification/consensus_flags_20261010*.json` | The trigger on the release's payload, at the default parameters and with `--min-top 2` |
 | `verification/held_on_20261010*.json` | What `adversary-prepare --held-references` lists for each |
 | `scripts/build_manifest.py`, `manifest.json` | The hashes |
-| `verification/pytest_held_references.txt`, `verification/mutants_held_references.txt` | The test run, and 13 deliberate breaks of the rule, each caught by the tests |
+| `verification/pytest_held_references.txt`, `scripts/mutants_held_references.py`, `verification/mutants_held_references.txt` | The test run; and deliberate breaks of the rule and of the command, each caught by the tests |
 
 **No whole law document is committed.** The statutes, the revenue procedure and the IRS forms are free of copyright; the Ohio booklet and the Legislative Service Commission's analysis are state publications and may not be. `law/excerpts.md` quotes the passages relied on, and `law/sources.json` gives each document's public address and the sha256 of the copy the session saved.
 

@@ -2,7 +2,7 @@
 
 These are the passages the two verdicts rest on. The whole documents are not in this repository. `sources.json` lists each document the 2026-10-10 session saved, with its address, its sha256 and what was checked again on the same day for this record. Excerpts are verbatim apart from line breaks, with two exceptions. A row of a two-column table is written on one line, with a colon between the columns in the rate tables. A worksheet line is given without its dot leaders.
 
-How the excerpts were checked: 54 of the 64 quoted lines are exact substrings of the saved text extractions, after collapsing white space. The other ten are the five Rev. Proc. table rows, the worksheet's line 4, and the four passages from the Form 1040 instructions, which the extraction sets in three interleaved columns (lines 683–688, 791–795, 839–841 and 2384–2387 of `i1040gi.txt`). Those ten were read against the extraction by eye.
+How the excerpts were checked: 64 of the 74 quoted lines are exact substrings of the saved text extractions, after collapsing white space. The other ten are the five Rev. Proc. table rows, the worksheet's line 4, and the four passages from the Form 1040 instructions, which the extraction sets in three interleaved columns (lines 683–688, 791–795, 839–841 and 2384–2387 of `i1040gi.txt`). Those ten were read against the extraction by eye.
 
 2026 returns and instructions are not yet published. Form lines are the 2025 forms', and 2026 amounts come from Rev. Proc. 2025-32 and the Ohio Revised Code.
 
@@ -35,6 +35,11 @@ Under Qualifying Surviving Spouse, the first condition, and the note on a death 
 > (14) Income from an interest in an estate or trust.
 
 ### 26 U.S.C. 86: taxable Social Security benefits
+
+> (1) In general
+> Except as provided in paragraph (2), gross income for the taxable year of any taxpayer described in subsection (b) (notwithstanding section 207 of the Social Security Act) includes social security benefits in an amount equal to the lesser of—
+> (A) one-half of the social security benefits received during the taxable year, or
+> (B) one-half of the excess described in subsection (b)(1).
 
 > (2) Additional amount
 > In the case of a taxpayer with respect to whom the amount determined under subsection (b)(1)(A) exceeds the adjusted base amount, the amount included in gross income under this section shall be equal to the lesser of—
@@ -69,7 +74,9 @@ Section 4.14(1), standard deduction:
 > Married Individuals Filing Joint Returns and Surviving Spouses (§ 1(j)(2)(A)) $32,200
 > Unmarried Individuals (other than Surviving Spouses and Heads of Households) (§ 1(j)(2)(C)) $16,100
 
-Section 4.03, maximum zero rate amount (used only for the reviewer's preferential reading):
+Section 4.03 (used only for the reviewer's preferential reading). The two columns are the maximum zero rate amount and the maximum 15 percent rate amount:
+
+> For taxable years beginning in 2026, the maximum zero rate amounts and maximum 15 percent rate amounts under § 1(j)(5)(B), as adjusted for inflation, are as follows:
 
 > All Other Individuals $49,450 $545,500
 
@@ -97,6 +104,10 @@ Section 4.03, maximum zero rate amount (used only for the reviewer's preferentia
 
 > If your taxable income is less than $100,000, you must use the Tax Table, later in these instructions, to figure your tax.
 
+The 2025 Tax Table's row for taxable income of at least $63,100 but less than $63,150, single column:
+
+> 63,100 63,150 8,802
+
 ## Ohio scenario_025, state income tax
 
 ### R.C. 5747.02(A)(3): the 2026 schedule (decisive)
@@ -106,6 +117,12 @@ Effective September 30, 2025 (H.B. 96, 136th General Assembly).
 > If the balance thus obtained is equal to or less than twenty-six thousand fifty dollars, no tax shall be imposed on that balance. If the balance thus obtained is greater than twenty-six thousand fifty dollars, the tax is hereby levied as follows:
 
 > (c) For taxable years beginning in 2026 and thereafter, $332.00 plus 2.75% of the amount in excess of $26,050.
+
+The 2024 schedule's fixed amount, which one model applies to 2026:
+
+> (a) For taxable years beginning in 2024:
+
+> $360.69 plus 2.75% of the amount in excess of $26,050
 
 Division (A)(2) gives the rate behind the fixed amount, which is how the engine carries it (1.27448% × $26,050 = $332.002):
 
@@ -142,6 +159,10 @@ The Department of Taxation's FAQ on these lines (questions 8 and 9) is quoted in
 
 ### R.C. 5747.025(A)(3) and the 2025 booklet (p. 17): exemptions
 
+Division (A) allows an exemption only below an income ceiling, which falls in 2026:
+
+> (A) The personal exemption for the taxpayer, the taxpayer's spouse, and each dependent shall be one of the following amounts, provided the taxpayer's modified adjusted gross income is less than seven hundred fifty thousand dollars for taxable years beginning in 2025 or five hundred thousand dollars for taxable years beginning in 2026 or thereafter:
+
 The statute's base amount for modified adjusted gross income above $80,000:
 
 > (3) One thousand eight hundred fifty dollars if the taxpayer's modified adjusted gross income for the taxable year as shown on an individual or joint annual return is greater than eighty thousand dollars.
@@ -150,8 +171,9 @@ Division (C) keeps an adjusted amount in force until the next adjustment:
 
 > The adjusted amount applies to taxable years beginning in the calendar year in which the adjustment is made and to taxable years beginning in each ensuing calendar year until a calendar year in which a new adjustment is made pursuant to this division.
 
-The amounts in force for 2025, from the booklet's exemption table. Section 757.120(A) below allows no adjustment in 2025 or 2026, so they are the 2026 amounts too:
+The amounts in force for 2025, from the booklet's exemption table. Section 757.120(A) below allows no adjustment in 2025 or 2026, so the three amounts are the 2026 amounts too. The table's $749,999 is the 2025 ceiling; division (A) puts the 2026 ceiling under $500,000:
 
+> $40,000 or less $2,400
 > $40,001 – $80,000 $2,150
 > $80,001 - $749,999 $1,900
 

@@ -28,13 +28,16 @@ from policybench.consensus import (
 )
 from policybench.held_references import (
     HELD_VERDICT,
+    HOLD_TOLERANCE,
     NOT_APPLIED_REASONS,
     SCHEMA_VERSION,
     apply_held_references,
     load_held_references,
+    prompt_sha256,
     validate_held_references,
 )
 from policybench.prompts import get_variable_description
+from policybench.scenarios import load_scenarios_from_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "reference_audit/held_references.json"
@@ -50,6 +53,7 @@ VA_039 = ("scenario_039", "federal_income_tax_before_refundable_credits")
 OH_025 = ("scenario_025", "state_income_tax_before_refundable_credits")
 TAX = "state_income_tax_before_refundable_credits"
 MEDICAID = "head_medicaid_eligible"
+MEMBERS = ["top-a", "top-b", "top-c"]
 
 
 def _script(name: str):
@@ -61,7 +65,26 @@ def _script(name: str):
     return module
 
 
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 # --- The rule ------------------------------------------------------------------
+
+
+def _cluster(answers) -> dict:
+    """A triggering cluster whose members give ``answers`` (one answer for
+    all three members, or one each)."""
+    if isinstance(answers, (int, float)):
+        answers = [answers] * len(MEMBERS)
+    return {
+        "answer": float(round(answers[0])),
+        "n_models": len(answers),
+        "n_top": len(answers),
+        "models": MEMBERS[: len(answers)],
+        "top_models": MEMBERS[: len(answers)],
+        "predictions": dict(zip(MEMBERS, answers)),
+    }
 
 
 def _flag(scenario_id="scenario_001", variable=TAX, reference=100.0, answers=(50.0,)):
@@ -73,24 +96,28 @@ def _flag(scenario_id="scenario_001", variable=TAX, reference=100.0, answers=(50
         "models_answered": 6,
         "models_exact": 0,
         "trigger": ["min_top"],
-        "clusters": [
-            {
-                "answer": float(answer),
-                "n_models": 3,
-                "n_top": 3,
-                "models": ["top-a", "top-b", "top-c"],
-                "top_models": ["top-a", "top-b", "top-c"],
-                "predictions": {"top-a": answer, "top-b": answer, "top-c": answer},
-            }
-            for answer in answers
-        ],
+        "clusters": [_cluster(answer) for answer in answers],
     }
+
+
+def _prompt_of(scenario_id: str) -> str:
+    return f"Household {scenario_id}: the facts and the requested outputs."
+
+
+def _prompts(*scenario_ids: str, **changed: str) -> dict:
+    """A payload carrying only what the rule reads: each scenario's prompt."""
+    texts = {sid: _prompt_of(sid) for sid in scenario_ids} | changed
+    return {"scenarios": {sid: {"prompt": {"tool": t}} for sid, t in texts.items()}}
+
+
+PROMPTS = _prompts("scenario_001", "scenario_002")
 
 
 def _record(scenario_id="scenario_001", variable=TAX, reference=100.0, answers=(50.0,)):
     return {
         "scenario_id": scenario_id,
         "variable": variable,
+        "prompt_sha256": _sha(_prompt_of(scenario_id)),
         "reference": reference,
         "verdict": HELD_VERDICT,
         "checked_on": "2026-10-10",
@@ -104,7 +131,7 @@ def _record(scenario_id="scenario_001", variable=TAX, reference=100.0, answers=(
 
 def test_a_checked_cell_is_listed_as_held_with_its_explanation():
     flags = [_flag(), _flag("scenario_002")]
-    kept, report = apply_held_references(flags, [_record()])
+    kept, report = apply_held_references(flags, [_record()], PROMPTS)
     assert kept == [flags[1]]
     assert report["not_applied"] == [] and report["not_flagged"] == []
     (held,) = report["held"]
@@ -116,7 +143,8 @@ def test_a_checked_cell_is_listed_as_held_with_its_explanation():
         "answer": 50.0,
         "n_models": 3,
         "n_top": 3,
-        "models": ["top-a", "top-b", "top-c"],
+        "models": MEMBERS,
+        "predictions": {"top-a": 50.0, "top-b": 50.0, "top-c": 50.0},
         "explained_answer": 50.0,
         "explanation": "why 50.0 is wrong",
     }
@@ -127,8 +155,9 @@ def test_a_checked_cell_is_listed_as_held_with_its_explanation():
     [(100.0, True), (100.99, True), (101.0, True), (101.01, False), (98.5, False)],
 )
 def test_a_record_stops_applying_once_the_reference_moves(reference, holds):
+    assert HOLD_TOLERANCE == 1.0
     flags = [_flag(reference=reference)]
-    kept, report = apply_held_references(flags, [_record()], tolerance=1.0)
+    kept, report = apply_held_references(flags, [_record()], PROMPTS)
     assert bool(report["held"]) is holds
     if holds:
         assert kept == []
@@ -140,22 +169,113 @@ def test_a_record_stops_applying_once_the_reference_moves(reference, holds):
         assert stale["record"] == _record()
 
 
+def test_a_reference_that_moves_onto_the_held_value_is_held():
+    """Moving is not the test; being the held value is. A reference of 50
+    against a record that held 52.5 is not covered; at 53 it is."""
+    record = _record(reference=52.5, answers=(100.0,))
+    before = [_flag(reference=50.0, answers=(100.0,))]
+    assert apply_held_references(before, [record], PROMPTS)[1]["held"] == []
+    after = [_flag(reference=53.0, answers=(100.0,))]
+    assert apply_held_references(after, [record], PROMPTS)[0] == []
+
+
 def test_a_consensus_the_record_does_not_explain_keeps_the_cell_in_the_pass():
     # The checked answer still triggers, and models now also agree on another.
     flags = [_flag(answers=(50.0, 70.0))]
-    kept, report = apply_held_references(flags, [_record(answers=(50.4,))])
+    kept, report = apply_held_references(flags, [_record(answers=(50.4,))], PROMPTS)
     assert kept == flags and report["held"] == []
     (stale,) = report["not_applied"]
     assert stale["reason"] == "unexplained_consensus"
     assert [c["answer"] for c in stale["unexplained_clusters"]] == [70.0]
     # Explaining both answers covers the flag.
-    kept, report = apply_held_references(flags, [_record(answers=(50.4, 70.0))])
+    both = _record(answers=(50.4, 70.0))
+    kept, report = apply_held_references(flags, [both], PROMPTS)
     assert kept == [] and len(report["held"][0]["clusters"]) == 2
+
+
+def test_every_member_of_a_cluster_must_give_the_explained_answer():
+    """A cluster is a rounded key. Its members' own answers are what the
+    record must explain, and one entry must explain all of them."""
+    record = _record(answers=(50.0,))
+    # 50.9 is the explained answer, by a dollar; 51.2 is not.
+    near = [_flag(answers=([50.0, 50.9, 49.2],))]
+    assert apply_held_references(near, [record], PROMPTS)[0] == []
+    far = [_flag(answers=([50.0, 50.9, 51.2],))]
+    kept, report = apply_held_references(far, [record], PROMPTS)
+    assert kept == far
+    assert report["not_applied"][0]["reason"] == "unexplained_consensus"
+    # Two explained answers do not add up to one cluster's explanation.
+    split = _record(answers=(50.0, 52.0))
+    kept, report = apply_held_references(
+        [_flag(answers=([49.5, 50.5, 52.6],))], [split], PROMPTS
+    )
+    assert report["not_applied"][0]["reason"] == "unexplained_consensus"
+
+
+@pytest.mark.parametrize(
+    "broken",
+    [
+        {"predictions": {}},
+        {"predictions": {"top-a": 50.0, "top-b": 50.0}},
+        {"predictions": {"top-a": 50.0, "top-b": 50.0, "top-c": None}},
+        {"predictions": {"top-a": 50.0, "top-b": 50.0, "top-c": float("nan")}},
+        {"models": []},
+    ],
+)
+def test_a_cluster_without_every_member_answer_is_not_explained(broken):
+    flag = _flag()
+    flag["clusters"][0] |= broken
+    kept, report = apply_held_references([flag], [_record()], PROMPTS)
+    assert kept == [flag]
+    assert report["not_applied"][0]["reason"] == "unexplained_consensus"
+
+
+def test_a_record_is_bound_to_the_prompt_the_models_answered():
+    """The same scenario id, reference and consensus answer, under another
+    prompt, is another question: a scenario id is only a position in a run."""
+    flags = [_flag()]
+    record = _record()
+    assert apply_held_references(flags, [record], PROMPTS)[0] == []
+    for other in (
+        _prompts("scenario_002", scenario_001="Another household, same numbers."),
+        _prompts("scenario_002", scenario_001=_prompt_of("scenario_001") + " "),
+        _prompts("scenario_002"),
+        {"scenarios": {"scenario_001": {"prompt": {"tool": ""}}}},
+        {},
+    ):
+        kept, report = apply_held_references(flags, [record], other)
+        assert kept == flags and report["held"] == []
+        (stale,) = report["not_applied"]
+        assert stale["reason"] == "prompt_changed"
+        assert stale["prompt_sha256"] == prompt_sha256(other, "scenario_001")
+        assert stale["prompt_sha256"] != record["prompt_sha256"]
+
+
+def test_reasons_are_reported_in_the_order_they_are_tested():
+    flags = [_flag(reference=500.0, answers=(70.0,))]
+    record = _record()
+    changed = _prompts(scenario_001="another prompt")
+    assert (
+        apply_held_references(flags, [record], changed)[1]["not_applied"][0]["reason"]
+        == NOT_APPLIED_REASONS[0]
+        == "prompt_changed"
+    )
+    assert (
+        apply_held_references(flags, [record], PROMPTS)[1]["not_applied"][0]["reason"]
+        == NOT_APPLIED_REASONS[1]
+        == "reference_moved"
+    )
+    flags = [_flag(answers=(70.0,))]
+    assert (
+        apply_held_references(flags, [record], PROMPTS)[1]["not_applied"][0]["reason"]
+        == NOT_APPLIED_REASONS[2]
+        == "unexplained_consensus"
+    )
 
 
 def test_a_record_whose_cell_is_not_flagged_is_listed_as_such():
     flags = [_flag("scenario_002")]
-    kept, report = apply_held_references(flags, [_record()])
+    kept, report = apply_held_references(flags, [_record()], PROMPTS)
     assert kept == flags
     assert report["held"] == [] and report["not_applied"] == []
     assert report["not_flagged"] == [
@@ -164,26 +284,35 @@ def test_a_record_whose_cell_is_not_flagged_is_listed_as_such():
 
 
 def test_an_eligibility_output_holds_only_at_the_same_flag():
-    # Within the dollar tolerance but another answer: 0 and 1 are opposites.
+    # Within a dollar but another answer: 0 and 1 are opposites.
     flag = _flag(variable=MEDICAID, reference=1.0, answers=(0.0,))
     held = _record(variable=MEDICAID, reference=1.0, answers=(0.0,))
-    assert apply_held_references([flag], [held])[1]["held"]
+    assert apply_held_references([flag], [held], PROMPTS)[1]["held"]
     moved = _record(variable=MEDICAID, reference=0.0, answers=(0.0,))
-    kept, report = apply_held_references([flag], [moved])
+    kept, report = apply_held_references([flag], [moved], PROMPTS)
     assert kept == [flag] and report["not_applied"][0]["reason"] == "reference_moved"
     other = _record(variable=MEDICAID, reference=1.0, answers=(1.0,))
-    kept, report = apply_held_references([flag], [other])
+    kept, report = apply_held_references([flag], [other], PROMPTS)
     assert report["not_applied"][0]["reason"] == "unexplained_consensus"
-    # With binary_outputs="skip" the trigger compares flags in dollars too.
-    assert apply_held_references([flag], [moved], binary_outputs="skip")[1]["held"]
 
 
-def test_a_cell_flagged_twice_and_a_bad_tolerance_are_refused():
+def test_malformed_flags_and_records_are_refused():
     with pytest.raises(ValueError, match="flagged more than once"):
-        apply_held_references([_flag(), _flag()], [_record()])
-    for tolerance in (-1.0, float("nan"), float("inf")):
-        with pytest.raises(ValueError, match="tolerance"):
-            apply_held_references([_flag()], [_record()], tolerance=tolerance)
+        apply_held_references([_flag(), _flag()], [_record()], PROMPTS)
+    # A flag with no cluster would be "explained" by anything.
+    for clusters in ([], None):
+        empty = {**_flag(), "clusters": clusters}
+        with pytest.raises(ValueError, match="no triggering cluster"):
+            apply_held_references([empty], [_record()], PROMPTS)
+        with pytest.raises(ValueError, match="no triggering cluster"):
+            apply_held_references([empty], [], PROMPTS)
+    # A direct call checks its records as the file loader does.
+    with pytest.raises(ValueError, match="listed more than once"):
+        apply_held_references([_flag()], [_record(), _record()], PROMPTS)
+    with pytest.raises(ValueError, match="verdict must be"):
+        apply_held_references(
+            [_flag()], [{**_record(), "verdict": "reference_wrong"}], PROMPTS
+        )
 
 
 def _document(*records) -> dict:
@@ -200,6 +329,9 @@ def _document(*records) -> dict:
         (_document({**_record(), "scenario_id": ""}), "scenario_id must be"),
         (_document({**_record(), "evidence": " "}), "evidence must be"),
         (_document({**_record(), "checked_on": None}), "checked_on must be"),
+        (_document({**_record(), "prompt_sha256": None}), "prompt_sha256 must be"),
+        (_document({**_record(), "prompt_sha256": "abc"}), "prompt_sha256 must be"),
+        (_document({**_record(), "prompt_sha256": "A" * 64}), "prompt_sha256 must be"),
         (_document({**_record(), "reference": "100"}), "reference must be a finite"),
         (_document({**_record(), "reference": True}), "reference must be a finite"),
         (_document({**_record(), "reference": float("nan")}), "reference must be"),
@@ -231,148 +363,197 @@ def test_a_valid_document_loads_and_keeps_extra_keys(tmp_path: Path):
 
 # Properties ---------------------------------------------------------------------
 
-_CELLS = [(f"scenario_{i:03d}", v) for i in range(1, 5) for v in (TAX, MEDICAID)]
+_SCENARIOS = [f"scenario_{i:03d}" for i in range(1, 5)]
+_CELLS = [(sid, variable) for sid in _SCENARIOS for variable in (TAX, MEDICAID)]
 _AMOUNTS = st.sampled_from([0.0, 0.4, 1.0, 1.6, 50.0, 50.9, 52.5, 100.0, 101.5])
 
 
+# A cluster's members: answers near one another, with the odd stray.
+_MEMBERS = st.builds(
+    lambda base, offsets: [base + offset for offset in offsets],
+    _AMOUNTS,
+    st.lists(
+        st.sampled_from([0.0, 0.0, 0.0, 0.0, 0.4, -0.3, 0.9, 5.0]),
+        min_size=1,
+        max_size=3,
+    ),
+)
+_NUDGE = st.sampled_from([0.0, 0.0, 0.0, 0.0, 0.3, -0.7, 1.0, 1.4])
+
+
 @st.composite
-def _flags_and_records(draw):
-    flagged = draw(st.lists(st.sampled_from(_CELLS), unique=True, max_size=6))
+def _case(draw):
+    """Flags, records and a payload, with every way a record can fail to
+    apply left open: another prompt, another reference, another answer. Most
+    records of a flagged cell are written from its flag, give or
+    take a nudge, so that holds and near misses are both common."""
     flags = [
         _flag(
             sid,
             variable,
             reference=draw(_AMOUNTS),
-            answers=draw(st.lists(_AMOUNTS, min_size=1, max_size=3, unique=True)),
+            answers=draw(st.lists(_MEMBERS, min_size=1, max_size=3)),
         )
-        for sid, variable in flagged
-    ]
-    listed = draw(st.lists(st.sampled_from(_CELLS), unique=True, max_size=6))
-    records = [
-        _record(
-            sid,
-            variable,
-            reference=draw(_AMOUNTS),
-            answers=draw(st.lists(_AMOUNTS, min_size=1, max_size=3, unique=True)),
+        for sid, variable in draw(
+            st.lists(st.sampled_from(_CELLS), unique=True, max_size=6)
         )
-        for sid, variable in listed
     ]
-    tolerance = draw(st.sampled_from([0.0, 0.5, 1.0, 2.0]))
-    binary_outputs = draw(st.sampled_from(["mismatch", "skip"]))
-    return flags, records, tolerance, binary_outputs
+    by_cell = {_cell(flag): flag for flag in flags}
+    records = []
+    for cell in draw(st.lists(st.sampled_from(_CELLS), unique=True, max_size=6)):
+        flag = by_cell.get(cell)
+        if flag is not None and draw(st.sampled_from([True, True, True, False])):
+            reference = flag["reference"] + draw(_NUDGE)
+            answers = [
+                next(iter(cluster["predictions"].values())) + draw(_NUDGE)
+                for cluster in flag["clusters"]
+            ]
+            answers = list(dict.fromkeys(answers))
+        else:
+            reference = draw(_AMOUNTS)
+            answers = draw(st.lists(_AMOUNTS, min_size=1, max_size=3, unique=True))
+        records.append(_record(*cell, reference=reference, answers=answers))
+    reworded = draw(st.lists(st.sampled_from(_SCENARIOS), unique=True, max_size=1))
+    payload = _prompts(*_SCENARIOS, **{sid: "a reworded prompt" for sid in reworded})
+    return flags, records, payload
 
 
-def _same(a, b, variable, tolerance, binary_outputs):
-    if binary_outputs == "mismatch" and variable == MEDICAID:
-        return a == b
-    return abs(a - b) <= tolerance
+def _is(a: float, b: float, variable: str) -> bool:
+    """The test's own statement of "the same value"."""
+    return a == b if variable == MEDICAID else abs(a - b) <= 1.0
 
 
-@settings(max_examples=300, deadline=None)
-@given(_flags_and_records())
+def _cell(row: dict) -> tuple[str, str]:
+    return (row["scenario_id"], row["variable"])
+
+
+def _covers(record: dict, flag: dict) -> bool:
+    """Whether each of the flag's clusters is one answer the record explains."""
+    return all(
+        any(
+            all(
+                _is(answer, entry["answer"], flag["variable"])
+                for answer in cluster["predictions"].values()
+            )
+            for entry in record["consensus"]
+        )
+        for cluster in flag["clusters"]
+    )
+
+
+@settings(max_examples=400, deadline=None)
+@given(_case())
 def test_every_flag_is_kept_or_held_and_every_record_is_accounted_for(case):
-    flags, records, tolerance, binary_outputs = case
-    before = copy.deepcopy((flags, records))
-    kept, report = apply_held_references(
-        flags, records, tolerance=tolerance, binary_outputs=binary_outputs
-    )
-    assert (flags, records) == before
-    assert (kept, report) == apply_held_references(
-        flags, records, tolerance=tolerance, binary_outputs=binary_outputs
-    )
+    flags, records, payload = case
+    before = copy.deepcopy(case)
+    kept, report = apply_held_references(flags, records, payload)
+    assert case == before
+    assert (kept, report) == apply_held_references(flags, records, payload)
 
-    def cell(row):
-        return (row["scenario_id"], row["variable"])
-
-    held = {cell(row) for row in report["held"]}
+    held = {_cell(row) for row in report["held"]}
     # A flag is held or kept, never both and never dropped, and order is kept.
-    assert kept == [flag for flag in flags if cell(flag) not in held]
+    assert kept == [flag for flag in flags if _cell(flag) not in held]
     assert len(kept) + len(report["held"]) == len(flags)
     # Each record lands in exactly one list.
-    listed = [cell(row) for name in report for row in report[name]]
-    assert sorted(listed) == sorted(cell(record) for record in records)
-    by_cell = {cell(record): record for record in records}
-    flag_by_cell = {cell(flag): flag for flag in flags}
-    assert {cell(row) for row in report["not_flagged"]} == set(by_cell) - set(
+    listed = [_cell(row) for name in report for row in report[name]]
+    assert sorted(listed) == sorted(_cell(record) for record in records)
+    by_cell = {_cell(record): record for record in records}
+    flag_by_cell = {_cell(flag): flag for flag in flags}
+    assert {_cell(row) for row in report["not_flagged"]} == set(by_cell) - set(
         flag_by_cell
     )
     for name in report:
         for row in report[name]:
-            assert row["record"] is by_cell[cell(row)]
-    # A held flag meets both conditions; a stale one fails the one it names.
+            assert row["record"] is by_cell[_cell(row)]
+
+    # A flag is held exactly when its record meets all three conditions, and a
+    # record that does not apply names the first condition that fails.
+    for cell, flag in flag_by_cell.items():
+        record = by_cell.get(cell)
+        if record is None:
+            assert cell not in held
+            continue
+        same_prompt = prompt_sha256(payload, cell[0]) == record["prompt_sha256"]
+        same_reference = _is(flag["reference"], record["reference"], cell[1])
+        explained = _covers(record, flag)
+        assert (cell in held) == (same_prompt and same_reference and explained)
+        if cell in held:
+            continue
+        (row,) = [r for r in report["not_applied"] if _cell(r) == cell]
+        assert row["reason"] == (
+            "prompt_changed"
+            if not same_prompt
+            else "reference_moved"
+            if not same_reference
+            else "unexplained_consensus"
+        )
     for row in report["held"]:
-        flag, record = flag_by_cell[cell(row)], by_cell[cell(row)]
-        variable = row["variable"]
-        assert _same(
-            flag["reference"], record["reference"], variable, tolerance, binary_outputs
-        )
-        assert [c["answer"] for c in row["clusters"]] == [
-            c["answer"] for c in flag["clusters"]
+        flag = flag_by_cell[_cell(row)]
+        assert [c["predictions"] for c in row["clusters"]] == [
+            c["predictions"] for c in flag["clusters"]
         ]
-        explained = {entry["answer"]: entry for entry in record["consensus"]}
+        explanations = {
+            entry["answer"]: entry["explanation"]
+            for entry in by_cell[_cell(row)]["consensus"]
+        }
         for listed_cluster in row["clusters"]:
-            entry = explained[listed_cluster["explained_answer"]]
-            assert listed_cluster["explanation"] == entry["explanation"]
-            assert _same(
-                listed_cluster["answer"],
-                entry["answer"],
-                variable,
-                tolerance,
-                binary_outputs,
+            assert (
+                listed_cluster["explanation"]
+                == explanations[listed_cluster["explained_answer"]]
             )
-    for row in report["not_applied"]:
-        flag, record = flag_by_cell[cell(row)], by_cell[cell(row)]
-        variable = row["variable"]
-        assert row["reason"] in NOT_APPLIED_REASONS
-        same_reference = _same(
-            flag["reference"], record["reference"], variable, tolerance, binary_outputs
-        )
-        if row["reason"] == "reference_moved":
-            assert not same_reference
-        else:
-            assert same_reference
-            assert row["unexplained_clusters"]
-            for cluster in row["unexplained_clusters"]:
-                assert not any(
-                    _same(
-                        cluster["answer"],
-                        entry["answer"],
-                        variable,
-                        tolerance,
-                        binary_outputs,
-                    )
-                    for entry in record["consensus"]
-                )
 
 
-@settings(max_examples=200, deadline=None)
-@given(_flags_and_records(), st.sampled_from([3.0, -3.0, 250.0]))
-def test_moving_a_reference_or_adding_a_consensus_never_adds_a_hold(case, shift):
-    flags, records, tolerance, binary_outputs = case
-    options = {"tolerance": tolerance, "binary_outputs": binary_outputs}
-    _, report = apply_held_references(flags, records, **options)
-    held = {(row["scenario_id"], row["variable"]) for row in report["held"]}
-    # Every reference moves by more than any tolerance drawn: nothing is held.
-    moved = [{**flag, "reference": flag["reference"] + shift} for flag in flags]
-    kept, after = apply_held_references(moved, records, **options)
-    assert after["held"] == [] and kept == moved
-    # A consensus at an answer no record lists: nothing is held either.
-    extra = _flag(answers=(9999.0,))["clusters"]
-    widened = [{**flag, "clusters": flag["clusters"] + extra} for flag in flags]
-    kept, after = apply_held_references(widened, records, **options)
-    assert after["held"] == [] and kept == widened
-    # With no records nothing changes, and records never hold an unflagged cell.
-    assert apply_held_references(flags, [], **options) == (
+@settings(max_examples=300, deadline=None)
+@given(_case(), st.sampled_from([2.5, -2.5, 250.0]))
+def test_a_held_cell_stops_being_held_when_what_was_checked_changes(case, shift):
+    """For a cell that is held: moving its reference by more than twice the
+    bound, adding a consensus no record explains, or rewording its prompt each
+    send it back to the pass, and none of them makes any other cell held."""
+    flags, records, payload = case
+    _, report = apply_held_references(flags, records, payload)
+    held = {_cell(row) for row in report["held"]}
+
+    def held_after(new_flags, new_payload) -> set:
+        _, after = apply_held_references(new_flags, records, new_payload)
+        return {_cell(row) for row in after["held"]}
+
+    for target in sorted(held):
+        others = held - {target}
+        moved = [
+            {**flag, "reference": flag["reference"] + shift}
+            if _cell(flag) == target
+            else flag
+            for flag in flags
+        ]
+        assert held_after(moved, payload) == others
+        extra = [_cluster(9999.0)]
+        widened = [
+            {**flag, "clusters": flag["clusters"] + extra}
+            if _cell(flag) == target
+            else flag
+            for flag in flags
+        ]
+        assert held_after(widened, payload) == others
+        reworded = {
+            "scenarios": payload["scenarios"]
+            | {target[0]: {"prompt": {"tool": "this household, asked another way"}}}
+        }
+        # The prompt belongs to the scenario, so every cell of it is released.
+        assert held_after(flags, reworded) == {c for c in others if c[0] != target[0]}
+    # With no records nothing changes, and a record never holds an unflagged cell.
+    assert apply_held_references(flags, [], payload) == (
         flags,
         {"held": [], "not_applied": [], "not_flagged": []},
     )
-    assert held <= {(flag["scenario_id"], flag["variable"]) for flag in flags}
+    assert held <= {_cell(flag) for flag in flags}
 
 
 # --- adversary-prepare --held-references -----------------------------------------
 
 MODELS = ["top-a", "top-b", "top-c", "mid-a", "mid-b", "mid-c"]
 PARAMS = ConsensusParams(min_models=3, top_k=3, min_top=2, zero_cluster_min_models=3)
+TAX_CASE = f"us__scenario_001__{TAX}"
+MEDICAID_CASE = f"us__scenario_002__{MEDICAID}"
 
 
 def _entry(prediction, reference, explanation) -> dict:
@@ -386,23 +567,26 @@ def _entry(prediction, reference, explanation) -> dict:
     }
 
 
-def _prompt(state: str, variables: list[str]) -> str:
+def _tool_prompt(state: str, variables: list[str]) -> str:
     lines = ["Household:", f"- state: {state}", "- tax year: 2026", ""]
     lines += [f"- {v}: {get_variable_description(v)}" for v in variables]
     return "\n".join(lines)
 
 
-def _payload(tax_reference: float = 3070.06) -> dict:
-    tax = {"top-a": 4451.56, "top-b": 4451.56, "top-c": 4452.0, "mid-a": 4451.57}
+def _payload(tax_reference: float = 3070.06, state: str = "PA", top_a=4451.56) -> dict:
+    tax = {"top-a": top_a, "top-b": 4451.56, "top-c": 4452.0, "mid-a": 4451.57}
     tax |= {"mid-b": 3070.06, "mid-c": None}
     medicaid = {m: 1.0 for m in MODELS[:4]} | {"mid-b": 0.0, "mid-c": 0.0}
     return {
         "country": "us",
         "scenarios": {
-            "scenario_001": {"state": "PA", "prompt": {"tool": _prompt("PA", [TAX])}},
+            "scenario_001": {
+                "state": state,
+                "prompt": {"tool": _tool_prompt(state, [TAX])},
+            },
             "scenario_002": {
                 "state": "MN",
-                "prompt": {"tool": _prompt("MN", [MEDICAID])},
+                "prompt": {"tool": _tool_prompt("MN", [MEDICAID])},
             },
         },
         "modelStats": [{"model": m} for m in MODELS],
@@ -417,6 +601,13 @@ def _payload(tax_reference: float = 3070.06) -> dict:
     }
 
 
+def _tax_record(**overrides) -> dict:
+    """The record a check of ``_payload()``'s tax cell would have written."""
+    record = _record(reference=3070.06, answers=(4451.56,))
+    record["prompt_sha256"] = prompt_sha256(_payload(), "scenario_001")
+    return record | overrides
+
+
 def _prepare_cli(*argv: str) -> None:
     from policybench import cli
 
@@ -424,47 +615,59 @@ def _prepare_cli(*argv: str) -> None:
         cli.main()
 
 
-def _prepare(tmp_path: Path, payload: dict, records: list[dict] | None, capsys):
-    """Write the payload, its flags and the records, then run the command."""
+def _write_inputs(
+    tmp_path: Path,
+    payload: dict,
+    records: list[dict] | None,
+    *,
+    flags_from: dict | None = None,
+    params: ConsensusParams = PARAMS,
+    bind_flags: bool = False,
+) -> list[str]:
+    """Write the payload, the flags (computed from ``flags_from`` when it is
+    another payload) and the records; return the command's arguments."""
     payload_path = tmp_path / "data.json"
     payload_path.write_text(json.dumps(payload))
-    flags_path = tmp_path / "flags.json"
-    report = consensus_report(payload, PARAMS, source=str(payload_path))
-    flags_path.write_text(json.dumps(report, indent=2) + "\n")
-    adversary = tmp_path / "adv"
-    argv = ["--payload", str(payload_path), "--flags", str(flags_path)]
-    argv += ["--adversary-dir", str(adversary)]
-    held_path = tmp_path / "held.json"
+    source = flags_from if flags_from is not None else payload
+    report = consensus_report(
+        source,
+        params,
+        source=str(payload_path),
+        source_sha256=_sha(json.dumps(source)) if bind_flags else "",
+    )
+    (tmp_path / "flags.json").write_text(json.dumps(report, indent=2) + "\n")
+    argv = ["--payload", str(payload_path), "--flags", str(tmp_path / "flags.json")]
+    argv += ["--adversary-dir", str(tmp_path / "adv")]
     if records is not None:
-        held_path.write_text(json.dumps(_document(*records)))
-        argv += ["--held-references", str(held_path)]
-    _prepare_cli(*argv)
-    cases = [
-        json.loads(line)["case_id"]
-        for line in (adversary / "cases.jsonl").read_text().splitlines()
-    ]
-    return adversary, cases, capsys.readouterr().out, flags_path, held_path
+        (tmp_path / "held.json").write_text(json.dumps(_document(*records)))
+        argv += ["--held-references", str(tmp_path / "held.json")]
+    return argv
 
 
-TAX_CASE = f"us__scenario_001__{TAX}"
-MEDICAID_CASE = f"us__scenario_002__{MEDICAID}"
+def _cases(tmp_path: Path) -> list[str]:
+    manifest = (tmp_path / "adv" / "cases.jsonl").read_text().splitlines()
+    return [json.loads(line)["case_id"] for line in manifest]
+
+
+def _listing(tmp_path: Path) -> dict:
+    return json.loads((tmp_path / "adv" / "held_references.json").read_text())
 
 
 def test_prepare_gives_a_held_cell_no_case_and_lists_it(tmp_path: Path, capsys):
-    record = _record(reference=3070.06, answers=(4451.56,))
-    adversary, cases, out, flags_path, held_path = _prepare(
-        tmp_path, _payload(), [record], capsys
-    )
-    assert cases == [MEDICAID_CASE]
-    assert not (adversary / "cases" / TAX_CASE).exists()
-    listing = json.loads((adversary / "held_references.json").read_text())
-    assert listing["held_references"] == str(held_path)
-    assert listing["held_references_sha256"] == file_sha256(held_path)
-    assert listing["flags_sha256"] == file_sha256(flags_path)
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), [_tax_record()]))
+    out = capsys.readouterr().out
+    assert _cases(tmp_path) == [MEDICAID_CASE]
+    assert not (tmp_path / "adv" / "cases" / TAX_CASE).exists()
+    listing = _listing(tmp_path)
+    assert listing["held_references"] == str(tmp_path / "held.json")
+    assert listing["held_references_sha256"] == file_sha256(tmp_path / "held.json")
+    assert listing["flags_sha256"] == file_sha256(tmp_path / "flags.json")
+    assert listing["payload_sha256"] == file_sha256(tmp_path / "data.json")
     (held,) = listing["held"]
     assert (held["scenario_id"], held["variable"]) == ("scenario_001", TAX)
     assert held["clusters"][0]["explanation"] == "why 4451.56 is wrong"
     assert held["clusters"][0]["answer"] == 4452.0
+    assert held["clusters"][0]["predictions"]["top-c"] == 4452.0
     assert listing["not_applied"] == [] and listing["not_flagged"] == []
     assert "Prepared 1 adversary cases" in out
     assert "0 flagged cells skipped as covered elsewhere" in out
@@ -473,53 +676,181 @@ def test_prepare_gives_a_held_cell_no_case_and_lists_it(tmp_path: Path, capsys):
 
 def test_prepare_judges_a_cell_whose_reference_moved(tmp_path: Path, capsys):
     # The record held 3,070.06; an engine change has since moved the reference.
-    record = _record(reference=3070.06, answers=(4451.56,))
-    adversary, cases, out, _, _ = _prepare(
-        tmp_path, _payload(tax_reference=3075.0), [record], capsys
-    )
-    assert cases == [TAX_CASE, MEDICAID_CASE]
-    listing = json.loads((adversary / "held_references.json").read_text())
+    argv = _write_inputs(tmp_path, _payload(tax_reference=3075.0), [_tax_record()])
+    _prepare_cli(*argv)
+    out = capsys.readouterr().out
+    assert _cases(tmp_path) == [TAX_CASE, MEDICAID_CASE]
+    listing = _listing(tmp_path)
     assert listing["held"] == []
     (stale,) = listing["not_applied"]
     assert stale["reason"] == "reference_moved" and stale["reference"] == 3075.0
+    assert stale["case"] == "prepared"
     assert "0 listed as checked and held" in out
-    assert f"scenario_001 {TAX} (reference_moved)" in out
+    assert f"scenario_001 {TAX} (reference_moved; judged)" in out
+
+
+def test_prepare_judges_the_same_cell_under_another_prompt(tmp_path: Path, capsys):
+    """The review's case: the same scenario id, reference and consensus answer
+    for a household in another state. The record does not cover it."""
+    _prepare_cli(*_write_inputs(tmp_path, _payload(state="OH"), [_tax_record()]))
+    assert _cases(tmp_path) == [TAX_CASE, MEDICAID_CASE]
+    (stale,) = _listing(tmp_path)["not_applied"]
+    assert stale["reason"] == "prompt_changed"
+    assert f"scenario_001 {TAX} (prompt_changed; judged)" in capsys.readouterr().out
+
+
+def test_a_loose_pass_tolerance_does_not_stretch_a_record(tmp_path: Path, capsys):
+    """Flags computed at --tolerance 300: the consensus at 4,452 is 1,382 from
+    the reference, so it triggers, and 292 from the answer the record explains.
+    The record's bound is a dollar whatever the pass's is."""
+    loose = ConsensusParams(
+        min_models=3, top_k=3, min_top=2, zero_cluster_min_models=3, tolerance=300.0
+    )
+    record = _tax_record(
+        consensus=[{"answer": 4160.0, "explanation": "another answer altogether"}]
+    )
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), [record], params=loose))
+    assert TAX_CASE in _cases(tmp_path)
+    (stale,) = _listing(tmp_path)["not_applied"]
+    assert stale["reason"] == "unexplained_consensus"
+    assert stale["unexplained_clusters"][0]["answer"] == 4452.0
+    # And a pass run at tolerance 0 still recognizes the checked answer.
+    strict = ConsensusParams(
+        min_models=3, top_k=3, min_top=2, zero_cluster_min_models=3, tolerance=0.0
+    )
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), [_tax_record()], params=strict))
+    assert TAX_CASE not in _cases(tmp_path)
+    assert len(_listing(tmp_path)["held"]) == 1
+
+
+def test_prepare_checks_a_held_flag_against_the_payload(tmp_path: Path):
+    """A held flag gets no case, so the checks that building a case makes are
+    made on it all the same: flags from another payload are refused."""
+    record = _tax_record()
+    # The flags' reference is the held one; the payload's has since moved.
+    argv = _write_inputs(
+        tmp_path, _payload(tax_reference=2000.0), [record], flags_from=_payload()
+    )
+    with pytest.raises(ValueError, match="is not the payload's"):
+        _prepare_cli(*argv)
+    # A cluster member's answer differs from the payload's.
+    argv = _write_inputs(
+        tmp_path, _payload(top_a=4451.0), [record], flags_from=_payload()
+    )
+    with pytest.raises(ValueError, match="prediction .* is not the flag's"):
+        _prepare_cli(*argv)
+    # The model is gone from the payload's cell.
+    gone = _payload()
+    del gone["scenarioPredictions"]["scenario_001"][TAX]["top-b"]
+    argv = _write_inputs(tmp_path, gone, [record], flags_from=_payload())
+    with pytest.raises(ValueError, match="top-b has no prediction"):
+        _prepare_cli(*argv)
+    # The cell is gone.
+    gone = _payload()
+    del gone["scenarioPredictions"]["scenario_001"]
+    argv = _write_inputs(tmp_path, gone, [record], flags_from=_payload())
+    with pytest.raises(ValueError, match="no predictions in the payload"):
+        _prepare_cli(*argv)
+    assert not (tmp_path / "adv").exists()
+
+
+def test_prepare_refuses_flags_bound_to_another_payload(tmp_path: Path):
+    """When the flags record the payload they came from, a different payload
+    is refused outright, before any record is applied."""
+    argv = _write_inputs(
+        tmp_path,
+        _payload(tax_reference=2000.0),
+        [_tax_record()],
+        flags_from=_payload(),
+        bind_flags=True,
+    )
+    with pytest.raises(SystemExit, match="was computed from a payload with sha256"):
+        _prepare_cli(*argv)
+    assert not (tmp_path / "adv").exists()
+    # Bound to the payload they are applied with, the flags are accepted.
+    payload = _payload()
+    argv = _write_inputs(tmp_path, payload, [_tax_record()])
+    report = json.loads((tmp_path / "flags.json").read_text())
+    report["source_sha256"] = file_sha256(tmp_path / "data.json")
+    (tmp_path / "flags.json").write_text(json.dumps(report))
+    _prepare_cli(*argv)
+    assert _cases(tmp_path) == [MEDICAID_CASE]
+
+
+def test_prepare_will_not_delete_a_judged_case_that_became_held(tmp_path: Path, capsys):
+    """Preparing removes the directory of a case no longer listed. A cell
+    judged in this directory and since recorded as held is refused, so its
+    judge output is not lost."""
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), None))
+    case_dir = tmp_path / "adv" / "cases" / TAX_CASE
+    (case_dir / "stage1.json").write_text('{"judged": true}')
+    (case_dir / "verdict.json").write_text('{"verdict": "reference_holds"}')
+    before = sorted(p.name for p in case_dir.iterdir())
+    argv = _write_inputs(tmp_path, _payload(), [_tax_record()])
+    with pytest.raises(SystemExit, match="holds judge output for cells now listed"):
+        _prepare_cli(*argv)
+    assert sorted(p.name for p in case_dir.iterdir()) == before
+    assert (case_dir / "verdict.json").read_text() == '{"verdict": "reference_holds"}'
+    assert not (tmp_path / "adv" / "held_references.json").exists()
+    # A prepared case with no judge output yet is simply dropped.
+    (case_dir / "stage1.json").unlink()
+    (case_dir / "verdict.json").unlink()
+    _prepare_cli(*argv)
+    assert _cases(tmp_path) == [MEDICAID_CASE] and not case_dir.exists()
 
 
 def test_prepare_without_the_option_is_unchanged_and_drops_a_stale_listing(
     tmp_path: Path, capsys
 ):
-    record = _record(reference=3070.06, answers=(4451.56,))
-    adversary, _, _, _, _ = _prepare(tmp_path, _payload(), [record], capsys)
-    assert (adversary / "held_references.json").is_file()
-    adversary, cases, out, _, _ = _prepare(tmp_path, _payload(), None, capsys)
-    assert cases == [TAX_CASE, MEDICAID_CASE]
-    assert not (adversary / "held_references.json").exists()
-    assert out.startswith(
-        f"Prepared 2 adversary cases under {adversary} "
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), [_tax_record()]))
+    assert (tmp_path / "adv" / "held_references.json").is_file()
+    capsys.readouterr()
+    _prepare_cli(*_write_inputs(tmp_path, _payload(), None))
+    assert _cases(tmp_path) == [TAX_CASE, MEDICAID_CASE]
+    assert not (tmp_path / "adv" / "held_references.json").exists()
+    assert capsys.readouterr().out.startswith(
+        f"Prepared 2 adversary cases under {tmp_path / 'adv'} "
         "(0 flagged cells skipped as covered elsewhere). Run "
     )
 
 
+def _covered(tmp_path: Path, scenario_id: str, variable: str) -> list[str]:
+    path = tmp_path / "covered.json"
+    cell = {"scenario_id": scenario_id, "variable": variable, "covered_by": "x"}
+    path.write_text(json.dumps([cell]))
+    return ["--skip-cells", str(path)]
+
+
 def test_prepare_counts_covered_cells_apart_from_held_ones(tmp_path: Path, capsys):
-    payload_path = tmp_path / "data.json"
-    payload_path.write_text(json.dumps(_payload()))
-    flags_path = tmp_path / "flags.json"
-    flags_path.write_text(json.dumps(consensus_report(_payload(), PARAMS)))
-    held_path = tmp_path / "held.json"
-    record = _record(reference=3070.06, answers=(4451.56,))
-    held_path.write_text(json.dumps(_document(record)))
-    skip_path = tmp_path / "covered.json"
-    covered = {"scenario_id": "scenario_002", "variable": MEDICAID, "covered_by": "x"}
-    skip_path.write_text(json.dumps([covered]))
-    argv = ["--payload", str(payload_path), "--flags", str(flags_path)]
-    argv += ["--adversary-dir", str(tmp_path / "adv"), "--skip-cells", str(skip_path)]
-    _prepare_cli(*argv, "--held-references", str(held_path))
+    argv = _write_inputs(tmp_path, _payload(), [_tax_record()])
+    _prepare_cli(*argv, *_covered(tmp_path, "scenario_002", MEDICAID))
     out = capsys.readouterr().out
     assert "Prepared 0 adversary cases" in out
     assert "1 flagged cells skipped as covered elsewhere" in out
     assert "1 listed as checked and held" in out
-    assert (tmp_path / "adv" / "cases.jsonl").read_text() == ""
+    assert _cases(tmp_path) == []
+
+
+def test_a_stale_record_for_a_covered_cell_is_not_said_to_be_judged(
+    tmp_path: Path, capsys
+):
+    """The record no longer applies and another audit covers the cell: no
+    case is prepared, and neither the message nor the listing says one is."""
+    argv = _write_inputs(tmp_path, _payload(tax_reference=3075.0), [_tax_record()])
+    _prepare_cli(*argv, *_covered(tmp_path, "scenario_001", TAX))
+    out = capsys.readouterr().out
+    assert _cases(tmp_path) == [MEDICAID_CASE]
+    (stale,) = _listing(tmp_path)["not_applied"]
+    assert stale["reason"] == "reference_moved"
+    assert stale["case"] == "covered_elsewhere"
+    assert f"scenario_001 {TAX} (reference_moved; covered elsewhere)" in out
+    assert "judged" not in out
+    # A held cell that is also covered is listed as held, and counted once.
+    argv = _write_inputs(tmp_path, _payload(), [_tax_record()])
+    _prepare_cli(*argv, *_covered(tmp_path, "scenario_001", TAX))
+    out = capsys.readouterr().out
+    assert "0 flagged cells skipped as covered elsewhere" in out
+    assert "1 listed as checked and held" in out
 
 
 # --- The standing list and the 2026-10-10 evidence -------------------------------
@@ -566,6 +897,12 @@ def _release_report(**overrides) -> dict:
     )
 
 
+def _apply(flags: list[dict], payload: dict | None = None):
+    return apply_held_references(
+        flags, list(_records().values()), _release() if payload is None else payload
+    )
+
+
 def test_the_release_payload_is_the_pinned_one():
     assert file_sha256(_release_file(PAYLOAD_PATH)) == RELEASE_SHA256
     assert len(ranked_models(_release())) == 47
@@ -587,12 +924,14 @@ def test_the_standing_list_holds_the_two_checked_cells_with_their_write_up():
         assert (ROOT / record["evidence"]).is_file()
 
 
-def test_each_record_states_the_release_reference_and_its_consensus():
-    """The list against the payload it was checked on: the held value is the
-    scored reference, and each explained answer is the answer of exactly the
-    models the record names."""
+def test_each_record_states_the_release_prompt_reference_and_consensus():
+    """The list against the payload it was checked on: the prompt is the one
+    the models answered, the held value is the scored reference, and each
+    explained answer is the answer of exactly the models the record names."""
     predictions = _release()["scenarioPredictions"]
     for (scenario_id, variable), record in _records().items():
+        assert record["prompt_sha256"] == prompt_sha256(_release(), scenario_id)
+        assert record["state"] == _release()["scenarios"][scenario_id]["state"]
         cell = predictions[scenario_id][variable]
         assert {entry["scored"] for entry in cell.values()} == {True}
         (reference,) = {entry["groundTruth"] for entry in cell.values()}
@@ -605,6 +944,10 @@ def test_each_record_states_the_release_reference_and_its_consensus():
                 and abs(entry["prediction"] - consensus["answer"]) <= 1.0
             )
             assert near == sorted(consensus["models"])
+    # The household blocks the write-up quotes are in those prompts.
+    prompts = json.loads((AUDIT / "prompt_households.json").read_text())
+    for scenario_id, household in prompts.items():
+        assert household in _release()["scenarios"][scenario_id]["prompt"]["tool"]
 
 
 def test_the_trigger_flags_ohio_and_not_yet_virginia_on_the_release():
@@ -613,30 +956,72 @@ def test_the_trigger_flags_ohio_and_not_yet_virginia_on_the_release():
     trigger, so its record waits; with --min-top 2 both are held."""
     report = _release_report()
     assert (report["scored_cells"], report["flagged_cells"]) == (1926, 55)
-    flags = {(f["scenario_id"], f["variable"]): f for f in report["flags"]}
+    flags = {_cell(f): f for f in report["flags"]}
     assert VA_039 not in flags
     (cluster,) = flags[OH_025]["clusters"]
     assert (cluster["answer"], cluster["n_models"], cluster["n_top"]) == (1590.0, 8, 4)
-    kept, listing = apply_held_references(report["flags"], list(_records().values()))
+    kept, listing = _apply(report["flags"])
     assert len(kept) == 54
-    assert [(r["scenario_id"], r["variable"]) for r in listing["held"]] == [OH_025]
-    assert [(r["scenario_id"], r["variable"]) for r in listing["not_flagged"]] == [
-        VA_039
-    ]
+    assert [_cell(r) for r in listing["held"]] == [OH_025]
+    assert [_cell(r) for r in listing["not_flagged"]] == [VA_039]
     assert listing["not_applied"] == []
 
     wider = _release_report(min_top=2)
     assert wider["flagged_cells"] == 71
-    flags = {(f["scenario_id"], f["variable"]): f for f in wider["flags"]}
+    flags = {_cell(f): f for f in wider["flags"]}
     (cluster,) = flags[VA_039]["clusters"]
     assert (cluster["answer"], cluster["n_models"], cluster["n_top"]) == (5145.0, 6, 2)
     assert cluster["top_models"] == ["claude-opus-5.5", "claude-sonnet-5.5"]
-    kept, listing = apply_held_references(wider["flags"], list(_records().values()))
+    kept, listing = _apply(wider["flags"])
     assert len(kept) == 69
-    assert sorted((r["scenario_id"], r["variable"]) for r in listing["held"]) == sorted(
-        [VA_039, OH_025]
-    )
+    assert sorted(_cell(r) for r in listing["held"]) == sorted([VA_039, OH_025])
     assert listing["not_applied"] == [] and listing["not_flagged"] == []
+
+
+def _release_flag(cell: tuple[str, str]) -> dict:
+    (flag,) = [f for f in _release_report(min_top=2)["flags"] if _cell(f) == cell]
+    return copy.deepcopy(flag)
+
+
+@pytest.mark.parametrize(
+    ("cell", "key"),
+    [
+        (VA_039, "reviewer_estate_income_preferential"),
+        (OH_025, "reviewer_employer_premiums_paid_by_head_subsidized_plan"),
+        (OH_025, "reviewer_employer_premiums_paid_by_head_unsubsidized_plan"),
+    ],
+)
+def test_a_consensus_on_a_reviewer_alternative_would_be_judged(cell, key):
+    """Each record explains only the answer that was checked. If models came
+    to agree on the answer a reviewer's other reading gives, the cell goes
+    back to the pass: that answer is the question decision d1252 leaves open."""
+    other = float(_script("hand_derivations").derivations()[cell[0]][key])
+    flag = _release_flag(cell)
+    assert [_cell(r) for r in _apply([flag])[1]["held"]] == [cell]
+    flag["clusters"].append(_cluster(other))
+    kept, listing = _apply([flag])
+    assert kept == [flag] and listing["held"] == []
+    (stale,) = listing["not_applied"]
+    assert stale["reason"] == "unexplained_consensus"
+    assert stale["unexplained_clusters"][0]["predictions"]["top-a"] == other
+
+
+@pytest.mark.parametrize("cell", [VA_039, OH_025])
+def test_the_records_do_not_follow_their_scenario_ids_to_another_household(cell):
+    """The review's case: scenario_025 with the same reference and consensus
+    answer, but a household in another state under another prompt."""
+    flag = _release_flag(cell)
+    scenarios = dict(_release()["scenarios"])
+    prompt = scenarios[cell[0]]["prompt"]["tool"]
+    here = f"- state: {flag['state']}"
+    assert here in prompt
+    scenarios[cell[0]] = {"prompt": {"tool": prompt.replace(here, "- state: PA")}}
+    kept, listing = _apply([flag], {"scenarios": scenarios})
+    assert kept == [flag]
+    assert listing["not_applied"][0]["reason"] == "prompt_changed"
+    # And a reference an engine change has moved by more than a dollar.
+    flag["reference"] += 1.5
+    assert _apply([flag])[1]["not_applied"][0]["reason"] == "reference_moved"
 
 
 @pytest.mark.parametrize(
@@ -655,7 +1040,8 @@ def test_the_committed_flags_and_listings_reproduce(suffix, overrides):
         f"reference_audit/2026-10-10-held-references/verification/{flags_name}"
     )
     assert listing["flags_sha256"] == file_sha256(flags_path)
-    _, expected = apply_held_references(report["flags"], list(_records().values()))
+    assert listing["payload_sha256"] == RELEASE_SHA256
+    _, expected = _apply(report["flags"])
 
     def outline(rows: dict) -> dict:
         """A listing without its copies of the records, whose notes may be
@@ -673,7 +1059,8 @@ def test_the_committed_flags_and_listings_reproduce(suffix, overrides):
 def test_the_hand_derivations_agree_with_the_engine_and_the_models():
     """Three routes to the same numbers: the law worked by hand in exact
     decimals, the engine's reference in the payload, and the models' answers."""
-    derived = _script("hand_derivations").derivations()
+    script = _script("hand_derivations")
+    derived = script.derivations()
     committed = json.loads((AUDIT / "verification/hand_derivations.json").read_text())
     assert derived == committed
     predictions = _release()["scenarioPredictions"]
@@ -685,16 +1072,26 @@ def test_the_hand_derivations_agree_with_the_engine_and_the_models():
         by_hand = derived[scenario_id]
         cell = predictions[scenario_id][variable]
         reference = next(iter(cell.values()))["groundTruth"]
-        # The engine is within a cent of the hand derivation.
+        # The statute's figure is within a cent of the engine's reference.
         assert abs(float(by_hand["reference_by_hand"]) - reference) < 0.011
         (consensus,) = record["consensus"]
         hand_consensus = float(by_hand[consensus_key[(scenario_id, variable)]])
         assert abs(hand_consensus - consensus["answer"]) < 0.005
         for model in consensus["models"]:
             assert abs(cell[model]["prediction"] - hand_consensus) <= 0.5
-    # The other answers the write-up reconstructs, each a model's own answer.
     virginia = predictions[VA_039[0]][VA_039[1]]
     ohio = predictions[OH_025[0]][OH_025[1]]
+    # Ohio's cent: the statute's $332.00 gives 1,916.60, and the engine's
+    # 332.00204 gives the reference, 1,916.61.
+    ohio_reference = next(iter(ohio.values()))["groundTruth"]
+    assert derived["scenario_025"]["reference_by_hand"] == "1916.60"
+    with_engine_base = derived["scenario_025"]["reference_with_engine_base_amount"]
+    assert with_engine_base == f"{ohio_reference:.2f}" == "1916.61"
+    assert (
+        f"{next(iter(virginia.values()))['groundTruth']:.2f}"
+        == (derived["scenario_039"]["reference_by_hand"])
+    )
+    # The other answers the write-up reconstructs, each a model's own answer.
     for cell, model, key, scenario in [
         (virginia, "gpt-5.6-luna", "joint_return_social_security_thresholds_too", 39),
         (ohio, "gpt-6.1-sol", "premiums_in_full_on_line_1_from_prompt_dollars", 25),
@@ -732,6 +1129,15 @@ def test_the_hand_derivations_agree_with_the_engine_and_the_models():
         )
         == []
     )
+    # Ohio's exemption tiers, with the 2026 ceiling of R.C. 5747.025(A).
+    exemption = script.oh_exemption
+    assert [exemption(script.D(m)) for m in (40000, 40001, 80000, 80001)] == [
+        2400,
+        2150,
+        2150,
+        1900,
+    ]
+    assert exemption(script.D("499999.99")) == 1900 and exemption(script.D(500000)) == 0
 
 
 def _listed_values(path: Path) -> list[str]:
@@ -740,23 +1146,22 @@ def _listed_values(path: Path) -> list[str]:
 
 
 def test_both_engines_reproduce_both_references():
-    """The session's run on upstream main and the re-run on the release's
-    engine give the same value for every listed variable and the same
-    non-zero trace."""
+    """The session's run on upstream main, the re-run on that commit and the
+    run on the release's engine give the same value for every listed variable;
+    the two engines give the same short trace."""
     main = AUDIT / "traces/policyengine-us-2.38.8-75cdd8019e"
     release = AUDIT / "traces/policyengine-us-2.38.6"
-    assert (
-        main.joinpath("key_variables.txt")
-        .read_text()
-        .startswith("policyengine-us 2.38.8 at ")
-    )
-    assert (
-        release.joinpath("key_variables.txt")
-        .read_text()
-        .startswith("policyengine-us 2.38.6 at ")
-    )
+    for folder, version in ((main, "2.38.8"), (main / "rerun", "2.38.8")):
+        text = folder.joinpath("key_variables.txt").read_text()
+        assert text.startswith(f"policyengine-us {version} at ")
+        assert text.splitlines()[1] == "policyengine-core 3.33.0"
+    text = release.joinpath("key_variables.txt").read_text()
+    assert text.startswith("policyengine-us 2.38.6 at ")
+    assert text.splitlines()[1] == "policyengine-core 3.32.29"
     values = _listed_values(release / "key_variables.txt")
+    assert len([line for line in values if line.startswith("  ")]) == 77
     assert values == _listed_values(main / "key_variables.txt")
+    assert values == _listed_values(main / "rerun" / "key_variables.txt")
     assert (
         "===== scenario_039 income_tax_before_refundable_credits = 8,596.03" in values
     )
@@ -771,13 +1176,32 @@ def test_both_engines_reproduce_both_references():
         "scenario_025_trace.txt",
     ):
         assert (release / name).read_bytes() == (main / name).read_bytes()
-    # The situations are the release's scenarios, as the script builds them.
-    scenarios = _release_file(f"{RUN}/scenarios.csv")
-    manifest = json.loads((AUDIT / "manifest.json").read_text())
-    assert (
-        manifest["release"]["inputs"][f"{RUN}/scenarios.csv"]
-        == hashlib.sha256(scenarios.read_bytes()).hexdigest()
+    # The re-run was installed from the report's commit and wrote the same files.
+    rerun = json.loads((main / "rerun" / "install.json").read_text())
+    assert rerun["policyengine-us"] == "2.38.8"
+    assert rerun["direct_url"]["vcs_info"]["commit_id"] == (
+        "75cdd8019e07b54c78f0c8d077935c5dc9b14670"
     )
+    assert set(rerun["identical_to_the_session_files"].values()) == {True}
+    for name, digest in rerun["outputs_sha256"].items():
+        assert hashlib.sha256((main / name).read_bytes()).hexdigest() == digest
+
+
+def test_the_traced_situations_are_what_policybench_gives_the_engine():
+    """The trace script builds each situation itself. PolicyBench's own
+    builder, on the release's scenarios, builds the same one."""
+    scenarios = {
+        scenario.id: scenario
+        for scenario in load_scenarios_from_manifest(
+            _release_file(f"{RUN}/scenarios.csv")
+        )
+    }
+    assert len(scenarios) == 100
+    for scenario_id in ("scenario_039", "scenario_025"):
+        built = scenarios[scenario_id].to_pe_household()
+        for engine in ("policyengine-us-2.38.8-75cdd8019e", "policyengine-us-2.38.6"):
+            traced = AUDIT / "traces" / engine / f"{scenario_id}_situation.json"
+            assert json.loads(traced.read_text()) == built
 
 
 def test_the_model_answers_are_the_release_payload_answers():
@@ -794,9 +1218,6 @@ def test_the_model_answers_are_the_release_payload_answers():
         assert (row.get("explanation") or "").strip() == (
             entry.get("explanation") or ""
         ).strip()
-    prompts = json.loads((AUDIT / "prompt_households.json").read_text())
-    for scenario_id, household in prompts.items():
-        assert household in _release()["scenarios"][scenario_id]["prompt"]["tool"]
 
 
 def test_the_manifest_pins_every_evidence_file():
@@ -806,6 +1227,9 @@ def test_the_manifest_pins_every_evidence_file():
     assert _script("build_manifest").manifest() == committed
     assert committed["release"]["commit"] == RELEASE_COMMIT
     assert committed["release"]["inputs"][PAYLOAD_PATH] == RELEASE_SHA256
+    assert committed["release"]["inputs"][f"{RUN}/scenarios.csv"] == file_sha256(
+        _release_file(f"{RUN}/scenarios.csv")
+    )
     assert [engine["version"] for engine in committed["engines"]] == [
         "2.38.8",
         "2.38.6",

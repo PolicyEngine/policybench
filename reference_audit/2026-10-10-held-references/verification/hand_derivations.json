@@ -21,6 +21,7 @@
     "ohio_agi": "94744.69",
     "reference_by_hand": "1916.60",
     "engine_base_amount": "332.0020400",
+    "reference_with_engine_base_amount": "1916.61",
     "consensus_no_base_amount_no_deduction": "1589.56",
     "no_medical_deduction": "1921.57",
     "premiums_in_full_on_line_1_from_prompt_dollars": "1742.81",

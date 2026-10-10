@@ -645,9 +645,10 @@ def main():
         default=None,
         help="Held-references JSON (reference_audit/held_references.json): a "
         "flagged cell an earlier check held gets no adversary case while its "
-        "reference is the held value and every triggering consensus answer is "
-        "one the record explains; <adversary-dir>/held_references.json lists "
-        "those cells and every record that no longer applies",
+        "prompt and reference are the ones checked and every triggering "
+        "consensus answer is one the record explains; "
+        "<adversary-dir>/held_references.json lists those cells and every "
+        "record that no longer applies",
     )
 
     adversary_collect_parser = subparsers.add_parser(
@@ -1475,6 +1476,14 @@ def main():
 
         flags_report = json.loads(Path(args.flags).read_text())
         flags = flags_report["flags"]
+        payload_path = Path(args.payload)
+        payload = load_us_payload(payload_path)
+        adversary_dir = Path(args.adversary_dir)
+        skipped: dict[tuple[str, str], str] = {}
+        if args.skip_cells:
+            for cell in json.loads(Path(args.skip_cells).read_text()):
+                key = (str(cell["scenario_id"]), str(cell["variable"]))
+                skipped[key] = str(cell.get("covered_by", ""))
         # Held references first, so "not flagged" means not flagged at all.
         unheld = flags
         held_report = None
@@ -1484,39 +1493,67 @@ def main():
                 apply_held_references,
                 load_held_references,
             )
+            from policybench.reference_adversary import STAGE1_FILE, VERDICT_FILE
 
-            flag_params = flags_report.get("params") or {}
+            # A hold is checked against the payload it is applied with, so the
+            # flags must come from that payload.
+            payload_sha256 = file_sha256(payload_path)
+            source_sha256 = flags_report.get("source_sha256")
+            if source_sha256 and source_sha256 != payload_sha256:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} was computed from a payload "
+                    f"with sha256 {source_sha256}, not {payload_path} "
+                    f"({payload_sha256}); recompute the flags"
+                )
             unheld, held_report = apply_held_references(
-                flags,
-                load_held_references(args.held_references),
-                tolerance=float(flag_params.get("tolerance", 1.0)),
-                binary_outputs=str(flag_params.get("binary_outputs", "mismatch")),
+                flags, load_held_references(args.held_references), payload
             )
+            # A held flag gets no case, so nothing later checks it against the
+            # payload. Building its case here does (and raises as below does).
+            judged_ids = {id(flag) for flag in unheld}
+            held_cases = build_adversary_cases(
+                payload, [flag for flag in flags if id(flag) not in judged_ids]
+            )
+            # Preparing removes the directory of a case no longer listed.
+            judged = [
+                case.case_id
+                for case in held_cases
+                if any(
+                    (adversary_dir / "cases" / case.case_id / name).is_file()
+                    for name in (STAGE1_FILE, VERDICT_FILE)
+                )
+            ]
+            if judged:
+                raise SystemExit(
+                    f"adversary-prepare: {adversary_dir} holds judge output for "
+                    f"cells now listed as held ({', '.join(judged)}), and "
+                    "preparing would delete it; prepare into a new directory or "
+                    "move those case directories aside"
+                )
+            for row in held_report["not_applied"]:
+                # A record that no longer applies leaves its cell to the pass,
+                # which judges it unless another audit covers it.
+                cell = (row["scenario_id"], row["variable"])
+                row["case"] = "covered_elsewhere" if cell in skipped else "prepared"
             held_report = {
                 "held_references": str(args.held_references),
                 "held_references_sha256": file_sha256(args.held_references),
                 "flags": str(args.flags),
                 "flags_sha256": file_sha256(args.flags),
+                "payload_sha256": payload_sha256,
                 **held_report,
             }
-        skipped: dict[tuple[str, str], str] = {}
-        if args.skip_cells:
-            for cell in json.loads(Path(args.skip_cells).read_text()):
-                key = (str(cell["scenario_id"]), str(cell["variable"]))
-                skipped[key] = str(cell.get("covered_by", ""))
         kept = [f for f in unheld if (f["scenario_id"], f["variable"]) not in skipped]
         derivations = (
             load_derivations(Path(args.annotations_dir))
             if args.annotations_dir
             else None
         )
-        cases = build_adversary_cases(
-            load_us_payload(Path(args.payload)), kept, derivations=derivations
-        )
-        prepare_adversary(Path(args.adversary_dir), cases)
+        cases = build_adversary_cases(payload, kept, derivations=derivations)
+        prepare_adversary(adversary_dir, cases)
         # The directory describes this preparation, so a listing left by an
         # earlier one with --held-references does not outlive it.
-        held_path = Path(args.adversary_dir) / "held_references.json"
+        held_path = adversary_dir / "held_references.json"
         held_note = ""
         if held_report is None:
             held_path.unlink(missing_ok=True)
@@ -1527,14 +1564,13 @@ def main():
                 f"{held_path}"
             )
             stale = [
-                f"{row['scenario_id']} {row['variable']} ({row['reason']})"
+                f"{row['scenario_id']} {row['variable']} ({row['reason']}; "
+                + ("judged" if row["case"] == "prepared" else "covered elsewhere")
+                + ")"
                 for row in held_report["not_applied"]
             ]
             if stale:
-                held_note += (
-                    "; held records that no longer apply, so their cells are "
-                    f"judged: {', '.join(stale)}"
-                )
+                held_note += f"; held records that no longer apply: {', '.join(stale)}"
         print(
             f"Prepared {len(cases)} adversary cases under {args.adversary_dir} "
             f"({len(unheld) - len(kept)} flagged cells skipped as covered "

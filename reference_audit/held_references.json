@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
-  "about": "References a check worked from the law and held against a model consensus. `policybench adversary-prepare --held-references` reads this file: a flagged cell listed here gets no adversary case, and is listed as checked and held, while its reference is still the held value and every triggering consensus answer is one its record explains (policybench/held_references.py). A record whose reference has moved, or whose cell shows a consensus it does not explain, no longer applies, and the cell is judged. Listing a cell here changes no score, reference or exclusion.",
+  "about": "References a check worked from the law and held against a model consensus. `policybench adversary-prepare --held-references` reads this file: a flagged cell listed here gets no adversary case, and is listed as checked and held, while the prompt the models answered is the one the check read (`prompt_sha256`), its reference is still the held value, and each triggering cluster is an answer its record explains, each within a dollar (policybench/held_references.py). A record whose prompt or reference has changed, or whose cell shows a consensus it does not explain, no longer applies, and the cell is judged. Listing a cell here changes no score, reference or exclusion.",
   "records": [
     {
       "scenario_id": "scenario_039",
       "variable": "federal_income_tax_before_refundable_credits",
       "state": "VA",
+      "prompt_sha256": "000f3c8e3758972454f8f9f34208aa728d13e802fcb8e7dbfb8c1ba631124845",
       "reference": 8596.03,
       "verdict": "reference_holds",
       "checked_on": "2026-10-10",
@@ -23,7 +24,7 @@
             "gpt-6-astra",
             "gpt-6.1-sol"
           ],
-          "explanation": "The six models keep the reference's adjusted gross income ($79,209.22) and file the head as a qualifying surviving spouse: the $32,200 standard deduction and the joint rate table give $2,480 + 12% x ($47,009.22 - $24,800) = $5,145.11. 26 U.S.C. 2(a)(1)(B) gives that status only to a taxpayer whose home is the principal place of abode of a dependent son, stepson, daughter or stepdaughter. This household is one person, so the head files single: $16,100 standard deduction and $5,800 + 22% x ($63,109.22 - $50,400) = $8,596.03. The prompt's \"is a surviving spouse\" is the Code's name for the status; the data behind it is only the survey's marital status \"widowed\"."
+          "explanation": "The six models compute income as the reference does (adjusted gross income $79,209.25 from the prompt's whole-dollar facts; $79,209.22 to the cent) and file the head as a qualifying surviving spouse: the $32,200 standard deduction and the joint rate table give $2,480 + 12% x ($47,009.25 - $24,800) = $5,145.11. 26 U.S.C. 2(a)(1)(B) gives that status only to a taxpayer whose home is the principal place of abode of a dependent son, stepson, daughter or stepdaughter. This household is one person, so the head files single: $16,100 standard deduction and $5,800 + 22% x ($63,109.22 - $50,400) = $8,596.03. The prompt's \"is a surviving spouse\" is the Code's name for the status; the data behind it is only the survey's marital status \"widowed\"."
         }
       ],
       "independent_review": "GPT-6.1 Sol, 2026-10-10 (reference_audit/2026-10-10-held-references/reviews/review_va039.md): reproduces $8,596.03 and $5,145.11, and puts single as the filing status of a widow with no qualifying child above 99%.",
@@ -34,6 +35,7 @@
       "scenario_id": "scenario_025",
       "variable": "state_income_tax_before_refundable_credits",
       "state": "OH",
+      "prompt_sha256": "99242292f23f0bafc859b25d846f4e9d4b29e35e3c37bc98c630c6f466327368",
       "reference": 1916.61,
       "verdict": "reference_holds",
       "checked_on": "2026-10-10",

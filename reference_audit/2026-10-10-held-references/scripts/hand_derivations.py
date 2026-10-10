@@ -2,7 +2,8 @@
 
 Every amount below is either a household fact from the prompt (to the cent, as
 traces/*/scenario_*_situation.json holds it) or a figure quoted in
-law/excerpts.md. No engine is loaded. The script writes
+law/excerpts.md; each constant's comment names the passage. No engine is
+loaded. The script writes
 verification/hand_derivations.json; tests/test_held_references.py checks that
 file against this script, the references against the release's payload, and
 each consensus answer against the models' own answers.
@@ -25,22 +26,26 @@ def cents(value: Decimal) -> str:
 
 
 # --- Federal figures for 2026 --------------------------------------------------
-# Rev. Proc. 2025-32 s. 4.01: Table 3 (unmarried individuals) and Table 1
-# (joint returns and surviving spouses). Each row is (over, base tax, rate).
-SINGLE_TABLE = [(D(0), D(0), D("0.10")), (D(12400), D(1240), D("0.12")),
-                (D(50400), D(5800), D("0.22")), (D(105700), D(17966), D("0.24"))]
-JOINT_TABLE = [(D(0), D(0), D("0.10")), (D(24800), D(2480), D("0.12")),
-               (D(100800), D(11600), D("0.22"))]
+# Rev. Proc. 2025-32 s. 4.01: the rows of Table 3 (unmarried individuals) and
+# Table 1 (joint returns and surviving spouses) that these incomes fall in.
+# Each row is (over, not over, base tax, rate).
+SINGLE_TABLE = [
+    (D(12400), D(50400), D(1240), D("0.12")),
+    (D(50400), D(105700), D(5800), D("0.22")),
+]
+JOINT_TABLE = [(D(24800), D(100800), D(2480), D("0.12"))]
 # Rev. Proc. 2025-32 s. 4.14.
 STANDARD_DEDUCTION = {"single": D(16100), "joint": D(32200)}
-# Rev. Proc. 2025-32 s. 4.03: maximum zero rate amount, all other individuals.
-ZERO_RATE_CEILING_SINGLE = D(49450)
+# Rev. Proc. 2025-32 s. 4.03, all other individuals: the maximum zero rate
+# amount and the maximum 15 percent rate amount.
+ZERO_RATE_CEILING_SINGLE, FIFTEEN_RATE_CEILING_SINGLE = D(49450), D(545500)
 # 26 U.S.C. 86(c): base amount and adjusted base amount.
 SS_BASE = {"other": (D(25000), D(34000)), "joint_return": (D(32000), D(44000))}
 
 
 def rate_tax(taxable: Decimal, table: list) -> Decimal:
-    over, base, rate = [row for row in table if taxable > row[0]][-1]
+    (row,) = [row for row in table if row[0] < taxable <= row[1]]
+    over, _, base, rate = row
     return base + rate * (taxable - over)
 
 
@@ -81,6 +86,7 @@ def va_039() -> dict:
     # long-term gain (26 U.S.C. 1(h)). Same filing status, AGI and taxable income.
     ordinary = taxable - estate
     at_zero = min(estate, max(ZERO_RATE_CEILING_SINGLE - ordinary, D(0)))
+    assert taxable <= FIFTEEN_RATE_CEILING_SINGLE  # the rest is taxed at 15 percent
     preferential = rate_tax(ordinary, SINGLE_TABLE) + D("0.15") * (estate - at_zero)
 
     # The reviewer's Tax Table point: $50 bands taxed at the midpoint, to the dollar.
@@ -108,12 +114,19 @@ def va_039() -> dict:
 
 # --- Ohio figures for 2026 -----------------------------------------------------
 OH_BASE, OH_RATE, OH_THRESHOLD = D("332.00"), D("0.0275"), D(26050)  # R.C. 5747.02(A)(3)(c)
+OH_BASE_2024 = D("360.69")  # R.C. 5747.02(A)(3)(a)
+# R.C. 5747.02(A)(2): the 2026 rate on income up to the threshold. The engine's
+# rate table carries the fixed amount as this rate times the threshold.
+OH_ENGINE_BASE = OH_THRESHOLD * D("0.0127448")
 OH_RETIREMENT_CREDIT = D(200)  # R.C. 5747.055(B), retirement income over $8,000
 OH_FLOOR = D("0.075")  # R.C. 5747.01(A)(10)(b)
 
 
 def oh_exemption(magi: Decimal) -> Decimal:
-    """2025 IT 1040 booklet p. 17 amounts, frozen for 2026 by H.B. 96 s. 757.120(A)."""
+    """2025 IT 1040 booklet p. 17 amounts, frozen for 2026 by H.B. 96 s.
+    757.120(A). R.C. 5747.025(A) allows none at $500,000 or more from 2026."""
+    if magi >= 500000:
+        return D(0)
     return D(2400) if magi <= 40000 else D(2150) if magi <= 80000 else D(1900)
 
 
@@ -147,14 +160,17 @@ def oh_025() -> dict:
         "medical_deduction": cents(deduction),
         "ohio_agi": cents(federal_agi - deduction),
         "reference_by_hand": cents(reference),
-        "engine_base_amount": str(OH_THRESHOLD * D("0.0127448")),
+        "engine_base_amount": str(OH_ENGINE_BASE),
+        "reference_with_engine_base_amount": cents(
+            oh_tax(federal_agi - deduction, base=OH_ENGINE_BASE)
+        ),
         "consensus_no_base_amount_no_deduction": cents(consensus),
         "no_medical_deduction": cents(oh_tax(federal_agi)),
         "premiums_in_full_on_line_1_from_prompt_dollars": cents(
             oh_tax(agi_prompt - premiums)
         ),
         "base_amount_of_2024_from_prompt_dollars": cents(
-            oh_tax(agi_prompt, base=D("360.69"))
+            oh_tax(agi_prompt, base=OH_BASE_2024)
         ),
         "over_the_counter_counted": cents(
             oh_tax(federal_agi - line_8(premiums + other_medical + over_the_counter))
