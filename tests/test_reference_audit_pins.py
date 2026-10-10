@@ -26,6 +26,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,7 +35,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-import pandas as pd
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -87,7 +87,10 @@ IMPACT = {
         flags=[],
         inputs=_run(*RUN_FILES) | {SALT_RECORDS},
         copies={"base": frozenset(), "proposed": EXCLUDE},
-        from_inputs=lambda summary: summary["proposed_exclusions"],
+        from_inputs=lambda summary: (
+            summary["proposed_exclusions"],
+            summary["always_zero_baseline"],
+        ),
     ),
     LOUISIANA: SimpleNamespace(
         flags=[],
@@ -122,9 +125,20 @@ IMPACT = {
             "weights_2_15_17": REGENERATE,
         },
         from_inputs=lambda summary: (
-            [(case["case"], case["exclusions_added"]) for case in summary["cases"]],
+            summary["legacy_impact_summary_reproduced"],
+            [
+                (
+                    case["case"],
+                    case["exclusions_added"],
+                    case["always_zero_baseline"],
+                    case["legacy_impact_summary"],
+                )
+                for case in summary["cases"]
+            ],
             summary["impact_weights_check"]["impact_weights_replaced"],
+            summary["impact_weights_check"]["legacy_impact_summary"],
         ),
+        code=["scripts/freeze_snapshot.py"],
     ),
     PAYROLL: SimpleNamespace(
         flags=["--with-salt"],
@@ -145,7 +159,11 @@ IMPACT = {
         from_inputs=lambda summary: (
             summary["salt_commit"],
             {
-                name: (case["changed_outputs"], case["measured_against"])
+                name: (
+                    case["changed_outputs"],
+                    case["measured_against"],
+                    case["always_zero_baseline"],
+                )
                 for name, case in summary.items()
                 if isinstance(case, dict)
             },
@@ -195,9 +213,9 @@ DIRECT = {
 }
 
 
-def _load(script: str):
+def _load(script: str, root: Path = ROOT):
     name = "pins_" + re.sub(r"\W", "_", script)
-    spec = importlib.util.spec_from_file_location(name, ROOT / script)
+    spec = importlib.util.spec_from_file_location(name, root / script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -233,22 +251,38 @@ def _impact_argv(monkeypatch, audit: str, scratch: Path, out: Path) -> None:
     _argv(monkeypatch, _impact_script(audit), out, *flags)
 
 
-def _tampered_checkout(path: Path, module) -> Path:
-    """A checkout sharing this repository's objects whose working tree holds junk.
+def _from_junk_checkout(path: Path, script: str, code: list[str] = ()):
+    """``script`` loaded from a checkout whose working tree holds junk.
 
-    Every file the script reads is junk in the working tree, and every other
-    file is absent, so a script that read the working tree instead of git would
-    fail or write something else.
+    The checkout shares this repository's objects, so git holds every pin. In its
+    working tree every file the script reads is junk. Every other file is absent,
+    except the script itself and the ``code`` it loads, copied from this checkout.
+    The loaded module's ROOT and HERE both point into the junk checkout, so a script
+    that read the working tree instead of git would fail or write something else.
     """
     subprocess.run(
         ["git", "clone", "--quiet", "--shared", "--no-checkout", str(ROOT), str(path)],
         check=True,
     )
-    for name in module.INPUTS:
+    for name in MODULES[script].INPUTS:
         junk = path / name
         junk.parent.mkdir(parents=True, exist_ok=True)
         junk.write_bytes(b"not the pass's input\n")
-    return path
+    for name in (script, *code):
+        (path / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / name, path / name)
+    return _load(script, root=path)
+
+
+@pytest.fixture
+def scratch():
+    """A directory removed as soon as the test ends.
+
+    A staged run takes about 50 MB, and pytest would otherwise keep every test's
+    scratch for three runs.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        yield Path(directory).resolve()
 
 
 @cache
@@ -281,10 +315,10 @@ def test_the_pins_cover_every_file_the_script_reads(script):
 
 
 @pytest.mark.parametrize("audit", IMPACT)
-def test_pass_inputs_stage_exactly_the_pinned_bytes(audit, tmp_path):
+def test_pass_inputs_stage_exactly_the_pinned_bytes(audit, scratch):
     impact = MODULES[_impact_script(audit)]
     assert set(impact.RUN_FILES) == RUN_FILES - {"data.json.gz"}
-    inputs = impact.pass_inputs(tmp_path / "pass_inputs")
+    inputs = impact.pass_inputs(scratch / "pass_inputs")
     staged = sorted(
         path.relative_to(inputs).as_posix()
         for path in inputs.rglob("*")
@@ -457,12 +491,12 @@ def _refusals(script: str) -> list[tuple[str, tuple[str, str], str]]:
     ],
 )
 def test_pass_inputs_refuse_anything_but_the_pinned_bytes(
-    tmp_path, monkeypatch, audit, path, pin, message
+    scratch, monkeypatch, audit, path, pin, message
 ):
     impact = MODULES[_impact_script(audit)]
     monkeypatch.setitem(impact.INPUTS, path, pin)
     with pytest.raises(SystemExit, match=re.escape(message)):
-        impact.pass_inputs(tmp_path / "pass_inputs")
+        impact.pass_inputs(scratch / "pass_inputs")
 
 
 def _never(name: str):
@@ -477,7 +511,7 @@ def _never(name: str):
     [(audit, path) for audit in IMPACT for path in IMPACT[audit].inputs],
 )
 def test_any_refused_input_stops_the_impact_script_before_it_scores(
-    tmp_path, monkeypatch, audit, path
+    scratch, monkeypatch, audit, path
 ):
     impact = MODULES[_impact_script(audit)]
     commit, _ = impact.INPUTS[path]
@@ -485,8 +519,8 @@ def test_any_refused_input_stops_the_impact_script_before_it_scores(
     for name in ("analyze", "always_zero", "stage"):
         if hasattr(impact, name):
             monkeypatch.setattr(impact, name, _never(name))
-    out = tmp_path / "out"
-    _impact_argv(monkeypatch, audit, tmp_path / "scratch", out)
+    out = scratch / "out"
+    _impact_argv(monkeypatch, audit, scratch / "scratch", out)
     with pytest.raises(SystemExit, match=f"{re.escape(path)} has sha256 .* not the"):
         impact.main()
     assert not out.exists()
@@ -497,12 +531,12 @@ def test_any_refused_input_stops_the_impact_script_before_it_scores(
     [(script, path) for script in DIRECT for path in DIRECT[script].inputs],
 )
 def test_any_refused_input_stops_the_direct_script_before_it_writes(
-    tmp_path, monkeypatch, script, path
+    scratch, monkeypatch, script, path
 ):
     module = MODULES[script]
     commit, _ = module.INPUTS[path]
     monkeypatch.setitem(module.INPUTS, path, (commit, "0" * 64))
-    out = tmp_path / "out"
+    out = scratch / "out"
     _argv(monkeypatch, script, out)
     with pytest.raises(SystemExit, match=f"{re.escape(path)} has sha256 .* not the"):
         module.main()
@@ -514,11 +548,11 @@ def test_any_refused_input_stops_the_direct_script_before_it_writes(
     [(script, *refusal) for script in DIRECT for refusal in _refusals(script)],
 )
 def test_a_refused_input_stops_the_direct_script_before_it_writes(
-    tmp_path, monkeypatch, script, path, pin, message
+    scratch, monkeypatch, script, path, pin, message
 ):
     module = MODULES[script]
     monkeypatch.setitem(module.INPUTS, path, pin)
-    out = tmp_path / "out"
+    out = scratch / "out"
     _argv(monkeypatch, script, out)
     with pytest.raises(SystemExit, match=re.escape(message)):
         module.main()
@@ -526,10 +560,19 @@ def test_a_refused_input_stops_the_direct_script_before_it_writes(
 
 
 @pytest.mark.parametrize("audit", IMPACT)
-def test_scratch_inside_the_repository_is_refused(tmp_path, monkeypatch, audit):
+@pytest.mark.parametrize(
+    "overlap",
+    [ROOT / "results/scratch", ROOT, ROOT.parent],
+    ids=["inside", "the repository", "a parent"],
+)
+def test_scratch_overlapping_the_repository_is_refused(
+    scratch, monkeypatch, audit, overlap
+):
+    """stage() and pass_inputs() delete scratch/<name>, so a scratch that holds the
+    repository could delete it."""
     impact = MODULES[_impact_script(audit)]
     monkeypatch.setattr(impact, "pass_inputs", _never("pass_inputs"))
-    _impact_argv(monkeypatch, audit, ROOT / "results/scratch", tmp_path / "out")
+    _impact_argv(monkeypatch, audit, overlap, scratch / "out")
     with pytest.raises(SystemExit) as stopped:
         impact.main()
     assert stopped.value.code == 2
@@ -537,12 +580,15 @@ def test_scratch_inside_the_repository_is_refused(tmp_path, monkeypatch, audit):
 
 
 @pytest.mark.parametrize("audit", IMPACT)
-def test_the_impact_script_scores_only_the_staged_inputs(tmp_path, monkeypatch, audit):
+def test_the_impact_script_scores_only_the_staged_inputs(scratch, monkeypatch, audit):
     """Run from a checkout whose working tree is junk, every copy still starts from
-    the pinned bytes, the inputs give the committed records, and the full set of
-    evidence files is written."""
-    impact, spec = MODULES[_impact_script(audit)], IMPACT[audit]
-    monkeypatch.setattr(impact, "ROOT", _tampered_checkout(tmp_path / "co", impact))
+    the pinned bytes, everything computed from the inputs alone matches the
+    committed evidence, and the full set of evidence files is written. Only the
+    analyze CLI is stubbed; the always-zero baseline and Part B's legacy impact
+    summary run for real on the staged copies."""
+    spec = IMPACT[audit]
+    script = _impact_script(audit)
+    impact = _from_junk_checkout(scratch / "co", script, getattr(spec, "code", []))
     scored: dict[str, dict[str, str]] = {}
     published: dict = {}
 
@@ -556,19 +602,8 @@ def test_the_impact_script_scores_only_the_staged_inputs(tmp_path, monkeypatch, 
         return published
 
     monkeypatch.setattr(impact, "analyze", analyze)
-    if hasattr(impact, "always_zero"):
-        monkeypatch.setattr(
-            impact, "always_zero", lambda run_dir: {"exact": 0.0, "within1pct": 0.0}
-        )
-    if hasattr(impact, "legacy_impact_summary"):
-        # The freeze's summary, scored by scripts/freeze_snapshot.py from the
-        # checkout; here the pinned frozen file stands in for it.
-        frozen = tmp_path / "scratch/pass_inputs" / impact.FROZEN_IMPACT_PATH
-        monkeypatch.setattr(
-            impact, "legacy_impact_summary", lambda run_dir: pd.read_csv(frozen)
-        )
-    out = tmp_path / "out"
-    _impact_argv(monkeypatch, audit, tmp_path / "scratch", out)
+    out = scratch / "out"
+    _impact_argv(monkeypatch, audit, scratch / "scratch", out)
     impact.main()
 
     pinned = {name: impact.INPUTS[f"{RUN_PATH}/{name}"][1] for name in impact.RUN_FILES}
@@ -587,13 +622,12 @@ def test_the_impact_script_scores_only_the_staged_inputs(tmp_path, monkeypatch, 
 
 @pytest.mark.parametrize("script", DIRECT)
 def test_the_direct_script_reproduces_its_files_from_a_junk_checkout(
-    tmp_path, monkeypatch, script
+    scratch, monkeypatch, script
 ):
     """Run for real from a checkout whose working tree is junk: every file the
     script writes is the committed one, byte for byte."""
-    module = MODULES[script]
-    monkeypatch.setattr(module, "ROOT", _tampered_checkout(tmp_path / "co", module))
-    out = tmp_path / "out"
+    module = _from_junk_checkout(scratch / "co", script)
+    out = scratch / "out"
     _argv(monkeypatch, script, out)
     module.main()
     written = sorted(
@@ -606,7 +640,7 @@ def test_the_direct_script_reproduces_its_files_from_a_junk_checkout(
 
 @pytest.mark.slow
 @pytest.mark.parametrize("audit", IMPACT)
-def test_regeneration_reproduces_the_committed_evidence(tmp_path, audit):
+def test_regeneration_reproduces_the_committed_evidence(scratch, audit):
     """Score every copy for real and require the committed files byte for byte.
 
     Runs from this checkout, whose run a later release has rewritten, so the
@@ -616,10 +650,10 @@ def test_regeneration_reproduces_the_committed_evidence(tmp_path, audit):
       OPENBLAS_NUM_THREADS=1 uv run pytest -m slow \\
         tests/test_reference_audit_pins.py
     """
-    out = tmp_path / "out"
+    out = scratch / "out"
     result = subprocess.run(
         [sys.executable, str(ROOT / _impact_script(audit))]
-        + ["--scratch", str(tmp_path / "scratch"), "--out-dir", str(out)]
+        + ["--scratch", str(scratch / "scratch"), "--out-dir", str(out)]
         + IMPACT[audit].flags,
         cwd=ROOT,
         env=dict(os.environ, PYTHONPATH=str(ROOT)),

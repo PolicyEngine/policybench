@@ -328,10 +328,11 @@ def main() -> None:
     args = parser.parse_args()
     scratch = Path(args.scratch).resolve()
     out_dir = Path(args.out_dir)
-    # stage() and pass_inputs() delete and rewrite scratch/<name>; never inside
-    # the repository.
-    if scratch == ROOT.resolve() or scratch.is_relative_to(ROOT.resolve()):
-        parser.error(f"--scratch must be outside the repository ({ROOT})")
+    # stage() and pass_inputs() delete and rewrite scratch/<name>, so scratch and
+    # the repository must not overlap: neither may lie inside the other.
+    root = ROOT.resolve()
+    if scratch.is_relative_to(root) or root.is_relative_to(scratch):
+        parser.error(f"--scratch must not overlap the repository ({ROOT})")
     inputs = pass_inputs(scratch / "pass_inputs")
     source = inputs / RUN_PATH
     values = candidate_values(inputs / SWEEP_PATH)

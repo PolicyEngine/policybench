@@ -106,7 +106,7 @@ Engine: `results/local/adds202609/triage/.venv-pe21517` (policyengine-us 2.15.17
 
 ## Pinned inputs
 
-This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then excluded eight more outputs and rewrote the run's payload and exclusion record. On that working tree the unpinned impact script exited 0 after rewriting both evidence files. Every option scored 1,920 outputs instead of 1,928, and the top-five lists and rank changes moved.
+This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then excluded eight more outputs and rewrote the run's payload and exclusion record. On that working tree the unpinned impact script exited 0 after rewriting both evidence files. Every option scored eight fewer outputs than in the pass (1,920 instead of 1,928, and 1,918 instead of 1,926 for `exclude`), and the top-five lists and rank changes moved.
 
 Each script below now takes every file it reads from git with `git show <commit>:<path>`. It stops before scoring or writing anything unless each file's sha256 matches its pin, and it never reads the working tree. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
 
