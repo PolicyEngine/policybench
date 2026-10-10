@@ -428,3 +428,109 @@ for model_dir in sorted((run / "chunks").glob("*")):
     )
 PY
 ```
+
+## 8. Publish a release
+
+A release is a GitHub release `dashboard-data-YYYYMMDD[a-z]` that holds
+`dashboard-data.json` and `predictions.csv.gz`, plus the PR whose committed
+pointer, `app/src/data.artifact.json`, names it. The release has to exist
+before its PR merges, because CI's app job and Vercel download the asset that
+the PR's pointer names. GitHub therefore creates the tag on main as it stands
+before the merge, which holds the previous release's board. The Seal release
+workflow (`.github/workflows/seal-release.yml`) moves the tag to the release
+PR's merge commit when the PR merges.
+
+1. Freeze and render the release, then run the tests.
+2. Check that the tag is free: `gh release view <tag>` must fail.
+3. Create the release with its assets, not marked Latest:
+   `gh release create <tag> --latest=false --title <tag> --notes "…" <assets>`.
+   `policybench publish-dashboard --tag <tag>` does the same for the payload
+   alone. Download the asset and compare its sha256 with the pointer.
+4. Open the PR. CI's app job and Vercel download the asset.
+5. Squash-merge after green CI and an independent review.
+6. The Seal release workflow runs on the merge commit. It moves the tag to
+   that commit, checks that GitHub's tag names it, and marks the release
+   Latest. Check that the run passed and that
+   `git ls-remote origin refs/tags/<tag>` prints the merge commit. If the run
+   failed, run `uv run policybench seal-release --live --apply --latest` on an
+   up-to-date main.
+7. Check prod on policybench.org.
+
+The workflow seals only a release that its push landed (`--new-since`, the
+commit main named before the push). A push that points the app back at an
+older release leaves that release's tag alone.
+
+### Which commit holds a release's board
+
+A release's board commit is the first commit on main's first-parent line
+whose pointer names the release's tag and the sha256 of the asset the release
+holds now. For a release PR, that is its squash commit. Two commands find it:
+
+```bash
+uv run policybench release-commit dashboard-data-20261010
+uv run policybench seal-release --all
+```
+
+`release-commit` prints the board commit; it reads the asset's sha256 from
+GitHub, or from `--sha256`. `seal-release --all` lists every tag, the commit
+it names and its board commit, and moves nothing without `--apply`.
+
+A sealed tag names its board commit, so `git checkout <tag>` gives the
+release's tree. A clone that fetched a tag before the tag moved keeps the old
+commit until `git fetch --tags --force`.
+
+### Releases cut before sealing
+
+The tags from `dashboard-data-20260520` through `dashboard-data-20261010`
+predate the workflow. Each names main as it stood before the release PR
+merged, or an older commit when other PRs merged between the upload and the
+merge. `git checkout <tag>` therefore gives an earlier release's board. Until
+those tags are re-pointed with `uv run policybench seal-release --all --apply`,
+use the board commit in this table. The asset sha256 is the first 12
+characters of the `dashboard-data.json` digest that GitHub records for the
+release.
+
+| Release | Board commit | Asset sha256 | PR |
+|---|---|---|---|
+| `dashboard-data-20260520` | `370949527a7f` | `4686fe4c74c4` | [#65](https://github.com/PolicyEngine/policybench/pull/65) |
+| `dashboard-data-20260614` | `e45637138c86` | `460f261649aa` | [#74](https://github.com/PolicyEngine/policybench/pull/74) |
+| `dashboard-data-20260616` | `f0ad009cb278` | `497c6c34f3e7` | [#76](https://github.com/PolicyEngine/policybench/pull/76) |
+| `dashboard-data-20260625` | `c24ec1dce8de` | `72d4b524fb6d` | none (pushed to main) |
+| `dashboard-data-20260701` | `e9e91df49785` | `17016aafbe13` | [#82](https://github.com/PolicyEngine/policybench/pull/82) |
+| `dashboard-data-20260702` | `57d26f1c1d3d` | `bea82b7ea984` | [#86](https://github.com/PolicyEngine/policybench/pull/86) |
+| `dashboard-data-20260702b` | `547ab24c8694` | `7b26f03fb77c` | [#90](https://github.com/PolicyEngine/policybench/pull/90) |
+| `dashboard-data-20260705` | `84dff0663ad9` | `7d43a0321561` | [#103](https://github.com/PolicyEngine/policybench/pull/103) |
+| `dashboard-data-20260707` | `3d479beed942` | `2a4d0c7be63e` | [#109](https://github.com/PolicyEngine/policybench/pull/109) |
+| `dashboard-data-20260707b` | `d286462dca05` | `a9b8bee0802e` | [#112](https://github.com/PolicyEngine/policybench/pull/112) |
+| `dashboard-data-20260707c` | `5db2fdeb7b8e` | `0860f8ebab38` | [#113](https://github.com/PolicyEngine/policybench/pull/113) |
+| `dashboard-data-20260708` | `a65c273de6fb` | `d95e19a2f461` | [#115](https://github.com/PolicyEngine/policybench/pull/115) |
+| `dashboard-data-20260709b` | `8f3c44cb6e11` | `cdb99bfb3e51` | [#116](https://github.com/PolicyEngine/policybench/pull/116) |
+| `dashboard-data-20260710` | `776baef69fc7` | `fd77509de201` | [#120](https://github.com/PolicyEngine/policybench/pull/120) |
+| `dashboard-data-20260719` | `1cc4388063a2` | `ca8b2f6e237b` | [#125](https://github.com/PolicyEngine/policybench/pull/125) |
+| `dashboard-data-20260721` | `e693f997f788` | `00846e2c5b0d` | [#130](https://github.com/PolicyEngine/policybench/pull/130) |
+| `dashboard-data-20260724` | `6773cbda4c4e` | `38453b0225be` | [#132](https://github.com/PolicyEngine/policybench/pull/132) |
+| `dashboard-data-20260805` | `4a85a09fe88f` | `5463a5d13281` | [#136](https://github.com/PolicyEngine/policybench/pull/136) |
+| `dashboard-data-20260817` | `e00a9fa49d9e` | `a71de04ab9b3` | [#153](https://github.com/PolicyEngine/policybench/pull/153) |
+| `dashboard-data-20260822` | `9fa402b67ca3` | `b883ec669d51` | [#156](https://github.com/PolicyEngine/policybench/pull/156) |
+| `dashboard-data-20260901c` | `28e41e80a726` | `ee342fc3a756` | [#160](https://github.com/PolicyEngine/policybench/pull/160) |
+| `dashboard-data-20260905c` | `7db59dab0014` | `838bb3757db3` | [#164](https://github.com/PolicyEngine/policybench/pull/164) |
+| `dashboard-data-20260922` | `56844e2fa795` | `f91ec845cba7` | [#174](https://github.com/PolicyEngine/policybench/pull/174) |
+| `dashboard-data-20260922b` | `ba886b4cfa69` | `b1c4ee340a01` | [#177](https://github.com/PolicyEngine/policybench/pull/177) |
+| `dashboard-data-20260922c` | `cb312fd775b3` | `01e7e72b3a6b` | [#178](https://github.com/PolicyEngine/policybench/pull/178) |
+| `dashboard-data-20260929` | `d616e67c33b6` | `a5cb9989d78c` | [#182](https://github.com/PolicyEngine/policybench/pull/182) |
+| `dashboard-data-20260930` | `8b4c0ca146bb` | `d1cae7456cf9` | [#187](https://github.com/PolicyEngine/policybench/pull/187) |
+| `dashboard-data-20261006` | `9ce4ade83829` | `aa34e5c9ea92` | [#202](https://github.com/PolicyEngine/policybench/pull/202) |
+| `dashboard-data-20261010` | `5a8164a001ef` | `f834478e6519` | [#208](https://github.com/PolicyEngine/policybench/pull/208) |
+
+`dashboard-data-20260705`'s asset was replaced twice after the release first
+reached main. Main's pointer named three sha256s under that tag, at
+`d623916b`, `bf82497f` and `84dff066`. The board commit is the last of these,
+because it names the bytes the release holds now.
+
+Six tags have no board commit, and `seal-release --all` leaves them alone:
+
+- `dashboard-data-20260709`, `-20260901`, `-20260901b`, `-20260905` and
+  `-20260905b` never reached main. A later tag replaced each before its PR
+  merged.
+- `dashboard-data-20260705b` reached main at `6cb7b488`, but GitHub has no
+  release under that tag, so its asset does not download.

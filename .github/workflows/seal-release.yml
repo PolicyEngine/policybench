@@ -1,0 +1,42 @@
+name: Seal release
+
+# A release's tag is created before its PR merges: CI's app job and Vercel
+# download the asset the PR's pointer names, so the release must exist first,
+# and GitHub puts its tag on main as it stood then. When the release PR merges,
+# this moves the tag to the merge commit, which holds the release's board, and
+# marks the release Latest. --new-since limits it to a release this push landed,
+# so it never moves an older release's tag. See docs/runbook.md, section 8.
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/src/data.artifact.json
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seal-release
+  cancel-in-progress: false
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The board commit is found in main's first-parent history.
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # policybench.release_tags uses only the standard library, so the job
+      # installs nothing.
+      - name: Seal the release this push landed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: >-
+          python -m policybench.release_tags seal-release --live
+          --ref "$GITHUB_SHA" --new-since "$BEFORE" --apply --latest

@@ -49,7 +49,10 @@ writes the committed pointer `app/src/data.artifact.json`:
 
 Use a fresh tag per data refresh; the tag is the artifact's identity and the
 sha256 is its integrity check. `--dry-run` validates and writes the pointer
-without uploading.
+without uploading. The command creates the release before its PR merges and
+does not mark it Latest. GitHub puts the new tag on main as it stands then;
+when the PR merges, the Seal release workflow moves the tag to the merge
+commit and marks the release Latest (`docs/runbook.md`, section 8).
 
 ## Consuming
 
@@ -71,6 +74,9 @@ the pointer. A data refresh is:
 3. Commit the pointer plus a snapshot-manifest update pinning the new
    artifact's sha256 (tests enforce pointer == manifest pin == the combined
    committed run exports).
+4. Merge the PR. The Seal release workflow then moves the tag to the merge
+   commit, so `git checkout dashboard-data-<date>` gives the release's tree.
+   `policybench release-commit dashboard-data-<date>` prints that commit.
 
 `paper/snapshot/<date>/` copies stay committed and frozen — they are the
 manuscript's evidence base, and the integrity tests rebuild the published
