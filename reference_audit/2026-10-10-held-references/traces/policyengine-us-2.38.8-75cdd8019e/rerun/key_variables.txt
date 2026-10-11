@@ -1,0 +1,83 @@
+policyengine-us 2.38.8 at /private/tmp/claude-501/-Users-maxghenis-Library-Application-Support-Claude-scratch-workspaces-ee3763f4-e7ea-4177-bcaf-1362266768c1-4457aa9d-2dc0-4bcf-a128-e50adae6be25-scratch-2026-09-22-c3da5e/2c7efeaa-b406-4f69-b1cb-f46a8290e4c0/scratchpad/main75/venv/lib/python3.12/site-packages/policyengine_us
+policyengine-core 3.33.0
+
+===== scenario_039 income_tax_before_refundable_credits = 8,596.03
+  filing_status                                                  SINGLE
+  surviving_spouse_eligible                                      False
+  tax_unit_child_dependents                                      0.00
+  head_of_household_eligible                                     False
+  irs_gross_income                                               85,469.25
+  self_employment_income                                         -6,260.03
+  estate_income                                                  25,950.00
+  taxable_pension_income                                         2,030.00
+  taxable_ira_distributions                                      26,800.00
+  social_security                                                36,105.00
+  tax_unit_combined_income_for_social_security_taxability        66,572.47
+  tax_unit_taxable_social_security                               30,689.25
+  above_the_line_deductions                                      6,260.03
+  loss_ald                                                       6,260.03
+  adjusted_gross_income                                          79,209.22
+  standard_deduction                                             16,100.00
+  basic_standard_deduction                                       16,100.00
+  additional_standard_deduction                                  0.00
+  additional_senior_deduction                                    0.00
+  itemized_taxable_income_deductions                             3,793.91
+  tax_unit_itemizes                                              False
+  qualified_business_income                                      -6,260.03
+  qualified_business_income_deduction                            0.00
+  taxable_income_deductions                                      16,100.00
+  taxable_income                                                 63,109.22
+  income_tax_main_rates                                          8,596.03
+  capital_gains_tax                                              0.00
+  regular_tax_before_credits                                     8,596.03
+  alternative_minimum_tax                                        0.00
+  net_investment_income_tax                                      0.00
+  income_tax_before_credits                                      8,596.03
+  income_tax_capped_non_refundable_credits                       0.00
+  elderly_disabled_credit                                        0.00
+  savers_credit                                                  0.00
+  income_tax_before_refundable_credits                           8,596.03
+  self_employment_tax                                            0.00
+  va_income_tax_before_refundable_credits                        1,975.80
+
+===== scenario_025 state_income_tax_before_refundable_credits = 1,916.61
+  filing_status                                                  JOINT
+  adjusted_gross_income                                          94,925.30
+  adjusted_gross_income_person                                   0.00, 94,925.30
+  oh_additions                                                   0.00, 0.00
+  oh_deductions                                                  180.60, 0.00
+  oh_agi                                                         94,744.70
+  oh_agi_person                                                  -180.60, 94,925.30
+  has_esi                                                        True, True
+  is_medicare_eligible                                           False, False
+  oh_employer_subsidized_health_plan_eligible                    True
+  medical_expense_health_insurance_premiums                      6,500.00, 0.00
+  self_employed_health_insurance_ald_person                      0.00, 0.00
+  oh_medical_care_insurance_premiums                             6,500.00, 0.00
+  oh_uninsured_unreimbursed_medical_care_expenses                0.00, 0.00
+  oh_insured_unreimbursed_medical_care_expense_amount            7,300.00, 0.00
+  oh_insured_unreimbursed_medical_care_expenses                  180.60
+  oh_insured_unreimbursed_medical_care_expenses_person           180.60, 0.00
+  oh_unreimbursed_medical_care_expense_deduction                 180.60
+  oh_unreimbursed_medical_care_expense_deduction_person          180.60, 0.00
+  oh_modified_agi                                                94,744.70
+  oh_personal_exemptions                                         3,800.00
+  oh_taxable_income                                              90,944.70
+  oh_taxable_business_income                                     0.00
+  oh_taxable_nonbusiness_income                                  90,944.70
+  oh_income_tax_before_non_refundable_credits                    2,116.61
+  oh_non_refundable_credits                                      200.00
+  oh_retirement_credit                                           200.00
+  oh_pension_based_retirement_income_credit                      200.00
+  oh_lump_sum_distribution_credit                                0.00
+  oh_senior_citizen_credit                                       0.00
+  oh_joint_filing_credit                                         0.00
+  oh_joint_filing_credit_eligible                                False
+  oh_joint_filing_credit_qualifying_income                       -180.60, 94,925.30
+  oh_exemption_credit                                            0.00
+  oh_non_public_school_credits                                   0.00
+  oh_cdcc                                                        0.00
+  oh_income_tax_before_refundable_credits                        1,916.61
+  oh_refundable_credits                                          0.00
+  oh_income_tax                                                  1,916.61
+  state_income_tax_before_refundable_credits                     1,916.61

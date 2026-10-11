@@ -1,0 +1,29 @@
+{
+  "what": "The 2026-10-10 re-run of scripts/trace_cells.py on policyengine-us installed from the commit report/REPORT.md used, made for this record in a clean environment.",
+  "policyengine-us": "2.38.8",
+  "policyengine-core": "3.33.0",
+  "direct_url": {
+    "url": "https://github.com/PolicyEngine/policyengine-us",
+    "vcs_info": {
+      "vcs": "git",
+      "commit_id": "75cdd8019e07b54c78f0c8d077935c5dc9b14670",
+      "requested_revision": "75cdd8019e07b54c78f0c8d077935c5dc9b14670"
+    }
+  },
+  "outputs_sha256": {
+    "scenario_039_situation.json": "1fa6c46a161691fdbd90be2137b00ac192f04a3cd25fcdbdd59a17895273349f",
+    "scenario_025_situation.json": "7912870c9832f137f3455637cdacb368545883f81809448b91a120a68ec9fecd",
+    "scenario_039_trace.txt": "7427b20a5fffa06cd49388b454a609c31adaa304a645426da90d0c7cbce6d2cc",
+    "scenario_025_trace.txt": "a81089047d9b7ea5fd6728e310a60e6d244c6508a11c75c3122f7cc297d401ed",
+    "scenario_039_trace_full.txt": "3a53c6bce4e5739de634976155b67665e99fa41419e916ebee3d0a93f96f3cba",
+    "scenario_025_trace_full.txt": "de95afc89171cb40dfc246a0a779604b708a2a113814bf9ab8ccffd4c7dbb694"
+  },
+  "identical_to_the_session_files": {
+    "scenario_039_situation.json": true,
+    "scenario_025_situation.json": true,
+    "scenario_039_trace.txt": true,
+    "scenario_025_trace.txt": true,
+    "scenario_039_trace_full.txt": true,
+    "scenario_025_trace_full.txt": true
+  }
+}
