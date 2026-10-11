@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -741,18 +742,22 @@ def _born_before_the_year(person: Person, year: int) -> Person:
     """Keep every date of birth before the fiscal year starts.
 
     The transfer path places a person within their year of age with a seeded
-    date of birth, so a baby aged 0 can be born after 6 April of the fiscal
-    year. The prompt says its facts hold for the whole year, which a birth
-    during the year contradicts: Child Benefit and the Universal Credit child
-    element would start at the birth, while the reference pays the whole
-    year. A later date moves back one year, so the child is under one at the
-    start of the year.
+    date of birth, and policyengine-uk takes age as the age on 6 October. So a
+    baby aged 0 can be born after 6 April of the fiscal year. The prompt says
+    its facts hold for the whole year, which a birth during the year
+    contradicts: Child Benefit and the Universal Credit child element would
+    start at the birth, while the reference pays the whole year. Such a date
+    moves back 182 days, kept within 7 October of the previous year to 5 April
+    of this one, so the baby is still aged 0 on 6 October and is born before
+    the year starts.
     """
     dob = _date_of_birth(person)
-    year_start = year * 10000 + 406
-    if dob is None or dob < year_start:
+    if dob is None or dob < year * 10000 + 406:
         return person
-    return _with_person_inputs(person, date_of_birth=float(dob - 10000))
+    born = date(dob // 10000, dob // 100 % 100, dob % 100) - timedelta(days=182)
+    born = min(max(born, date(year - 1, 10, 7)), date(year, 4, 5))
+    moved = born.year * 10000 + born.month * 100 + born.day
+    return _with_person_inputs(person, date_of_birth=float(moved))
 
 
 def _scenario_for(

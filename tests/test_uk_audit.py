@@ -402,17 +402,46 @@ def test_no_one_is_born_during_the_fiscal_year(sample):
                 assert int(dob) < 20260406
 
 
-def test_born_during_the_year_moves_back_a_year():
+def test_born_during_the_year_moves_back_within_age_zero():
     baby = Person(
         name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20260710}
     )
+    moved = int(uk_audit._born_before_the_year(baby, 2026).inputs["date_of_birth"])
+    assert moved == 20260109
+    late = Person(
+        name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20261006}
+    )
     assert (
-        uk_audit._born_before_the_year(baby, 2026).inputs["date_of_birth"] == 20250710
+        int(uk_audit._born_before_the_year(late, 2026).inputs["date_of_birth"])
+        == 20260405
+    )
+    first = Person(
+        name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20260406}
+    )
+    assert (
+        int(uk_audit._born_before_the_year(first, 2026).inputs["date_of_birth"])
+        == 20251007
     )
     older = Person(
         name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20260101}
     )
     assert uk_audit._born_before_the_year(older, 2026) == older
+
+
+@settings(max_examples=200, deadline=None)
+@given(day=st.integers(min_value=0, max_value=183))
+def test_moved_birth_dates_keep_age_zero_on_6_october(day):
+    """policyengine-uk takes age as the age on 6 October: a moved date must
+    be after 6 October 2025 and before 6 April 2026."""
+    from datetime import date, timedelta
+
+    born = date(2026, 4, 6) + timedelta(days=day)
+    dob = born.year * 10000 + born.month * 100 + born.day
+    baby = Person(
+        name="child1", age=0, employment_income=0, inputs={"date_of_birth": dob}
+    )
+    moved = int(uk_audit._born_before_the_year(baby, 2026).inputs["date_of_birth"])
+    assert 20251006 < moved < 20260406
 
 
 def test_uk_losses_render_with_the_sign_first():
@@ -423,3 +452,28 @@ def test_uk_losses_render_with_the_sign_first():
     assert _format_input_line("self_employment_income", -50.0, country="us").endswith(
         "$-50"
     )
+
+
+def test_a_moved_baby_passes_policyengine_uks_age_check():
+    pytest.importorskip("policyengine_uk")
+    from policyengine_uk import Simulation
+
+    baby = uk_audit._born_before_the_year(
+        Person(
+            name="child1",
+            age=0,
+            employment_income=0,
+            inputs={"date_of_birth": 20260710},
+        ),
+        2026,
+    )
+    scenario = Scenario(
+        id="scenario_000",
+        state="LONDON",
+        filing_status=None,
+        adults=[Person(name="adult1", age=30, employment_income=20_000)],
+        children=[baby],
+        country="uk",
+    )
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    assert float(sim.calculate("child_benefit", 2026).sum()) > 0
