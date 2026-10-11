@@ -227,7 +227,11 @@ def test_low_income_strata(sample):
         "private_renters_low_income",
     ):
         for scenario in _stratum(sample, name):
-            assert scenario.household_inputs.get("savings", 0) < uk_audit.LOW_SAVINGS
+            capital = sum(
+                scenario.household_inputs.get(column, 0)
+                for column in uk_audit.CAPITAL_COLUMNS
+            )
+            assert capital < uk_audit.LOW_CAPITAL
 
 
 def test_scenarios_round_trip_through_the_manifest(sample):

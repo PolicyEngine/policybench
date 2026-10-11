@@ -185,7 +185,7 @@ class Household:
     adult_earnings: tuple[float, ...]
     adult_self_employment: tuple[float, ...]
     adult_income: tuple[float, ...]
-    savings: float
+    capital: float
 
 
 def household_features(
@@ -231,7 +231,10 @@ def household_features(
                 adult_income=tuple(
                     float(v) for v in adults[income_columns].sum(axis=1)
                 ),
-                savings=float(getattr(row, "savings", 0.0) or 0.0),
+                capital=sum(
+                    float(getattr(row, column, 0.0) or 0.0)
+                    for column in CAPITAL_COLUMNS
+                ),
             )
         )
     return features
@@ -266,15 +269,23 @@ def select_scotland(h: Household) -> bool:
 
 
 # Low income: every adult's transfer-data income (before any State Pension)
-# below £15,000 and household savings below £16,000 (the Universal Credit and
+# below £15,000 and household capital below £16,000 (the Universal Credit and
 # Housing Benefit capital limit), so the means-tested benefits have cells to
 # test.
 LOW_INCOME = 15_000
-LOW_SAVINGS = 16_000
+LOW_CAPITAL = 16_000
+# Household holdings the prompt states that means tests can count as capital:
+# savings, corporate financial wealth, and property other than the home.
+CAPITAL_COLUMNS = (
+    "savings",
+    "corporate_wealth",
+    "other_residential_property_value",
+    "non_residential_property_value",
+)
 
 
 def _low_income(h: Household) -> bool:
-    return max(h.adult_income) < LOW_INCOME and h.savings < LOW_SAVINGS
+    return max(h.adult_income) < LOW_INCOME and h.capital < LOW_CAPITAL
 
 
 def select_scotland_low_income_families(h: Household) -> bool:
@@ -639,7 +650,7 @@ UK_AUDIT_STRATA: tuple[Stratum, ...] = (
         "scotland_low_income_families",
         10,
         "Scotland: a child under 16, every adult's income under £15,000 and "
-        "savings under £16,000",
+        "capital under £16,000",
         select_scotland_low_income_families,
         overlay_scotland,
     ),
@@ -654,7 +665,7 @@ UK_AUDIT_STRATA: tuple[Stratum, ...] = (
         "pension_age_low_income",
         20,
         "Every adult 67 or over, no children, every adult's income other than "
-        "the State Pension under £15,000, savings under £16,000",
+        "the State Pension under £15,000, capital under £16,000",
         select_pension_age_low_income,
         overlay_pension_age,
     ),
@@ -705,7 +716,7 @@ UK_AUDIT_STRATA: tuple[Stratum, ...] = (
         "private_renters_low_income",
         10,
         "Working-age private renters, every adult's income under £15,000 and "
-        "savings under £16,000",
+        "capital under £16,000",
         select_private_renters_low_income,
         overlay_private_renters,
     ),
