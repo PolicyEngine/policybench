@@ -542,6 +542,11 @@ def main():
         action="store_true",
         help="Only write the combined payload under the run directory",
     )
+    export_parser.add_argument(
+        "--program-set",
+        default=None,
+        help="Output set the run asked for (default: headline)",
+    )
 
     # Failure audit (Codex-backed classifier)
     audit_prepare_parser = subparsers.add_parser(
@@ -1106,8 +1111,6 @@ def main():
         enable_cache()
 
     if args.command == "uk-audit-sample":
-        import json
-
         from policybench.uk_audit import UK_AUDIT_SEED, write_uk_audit_sample
 
         meta = write_uk_audit_sample(
@@ -1403,6 +1406,7 @@ def main():
                 reference_digest=parse_reference_digest_args(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
+                program_set=args.program_set,
             )
         except (FileNotFoundError, ReferenceProvenanceError) as exc:
             raise SystemExit(str(exc)) from exc

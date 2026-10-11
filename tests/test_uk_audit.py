@@ -375,3 +375,20 @@ def test_prompt_states_the_new_facts():
     assert "after the single person discount" in text
     situation = scenario.to_pe_uk_situation()
     assert situation["people"]["adult1"]["state_pension_reported"] == {"2026": 12_548.0}
+
+
+def test_uk_audit_sample_cli(tmp_path, monkeypatch, capsys):
+    from policybench import cli
+
+    calls = []
+
+    def fake_write(output, seed):
+        calls.append((str(output), seed))
+        return {"counts": {"control": 15}}
+
+    monkeypatch.setattr(uk_audit, "write_uk_audit_sample", fake_write)
+    out = tmp_path / "scenarios.csv"
+    monkeypatch.setattr("sys.argv", ["policybench", "uk-audit-sample", "-o", str(out)])
+    cli.main()
+    assert calls == [(str(out), uk_audit.UK_AUDIT_SEED)]
+    assert "UK audit sample saved" in capsys.readouterr().out

@@ -762,7 +762,7 @@ def test_export_full_run_pins_each_legacy_country_separately(tmp_path, monkeypat
     }
     seen: dict[str, str | None] = {}
 
-    def fake_export_country(country_dir, *, reference_digest=None):
+    def fake_export_country(country_dir, *, reference_digest=None, program_set=None):
         seen[country_dir.name] = reference_digest
         return {"country": country_dir.name, "modelStats": []}
 
@@ -815,3 +815,19 @@ def test_export_full_run_mixes_legacy_and_digest_sidecars(tmp_path):
             manifest_reference_sha256=reference_digest_for_country(pins, country, 2),
         )
         assert country in bundles
+
+
+def test_the_uk_audit_output_set_keeps_its_outputs():
+    from policybench.full_run_export import _filter_to_canonical_outputs
+
+    frame = pd.DataFrame(
+        {
+            "scenario_id": ["scenario_000"] * 3,
+            "variable": ["income_tax", "carers_allowance", "not_an_output"],
+            "value": [1.0, 2.0, 3.0],
+        }
+    )
+    headline = _filter_to_canonical_outputs(frame, "uk")
+    assert headline["variable"].tolist() == ["income_tax"]
+    audit = _filter_to_canonical_outputs(frame, "uk", "uk_audit")
+    assert audit["variable"].tolist() == ["income_tax", "carers_allowance"]
