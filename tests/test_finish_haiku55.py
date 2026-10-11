@@ -1148,7 +1148,9 @@ def seeded_stage(tmp_path, monkeypatch):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = tmp_path / "seed"
     seed_board = _board(tmp_path / "seed-board", INCUMBENT_ROWS)
-    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+    # Release 20261006's seed was judged on judge template v1, before versions
+    # existed, so its sidecars record none.
+    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup, template_version=1)
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(
             seed / "cases" / item["case_id"],
@@ -1965,7 +1967,8 @@ def test_each_20261006_entry_names_its_seed_verdict_as_its_sidecar_records_it():
 @pytest.mark.slow
 def test_every_seed_prompt_rerenders_except_the_nine_reworded(tmp_path):
     """Local only: release 20261006's 46-model board, as BASE_COMMIT holds it,
-    renders exactly the seed's cases, and every seed prompt except the nine
+    renders exactly the seed's cases, and on judge template v1, the template
+    the seed was judged on, every seed prompt except the nine
     REWORDED_SINCE_SEED, whose reference explanations it reworded (this reads
     the 43 MB predictions from git into scratch). So
     check_prompt_changes may attribute every other changed or new prompt to
@@ -1996,7 +1999,8 @@ def test_every_seed_prompt_rerenders_except_the_nine_reworded(tmp_path):
         if arrow
         else contextlib.nullcontext()
     ):
-        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+        # The seed was judged on judge template v1.
+        prepare_audit(bundle / "us", audit, grounding_lookup=lookup, template_version=1)
     # The manifest records each case's reference derivation, so it differs
     # from the seed's in that field of the nine cases and nowhere else.
     ours, seeds = (
@@ -6140,8 +6144,11 @@ def tiny_upgrade_stage(root: Path, stack: contextlib.ExitStack, haiku=None):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = root / "seed"
     seed_board = _board(root / "seed-board", INCUMBENT_ROWS)
+    # The seed is on judge template v1, as release 20261006's was.
     with driver.object_strings():
-        prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+        prepare_audit(
+            seed_board / "us", seed, grounding_lookup=lookup, template_version=1
+        )
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(
             seed / "cases" / item["case_id"],

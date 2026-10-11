@@ -53,6 +53,11 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+# The judge template (policybench.judge_template) this driver renders new
+# and re-opened cases on. Its release, RELEASE_TAG, judged every verdict on
+# v1, so re-running the driver reproduces its prompts. A seed case keeps the
+# version its sidecar records.
+JUDGE_TEMPLATE_VERSION = 1
 ADJUDICATIONS = "us_adjudications.json"
 # Stage files export binds: the cases GPT-6.1 Sol re-opened, and the
 # wording-only amendments a developer lists for them.
@@ -1414,7 +1419,12 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
         (str(r.scenario_id), str(r.variable)): str(r.grounding)
         for r in grounding.itertuples()
     }
-    prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+    prepare_audit(
+        bundle / "us",
+        audit,
+        grounding_lookup=lookup,
+        template_version=JUDGE_TEMPLATE_VERSION,
+    )
     changes = check_prompt_changes(audit, seeded)
     write_json(
         args.stage_dir / "prompt-changes.json",
