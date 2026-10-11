@@ -1131,12 +1131,17 @@ GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7
 
 
 def _seed_records(path: str) -> dict[str, dict]:
-    """A committed seed digest: each judged case's prompt and verdict sha256."""
+    """A committed seed digest: each judged case's prompt and verdict sha256,
+    and its sidecar's where the digest records it (docs/gpt61sol's does)."""
     lines = (ROOT / path).read_text().splitlines()
-    assert lines[0] == "case_id,prompt_sha256,verdict_sha256"
+    header = lines[0].split(",")
+    assert header in (
+        ["case_id", "prompt_sha256", "verdict_sha256"],
+        ["case_id", "prompt_sha256", "verdict_sha256", "meta_sha256"],
+    ), lines[0]
     return {
-        case: {"prompt_sha256": prompt, "verdict_sha256": verdict}
-        for case, prompt, verdict in (line.split(",") for line in lines[1:])
+        values[0]: dict(zip(header[1:], values[1:], strict=True))
+        for values in (line.split(",") for line in lines[1:])
     }
 
 
