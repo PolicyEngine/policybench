@@ -98,19 +98,24 @@ adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`
   was judged, or its version or judged bytes are unknown, and the case is
   re-opened: the verdict is dropped, and so is its sidecar when the sidecar
   describes that verdict or records no `verdict_sha256`. A sidecar that
-  describes another verdict stays, such as the record of a verdict a runner
-  is still publishing. A `prompt.md` on another version is re-opened, not
-  adopted. New and re-opened cases use the version the caller names.
+  describes another verdict when `audit-prepare` reads it, such as the
+  record of a verdict a runner is still publishing, is left in place. A
+  `prompt.md` on another version is re-opened, not adopted. New and
+  re-opened cases use the version the caller names.
 - `audit-prepare` may run while a runner judges the same tree, with one
   runner per case and one `audit-prepare` at a time. Once both finish, no
   verdict passes `audit-collect`, or survives the next `audit-prepare`, on
-  bytes its judge did not read. That holds because a runner never leaves a
-  new verdict without its sidecar, `audit-prepare` never removes another
-  verdict's sidecar, and `audit-collect` checks each recorded hash. A
-  verdict that ends up without its sidecar all the same, in whatever
-  interleaving, is refused and re-opened. A verdict judged before a racing
-  `audit-prepare` rewrote its case is refused, not kept. Run `audit-collect`
-  after both finish.
+  bytes its judge did not read. Two rules carry that guarantee. First, a
+  verdict without its sidecar is refused and re-opened. Second, a sidecar
+  that survives is the runner's own record of the bytes its judge read, so
+  a verdict whose case `audit-prepare` rewrote meanwhile fails the hash
+  check: `audit-collect` refuses it and `audit-prepare` re-opens it. The
+  other measures make a stranded verdict rare without ruling it out.
+  Runners start each case clean and publish the sidecar first, and
+  `audit-prepare` removes a sidecar only when it describes the verdict being
+  dropped. But `audit-prepare` reads a sidecar before it removes it, so a
+  runner publishing in between can still lose its sidecar; its verdict is
+  then refused. Run `audit-collect` after both finish.
 - Each release driver names the version its new and re-opened cases render
   on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
   versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,

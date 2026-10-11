@@ -461,6 +461,11 @@ def _drop_verdict(case_dir: Path, verdict: bytes) -> None:
     without a verdict themselves. Likewise verdict.json goes only while it
     still holds ``verdict``: one a runner has published since is left for the
     collect gates and the next preparation to judge.
+
+    This narrows the race without closing it: the sidecar is read before it
+    is removed, so a runner publishing in between can still lose its own.
+    Such a verdict has no sidecar, so _judged_prompt re-opens it and
+    template_version_problems refuses it.
     """
     verdict_path = case_dir / "verdict.json"
     if _read_or_none(verdict_path) == verdict:
