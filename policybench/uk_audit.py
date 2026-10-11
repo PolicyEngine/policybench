@@ -737,6 +737,24 @@ UK_AUDIT_STRATA: tuple[Stratum, ...] = (
 )
 
 
+def _born_before_the_year(person: Person, year: int) -> Person:
+    """Keep every date of birth before the fiscal year starts.
+
+    The transfer path places a person within their year of age with a seeded
+    date of birth, so a baby aged 0 can be born after 6 April of the fiscal
+    year. The prompt says its facts hold for the whole year, which a birth
+    during the year contradicts: Child Benefit and the Universal Credit child
+    element would start at the birth, while the reference pays the whole
+    year. A later date moves back one year, so the child is under one at the
+    start of the year.
+    """
+    dob = _date_of_birth(person)
+    year_start = year * 10000 + 406
+    if dob is None or dob < year_start:
+        return person
+    return _with_person_inputs(person, date_of_birth=float(dob - 10000))
+
+
 def _scenario_for(
     household_id: int,
     person_df: pd.DataFrame,
@@ -753,9 +771,17 @@ def _scenario_for(
     adults, children = [], []
     for _, row in members.iterrows():
         if int(row["age"]) >= 18:
-            adults.append(_build_uk_person(row, f"adult{len(adults) + 1}"))
+            adults.append(
+                _born_before_the_year(
+                    _build_uk_person(row, f"adult{len(adults) + 1}"), year
+                )
+            )
         else:
-            children.append(_build_uk_person(row, f"child{len(children) + 1}"))
+            children.append(
+                _born_before_the_year(
+                    _build_uk_person(row, f"child{len(children) + 1}"), year
+                )
+            )
     metadata: dict[str, Any] = {
         "household_id": int(household_id),
         "stratum": stratum,

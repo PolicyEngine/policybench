@@ -392,3 +392,34 @@ def test_uk_audit_sample_cli(tmp_path, monkeypatch, capsys):
     cli.main()
     assert calls == [(str(out), uk_audit.UK_AUDIT_SEED)]
     assert "UK audit sample saved" in capsys.readouterr().out
+
+
+def test_no_one_is_born_during_the_fiscal_year(sample):
+    for scenario in sample:
+        for person in scenario.all_people:
+            dob = person.inputs.get("date_of_birth")
+            if dob is not None:
+                assert int(dob) < 20260406
+
+
+def test_born_during_the_year_moves_back_a_year():
+    baby = Person(
+        name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20260710}
+    )
+    assert (
+        uk_audit._born_before_the_year(baby, 2026).inputs["date_of_birth"] == 20250710
+    )
+    older = Person(
+        name="child1", age=0, employment_income=0, inputs={"date_of_birth": 20260101}
+    )
+    assert uk_audit._born_before_the_year(older, 2026) == older
+
+
+def test_uk_losses_render_with_the_sign_first():
+    from policybench.prompts import _format_input_line
+
+    line = _format_input_line("self_employment_income", -6756.0, country="uk")
+    assert line == "- self-employment income: -£6,756"
+    assert _format_input_line("self_employment_income", -50.0, country="us").endswith(
+        "$-50"
+    )

@@ -431,7 +431,11 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
         return f"- {label}: {float(value):,.0f}"
     if field.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
         return f"- {label}: {float(value):,.4g}"
-    return f"- {label}: {_currency_symbol(country)}{float(value):,.0f}"
+    amount = float(value)
+    if country == "uk" and amount < 0:
+        # "-£6,756", not "£-6,756".
+        return f"- {label}: -{_currency_symbol(country)}{abs(amount):,.0f}"
+    return f"- {label}: {_currency_symbol(country)}{amount:,.0f}"
 
 
 def _person_heading(person: Person, country: str = "us") -> str:
