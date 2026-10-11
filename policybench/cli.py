@@ -546,6 +546,11 @@ def main():
         action="store_true",
         help="Only write the combined payload under the run directory",
     )
+    export_parser.add_argument(
+        "--program-set",
+        default=None,
+        help="Output set the run asked for (default: headline)",
+    )
 
     # Failure audit (Codex-backed classifier)
     audit_prepare_parser = subparsers.add_parser(
@@ -1034,6 +1039,11 @@ def main():
     )
     run_parser.add_argument("--max-workers", type=int, default=4)
     run_parser.add_argument(
+        "--program-set",
+        default=None,
+        help="Benchmark output set the workers request (default: headline)",
+    )
+    run_parser.add_argument(
         "--max-rounds",
         type=int,
         default=4,
@@ -1052,6 +1062,16 @@ def main():
     onboard_parser.add_argument(
         "--report-output", default=None, help="Optional path for the report"
     )
+
+    uk_audit_parser = subparsers.add_parser(
+        "uk-audit-sample",
+        help="Draw the stratified UK household sample for the policyengine-uk "
+        "audit and write its scenario manifest",
+    )
+    uk_audit_parser.add_argument(
+        "-o", "--output", default="results/local/uk_audit/scenarios.csv"
+    )
+    uk_audit_parser.add_argument("--seed", type=int, default=None)
 
     fold_parser = subparsers.add_parser(
         "fold-board",
@@ -1103,6 +1123,16 @@ def main():
         from policybench.cache import enable_cache
 
         enable_cache()
+
+    if args.command == "uk-audit-sample":
+        from policybench.uk_audit import UK_AUDIT_SEED, write_uk_audit_sample
+
+        meta = write_uk_audit_sample(
+            args.output, seed=UK_AUDIT_SEED if args.seed is None else args.seed
+        )
+        print(json.dumps(meta["counts"], indent=1))
+        print(f"UK audit sample saved to {args.output}")
+        return
 
     if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
@@ -1211,6 +1241,7 @@ def main():
                 budget_usd=args.budget_usd,
                 max_workers=args.max_workers,
                 max_rounds=args.max_rounds,
+                program_set=args.program_set,
             )
             state = supervisor.run()
         except ValueError as exc:
@@ -1389,6 +1420,7 @@ def main():
                 reference_digest=parse_reference_digest_args(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
+                program_set=args.program_set,
             )
         except (FileNotFoundError, ReferenceProvenanceError) as exc:
             raise SystemExit(str(exc)) from exc

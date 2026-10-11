@@ -436,7 +436,7 @@ def test_no_tools_prompt_supports_uk_households(uk_scenario):
     assert "head:" not in prompt_lower
     assert "household total annual uk income tax liability" in prompt_lower
     assert "excluding capital gains tax" in prompt_lower
-    assert "tenure: rent privately" in prompt_lower
+    assert "tenure: renting privately" in prompt_lower
     assert "£42,000" in prompt
     assert "£14,400" in prompt
     assert "currency amount" in prompt_lower

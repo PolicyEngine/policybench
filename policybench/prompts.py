@@ -1,5 +1,7 @@
 """Prompt templates for PolicyBench evaluations."""
 
+from functools import lru_cache
+
 from policybench.scenarios import (
     RATE_OR_RATIO_FIELD_SUFFIXES,
     Person,
@@ -188,8 +190,19 @@ INPUT_LABEL_OVERRIDES = {
     "workers_compensation": "workers' compensation",
     "capital_gains_before_response": "capital gains",
     "communication_consumption": "communication spending",
-    "council_tax": "Council Tax",
+    "council_tax": (
+        "annual Council Tax liability (after the single person discount, if "
+        "any; before Council Tax Reduction)"
+    ),
     "council_tax_band": "Council Tax band",
+    "local_authority": "council (local authority)",
+    "aa_category": "Attendance Allowance award",
+    "care_hours": "hours a week spent caring for the other adult in the household",
+    "childcare_expenses": "annual childcare costs",
+    "tax_free_childcare_uses_qualifying_provider": (
+        "childcare provider is registered or approved (qualifies for "
+        "Tax-Free Childcare)"
+    ),
     "corporate_wealth": "corporate financial wealth",
     "dividend_income": "dividend income",
     "education_consumption": "education spending",
@@ -230,7 +243,7 @@ INPUT_LABEL_OVERRIDES = {
     "savings": "savings",
     "savings_interest_income": "savings interest income",
     "state_pension": "State Pension income",
-    "state_pension_reported": "reported State Pension income",
+    "state_pension_reported": "State Pension (amount for 2026-27)",
     "tenure_type": "tenure",
     "transport_consumption": "transport spending",
     "selected_marketplace_plan_benchmark_ratio": ("selected Marketplace plan premium"),
@@ -239,6 +252,7 @@ INPUT_LABEL_OVERRIDES = {
 
 
 NON_MONETARY_NUMERIC_FIELDS = {
+    "care_hours",
     "months_since_last_birthday",
     "age_started_or_accepted_current_education_or_training",
     "weekly_hours_worked",
@@ -294,6 +308,38 @@ UK_EDUCATION_DESCRIPTIONS = {
     ),
     "TERTIARY": "advanced (higher) education",
 }
+
+
+# UK category values in words. Others print title-cased.
+UK_VALUE_DESCRIPTIONS = {
+    ("tenure_type", "OWNED_OUTRIGHT"): "owned outright",
+    ("tenure_type", "OWNED_WITH_MORTGAGE"): "owned with a mortgage",
+    ("tenure_type", "RENT_PRIVATELY"): "renting privately",
+    ("tenure_type", "RENT_FROM_COUNCIL"): "renting from the council",
+    ("tenure_type", "RENT_FROM_HA"): "renting from a housing association",
+    ("aa_category", "LOWER"): "lower rate",
+    ("aa_category", "HIGHER"): "higher rate",
+}
+
+
+@lru_cache(maxsize=1)
+def _uk_local_authority_names() -> dict[str, str]:
+    """PE-UK's names for councils ("Bristol, City of"), keyed by enum name."""
+    try:
+        from policyengine_uk.variables.household.demographic.locations import (
+            LocalAuthority,
+        )
+    except ImportError:
+        return {}
+    return {member.name: member.value for member in LocalAuthority}
+
+
+def _uk_value_description(field: str, value: str) -> str | None:
+    if (field, value) in UK_VALUE_DESCRIPTIONS:
+        return UK_VALUE_DESCRIPTIONS[(field, value)]
+    if field == "local_authority":
+        return _uk_local_authority_names().get(value)
+    return None
 
 
 def _currency_symbol(country: str) -> str:
@@ -375,6 +421,9 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
     if field == "current_education" and value in UK_EDUCATION_DESCRIPTIONS:
         return f"- {label}: {UK_EDUCATION_DESCRIPTIONS[value]}"
     if isinstance(value, str):
+        described = _uk_value_description(field, value) if country == "uk" else None
+        if described is not None:
+            return f"- {label}: {described}"
         return f"- {label}: {value.replace('_', ' ').title()}"
     if field == "selected_marketplace_plan_benchmark_ratio":
         return _format_marketplace_plan_ratio(float(value))
@@ -382,7 +431,11 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
         return f"- {label}: {float(value):,.0f}"
     if field.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
         return f"- {label}: {float(value):,.4g}"
-    return f"- {label}: {_currency_symbol(country)}{float(value):,.0f}"
+    amount = float(value)
+    if country == "uk" and amount < 0:
+        # "-£6,756", not "£-6,756".
+        return f"- {label}: -{_currency_symbol(country)}{abs(amount):,.0f}"
+    return f"- {label}: {_currency_symbol(country)}{amount:,.0f}"
 
 
 def _person_heading(person: Person, country: str = "us") -> str:

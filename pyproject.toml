@@ -13,10 +13,10 @@ requires-python = ">=3.11"
 dependencies = [
     "litellm[caching]>=1.30",
     "pandas>=2.0",
-    "numpy>=1.24",
+    "numpy>=1.25",  # Generator.spawn (policybench.uk_audit)
     "policyengine==6.1.2",
     "policyengine-us==2.38.6",
-    "policyengine-uk==2.125.1",
+    "policyengine-uk==2.126.7",
     "anthropic>=0.115.1",
     "google-genai>=2.10.0",
 ]
@@ -42,7 +42,7 @@ policybench = "policybench.cli:main"
 include = ["policybench*"]
 
 [tool.setuptools.package-data]
-policybench = ["benchmark_specs.json", "population_weights.json"]
+policybench = ["benchmark_specs.json", "population_weights.json", "uk_audit_councils.csv"]
 
 [tool.ruff]
 line-length = 88

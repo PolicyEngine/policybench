@@ -196,6 +196,11 @@ EXCLUDED_INPUT_SUFFIXES = (
 
 PROMPTABLE_REPORTED_INPUTS = {
     "employee_pension_contributions_reported",
+    # A household simulated on its own has no dataset year, so PE-UK reads
+    # this as the State Pension for the period itself (new_state_pension,
+    # basic_state_pension and additional_state_pension split it at that
+    # year's rates). The prompt states it as the 2026-27 amount.
+    "state_pension_reported",
 }
 
 INPUT_NAME_ALIASES = {
@@ -670,14 +675,18 @@ class Scenario:
                     f"{self.id} {person.name}: inputs the prompt does not show: "
                     f"{hidden}"
                 )
+            is_adult = person.name.startswith("adult")
             person_data = {
                 "age": self._yearize(person.age),
                 # The stored wage leaf; employment_income adds the (zero)
                 # labour-supply response to it, as in the microsimulation.
                 "employment_income_before_lsr": self._yearize(person.employment_income),
-                "is_claimant_or_partner": self._yearize(
-                    person.name.startswith("adult")
-                ),
+                "is_claimant_or_partner": self._yearize(is_adult),
+                # The prompt says the children are the adults' dependents.
+                # PE-UK reads is_parent as an input that defaults to false,
+                # and Tax-Free Childcare tests only parents' income, so the
+                # adults are stated as parents whenever there are children.
+                "is_parent": self._yearize(is_adult and bool(self.children)),
             }
             for key, value in person.inputs.items():
                 if key == "date_of_birth":
@@ -1641,6 +1650,11 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
         if col == "current_education" and int(row["age"]) not in (
             UK_EDUCATION_PROMPT_AGES
         ):
+            continue
+        # The transfer path states the State Pension PE-UK computes
+        # (state_pension, in UK_COMPUTED_PERSON_INPUTS); stating the reported
+        # amount as well would show two State Pension lines.
+        if col == "state_pension_reported":
             continue
         promptable = _uk_promptable_value(value)
         if promptable is not None:

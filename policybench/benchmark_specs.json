@@ -311,6 +311,167 @@
                     }
                 ]
             }
+        },
+        "uk_audit": {
+            "description": "Internal policyengine-uk audit (round 2, October 2026): the UK headline outputs plus the High Income Child Benefit Charge, Carer's Allowance, Attendance Allowance, Housing Benefit, Council Tax Reduction, Tax-Free Childcare and Scottish Child Payment. Not a public board.",
+            "countries": {
+                "uk": [
+                    {
+                        "id": "income_tax",
+                        "pe_variable": "income_tax",
+                        "label": "Income Tax",
+                        "prompt": "household total annual UK Income Tax liability after allowances and reliefs, excluding Capital Gains Tax",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "national_insurance",
+                        "pe_variable": "national_insurance",
+                        "label": "National Insurance",
+                        "prompt": "household total annual UK National Insurance contributions, excluding employer National Insurance",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "capital_gains_tax",
+                        "pe_variable": "capital_gains_tax",
+                        "label": "Capital Gains Tax",
+                        "prompt": "household total annual UK Capital Gains Tax. Compute it separately from Income Tax. UK has no short-term versus long-term capital gains distinction; treat any listed capital gains as ordinary net chargeable gains before the annual exempt amount, excluding carried interest and special reliefs unless explicitly stated. Sum across household members",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "child_benefit",
+                        "pe_variable": "child_benefit",
+                        "label": "Child Benefit",
+                        "prompt": "household total annual gross Child Benefit amount for qualifying children and young people before the High Income Child Benefit Charge; assume eligible households take up the benefit and do not require stated benefit receipt; do not apply an income test or tax-charge reduction to this output; do not subtract HICBC here because it is included in Income Tax, so report gross Child Benefit even when HICBC would recover it through tax",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "universal_credit",
+                        "pe_variable": "universal_credit",
+                        "label": "Universal Credit",
+                        "prompt": "household total annual Universal Credit amount; assume eligible households take up the benefit and do not require stated benefit receipt",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "pension_credit",
+                        "pe_variable": "pension_credit",
+                        "label": "Pension Credit",
+                        "prompt": "annual Pension Credit amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "pip",
+                        "pe_variable": "pip",
+                        "label": "Personal Independence Payment",
+                        "prompt": "annual Personal Independence Payment (PIP) amount",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "high_income_child_benefit_charge",
+                        "pe_variable": "CB_HITC",
+                        "label": "High Income Child Benefit Charge",
+                        "prompt": "household total annual High Income Child Benefit Charge on the Child Benefit the household receives (0 if none). The Income Tax output includes this charge; report the charge here on its own as well",
+                        "metric_type": "amount",
+                        "role": "tax",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": -1
+                    },
+                    {
+                        "id": "carers_allowance",
+                        "pe_variable": "carers_allowance",
+                        "label": "Carer's Allowance",
+                        "prompt": "household total annual Carer's Allowance payable, after any reduction for an overlapping benefit such as the State Pension; assume anyone entitled claims it",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "attendance_allowance",
+                        "pe_variable": "attendance_allowance",
+                        "label": "Attendance Allowance",
+                        "prompt": "household total annual Attendance Allowance",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "housing_benefit",
+                        "pe_variable": "housing_benefit",
+                        "label": "Housing Benefit",
+                        "prompt": "household total annual Housing Benefit; assume anyone entitled claims it",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "council_tax_reduction",
+                        "pe_variable": "council_tax_reduction",
+                        "label": "Council Tax Reduction",
+                        "prompt": "household total annual Council Tax Reduction (council tax support) under the scheme of the household's council, as a reduction in the stated Council Tax bill; assume anyone entitled claims it",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "tax_free_childcare",
+                        "pe_variable": "tax_free_childcare",
+                        "label": "Tax-Free Childcare",
+                        "prompt": "household total annual government top-up paid through Tax-Free Childcare for the stated childcare costs; assume the household claims every benefit it is entitled to, including Universal Credit, and that an eligible family opens an account and pays all the stated childcare costs through it",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    },
+                    {
+                        "id": "scottish_child_payment",
+                        "pe_variable": "scottish_child_payment",
+                        "label": "Scottish Child Payment",
+                        "prompt": "household total annual Scottish Child Payment; assume anyone entitled claims it",
+                        "metric_type": "amount",
+                        "role": "benefit",
+                        "output_set": "headline",
+                        "aggregation": "sum",
+                        "net_income_sign": 1
+                    }
+                ]
+            }
         }
     }
 }
