@@ -1,8 +1,11 @@
 """Prompt templates for PolicyBench evaluations."""
 
 from policybench.scenarios import (
+    RATE_OR_RATIO_FIELD_SUFFIXES,
     Person,
     Scenario,
+    canonical_uk_person,
+    canonical_uk_scenario,
     is_excluded_prompt_input_name,
 )
 from policybench.spec import find_output_spec, parse_person_output
@@ -87,7 +90,25 @@ INPUT_LABEL_OVERRIDES = {
     "early_withdrawal_penalty": "early withdrawal penalty",
     "educator_expense": "educator expense",
     "employment_income": "gross wages and salaries",
-    "employee_pension_contributions_reported": "employee pension contributions",
+    # PE-UK deducts both kinds of contribution from taxable income and
+    # neither from adjusted net income, which sets the High Income Child
+    # Benefit Charge and the personal allowance taper (policyengine-uk
+    # #2243). Relief at source works differently (the provider claims basic
+    # rate relief), so the labels state the convention the reference
+    # follows rather than a method it does not.
+    "employee_pension_contributions_reported": (
+        "employee pension contributions (net pay arrangement: taken from pay "
+        "before income tax; benchmark convention: not deducted from adjusted "
+        "net income)"
+    ),
+    "personal_pension_contributions": (
+        "personal pension contributions (gross amount; benchmark convention: "
+        "deducted from taxable income, not from adjusted net income)"
+    ),
+    "uc_is_in_gainful_self_employment": (
+        "determined to be in gainful self-employment for Universal Credit"
+    ),
+    "months_since_last_birthday": "months since last birthday",
     "estate_income": "estate income",
     "excess_withheld_payroll_tax": "excess withheld payroll tax",
     "farm_income": "farm income",
@@ -157,6 +178,13 @@ INPUT_LABEL_OVERRIDES = {
     ),
     "veterans_benefits": "veterans benefits",
     "weekly_hours_worked": "hours worked per week",
+    "hours_worked": "annual hours worked",
+    "current_education": "current education",
+    "brma": "Broad Rental Market Area (for the Local Housing Allowance)",
+    "age_started_or_accepted_current_education_or_training": (
+        "age when the current education or training began"
+    ),
+    "date_of_birth": "date of birth",
     "workers_compensation": "workers' compensation",
     "capital_gains_before_response": "capital gains",
     "communication_consumption": "communication spending",
@@ -211,6 +239,8 @@ INPUT_LABEL_OVERRIDES = {
 
 
 NON_MONETARY_NUMERIC_FIELDS = {
+    "months_since_last_birthday",
+    "age_started_or_accepted_current_education_or_training",
     "weekly_hours_worked",
     "hours_worked_last_week",
     "hours_worked",
@@ -218,10 +248,52 @@ NON_MONETARY_NUMERIC_FIELDS = {
     "weeks_unemployed",
 }
 
-RATE_OR_RATIO_FIELD_SUFFIXES = (
-    "_rate",
-    "_ratio",
+# PE-UK reads ``is_disabled_for_benefits`` as an adult's limited capability for
+# work and work-related activity, and as a child's entitlement to the lower
+# rate disabled child addition. PE-UK treats every such adult as having held
+# the element before 6 April 2026 when a household is simulated on its own.
+UK_DISABILITY_LABELS = {
+    "adult": (
+        "assessed as having limited capability for work and work-related "
+        "activity (LCWRA); if entitled to Universal Credit, the award has "
+        "included the LCWRA element since before 6 April 2026"
+    ),
+    "child": "is disabled (lower rate disabled child addition in Universal Credit)",
+}
+
+MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 )
+
+
+def _format_yyyymmdd(value) -> str:
+    number = int(value)
+    year, month, day = number // 10000, number // 100 % 100, number % 100
+    return f"{day} {MONTH_NAMES[month - 1]} {year}"
+
+
+# PE-UK enrolment stages, described in the terms the qualifying-young-person
+# rules use (non-advanced versus advanced education).
+UK_EDUCATION_DESCRIPTIONS = {
+    "NOT_IN_EDUCATION": "not in education or training",
+    "UPPER_SECONDARY": "secondary school",
+    "POST_SECONDARY": (
+        "full-time non-advanced education (school or college, below "
+        "higher-education level)"
+    ),
+    "TERTIARY": "advanced (higher) education",
+}
 
 
 def _currency_symbol(country: str) -> str:
@@ -298,6 +370,10 @@ def _format_input_line(field: str, value, country: str = "us") -> str:
         if value:
             return f"- {label}"
         return f"- {label}: no"
+    if field == "date_of_birth":
+        return f"- {label}: {_format_yyyymmdd(value)}"
+    if field == "current_education" and value in UK_EDUCATION_DESCRIPTIONS:
+        return f"- {label}: {UK_EDUCATION_DESCRIPTIONS[value]}"
     if isinstance(value, str):
         return f"- {label}: {value.replace('_', ' ').title()}"
     if field == "selected_marketplace_plan_benchmark_ratio":
@@ -315,6 +391,9 @@ def _person_heading(person: Person, country: str = "us") -> str:
 
 def describe_person(person: Person, country: str = "us") -> str:
     """Create a structured description of a person."""
+    if country == "uk":
+        # The same canonical person the UK reference is built from.
+        person = canonical_uk_person(person)
     lines = [
         f"{_person_heading(person, country=country)}:",
         f"- age: {person.age}",
@@ -330,6 +409,10 @@ def describe_person(person: Person, country: str = "us") -> str:
 
     for field, value in sorted(person.inputs.items()):
         if is_excluded_prompt_input_name(field):
+            continue
+        if country == "uk" and field == "is_disabled_for_benefits" and value:
+            role = "adult" if person.name.startswith("adult") else "child"
+            lines.append(f"- {UK_DISABILITY_LABELS[role]}")
             continue
         lines.append(_format_input_line(field, value, country=country))
 
@@ -353,6 +436,9 @@ def _describe_entity_inputs(
 
 def describe_household(scenario: Scenario) -> str:
     """Create a structured description of a household."""
+    # The UK reference starts from the same canonical scenario, so the prompt
+    # and the reference state the same facts however the scenario was built.
+    scenario = canonical_uk_scenario(scenario)
     period_label = (
         f"UK fiscal year: {scenario.year}-{str(scenario.year + 1)[-2:]}"
         if scenario.country == "uk"
@@ -374,7 +460,8 @@ def describe_household(scenario: Scenario) -> str:
                 [
                     "Household structure:",
                     "- all listed people live together in one UK benefit unit",
-                    "- if two adults are listed, Adult 1 and Adult 2 are a couple",
+                    "- if two adults are listed, Adult 1 and Adult 2 are a couple, "
+                    "not married or in a civil partnership",
                     (
                         "- children and qualifying young people are dependents, "
                         "not partners"

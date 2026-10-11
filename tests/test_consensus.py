@@ -887,3 +887,25 @@ def test_models_exact_agrees_with_the_board_scorer(consensus):
         cell = _frozen()["scenarioPredictions"][flag["scenario_id"]][flag["variable"]]
         hits = sum(entry["exact"] == 100.0 for entry in cell.values())
         assert flag["models_exact"] == hits, (flag["scenario_id"], flag["variable"])
+
+
+def test_load_payload_reads_the_requested_country(tmp_path):
+    from policybench.consensus import load_payload
+
+    us = make_payload(
+        ["a", "b"], {("scenario_001", "snap"): (5.0, True, {"a": 1.0, "b": 1.0})}
+    )
+    uk = dict(us, country="uk")
+    us = dict(us, country="us")
+    release = tmp_path / "release.json"
+    release.write_text(json.dumps({"countries": {"us": us, "uk": uk}}))
+    uk_only = tmp_path / "uk.json"
+    uk_only.write_text(json.dumps(uk))
+
+    assert load_payload(release, "uk") == uk
+    assert load_payload(release, "us") == us
+    assert load_payload(uk_only, "uk") == uk
+    with pytest.raises(ValueError, match="not 'us'"):
+        load_payload(uk_only, "us")
+    with pytest.raises(ValueError, match="country must be one of"):
+        load_payload(uk_only, "fr")

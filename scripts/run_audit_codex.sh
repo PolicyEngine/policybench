@@ -12,9 +12,13 @@
 #
 # Judge provenance: beside each verdict.json the runner writes verdict.meta.json
 # (the same sidecar scripts/run_audit_claude.sh writes) with the model Codex
-# reports in its log header, the model requested, the UTC timestamp, and the
+# reports in its log header, the model requested, the UTC timestamp, the
 # verdict's sha256, so a re-judged case can never keep the other runner's
-# provenance.
+# provenance, and the bytes Codex judged: a private copy of prompt.md, taken
+# before it runs, whose sha256 the sidecar records as prompt_sha256 and whose
+# judge template version it records as judge_template_version
+# (policybench.judge_template; null for a prompt audit-prepare did not render).
+# A verdict is not published if prompt.md no longer holds those bytes.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -72,8 +76,23 @@ classify_one() {
   # temp file and publish atomically only once it validates, so an interrupted
   # run never leaves a half-written verdict that looks done. Default reasoning
   # effort (xhigh) is wasteful for classification, so it is lowered. A sidecar
-  # left from a previous verdict describes a verdict that no longer exists.
-  rm -f "$tmp" "$case_dir/verdict.meta.json"
+  # left from a previous verdict describes a verdict that no longer exists,
+  # and an invalid verdict.json goes too, so no verdict sits beside this
+  # run's sidecar until this run's verdict is published: audit-prepare
+  # removes a sidecar only together with the verdict it describes.
+  rm -f "$tmp" "$out" "$case_dir/verdict.meta.json"
+  # Codex reads a private copy, so the sidecar describes the bytes it judged
+  # even if audit-prepare rewrites prompt.md meanwhile.
+  judged=$(mktemp "${TMPDIR:-/tmp}/pb-codex-prompt.XXXXXX") || {
+    echo "[FAIL] $(basename "$case_dir") (cannot copy prompt.md)"; return 0; }
+  # Each case runs in its own background subshell: a worker terminated
+  # mid-case still removes its copy.
+  trap 'rm -f "$judged"' EXIT
+  trap 'rm -f "$judged"; exit 143' TERM
+  trap 'rm -f "$judged"; exit 130' INT
+  cp "$prompt" "$judged" || {
+    rm -f "$judged"; echo "[FAIL] $(basename "$case_dir") (cannot copy prompt.md)"
+    return 0; }
   codex exec \
     --sandbox read-only \
     --skip-git-repo-check \
@@ -83,26 +102,48 @@ classify_one() {
     -c model_reasoning_effort="$EFFORT" \
     --output-schema "$SCHEMA" \
     -o "$tmp" \
-    - < "$prompt" > "$case_dir/codex.log" 2>&1
+    - < "$judged" > "$case_dir/codex.log" 2>&1
   if verdict_ok "$tmp" && write_provenance "$tmp" "$case_dir/codex.log" \
-      "$case_dir/verdict.meta.json.tmp"; then
-    mv -f "$tmp" "$out"
+      "$case_dir/verdict.meta.json.tmp" "$judged" "$prompt"; then
+    # The sidecar first: an interrupted publish leaves at most a sidecar
+    # without a verdict, which the next run removes, and never a verdict
+    # without its sidecar, which audit-prepare would read as a legacy v1
+    # verdict with no record of the bytes its judge read.
     mv -f "$case_dir/verdict.meta.json.tmp" "$case_dir/verdict.meta.json"
+    mv -f "$tmp" "$out"
     echo "[ok] $(basename "$case_dir")"
   else
     rm -f "$tmp" "$case_dir/verdict.meta.json.tmp"
     echo "[FAIL] $(basename "$case_dir") (see codex.log)"
   fi
+  rm -f "$judged"
 }
 
 # Provenance sidecar for a validated verdict: the model Codex reports in its
 # log header (`model: ...`), the model requested (or "default"), the UTC time,
-# and the verdict's sha256 so the sidecar cannot outlive the verdict it describes.
+# the verdict's sha256 so the sidecar cannot outlive the verdict it describes,
+# and the sha256 and judge template version of the copy Codex judged. Fails,
+# so the verdict is not published, when prompt.md no longer holds that copy's
+# bytes.
 write_provenance() {
-  verdict_path="$1"; log_path="$2"; meta_out="$3"
-  "$PYTHON" - "$verdict_path" "$log_path" "$meta_out" "${AUDIT_MODEL:-default}" <<'PY'
+  verdict_path="$1"; log_path="$2"; meta_out="$3"; judged_path="$4"
+  prompt_path="$5"
+  "$PYTHON" - "$verdict_path" "$log_path" "$meta_out" "${AUDIT_MODEL:-default}" \
+    "$judged_path" "$prompt_path" "$SCRIPT_DIR" <<'PY'
 import datetime, hashlib, json, re, sys
-verdict_path, log_path, meta_out, requested = sys.argv[1:5]
+from pathlib import Path
+(verdict_path, log_path, meta_out, requested, judged_path, prompt_path,
+ script_dir) = sys.argv[1:8]
+sys.path.insert(0, str(Path(script_dir).resolve().parent))
+from policybench.judge_template import template_version_of
+judged = open(judged_path, "rb").read()
+try:
+    live = open(prompt_path, "rb").read()
+except OSError:
+    live = None
+if live != judged:
+    print("prompt.md changed while Codex judged it", file=sys.stderr)
+    sys.exit(1)
 verdict = open(verdict_path, "rb").read()
 reported = []
 try:
@@ -117,6 +158,9 @@ meta = {
     "judge_model_requested": requested,
     "judge_model_reported": reported,
     "judged_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    # The exact bytes Codex read on stdin, copied before it ran.
+    "prompt_sha256": hashlib.sha256(judged).hexdigest(),
+    "judge_template_version": template_version_of(judged),
 }
 json.dump(meta, open(meta_out, "w"), indent=2, sort_keys=True)
 PY

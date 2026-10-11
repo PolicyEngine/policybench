@@ -90,7 +90,7 @@ If Max rules instead that the convention takes the amount published before the f
 ## Method
 
 1. **Sweep.** `scripts/sweep_la_standard_deduction.py` rebuilds every household with `Scenario.to_pe_household` and computes every output on policyengine-us 2.15.17 with `latest_final`. Its baseline reproduces all 1,928 scored references. It then reruns every household with the Louisiana 2026 amounts set to each candidate, joint at 200%. Outputs: `verification/sweep_la_standard_deduction.csv`, `verification/sweep_la_households.json` (each Louisiana household's AGI, deduction, taxable income and tax under each candidate) and the log.
-2. **Score.** `scripts/leaderboard_impact.py` copies the frozen run to scratch directories and never writes the snapshot. For each option it rewrites the two reference values (and the copy's reference digest) or appends the two outputs to the exclusion record. It scores each copy with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy reproduces the published payload's scoring field for field. Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv` and the log.
+2. **Score.** `scripts/leaderboard_impact.py` copies the frozen run to scratch directories and never writes the snapshot. It reads the run and the sweep's values from git at the pass's commits, not from the working tree ([Pinned inputs](#pinned-inputs)). For each option it rewrites the two reference values (and the copy's reference digest) or appends the two outputs to the exclusion record. It scores each copy with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy reproduces the published payload's scoring field for field. Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv` and the log, which is its standard output.
 3. **Module check.** `scripts/verify_convention_module.py` recomputes all 1,984 outputs with `fixes/latest_final_la.py` and compares each with the sweep's `ldr_published` column; they agree on every output. policyengine-us applies a reform set twice (before uprating and again with its structural reforms), so the module's guard accepts the engine's value or its own.
 4. **Tests.** `tests/test_la_standard_deduction_audit.py` checks these records without loading the engine:
    - the baseline matches every scored reference, and the candidates move only the two outputs;
@@ -103,3 +103,39 @@ If Max rules instead that the convention takes the amount published before the f
 Louisiana's withholding proxy (`la_withheld_income_tax`) subtracts the federal standard deduction, so the Louisiana amount does not reach the federal SALT deduction. The three other Louisiana households (038, 057, 074) have Louisiana AGI below the deduction under every candidate.
 
 Engine: `results/local/adds202609/triage/.venv-pe21517` (policyengine-us 2.15.17).
+
+## Pinned inputs
+
+This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then excluded eight more outputs and rewrote the run's payload and exclusion record. On that working tree the unpinned impact script exited 0 after rewriting both evidence files. Every option scored eight fewer outputs than in the pass (1,920 instead of 1,928, and 1,918 instead of 1,926 for `exclude`), and the top-five lists and rank changes moved.
+
+Each script below now takes every file it reads from git with `git show <commit>:<path>`. It stops before scoring or writing anything unless each file's sha256 matches its pin, and it never reads the working tree. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+
+### `scripts/leaderboard_impact.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/data.json.gz` | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` |
+| `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` |
+| `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` |
+| `<run>/reference_outputs.csv.meta.json` | `8b4c0ca1` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` |
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `<run>/scenarios.csv` | `8b4c0ca1` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` |
+| `<run>/scenarios.csv.meta.json` | `8b4c0ca1` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` |
+| `verification/sweep_la_standard_deduction.csv` | `9ce4ade8` | `406bceb71581dfe676722740bd588896e2b72ef1baa74b4975d80b1ca851a8e0` |
+
+It stages each file under `<scratch>/pass_inputs/<path>` and reads only that copy. `verification/sweep_la_standard_deduction.csv` is the sweep's output (step 1); the score step reads the candidates' values from it.
+
+### Reproduce
+
+The scoring code is the checkout's. The impact script's check on its unchanged copy stops it if that code no longer scores the pinned run as the pinned payload records. The scripts run from any checkout that has both commits in its history; a shallow clone needs `git fetch --unshallow` first:
+
+```bash
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05-louisiana/scripts/leaderboard_impact.py --scratch <dir outside the repository> \
+  > reference_audit/2026-10-05-louisiana/verification/leaderboard_impact.log
+```
+
+`--out-dir <dir>` writes the files elsewhere. `tests/test_reference_audit_pins.py` checks the pins, that a changed byte in any input is refused, and that no script reads the working tree. Its slow test regenerates `leaderboard_impact.json` and `leaderboard_impact_models.csv` from this checkout, whose run #202 rewrote, and requires the committed files, and the log, byte for byte. The slow test takes one to two minutes per audit, so CI deselects it:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_audit_pins.py
+```

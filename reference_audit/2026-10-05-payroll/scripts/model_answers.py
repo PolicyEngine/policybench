@@ -17,14 +17,29 @@ bands the board uses) against two references:
 The published-reference scores must equal the payload's own per-row ``exact`` field; the
 script stops if any differs.
 
+Reads the pass's inputs from git, never from the working tree: the published payload
+as PASS_COMMIT (release dashboard-data-20260930, #187) holds it, and this audit's
+decomposition and classification as AUDIT_COMMIT (#202, which merged this audit)
+holds them. Each must match its pinned sha256 in INPUTS, or the script stops before
+writing anything. Release dashboard-data-20261006 (#202) excluded the four outputs,
+so its payload marks their rows unscored and the answers table would change.
+
   PYTHONPATH=<checkout> <policybench venv>/bin/python \\
     reference_audit/2026-10-05-payroll/scripts/model_answers.py
+
+``--out-dir`` writes model_answers.csv and model_answers_summary.json elsewhere;
+tests/test_reference_audit_pins.py regenerates them that way and requires the
+committed ones byte for byte.
 """
 
 from __future__ import annotations
 
+import argparse
 import gzip
+import hashlib
+import io
 import json
+import subprocess
 from pathlib import Path
 
 import pandas as pd
@@ -33,18 +48,73 @@ from policybench.analysis import row_hit_scores
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
 OUT = HERE / "verification"
 OUTPUT = "payroll_tax"
+# The pass's inputs, pinned by commit and sha256.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+AUDIT_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+RUN_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+)
+AUDIT_PATH = "reference_audit/2026-10-05-payroll"
+DECOMPOSITION_PATH = f"{AUDIT_PATH}/verification/payroll_decomposition.csv"
+CLASSIFICATION_PATH = f"{AUDIT_PATH}/program_classification.json"
+# Every file the script reads from the repository: path -> (commit, sha256).
+INPUTS = {
+    f"{RUN_PATH}/data.json.gz": (
+        PASS_COMMIT,
+        "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18",
+    ),
+    DECOMPOSITION_PATH: (
+        AUDIT_COMMIT,
+        "fa34d6d98b7ea5fa00023ed93946948e48ea728e45702cea222355e008be9cab",
+    ),
+    CLASSIFICATION_PATH: (
+        AUDIT_COMMIT,
+        "282cbf25ce9110a3c5c51873b7ca0e89f1f5ed38592b0c5b51d393f08000089a",
+    ),
+}
+
+
+def git_bytes(commit: str, path: str, pinned: str) -> bytes:
+    """``path`` as ``commit`` holds it, refusing any other bytes."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            f"cannot read {path} at {commit[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    digest = hashlib.sha256(result.stdout).hexdigest()
+    if digest != pinned:
+        raise SystemExit(
+            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
+        )
+    return result.stdout
+
+
+def pass_input(path: str) -> bytes:
+    """The input at ``path``, as INPUTS pins it."""
+    commit, pinned = INPUTS[path]
+    return git_bytes(commit, path, pinned)
 
 
 def main() -> None:
-    payload = json.loads(gzip.decompress((RUN / "data.json.gz").read_bytes()))
-    decomposition = pd.read_csv(OUT / "payroll_decomposition.csv")
-    classification = json.loads((HERE / "program_classification.json").read_text())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT),
+        help="where to write the answer tables (default: %(default)s)",
+    )
+    out_dir = Path(parser.parse_args().out_dir)
+    # Check every pin before reading anything, so a refused input writes nothing.
+    for path in INPUTS:
+        pass_input(path)
+    payload = json.loads(gzip.decompress(pass_input(f"{RUN_PATH}/data.json.gz")))
+    decomposition = pd.read_csv(io.BytesIO(pass_input(DECOMPOSITION_PATH)))
+    classification = json.loads(pass_input(CLASSIFICATION_PATH))
     optional = {
         leaf
         for program in classification["programs"]
@@ -119,8 +189,9 @@ def main() -> None:
             }
         )
     table = pd.DataFrame(rows)
-    table.to_csv(OUT / "model_answers.csv", index=False)
-    (OUT / "model_answers_summary.json").write_text(
+    out_dir.mkdir(parents=True, exist_ok=True)
+    table.to_csv(out_dir / "model_answers.csv", index=False)
+    (out_dir / "model_answers_summary.json").write_text(
         json.dumps({"outputs": summary}, indent=2) + "\n"
     )
     with pd.option_context("display.width", 250, "display.max_columns", 30):

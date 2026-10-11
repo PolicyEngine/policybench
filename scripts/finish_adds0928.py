@@ -47,6 +47,11 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+# The judge template (policybench.judge_template) this driver renders new
+# and re-opened cases on. Its release, RELEASE_TAG, judged every verdict on
+# v1, so re-running the driver reproduces its prompts. A seed case keeps the
+# version its sidecar records.
+JUDGE_TEMPLATE_VERSION = 1
 # main at release dashboard-data-20260922c, whose committed references are the base.
 BASE_COMMIT = "3220a7a62b6be83032e9313c9df539c619ad8932"
 BASE_REFERENCE_SHA256 = {
@@ -492,7 +497,12 @@ def prepare_cases(args, bundle) -> None:
         (str(r.scenario_id), str(r.variable)): str(r.grounding)
         for r in grounding.itertuples()
     }
-    prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+    prepare_audit(
+        bundle / "us",
+        audit,
+        grounding_lookup=lookup,
+        template_version=JUDGE_TEMPLATE_VERSION,
+    )
     pending = validate_verdicts(audit, remove_invalid=True)
     write_json(args.stage_dir / "pending.json", pending)
     print(f"Prepared audit: {len(pending)} cases need Opus 5.5")
