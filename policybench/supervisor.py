@@ -139,8 +139,12 @@ class Supervisor:
         max_rounds: int = 4,
         python: str | None = None,
         env: dict | None = None,
+        program_set: str | None = None,
     ):
         self.model = model
+        # None keeps the configured default set, so existing runs' workload
+        # fingerprints and worker commands are unchanged.
+        self.program_set = program_set
         self.litellm_id = MODELS.get(model, model)
         from policybench.eval_no_tools import _reject_sensitivity_knobs_for_responses
 
@@ -189,7 +193,12 @@ class Supervisor:
 
     def _programs_for(self, index: int) -> list[str]:
         """The output set the worker CLI requests for one scenario's country."""
-        return get_programs(self.scenarios[index].country)
+        return self._programs_for_country(self.scenarios[index].country)
+
+    def _programs_for_country(self, country: str) -> list[str]:
+        if self.program_set is None:
+            return get_programs(country)
+        return get_programs(country, self.program_set)
 
     def _load_initial_request_variables(self) -> list[str]:
         """Expand the first manifest row exactly as the worker CLI will."""
@@ -210,7 +219,7 @@ class Supervisor:
                     {
                         program
                         for scenario in self.scenarios
-                        for program in get_programs(scenario.country)
+                        for program in self._programs_for_country(scenario.country)
                     }
                 )
             ),
@@ -689,6 +698,8 @@ class Supervisor:
             "-o",
             str(out),
         ]
+        if self.program_set is not None:
+            cmd.extend(["--program-set", self.program_set])
         return subprocess.Popen(
             cmd,
             stdout=open(log, "w"),

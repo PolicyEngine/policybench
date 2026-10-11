@@ -1592,6 +1592,41 @@ def test_uk_workers_request_the_uk_country_and_output_set(
     )
 
 
+def test_workers_request_a_named_output_set(uk_manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(uk_manifest, tmp_path, program_set="uk_audit")
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+
+    (cmd,) = launched
+    assert cmd[cmd.index("--program-set") + 1] == "uk_audit"
+    audit = get_programs("uk", "uk_audit")
+    assert supervisor._expected_outputs_for_scenario(0) == audit
+    assert supervisor.initial_request_variables == audit
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256("\n".join(sorted(audit)).encode("utf-8")).hexdigest()
+    )
+
+
+def test_default_output_set_adds_no_worker_flag(uk_manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(uk_manifest, tmp_path)
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+    assert "--program-set" not in launched[0]
+
+
 def test_us_workload_fingerprint_is_unchanged_by_country_awareness(manifest, tmp_path):
     supervisor = make_supervisor(manifest, tmp_path)
     assert (

@@ -196,6 +196,11 @@ EXCLUDED_INPUT_SUFFIXES = (
 
 PROMPTABLE_REPORTED_INPUTS = {
     "employee_pension_contributions_reported",
+    # A household simulated on its own has no dataset year, so PE-UK reads
+    # this as the State Pension for the period itself (new_state_pension,
+    # basic_state_pension and additional_state_pension split it at that
+    # year's rates). The prompt states it as the 2026-27 amount.
+    "state_pension_reported",
 }
 
 INPUT_NAME_ALIASES = {
