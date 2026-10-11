@@ -51,7 +51,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import MODELS, get_programs
 from policybench.model_cards import (
     PROMPT_CONTRACT_VERSION,
     answer_contract_for,
@@ -187,11 +187,15 @@ class Supervisor:
             raise ValueError("Scenario manifest must contain at least one scenario.")
         return scenarios
 
+    def _programs_for(self, index: int) -> list[str]:
+        """The output set the worker CLI requests for one scenario's country."""
+        return get_programs(self.scenarios[index].country)
+
     def _load_initial_request_variables(self) -> list[str]:
         """Expand the first manifest row exactly as the worker CLI will."""
         from policybench.spec import expand_programs_for_scenario
 
-        return expand_programs_for_scenario(PROGRAMS, self.scenarios[0])
+        return expand_programs_for_scenario(self._programs_for(0), self.scenarios[0])
 
     @staticmethod
     def _joined_sha256(values: list[str]) -> str:
@@ -201,7 +205,15 @@ class Supervisor:
         return {
             "manifest_sha256": hashlib.sha256(self.manifest.read_bytes()).hexdigest(),
             "scenario_ids_sha256": self._joined_sha256(self.scenario_ids),
-            "output_set_sha256": self._joined_sha256(sorted(PROGRAMS)),
+            "output_set_sha256": self._joined_sha256(
+                sorted(
+                    {
+                        program
+                        for scenario in self.scenarios
+                        for program in get_programs(scenario.country)
+                    }
+                )
+            ),
             "prompt_contract_version": PROMPT_CONTRACT_VERSION,
         }
 
@@ -211,7 +223,9 @@ class Supervisor:
     def _expected_outputs_for_scenario(self, index: int) -> list[str]:
         from policybench.spec import expand_programs_for_scenario
 
-        return expand_programs_for_scenario(PROGRAMS, self.scenarios[index])
+        return expand_programs_for_scenario(
+            self._programs_for(index), self.scenarios[index]
+        )
 
     def _scenario_complete(self, index: int) -> bool:
         from policybench.eval_no_tools import NO_TOOLS_RESULT_COLUMNS
@@ -310,7 +324,7 @@ class Supervisor:
             task="eval_no_tools_batch",
             scenarios=[self.scenarios[index]],
             models={self.model: self.litellm_id},
-            programs=PROGRAMS,
+            programs=self._programs_for(index),
             run_id=None,
             include_explanations=True,
             env=self.env,
@@ -660,6 +674,8 @@ class Supervisor:
             "-m",
             "policybench.cli",
             "eval-no-tools",
+            "--country",
+            self.scenarios[index].country,
             "--model",
             self.model,
             "--scenario-manifest",

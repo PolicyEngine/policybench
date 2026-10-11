@@ -595,6 +595,12 @@ def main():
     )
     consensus_parser.add_argument("--output", required=True, help="Report JSON path")
     consensus_parser.add_argument(
+        "--country",
+        choices=["us", "uk"],
+        default="us",
+        help="Country payload to read (default us)",
+    )
+    consensus_parser.add_argument(
         "--prototype",
         action="store_true",
         help="Use the 2026-10-05 prototype's parameters (answers truncated to "
@@ -624,6 +630,12 @@ def main():
         help="Write two-stage reference-adversary prompts for consensus-flagged cells",
     )
     adversary_prepare_parser.add_argument("--payload", required=True)
+    adversary_prepare_parser.add_argument(
+        "--country",
+        choices=["us", "uk"],
+        default="us",
+        help="Country payload to read (default us)",
+    )
     adversary_prepare_parser.add_argument(
         "--flags", required=True, help="consensus-flags report JSON"
     )
@@ -1434,7 +1446,7 @@ def main():
             ConsensusParams,
             consensus_report,
             file_sha256,
-            load_us_payload,
+            load_payload,
         )
 
         params = PROTOTYPE_PARAMS if args.prototype else ConsensusParams()
@@ -1454,7 +1466,7 @@ def main():
         params = replace(params, **overrides)
         payload_path = Path(args.payload)
         report = consensus_report(
-            load_us_payload(payload_path),
+            load_payload(payload_path, args.country),
             params,
             source=str(payload_path),
             source_sha256=file_sha256(payload_path),
@@ -1467,7 +1479,7 @@ def main():
         )
 
     elif args.command == "adversary-prepare":
-        from policybench.consensus import load_us_payload
+        from policybench.consensus import load_payload
         from policybench.reference_adversary import (
             build_adversary_cases,
             load_derivations,
@@ -1477,7 +1489,7 @@ def main():
         flags_report = json.loads(Path(args.flags).read_text())
         flags = flags_report["flags"]
         payload_path = Path(args.payload)
-        payload = load_us_payload(payload_path)
+        payload = load_payload(payload_path, args.country)
         adversary_dir = Path(args.adversary_dir)
         skipped: dict[tuple[str, str], str] = {}
         if args.skip_cells:
@@ -1570,7 +1582,7 @@ def main():
             }
         kept = [f for f in unheld if (f["scenario_id"], f["variable"]) not in skipped]
         derivations = (
-            load_derivations(Path(args.annotations_dir))
+            load_derivations(Path(args.annotations_dir), args.country)
             if args.annotations_dir
             else None
         )

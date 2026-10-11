@@ -74,19 +74,19 @@ UK_TRANSFER_DATASET = {
     "runtime_dataset": "enhanced_cps_2025",
     "runtime_dataset_filename": "enhanced_cps_2025.h5",
     "runtime_dataset_repo": "PolicyEngine/policyengine-uk-data",
-    "runtime_dataset_pinned_commit": ("9514dfb7ec607897c9f7122a2e073b922c9fd8b6"),
+    "runtime_dataset_pinned_commit": ("6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"),
     "runtime_dataset_pinned_url": (
         "https://raw.githubusercontent.com/PolicyEngine/"
-        "policyengine-uk-data/9514dfb7ec607897c9f7122a2e073b922c9fd8b6/"
+        "policyengine-uk-data/6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b/"
         "policyengine_uk_data/storage/enhanced_cps_2025.h5"
     ),
     "runtime_dataset_uri": (
         "policyengine_uk_data/storage/enhanced_cps_2025.h5 from the public "
         "PolicyEngine/policyengine-uk-data repository, pinned to commit "
-        "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+        "6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"
     ),
     "runtime_dataset_sha256": (
-        "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+        "c663daea31b6fb8300f5c4758ccdcd7a227835ad7de90655294392fb95543eec"
     ),
     "runtime_dataset_note": (
         "UK calibrated transfer dataset derived from benchmark-compatible "
@@ -645,6 +645,14 @@ def get_uk_single_year_dataset_class():
     from policyengine_uk.data import UKSingleYearDataset
 
     return UKSingleYearDataset
+
+
+def get_uk_situation_simulation_class():
+    """Return the PE-UK situation Simulation class and record runtime metadata."""
+    policyengine_release_bundle("uk")
+    from policyengine_uk import Simulation
+
+    return Simulation
 
 
 def make_uk_transfer_microsimulation(dataset_path: str | Path):

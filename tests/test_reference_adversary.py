@@ -1791,3 +1791,75 @@ def test_frozen_run_cases_are_blind_in_stage1(tmp_path: Path):
         raw = json.load(handle)
     cell = raw["scenarioPredictions"]["scenario_123"][TAX]
     assert next(iter(cell.values()))["referenceExplanation"]
+
+
+def _uk_case(cases: list[AdversaryCase]) -> AdversaryCase:
+    from dataclasses import replace
+
+    return replace(
+        cases[0],
+        case_id="uk__scenario_001__income_tax",
+        country="uk",
+        variable="income_tax",
+        state="WALES",
+        reference_value=253.03,
+    )
+
+
+def test_uk_cases_render_uk_law_and_currency(cases):
+    from policybench.reference_adversary import REFERENCE_FREEZES, render_stage2_prompt
+
+    case = _uk_case(cases)
+    stage1 = render_stage1_prompt(case)
+    stage2 = render_stage2_prompt(case, _stage1(), "0" * 64)
+
+    for prompt in (stage1, stage2):
+        assert prompt.startswith("You are a reference adversary for a UK ")
+        assert "UK FISCAL YEAR: 2026-27    REFERENCE LAW FROZEN: 2026-10-10" in prompt
+        assert "REGION: WALES" in prompt
+        assert "ENGINE REFERENCE VALUE: £253.03" in prompt
+        assert "US tax-and-benefit" not in prompt
+        assert "STATE:" not in prompt
+    assert "legislation.gov.uk" in stage1
+    assert "computation log" in stage2
+    assert REFERENCE_FREEZES == {"us": "2026-07-03", "uk": "2026-10-10"}
+
+
+def test_us_cases_keep_the_us_prompt(cases):
+    from policybench.reference_adversary import _STAGE1_HEADER
+
+    prompt = render_stage1_prompt(cases[0])
+    assert prompt.startswith(_STAGE1_HEADER)
+    assert "TAX YEAR: 2026    REFERENCE LAW FROZEN: 2026-07-03" in prompt
+
+
+def test_unknown_country_has_no_adversary_prompt(cases):
+    from dataclasses import replace
+
+    with pytest.raises(ValueError, match="no reference-adversary prompt"):
+        render_stage1_prompt(replace(cases[0], country="fr"))
+
+
+def test_prepare_writes_the_uk_freeze_into_the_uk_schema(cases, tmp_path):
+    from policybench.reference_adversary import (
+        STAGE1_SCHEMA,
+        prepare_adversary,
+        schema_for_country,
+    )
+
+    prepare_adversary(tmp_path / "uk", [_uk_case(cases)])
+    written = json.loads((tmp_path / "uk" / "schema_stage1.json").read_text())
+    assert "True if published before 2026-10-10" in json.dumps(written)
+    assert "2026-07-03" not in json.dumps(written)
+    # Only the description differs, so outputs validate the same way.
+    assert json.dumps(written).replace("2026-10-10", "2026-07-03") == json.dumps(
+        STAGE1_SCHEMA
+    )
+    assert schema_for_country(STAGE1_SCHEMA, "us") == STAGE1_SCHEMA
+
+
+def test_prepare_refuses_mixed_countries(cases, tmp_path):
+    from policybench.reference_adversary import prepare_adversary
+
+    with pytest.raises(ValueError, match="mix countries"):
+        prepare_adversary(tmp_path / "mixed", [cases[0], _uk_case(cases)])

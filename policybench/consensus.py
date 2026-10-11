@@ -123,13 +123,19 @@ class ConsensusParams:
 PROTOTYPE_PARAMS = ConsensusParams(answer_rounding="truncate", binary_outputs="skip")
 
 
-def load_us_payload(path: Path | str) -> dict:
-    """Read a US dashboard payload from ``.json`` or ``.json.gz``.
+PAYLOAD_COUNTRIES = ("us", "uk")
 
-    Accepts both the per-country payload frozen under ``paper/snapshot`` and
-    the combined ``{"countries": {"us": ...}}`` shape of a dashboard release
-    asset, and returns the US payload either way.
+
+def load_payload(path: Path | str, country: str = "us") -> dict:
+    """Read one country's dashboard payload from ``.json`` or ``.json.gz``.
+
+    Accepts both a per-country payload (frozen under ``paper/snapshot``, or
+    ``<run>/<country>/data.json`` from ``export-full-run``) and the combined
+    ``{"countries": {...}}`` shape of a dashboard release asset, and returns
+    that country's payload either way.
     """
+    if country not in PAYLOAD_COUNTRIES:
+        raise ValueError(f"country must be one of {PAYLOAD_COUNTRIES}: {country!r}")
     path = Path(path)
     raw = path.read_bytes()
     if raw[:2] == b"\x1f\x8b":
@@ -139,15 +145,20 @@ def load_us_payload(path: Path | str) -> dict:
         raise ValueError(f"{path}: payload is not a JSON object")
     if "countries" in payload:
         countries = payload["countries"]
-        if not isinstance(countries, dict) or "us" not in countries:
-            raise ValueError(f"{path}: combined payload has no 'us' country")
-        payload = countries["us"]
-    country = payload.get("country")
-    if country is not None and country != "us":
-        raise ValueError(f"{path}: payload is for country {country!r}, not 'us'")
+        if not isinstance(countries, dict) or country not in countries:
+            raise ValueError(f"{path}: combined payload has no {country!r} country")
+        payload = countries[country]
+    found = payload.get("country")
+    if found is not None and found != country:
+        raise ValueError(f"{path}: payload is for country {found!r}, not {country!r}")
     if "scenarioPredictions" not in payload or "modelStats" not in payload:
         raise ValueError(f"{path}: payload lacks scenarioPredictions or modelStats")
     return payload
+
+
+def load_us_payload(path: Path | str) -> dict:
+    """Read a US dashboard payload (see :func:`load_payload`)."""
+    return load_payload(path, "us")
 
 
 def file_sha256(path: Path | str) -> str:
