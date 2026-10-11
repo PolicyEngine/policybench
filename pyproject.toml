@@ -13,7 +13,7 @@ requires-python = ">=3.11"
 dependencies = [
     "litellm[caching]>=1.30",
     "pandas>=2.0",
-    "numpy>=1.24",
+    "numpy>=1.25",  # Generator.spawn (policybench.uk_audit)
     "policyengine==6.1.2",
     "policyengine-us==2.38.6",
     "policyengine-uk==2.126.7",

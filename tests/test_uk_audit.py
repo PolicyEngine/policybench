@@ -531,3 +531,56 @@ def test_a_parent_who_does_not_work_bars_tax_free_childcare():
     )
     sim = Simulation(situation=scenario.to_pe_uk_situation())
     assert float(sim.calculate("tax_free_childcare", 2026).sum()) == 0
+
+
+def _household(household_id: int, weight: float) -> uk_audit.Household:
+    return uk_audit.Household(
+        household_id=household_id,
+        region="LONDON",
+        tenure="RENT_PRIVATELY",
+        weight=weight,
+        adult_ages=(40,),
+        child_ages=(),
+        adult_earnings=(20_000.0,),
+        adult_self_employment=(0.0,),
+        adult_income=(20_000.0,),
+        capital=0.0,
+    )
+
+
+def test_weighted_draw_never_counts_zero_weight_households():
+    rng = np.random.default_rng(0)
+    candidates = [_household(1, 1.0), _household(2, 0.0), _household(3, 2.0)]
+    drawn = uk_audit._weighted_draw(candidates, 2, rng, "test")
+    assert {h.household_id for h in drawn} == {1, 3}
+    with pytest.raises(ValueError, match="positive weight"):
+        uk_audit._weighted_draw(candidates, 3, np.random.default_rng(0), "test")
+
+
+def test_missing_capital_values_count_as_nil():
+    assert uk_audit._amount(None) == 0.0
+    assert uk_audit._amount(float("nan")) == 0.0
+    assert uk_audit._amount("1250.5") == 1250.5
+
+
+def test_a_stated_state_pension_is_not_drawn_again():
+    adult = Person(
+        name="adult1", age=70, employment_income=0.0, inputs={"state_pension": 9_000.0}
+    )
+    scenario = Scenario(
+        id="s",
+        country="uk",
+        state="LONDON",
+        filing_status=None,
+        adults=[adult],
+        children=[],
+    )
+    out = uk_audit.state_pensions(scenario, np.random.default_rng(0))
+    assert "state_pension_reported" not in out.adults[0].inputs
+
+
+def test_an_internal_output_set_never_reaches_the_app_data(tmp_path):
+    from policybench.full_run_export import export_full_run
+
+    with pytest.raises(ValueError, match="internal"):
+        export_full_run(run_dir=tmp_path, program_set="uk_audit", skip_app_data=False)

@@ -29,7 +29,7 @@ from policybench.reference_exclusions import (
     load_reference_exclusions,
     split_reference,
 )
-from policybench.spec import get_output_ids, output_group_id
+from policybench.spec import DEFAULT_PROGRAM_SET, get_output_ids, output_group_id
 
 
 class ReferenceProvenanceError(ValueError):
@@ -605,6 +605,12 @@ def export_full_run(
     (the committed pin per country), or a bare sha256 for a single country
     (see ``reference_digest_for_country``).
     """
+    if program_set not in (None, DEFAULT_PROGRAM_SET) and not skip_app_data:
+        raise ValueError(
+            f"Output set {program_set!r} is internal; export it with "
+            "skip_app_data (--skip-app-data) so it never reaches the public "
+            "app data."
+        )
     run_path = Path(run_dir)
     if countries:
         selected_countries = list(countries)

@@ -233,12 +233,17 @@ def household_features(
                     float(v) for v in adults[income_columns].sum(axis=1)
                 ),
                 capital=sum(
-                    float(getattr(row, column, 0.0) or 0.0)
-                    for column in CAPITAL_COLUMNS
+                    _amount(getattr(row, column, 0.0)) for column in CAPITAL_COLUMNS
                 ),
             )
         )
     return features
+
+
+def _amount(value) -> float:
+    """A money amount, with a missing (None or NaN) value as nil."""
+    number = pd.to_numeric(value, errors="coerce")
+    return 0.0 if pd.isna(number) else float(number)
 
 
 Selector = Callable[[Household], bool]
@@ -469,6 +474,11 @@ def draw_state_pension(person: Person, rng: np.random.Generator) -> float:
     of £5-£60 a week. Basic State Pension: 25% the full basic rate, 60% the
     full basic rate plus £10-£120 a week of additional State Pension, 15% a
     partial basic rate of 60-99%.
+
+    The scheme is chosen by the men's cut-off (born on or after 6 April 1951).
+    Women born from 6 April 1951 to 5 April 1953 reached pensionable age
+    before April 2016 and are on the basic scheme in law. The draw only sets
+    a plausible amount: the reference reads the amount stated.
     """
     dob = _date_of_birth(person)
     on_new_scheme = dob is not None and dob >= NEW_STATE_PENSION_FIRST_BIRTH_DATE
@@ -505,6 +515,7 @@ def state_pensions(scenario: Scenario, rng: np.random.Generator) -> Scenario:
         )
         if adult.age >= PENSIONER_MIN_AGE
         and not adult.inputs.get("state_pension_reported")
+        and not adult.inputs.get("state_pension")
         else adult
         for adult in scenario.adults
     ]
@@ -800,8 +811,9 @@ def _scenario_for(
     if dataset_year is not None:
         metadata["dataset_year"] = int(dataset_year)
     household_inputs = _extract_uk_household_inputs(household_row)
-    # The transfer data's council tax comes from US property tax and its
-    # bands from US home values; the sample states its own bill instead.
+    # The transfer data's council tax comes from US property tax, so the
+    # sample states its own bill (Band D x the band ratio). The band itself is
+    # reused from the transfer data through metadata, where its nation has it.
     household_inputs.pop("council_tax", None)
     household_inputs.pop("council_tax_band", None)
     return Scenario(
@@ -821,13 +833,15 @@ def _scenario_for(
 def _weighted_draw(
     candidates: list[Household], n: int, rng: np.random.Generator, name: str = ""
 ) -> list[Household]:
+    # A household with no weight can never be drawn, so it is not a candidate.
+    candidates = [c for c in candidates if c.weight > 0]
     if len(candidates) < n:
         raise ValueError(
-            f"Stratum {name!r} has {len(candidates)} candidate households for "
-            f"{n} draws."
+            f"Stratum {name!r} has {len(candidates)} candidate households with "
+            f"positive weight for {n} draws."
         )
-    weights = np.array([max(c.weight, 0.0) for c in candidates], dtype=float)
-    p = weights / weights.sum() if weights.sum() > 0 else None
+    weights = np.array([c.weight for c in candidates], dtype=float)
+    p = weights / weights.sum()
     picks = rng.choice(len(candidates), size=n, replace=False, p=p)
     return [candidates[int(i)] for i in picks]
 
