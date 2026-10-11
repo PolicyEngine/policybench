@@ -568,9 +568,12 @@ def incumbent_row_differences(stage: Path, base, limit: int = 5) -> list[str]:
     request_completed_at, the usage summary
     (analysis.usage_summary_by_model) reads the cost, token, elapsed and
     request timestamp columns, and the frozen predictions.csv.gz publishes
-    them all. A column only the
-    bundle has must be empty on incumbent rows. On the real stage all 26
-    columns of the 89,280 incumbent rows are the committed text.
+    them all. A column release 20260929 lacks must be a column of a new
+    model's staged run file (inputs/<slug>/predictions.csv, which
+    verify_input_pins pins) and empty on incumbent rows; any other is
+    refused, since its header would reach the frozen predictions. On the
+    real stage all 26 columns of the 89,280 incumbent rows are the committed
+    text, and there is no other column.
     """
     import pandas as pd
 
@@ -581,10 +584,20 @@ def incumbent_row_differences(stage: Path, base, limit: int = 5) -> list[str]:
     if not set(key) <= set(staged.columns) or not set(key) <= set(base.columns):
         return [f"{us.name} or release 20260929's predictions lack {key}"]
     staged = staged[~staged["model"].isin(set(MODELS.values()))]
+    run_columns = set()
+    for slug in MODELS:
+        run = stage / "inputs" / slug / "predictions.csv"
+        if run.is_file():
+            run_columns |= set(pd.read_csv(run, nrows=0, **text).columns)
     found = [
         f"release 20260929's {column} column is missing"
         for column in base.columns
         if column not in staged.columns
+    ]
+    found += [
+        f"{column} is a column neither release 20260929 nor a new model's run has"
+        for column in staged.columns
+        if column not in base.columns and column not in run_columns
     ]
     ours = staged.sort_values(key, kind="stable").reset_index(drop=True)
     theirs = base.sort_values(key, kind="stable").reset_index(drop=True)
@@ -613,6 +626,65 @@ def incumbent_row_differences(stage: Path, base, limit: int = 5) -> list[str]:
                 f"(first {'__'.join(first)})"
             )
     return found[:limit]
+
+
+def manifest_differences(stage: Path, limit: int = 5) -> list[str]:
+    """Where the audit manifest (audit/cases.jsonl) is not what the bound
+    bundle derives.
+
+    prepare_audit writes the manifest from policybench.audit's
+    build_audit_cases, which this calls again on the bundle's us/ directory:
+    wrong_models, missing_models and parse_failure_only come from scoring the
+    bundle's predictions against its references; recorded_failure_sources
+    from the predictions' recorded_failure_source column (wrong_prediction_rows
+    turns any other budget_exhausted_at_ceiling label into a parse or model
+    error); the rest from the references, the case reference explanations
+    and the scenarios. collect_audit builds a parse-failure-only case's
+    annotation rows from its manifest row alone, so an edited row would
+    publish a failure class no prediction bears out. Every field is compared
+    but grounding, which prepare_audit took from the read-only grounding
+    file: it is rendered into prompts, which are bound elsewhere, and
+    nothing published reads it. On the real stage all 986 rows match.
+    """
+    from policybench.audit import build_audit_cases
+
+    rebuilt = [
+        case.to_manifest_row()
+        for case in build_audit_cases(stage / "publish" / RUN_NAME / "us")
+    ]
+    staged = [
+        json.loads(line)
+        for line in (stage / "audit" / "cases.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    ids = [row["case_id"] for row in rebuilt]
+    named = [row.get("case_id") for row in staged]
+    if ids != named:
+        return [
+            f"the case list differs: only rebuilt {sorted(set(ids) - set(named))[:4]}"
+            f", only staged {sorted(set(named) - set(ids))[:4]}, or the order"
+        ]
+    found = []
+    for built, row in zip(rebuilt, staged):
+        fields = sorted(
+            key
+            for key in (set(built) | set(row)) - {"grounding"}
+            if built.get(key) != row.get(key)
+        )
+        if fields:
+            found.append(f"{built['case_id']} {fields}")
+    return found[:limit]
+
+
+def verify_manifest(stage: Path) -> None:
+    """The audit manifest is what the bound bundle derives
+    (manifest_differences)."""
+    differ = manifest_differences(stage)
+    require(
+        not differ,
+        f"audit/cases.jsonl is not what the bundle's predictions and references "
+        f"derive: {differ}; prepare a new stage",
+    )
 
 
 def verify_incumbent_rows(stage: Path) -> None:
@@ -2274,14 +2346,14 @@ def payload_text(payload: dict) -> str:
 
 
 def unexpected_bundle_files(bundle: Path) -> list[str]:
-    """Files in ``bundle`` that export would read beyond EXPORT_INPUTS.
+    """Files in ``bundle`` beyond EXPORT_INPUTS that export reads or could.
 
     full_run_export.load_annotations reads every us_*_annotations.csv in
     annotations/, and load_predictions reads us/by_model/*.csv in preference
     to us/predictions.csv. The freeze re-derives only the named annotation
-    files and compares only the predictions, so any other file in
-    annotations/, and a us/by_model/ folder, would publish text or answers no
-    gate checks.
+    files and compares only the predictions, so such a file would publish
+    text or answers no gate checks. Any other name in annotations/ is refused
+    too, so the folder holds exactly ANNOTATION_FILES.
     """
     found = []
     annotations = bundle / "annotations"
@@ -2294,6 +2366,18 @@ def unexpected_bundle_files(bundle: Path) -> list[str]:
     if (bundle / "us" / "by_model").exists():
         found.append("us/by_model/")
     return found
+
+
+def verify_bundle_files(bundle: Path) -> None:
+    """The bundle holds no file export reads beyond EXPORT_INPUTS
+    (unexpected_bundle_files)."""
+    extra = unexpected_bundle_files(bundle)
+    require(
+        not extra,
+        f"the bundle holds {extra}: export reads any us_*_annotations.csv and "
+        "us/by_model/, no gate checks them, and annotations/ may hold only its "
+        "four files; remove them and export again",
+    )
 
 
 def build_payload(
@@ -2321,12 +2405,7 @@ def build_payload(
         "CSV, export_full_run would read the working directory's "
         f"annotations/{RUN_NAME}/ in its place",
     )
-    extra = unexpected_bundle_files(bundle)
-    require(
-        not extra,
-        f"the bundle holds {extra}, which export would read and no gate checks; "
-        "remove them and export again",
-    )
+    verify_bundle_files(bundle)
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -2367,6 +2446,7 @@ def export(args, bundle, live) -> dict:
         verify_new_model_inputs(args.stage_dir)
         verify_incumbent_rows(args.stage_dir)
         verify_reference_explanations(bundle / "annotations", "staged")
+        verify_manifest(args.stage_dir)
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",
             rejudged_cases(args.stage_dir),

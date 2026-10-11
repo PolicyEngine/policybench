@@ -1236,13 +1236,73 @@ def test_export_refuses_a_file_it_would_read_unchecked(exporting, extra):
     assert not (stage / "data-board46.json").exists()
 
 
+MANIFEST_EDITS = {
+    "a_model_added": lambda row: {**row, "wrong_models": [*row["wrong_models"], NEW]},
+    "a_recorded_source": lambda row: {
+        **row,
+        "recorded_failure_sources": {row["wrong_models"][0]: "llm_error"},
+    },
+    "parse_only_flipped": lambda row: {
+        **row,
+        "parse_failure_only": not row["parse_failure_only"],
+    },
+    "missing_models": lambda row: {**row, "missing_models": row["wrong_models"]},
+    "reference_value": lambda row: {**row, "reference_value": "$1"},
+}
+
+
+@pytest.mark.parametrize("edit", [None, "grounding", *MANIFEST_EDITS])
+def test_the_manifest_must_be_what_the_bundle_derives(seeded_stage, edit):
+    """prepare_audit writes cases.jsonl with build_audit_cases, and the gate
+    calls it again on the bundle: a row edited in any field but grounding
+    (which nothing published reads) is refused, naming the field."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    assert driver.manifest_differences(stage) == []
+    manifest = audit / "cases.jsonl"
+    rows = [json.loads(line) for line in manifest.read_text().splitlines()]
+    if edit == "grounding":
+        rows[0] = {**rows[0], "grounding": "Other grounding."}
+    elif edit is not None:
+        rows[0] = MANIFEST_EDITS[edit](rows[0])
+    manifest.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    differ = driver.manifest_differences(stage)
+    if edit in (None, "grounding"):
+        assert differ == []
+        driver.verify_manifest(stage)
+        return
+    assert len(differ) == 1 and differ[0].startswith(rows[0]["case_id"])
+    with pytest.raises(SystemExit, match="cases.jsonl is not what"):
+        driver.verify_manifest(stage)
+
+
+def test_a_manifest_that_drops_or_adds_a_case_is_refused(seeded_stage):
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    manifest = audit / "cases.jsonl"
+    lines = manifest.read_text().splitlines(keepends=True)
+    manifest.write_text("".join(lines[1:]))
+    assert driver.manifest_differences(stage)[0].startswith("the case list differs")
+
+
+def test_the_stages_manifest_is_what_its_bundle_derives():
+    """Local only: all 986 rows of the stage's cases.jsonl are what
+    build_audit_cases derives from its bundle, every field but grounding."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "audit/cases.jsonl").is_file():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    assert driver.manifest_differences(stage) == []
+
+
 @pytest.mark.parametrize(
     "files", [("verdict.json", "verdict.meta.json"), ("verdict.meta.json",)]
 )
 def test_a_verdict_outside_the_judged_cases_is_refused(seeded_stage, files):
-    """A verdict or sidecar in a case directory cases.jsonl does not list as
-    judged would be counted by the snapshot manifest's judge tally and checked
-    by nothing else; every step that validates verdicts refuses it."""
+    """A verdict in a case directory cases.jsonl does not list as judged
+    would be counted by the snapshot manifest's judge tally and checked by
+    nothing else; a sidecar alone, which the tally does not count without a
+    verdict, is refused too. Every step that validates verdicts refuses
+    either."""
     _, stage, prepare = seeded_stage
     audit = prepare(JOINS_S0)
     write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
@@ -1989,6 +2049,9 @@ def exporting(tmp_path, monkeypatch):
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
     pins = _write_run(stage, bundle)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    # The synthetic audit manifest is hand-written; the manifest gate is
+    # tested on a prepared stage.
+    monkeypatch.setattr(driver, "manifest_differences", lambda stage: [], raising=False)
     # Release 20260929's predictions stand in as the stage's incumbent row.
     base = pd.read_csv(bundle / "us/predictions.csv", dtype=str, keep_default_na=False)
     base = base[base.model != NEW].reset_index(drop=True)
@@ -2307,6 +2370,48 @@ def test_the_stages_incumbent_rows_are_20260929s():
     if not (stage / "publish" / driver.RUN_NAME / "us/predictions.csv").is_file():
         pytest.skip("needs the GPT-6.1 Sol stage")
     driver.verify_incumbent_rows(stage)
+
+
+def test_export_refuses_a_manifest_the_bundle_does_not_derive(exporting, monkeypatch):
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    monkeypatch.setattr(
+        driver, "manifest_differences", lambda stage: ["us__s0__snap ['wrong_models']"]
+    )
+    incumbents = _incumbents()
+    with pytest.raises(SystemExit, match=r"cases.jsonl is not what.*wrong_models"):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+@pytest.mark.parametrize("column", ["unpinned_column", "run_column"])
+def test_a_column_release_20260929_lacks_must_be_a_new_models(exporting, column):
+    """A predictions column release 20260929 lacks reaches the frozen
+    predictions; it is allowed only as a column of a new model's staged run,
+    empty on incumbent rows."""
+    stage, bundle, _, _ = exporting
+    base = driver.base_prediction_text_rows()
+    for path in (
+        bundle / "us/predictions.csv",
+        stage / "inputs" / SLUG / "predictions.csv",
+    ):
+        if column == "unpinned_column" and path.parent.name == SLUG:
+            continue
+        header, *rows = path.read_text().splitlines(keepends=True)
+        path.write_text(
+            header.rstrip("\n")
+            + f",{column}\n"
+            + "".join(r.rstrip("\n") + ",\n" for r in rows)
+        )
+    differ = driver.incumbent_row_differences(stage, base)
+    if column == "run_column":
+        assert differ == []
+    else:
+        assert differ == [
+            "unpinned_column is a column neither release 20260929 nor a new "
+            "model's run has"
+        ]
 
 
 def test_partial_export_never_gets_a_release_receipt(exporting):

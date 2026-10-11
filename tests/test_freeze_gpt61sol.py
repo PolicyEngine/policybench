@@ -239,6 +239,9 @@ def freeze_preflight(tmp_path, monkeypatch):
     # bundle's predictions hold its rows as prepare folded them.
     pins = write_inputs(stage)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    # The synthetic audit manifest is hand-written; the manifest gate is
+    # tested on a prepared stage in test_finish_gpt61sol.py.
+    monkeypatch.setattr(driver, "manifest_differences", lambda stage: [], raising=False)
     evidence += [Path("inputs/gpt61sol") / name for name in PINNED]
     evidence += [Path("model-provenance.json"), Path("stage.json")]
     write_audit(stage / "audit")
@@ -872,6 +875,46 @@ def test_the_freeze_checks_the_frozen_references_and_explanations(tmp_path, edit
         message = "frozen reference scenarios.csv does not match its pin"
     with pytest.raises(SystemExit, match=message):
         release.verify_frozen(frozen, annotations)
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_the_freeze_refuses_a_manifest_the_bundle_does_not_derive(
+    staged_board, monkeypatch, dry_run
+):
+    """The manifest decides which cases are judged and builds the
+    parse-failure-only cases' annotations; one the bundle does not derive is
+    refused before any workspace mutation."""
+    stage, rebind = staged_board
+    release_references(stage / BUNDLE / "us")
+    rebind()
+    monkeypatch.setattr(
+        driver, "manifest_differences", lambda stage: [f"{KEPT} ['wrong_models']"]
+    )
+    monkeypatch.setattr(release, "verify_verdicts", _reached("verdict gate"))
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=r"cases.jsonl is not what.*wrong_models"):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
+@pytest.mark.parametrize("extra", ["annotations/us_zz_annotations.csv", "us/by_model"])
+def test_the_freeze_refuses_an_unbound_file_its_readers_would_read(
+    freeze_preflight, extra
+):
+    """collect_audit and wrong_prediction_rows read the stage's own bundle:
+    an extra annotations file, or a us/by_model/ folder (from which
+    load_predictions would rewrite us/predictions.csv), is refused before
+    anything reads it, though the receipt does not bind it."""
+    stage, _, _ = freeze_preflight
+    path = stage / BUNDLE / extra
+    if extra == "us/by_model":
+        path.mkdir()
+        path = path / "gpt-6.1-sol.csv"
+    path.write_text("model,scenario_id,variable,annotation\n")
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=f"the bundle holds.*{re.escape(extra)}"):
+        release.main(["--stage-dir", str(stage), "--dry-run"])
+    assert workspace_files() == before
 
 
 def _edit_explanation(stage: Path) -> None:

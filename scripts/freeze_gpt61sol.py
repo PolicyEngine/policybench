@@ -489,6 +489,10 @@ def main(argv: list[str] | None = None) -> None:
     # committed at HEAD, means a file the receipt binds can change after
     # export, its receipt re-hashed to match, only with a visible commit.
     driver.verify_release_receipt(stage, payload_path, args.tag)
+    # Readers of the stage's bundle (collect_audit, wrong_prediction_rows)
+    # would read an extra annotations file, and load_predictions would rewrite
+    # us/predictions.csv from a us/by_model/ folder.
+    driver.verify_bundle_files(stage / "publish" / RUN)
     # GPT-6.1 Sol's run files are the committed pins' and its bundle rows are
     # its run file's, every column: its cost, tokens and latency included.
     driver.verify_new_model_inputs(stage)
@@ -530,6 +534,9 @@ def main(argv: list[str] | None = None) -> None:
     rebuild_payload(stage, receipt, payload_path, base)
     del base
     staged_annotations = source_run / "annotations"
+    # The manifest decides which cases are judged and builds the
+    # parse-failure-only cases' annotations; it must be the bundle's.
+    driver.verify_manifest(stage)
     verify_verdicts(stage)
     rejudged = driver.rejudged_cases(stage)
     verify_judge_provenance(stage, receipt, rejudged)
