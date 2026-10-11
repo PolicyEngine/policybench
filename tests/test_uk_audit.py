@@ -477,3 +477,57 @@ def test_a_moved_baby_passes_policyengine_uks_age_check():
     )
     sim = Simulation(situation=scenario.to_pe_uk_situation())
     assert float(sim.calculate("child_benefit", 2026).sum()) > 0
+
+
+def test_adults_with_children_are_stated_as_parents():
+    def scenario(children):
+        return Scenario(
+            id="scenario_000",
+            state="LONDON",
+            filing_status=None,
+            adults=[
+                Person(name="adult1", age=35, employment_income=20_000),
+                Person(name="adult2", age=34, employment_income=0),
+            ],
+            children=children,
+            country="uk",
+        )
+
+    with_child = scenario([Person(name="child1", age=3, employment_income=0)])
+    people = with_child.to_pe_uk_situation()["people"]
+    assert people["adult1"]["is_parent"] == {"2026": True}
+    assert people["adult2"]["is_parent"] == {"2026": True}
+    assert people["child1"]["is_parent"] == {"2026": False}
+    people = scenario([]).to_pe_uk_situation()["people"]
+    assert people["adult1"]["is_parent"] == {"2026": False}
+
+
+def test_a_parent_who_does_not_work_bars_tax_free_childcare():
+    """Tax-Free Childcare needs each parent in qualifying work; the adults
+    must be parents for the engine to test it."""
+    pytest.importorskip("policyengine_uk")
+    from policyengine_uk import Simulation
+
+    scenario = Scenario(
+        id="scenario_000",
+        state="LONDON",
+        filing_status=None,
+        adults=[
+            Person(name="adult1", age=35, employment_income=30_000),
+            Person(name="adult2", age=34, employment_income=0),
+        ],
+        children=[
+            Person(
+                name="child1",
+                age=3,
+                employment_income=0,
+                inputs={
+                    "childcare_expenses": 8_000.0,
+                    "tax_free_childcare_uses_qualifying_provider": True,
+                },
+            )
+        ],
+        country="uk",
+    )
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    assert float(sim.calculate("tax_free_childcare", 2026).sum()) == 0

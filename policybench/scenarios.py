@@ -675,14 +675,18 @@ class Scenario:
                     f"{self.id} {person.name}: inputs the prompt does not show: "
                     f"{hidden}"
                 )
+            is_adult = person.name.startswith("adult")
             person_data = {
                 "age": self._yearize(person.age),
                 # The stored wage leaf; employment_income adds the (zero)
                 # labour-supply response to it, as in the microsimulation.
                 "employment_income_before_lsr": self._yearize(person.employment_income),
-                "is_claimant_or_partner": self._yearize(
-                    person.name.startswith("adult")
-                ),
+                "is_claimant_or_partner": self._yearize(is_adult),
+                # The prompt says the children are the adults' dependents.
+                # PE-UK reads is_parent as an input that defaults to false,
+                # and Tax-Free Childcare tests only parents' income, so the
+                # adults are stated as parents whenever there are children.
+                "is_parent": self._yearize(is_adult and bool(self.children)),
             }
             for key, value in person.inputs.items():
                 if key == "date_of_birth":

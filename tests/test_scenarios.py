@@ -1464,9 +1464,16 @@ def test_uk_situation_holds_exactly_the_prompted_facts(
     people = situation["people"]
     assert set(people) == {f"s__{p.name}" for p in scenario.all_people}
     adult = people["s__adult1"]
-    structural = {"age", "employment_income_before_lsr", "is_claimant_or_partner"}
+    structural = {
+        "age",
+        "employment_income_before_lsr",
+        "is_claimant_or_partner",
+        "is_parent",
+    }
     assert set(adult) == structural | set(adult_inputs)
     assert adult["is_claimant_or_partner"] == {"2026": True}
+    # The prompt makes the adults the children's parents.
+    assert adult["is_parent"] == {"2026": num_children > 0}
     assert adult["employment_income_before_lsr"] == {"2026": wage}
     adult_lines = describe_person(scenario.adults[0], country="uk")
     for key, value in adult_inputs.items():
@@ -1480,6 +1487,7 @@ def test_uk_situation_holds_exactly_the_prompted_facts(
     for i in range(num_children):
         child = people[f"s__child{i + 1}"]
         assert child["is_claimant_or_partner"] == {"2026": False}
+        assert child["is_parent"] == {"2026": False}
         assert child[scenarios_module.UK_EDUCATION_ENTRY_FIELD] == {
             "2026": scenarios_module.UK_EDUCATION_ENTRY_AGE
         }
