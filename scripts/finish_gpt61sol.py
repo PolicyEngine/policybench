@@ -542,6 +542,90 @@ def verify_release_receipt(stage: Path, payload: Path, tag: str) -> None:
     )
 
 
+def base_prediction_text_rows():
+    """Release 20260929's predictions, every cell as text, from BASE_COMMIT."""
+    import io
+
+    import pandas as pd
+
+    blob = base_commit_blob(
+        Path("paper/snapshot/20260501/runs") / RUN_NAME / "predictions.csv.gz"
+    )
+    return pd.read_csv(
+        io.BytesIO(blob), compression="gzip", dtype=str, keep_default_na=False
+    )
+
+
+def incumbent_row_differences(stage: Path, base, limit: int = 5) -> list[str]:
+    """Where incumbents' rows in the bundle's predictions are not ``base``'s.
+
+    ``base`` is release 20260929's predictions, every cell as text
+    (base_prediction_text_rows). Every incumbent row (any model but the new
+    ones) is compared with it cell by cell, as text, keyed by model, scenario
+    and variable, in every column: the freeze's evidence hash covers only the
+    answer columns, while the model response window
+    (freeze_snapshot.model_response_window) reads every row's
+    request_completed_at, the usage summary
+    (analysis.usage_summary_by_model) reads the cost, token, elapsed and
+    request timestamp columns, and the frozen predictions.csv.gz publishes
+    them all. A column only the
+    bundle has must be empty on incumbent rows. On the real stage all 26
+    columns of the 89,280 incumbent rows are the committed text.
+    """
+    import pandas as pd
+
+    text = {"dtype": str, "keep_default_na": False}
+    us = stage / "publish" / RUN_NAME / "us" / "predictions.csv"
+    key = ["model", *KEY]
+    staged = pd.read_csv(us, **text)
+    if not set(key) <= set(staged.columns) or not set(key) <= set(base.columns):
+        return [f"{us.name} or release 20260929's predictions lack {key}"]
+    staged = staged[~staged["model"].isin(set(MODELS.values()))]
+    found = [
+        f"release 20260929's {column} column is missing"
+        for column in base.columns
+        if column not in staged.columns
+    ]
+    ours = staged.sort_values(key, kind="stable").reset_index(drop=True)
+    theirs = base.sort_values(key, kind="stable").reset_index(drop=True)
+    # Compared as values: a frame read with pandas' string dtype and one read
+    # as objects (the freeze turns infer_string off) hold the same text.
+    if (
+        ours.duplicated(key).any()
+        or len(ours) != len(theirs)
+        or not (ours[key].to_numpy() == theirs[key].to_numpy()).all()
+    ):
+        return found + [
+            f"the bundle holds {len(ours)} incumbent rows, not release "
+            f"20260929's {len(theirs)} model, scenario and variable keys"
+        ]
+    for column in ours.columns:
+        if column in theirs.columns:
+            differ = ours[column] != theirs[column]
+            what = "differs from release 20260929's"
+        else:
+            differ = ours[column] != ""
+            what = "is filled, and release 20260929 has no such column"
+        if differ.any():
+            first = ours.loc[differ.idxmax(), key]
+            found.append(
+                f"{column} {what} on {int(differ.sum())} incumbent rows "
+                f"(first {'__'.join(first)})"
+            )
+    return found[:limit]
+
+
+def verify_incumbent_rows(stage: Path) -> None:
+    """Every incumbent row of the bundle's predictions is release 20260929's,
+    in every column (incumbent_row_differences)."""
+    differ = incumbent_row_differences(stage, base_prediction_text_rows())
+    require(
+        not differ,
+        f"incumbents' rows in the bundle's predictions are not release "
+        f"20260929's: {differ}; prepare a new stage",
+    )
+
+
 def validate_stage_path(stage: Path, sources: list[Path]) -> None:
     """Allow only scratch outputs, disjoint from every read-only source."""
     stage = stage.resolve()
@@ -2281,6 +2365,7 @@ def export(args, bundle, live) -> dict:
         verify_reference_pins(bundle / "us", "staged reference")
     if not args.early:
         verify_new_model_inputs(args.stage_dir)
+        verify_incumbent_rows(args.stage_dir)
         verify_reference_explanations(bundle / "annotations", "staged")
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",

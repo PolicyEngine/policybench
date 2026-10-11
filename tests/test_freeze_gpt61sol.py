@@ -1176,6 +1176,53 @@ def annotated_board(staged_board, monkeypatch):
     return stage, rebind
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+@pytest.mark.parametrize("edited", [False, True])
+def test_the_freeze_compares_every_column_of_the_incumbents_rows(
+    annotated_board, monkeypatch, edited, dry_run
+):
+    """Past the evidence hash, which covers only the answer columns, every
+    incumbent row of the bundle's predictions must be release 20260929's in
+    every column. One edited in its cost, with every stage hash re-stamped,
+    is refused before any workspace mutation; unedited, the freeze goes on
+    to the run-state gate."""
+    import pandas as pd
+
+    stage, rebind = annotated_board
+    predictions = stage / BUNDLE / "us/predictions.csv"
+    base = pd.read_csv(predictions, dtype=str, keep_default_na=False)
+    base = base[base.model != SOL].reset_index(drop=True)
+    monkeypatch.setattr(
+        driver, "base_prediction_text_rows", lambda: base.copy(), raising=False
+    )
+    # The evidence hash is its own gate, tested elsewhere; the synthetic rows
+    # lack its answer columns.
+    import freeze_snapshot
+
+    monkeypatch.setattr(
+        freeze_snapshot, "_model_prediction_rows_sha256", lambda rows, model: ""
+    )
+    monkeypatch.setattr(
+        release,
+        "base_prediction_rows",
+        lambda: pd.read_csv(predictions, low_memory=False),
+    )
+    if edited:
+        predictions.write_text(
+            predictions.read_text().replace(
+                INCUMBENT_ROW, INCUMBENT_ROW.replace(",0.002,0.002,", ",0.004,0.004,")
+            )
+        )
+        rebind()
+        match = "incumbents' rows in the bundle's predictions are not release"
+    else:
+        match = "Missing completed run or treatment evidence"
+    before = workspace_files()
+    with pytest.raises(SystemExit, match=match):
+        release.main(["--stage-dir", str(stage)] + ["--dry-run"] * dry_run)
+    assert workspace_files() == before
+
+
 def test_the_annotations_triage_publishes_pass_the_annotation_gate(annotated_board):
     stage, _ = annotated_board
     with pytest.raises(SystemExit, match="Reached the prediction gate"):

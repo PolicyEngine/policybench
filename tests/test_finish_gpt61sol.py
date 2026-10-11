@@ -1989,6 +1989,12 @@ def exporting(tmp_path, monkeypatch):
     # GPT-6.1 Sol's staged run, its pins standing in for the committed ones.
     pins = _write_run(stage, bundle)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins, raising=False)
+    # Release 20260929's predictions stand in as the stage's incumbent row.
+    base = pd.read_csv(bundle / "us/predictions.csv", dtype=str, keep_default_na=False)
+    base = base[base.model != NEW].reset_index(drop=True)
+    monkeypatch.setattr(
+        driver, "base_prediction_text_rows", lambda: base.copy(), raising=False
+    )
     # The annotation CSVs export reads, the reference explanations release
     # 20260929's.
     for path in _annotations(bundle):
@@ -2254,6 +2260,53 @@ def test_export_pins_its_receipt_outside_the_stage(exporting):
     assert driver.RELEASE_RECEIPT.read_text() == (
         json.dumps(pin, indent=2, sort_keys=True) + "\n"
     )
+
+
+def _restamp_predictions(stage: Path, bundle: Path) -> None:
+    """Re-record the bundle's predictions in stage.json, as an edit made
+    before export together with the prepare-time hashes would."""
+    receipt = json.loads((stage / "stage.json").read_text())
+    path = bundle / "us/predictions.csv"
+    receipt["files"][str(path.relative_to(stage))] = driver.digest(path)
+    (stage / "stage.json").write_text(json.dumps(receipt))
+
+
+INCUMBENT_EDITS = {
+    "elapsed_seconds": lambda row: row.replace(",3.5", ",99.5"),
+    "cost": lambda row: row.replace("900.0,0.002,", "900.0,0.004,"),
+    "dropped": lambda row: "",
+}
+
+
+@pytest.mark.parametrize("edit", INCUMBENT_EDITS)
+def test_export_refuses_incumbent_rows_that_are_not_20260929s(exporting, edit):
+    """The freeze's evidence hash covers only the answer columns. An
+    incumbent row edited in any other column (its timing or cost, which the
+    response window, the usage summary and the published predictions read),
+    or dropped, with stage.json re-stamped, is refused before export writes
+    anything."""
+    stage, bundle, run, _ = exporting
+    _evidence(stage, bundle)
+    path = bundle / "us/predictions.csv"
+    header, incumbent, *rest = path.read_text().splitlines(keepends=True)
+    path.write_text(header + INCUMBENT_EDITS[edit](incumbent) + "".join(rest))
+    _restamp_predictions(stage, bundle)
+    incumbents = _incumbents()
+    with pytest.raises(
+        SystemExit, match="incumbents' rows in the bundle's predictions"
+    ):
+        run(_exported(incumbents), incumbents)
+    assert not (stage / "release-ready.json").exists()
+    assert not (stage / "data-board46.json").exists()
+
+
+def test_the_stages_incumbent_rows_are_20260929s():
+    """Local only: every incumbent row of the stage's predictions is release
+    20260929's committed text, in all 26 columns."""
+    stage = driver.ROOT / "results/local/gpt61sol-v1"
+    if not (stage / "publish" / driver.RUN_NAME / "us/predictions.csv").is_file():
+        pytest.skip("needs the GPT-6.1 Sol stage")
+    driver.verify_incumbent_rows(stage)
 
 
 def test_partial_export_never_gets_a_release_receipt(exporting):

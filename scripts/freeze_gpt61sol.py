@@ -550,6 +550,9 @@ def main(argv: list[str] | None = None) -> None:
         ):
             raise SystemExit(f"Incumbent prediction evidence changed: {model}")
     del previous_rows
+    # Every column of the incumbents' rows, not only the answers the evidence
+    # hash covers: the response window and the usage summary read the rest.
+    driver.verify_incumbent_rows(stage)
 
     evidence_paths = {}
     for slug, model in NEW_MODELS.items():
