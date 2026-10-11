@@ -161,8 +161,8 @@ Run from this checkout. `<triage>` is `results/local/adds202609/triage` in the m
 2. **Classify.** As above; `program_classification.json` is the result, and `verification/law_research.json` holds the records and verdicts.
 3. **Sweep.** `scripts/sweep_payroll_scope.py` recomputes all 1,984 outputs with and without `fixes/payroll_mandatory_scope.py`, an output-scope adapter that drops the five reviewed optional contributions from the list behind `employee_state_payroll_tax` and changes no formula or rate. The baseline reproduces all 1,928 scored references; the 19 excluded outputs that differ keep the values they were decided on, each listed in the sidecar's `excluded_outputs_rechecked`. The adapter moves four outputs, the four payroll references above, and no other output by even a cent (`verification/sweep_payroll_scope.csv` and `.log`). `CountryTaxBenefitSystem` applies a reform twice to the same system (`policyengine_us/system.py`), so the adapter is written to be idempotent: its second pass leaves the already-flattened list unchanged.
 4. **Propose.** `scripts/propose_changes.py` writes both alternatives in the format a release installs: `proposed_exclusions.json` (four `reference_depends_on_unlisted_input` records sharing one unlisted input) and `proposed_regenerations.json` (four regenerated values with the adapter's sha256). It refuses a sweep that moves any output the proposal does not cover, and an adapter whose program list differs from the reviewed optional programs.
-5. **Answers.** `scripts/model_answers.py` writes `verification/model_answers.csv` and `model_answers_summary.json`.
-6. **Impact.** `scripts/leaderboard_impact.py --with-salt` writes `verification/leaderboard_impact*.csv`, `leaderboard_impact.json` and `.log`. It reads #191's records from its commit `8af912a0`.
+5. **Answers.** `scripts/model_answers.py` writes `verification/model_answers.csv` and `model_answers_summary.json`, from the payload as git holds it at the pass's commit ([Pinned inputs](#pinned-inputs)).
+6. **Impact.** `scripts/leaderboard_impact.py --with-salt` writes `verification/leaderboard_impact*.csv` and `leaderboard_impact.json`. It reads the run, this audit's proposals and #191's records from git at the pass's commits, not from the working tree ([Pinned inputs](#pinned-inputs)).
 
 ```
 PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=$PWD <triage>/.venv-pe21517/bin/python reference_audit/2026-10-05-payroll/scripts/decompose_payroll.py --out-dir reference_audit/2026-10-05-payroll/verification
@@ -230,3 +230,49 @@ The release-checklist reviewer found both options installable, and neither a rec
 - **Engine.** policyengine-us has no input for the employer's deduction choice. An upstream change could add one, defaulting to the largest share, so users can model either reading; it would also need to settle Delaware, Maine, Vermont and Washington. The Connecticut rate parameter cites 31-49e, where 31-49g(b)(1) holds the rate. California's SDI rate parameter carries 1.3% back to 0000-01-01, which is wrong for earlier years (1.2% in 2025). The Massachusetts parameters do not encode Acts 2026 c. 101. None of these moves a benchmark number.
 - **#191.** Its README rounds GPT-6 Sol's 95.6146% to 95.62%. Its scenario_081 record treats the $805.01 Massachusetts share as a contribution the household paid, which this audit classifies as optional.
 - **SALT.** policyengine-us 2.15.17 leaves state payroll contributions out of the federal SALT deduction, the defect #191 records.
+
+## Pinned inputs
+
+This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then installed the four proposed exclusions and #191's three records, and rewrote the run's payload and exclusion record. On that working tree the unpinned impact script stopped at the `salt` copy with `--with-salt`: its appended records duplicated #202's, and the analyze CLI refuses a duplicate exclusion. The unpinned `model_answers.py` exited 0 after rewriting `verification/model_answers.csv`: its `scored` column turned false on the four outputs' 184 rows.
+
+Each script below now takes every file it reads from git with `git show <commit>:<path>`. It stops before scoring or writing anything unless each file's sha256 matches its pin, and it never reads the working tree. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+
+### `scripts/leaderboard_impact.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/data.json.gz` | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` |
+| `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` |
+| `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` |
+| `<run>/reference_outputs.csv.meta.json` | `8b4c0ca1` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` |
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `<run>/scenarios.csv` | `8b4c0ca1` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` |
+| `<run>/scenarios.csv.meta.json` | `8b4c0ca1` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` |
+| `proposed_exclusions.json` | `9ce4ade8` | `f23088c2d76ce2a0f1c535529952e579798920450c0ca47a9e975f3fe3c44157` |
+| `proposed_regenerations.json` | `9ce4ade8` | `58386f369f6164cc9d63cc4dcc4423495e214e45948fb2e2479910fc8165efef` |
+| `reference_audit/2026-10-05/proposed_exclusions.json` | `9ce4ade8` | `3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272` |
+
+It stages each file under `<scratch>/pass_inputs/<path>` and reads only that copy. `reference_audit/2026-10-05/proposed_exclusions.json` holds #191's records and is read only with `--with-salt`. The pass read it at #191's head `8af912a0`, which `leaderboard_impact.json` records as `salt_commit`. #202 merged the same bytes, so the script reads them from `9ce4ade8` and does not need #191's closed branch.
+
+### `scripts/model_answers.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/data.json.gz` | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` |
+| `verification/payroll_decomposition.csv` | `9ce4ade8` | `fa34d6d98b7ea5fa00023ed93946948e48ea728e45702cea222355e008be9cab` |
+| `program_classification.json` | `9ce4ade8` | `282cbf25ce9110a3c5c51873b7ca0e89f1f5ed38592b0c5b51d393f08000089a` |
+
+### Reproduce
+
+The scoring code is the checkout's. The impact script's check on its unchanged copy stops it if that code no longer scores the pinned run as the pinned payload records. The scripts run from any checkout that has both commits in its history; a shallow clone needs `git fetch --unshallow` first:
+
+```bash
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05-payroll/scripts/leaderboard_impact.py --scratch <dir outside the repository> --with-salt
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05-payroll/scripts/model_answers.py
+```
+
+`--out-dir <dir>` writes the files elsewhere. `tests/test_reference_audit_pins.py` checks the pins, that a changed byte in any input is refused, and that no script reads the working tree. It reruns `model_answers.py` from a checkout whose working tree is junk and requires the committed `verification/model_answers.csv` and `model_answers_summary.json` byte for byte. Its slow test regenerates `leaderboard_impact.json` and the ten `leaderboard_impact_*.csv` files (with `--with-salt`) from this checkout, whose run #202 rewrote, and requires the committed files byte for byte. The slow test takes one to two minutes per audit, so CI deselects it:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_audit_pins.py
+```

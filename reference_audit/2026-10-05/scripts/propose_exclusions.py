@@ -12,26 +12,67 @@ The records are a proposal. They change published scores, so they wait for Max's
 ruling; ``decided_on`` is the date the proposal was drafted and a release sets it to
 the ruling's date.
 
+Reads the pass's inputs from git, never from the working tree: the frozen run's
+exclusions and references as PASS_COMMIT (release dashboard-data-20260930, #187)
+holds them, and this audit's sweep and side readings as AUDIT_COMMIT (#202, which
+merged this audit) holds them. Each must match its pinned sha256 in INPUTS, or the
+script stops before writing anything. Release dashboard-data-20261006 (#202)
+installed the three records, so on its run every output would land under
+``already_excluded`` and the file would lose its proposals.
+
   python reference_audit/2026-10-05/scripts/propose_exclusions.py
+
+``--out-dir`` writes the file elsewhere; tests/test_reference_audit_pins.py
+regenerates it that way and requires the committed one byte for byte.
 """
 
 from __future__ import annotations
 
+import argparse
+import hashlib
+import io
 import json
+import subprocess
 from pathlib import Path
 
 import pandas as pd
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+OUT_DIR = HERE
+# The pass's inputs, pinned by commit and sha256.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+AUDIT_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+RUN_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
 )
-SWEEP = HERE / "verification/sweep_salt_withholding.csv"
-HOUSEHOLDS = HERE / "verification/sweep_salt_withholding_households.json"
-VARIANTS = HERE / "verification/variants.json"
-OUT = HERE / "proposed_exclusions.json"
+AUDIT_PATH = "reference_audit/2026-10-05"
+SWEEP_PATH = f"{AUDIT_PATH}/verification/sweep_salt_withholding.csv"
+HOUSEHOLDS_PATH = f"{AUDIT_PATH}/verification/sweep_salt_withholding_households.json"
+VARIANTS_PATH = f"{AUDIT_PATH}/verification/variants.json"
+# Every file the script reads from the repository: path -> (commit, sha256).
+INPUTS = {
+    f"{RUN_PATH}/reference_exclusions.json": (
+        PASS_COMMIT,
+        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2",
+    ),
+    f"{RUN_PATH}/reference_outputs.csv": (
+        PASS_COMMIT,
+        "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
+    ),
+    SWEEP_PATH: (
+        AUDIT_COMMIT,
+        "5918e349699471b8dcf9baa9584afdd583f8054624301839bb228bdc90a52d0c",
+    ),
+    HOUSEHOLDS_PATH: (
+        AUDIT_COMMIT,
+        "b36669b4a6b43483fbec5ce18f2d8affbeda98df34d3523ae39ff2deec0e4e40",
+    ),
+    VARIANTS_PATH: (
+        AUDIT_COMMIT,
+        "5cf0588e6071d4c35cfe6f8e07a8f3aaf8873dfbc8b7e34d496813d047141764",
+    ),
+}
 DRAFTED_ON = "2026-10-05"
 ENGINE = "policyengine-us 2.15.17"
 FEDERAL = "federal_income_tax_before_refundable_credits"
@@ -255,19 +296,57 @@ def already_note(row: pd.Series, household: dict, variant: dict) -> str:
     return text + "."
 
 
+def git_bytes(commit: str, path: str, pinned: str) -> bytes:
+    """``path`` as ``commit`` holds it, refusing any other bytes."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            f"cannot read {path} at {commit[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    digest = hashlib.sha256(result.stdout).hexdigest()
+    if digest != pinned:
+        raise SystemExit(
+            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
+        )
+    return result.stdout
+
+
+def pass_input(path: str) -> bytes:
+    """The input at ``path``, as INPUTS pins it."""
+    commit, pinned = INPUTS[path]
+    return git_bytes(commit, path, pinned)
+
+
 def main() -> None:
-    sweep = pd.read_csv(SWEEP)
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT_DIR),
+        help="where to write proposed_exclusions.json (default: %(default)s)",
+    )
+    out = Path(parser.parse_args().out_dir) / "proposed_exclusions.json"
+    # Check every pin before reading anything, so a refused input writes nothing.
+    for path in INPUTS:
+        pass_input(path)
+    sweep = pd.read_csv(io.BytesIO(pass_input(SWEEP_PATH)))
     households = {
-        h["scenario_id"]: h for h in json.loads(HOUSEHOLDS.read_text())["households"]
+        h["scenario_id"]: h
+        for h in json.loads(pass_input(HOUSEHOLDS_PATH))["households"]
     }
     variants = {
-        v["scenario_id"]: v for v in json.loads(VARIANTS.read_text())["households"]
+        v["scenario_id"]: v for v in json.loads(pass_input(VARIANTS_PATH))["households"]
     }
-    existing = json.loads((RUN / "reference_exclusions.json").read_text())["exclusions"]
+    existing = json.loads(pass_input(f"{RUN_PATH}/reference_exclusions.json"))[
+        "exclusions"
+    ]
     existing_keys = {(e["scenario_id"], e["variable"]): e for e in existing}
-    reference = pd.read_csv(RUN / "reference_outputs.csv").set_index(
-        ["scenario_id", "variable"]
-    )["value"]
+    reference = pd.read_csv(
+        io.BytesIO(pass_input(f"{RUN_PATH}/reference_outputs.csv"))
+    ).set_index(["scenario_id", "variable"])["value"]
 
     moved = sweep[sweep["liability_moved"]]
     proposals, already = [], []
@@ -344,8 +423,9 @@ def main() -> None:
             <= {(p["scenario_id"], p["variable"]) for p in proposals}
         ),
     }
-    OUT.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"{len(proposals)} proposed, {len(already)} already excluded -> {OUT}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2) + "\n")
+    print(f"{len(proposals)} proposed, {len(already)} already excluded -> {out}")
 
 
 if __name__ == "__main__":

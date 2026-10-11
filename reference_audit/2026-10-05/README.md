@@ -40,8 +40,8 @@ A state's tax can depend on federal tax or on federal SALT, so the input is iter
    - no modeled Medicare Part B premium;
    - Maryland's 24 county rates;
    - scenario_120 under r02's IRA fix.
-3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`. It holds one `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output the `liability` reading moves by more than the $1 exact-match tolerance. Outputs already excluded for another reason are listed with the note text a release should add to their records.
-4. **Impact.** `scripts/leaderboard_impact.py` copies the frozen run twice to a scratch directory and never writes the snapshot. It appends the proposed records to one copy and scores both with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy must reproduce the published payload's scoring: modelStats except the cost and latency fields the freeze overlays, plus programStats, heatmap, globalWeights and failureModes. It does: every compared value is equal. Outputs: `verification/leaderboard_impact_models.csv`, `leaderboard_impact_programs.csv`, `leaderboard_impact.json` and `leaderboard_impact.log`.
+3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`, from the run and the sweep as git holds them at the pass's commits ([Pinned inputs](#pinned-inputs)). It holds one `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output the `liability` reading moves by more than the $1 exact-match tolerance. Outputs already excluded for another reason are listed with the note text a release should add to their records.
+4. **Impact.** `scripts/leaderboard_impact.py` copies the frozen run twice to a scratch directory and never writes the snapshot. It appends the proposed records to one copy and scores both with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy must reproduce the published payload's scoring: modelStats except the cost and latency fields the freeze overlays, plus programStats, heatmap, globalWeights and failureModes. It does: every compared value is equal. It reads the run and the proposals from git at the pass's commits, not from the working tree ([Pinned inputs](#pinned-inputs)). Outputs: `verification/leaderboard_impact_models.csv`, `leaderboard_impact_programs.csv` and `leaderboard_impact.json`.
 5. **Verify.** Five independent reviewers checked the work in a Claude Code workflow on 2026-10-05, each in its own scratch directory:
    - **Mechanism.** One traced the code path and recomputed the five withholding estimates and the nine federal values for 022, 081 and 114 by hand, all to the cent.
    - **Differential.** One re-implemented the sweep with a different mechanism: per-person state withholding inputs. Its values were bit-identical on all 1,984 outputs.
@@ -121,3 +121,49 @@ The reviewers checked these against the code and tests. They are not done here.
    - Add the withholding reading to the unlisted-input list and the sweep narrative.
    - Re-render the abstract and the tables.
 6. **Existing notes.** Add the `already_excluded` note text to scenario_078's record, whose note says the SALT cap "binds at every 2026 county rate", and to scenario_120's record.
+
+## Pinned inputs
+
+This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then installed the three proposed records and rewrote the run's payload and exclusion record. On that working tree the unpinned impact script stopped at the proposed copy: its appended records duplicated #202's, and the analyze CLI refuses a duplicate exclusion. The unpinned `propose_exclusions.py` exited 0 after rewriting `proposed_exclusions.json` with no proposals, listing all five moved outputs as already excluded.
+
+Each script below now takes every file it reads from git with `git show <commit>:<path>`. It stops before scoring or writing anything unless each file's sha256 matches its pin, and it never reads the working tree. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+
+### `scripts/leaderboard_impact.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/data.json.gz` | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` |
+| `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` |
+| `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` |
+| `<run>/reference_outputs.csv.meta.json` | `8b4c0ca1` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` |
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `<run>/scenarios.csv` | `8b4c0ca1` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` |
+| `<run>/scenarios.csv.meta.json` | `8b4c0ca1` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` |
+| `proposed_exclusions.json` | `9ce4ade8` | `3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272` |
+
+It stages each file under `<scratch>/pass_inputs/<path>` and reads only that copy. `proposed_exclusions.json` is the file #191 proposed at its head `8af912a0`; #202 merged it unchanged.
+
+### `scripts/propose_exclusions.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` |
+| `verification/sweep_salt_withholding.csv` | `9ce4ade8` | `5918e349699471b8dcf9baa9584afdd583f8054624301839bb228bdc90a52d0c` |
+| `verification/sweep_salt_withholding_households.json` | `9ce4ade8` | `b36669b4a6b43483fbec5ce18f2d8affbeda98df34d3523ae39ff2deec0e4e40` |
+| `verification/variants.json` | `9ce4ade8` | `5cf0588e6071d4c35cfe6f8e07a8f3aaf8873dfbc8b7e34d496813d047141764` |
+
+### Reproduce
+
+The scoring code is the checkout's. The impact script's check on its unchanged copy stops it if that code no longer scores the pinned run as the pinned payload records. The scripts run from any checkout that has both commits in its history; a shallow clone needs `git fetch --unshallow` first:
+
+```bash
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05/scripts/leaderboard_impact.py --scratch <dir outside the repository>
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05/scripts/propose_exclusions.py
+```
+
+`--out-dir <dir>` writes the files elsewhere. `tests/test_reference_audit_pins.py` checks the pins, that a changed byte in any input is refused, and that no script reads the working tree. It reruns `propose_exclusions.py` from a checkout whose working tree is junk and requires the committed `proposed_exclusions.json` byte for byte. Its slow test regenerates `leaderboard_impact.json`, `leaderboard_impact_models.csv` and `leaderboard_impact_programs.csv` from this checkout, whose run #202 rewrote, and requires the committed files byte for byte. The slow test takes one to two minutes per audit, so CI deselects it:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_audit_pins.py
+```
