@@ -1511,7 +1511,7 @@ def test_uk_situation_rejects_inputs_the_prompt_cannot_show():
                 name="adult1",
                 age=70,
                 employment_income=0.0,
-                inputs={"state_pension_reported": 9_000.0},
+                inputs={"universal_credit_reported": 9_000.0},
             )
         ],
     )

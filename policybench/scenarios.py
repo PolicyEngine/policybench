@@ -1647,6 +1647,11 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
             UK_EDUCATION_PROMPT_AGES
         ):
             continue
+        # The transfer path states the State Pension PE-UK computes
+        # (state_pension, in UK_COMPUTED_PERSON_INPUTS); stating the reported
+        # amount as well would show two State Pension lines.
+        if col == "state_pension_reported":
+            continue
         promptable = _uk_promptable_value(value)
         if promptable is not None:
             inputs[col] = promptable
