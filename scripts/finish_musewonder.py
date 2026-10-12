@@ -101,6 +101,7 @@ JUDGE_PROVENANCE_ENTRY_KEYS = frozenset(
         "judge_effort",
         "judge_model_reported",
         "judged_at_utc",
+        "judge_template_version",
         "prompt_sha256",
         "verdict_sha256",
     }
@@ -112,6 +113,7 @@ JUDGE_SIDECAR_FIELDS = (
     "judge_model_reported",
     "judged_at_utc",
     "judge_account_declared",
+    "judge_template_version",
 )
 WITHHELD_ADDRESS = "<account withheld>"
 # The context attachments an isolated judge's transcript may carry: ATTACHMENTS
@@ -2420,7 +2422,8 @@ def validate_verdicts(
     whose prompt is the seed's (``seed``, as stage.json binds it) carries its
     seed verdict over: the verdict must be the seed's, byte for byte, and any
     prompt_sha256 its sidecar records must match. Every other verdict is new
-    and must record the sha256 of the prompt it judged. A verdict naming
+    and must record the sha256 of the prompt it judged and template
+    JUDGE_TEMPLATE_VERSION. A verdict naming
     Muse Wonder also needs bound Opus 5.5 provenance. Returns the pending
     cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
     that fails is refused outright: a re-judge cannot restore it.
@@ -2465,6 +2468,12 @@ def validate_verdicts(
                     raise ValueError("verdict is bound to a different prompt")
             elif bound != digest(prompt):
                 raise ValueError("a new verdict is not bound to this prompt")
+            elif meta.get("judge_template_version") != JUDGE_TEMPLATE_VERSION:
+                # A new or re-opened case is rendered on this release's
+                # template, and its judge must have read that version.
+                raise ValueError(
+                    f"a new verdict is not on judge template v{JUDGE_TEMPLATE_VERSION}"
+                )
             if set(names) & set(MODELS.values()):
                 if (
                     meta.get("judge_model_requested") != JUDGE_MODEL
@@ -3395,8 +3404,25 @@ def engine_older(older: str, newer: str) -> bool:
 
 
 # The audited root-cause fix modules a "fix_modules" regeneration target
-# names, as committed at BASE_COMMIT.
+# names, as committed at BASE_COMMIT; and the upgrade audit's own modules, for
+# defects found later, as committed at HEAD (the builder's fix_location). A
+# target names such a module's path.
 AUDIT_FIXES = Path("reference_audit/2026-09-22/fixes")
+LOCAL_FIXES = Path("reference_audit/2026-10-12-engine-upgrade/fixes")
+
+
+def fix_module_blob(name: str) -> tuple[str, bytes]:
+    """A fix module's repository path and committed bytes: under AUDIT_FIXES
+    at BASE_COMMIT, or, for one the upgrade audit adds (absent there), under
+    LOCAL_FIXES at HEAD."""
+    path = AUDIT_FIXES / name
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "cat-file", "-e", f"{BASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    if result.returncode == 0:
+        return path.as_posix(), base_commit_blob(path)
+    return (LOCAL_FIXES / name).as_posix(), head_blob((LOCAL_FIXES / name).as_posix())
 TARGET_KEYS = {
     "record": {"kind", "value", "engine"},
     "fix_modules": {
@@ -3414,8 +3440,8 @@ TARGET_KEYS = {
 
 
 def committed_dependencies(names: list[str]) -> list[str]:
-    """The siblings the named fix modules load, transitively, as committed at
-    BASE_COMMIT, in the builder's order: the builder's module_dependencies
+    """The siblings the named fix modules load, transitively, as committed
+    (fix_module_blob), in the builder's order: the builder's module_dependencies
     (policybench.fix_module_closure), re-derived here from the committed
     bytes. Raises ClosureError for a module that loads local files any way
     but Path(__file__).with_name("<file>")."""
@@ -3423,7 +3449,7 @@ def committed_dependencies(names: list[str]) -> list[str]:
 
     found: list[str] = []
     for name in names:
-        read = lambda file: base_commit_blob(AUDIT_FIXES / file)  # noqa: E731
+        read = lambda file: fix_module_blob(file)[1]  # noqa: E731
         for dep in dependency_closure(name, read):
             if dep not in names and dep not in found:
                 found.append(dep)
@@ -3502,7 +3528,7 @@ def regeneration_target_problems(
     A "record" target is the record's alternative_value on the record's
     engine. A "fix_modules" target is the corrected value in a committed
     evidence file, at its sha256, computed on an older engine than the build's
-    with fix modules committed at BASE_COMMIT; there the modules moved the
+    with committed fix modules (fix_module_blob); there the modules moved the
     output beyond the exact-match tolerance (the defect was present), and on
     the build's engine they moved it by no more than REGENERATION_TOLERANCE
     (nothing is left to fix). Either way the build's value lands on it.
@@ -3572,11 +3598,18 @@ def _fix_modules_target_problems(
             f"or is not older than the build's {engine}"
         )
     modules = target["modules"]
-    if not (
-        isinstance(modules, list)
-        and modules
-        and all(isinstance(m, dict) and set(m) == {"module", "sha256"} for m in modules)
-    ):
+
+    def pinned(item) -> bool:
+        # A module the upgrade audit adds names its path; no other does.
+        if not isinstance(item, dict) or not isinstance(item.get("module"), str):
+            return False
+        local = fix_module_blob(item["module"])[0].startswith(LOCAL_FIXES.as_posix())
+        keys = {"module", "sha256", "path"} if local else {"module", "sha256"}
+        return set(item) == keys and (
+            not local or item["path"] == (LOCAL_FIXES / item["module"]).as_posix()
+        )
+
+    if not (isinstance(modules, list) and modules and all(map(pinned, modules))):
         return [*problems, f"{key}: the target lists no fix modules"]
     names = [m["module"] for m in modules]
     from policybench.fix_module_closure import ClosureError
@@ -3587,29 +3620,24 @@ def _fix_modules_target_problems(
         return [*problems, f"{key}: {error}"]
     expected = []
     for dep in closure:
-        expected.append(
-            {
-                "module": dep,
-                "sha256": hashlib.sha256(
-                    base_commit_blob(AUDIT_FIXES / dep)
-                ).hexdigest(),
-            }
-        )
+        where, blob = fix_module_blob(dep)
+        item = {"module": dep, "sha256": hashlib.sha256(blob).hexdigest()}
+        if where.startswith(LOCAL_FIXES.as_posix()):
+            item["path"] = where
+        expected.append(item)
     if target["dependencies"] != expected or any(
         doc["modules"].get(item["module"]) != item["sha256"] for item in expected
     ):
         problems.append(
             f"{key}: the target and evidence do not pin the siblings its modules load "
-            f"as committed at {BASE_COMMIT[:12]}: {[i['module'] for i in expected]}"
+            f"as committed: {[i['module'] for i in expected]}"
         )
     for entry in modules:
         name = entry["module"]
-        committed = hashlib.sha256(base_commit_blob(AUDIT_FIXES / name)).hexdigest()
+        where, blob = fix_module_blob(name)
+        committed = hashlib.sha256(blob).hexdigest()
         if entry["sha256"] != committed or doc["modules"].get(name) != committed:
-            problems.append(
-                f"{key}: {name} is not {AUDIT_FIXES / name} as committed at "
-                f"{BASE_COMMIT[:12]}"
-            )
+            problems.append(f"{key}: {name} is not {where} as committed")
     items = [
         item
         for item in doc.get("items", [])
@@ -4351,21 +4379,27 @@ def object_strings():
 
 
 def render_audit_with(
-    bundle: Path, sources: dict[str, bytes], lookup: dict
-) -> list[tuple[str, str, dict]]:
-    """Each audit case (id, prompt, manifest row) the bundle gives once the
-    build's references and explanations are in it, rendered in memory.
+    bundle: Path,
+    sources: dict[str, bytes],
+    lookup: dict,
+    versions: dict[str, int] | None = None,
+) -> list[tuple[str, dict[int, str], dict]]:
+    """Each audit case (id, prompts by template version, manifest row) the
+    bundle gives once the build's references and explanations are in it,
+    rendered in memory.
 
     A scratch run directory links every other bundle file and holds the
     build's, so nothing in the stage changes. The order is prepare_audit's.
-    Every prompt is on JUDGE_TEMPLATE_VERSION, the version of every verdict
-    this release's stage holds; install-references refuses a stage whose
-    prepare_audit rendering differs.
+    Every case is rendered on JUDGE_TEMPLATE_VERSION, the version new and
+    re-opened cases take, and a judged case also on the version its sidecar
+    records (``versions``), as prepare_audit compares it: the stage's audit
+    mixes the seed's v1 verdicts with this release's v2 ones.
     """
     import tempfile
 
     from policybench.audit import build_audit_cases, render_case_prompt
 
+    versions = versions or {}
     with tempfile.TemporaryDirectory(prefix="install-references-") as scratch:
         run = Path(scratch) / bundle.name
         for part in ("us", "annotations"):
@@ -4386,11 +4420,38 @@ def render_audit_with(
             return [
                 (
                     case.case_id,
-                    render_case_prompt(case, template_version=JUDGE_TEMPLATE_VERSION),
+                    {
+                        version: render_case_prompt(case, template_version=version)
+                        for version in {
+                            JUDGE_TEMPLATE_VERSION,
+                            versions.get(case.case_id, JUDGE_TEMPLATE_VERSION),
+                        }
+                    },
                     case.to_manifest_row(),
                 )
                 for case in cases
             ]
+
+
+def recorded_versions(audit: Path) -> dict[str, int]:
+    """The template version each judged case's sidecar records (absent: v1),
+    for the cases that hold a verdict; a sidecar that records an unknown
+    version is left out, so its case renders on JUDGE_TEMPLATE_VERSION."""
+    from policybench.judge_template import recorded_template_version
+
+    found = {}
+    for case in sorted((audit / "cases").glob("*")):
+        meta_path = case / "verdict.meta.json"
+        if not (case / "verdict.json").is_file() or not meta_path.is_file():
+            continue
+        try:
+            meta = json.loads(meta_path.read_text())
+        except ValueError:
+            continue
+        version = recorded_template_version(meta if isinstance(meta, dict) else None)
+        if version is not None:
+            found[case.name] = version
+    return found
 
 
 def verify_install_target(stage: Path, receipt: dict) -> None:
@@ -4517,9 +4578,42 @@ def install_references(args) -> None:
     bundle = stage / "publish" / RUN_NAME
     audit = stage / "audit"
     lookup = grounding_lookup(args.grounding)
-    rendered = render_audit_with(bundle, sources, lookup)
+    versions = recorded_versions(audit)
+    rendered = render_audit_with(bundle, sources, lookup, versions)
+    renders = {
+        case: texts for case, texts, row in rendered if not row["parse_failure_only"]
+    }
+    reopen, kept = {}, {}
+    for case in sorted((audit / "cases").iterdir()):
+        if not case.is_dir() or not (
+            (case / "verdict.json").exists() or (case / "verdict.meta.json").exists()
+        ):
+            continue
+        prompt = case / "prompt.md"
+        judged_on = versions.get(case.name, JUDGE_TEMPLATE_VERSION)
+        if case.name not in renders:
+            reopen[case.name] = (
+                f"install-references: the case leaves the audit on "
+                f"{upgrade.engine_version}"
+            )
+        elif (
+            not prompt.is_file()
+            or prompt.read_bytes() != renders[case.name][judged_on].encode("utf-8")
+        ):
+            reopen[case.name] = (
+                "install-references: its prompt re-renders on "
+                f"{upgrade.engine_version}, whose reference value or explanation "
+                "it shows"
+            )
+        elif (case / "verdict.json").is_file():
+            kept[case.name] = digest(case / "verdict.json")
+    # The prompt each case will hold after prepare_audit: a kept verdict's own
+    # bytes, on its recorded version; every other case on JUDGE_TEMPLATE_VERSION.
     texts = {
-        case: text for case, text, row in rendered if not row["parse_failure_only"]
+        case: forms[versions.get(case, JUDGE_TEMPLATE_VERSION)]
+        if case in kept
+        else forms[JUDGE_TEMPLATE_VERSION]
+        for case, forms in renders.items()
     }
     seeded = {case: item["prompt_sha256"] for case, item in seed.items()}
     upgraded = upgrade.upgraded_cases
@@ -4533,26 +4627,6 @@ def install_references(args) -> None:
         reworded_since_seed(),
         upgraded,
     )
-    reopen, kept = {}, {}
-    for case in sorted((audit / "cases").iterdir()):
-        if not case.is_dir() or not (
-            (case / "verdict.json").exists() or (case / "verdict.meta.json").exists()
-        ):
-            continue
-        prompt = case / "prompt.md"
-        if case.name not in texts:
-            reopen[case.name] = (
-                f"install-references: the case leaves the audit on "
-                f"{upgrade.engine_version}"
-            )
-        elif not prompt.is_file() or prompt.read_text() != texts[case.name]:
-            reopen[case.name] = (
-                "install-references: its prompt re-renders on "
-                f"{upgrade.engine_version}, whose reference value or explanation "
-                "it shows"
-            )
-        elif (case / "verdict.json").is_file():
-            kept[case.name] = digest(case / "verdict.json")
 
     # Install the build and bind it before the audit is touched: a stage left
     # partway is resumed by installing the same build again.
@@ -4595,7 +4669,7 @@ def install_references(args) -> None:
     require(
         manifest == [row for _, _, row in rendered]
         and all(
-            (audit / "cases" / case / "prompt.md").read_text() == text
+            (audit / "cases" / case / "prompt.md").read_bytes() == text.encode("utf-8")
             for case, text in texts.items()
         ),
         "prepare_audit rendered the stage's audit unlike the in-memory rendering",

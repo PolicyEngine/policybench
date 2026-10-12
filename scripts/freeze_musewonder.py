@@ -1,21 +1,21 @@
-"""Build the Claude Haiku 5.5 release locally from a strictly gated stage.
+"""Build the Muse Wonder release locally from a strictly gated stage.
 
-Adapted from freeze_gpt61sol.py. It configures the existing freezer in process
-and never calls a release upload. Run only after finish_haiku55.py --step
+Adapted from freeze_haiku55.py. It configures the existing freezer in process
+and never calls a release upload. Run only after finish_musewonder.py --step
 export has written release-ready.json. The optional --dry-run validates inputs
 without changing repository files. Both rebuild the payload from the bound
 bundle, as export builds it, and refuse a staged payload that differs.
 
-The release folds one model onto release 20261006 and installs the ten
-exclusions Max ruled on 2026-10-06 (docs/haiku55/spec.json). Without an engine
-upgrade, references stay release 20261006's and the exclusion record is that
-release's plus the ten ruled records. An installed upgrade must still pass
-the driver's build and drop-log gates; its references, explanations and
-exclusions are frozen byte for byte. Scenarios always stay 20261006's. The
+The release folds one model onto release 20261010 and rules no exclusion
+(docs/musewonder/spec.json). Without an engine upgrade, references stay
+release 20261010's and so does the exclusion record. An installed upgrade must
+pass the driver's build and drop-log gates; its references, explanations and
+exclusions are frozen byte for byte. Scenarios always stay 20261010's. The
 adjudications may change only through a staged record that triage applied and
-export bound: the ruled outputs' entries, a re-opened case's judge fields, and
-date conventions that name the 2026-10-06 wave. The committed wording
-amendments record stays release 20261006's, with any stage list appended.
+export bound: a re-opened case's judge fields, the upgrade's dropped and added
+decisions, and date conventions that name any wave the release adds. The
+committed wording amendments record stays release 20261010's, with any stage
+list appended.
 """
 
 from __future__ import annotations
@@ -38,14 +38,13 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import finish_haiku55 as driver  # noqa: E402
+import finish_musewonder as driver  # noqa: E402
 
 # The treatment check is release-independent; reuse it unchanged.
 from freeze_adds0928 import validate_treatment  # noqa: E402
 
-# Reuse release 20261006's manifest comparison and baseline version counts.
+# Reuse release 20261010's manifest comparison and baseline version counts.
 from release_20261006 import leaf_paths  # noqa: E402
-from release_20261006 import versions_description as base_count_exclusions  # noqa: E402
 
 RUN = driver.RUN_NAME
 NEW_MODELS = dict(driver.MODELS)
@@ -53,7 +52,7 @@ BOARD_MODELS = driver.BOARD_MODELS
 ADJUDICATIONS = "us_adjudications.json"
 # The published annotations the adjudications and amendments are applied to.
 ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
-# The reference narratives a judge's prompt carries: release 20261006's,
+# The reference narratives a judge's prompt carries: release 20261010's,
 # unless an installed engine upgrade regenerates them.
 EXPLANATIONS = "us_case_reference_explanations.csv"
 # The wording amendments record, as it is committed beside the adjudications.
@@ -67,10 +66,15 @@ SNAPSHOT = Path("paper/snapshot/20260501")
 ANNOTATIONS = Path("annotations") / RUN
 POINTER = Path("app/src/data.artifact.json")
 VERSIONS = Path("app/src/data.versions.json")
-# The engines the exclusion records were decided on, which the live version's
-# description counts by name.
-EXCLUSION_ENGINES = frozenset({"policyengine-us 1.755.4", "policyengine-us 2.15.17"})
-# Manifest paths the freeze may change from release 20261006's; every other
+# The engines release 20261010's exclusion records were decided on, in the
+# order the live version's description counts them by name.
+BASE_EXCLUSION_ENGINES = (
+    "policyengine-us 1.755.4",
+    "policyengine-us 2.15.17",
+    "policyengine-us 2.38.6",
+)
+EXCLUSION_ENGINES = frozenset(BASE_EXCLUSION_ENGINES)
+# Manifest paths the freeze may change from release 20261010's; every other
 # leaf must equal that release's manifest, read from git at BASE_COMMIT.
 MANIFEST_CHANGES = (
     ("audit_annotation_artifacts", "files"),
@@ -93,7 +97,7 @@ MANIFEST_CHANGES = (
     ("snapshot_date",),
     ("source_run_artifacts", RUN, "files"),
 )
-# Pins under those paths that must stay release 20261006's all the same.
+# Pins under those paths that must stay release 20261010's all the same.
 MANIFEST_PINNED = frozenset(
     {
         *(("source_run_artifacts", RUN, "files", name) for name in PINNED_REFERENCES),
@@ -102,7 +106,7 @@ MANIFEST_PINNED = frozenset(
 )
 # Additional leaves written from an installed build's sidecar. Each is named
 # explicitly; the scenario pins, household dataset and other refresh fields
-# remain release 20261006's, including row_count and generated_at_utc.
+# remain release 20261010's, including row_count and generated_at_utc.
 UPGRADE_MANIFEST_CHANGES = (
     ("committed_snapshot_artifacts", "us_reference_outputs.csv"),
     ("reference_output_refresh", "date"),
@@ -182,12 +186,13 @@ def verify_freezer_destinations(freezer) -> None:
 
 
 def release_spec(tag: str) -> dict:
-    """docs/haiku55/spec.json, with what the freeze reads from it checked.
+    """docs/musewonder/spec.json, with what the freeze reads from it checked.
 
-    The snapshot date and the day the 2026-10-06 wave's decisions were written
-    come from the spec alone, so a spec that lacks either stops the freeze
-    here, before any gate reads it. The spec must also name the release this
-    freeze builds and the base the driver pins.
+    The snapshot date comes from the spec alone, and so does the day a ruled
+    wave's decisions were written when the spec rules any, so a spec that
+    lacks either stops the freeze here, before any gate reads it. The spec
+    must also name the release this freeze builds and the base the driver
+    pins.
     """
     spec = driver.load_spec()
     try:
@@ -198,10 +203,10 @@ def release_spec(tag: str) -> dict:
             f"{spec.get('snapshot_date')!r}"
         ) from None
     written = spec.get("adjudications_written_on")
-    if not isinstance(written, str) or not written.strip():
+    if driver.spec_records(spec) and (not isinstance(written, str) or not written.strip()):
         raise SystemExit(
             f"{driver.SPEC_PATH} names no adjudications_written_on, the UTC day "
-            "the 2026-10-06 wave's decisions were written; the record's date "
+            "the ruled wave's decisions were written; the record's date "
             "conventions state it"
         )
     named = {
@@ -256,7 +261,7 @@ def verify_upgrade(stage: Path, receipt: dict) -> driver.Upgrade | None:
     for name in ("scenarios.csv", "scenarios.csv.meta.json"):
         path = stage / "scoring" / name
         if not path.is_file() or digest(path) != driver.BASE_REFERENCE_SHA256[name]:
-            raise SystemExit(f"Staged scoring/{name} is not release 20261006's")
+            raise SystemExit(f"Staged scoring/{name} is not release 20261010's")
     superseded = installed.get("superseded")
     if (
         not isinstance(superseded, list)
@@ -317,7 +322,7 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
         or receipt.get("base_sha256") != driver.BASE_SHA256
     ):
         raise SystemExit(
-            "Strict export receipt does not name release 20261006 as its base "
+            "Strict export receipt does not name release 20261010 as its base "
             f"({receipt.get('base_tag')!r}, {receipt.get('base_sha256')!r})"
         )
     if not receipt.get("files"):
@@ -369,8 +374,8 @@ def verify_installed_exclusions(
 ) -> str:
     """The stage scores on the release's exclusion record, as installed.
 
-    ``text`` is release 20261006's record plus the ten ruled records
-    (finish_haiku55.build_release_exclusions, spelled by exclusions_text),
+    ``text`` is release 20261010's record plus the spec's ruled records, none
+    here (finish_musewonder.build_release_exclusions, spelled by exclusions_text),
     rebuilt now from git and the spec. The staged record must be those bytes,
     the receipt must bind them, and stage.json, which the receipt binds, must
     record them as --step install-exclusions wrote them: the installed and
@@ -386,7 +391,7 @@ def verify_installed_exclusions(
                 f"Staged {EXCLUSIONS} is not the installed engine upgrade's record"
             )
         raise SystemExit(
-            f"Staged {EXCLUSIONS} is not release 20261006's record plus the "
+            f"Staged {EXCLUSIONS} is not release 20261010's record plus the "
             f"{driver.NEW_EXCLUSIONS} ruled records ({driver.SPEC_PATH}); run "
             "--step install-exclusions, then triage and export again"
         )
@@ -495,14 +500,14 @@ def verify_references(
     """References match the baseline or the gated installed upgrade's pins.
 
     The reference outputs, the scenarios and their sidecars must equal release
-    20261006's pins in the stage, in the committed snapshot and in the
+    20261010's pins in the stage, in the committed snapshot and in the
     manifest. The staged exclusion record must be the release's
     (``exclusions_sha256``). Its committed copy and its manifest pin are
-    release 20261006's before this freeze and the release's after it, so a
+    release 20261010's before this freeze and the release's after it, so a
     second freeze finds either.
     With an upgrade, the build's three reference files replace the staged
     pins, while committed copies and manifest pins may be baseline or build.
-    Scenarios and their sidecar remain pinned to release 20261006.
+    Scenarios and their sidecar remain pinned to release 20261010.
     """
     pins = manifest["source_run_artifacts"][RUN]["files"]
     upgraded = {} if upgrade is None else driver.upgraded_reference_pins(upgrade)
@@ -513,15 +518,15 @@ def verify_references(
     for name, pin in driver.BASE_REFERENCE_SHA256.items():
         staged, committed = {pin}, {pin}
         reason = "this release revises no reference value"
-        whose = "not release 20261006's"
+        whose = "not release 20261010's"
         if name == EXCLUSIONS:
             staged, committed = {exclusions_sha256}, {pin, exclusions_sha256}
             reason = "it is not the release's record"
-            whose = "neither release 20261006's nor this release's"
+            whose = "neither release 20261010's nor this release's"
         elif upgrade is not None and name in driver.UPGRADED_FILES:
             staged, committed = {upgraded[name]}, {pin, upgraded[name]}
             reason = "it is not the installed engine upgrade's file"
-            whose = "neither release 20261006's nor the installed engine upgrade's"
+            whose = "neither release 20261010's nor the installed engine upgrade's"
         if not matches(source_us / name, staged):
             raise SystemExit(f"Staged {name} changed: {reason}")
         if not matches(frozen_run / name, committed):
@@ -536,7 +541,7 @@ def verify_references(
         if not matches(frozen_run.parents[1] / "us_reference_outputs.csv", allowed):
             raise SystemExit(
                 "Committed us_reference_outputs.csv changed: it is neither "
-                "release 20261006's nor the installed engine upgrade's"
+                "release 20261010's nor the installed engine upgrade's"
             )
         if (
             manifest["committed_snapshot_artifacts"].get("us_reference_outputs.csv")
@@ -544,7 +549,7 @@ def verify_references(
         ):
             raise SystemExit(
                 "Manifest pin for us_reference_outputs.csv is neither release "
-                "20261006's nor the installed engine upgrade's"
+                "20261010's nor the installed engine upgrade's"
             )
         if manifest["audit_annotation_artifacts"]["files"].get(EXPLANATIONS) not in {
             driver.BASE_EXPLANATIONS_SHA256,
@@ -552,7 +557,7 @@ def verify_references(
         }:
             raise SystemExit(
                 f"Manifest pin for {EXPLANATIONS} is neither release "
-                "20261006's nor the installed engine upgrade's"
+                "20261010's nor the installed engine upgrade's"
             )
 
 
@@ -599,18 +604,18 @@ def verify_adjudication_record(
     cases_dir: Path,
     upgrade: driver.Upgrade | None = None,
 ) -> int:
-    """The staged record changes release 20261006's only as the release says.
+    """The staged record changes release 20261010's only as the release says.
 
-    The baseline is release 20261006's record in git (BASE_COMMIT), never the
-    working-tree copy this freeze overwrites. The ten ruled outputs must carry
-    exactly the entries the driver builds for them from the spec and each
-    case's bound verdict. A case Claude Haiku 5.5 re-opened may rewrite its
+    The baseline is release 20261010's record in git (BASE_COMMIT), never the
+    working-tree copy this freeze overwrites. Any ruled output must carry
+    exactly the entry the driver builds for it from the spec and its case's
+    bound verdict (there are none here). A case Muse Wonder re-opened may rewrite its
     judge fields, restated as the restate script does, and its reasoning
     exactly as the listed wording amendments say. Nothing else in any
     committed entry may change. The record excludes exactly the outputs the
     staged exclusion record lists. The staged file's bytes must be exactly its
-    parsed content, with release 20261006's note, and its date conventions
-    with the 2026-10-06 wave named (driver.release_date_conventions). Returns
+    parsed content, with release 20261010's note, and its date conventions
+    with any wave the release adds named (driver.release_date_conventions). Returns
     how many staged decisions, beyond the ruled ones, the committed record
     lacks. The staged record, prompt-changes.json and the amendments are bound
     by the receipt, which export writes only after triage applied them.
@@ -719,18 +724,18 @@ def rebuild_payload(
     The receipt binds the payload only by a hash that sits beside it, so a
     payload edited after export (the addition's scores, an incumbent's cost, a
     case's classes) with its receipt rehashed passes every other gate.
-    Export's own build (driver.build_payload, against release 20261006 as
+    Export's own build (driver.build_payload, against release 20261010 as
     ``live``) runs again on a scratch copy of the bundle files the receipt
     binds, each checked against its receipt hash, and its bytes must equal the
     staged payload's. That build scores every model on the release's outputs
-    and repeats export's scope check: with release 20261006's exclusion
+    and repeats export's scope check: with release 20261010's exclusion
     record put back, every incumbent's modelStats is that release's, byte for
     byte. The copy is the bundle's: export_full_run writes data.json,
     us/data.json and us/analysis/ into the bundle it reads, and its data.json
     lacks the carried usage, so a rebuild in place would rewrite the stage.
     """
     bundle = Path("publish") / RUN
-    with tempfile.TemporaryDirectory(prefix="freeze-haiku55-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="freeze-musewonder-") as scratch:
         copy_root = Path(scratch) / RUN
         for name, expected in receipt["files"].items():
             if not Path(name).is_relative_to(bundle):
@@ -753,7 +758,7 @@ def rebuild_payload(
 
 
 def base_prediction_rows():
-    """Release 20261006's predictions, read from git at BASE_COMMIT.
+    """Release 20261010's predictions, read from git at BASE_COMMIT.
 
     Never the working-tree copy, which the freezer rewrites from the stage: a
     freeze that stopped partway would compare the staged rows with themselves.
@@ -769,7 +774,7 @@ def base_prediction_rows():
 
 
 def base_serving_config() -> dict:
-    """Release 20261006's serving configuration, read from git at BASE_COMMIT."""
+    """Release 20261010's serving configuration, read from git at BASE_COMMIT."""
     return json.loads(driver.base_commit_blob(SNAPSHOT / "model_serving_config.json"))
 
 
@@ -872,11 +877,11 @@ def amendments_text(record: dict) -> str:
 def committed_amendments(stage: Path) -> bytes:
     """The wording amendments record this freeze commits.
 
-    Release 20261006's committed record (from git at BASE_COMMIT) lists the
+    Release 20261010's committed record (from git at BASE_COMMIT) lists the
     amendments GPT-6.1 Sol's re-opened cases needed, and that wording is still
     published, so the record is never replaced. With no stage list, or an
     empty one, it is committed unchanged. A stage list (driver.load_amendments
-    checks each item names a case Claude Haiku 5.5 re-opened) is appended
+    checks each item names a case Muse Wonder re-opened) is appended
     after the earlier amendments, in its own order, and the note says which
     items are this release's; a note the stage list carries follows it.
     """
@@ -892,13 +897,13 @@ def committed_amendments(stage: Path) -> bytes:
         "amendments",
     ]:
         raise SystemExit(
-            f"Release 20261006's {COMMITTED_AMENDMENTS} is not in its committed "
+            f"Release 20261010's {COMMITTED_AMENDMENTS} is not in its committed "
             "form; cannot append this release's wording amendments"
         )
     earlier = len(record["amendments"])
     note = (
         f"{record['note']} The last {len(added)} (after the first {earlier}) "
-        "are for cases Claude Haiku 5.5 re-opened (finish_haiku55.py "
+        "are for cases Muse Wonder re-opened (finish_musewonder.py "
         "load_amendments)."
     )
     if isinstance(listed.get("note"), str) and listed["note"].strip():
@@ -943,7 +948,7 @@ def serving_problems(
     """Where a serving configuration is not the release's.
 
     Its models are the incumbents and the addition. Every incumbent's row is
-    release 20261006's (``previous``), every field. Each new model's evidence
+    release 20261010's (``previous``), every field. Each new model's evidence
     is its run state and names its supervised run. The evidence summary is the
     tally of the rows' evidence kinds.
     """
@@ -955,7 +960,7 @@ def serving_problems(
     if set(models) != expected:
         problems.append(f"roster differs on {sorted(set(models) ^ expected)[:8]}")
     problems += [
-        f"{model} is not release 20261006's row"
+        f"{model} is not release 20261010's row"
         for model in sorted(set(incumbents) & set(models))
         if json.dumps(models[model], sort_keys=True)
         != json.dumps(previous["models"][model], sort_keys=True)
@@ -986,7 +991,7 @@ def merge_serving(
 ) -> dict:
     """The release's serving configuration, from the freezer's (``serving``).
 
-    The old rows already have frozen evidence. They are release 20261006's,
+    The old rows already have frozen evidence. They are release 20261010's,
     kept field for field after the incumbents' predictions were checked
     identical, instead of being silently downgraded when this checkout lacks
     the historical run directories. Each new model keeps the freezer's row,
@@ -1032,19 +1037,35 @@ def release_pointer(tag: str, payload_path: Path, payload_hash: str) -> dict:
 def count_exclusions(
     text: str, exclusions: list[dict], upgrade: driver.Upgrade | None = None
 ) -> str:
-    """Count the record's engines, including the installed build's engine."""
-    if upgrade is None:
-        return base_count_exclusions(text, exclusions)
-    engines = (*sorted(EXCLUSION_ENGINES), upgrade.engine_version)
-    version = upgrade.engine_version.removeprefix("policyengine-us ")
+    """The live version's description with the exclusions counted by engine.
+
+    Release 20261010's description counts its records on 1.755.4, 2.15.17 and
+    2.38.6 and names 2.38.6 as the reference engine. With an installed upgrade
+    the new engine is counted too (when it decided any record), named as the
+    reference engine, and the re-review clause counts the excluded outputs
+    that move on it. Applying this to its own result changes nothing.
+    """
+    engines = list(BASE_EXCLUSION_ENGINES)
+    if upgrade is not None and upgrade.engine_version not in engines:
+        engines.append(upgrade.engine_version)
+    numbers = [engine.removeprefix("policyengine-us ") for engine in engines]
     counts = {
         engine: sum(r["engine_version"] == engine for r in exclusions)
         for engine in engines
     }
+    if sum(counts.values()) != len(exclusions):
+        raise SystemExit("an exclusion record names an engine the description omits")
+    fixed = len(BASE_EXCLUSION_ENGINES)
     pattern = (
-        r"the \d+ excluded outputs keep the values they were decided on: \d+ from "
-        r"policyengine-us 1\.755\.4, \d+ from 2\.15\.17"
-        rf"(?:, \d+ from {re.escape(version)})?"
+        r"the \d+ excluded outputs keep the values they were decided on: "
+        + ", ".join(
+            (r"\d+ from policyengine-us " if i == 0 else r"\d+ from ")
+            + re.escape(number)
+            for i, number in enumerate(numbers[:fixed])
+        )
+        + "".join(
+            rf"(?:, \d+ from {re.escape(number)})?" for number in numbers[fixed:]
+        )
     )
     if len(re.findall(pattern, text)) != 1:
         raise SystemExit("the version description changed form")
@@ -1052,13 +1073,16 @@ def count_exclusions(
         f"{counts[engine]} from "
         + (engine if i == 0 else engine.removeprefix("policyengine-us "))
         for i, engine in enumerate(engines)
-        if i < len(EXCLUSION_ENGINES) or counts[engine]
+        if i < fixed or counts[engine]
     ]
     counted = (
         f"the {len(exclusions)} excluded outputs keep the values they were decided on: "
         + ", ".join(described)
     )
-    text = re.sub(pattern, counted, text)
+    text = re.sub(pattern, lambda _: counted, text)
+    if upgrade is None:
+        return text
+    version = upgrade.engine_version.removeprefix("policyengine-us ")
     previous = driver.BASE_ENGINE.removeprefix("policyengine-us ")
     versions = rf"(?:{re.escape(previous)}|{re.escape(version)})"
     text, changed = re.subn(
@@ -1134,7 +1158,7 @@ def manifest_problems(
 
     A leaf may differ only under a MANIFEST_CHANGES path, and never at a
     MANIFEST_PINNED one: the pinned references and the reference explanations
-    keep release 20261006's hashes.
+    keep release 20261010's hashes.
     """
     pinned = MANIFEST_PINNED
     changes = MANIFEST_CHANGES
@@ -1214,13 +1238,13 @@ def verify_frozen(
 ) -> None:
     """What the freezer wrote is the release, checked file by file.
 
-    The frozen references are release 20261006's and the frozen exclusion
+    The frozen references are release 20261010's and the frozen exclusion
     record is the release's. The annotations directory holds the staged
     adjudications and annotation CSVs, byte for byte, and the wording
     amendments record; the frozen adjudication record is in the committed
-    form with the 2026-10-06 wave named. The serving configuration keeps
-    release 20261006's rows and adds the new model's. The manifest differs
-    from release 20261006's only where the release may change it, and states
+    form with any wave the release adds named. The serving configuration keeps
+    release 20261010's rows and adds the new model's. The manifest differs
+    from release 20261010's only where the release may change it, and states
     the release's snapshot date, model count, response window, exclusion
     counts, artifact and exclusion pin.
     """
@@ -1257,7 +1281,7 @@ def verify_frozen(
     )
     if (annotations / COMMITTED_AMENDMENTS).read_bytes() != committed_amendments(stage):
         raise SystemExit(
-            f"The frozen {COMMITTED_AMENDMENTS} is not release 20261006's "
+            f"The frozen {COMMITTED_AMENDMENTS} is not release 20261010's "
             "record with the stage's list appended"
         )
     serving = serving_problems(
@@ -1422,7 +1446,7 @@ def main(argv: list[str] | None = None) -> None:
     exclusions_sha256 = verify_installed_exclusions(
         stage, receipt, exclusions_text, upgrade
     )
-    # Claude Haiku 5.5's run files are the committed pins' and its bundle rows
+    # Muse Wonder's run files are the committed pins' and its bundle rows
     # are its run file's, every column: its cost, tokens and latency included.
     driver.verify_new_model_inputs(stage)
     runs = evidence_runs()
@@ -1445,7 +1469,7 @@ def main(argv: list[str] | None = None) -> None:
 
     snapshot = ROOT / SNAPSHOT
     frozen_run = snapshot / "runs" / RUN
-    # The incumbents' frozen serving evidence is release 20261006's, from git.
+    # The incumbents' frozen serving evidence is release 20261010's, from git.
     previous_serving = base_serving_config()
     incumbents = set(previous_serving["models"]) - set(NEW_MODELS.values())
     if len(incumbents) != driver.BASE_MODELS or model_names != incumbents | set(

@@ -1653,7 +1653,8 @@ AUDIT_FIXES_DIR = "reference_audit/2026-09-22/fixes"
 def verify_regeneration_target_pins(upgrade: dict) -> None:
     """Each regenerated output held to the audit's fix modules publishes the
     bytes that ran: every module and sibling its target pins is the file
-    committed under AUDIT_FIXES_DIR, and its evidence file is the committed
+    committed under AUDIT_FIXES_DIR (or at the path it names, in an upgrade
+    audit's own fixes/), and its evidence file is the committed
     one. The builder and driver check this before the install; the freeze
     checks what the published sidecar says."""
     for entry in upgrade.get("regenerated_exclusions", []):
@@ -1665,7 +1666,18 @@ def verify_regeneration_target_pins(upgrade: dict) -> None:
         if not target.get("modules"):
             raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
         for item in pins:
-            path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            # A module an upgrade audit adds after 2026-09-22 names its own
+            # path, in that audit's fixes/ (the 2026-10-12 builder's
+            # fix_location); every other module is under AUDIT_FIXES_DIR.
+            path = item.get("path") or f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            if not re.fullmatch(
+                r"reference_audit/[0-9a-z-]+/fixes/" + re.escape(str(item.get("module"))),
+                path,
+            ):
+                raise SystemExit(
+                    f"regenerated {key}: {item.get('module')} names path {path!r}, "
+                    "not an audit's fixes/ directory"
+                )
             committed = committed_sha256(path)
             if committed is None or item.get("sha256") != committed:
                 raise SystemExit(
