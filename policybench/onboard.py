@@ -18,21 +18,29 @@ expansion is a cheap, automatable probe:
    default timeout get a larger one on the card, and measured cost per call
    seeds the supervisor's budget projection.
 
-The result is a suggested ``ModelCard`` plus a probe log. Total cost is a
-few cents; run it before committing real money to a full benchmark.
+The probes build their requests through the harness, so they run under the
+model's card. A model with no card yet is probed under the provisional
+thinking-class card the gauntlet derives, registered only while the probes
+run. Without a card the harness falls back to family-prefix heuristics or,
+for an id no prefix covers, a small default: 384 tokens for 3 variables on a
+``gpt-6`` id, which failed ``gpt-6.1-sol`` at the ceiling on 2026-09-29.
+
+The result is a suggested ``ModelCard`` plus a probe log that records the
+card the probes ran under. Total cost is a few cents; run it before
+committing real money to a full benchmark.
 """
 
 from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 
 from litellm import completion, responses
 
 from policybench import eval_no_tools as harness
 from policybench.completion_budget import completion_budget_from_kwargs
-from policybench.model_cards import ModelCard
+from policybench.model_cards import ModelCard, provisional_card
 
 PROBE_FULL_VARIABLE_COUNT = 16
 PROBE_TIMEOUT_SECONDS = 240
@@ -74,6 +82,9 @@ class ProbeResult:
     requested: int = 0
     error: str | None = None
     cost_usd: float | None = None
+    # The completion budget and provider timeout the request was sent with.
+    completion_budget: int | None = None
+    timeout_seconds: float | None = None
 
     @property
     def environment_error(self) -> bool:
@@ -92,6 +103,10 @@ class GauntletReport:
     unscorable_reason: str | None = None
     card: ModelCard | None = None
     aborted: str | None = None
+    # The card the probes ran under: the model's own card, or the
+    # provisional thinking-class card when it had none.
+    probe_card: ModelCard | None = None
+    probe_card_provisional: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -100,7 +115,19 @@ class GauntletReport:
             "unscorable_reason": self.unscorable_reason,
             "card": vars(self.card) if self.card else None,
             "aborted": self.aborted,
+            "probe_card": vars(self.probe_card) if self.probe_card else None,
+            "probe_card_provisional": self.probe_card_provisional,
         }
+
+
+def provisional_probe_card(model_id: str) -> ModelCard:
+    """Return the card the gauntlet derives, before any probe findings.
+
+    Every derived card is thinking-class; the gauntlet fills in the probe
+    findings (contract, timeout, cost) on top of this one, and probes a
+    model that has no card under it.
+    """
+    return ModelCard(litellm_id=model_id, thinking_budget=True)
 
 
 def _probe_request(scenario, variables, model_id, contract):
@@ -173,11 +200,13 @@ def _probe_request(scenario, variables, model_id, contract):
 
 def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
     started = time.time()
+    budget = timeout = None
     try:
         messages, kwargs, request_fn = _probe_request(
             scenario, variables, model_id, contract
         )
         budget = completion_budget_from_kwargs(kwargs)
+        timeout = kwargs["timeout"]
         response = harness._run_request_with_wall_timeout(request_fn, kwargs)
     except Exception as error:
         return ProbeResult(
@@ -186,6 +215,8 @@ def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
             seconds=time.time() - started,
             requested=len(variables),
             error=f"{type(error).__name__}: {error}"[:300],
+            completion_budget=budget,
+            timeout_seconds=timeout,
         )
     if harness._uses_responses_api(model_id):
         content, tool_calls = harness._responses_content_and_tool_calls(response)
@@ -223,6 +254,8 @@ def _run_probe(name, scenario, variables, model_id, contract) -> ProbeResult:
         parsed=parsed,
         requested=len(variables),
         cost_usd=cost,
+        completion_budget=budget,
+        timeout_seconds=timeout,
     )
 
 
@@ -231,15 +264,36 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
 
     ``scenario`` is any benchmark scenario; ``full_variables`` its expanded
     output list (16+ entries exercises the whole-scenario request shape).
+
+    A model with a card is probed under it. One without is probed under
+    ``provisional_probe_card``, which ``card_for`` serves only while the
+    probes run, so the completion budget and timeout match the card the
+    gauntlet derives and ``MODEL_CARDS`` is unchanged afterwards, even if a
+    probe raises.
     """
     report = GauntletReport(model_id=model_id)
+    provisional = provisional_probe_card(model_id)
+    with provisional_card(provisional) as probe_card:
+        report.probe_card = probe_card
+        report.probe_card_provisional = probe_card is provisional
+        _probe_and_derive(report, scenario, full_variables, provisional)
+    return report
+
+
+def _probe_and_derive(
+    report: GauntletReport,
+    scenario,
+    full_variables: list[str],
+    provisional: ModelCard,
+) -> None:
+    model_id = report.model_id
     small_variables = full_variables[:3]
 
     tool_small = _run_probe("tool-3var", scenario, small_variables, model_id, "tool")
     report.probes.append(tool_small)
     if tool_small.environment_error:
         report.aborted = f"environment error, not a serving fact: {tool_small.error}"
-        return report
+        return
     contract = "tool" if tool_small.ok else "json"
     if not tool_small.ok:
         json_small = _run_probe(
@@ -250,18 +304,18 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
             report.aborted = (
                 f"environment error, not a serving fact: {json_small.error}"
             )
-            return report
+            return
         if not json_small.ok:
             # Neither contract answers even a 3-variable request.
             report.unscorable_reason = "neither contract answers a 3-variable request"
-            return report
+            return
 
     full_vars = full_variables[:PROBE_FULL_VARIABLE_COUNT]
     full = _run_probe(f"{contract}-full", scenario, full_vars, model_id, contract)
     report.probes.append(full)
     if full.environment_error:
         report.aborted = f"environment error, not a serving fact: {full.error}"
-        return report
+        return
     if not full.ok:
         # Scores are only comparable when every model answers the same
         # canonical whole-scenario prompt; per-model chunking would hand
@@ -270,7 +324,7 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
             f"{contract} contract answers 3 variables but not the "
             "canonical whole-scenario prompt"
         )
-        return report
+        return
 
     slow = any(
         p.seconds > harness.THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS * SLOW_CALL_FRACTION
@@ -283,19 +337,38 @@ def run_gauntlet(model_id: str, scenario, full_variables: list[str]) -> Gauntlet
     if expected is not None:
         expected = round(expected, 3)
 
-    report.card = ModelCard(
-        litellm_id=model_id,
+    report.card = replace(
+        provisional,
         answer_contract=contract,
         request_timeout_seconds=timeout,
-        thinking_budget=True,
         expected_cost_per_scenario_usd=expected,
         notes="Derived by `policybench onboard` — verify with a 2-scenario smoke.",
     )
-    return report
+
+
+def _describe_probe_card(report: GauntletReport) -> str:
+    card = report.probe_card
+    treatment = ", ".join(
+        f"{item.name}={getattr(card, item.name)!r}"
+        for item in fields(card)
+        if item.name not in ("litellm_id", "notes")
+        and getattr(card, item.name) is not None
+    )
+    treatment = treatment or "no serving fields set"
+    if report.probe_card_provisional:
+        return (
+            f"Probe card: provisional ({treatment}). The model has no card in "
+            "policybench/model_cards.py, so the probes ran under the "
+            "thinking-class card the gauntlet derives; it was not left "
+            "registered."
+        )
+    return f"Probe card: the model's card in policybench/model_cards.py ({treatment})."
 
 
 def format_report(report: GauntletReport) -> str:
     lines = [f"# Onboarding gauntlet: {report.model_id}", ""]
+    if report.probe_card is not None:
+        lines.extend([_describe_probe_card(report), ""])
     for probe in report.probes:
         status = "PASS" if probe.ok else "FAIL"
         detail = (
@@ -303,10 +376,14 @@ def format_report(report: GauntletReport) -> str:
             if probe.error is None
             else probe.error
         )
+        timeout = (
+            "?" if probe.timeout_seconds is None else f"{probe.timeout_seconds:.0f}s"
+        )
+        budget = "?" if probe.completion_budget is None else probe.completion_budget
         lines.append(
-            f"- {probe.name}: {status} ({probe.seconds:.0f}s, "
-            f"tokens={probe.completion_tokens}, finish={probe.finish_reason}) "
-            f"— {detail}"
+            f"- {probe.name}: {status} ({probe.seconds:.0f}s of {timeout}, "
+            f"tokens={probe.completion_tokens} of {budget}, "
+            f"finish={probe.finish_reason}) — {detail}"
         )
     lines.append("")
     if report.aborted:

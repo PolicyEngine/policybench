@@ -16,7 +16,12 @@ from policybench.eval_no_tools import (
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
-from policybench.model_cards import MODEL_CARDS, ModelCard, card_for
+from policybench.model_cards import (
+    MODEL_CARDS,
+    ModelCard,
+    card_for,
+    provisional_card,
+)
 
 # model_id -> (contract, chunk_size, timeout_s, budget_for_16_vars_with_expl)
 EXPECTED = {
@@ -183,3 +188,47 @@ def test_contract_override_is_the_sensitivity_escape_hatch(monkeypatch):
     monkeypatch.setenv("POLICYBENCH_CONTRACT_OVERRIDE", "xml")
     with pytest.raises(ValueError, match="POLICYBENCH_CONTRACT_OVERRIDE"):
         _answer_contract_for_model("claude-fable-5-1")
+
+
+def test_provisional_card_is_served_only_inside_the_block():
+    card = ModelCard(litellm_id="provider/new-model", thinking_budget=True)
+    assert card_for(card.litellm_id) is None
+    # Card-less, the harness falls back to its default family heuristic.
+    assert _budget(card.litellm_id) == 1_632
+    assert _request_timeout_seconds(card.litellm_id) == 20
+
+    with provisional_card(card) as in_effect:
+        assert in_effect is card
+        assert card_for(card.litellm_id) is card
+        assert _budget(card.litellm_id) == 16_384
+        assert _request_timeout_seconds(card.litellm_id) == 300
+
+    assert card_for(card.litellm_id) is None
+    assert card.litellm_id not in MODEL_CARDS
+    assert _budget(card.litellm_id) == 1_632
+
+
+def test_provisional_card_never_shadows_an_existing_card():
+    own = MODEL_CARDS["claude-sonnet-4-6"]
+    provisional = ModelCard(litellm_id="claude-sonnet-4-6", thinking_budget=True)
+
+    with provisional_card(provisional) as in_effect:
+        assert in_effect is own
+        assert card_for("claude-sonnet-4-6") is own
+        assert _budget("claude-sonnet-4-6") == 4_096
+
+    assert MODEL_CARDS["claude-sonnet-4-6"] is own
+
+
+@pytest.mark.parametrize("error", [RuntimeError("probe failed"), KeyboardInterrupt()])
+def test_provisional_card_is_removed_when_the_block_raises(error):
+    card = ModelCard(litellm_id="provider/new-model", thinking_budget=True)
+    before = dict(MODEL_CARDS)
+
+    with pytest.raises(type(error)):
+        with provisional_card(card):
+            assert card_for(card.litellm_id) is card
+            raise error
+
+    assert card_for(card.litellm_id) is None
+    assert MODEL_CARDS == before

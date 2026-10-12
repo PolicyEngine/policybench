@@ -227,6 +227,27 @@ for model in gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
 done
 ```
 
+A model with no card in `policybench/model_cards.py` is probed under the
+thinking-class card the gauntlet derives (`thinking_budget=True`: a 16,384-token
+completion budget and, by default, a 300-second timeout). That card is
+registered only while the probes run, so there is no need to write a
+provisional card before onboarding. Without it, GPT-6.1 Sol fell through to the
+harness's card-less default of 384 tokens for three outputs, and the gauntlet
+reported it not scorable. A model that already has a card is probed under that
+card. The report names the card the probes ran under and gives each probe's
+budget and timeout.
+
+The timeout comes from that card too, so a card-less `xai/` id gets 300 seconds
+where the family heuristic gave it 420, and `POLICYBENCH_XAI_REQUEST_TIMEOUT_SECONDS`
+no longer applies to its probes. A probe that times out is reported as an
+environment error (ABORTED), not as a serving fact. A model that needs more than
+the thinking-class defaults still needs a hand-written card with a larger
+`completion_token_cap` or `request_timeout_seconds` before its gauntlet, as Kimi
+K3, Qwen 3.8 Max and Grok 4.7 did. Board models that run without a card are
+probed under the provisional card as well. For Grok 4.3, Grok Build 0.1, GPT-5.4
+mini and nano, and Claude Opus 4.7 and 4.8, that differs from their board
+treatment.
+
 The bare `gpt-5.6` alias resolves to Sol and must not be added as a separate
 benchmark row. GPT-5.6 Pro is a product/request mode rather than a separate API
 model id, so it is also not a separate benchmark row.
