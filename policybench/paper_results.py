@@ -3093,6 +3093,13 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # techcrunch.com 2026-07-15; weights on Hugging Face the same day
     # under Apache 2.0 (Thinking Machines Lab's first from-scratch model)
     "inkling": "2026-07-15",
+    # techcrunch.com 2026-10-12 ("Meta releases its first frontier model,
+    # Muse Wonder") and venturebeat.com the same day; on Meta's Model API
+    # (muse-wonder-1.0) and OpenRouter (meta/muse-wonder, listed
+    # 2026-10-12) from launch. Proprietary: no weights. Muse Wonder Full,
+    # released alongside it, is limited to Muse Code subscriptions and has
+    # no API, so the board cannot run it.
+    "muse-wonder": "2026-10-12",
     # openrouter.ai/stealth/ox-alpha ("released on August 20, 2026" as a
     # stealth preview; the 2026-09-01 table carried 08-21 from the listing's
     # first observed day). After the row's run Z.ai identified the preview as

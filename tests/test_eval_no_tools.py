@@ -3087,6 +3087,43 @@ print("RESULT " + json.dumps(out))
     assert all(out["models"].values()), out["models"]
 
 
+def test_muse_wonder_routes_through_openrouter_at_metas_list_price():
+    """Muse Wonder runs through OpenRouter, whose one endpoint for the id is
+    Meta's own, at Meta's list price: $4 / $20 per 1M input/output tokens
+    and $0.20 cached input, at every prompt length."""
+    assert MODELS["muse-wonder"] == "openrouter/meta/muse-wonder"
+    assert PRICE_OVERRIDES_PER_1M["muse-wonder"] == {
+        "input": 4.0,
+        "output": 20.0,
+        "cache_read": 0.20,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 4.0),
+        (0, 1_000_000, 0, 20.0),
+        (1_000_000, 1_000_000, 0, 24.0),
+        (1_000_000, 0, 1_000_000, 0.20),
+        (1_000_000, 0, 250_000, 3.05),
+    ],
+)
+def test_muse_wonder_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="muse-wonder",
+        model_id="openrouter/meta/muse-wonder",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
 def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
     """Haiku 5.5 thinks when the request omits the thinking parameter, so it
     is a thinking-default Claude: provider-default thinking, the thinking

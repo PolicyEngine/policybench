@@ -73,6 +73,12 @@ def test_claude_haiku_5_5_release_date_is_recorded():
     assert MODEL_RELEASE_DATES["claude-haiku-5.5"] == "2026-10-07"
 
 
+def test_muse_wonder_release_date_is_recorded():
+    """Meta released Muse Wonder on 2026-10-12 (TechCrunch and VentureBeat,
+    both that day), on its Model API and OpenRouter from launch."""
+    assert MODEL_RELEASE_DATES["muse-wonder"] == "2026-10-12"
+
+
 def test_app_release_dates_mirror_the_paper_registry():
     """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
     update both together); every runnable model has a date, and the two

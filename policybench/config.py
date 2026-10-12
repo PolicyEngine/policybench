@@ -107,6 +107,12 @@ MODELS = {
     "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
     "qwen3.8-max": "openrouter/qwen/qwen3.8-max",
     "inkling": "openrouter/thinkingmachines/inkling",
+    # Meta Muse Wonder (2026-10-12). Meta's own Model API serves it as
+    # muse-wonder-1.0; PolicyBench holds no Meta key, and OpenRouter's one
+    # endpoint for the id is Meta itself (provider "Meta", serving
+    # meta/muse-wonder-20261012; openrouter.ai/api/v1/models/meta/
+    # muse-wonder/endpoints, read 2026-10-12).
+    "muse-wonder": "openrouter/meta/muse-wonder",
 }
 
 # Configured per-1M-token USD list prices, keyed by the predictions.csv.gz model
@@ -161,6 +167,12 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # inkling: $1 / $4.05 per 1M input/output tokens (OpenRouter model
     # listing, 2026-08-03); litellm's price map does not yet cover the id.
     "inkling": {"input": 1.0, "output": 4.05},
+    # muse-wonder: $4 / $20 per 1M input/output tokens, $0.20 cached input,
+    # one rate at every prompt length (Meta Model API pricing in Meta's
+    # launch post, dev.meta.ai/resources/blog/build-with-muse-wonder, and
+    # the OpenRouter listing, both read 2026-10-12); litellm's price map
+    # does not yet cover the id.
+    "muse-wonder": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
     # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
     # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
     "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
