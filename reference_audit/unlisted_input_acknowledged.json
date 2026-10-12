@@ -1,0 +1,33 @@
+{
+ "note": "Scored outputs of the current references that the unlisted-input sweep finds moving and that await a ruling. Pass this file to `policybench unlisted-input-sweep --acknowledged`. Remove an entry when the release that rules on it lands (tests/test_unlisted_input_sweep.py fails once its output is excluded).",
+ "acknowledged": [
+  {
+   "scenario_id": "scenario_022",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "estimate": "*",
+   "status": "pending d963",
+   "note": "PolicyEngine/policybench#191 proposes excluding it: the federal SALT deduction rests on the engine's withholding estimate (state_withheld_income_tax)."
+  },
+  {
+   "scenario_id": "scenario_081",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "estimate": "*",
+   "status": "pending d963",
+   "note": "PolicyEngine/policybench#191 proposes excluding it: the federal SALT deduction rests on the engine's withholding estimate (state_withheld_income_tax)."
+  },
+  {
+   "scenario_id": "scenario_114",
+   "variable": "federal_income_tax_before_refundable_credits",
+   "estimate": "*",
+   "status": "pending d963",
+   "note": "PolicyEngine/policybench#191 proposes excluding it: the federal SALT deduction rests on the engine's withholding estimate; the modeled Medicare Part B premium also moves it."
+  },
+  {
+   "scenario_id": "scenario_114",
+   "variable": "state_income_tax_before_refundable_credits",
+   "estimate": "*",
+   "status": "pending d974",
+   "note": "PolicyEngine/policybench#193 proposes excluding it: the Virginia medical deduction counts the engine's modeled Medicare Part B premium."
+  }
+ ]
+}
