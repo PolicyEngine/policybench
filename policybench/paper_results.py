@@ -288,8 +288,10 @@ def partition_engine_upgrade_changes(
     """Split an engine upgrade's changed outputs into four disjoint groups.
 
     ``excluded`` is the exclusion record once the upgrade was decided, and
-    ``restored`` the excluded outputs the upgrade returned to scoring at the
-    new engine's values. A change to an excluded output is a new exclusion; a
+    ``restored`` the outputs whose engine defects the upgrade fixes, scored at
+    the new engine's values (those a published board excluded return to
+    scoring; any a ruling decided while still scored stay scored). A change to
+    an excluded output is a new exclusion; a
     change to a restored output is a restoration. Any other change is scored,
     and moves beyond the exact-match tolerance ($1 for an amount, any change
     for a 0/1 flag) or within it. Every change lands in exactly one group, so
@@ -389,6 +391,49 @@ def restored_split_sentence(restored: int, ruled: int, ruling_date: str) -> str:
     )
 
 
+def restored_split_clause(restored: int, ruled: int, ruling_date: str) -> str:
+    """The upgrades table's form of ``restored_split_sentence``: a verb phrase
+    finishing "The move from policyengine-us X ...", with numerals as the rest
+    of that cell writes counts. It names the ``restored`` outputs whose engine
+    defects the upgrade fixes and, in parentheses, splits them as the sentence
+    does: ``restored - ruled`` that earlier releases excluded return to
+    scoring, and ``ruled`` that rulings on ``ruling_date`` decided while they
+    were still scored stay scored. A lone output in either group is "one", not
+    "1"."""
+    if not 0 <= ruled <= restored:
+        raise ValueError(f"{ruled} ruled of {restored} fixed outputs")
+    if not restored:
+        return "fixes none of the engine defects behind excluded outputs"
+    returned = restored - ruled
+    defects = "defect" if restored == 1 else "defects"
+    noun = "output" if restored == 1 else "outputs"
+    lead = f"fixes the engine {defects} behind {restored} {noun}"
+    if not ruled:
+        excluded = (
+            "an earlier release excluded it, and it returns"
+            if restored == 1
+            else "earlier releases excluded them, and they return"
+        )
+        return f"{lead} ({excluded} to scoring at the new version's values)"
+    if not returned:
+        decided = (
+            "it while it was still scored, and it stays"
+            if ruled == 1
+            else "them while they were still scored, and they stay"
+        )
+        return (
+            f"{lead} (the {ruling_date} rulings decided {decided} scored at the new "
+            "version's values)"
+        )
+    back = "one that earlier releases excluded returns"
+    if returned > 1:
+        back = f"{returned} that earlier releases excluded return"
+    kept = f"the one ruled on {ruling_date} while still scored stays"
+    if ruled > 1:
+        kept = f"the {ruled} ruled on {ruling_date} while still scored stay"
+    return f"{lead} ({back} to scoring at the new version's values; {kept} scored)"
+
+
 def _key(entry: dict) -> tuple[str, str]:
     return entry["scenario_id"], entry.get("variable", "snap")
 
@@ -430,8 +475,9 @@ class EngineUpgrade:
     holds those excluded once it was decided: records decided by the end of
     its date and not removed by then. A record decided after the upgrade never
     counts here, and a record a later revision removed still does.
-    ``restored`` holds the outputs the upgrade returned to scoring (its
-    ``regenerated_exclusions``).
+    ``restored`` holds the outputs whose engine defects the upgrade fixes (its
+    ``regenerated_exclusions``): those a published board excluded return to
+    scoring, and any a ruling decided while still scored stay scored.
     """
 
     def __init__(
@@ -1851,7 +1897,10 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_count(self) -> int:
-        """Excluded outputs the last upgrade returned to scoring."""
+        """Outputs whose engine defects the last upgrade fixes (its
+        ``regenerated_exclusions``): those a published board excluded return
+        to scoring, and those the 2026-10-06 rulings decided while still
+        scored (``engine_upgrade_restored_ruled_count``) stay scored."""
         last = self.last_engine_upgrade
         return 0 if last is None else last.restored_count
 
@@ -1861,7 +1910,7 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_ruled_count(self) -> int:
-        """Restored outputs the 2026-10-06 rulings had decided to exclude. No
+        """Fixed outputs the 2026-10-06 rulings had decided to exclude. No
         published board excluded them: they were still scored when the rulings
         came, so they stay scored rather than return to scoring."""
         last = self.last_engine_upgrade
@@ -1878,6 +1927,16 @@ class PaperResults:
         had excluded them (they return to scoring) or the 2026-10-06 rulings
         decided them while they were still scored (they stay scored)."""
         return restored_split_sentence(
+            self.engine_upgrade_restored_count,
+            self.engine_upgrade_restored_ruled_count,
+            RULING_DATE,
+        )
+
+    @property
+    def engine_upgrade_restored_split_clause(self) -> str:
+        """The same split as a clause for the upgrades table, after "The move
+        from policyengine-us X"."""
+        return restored_split_clause(
             self.engine_upgrade_restored_count,
             self.engine_upgrade_restored_ruled_count,
             RULING_DATE,
@@ -1949,11 +2008,11 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
-        """The defects behind the outputs the last upgrade returned to scoring:
-        each one's name, how many outputs it restores and the upstream pull
-        requests its regenerated_exclusions entries name (not the related
-        ones), in the sidecar's order. A record with several root causes names
-        each."""
+        """The defects the last upgrade fixes behind its fixed outputs (those
+        that return to scoring and those still scored alike): each one's name,
+        how many outputs it fixes and the upstream pull requests its
+        regenerated_exclusions entries name (not the related ones), in the
+        sidecar's order. A record with several root causes names each."""
         last = self.last_engine_upgrade
         fixes: dict[str, tuple[int, list[str]]] = {}
         for entry in [] if last is None else last.revision["regenerated_exclusions"]:
@@ -1971,7 +2030,7 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_fix_phrase(self) -> str:
-        """The fixes behind the restored outputs as one series, each with the
+        """The fixes behind the fixed outputs as one series, each with the
         upstream pull requests it names and, past one, how many outputs."""
         parts = []
         for label, count, prs in self.engine_upgrade_restored_fixes:
@@ -1982,15 +2041,17 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_sentence(self) -> str:
-        """One sentence naming the fixes behind the restored outputs."""
+        """One sentence naming the fixes behind all the fixed outputs. They
+        are "fixed", not "restored": the ones the 2026-10-06 rulings decided
+        while still scored never left scoring."""
         phrase = self.engine_upgrade_restored_fix_phrase
         if not phrase:
             return ""
-        return f"The restored outputs take the upstream fixes for {phrase}."
+        return f"The fixed outputs take the upstream fixes for {phrase}."
 
     @property
     def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
-        """The last upgrade's restored outputs by how their corrected value is
+        """The last upgrade's fixed outputs by how their corrected value is
         known (the sidecar's ``target.kind``): ``record`` for the value the
         exclusion record carries, ``fix_modules`` for the value the audit's
         fix modules give on a later engine that still has the defect. Refuses,
@@ -2007,14 +2068,14 @@ class PaperResults:
                 raise ValueError(f"{key} has an unknown target kind {target['kind']!r}")
             tolerance = entry["tolerance"]
             if not 0 <= tolerance <= 1:
-                raise ValueError(f"{key} is restored on a tolerance of {tolerance}")
+                raise ValueError(f"{key} is fixed on a tolerance of {tolerance}")
             variable = entry["variable"]
             if abs(
                 entry["regenerated"] - target["value"]
             ) > tolerance or moves_beyond_tolerance(
                 variable, target["value"], entry["regenerated"]
             ):
-                raise ValueError(f"{key} is restored off its target")
+                raise ValueError(f"{key} is fixed off its target")
             if target["kind"] == "record":
                 if target["value"] != entry["record"]["alternative_value"]:
                     raise ValueError(f"{key}'s target is not its record's value")
@@ -2027,7 +2088,7 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_target_sentence(self) -> str:
-        """How the restored outputs' corrected values are known: by the
+        """How the fixed outputs' corrected values are known: by the
         exclusion record, or by the audit's fix modules on a later engine."""
         targets = self.engine_upgrade_restored_targets
         by_record, by_modules = targets["record"], targets["fix_modules"]
