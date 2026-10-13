@@ -1631,17 +1631,36 @@ def test_model_response_window_ends_on_the_last_frozen_answer():
 
 # Board rows recorded under Gemini names that Google has since routed to
 # another model (see the comments beside them in policybench/config.py): the
-# model each name now reaches, and the canonical hash of the rows as frozen.
+# model each name now reaches, and the hash of the rows' answers as frozen.
 RETIRED_GEMINI_ROWS = {
     "gemini-3.5-flash": (
         "gemini-3.6-flash",
-        "a3d965789f249042f4168dd6245a01a9b58b1c1bed197eea465ffdd19de3eabe",
+        "d47d9d6595ccc0fcb230ead7ed13afe45c57122d6e037c9e7a60feb4406aa5ff",
     ),
     "gemini-3.7-flash": (
         "gemini-3.8-flash",
-        "6a3c0abbff6dd12c094fac1c7f301cffc81386cbb0a53a864930681bddfc4f7f",
+        "614925842d04dea7122cda55b7f35a15053a709865fd7d7322626ef0f10d06f8",
     ),
 }
+
+
+def _answers_sha256(predictions: pd.DataFrame, model: str) -> str:
+    """Hash a model's answers from the CSV text: the cells are read as strings,
+    and only predictions are parsed, by Python's float. freeze_snapshot's
+    canonical row hash gives one value on macOS and another on the Linux CI
+    runner for the same file, so it cannot be pinned here."""
+    rows = sorted(
+        (
+            row.scenario_id,
+            row.variable,
+            repr(float(row.prediction)) if row.prediction.strip() else "",
+            row.explanation.strip(),
+            row.raw_response.strip(),
+            row.provider_response_id.strip(),
+        )
+        for row in predictions[predictions["model"] == model].itertuples(index=False)
+    )
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode()).hexdigest()
 
 
 @pytest.mark.parametrize("model", sorted(RETIRED_GEMINI_ROWS))
@@ -1653,23 +1672,30 @@ def test_board_rows_under_retired_gemini_names_stay_as_recorded(model):
     records precedes the successor's release (the gemini-3.5-flash rows
     predate request-time capture and record none, as batch runs do)."""
     from policybench.paper_results import MODEL_RELEASE_DATES
-    from scripts.freeze_snapshot import (
-        PREDICTION_EVIDENCE_COLUMNS,
-        _model_prediction_rows_sha256,
-    )
 
-    successor, frozen_rows_sha256 = RETIRED_GEMINI_ROWS[model]
+    successor, answers_sha256 = RETIRED_GEMINI_ROWS[model]
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
     predictions = pd.read_csv(
         _frozen_run_dir(manifest) / "predictions.csv.gz",
-        usecols=["model", "request_started_at", *PREDICTION_EVIDENCE_COLUMNS],
+        usecols=[
+            "model",
+            "scenario_id",
+            "variable",
+            "prediction",
+            "explanation",
+            "raw_response",
+            "provider_response_id",
+            "request_started_at",
+        ],
+        dtype=str,
+        keep_default_na=False,
     )
-    assert _model_prediction_rows_sha256(predictions, model) == frozen_rows_sha256
+    assert _answers_sha256(predictions, model) == answers_sha256
     successor_released = pd.Timestamp(
         MODEL_RELEASE_DATES[successor], tz="UTC"
     ).timestamp()
     started = predictions.loc[predictions["model"] == model, "request_started_at"]
-    assert (started.dropna() < successor_released).all()
+    assert all(float(time) < successor_released for time in started if time)
 
 
 def test_rendered_paper_states_the_manifest_response_window():
