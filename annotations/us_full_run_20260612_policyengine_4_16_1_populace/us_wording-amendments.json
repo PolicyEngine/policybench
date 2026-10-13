@@ -1,5 +1,5 @@
 {
- "note": "Wording-only amendments of published text for cases GPT-6.1 Sol re-opened (finish_gpt61sol.py load_amendments): each replaces its old text, found exactly once, with the new text. None changes a class, an exclusion or a score. Triage applies them; export binds this file; the freeze commits it beside the adjudication record. The last 462 (after the first 394) are for cases Muse Wonder re-opened (finish_musewonder.py load_amendments). Wording amendments to the cases the Muse Wonder release re-opened (dashboard-data-20261013). These cases' new Opus 5.5 verdicts replaced text earlier releases had corrected (us_wording-amendments.json, docs/release_20261006/annotation_rewrites.json and reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json). A GPT-6.1 Sol reviewer read each of the 26 cases' new text against the record and proposed corrections; a second GPT-6.1 Sol reviewer checked each one adversarially, keeping 444, refining the wording of 20 and dropping 80; 2 more that would have rewritten the generated adjudication sentence, which restates the record, were left out. Each corrects a statement the record contradicts; none changes a score or a decision.",
+ "note": "Wording-only amendments of published text for cases GPT-6.1 Sol re-opened (finish_gpt61sol.py load_amendments): each replaces its old text, found exactly once, with the new text. None changes a class, an exclusion or a score. Triage applies them; export binds this file; the freeze commits it beside the adjudication record. The last 462 (after the first 394) are for cases Muse Wonder re-opened (finish_musewonder.py load_amendments). Wording amendments to the cases the Muse Wonder release re-opened (dashboard-data-20261013). These cases' new Opus 5.5 verdicts replaced text earlier releases had corrected (us_wording-amendments.json, docs/release_20261006/annotation_rewrites.json and reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json). A GPT-6.1 Sol reviewer read each of the 26 cases' new text against the record and proposed corrections; a second GPT-6.1 Sol reviewer checked each one adversarially, keeping 444, refining the wording of 20 and dropping 80; 2 more that would have rewritten the generated adjudication sentence, which restates the record, were left out. Each corrects a statement the record contradicts; none changes a score or a decision. The last 11 (after the first 856) are for the five cases release dashboard-data-20261013b re-judged (scripts/release_20261013b.py load_amendments). Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine (docs/release_20261013b/design.md); each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score.",
  "amendments": [
   {
    "case_id": "us__scenario_008__state_refundable_credits",
@@ -6798,6 +6798,87 @@
    "old": "Household gross income counts the $2,800 of Social Security, which puts the head in the lowest band (HGI ≤ $3,000). In that band the credit is 50% of property tax above 3.5% of HGI: 0.5 × ($1,633.50 − $98) ≈ $768. Because a household member is 65 or older, the credit is capped at $375.",
    "new": "This 74-year-old filer has federal AGI of $0 and property taxes of $1,633.50, above 3.5% of that AGI, so the flat table in force from 2025 gives $375.",
    "reason": "The adjudication record (adjudication.json, reasoning; reference_basis N.Y. Tax Law 606(e) as amended by Part RR of Chapter 59 of the Laws of 2025) affirms the federal-AGI flat-table rule, and prior_amendments.json specifically corrects presenting the repealed household-gross-income formula and its $768 calculation as governing."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "case_annotation",
+   "old": "PolicyEngine's aged/blind/disabled pathway applies SSI-style income limits plus a small resource cap.",
+   "new": "PolicyEngine's aged/blind/disabled pathway in Indiana requires SSI's definition of disability, countable income within 100% of the poverty guideline and resources under $2,000.",
+   "reason": "The text stated Indiana's rule as a general fact and called the income limit SSI-style. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit. The pathway's first condition is is_ssi_aged_blind_disabled (is_optional_senior_or_disabled_for_medicaid)."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "case_annotation",
+   "old": "Roughly $45,000 of earnings and about $585,000 in bank and stock assets fail both tests, so medicaid_category is NONE.",
+   "new": "Earnings of $45,000 are above SSI's substantial gainful activity limit, so PolicyEngine does not count the head as disabled for this pathway, and about $585,000 in bank and stock assets is far above the resource cap, so medicaid_category is NONE.",
+   "reason": "The engine's income test does not fail here; the disability condition and the asset test do. Computed for this household on policyengine-us 2.41.0: meets_ssi_disability_criteria False, ssi_engaged_in_sga True, is_ssi_disabled False, is_optional_senior_or_disabled_income_eligible True (medicaid_optional_senior_or_disabled_countable_income 0), is_optional_senior_or_disabled_asset_eligible False (ssi_countable_resources 584,850), medicaid_category NONE. ssi_engaged_in_sga compares monthly ssi_earned_income ($3,750) with gov.ssa.sga.non_blind ($1,690 in 2026), and is_ssi_disabled is meets_ssi_disability_criteria and not ssi_engaged_in_sga."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "case_annotation",
+   "old": "Both models treated the disability flag by itself as qualifying",
+   "new": "One model treated the disability flag by itself as qualifying and the other wrongly asserted that the head's income and assets were within the disability limits",
+   "reason": "Only minimax-m3 relied on the flag alone. claude-sonnet-5's reasoning in the case's prompt says the head's income is 'well below the SSI/disability-related Medicaid threshold' and that earnings 'plus assets fall within eligibility limits'."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "case_annotation",
+   "old": "PolicyEngine does not model a working-disabled buy-in with relaxed limits",
+   "new": "PolicyEngine models a working-disabled buy-in only for California, Illinois and Mississippi, not Indiana",
+   "reason": "True for this household's state but false as a general fact: policyengine-us 2.41.0's is_working_disabled_buy_in_for_medicaid is ca_wdp_eligible or il_hbwd_eligible or ms_wd_eligible, each defined for its own state, and nothing models one for Indiana."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "annotation",
+   "model": "minimax-m3",
+   "old": "The disability pathway needs SSI-level income and resources",
+   "new": "In Indiana the disability pathway needs countable income within 100% of the poverty guideline and resources under $2,000",
+   "reason": "Indiana's income limit for the pathway is the poverty guideline, not the SSI benefit rate. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit."
+  },
+  {
+   "case_id": "us__scenario_045__snap",
+   "field": "annotation",
+   "model": "claude-haiku-4.5",
+   "old": "It also never compared the full $3,022.97 monthly gross income with the 130% gross limit, which the household fails at about 232% of the guideline.",
+   "new": "The full $3,022.97 of monthly gross income fails the 130% gross limit, at about 232% of the guideline.",
+   "reason": "The model's reasoning in the case's prompt gives an income limit of about $1,655 a month and says 'This household exceeds the income limit', as the annotation's next sentence also reports, so 'never compared' contradicts both."
+  },
+  {
+   "case_id": "us__scenario_086__federal_refundable_credits",
+   "field": "annotation",
+   "model": "deepseek-v4-flash-0731",
+   "old": "The model ran the one-child EITC phase-out on a made-up $27,700 AGI.",
+   "new": "The model computed the one-child EITC as $4,450 minus 7.65% of ($72,600 − $27,700), but 7.65% is the childless phase-out rate and the one-child rate is 15.98%.",
+   "reason": "The model's reasoning in the case's prompt is '2026 max $4,450 minus 7.65% phaseout × ($72,600 - $27,700 AGI) = $1,015': $72,600 is the income and $27,700 the phase-out start, so the phase-out was not run on a $27,700 AGI. policyengine-us 2.41.0's 2026 EITC phase-out rates are 0.0765 with no children and 0.1598 with one (gov.irs.credits.eitc.phase_out.rate)."
+  },
+  {
+   "case_id": "us__scenario_086__federal_refundable_credits",
+   "field": "case_annotation",
+   "old": "Most models treated the $1,700 refundability cap as the amount payable and skipped the step",
+   "new": "The most common error treated the $1,700 refundability cap as the amount payable and skipped the step",
+   "reason": "Six of the eleven models submitted $1,700 and four of them skipped the limit (claude-opus-4.7, claude-opus-4.8, gpt-5.6-luna, ox-alpha); claude-sonnet-5 applied it and then overrode it, and qwen3.8-max applied it to the child's liability. That is the most common error, not most models."
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "field": "case_annotation",
+   "old": "the Recovery Rebate and payroll tax credits are inactive in 2026",
+   "new": "the Recovery Rebate and payroll tax credits are $0 in 2026",
+   "reason": "The case's prompt says each component returned $0. In policyengine-us 2.41.0 the refundable payroll tax credit is an input with no dated rule (refundable_payroll_tax_credit has no formula), so 'inactive in 2026' fits only the Recovery Rebate."
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "field": "case_annotation",
+   "old": "Any positive figure means the model either invented a child-based credit or applied the with-children EITC schedule.",
+   "new": "Any positive figure is incorrect for this household.",
+   "reason": "The case's prompt shows every refundable credit component at $0, which supports rejecting any positive answer but not a claim that these two errors are the only way to reach one. policyengine-us 2.41.0's 2026 EITC at $45,000 of earnings for a single filer is $0 with no child (maximum $664), $1,054 with one and $2,870 with two (gov.irs.credits.eitc max, phase_out.start, phase_out.rate), so $1,735.80 fits none of the 2026 schedules."
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "field": "annotation",
+   "model": "qwen3.8-max",
+   "old": "The EITC figure only fits the with-children phase-out schedule.",
+   "new": "The EITC figure does not fit the childless schedule.",
+   "reason": "The model's reasoning in the case's prompt gives $1,735.80 without a schedule. policyengine-us 2.41.0's 2026 EITC at $45,000 of earnings for a single filer is $0 with no child (maximum $664), $1,054 with one and $2,870 with two (gov.irs.credits.eitc max, phase_out.start, phase_out.rate), so $1,735.80 fits none of the 2026 schedules. It exceeds the childless maximum, which is all the record shows."
   }
  ]
 }
