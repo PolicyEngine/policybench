@@ -390,9 +390,13 @@ def verify_installed_exclusions(
             raise SystemExit(
                 f"Staged {EXCLUSIONS} is not the installed engine upgrade's record"
             )
+        ruled = (
+            f" plus the {driver.NEW_EXCLUSIONS} ruled records ({driver.SPEC_PATH})"
+            if driver.NEW_EXCLUSIONS
+            else ""
+        )
         raise SystemExit(
-            f"Staged {EXCLUSIONS} is not release 20261010's record plus the "
-            f"{driver.NEW_EXCLUSIONS} ruled records ({driver.SPEC_PATH}); run "
+            f"Staged {EXCLUSIONS} is not release 20261010's record{ruled}; run "
             "--step install-exclusions, then triage and export again"
         )
     if receipt["files"].get(bound) != expected:
