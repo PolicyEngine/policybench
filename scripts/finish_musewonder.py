@@ -2840,6 +2840,9 @@ PROVENANCE_GROUPS = {
     "claude:max@axiom.org (subfleet lane claude-18)": (
         "isolated: subfleet lane claude-18"
     ),
+    "claude:max@farness.ai (subfleet lane claude-10)": (
+        "isolated: subfleet lane claude-10"
+    ),
 }
 PROVENANCE_NOTE = (
     "Provenance of the new Opus 5.5 judge verdicts in the Muse Wonder stage: "
