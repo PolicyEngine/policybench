@@ -164,7 +164,7 @@ def test_the_additions_are_argon_and_muse_spark_on_a_50_model_board():
     assert driver.RELEASE_SCORED == 1935
     assert driver.BASE_TAG == "dashboard-data-20261013b"
     # PENDING(#218): PR #218's squash merge on main.
-    assert driver.BASE_COMMIT == "6a334d07f4c6096742eb2d849068816ba6e571ca"
+    assert driver.BASE_COMMIT == "6c44858feddc68890738e6f07b31ab9e6968bac1"
     assert driver.SEED_RELEASE_COMMIT == driver.BASE_COMMIT
     assert set(driver.BASE_REFERENCE_SHA256) == set(driver.REFERENCE_FILES)
     assert driver.JUDGE_MODEL == "claude-opus-5-5"

@@ -29,7 +29,7 @@ The base is release `dashboard-data-20261013b`: release 20261013 with five carri
 
 | Item | Value |
 |---|---|
-| Base tag, payload sha256 | `dashboard-data-20261013b`, `c06177e6…ea32` (130,982,273 bytes) |
+| Base tag, payload sha256 | `dashboard-data-20261013b`, `0a4b754a…b507` (130,982,477 bytes) |
 | Models, outputs, exclusions, scored | 48, 1,984, 49 and 1,935 |
 | `reference_outputs.csv` | `2d00cf59…3a0c` (policyengine-us 2.41.0) |
 | `reference_outputs.csv.meta.json` | `0dc1ba15…0915` |

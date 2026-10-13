@@ -47,7 +47,7 @@ BASE_TAG = "dashboard-data-20261013b"
 # freeze time; freeze_argon.py and the design note read it from here.
 RELEASE_TAG = "dashboard-data-20261014"
 # PENDING(#218): the payload at PR #218's frozen head; confirm at its merge.
-BASE_SHA256 = "c06177e65913fa7886c239f776483982a140cc126e18e734b443dc890b74ea32"
+BASE_SHA256 = "0a4b754a4ce3b249e0608efac62e52646e4c6f33c6a28c1a496c4c9fda49b507"
 BASE_MODELS = 48
 BASE_OUTPUTS = 1984
 BASE_EXCLUSIONS = 49
@@ -163,7 +163,7 @@ JUDGE_PROMPT_NUDGE = (
 )
 # The commit whose tree holds release 20261013b. PENDING(#218): PR #218's
 # frozen head; becomes its squash merge on main, whose tree must be the same.
-BASE_COMMIT = "6a334d07f4c6096742eb2d849068816ba6e571ca"
+BASE_COMMIT = "6c44858feddc68890738e6f07b31ab9e6968bac1"
 # Release 20261013b's references (policyengine-us 2.41.0), which are release
 # 20261013's byte for byte: 20261013b re-judged five verdicts and changed no
 # reference. Prepare stages them unchanged, and they stay the release's.
