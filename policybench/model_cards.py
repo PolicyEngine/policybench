@@ -574,6 +574,33 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "$1/$4.05 per 1M on OpenRouter."
         ),
     ),
+    "openrouter/meta/muse-wonder": ModelCard(
+        litellm_id="openrouter/meta/muse-wonder",
+        answer_contract="json",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.059,
+        notes=(
+            "Onboarded 2026-10-13, the day after Meta released it. OpenRouter "
+            "lists one endpoint, Meta's own (meta/muse-wonder-20261012), so "
+            "OpenRouter passes requests to Meta's API. That API accepts "
+            "tool_choice 'auto' only: a forced (named-function) or 'required' "
+            "tool choice returns a 400 ('only \"auto\" is supported for "
+            "tool_choice'), so the row runs the JSON contract whole-scenario, "
+            "as Opus 5.5 and Sonnet 5.5 do. A request with no reasoning "
+            "parameter reasons at the provider default: on a one-question "
+            "probe, 1,913 and 3,089 of 1,991 and 3,181 completion tokens with "
+            "no tools, and 2,189 and 2,635 of 2,352 and 2,815 with tool_choice "
+            "auto; it returns a short reasoning summary and an encrypted "
+            "trace. With no forced tool there is no tool_choice auto "
+            "sensitivity run, which measures how much a forced tool "
+            "suppresses reasoning. Gauntlet: without the reasoning budget the "
+            "3-variable JSON probe stopped at the token limit (384 tokens); "
+            "with it, 3/3 and 16/16 parsed on the JSON contract (2,402 and "
+            "2,736 completion tokens, 15s and 18s). The gauntlet's cost "
+            "estimate is $0.059 per scenario at $4/$20 per 1M with $0.20 "
+            "cache reads."
+        ),
+    ),
     "openrouter/z-ai/glm-5.2": ModelCard(
         litellm_id="openrouter/z-ai/glm-5.2",
         answer_contract="json",
