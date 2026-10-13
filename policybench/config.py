@@ -82,11 +82,12 @@ MODELS = {
     # under that name answered with modelVersion gemini-3.8-flash. The row's
     # answers were requested on 2026-08-18, before Gemini 3.8 Flash was
     # released (2026-09-02), so they are Gemini 3.7 Flash, and this name can
-    # no longer re-run them. Neither re-route shows in a run's output:
-    # litellm 1.88.1 sets the response model to the requested name and never
-    # reads Gemini's modelVersion, so provider_resolved_model still records
-    # gemini-3.7-flash or gemini-3.5-flash, and GET models/<name> still
-    # returns each retired model's own version string.
+    # no longer re-run them. A synchronous run, which row repairs also use,
+    # would not show either re-route: litellm 1.88.1 sets the response model
+    # to the requested name and never reads Gemini's modelVersion, so
+    # provider_resolved_model records gemini-3.7-flash or gemini-3.5-flash.
+    # The Gemini batch path (google-genai) does record modelVersion. GET
+    # models/<name> still returns each retired model's own version string.
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3.8-flash": "gemini/gemini-3.8-flash",
     "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",

@@ -1647,11 +1647,11 @@ RETIRED_GEMINI_ROWS = {
 @pytest.mark.parametrize("model", sorted(RETIRED_GEMINI_ROWS))
 def test_board_rows_under_retired_gemini_names_stay_as_recorded(model):
     """Since 2026-10-08 a request under gemini-3.5-flash or gemini-3.7-flash
-    reaches Gemini 3.6 Flash or 3.8 Flash, and the run still records the
-    requested name as provider_resolved_model. So neither row may be re-run or
-    repaired: its answers stay the ones frozen, and every request time it
+    reaches Gemini 3.6 Flash or 3.8 Flash, and a synchronous run still records
+    the requested name as provider_resolved_model. So neither row may be re-run
+    or repaired: its answers stay the ones frozen, and every request time it
     records precedes the successor's release (the gemini-3.5-flash rows
-    predate request-time capture and record none)."""
+    predate request-time capture and record none, as batch runs do)."""
     from policybench.paper_results import MODEL_RELEASE_DATES
     from scripts.freeze_snapshot import (
         PREDICTION_EVIDENCE_COLUMNS,
