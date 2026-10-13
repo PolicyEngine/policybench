@@ -204,6 +204,13 @@ already moved to the August V4 Pro release, so neither row can be re-run under
 its name. V4.1 Flash is the `deepseek-v4.1-flash` row, which calls
 DeepSeek's current name `deepseek-flash`.
 
+Google deprecated `gemini-3.5-flash` and `gemini-3.7-flash` on 2026-10-08
+([changelog](https://ai.google.dev/gemini-api/docs/changelog)). Requests under
+those names now route to `gemini-3.6-flash` and `gemini-3.8-flash`, which are
+rows of their own, so neither row can be re-run under its name. A re-run would
+not show the re-route: litellm records the requested name as
+`provider_resolved_model` and drops Gemini's `modelVersion`.
+
 OpenAI made [GPT-5.6 generally available](https://openai.com/index/gpt-5-6/)
 across ChatGPT, Codex, and the API on 2026-07-09, with a global rollout over 24
 hours. Because these models are new to the PolicyBench harness, run the serving

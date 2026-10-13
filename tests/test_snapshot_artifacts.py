@@ -1629,6 +1629,49 @@ def test_model_response_window_ends_on_the_last_frozen_answer():
     assert f"recorded {window} response window" in notes
 
 
+# Board rows recorded under Gemini names that Google has since routed to
+# another model (see the comments beside them in policybench/config.py): the
+# model each name now reaches, and the canonical hash of the rows as frozen.
+RETIRED_GEMINI_ROWS = {
+    "gemini-3.5-flash": (
+        "gemini-3.6-flash",
+        "a3d965789f249042f4168dd6245a01a9b58b1c1bed197eea465ffdd19de3eabe",
+    ),
+    "gemini-3.7-flash": (
+        "gemini-3.8-flash",
+        "6a3c0abbff6dd12c094fac1c7f301cffc81386cbb0a53a864930681bddfc4f7f",
+    ),
+}
+
+
+@pytest.mark.parametrize("model", sorted(RETIRED_GEMINI_ROWS))
+def test_board_rows_under_retired_gemini_names_stay_as_recorded(model):
+    """Since 2026-10-08 a request under gemini-3.5-flash or gemini-3.7-flash
+    reaches Gemini 3.6 Flash or 3.8 Flash, and the run still records the
+    requested name as provider_resolved_model. So neither row may be re-run or
+    repaired: its answers stay the ones frozen, and every request time it
+    records precedes the successor's release (the gemini-3.5-flash rows
+    predate request-time capture and record none)."""
+    from policybench.paper_results import MODEL_RELEASE_DATES
+    from scripts.freeze_snapshot import (
+        PREDICTION_EVIDENCE_COLUMNS,
+        _model_prediction_rows_sha256,
+    )
+
+    successor, frozen_rows_sha256 = RETIRED_GEMINI_ROWS[model]
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    predictions = pd.read_csv(
+        _frozen_run_dir(manifest) / "predictions.csv.gz",
+        usecols=["model", "request_started_at", *PREDICTION_EVIDENCE_COLUMNS],
+    )
+    assert _model_prediction_rows_sha256(predictions, model) == frozen_rows_sha256
+    successor_released = pd.Timestamp(
+        MODEL_RELEASE_DATES[successor], tz="UTC"
+    ).timestamp()
+    started = predictions.loc[predictions["model"] == model, "request_started_at"]
+    assert (started.dropna() < successor_released).all()
+
+
 def test_rendered_paper_states_the_manifest_response_window():
     """The rendered manuscript's snapshot table names the manifest's window, so
     a manifest corrected without a re-render fails here."""
