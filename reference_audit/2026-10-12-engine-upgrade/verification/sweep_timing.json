@@ -1,0 +1,28 @@
+{
+  "note": "When PolicyBench began sweeping the references for the 2026-10-12 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
+  "pypi": {
+    "source": "https://pypi.org/pypi/policyengine-us/json",
+    "read_at_utc": "2026-10-13T01:56:21Z",
+    "newest_at_read": "2.41.0",
+    "wheel_uploaded_at_utc": {
+      "2.41.0": "2026-10-13T01:44:55.991829Z"
+    },
+    "yanked_newer": {}
+  },
+  "reference_sweep": {
+    "engine": "2.41.0",
+    "engine_installed_at_utc": "2026-10-13T01:49:51Z",
+    "engine_installed_evidence": ".venv/lib/python3.12/site-packages/policyengine_us-2.41.0.dist-info",
+    "engine_install": {
+      "version": "2.41.0",
+      "files_verified": 18504,
+      "editable": false,
+      "imported_from_package": true,
+      "fresh_bytecode_cache": true
+    },
+    "script": "reference_audit/2026-10-12-engine-upgrade/scripts/build_references_upgrade.py (first pass, empty actions)",
+    "first_output_at_utc": "2026-10-13T01:51:12Z",
+    "first_output": "results/local/musewonder/engine/pass1_2410/computed.csv",
+    "first_output_sha256": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926"
+  }
+}
