@@ -512,7 +512,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "16,384-token starting budget). It ran with a 65,536-token "
             "escalation ceiling, the model page's figure, which one "
             "non-streaming request cannot reach (32,768, above), so the board "
-            "row is a second run on this card. The Models API and the request "
+            "row is a second run on this card: all 100 households in one "
+            "request each, 1,984/1,984 parsed, no budget escalation, $2.79, "
+            "reasoning tokens on 85 households (a median of 22s and about "
+            "1,990 completion tokens per household, at most 47s and 4,872). "
+            "The Models API and the request "
             "limit agree on 32,768; requests asking for up to 131,072 returned "
             "200, which shows only that the parameter is accepted."
         ),
