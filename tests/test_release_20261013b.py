@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
+import gzip
 import hashlib
 import io
 import json
+import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -71,13 +75,24 @@ def test_the_committed_annotations_are_release_20261013s_but_for_the_five():
     assert {(c["scenario_id"], c["variable"]) for c in changes[NOTES]} == (
         driver.REJUDGE_KEYS
     )
-    # 21 model rows and five case notes, and no class changes: every row and
-    # case stays llm_error.
+    # 21 model rows and five case notes. No failure source changes:
+    # kimi-k2.6's rows stay parse_contract_failure, and every other row and
+    # each case stays llm_error. Three rows' failure subtypes change.
     assert (len(changes[ROWS]), len(changes[NOTES])) == (21, 5)
     changed = {
         column for c in changes[ROWS] + changes[NOTES] for column in c["changes"]
     }
     assert changed == {"annotation", "failure_subtype", "case_annotation"}
+    subtypes = {
+        (c["scenario_id"], c["model"]): c["changes"]["failure_subtype"]["after"]
+        for c in changes[ROWS]
+        if "failure_subtype" in c["changes"]
+    }
+    assert subtypes == {
+        ("scenario_015", "minimax-m3"): "thresholds_rates",
+        ("scenario_086", "gpt-5.5"): "credit_phaseout",
+        ("scenario_086", "qwen3.8-max"): "credit_phaseout",
+    }
 
 
 def test_the_frozen_manifest_moves_only_in_this_releases_scope():
@@ -841,6 +856,350 @@ def test_judge_gives_up_after_its_rounds(tmp_path, monkeypatch):
     assert len(aside) == driver.JUDGE_ROUNDS
 
 
+# ---------------------------------------------------------------- prepare
+
+V1, V2 = template_header(1), template_header(2)
+CARRIED = "us__scenario_001__snap"
+
+
+def body(case: str) -> str:
+    return f"\nCOUNTRY: US\ncase {case}\n"
+
+
+def keyed(pairs) -> list[dict]:
+    return [{"scenario_id": s, "variable": v} for s, v in pairs]
+
+
+def fake_base(tmp_path, monkeypatch, decided=(), excluded=(), amended=()):
+    """A checkout whose base commit is release 20261013 in miniature, and an
+    audit seed holding the five on template v1 beside one carried case."""
+    repo = tmp_path / "repo"
+    (repo / driver.STAGE_ROOT).mkdir(parents=True)
+    monkeypatch.setattr(driver, "ROOT", repo)
+    grounding = tmp_path / "grounding.csv"
+    grounding.write_text("grounding\n")
+    monkeypatch.setattr(driver.base_driver, "GROUNDING_SHA256", sha("grounding\n"))
+    seed = tmp_path / "seed"
+    for case in (*driver.REJUDGE, CARRIED):
+        case_dir = seed / "cases" / case
+        case_dir.mkdir(parents=True)
+        (case_dir / "prompt.md").write_text(V1 + body(case))
+        for name in ("verdict.json", "verdict.meta.json", "claude.transcript.jsonl"):
+            (case_dir / name).write_text(f"{case} {name}")
+    (seed / "cases.jsonl").write_text("cases\n")
+    (seed / "schema.json").write_text("{}")
+    # The seed hashes as release 20261013 records it; tests that need it to
+    # differ replace one side.
+    digests = {
+        case: {"prompt_sha256": prompt_sha, "verdict_sha256": verdict_sha}
+        for case, (verdict_sha, prompt_sha, _) in driver.REJUDGE.items()
+    }
+    digests[CARRIED] = {"prompt_sha256": "p", "verdict_sha256": "v"}
+    monkeypatch.setattr(driver, "base_seed", lambda: json.loads(json.dumps(digests)))
+    monkeypatch.setattr(
+        driver.base_driver, "seed_digest", lambda path: json.loads(json.dumps(digests))
+    )
+    pointer = {
+        "tag": driver.BASE_TAG,
+        "sha256": driver.BASE_SHA256,
+        "bytes": driver.BASE_BYTES,
+    }
+    amendments = [{"case_id": f"us__{s}__{v}"} for s, v in amended]
+    blobs = {
+        driver.POINTER: json.dumps(pointer).encode(),
+        driver.ANNOTATIONS / driver.ADJUDICATIONS: json.dumps(
+            {"adjudications": keyed(decided)}
+        ).encode(),
+        driver.SNAPSHOT_RUN / driver.EXCLUSIONS: json.dumps(
+            {"exclusions": keyed(excluded)}
+        ).encode(),
+        driver.ANNOTATIONS / driver.AMENDMENTS: json.dumps(
+            {"amendments": amendments}
+        ).encode(),
+        driver.SNAPSHOT_RUN / "predictions.csv.gz": gzip.compress(b"predictions\n"),
+    }
+    monkeypatch.setattr(
+        driver, "base_blob", lambda path: blobs.get(Path(path), b"base\n")
+    )
+    monkeypatch.setattr(driver, "base_payload", lambda: {})
+
+    # cp -c clones on APFS; the test copies portably.
+    real_run = driver.subprocess.run
+
+    def run(command, **kwargs):
+        if command[:2] == ["cp", "-cRp"]:
+            shutil.copytree(command[2], command[3])
+            return None
+        return real_run(command, **kwargs)
+
+    monkeypatch.setattr(driver.subprocess, "run", run)
+    stage = repo / driver.STAGE_ROOT / "stage"
+    return argparse.Namespace(stage=stage, audit_seed=seed, grounding=grounding), blobs
+
+
+def renderer(monkeypatch, change=None):
+    """Stand in for policybench.audit.prepare_audit: write the case manifest
+    and schema the seed holds, render each case without a prompt on template
+    v2, then apply ``change`` to the audit directory."""
+    import policybench.audit
+
+    def prepare_audit(us, audit, grounding_lookup, template_version):
+        assert template_version == driver.JUDGE_TEMPLATE_VERSION
+        (audit / "cases.jsonl").write_text("cases\n")
+        (audit / "schema.json").write_text("{}")
+        for case_dir in (audit / "cases").iterdir():
+            if not (case_dir / "prompt.md").exists():
+                (case_dir / "prompt.md").write_text(V2 + body(case_dir.name))
+        if change:
+            change(audit)
+
+    monkeypatch.setattr(policybench.audit, "prepare_audit", prepare_audit)
+
+
+def test_prepare_stages_the_five_on_v2_and_sets_aside_what_they_replace(
+    tmp_path, monkeypatch
+):
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    driver.prepare(args)
+    stage = args.stage
+    record = driver.load_stage(stage)
+    cases = stage / "audit/cases"
+    assert record["rejudge"] == {
+        case: sha(V2 + body(case)) for case in sorted(driver.REJUDGE)
+    }
+    assert set(record["audit_files"]) == {
+        f"{CARRIED}/{name}" for name in driver.AUDIT_FILES
+    }
+    for case, (_, _, reason) in driver.REJUDGE.items():
+        assert sorted(p.name for p in (cases / case).iterdir()) == ["prompt.md"]
+        published = stage / "replaced-verdicts" / case / "published"
+        assert sorted(p.name for p in published.iterdir()) == sorted(
+            ["claude.transcript.jsonl", "prompt.md", "reason.txt"]
+            + ["verdict.json", "verdict.meta.json"]
+        )
+        assert (published / "prompt.md").read_text() == V1 + body(case)
+        assert (published / "reason.txt").read_text() == reason + "\n"
+    assert (cases / CARRIED / "verdict.json").read_text() == f"{CARRIED} verdict.json"
+    assert set(record["replaced_files"]) == {
+        str(p.relative_to(stage))
+        for p in (stage / "replaced-verdicts").rglob("*")
+        if p.is_file()
+    }
+
+
+def refuse_before_writing(args, message):
+    with pytest.raises(SystemExit, match=message):
+        driver.prepare(args)
+    assert not args.stage.exists()
+
+
+@pytest.mark.parametrize(
+    ("overlap", "message"),
+    [
+        ("decided", "a re-judged case has a decision"),
+        ("excluded", "a re-judged case has an exclusion"),
+        ("amended", "a re-judged case has a wording amendment"),
+    ],
+)
+def test_prepare_refuses_a_decision_exclusion_or_amendment_on_the_five(
+    tmp_path, monkeypatch, overlap, message
+):
+    case = driver.case_key(sorted(driver.REJUDGE)[0])
+    args, _ = fake_base(tmp_path, monkeypatch, **{overlap: [case]})
+    renderer(monkeypatch)
+    refuse_before_writing(args, message)
+
+
+def test_prepare_refuses_a_seed_that_is_not_release_20261013s(tmp_path, monkeypatch):
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    expected = driver.base_seed()
+    for change in (
+        lambda seed: seed[CARRIED].update(verdict_sha256="x"),
+        lambda seed: seed.pop(CARRIED),
+        lambda seed: seed.update({"us__scenario_999__snap": seed[CARRIED]}),
+    ):
+        seed = json.loads(json.dumps(expected))
+        change(seed)
+        monkeypatch.setattr(driver.base_driver, "seed_digest", lambda path: seed)
+        refuse_before_writing(args, "the audit seed is not release 20261013's")
+
+
+def test_prepare_refuses_a_rejudge_case_that_is_not_the_audited_one(
+    tmp_path, monkeypatch
+):
+    """Seed and base agree, but on a verdict the audit never examined."""
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    seed = driver.base_seed()
+    seed[sorted(driver.REJUDGE)[0]]["verdict_sha256"] = "0" * 64
+    monkeypatch.setattr(driver, "base_seed", lambda: json.loads(json.dumps(seed)))
+    monkeypatch.setattr(
+        driver.base_driver, "seed_digest", lambda path: json.loads(json.dumps(seed))
+    )
+    refuse_before_writing(args, "is not the audited one")
+
+
+def test_prepare_refuses_another_base_or_grounding(tmp_path, monkeypatch):
+    args, blobs = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    args.grounding.write_text("other grounding\n")
+    refuse_before_writing(args, "the grounding is not")
+    args.grounding.write_text("grounding\n")
+    blobs[driver.POINTER] = json.dumps({"tag": driver.RELEASE_TAG}).encode()
+    refuse_before_writing(args, "the base commit's pointer is not release 20261013")
+
+
+def test_prepare_refuses_a_stage_it_did_not_create_or_outside_the_checkout(
+    tmp_path, monkeypatch
+):
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    args.stage.mkdir()
+    with pytest.raises(SystemExit, match="exists; prepare writes a new stage"):
+        driver.prepare(args)
+    args.stage.rmdir()
+    outside = argparse.Namespace(**{**vars(args), "stage": tmp_path / "elsewhere"})
+    refuse_before_writing(outside, "the stage must be under")
+
+
+def test_prepare_refuses_a_rejudge_prompt_that_is_not_on_template_v1(
+    tmp_path, monkeypatch
+):
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch)
+    case = sorted(driver.REJUDGE)[0]
+    (args.audit_seed / "cases" / case / "prompt.md").write_text(V2 + body(case))
+    with pytest.raises(SystemExit, match="its prompt is not on template v1"):
+        driver.prepare(args)
+
+
+def rewrite(relative: str, text: str):
+    return lambda audit: (audit / relative).write_text(text)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            lambda audit: rewrite(
+                f"cases/{sorted(driver.REJUDGE)[0]}/prompt.md", V2 + "\nanother case\n"
+            )(audit),
+            "its v2 prompt is not its v1 prompt with the v2 header",
+        ),
+        (
+            rewrite(f"cases/{CARRIED}/prompt.md", V2 + body(CARRIED)),
+            "preparing the audit changed a carried-over case",
+        ),
+        (
+            rewrite(f"cases/{CARRIED}/verdict.json", "{}"),
+            "preparing the audit changed a carried-over case",
+        ),
+        (rewrite("cases.jsonl", "other cases\n"), "cases.jsonl is not release"),
+        (rewrite("schema.json", '{"x": 1}'), "schema.json is not release"),
+        (
+            lambda audit: (audit / "cases/us__scenario_999__snap").mkdir(),
+            "added or dropped a case",
+        ),
+        (
+            rewrite(f"cases/{sorted(driver.REJUDGE)[0]}/verdict.json", "{}"),
+            "unexpected files",
+        ),
+    ],
+)
+def test_prepare_refuses_a_render_that_changes_more_than_the_header(
+    tmp_path, monkeypatch, change, message
+):
+    args, _ = fake_base(tmp_path, monkeypatch)
+    renderer(monkeypatch, change)
+    with pytest.raises(SystemExit, match=message):
+        driver.prepare(args)
+    # Nothing is pinned: the stage has no stage.json to judge from.
+    assert not (args.stage / "stage.json").exists()
+
+
+# ---------------------------------------------------------------- collect
+
+
+def collected(sources, suspect=False):
+    import pandas as pd
+
+    rows = pd.DataFrame(
+        {
+            "scenario_id": [f"scenario_00{i}" for i in range(len(sources))],
+            "variable": ["snap"] * len(sources),
+            "model": ["m1"] * len(sources),
+            "failure_source": list(sources),
+        }
+    )
+    notes = pd.DataFrame(
+        {
+            "scenario_id": ["scenario_000"],
+            "variable": ["snap"],
+            "reference_suspect": [suspect],
+        }
+    )
+    return rows, notes
+
+
+def test_model_errors_raise_no_reference_question():
+    rows, notes = collected(driver.MODEL_ERROR_SOURCES)
+    flags, unresolved = driver.reference_questions(rows, notes, set())
+    assert flags.empty and unresolved.empty
+
+
+def test_a_reference_flag_is_a_question_for_max():
+    rows, notes = collected(["llm_error"], suspect=True)
+    flags, _ = driver.reference_questions(rows, notes, set())
+    assert list(flags.scenario_id) == ["scenario_000"]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "prompt_ambiguity",
+        "reference_model_issue_fixed",
+        "reference_data_issue_fixed",
+        "reference_engine_defect",
+        "reference_later_law",
+        "needs_review",
+    ],
+)
+def test_a_scored_row_outside_the_model_errors_is_a_question_for_max(source):
+    rows, notes = collected(["llm_error", source])
+    _, unresolved = driver.reference_questions(rows, notes, set())
+    assert list(unresolved.scenario_id) == ["scenario_001"]
+    # An excluded case is not scored, so its rows raise no question.
+    _, unresolved = driver.reference_questions(rows, notes, {("scenario_001", "snap")})
+    assert unresolved.empty
+
+
+def test_the_model_error_classes_are_the_schemas_less_the_reference_ones():
+    from policybench.audit import AUDIT_OUTPUT_SCHEMA
+
+    def enum(node):
+        if isinstance(node, dict):
+            if "failure_source" in node:
+                return node["failure_source"]["enum"]
+            return next(filter(None, map(enum, node.values())), None)
+        if isinstance(node, list):
+            return next(filter(None, map(enum, node)), None)
+        return None
+
+    sources = set(enum(AUDIT_OUTPUT_SCHEMA))
+    assert set(driver.MODEL_ERROR_SOURCES) < sources
+    # Every other class is tested above as a question for Max.
+    assert sources - set(driver.MODEL_ERROR_SOURCES) == {
+        "prompt_ambiguity",
+        "reference_model_issue_fixed",
+        "reference_data_issue_fixed",
+        "reference_engine_defect",
+        "reference_later_law",
+        "needs_review",
+    }
+
+
 # ---------------------------------------------------------------- the freeze
 
 
@@ -905,3 +1264,154 @@ def test_the_freeze_refuses_a_receipt_that_does_not_bind_its_inputs(
     (tmp_path / "release-ready.json").write_text(json.dumps(receipt))
     with pytest.raises(SystemExit, match="changed after export"):
         driver.verify_receipt(tmp_path)
+
+
+def receipt_stage(tmp_path, monkeypatch):
+    """A stage whose receipt binds everything the freeze needs."""
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    for name in ("PROVENANCE", "SEED_DIGEST"):
+        (tmp_path / name).write_text(name)
+        monkeypatch.setattr(driver, name, tmp_path / name)
+    (stage / f"data-board{driver.BOARD_MODELS}.json").write_text("{}")
+    replaced = f"replaced-verdicts/{CASE}/published/verdict.json"
+    bundle = f"publish/{driver.RUN}"
+    files = [
+        replaced,
+        "annotation-changes.json",
+        "payload-diff.json",
+        f"{bundle}/annotations/{driver.ADJUDICATIONS}",
+        *(f"{bundle}/{rel}" for rel in driver.EXPORT_INPUTS),
+        *(
+            f"audit/cases/{case}/{name}"
+            for case in driver.REJUDGE
+            for name in (*driver.AUDIT_FILES, "claude.transcript.jsonl")
+        ),
+    ]
+    for rel in files:
+        (stage / rel).parent.mkdir(parents=True, exist_ok=True)
+        (stage / rel).write_text(rel)
+    (stage / "stage.json").write_text(
+        json.dumps({"replaced_files": {replaced: sha(replaced)}})
+    )
+    pins = {rel: sha(rel) for rel in files}
+    pins["stage.json"] = sha((stage / "stage.json").read_bytes())
+    receipt = {
+        "release_tag": driver.RELEASE_TAG,
+        "base_tag": driver.BASE_TAG,
+        "base_sha256": driver.BASE_SHA256,
+        "base_commit": driver.BASE_COMMIT,
+        "models": driver.BOARD_MODELS,
+        "provenance_sha256": sha("PROVENANCE"),
+        "seed_digest_sha256": sha("SEED_DIGEST"),
+        "amendments_sha256": sha(driver.committed_amendments()),
+        "payload_sha256": sha("{}"),
+        "files": pins,
+    }
+    return stage, receipt, replaced
+
+
+def write_receipt(stage, receipt):
+    (stage / "release-ready.json").write_text(json.dumps(receipt))
+
+
+def test_the_receipt_binds_every_file_and_every_verdict_set_aside(
+    tmp_path, monkeypatch
+):
+    stage, receipt, replaced = receipt_stage(tmp_path, monkeypatch)
+    write_receipt(stage, receipt)
+    assert driver.verify_receipt(stage) == receipt
+    unbound = json.loads(json.dumps(receipt))
+    del unbound["files"][replaced]
+    write_receipt(stage, unbound)
+    with pytest.raises(SystemExit, match="the receipt does not bind"):
+        driver.verify_receipt(stage)
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [
+        "stage.json",
+        f"replaced-verdicts/{CASE}/published/verdict.json",
+        f"audit/cases/{CASE}/verdict.json",
+        f"audit/cases/{CASE}/claude.transcript.jsonl",
+    ],
+)
+def test_the_freeze_refuses_a_pinned_file_changed_after_export(
+    tmp_path, monkeypatch, rel
+):
+    """The payload is unchanged, so only the file's own pin can catch it."""
+    stage, receipt, _ = receipt_stage(tmp_path, monkeypatch)
+    write_receipt(stage, receipt)
+    path = stage / rel
+    path.write_text(path.read_text() + " edited")
+    with pytest.raises(SystemExit, match=re.escape(f"{rel} changed after export")):
+        driver.verify_receipt(stage)
+    path.unlink()
+    with pytest.raises(SystemExit, match=re.escape(f"{rel} changed after export")):
+        driver.verify_receipt(stage)
+
+
+def test_the_freeze_refuses_a_receipt_naming_a_path_outside_the_stage(
+    tmp_path, monkeypatch
+):
+    stage, receipt, _ = receipt_stage(tmp_path, monkeypatch)
+    (tmp_path / "outside.txt").write_text("x")
+    receipt["files"]["../outside.txt"] = sha("x")
+    write_receipt(stage, receipt)
+    with pytest.raises(SystemExit, match="a path outside"):
+        driver.verify_receipt(stage)
+
+
+def base_working_tree(tmp_path, monkeypatch) -> tuple[list[str], list[Path]]:
+    monkeypatch.setattr(driver, "ROOT", tmp_path)
+    committed = sorted((*driver.STAGED_ANNOTATIONS, driver.AMENDMENTS))
+    monkeypatch.setattr(driver, "base_annotation_names", lambda: list(committed))
+    monkeypatch.setattr(driver, "base_blob", lambda rel: f"base {Path(rel)}".encode())
+    rels = [
+        driver.MANIFEST,
+        driver.SERVING,
+        driver.POINTER,
+        driver.VERSIONS,
+        *(driver.ANNOTATIONS / name for name in committed),
+        *(driver.SNAPSHOT_RUN / name for name in driver.FROZEN_UNCHANGED),
+    ]
+    for rel in rels:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(f"base {rel}")
+    return committed, rels
+
+
+def test_the_freeze_starts_from_release_20261013s_working_tree(tmp_path, monkeypatch):
+    committed, rels = base_working_tree(tmp_path, monkeypatch)
+    assert driver.verify_base_working_tree() == committed
+    for rel in rels:
+        path = tmp_path / rel
+        message = re.escape(f"the working tree's {rel} is not release 20261013's")
+        path.write_text("changed")
+        with pytest.raises(SystemExit, match=message):
+            driver.verify_base_working_tree()
+        if rel.parent != driver.ANNOTATIONS:
+            path.unlink()
+            with pytest.raises(SystemExit, match=message):
+                driver.verify_base_working_tree()
+        path.write_text(f"base {rel}")
+    assert driver.verify_base_working_tree() == committed
+
+
+def test_the_freeze_needs_exactly_the_committed_annotation_files(tmp_path, monkeypatch):
+    committed, _ = base_working_tree(tmp_path, monkeypatch)
+    annotations = tmp_path / driver.ANNOTATIONS
+    (annotations / "stray.csv").write_text("")
+    with pytest.raises(SystemExit, match="the working tree's annotations are"):
+        driver.verify_base_working_tree()
+    (annotations / "stray.csv").unlink()
+    (annotations / driver.ROWS).unlink()
+    with pytest.raises(SystemExit, match="the working tree's annotations are"):
+        driver.verify_base_working_tree()
+    (annotations / driver.ROWS).write_text("x")
+    monkeypatch.setattr(
+        driver, "base_annotation_names", lambda: [*committed, "extra.csv"]
+    )
+    with pytest.raises(SystemExit, match="release 20261013 commits annotation files"):
+        driver.verify_base_working_tree()

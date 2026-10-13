@@ -139,7 +139,7 @@ Five cases are re-judged with the isolated runner, on judge template v2:
 - `045 snap`: its judge saw decision history through git status;
 - `014 federal_refundable_credits`, `015 federal_refundable_credits` and `015 head_medicaid_eligible`: their transcripts are missing.
 
-Each judge runs from an empty directory outside the repo, with tools off, on a dedicated judge login that is never the desktop login. The new verdicts replace these cases' row annotations and case notes. No adjudication record covers any of the five, so no decision changes. If a re-judge flags the reference or leaves `llm_error`, that is a new reference question, and it goes to Max as a decision.
+Each judge runs from an empty directory outside the repo, with tools off, on a dedicated judge login that is never the desktop login. The new verdicts replace these cases' row annotations and case notes. No adjudication record covers any of the five, so no decision changes. If a re-judge flags the reference, or leaves a scored row outside the model-error classes (`llm_error`, `parse_contract_failure` and `budget_exhausted_at_ceiling`), that is a new reference question, and it goes to Max as a decision. None did: no re-judge flags the reference, every row and case keeps its failure source, and three model rows' failure subtypes change.
 
 The five verdicts stayed published, unchanged, through releases 20260930, 20261006, 20261010 and 20261013. The fix is release `dashboard-data-20261013b`, on top of 20261013: see [`docs/release_20261013b/design.md`](../release_20261013b/design.md).
 

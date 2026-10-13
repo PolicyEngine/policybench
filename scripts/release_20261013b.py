@@ -996,6 +996,23 @@ def verify_provenance(cases: Path) -> None:
     )
 
 
+MODEL_ERROR_SOURCES = (
+    "llm_error",
+    "parse_contract_failure",
+    "budget_exhausted_at_ceiling",
+)
+
+
+def reference_questions(rows, notes, excluded):
+    """The case notes that flag the reference, and the scored rows a verdict
+    leaves outside the model-error classes. Either is a reference question
+    for Max, which this release does not decide."""
+    flags = notes[notes.reference_suspect.astype(bool)]
+    scored = ~rows[KEY].apply(tuple, axis=1).isin(excluded)
+    unresolved = rows[scored & ~rows.failure_source.isin(MODEL_ERROR_SOURCES)]
+    return flags, unresolved
+
+
 def collect(args) -> None:
     """Collect the new verdicts and splice the five cases into the base files."""
     import pandas as pd
@@ -1041,14 +1058,7 @@ def collect(args) -> None:
         excluded == excluded_case_keys(decisions),
         "the adjudications and the frozen scoring exclusions disagree",
     )
-    flags = notes[notes.reference_suspect.astype(bool)]
-    scored = ~rows[KEY].apply(tuple, axis=1).isin(excluded)
-    unresolved = rows[
-        scored
-        & ~rows.failure_source.isin(
-            ["llm_error", "parse_contract_failure", "budget_exhausted_at_ceiling"]
-        )
-    ]
+    flags, unresolved = reference_questions(rows, notes, excluded)
     flags.to_csv(stage / "reference-flags.csv", index=False)
     unresolved.to_csv(stage / "unresolved-rows.csv", index=False)
     require(
@@ -1289,8 +1299,20 @@ def verify_receipt(stage: Path) -> dict:
         digest(payload) == receipt.get("payload_sha256"),
         "the payload changed after export",
     )
+    for rel, pin in receipt["files"].items():
+        path = (stage / rel).resolve()
+        require(path.is_relative_to(stage), f"the receipt names a path outside: {rel}")
+        require(path.is_file() and digest(path) == pin, f"{rel} changed after export")
+    # Every verdict set aside is bound too; stage.json, pinned just above when
+    # the receipt binds it, lists them.
+    replaced = (
+        json.loads((stage / "stage.json").read_text()).get("replaced_files", {})
+        if "stage.json" in receipt["files"]
+        else {}
+    )
     bundle = f"publish/{RUN}"
     needed = {
+        *replaced,
         "stage.json",
         "annotation-changes.json",
         "payload-diff.json",
@@ -1304,11 +1326,34 @@ def verify_receipt(stage: Path) -> dict:
     }
     missing = sorted(needed - set(receipt["files"]))
     require(not missing, f"the receipt does not bind {missing[:5]}")
-    for rel, pin in receipt["files"].items():
-        path = (stage / rel).resolve()
-        require(path.is_relative_to(stage), f"the receipt names a path outside: {rel}")
-        require(path.is_file() and digest(path) == pin, f"{rel} changed after export")
     return receipt
+
+
+def verify_base_working_tree() -> list[str]:
+    """The working tree is release 20261013 in every file the freeze reads or
+    writes, and its annotations directory holds exactly the committed files.
+    Returns the committed annotation file names."""
+    committed = base_annotation_names()
+    require(
+        committed == sorted((*STAGED_ANNOTATIONS, AMENDMENTS)),
+        f"release 20261013 commits annotation files {committed}",
+    )
+    present = sorted(p.name for p in (ROOT / ANNOTATIONS).iterdir())
+    require(present == committed, f"the working tree's annotations are {present}")
+    for rel in (
+        MANIFEST,
+        SERVING,
+        POINTER,
+        VERSIONS,
+        *(ANNOTATIONS / name for name in committed),
+        *(SNAPSHOT_RUN / name for name in FROZEN_UNCHANGED),
+    ):
+        path = ROOT / rel
+        require(
+            path.is_file() and path.read_bytes() == base_blob(rel),
+            f"the working tree's {rel} is not release 20261013's",
+        )
+    return committed
 
 
 def freeze(args) -> None:
@@ -1334,27 +1379,7 @@ def freeze(args) -> None:
         verify_adjudications_applied,
     )
 
-    # The working tree is release 20261013 in every file the freeze reads or
-    # writes, and its annotations directory holds exactly the committed files.
-    committed = base_annotation_names()
-    require(
-        committed == sorted((*STAGED_ANNOTATIONS, AMENDMENTS)),
-        f"release 20261013 commits annotation files {committed}",
-    )
-    present = sorted(p.name for p in (ROOT / ANNOTATIONS).iterdir())
-    require(present == committed, f"the working tree's annotations are {present}")
-    for rel in (
-        MANIFEST,
-        SERVING,
-        POINTER,
-        VERSIONS,
-        *(ANNOTATIONS / name for name in committed),
-        *(SNAPSHOT_RUN / name for name in FROZEN_UNCHANGED),
-    ):
-        require(
-            (ROOT / rel).read_bytes() == base_blob(rel),
-            f"the working tree's {rel} is not release 20261013's",
-        )
+    committed = verify_base_working_tree()
     base_manifest = json.loads(base_blob(MANIFEST))
     base_serving = base_blob(SERVING)
     window = freezer.model_response_window(
@@ -1433,6 +1458,10 @@ def freeze(args) -> None:
             (ROOT / rel).read_bytes() == base_blob(rel),
             f"the frozen {rel} is not release 20261013's",
         )
+    require(
+        json.loads((ROOT / POINTER).read_text()) == pointer,
+        f"the frozen {POINTER} is not the pointer this release wrote",
+    )
     manifest = json.loads((ROOT / MANIFEST).read_text())
     changed = manifest_problems(base_manifest, manifest)
     require(not changed, f"the manifest changed outside the release: {changed[:8]}")
@@ -1451,8 +1480,9 @@ def freeze(args) -> None:
     )
     print(f"Froze {RELEASE_TAG} locally: payload {receipt['payload_sha256']}")
     print(
-        "Next: the note, the tests that pin the tag and the judge provenance, the "
-        "paper render, freeze_snapshot.py --rendered-only, then the release upload."
+        "Next: the tests that pin the tag and the judge provenance, the paper "
+        "render, freeze_snapshot.py --rendered-only, then the release upload. The "
+        "release adds no note: it changes no model, reference, exclusion or score."
     )
 
 

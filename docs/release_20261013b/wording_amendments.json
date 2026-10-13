@@ -1,26 +1,26 @@
 {
- "note": "Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine (docs/release_20261013b/design.md); each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score.",
+ "note": "Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine, and a review of the release's pull request found three more of scenario_015's Medicaid texts that the household's calculation contradicts and a misstated EITC end point in scenario_014 (docs/release_20261013b/design.md). Each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score.",
  "amendments": [
   {
    "case_id": "us__scenario_015__head_medicaid_eligible",
    "field": "case_annotation",
    "old": "PolicyEngine's aged/blind/disabled pathway applies SSI-style income limits plus a small resource cap.",
-   "new": "PolicyEngine's aged/blind/disabled pathway in Indiana requires SSI's definition of disability, countable income within 100% of the poverty guideline and resources under $2,000.",
-   "reason": "The text stated Indiana's rule as a general fact and called the income limit SSI-style. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit. The pathway's first condition is is_ssi_aged_blind_disabled (is_optional_senior_or_disabled_for_medicaid)."
+   "new": "PolicyEngine's aged/blind/disabled pathway in Indiana requires the head to be aged, blind or disabled under SSI's rules, countable income within 100% of the poverty guideline and resources under $2,000.",
+   "reason": "The text stated Indiana's rule as a general fact and called the income limit SSI-style. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit. The pathway's first condition is is_ssi_aged_blind_disabled (is_optional_senior_or_disabled_for_medicaid), which holds for a person who is SSI-aged, blind or SSI-disabled."
   },
   {
    "case_id": "us__scenario_015__head_medicaid_eligible",
    "field": "case_annotation",
    "old": "Roughly $45,000 of earnings and about $585,000 in bank and stock assets fail both tests, so medicaid_category is NONE.",
    "new": "Earnings of $45,000 are above SSI's substantial gainful activity limit, so PolicyEngine does not count the head as disabled for this pathway, and about $585,000 in bank and stock assets is far above the resource cap, so medicaid_category is NONE.",
-   "reason": "The engine's income test does not fail here; the disability condition and the asset test do. Computed for this household on policyengine-us 2.41.0: meets_ssi_disability_criteria False, ssi_engaged_in_sga True, is_ssi_disabled False, is_optional_senior_or_disabled_income_eligible True (medicaid_optional_senior_or_disabled_countable_income 0), is_optional_senior_or_disabled_asset_eligible False (ssi_countable_resources 584,850), medicaid_category NONE. ssi_engaged_in_sga compares monthly ssi_earned_income ($3,750) with gov.ssa.sga.non_blind ($1,690 in 2026), and is_ssi_disabled is meets_ssi_disability_criteria and not ssi_engaged_in_sga."
+   "reason": "The engine's income test does not fail here; the disability condition and the asset test do. Computed for this household on policyengine-us 2.41.0: meets_ssi_disability_criteria False, ssi_engaged_in_sga True, is_ssi_disabled False, is_optional_senior_or_disabled_income_eligible True (medicaid_optional_senior_or_disabled_countable_income 0), is_optional_senior_or_disabled_asset_eligible False (ssi_countable_resources 584,850), medicaid_category NONE. ssi_engaged_in_sga compares monthly ssi_earned_income ($3,750) with gov.ssa.sga.non_blind ($1,690 in 2026), and is_ssi_disabled is meets_ssi_disability_criteria and not ssi_engaged_in_sga. The conclusion does not rest on the unlisted meets_ssi_disability_criteria input, which the household data never set: computed with it set to True, ssi_engaged_in_sga keeps is_ssi_disabled False and medicaid_category stays NONE."
   },
   {
    "case_id": "us__scenario_015__head_medicaid_eligible",
    "field": "case_annotation",
    "old": "Both models treated the disability flag by itself as qualifying",
-   "new": "One model treated the disability flag by itself as qualifying and the other wrongly asserted that the head's income and assets were within the disability limits",
-   "reason": "Only minimax-m3 relied on the flag alone. claude-sonnet-5's reasoning in the case's prompt says the head's income is 'well below the SSI/disability-related Medicaid threshold' and that earnings 'plus assets fall within eligibility limits'."
+   "new": "One model treated the disability flag by itself as qualifying and the other wrongly asserted that the head met the disability pathway's limits",
+   "reason": "Only minimax-m3 relied on the flag alone. claude-sonnet-5's reasoning in the case's prompt says the head's income is 'well below the SSI/disability-related Medicaid threshold' and that earnings 'plus assets fall within eligibility limits'. The engine's income test passes for this household, so the text names the pathway's limits rather than its income limit: what fails is the disability condition, because earnings exceed SSI's substantial gainful activity limit, and the asset test. Computed for this household on policyengine-us 2.41.0: ssi_earned_income $45,000, so $3,750 a month against gov.ssa.sga.non_blind of $1,690 a month in 2026; ssi_engaged_in_sga True; is_ssi_disabled False; medicaid_optional_senior_or_disabled_countable_income 0 against a limit of $15,960, so the income test passes; ssi_countable_resources 584,850, so the asset test fails; medicaid_category NONE."
   },
   {
    "case_id": "us__scenario_015__head_medicaid_eligible",
@@ -33,9 +33,9 @@
    "case_id": "us__scenario_015__head_medicaid_eligible",
    "field": "annotation",
    "model": "minimax-m3",
-   "old": "The disability pathway needs SSI-level income and resources",
-   "new": "In Indiana the disability pathway needs countable income within 100% of the poverty guideline and resources under $2,000",
-   "reason": "Indiana's income limit for the pathway is the poverty guideline, not the SSI benefit rate. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit."
+   "old": "The disability pathway needs SSI-level income and resources, but the head has $45,000 in wages and about $585,000 in assets",
+   "new": "In Indiana the disability pathway needs the head to be disabled under SSI's rules, countable income within 100% of the poverty guideline and resources under $2,000, but the head's earnings of $45,000 exceed SSI's substantial gainful activity limit and about $585,000 in assets exceeds the cap",
+   "reason": "Indiana's income limit for the pathway is the poverty guideline, not the SSI benefit rate, and the engine's income test passes for this household: what fails is the disability condition and the asset test. Indiana's parameters under gov.hhs.medicaid.eligibility.categories.senior_or_disabled: income limit 1.00 of the poverty guideline (income/limit/individual.yaml), not the SSI federal benefit rate (uses_ssi_federal_benefit_rate.yaml: false), and a $2,000 individual asset limit (assets/limit/individual.yaml), tested as assets below the limit. Computed for this household on policyengine-us 2.41.0: ssi_earned_income $45,000, so $3,750 a month against gov.ssa.sga.non_blind of $1,690 a month in 2026; ssi_engaged_in_sga True; is_ssi_disabled False; medicaid_optional_senior_or_disabled_countable_income 0 against a limit of $15,960, so the income test passes; ssi_countable_resources 584,850, so the asset test fails; medicaid_category NONE."
   },
   {
    "case_id": "us__scenario_045__snap",
@@ -81,6 +81,29 @@
    "old": "The EITC figure only fits the with-children phase-out schedule.",
    "new": "The EITC figure does not fit the childless schedule.",
    "reason": "The model's reasoning in the case's prompt gives $1,735.80 without a schedule. policyengine-us 2.41.0's 2026 EITC at $45,000 of earnings for a single filer is $0 with no child (maximum $664), $1,054 with one and $2,870 with two (gov.irs.credits.eitc max, phase_out.start, phase_out.rate), so $1,735.80 fits none of the 2026 schedules. It exceeds the childless maximum, which is all the record shows."
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "field": "annotation",
+   "model": "claude-sonnet-5",
+   "old": "Those earnings, plus $584,850 in bank and stock assets, are far above the aged/blind/disabled income limit and its roughly $2,000 resource cap.",
+   "new": "Those earnings, $3,750 a month, exceed SSI's substantial gainful activity limit of $1,690 a month, so PolicyEngine does not count the head as disabled, and $584,850 in bank and stock assets is far above the $2,000 resource cap.",
+   "reason": "The engine's income test does not fail here; the disability condition and the asset test do, as the second amendment of this case's note records. Computed for this household on policyengine-us 2.41.0: ssi_earned_income $45,000, so $3,750 a month against gov.ssa.sga.non_blind of $1,690 a month in 2026; ssi_engaged_in_sga True; is_ssi_disabled False; medicaid_optional_senior_or_disabled_countable_income 0 against a limit of $15,960, so the income test passes; ssi_countable_resources 584,850, so the asset test fails; medicaid_category NONE. Indiana's asset limit is $2,000 (assets/limit/individual.yaml), not roughly $2,000."
+  },
+  {
+   "case_id": "us__scenario_014__federal_refundable_credits",
+   "field": "case_annotation",
+   "old": "phases out completely at roughly $26,000 of earned income/AGI for joint filers in 2026",
+   "new": "phases out completely at about $26,820 of earned income/AGI for joint filers in 2026",
+   "reason": "policyengine-us 2.41.0's 2026 childless EITC for joint filers has a $664 maximum (gov.irs.credits.eitc.max) and phases out at 7.65% (phase_out.rate) from $18,140 (phase_out.start $10,860 plus phase_out.joint_bonus $7,280), so it reaches $0 at $26,820. Computed for a married couple with no children: $62.71 at $26,000 of earnings, $0.06 at $26,819 and $0 at $26,820."
+  },
+  {
+   "case_id": "us__scenario_014__federal_refundable_credits",
+   "field": "annotation",
+   "model": "qwen3.8-max",
+   "old": "phase-out end of about $26,000",
+   "new": "phase-out end of about $26,820",
+   "reason": "policyengine-us 2.41.0's 2026 childless EITC for joint filers has a $664 maximum (gov.irs.credits.eitc.max) and phases out at 7.65% (phase_out.rate) from $18,140 (phase_out.start $10,860 plus phase_out.joint_bonus $7,280), so it reaches $0 at $26,820. Computed for a married couple with no children: $62.71 at $26,000 of earnings, $0.06 at $26,819 and $0 at $26,820."
   }
  ]
 }
