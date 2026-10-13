@@ -5,7 +5,7 @@
 This release does two things on top of release `dashboard-data-20261010` (PR #208):
 
 1. It adds Meta Muse Wonder (display id `muse-wonder`, provider id `openrouter/meta/muse-wonder`, run slug `musewonder`) as the board's 48th model. It is the board's first Meta model.
-2. It moves the references from policyengine-us 2.38.6 to the newest policyengine-us release, a third `engine_upgrade` revision (Max, 2026-09-28: "we should be using the latest pe for this always!"). Release 20261010 left ten outputs excluded for engine defects whose upstream fixes had not shipped. Max's instruction of 2026-10-12 for those: "If any have shipped, regenerate their cells instead of excluding them." Each one the new engine fixes is regenerated and scored again.
+2. It moves the references from policyengine-us 2.38.6 to 2.41.0, the newest policyengine-us release when the sweep began, a third `engine_upgrade` revision (Max, 2026-09-28: "we should be using the latest pe for this always!"). Release 20261010 left ten outputs excluded for engine defects whose upstream fixes had not shipped. Max's instruction of 2026-10-12 for those: "If any have shipped, regenerate their cells instead of excluding them." Each one the new engine fixes is regenerated and scored again.
 
 It rules no exclusion. Two decisions on reference conventions were open when it was staged: d1252 (VA scenario_039 federal and OH scenario_025 state income tax) and d1263 (the Tax Table against the rate schedule). The spec records both as open, so nothing scored changes on their points.
 
@@ -19,15 +19,15 @@ The driver is `scripts/finish_musewonder.py`, adapted from `scripts/finish_haiku
 
 The engine upgrade's builder, actions, evidence and narratives are in `reference_audit/2026-10-12-engine-upgrade/`, adapted from `reference_audit/2026-10-09-engine-upgrade/`.
 
-| | Release 20261010 | This release before a build is installed |
-|---|---|---|
-| Models | 47 | 48 |
-| Requested outputs per model | 1,984 | 1,984 |
-| Exclusions | 58: 42 unlisted inputs, 14 engine defects, 2 later-published law | 58, the same records |
-| Scored outputs per model | 1,926 | 1,926 |
-| Adjudications | 70, of which 58 exclude | 70, the same decisions |
+| | Release 20261010 | Before a build is installed | With the 2.41.0 build |
+|---|---|---|---|
+| Models | 47 | 48 | 48 |
+| Requested outputs per model | 1,984 | 1,984 | 1,984 |
+| Exclusions | 58: 42 unlisted inputs, 14 engine defects, 2 later-published law | 58, the same records | 48: 42 unlisted inputs, 4 engine defects, 2 later-published law |
+| Scored outputs per model | 1,926 | 1,926 | 1,936 |
+| Adjudications | 70, of which 58 exclude | 70, the same decisions | 60 before triage, of which 48 exclude |
 
-An installed build changes these counts as in release 20261010: it removes the records it regenerates and drops their decisions, and adds any records it newly excludes.
+The build removes the ten records it regenerates and drops their decisions, as release 20261010's did; it adds none. Each of the ten regenerated records has exactly one decision in release 20261010's record, which `adjudicate-exclusions` drops; triage may add a decision only on a re-opened case.
 
 ## The base
 
@@ -98,7 +98,11 @@ A `record` target is the exclusion record's alternative value. A `fix_modules` t
 
 **This audit's own fix module.** CA scenario_099's record names two root causes, r02 and r11. Release 20261010's recheck on 2.38.6 found a third difference: California does not conform to the federal educator-expense deduction, so it adds the deduction back (`r33_ca_educator_expense_addback.py` in `reference_audit/2026-10-12-engine-upgrade/fixes/`, mirroring PolicyEngine/policyengine-us#10052's `ca_educator_expense_addition`). Earlier upgrades read every module from `reference_audit/2026-09-22/fixes` at `BASE_COMMIT`. This one may also pin a module from its own `fixes/`, read at HEAD (`fix_location` in the builder, `fix_module_blob` in the driver), and the pin then carries its `path`. A name found under both folders resolves to the 2026-09-22 module, so a local module cannot shadow an audited one. `freeze_snapshot.verify_regeneration_target_pins` requires each pinned path to be a `reference_audit/<audit>/fixes/<module>` file at its committed bytes.
 
-**First pass on a pre-release.** On policyengine-us 2.41.0 built from git (`de3815f4cc`, before its PyPI publish), 23 outputs differ from 2.38.6, all of them excluded. All ten candidates land on their targets, and no scored output moves. The release build waits on the published wheel, which `sweep_timing.py` requires.
+**The build.** policyengine-us 2.41.0 was published at 01:44:55 UTC on 2026-10-13 and was the newest release when the sweep began (`reference_audit/2026-10-12-engine-upgrade/verification/sweep_timing.json`: installed 01:49:51, first output 01:51:12). It is the first release carrying all seven fixes: 2.40.1 lacks #10052. Its 1,984 computed outputs are identical to a first pass on its release commit `de3815f4cc`. The reviewed actions (`final_actions.json`) regenerate the ten candidates, each on its target, and recheck eleven excluded outputs that move and stay excluded. No scored reference changes by any amount, and nothing is newly excluded. The build is `results/local/musewonder/engine/final` (copy in `~/reviews/policybench-muse-wonder/engine-2.41.0`), and `driver.load_build` accepts it (`test_a_real_builders_build_passes_the_drivers_gates`).
+
+**Rechecks of scenario_005 and scenario_120.** The action drafter first called these two federal income tax outputs "not fixed": it compared them with their records' 1.755.4-era alternative values. Release 20261010's recheck had found both on the corrected value its 2.38.6 evidence gave, and kept them excluded for a second, unlisted-input reason (r25, the net investment income tax). 2.41.0 gives the same values, so the drafter now keeps that finding.
+
+**Narratives.** The writer (claude-haiku-4-5) misstated the change behind six of the ten narratives; four said 401(k) deferrals count as earned income for the EITC, the reverse of #10030. All ten are hand-corrected against the build's trace (`hand_corrected_narratives.json`, with each basis in the `.md`).
 
 **DecisionWave.** Release 20261010's driver dated every triage decision by its ruled 2026-10-06 wave. This release rules nothing, so a triage decision (a developer affirming a reference the upgrade changed, which a re-judged verdict flagged) is dated by the engine upgrade's revision day. The upgrade's day is named as a wave in the date conventions whenever the upgrade decides anything, a new exclusion or a triage affirmation (`decision_wave`, `release_date_conventions`), with the day its decisions were written (`upgrade_adjudications_written_on`). With no decision, the conventions stay release 20261010's.
 
