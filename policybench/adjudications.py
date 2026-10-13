@@ -37,6 +37,12 @@ REQUIRED_FIELDS = (
     "reasoning",
 )
 FINAL_SOURCES = frozenset({"llm_error", "parse_contract_failure"})
+# Row classes an adjudication leaves alone: a parse failure stays a parse
+# failure, and a ceiling exhaustion is the run data's own record (collect_audit
+# and the dashboard export force it onto its row), not a judge's verdict.
+NON_SUBSTANTIVE_SOURCES = frozenset(
+    {"parse_contract_failure", "budget_exhausted_at_ceiling"}
+)
 # A developer may affirm a judge's (or override a judge's) verdict as prompt
 # ambiguity, or record a reference engine defect, only when the output is also
 # removed from scoring for every model (see policybench.reference_exclusions);
@@ -207,8 +213,8 @@ def apply_adjudications(
     """Return adjudicated copies of the row annotations and case notes.
 
     An adjudication is a case-level decision: every substantive row of the
-    case (anything but a ``parse_contract_failure`` row, which stays a parse
-    failure) takes the adjudicated source and subtype, so re-applying a
+    case (anything but a :data:`NON_SUBSTANTIVE_SOURCES` row, which keeps its
+    class) takes the adjudicated source and subtype, so re-applying a
     revised record updates rows an earlier application already rewrote. The
     case note's ``case_failure_sources`` and
     ``case_failure_subtypes`` take the adjudicated class, and the case
@@ -219,8 +225,8 @@ def apply_adjudications(
     cases = cases.copy()
     report: list[dict] = []
     for entry in adjudications:
-        row_mask = _case_mask(rows, entry) & (
-            rows["failure_source"].astype(str) != "parse_contract_failure"
+        row_mask = _case_mask(rows, entry) & ~rows["failure_source"].astype(str).isin(
+            NON_SUBSTANTIVE_SOURCES
         )
         case_mask = _case_mask(cases, entry)
         if not case_mask.any():
@@ -271,9 +277,10 @@ def verify_adjudications_applied(
 ) -> None:
     """Raise unless the annotations agree with the complete adjudication record.
 
-    For every entry: no row still carries the judge's non-final verdict; every
-    substantive row of the case (anything but a parse failure) carries the
-    adjudicated source and subtype; the case note carries the adjudicated
+    For every entry: no substantive row of the case (anything but a
+    :data:`NON_SUBSTANTIVE_SOURCES` row, which apply_adjudications leaves
+    alone) still carries the judge's non-final verdict, and every one carries
+    the adjudicated source and subtype; the case note carries the adjudicated
     source and subtype and the exact adjudication sentence, reasoning
     included. A revised record therefore fails verification until it is
     re-applied, and a record edited to disagree with the rows fails closed.
@@ -285,8 +292,13 @@ def verify_adjudications_applied(
         if not case_mask.any() or not row_mask.any():
             raise AdjudicationError(f"adjudicated case missing from annotations: {key}")
         case_rows = rows.loc[row_mask]
-        stray = case_rows[
-            case_rows["failure_source"].astype(str) == entry["judge_failure_source"]
+        substantive = case_rows[
+            ~case_rows["failure_source"].astype(str).isin(NON_SUBSTANTIVE_SOURCES)
+        ]
+        # A recorded ceiling exhaustion is run data even when the judge also
+        # chose that class for the case.
+        stray = substantive[
+            substantive["failure_source"].astype(str) == entry["judge_failure_source"]
         ]
         affirmed = entry["judge_failure_source"] == entry["adjudicated_failure_source"]
         if (
@@ -298,9 +310,6 @@ def verify_adjudications_applied(
                 f"{len(stray)} rows of {key} still carry the judge's "
                 f"{entry['judge_failure_source']} verdict"
             )
-        substantive = case_rows[
-            case_rows["failure_source"].astype(str) != "parse_contract_failure"
-        ]
         off_source = substantive[
             substantive["failure_source"].astype(str)
             != entry["adjudicated_failure_source"]
