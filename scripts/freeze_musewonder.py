@@ -630,7 +630,7 @@ def verify_adjudication_record(
     driver.verify_record_form(
         staged.read_text(),
         driver.base_adjudication_record(),
-        driver.upgrade_wave(decisions),
+        driver.decision_wave(decisions, driver.triage_items(upgrade)),
     )
     after = load_adjudications(staged)
     base = driver.base_adjudications()
@@ -1277,7 +1277,9 @@ def verify_frozen(
     driver.verify_record_form(
         (annotations / ADJUDICATIONS).read_text(),
         driver.base_adjudication_record(),
-        driver.upgrade_wave(driver.upgrade_decisions(upgrade)),
+        driver.decision_wave(
+            driver.upgrade_decisions(upgrade), driver.triage_items(upgrade)
+        ),
     )
     if (annotations / COMMITTED_AMENDMENTS).read_bytes() != committed_amendments(stage):
         raise SystemExit(

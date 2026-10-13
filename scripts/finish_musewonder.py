@@ -1035,6 +1035,13 @@ def triage_items(upgrade, spec: dict | None = None) -> list[dict]:
         all(item["reference_verdict"] == "affirmed" for item in items),
         "a triage decision may only affirm a reference; an exclusion is ruled",
     )
+    day = upgrade.revision["date"]
+    wrong = sorted(spec_key(i) for i in items if i["adjudicated_on"] != day)
+    require(
+        not wrong,
+        f"a triage decision is dated by the engine upgrade's wave ({day}), "
+        f"the one this release names: {wrong}",
+    )
     return sorted(items, key=spec_key)
 
 
@@ -1135,16 +1142,9 @@ def exclusion_adjudications(
                 adjudicated_on=upgraded["decided_on"],
             )
         )
-    waves = {upgrade_wave(added)} - {None}
-    if spec_records(spec):
-        waves.add(spec["decided_on"])
+    wave = decision_wave(added, triage)
     for item in triage:
         k = spec_key(item)
-        require(
-            item["adjudicated_on"] in waves,
-            f"{k}: a triage decision is dated by a wave this release names "
-            f"({sorted(waves)}), not {item['adjudicated_on']}",
-        )
         require(
             k not in by_key,
             f"{k}: a triage decision on a case that already has a decision; "
@@ -1152,23 +1152,48 @@ def exclusion_adjudications(
         )
         appended.append(triage_entry(item, cases_dir / f"us__{k[0]}__{k[1]}"))
     out["adjudications"] = out["adjudications"] + appended
-    out["date_conventions"] = release_date_conventions(
-        out["date_conventions"], upgrade_wave(added)
-    )
+    out["date_conventions"] = release_date_conventions(out["date_conventions"], wave)
     return out
 
 
-def release_date_conventions(conventions: str, wave: str | None = None) -> str:
+@dataclass(frozen=True)
+class DecisionWave:
+    """The wave of an installed engine upgrade's decisions: its revision's UTC
+    day, and whether its decisions exclude outputs the upgrade moved onto an
+    unstated input (upgrade_decisions) or affirm references it changed
+    (triage_items)."""
+
+    day: str
+    excludes: bool
+    affirms: bool
+
+
+def decision_wave(added, triage) -> DecisionWave | None:
+    """The DecisionWave of the upgrade's new exclusions (``added``, as
+    upgrade_decisions pairs them) and triage decisions (``triage``), or None
+    when the upgrade decides nothing. Both are dated by one day: a new record
+    by its decided_on, a triage item by its adjudicated_on."""
+    days = {record["decided_on"] for _, record in added}
+    days |= {item["adjudicated_on"] for item in triage}
+    require(len(days) <= 1, f"the upgrade's decisions name several days: {days}")
+    if not days:
+        return None
+    return DecisionWave(next(iter(days)), bool(added), bool(triage))
+
+
+def release_date_conventions(
+    conventions: str, wave: DecisionWave | None = None
+) -> str:
     """Release 20261010's date conventions with each wave this release adds
     named; the one definition the adjudicate step writes and the record gate
     expects.
 
     A wave is added for the spec's ruled records, when it rules any (its
     decided_on, with its wave_sentence and adjudications_written_on), and for
-    ``wave``, the UTC day of an installed engine upgrade whose newly excluded
-    outputs are decided (upgrade_wave), with the day the spec says those
-    decisions were written (upgrade_adjudications_written_on). With neither,
-    the conventions are release 20261010's, unchanged.
+    ``wave``, the installed engine upgrade's decisions (decision_wave), with
+    the day the spec says those decisions were written
+    (upgrade_adjudications_written_on). With neither, the conventions are
+    release 20261010's, unchanged.
     """
     require(
         conventions.count(DATE_CONVENTIONS_BASE) == 1
@@ -1191,12 +1216,24 @@ def release_date_conventions(conventions: str, wave: str | None = None) -> str:
             f"{SPEC_PATH} names no upgrade_adjudications_written_on, the UTC day "
             "the engine upgrade's decisions were written",
         )
-        require(wave not in days, f"the {wave} wave is named twice")
-        days.append(wave)
+        require(wave.day not in days, f"the {wave.day} wave is named twice")
+        days.append(wave.day)
+        upgrade = f"the {wave.day} engine upgrade of the references"
+        what = []
+        if wave.excludes:
+            what.append(
+                f"exclude the outputs {upgrade} moved onto an input the prompt "
+                "does not state"
+            )
+        if wave.affirms:
+            what.append(
+                f"affirm references {upgrade} changed, which a re-judged case's "
+                "verdict flagged"
+            )
+        require(bool(what), f"the {wave.day} wave decides nothing")
         sentence += (
-            f" The {wave} wave's decisions exclude the outputs the references' "
-            "second engine upgrade moved onto an input the prompt does not state, "
-            f"and were written on {upgrade_written} UTC."
+            f" The {wave.day} wave's decisions {' and '.join(what)}, and were "
+            f"written on {upgrade_written} UTC."
         )
     if not days:
         return conventions
@@ -1334,7 +1371,7 @@ def record_text(record: dict) -> str:
     return json.dumps(record, indent=2, ensure_ascii=False) + "\n"
 
 
-def verify_record_form(text: str, base: dict, wave: str | None = None) -> None:
+def verify_record_form(text: str, base: dict, wave: DecisionWave | None = None) -> None:
     """The staged record's bytes are exactly its parsed content, and its top
     level other than the entries is release 20261010's.
 
@@ -1747,7 +1784,7 @@ def stage_adjudications(
     base_record = base_adjudication_record()
     base = base_adjudications()
     current = path.read_text()
-    wave = upgrade_wave(added)
+    wave = decision_wave(added, triage)
     verify_record_form(current, base_record, wave)
     record = json.loads(current)
     grouped = _record_amendments(amendments)

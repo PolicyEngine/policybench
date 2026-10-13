@@ -54,12 +54,15 @@ for login, cfg in CONFIGS.items():
     for path in sorted(glob.glob(str(cfg / "projects/*/*.jsonl"))):
         scanned += 1
         texts, structured, refused, version, session = [], [], set(), set(), None
+        answered_by = set()
         for line in open(path, encoding="utf-8"):
             ev = json.loads(line)
             session = ev.get("sessionId", session)
             if ev.get("version"):
                 version.add(ev["version"])
             content = (ev.get("message") or {}).get("content")
+            if ev.get("type") == "assistant" and (ev.get("message") or {}).get("model"):
+                answered_by.add(ev["message"]["model"])
             if ev.get("type") == "user" and isinstance(content, str):
                 if not (ev.get("isMeta") is True and content == NUDGE):
                     texts.append(content)
@@ -82,7 +85,8 @@ for login, cfg in CONFIGS.items():
                     fail(f"two transcripts give {case} different verdict bytes")
                 found.setdefault(case, {"prompt": prompt, "verdict": verdict, "transcript": path,
                                         "login": login, "session_id": session,
-                                        "cli_versions": sorted(version)})
+                                        "cli_versions": sorted(version),
+                                        "answered_by": sorted(answered_by)})
 print(f"scanned {scanned} transcripts; recovered {len(found)} of {len(want)}")
 missing = sorted(set(want) - set(found))
 if missing:
@@ -102,8 +106,13 @@ for case, item in sorted(found.items()):
     (d / "verdict.json").write_bytes(item["verdict"])
     shutil.copyfile(item["transcript"], d / "claude.transcript.jsonl")
     e = want[case]
+    if item["answered_by"] != e["judge_model_reported"]:
+        fail(f"{case}: the transcript's model {item['answered_by']} is not the provenance's")
     meta = {
         "judge_runner": "scripts/run_audit_claude.sh",
+        # The runner's AUDIT_MODEL (docs/haiku55/design.md), the one model the
+        # transcript's assistant turns name and the provenance reports.
+        "judge_model_requested": item["answered_by"][0],
         "verdict_sha256": e["verdict_sha256"],
         "prompt_sha256": e["prompt_sha256"],
         "judge_template_version": 1,
