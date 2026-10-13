@@ -584,7 +584,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "lists one endpoint, Meta's own (meta/muse-wonder-20261012), so "
             "OpenRouter passes requests to Meta's API. That API accepts "
             "tool_choice 'auto' only: a forced (named-function) or 'required' "
-            "tool choice returns a 400 ('only \"auto\" is supported for "
+            'tool choice returns a 400 (\'only "auto" is supported for '
             "tool_choice'), so the row runs the JSON contract whole-scenario, "
             "as Opus 5.5 and Sonnet 5.5 do. A request with no reasoning "
             "parameter reasons at the provider default: on a one-question "
