@@ -174,10 +174,13 @@ excluded outputs and are description, not audit). This audit universe contains
 2,218 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 269 cases, Claude Opus 5 through the Claude Code CLI for the 93 cases
+CLI for 266 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 315 cases the September 22, September 29, September 30, October 9 and
-October 13 additions joined or a reference revision changed; the
+5.5 for 319 cases: those the September 22, September 29, September 30, October 9
+and October 13 additions joined or a reference revision changed, and five whose
+earlier verdicts an audit of the judges' transcripts could not show came from a
+judge that saw only its prompt
+(docs/judge_isolation_2026-09-30/REPORT.md); the
 manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
 Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication

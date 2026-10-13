@@ -134,12 +134,14 @@ For 230 of the 303 published Codex verdicts, the prompt the judge saw lacks one 
 
 ## Fix
 
-Re-judge five cases with the hardened runner from `gpt61sol-driver` once it is on main:
+Five cases are re-judged with the isolated runner, on judge template v2:
 - `086 federal_refundable_credits`: its judge used tools;
 - `045 snap`: its judge saw decision history through git status;
 - `014 federal_refundable_credits`, `015 federal_refundable_credits` and `015 head_medicaid_eligible`: their transcripts are missing.
 
-Each judge runs from an empty directory outside the repo, with tools off, on a subfleet Claude lane's own credentials. The new verdicts replace these cases' row annotations and case notes in a follow-up release on top of `dashboard-data-20260930`. No adjudication record covers any of the five, so no decision changes. If a re-judge flags the reference or leaves `llm_error`, that is a new reference question, and it goes to Max as a decision.
+Each judge runs from an empty directory outside the repo, with tools off, on a dedicated judge login that is never the desktop login. The new verdicts replace these cases' row annotations and case notes. No adjudication record covers any of the five, so no decision changes. If a re-judge flags the reference or leaves `llm_error`, that is a new reference question, and it goes to Max as a decision.
+
+The five verdicts stayed published, unchanged, through releases 20260930, 20261006, 20261010 and 20261013. The fix is release `dashboard-data-20261013b`, on top of 20261013: see [`docs/release_20261013b/design.md`](../release_20261013b/design.md).
 
 ## Files
 
@@ -151,4 +153,4 @@ Each judge runs from an empty directory outside the repo, with tools off, on a s
 - [`review_redteam.md`](review_redteam.md): the adversarial review.
 - [`review_independent.md`](review_independent.md) and [`independent/`](independent/): the independent re-implementation, with its scripts and CSV.
 
-The fix is release `dashboard-data-20260930b`. [`scripts/finish_rejudge_20260930b.py`](../../scripts/finish_rejudge_20260930b.py) stages it and [`scripts/freeze_rejudge_20260930b.py`](../../scripts/freeze_rejudge_20260930b.py) freezes it.
+The fix is release `dashboard-data-20261013b`, built by [`scripts/release_20261013b.py`](../../scripts/release_20261013b.py).
