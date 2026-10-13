@@ -715,8 +715,7 @@ DATE_CONVENTIONS_BASE = (
 )
 DATE_CONVENTIONS_LAST_WAVE = " or 2026-10-10)"
 DATE_CONVENTIONS_ANCHOR = (
-    "moved onto an input the prompt does not state, and were written on "
-    "2026-10-10 UTC."
+    "moved onto an input the prompt does not state, and were written on 2026-10-10 UTC."
 )
 
 
@@ -1181,9 +1180,7 @@ def decision_wave(added, triage) -> DecisionWave | None:
     return DecisionWave(next(iter(days)), bool(added), bool(triage))
 
 
-def release_date_conventions(
-    conventions: str, wave: DecisionWave | None = None
-) -> str:
+def release_date_conventions(conventions: str, wave: DecisionWave | None = None) -> str:
     """Release 20261010's date conventions with each wave this release adds
     named; the one definition the adjudicate step writes and the record gate
     expects.
@@ -3483,6 +3480,8 @@ def fix_module_blob(name: str) -> tuple[str, bytes]:
     if result.returncode == 0:
         return path.as_posix(), base_commit_blob(path)
     return (LOCAL_FIXES / name).as_posix(), head_blob((LOCAL_FIXES / name).as_posix())
+
+
 TARGET_KEYS = {
     "record": {"kind", "value", "engine"},
     "fix_modules": {
@@ -4667,10 +4666,9 @@ def install_references(args) -> None:
                 f"install-references: the case leaves the audit on "
                 f"{upgrade.engine_version}"
             )
-        elif (
-            not prompt.is_file()
-            or prompt.read_bytes() != renders[case.name][judged_on].encode("utf-8")
-        ):
+        elif not prompt.is_file() or prompt.read_bytes() != renders[case.name][
+            judged_on
+        ].encode("utf-8"):
             reopen[case.name] = (
                 "install-references: its prompt re-renders on "
                 f"{upgrade.engine_version}, whose reference value or explanation "

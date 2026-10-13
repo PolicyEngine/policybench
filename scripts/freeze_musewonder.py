@@ -203,7 +203,9 @@ def release_spec(tag: str) -> dict:
             f"{spec.get('snapshot_date')!r}"
         ) from None
     written = spec.get("adjudications_written_on")
-    if driver.spec_records(spec) and (not isinstance(written, str) or not written.strip()):
+    if driver.spec_records(spec) and (
+        not isinstance(written, str) or not written.strip()
+    ):
         raise SystemExit(
             f"{driver.SPEC_PATH} names no adjudications_written_on, the UTC day "
             "the ruled wave's decisions were written; the record's date "
@@ -1067,9 +1069,7 @@ def count_exclusions(
             + re.escape(number)
             for i, number in enumerate(numbers[:fixed])
         )
-        + "".join(
-            rf"(?:, \d+ from {re.escape(number)})?" for number in numbers[fixed:]
-        )
+        + "".join(rf"(?:, \d+ from {re.escape(number)})?" for number in numbers[fixed:])
     )
     if len(re.findall(pattern, text)) != 1:
         raise SystemExit("the version description changed form")

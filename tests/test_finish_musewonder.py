@@ -54,11 +54,9 @@ BOUND_EXCLUSIONS = f"publish/{driver.RUN_NAME}/us/{EXCLUSIONS_NAME}"
 # nothing here writes to them.
 SEED = REPO / "results/local/musewonder/seed-20261010/audit"
 STAGE = REPO / "results/local/musewonder/stage"
-# The working stage carrying the engine upgrade of the references: an APFS
-# clone of STAGE with a reference build installed (local only). STAGE stays
-# the 2.15.17 fallback. The committed judge provenance record describes it.
-REHEARSAL = REPO / "results/local/rehearsal-2372"
-WORKING_STAGE = REHEARSAL / "stage"
+# The working stage: STAGE itself, with the 2.41.0 reference build installed
+# (local only). The committed judge provenance record describes it.
+WORKING_STAGE = STAGE
 GROUNDING = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
     "grounding.csv"
@@ -297,10 +295,10 @@ def test_the_committed_input_pins_name_both_run_files():
     pins = record["inputs"][SLUG]["sha256"]
     assert set(pins) == {"predictions.csv", "run_state.json"}
     assert all(re.fullmatch("[0-9a-f]{64}", value) for value in pins.values())
-    assert pins["predictions.csv"].startswith("27a5e48f")
-    assert pins["predictions.csv"].endswith("8344")
-    assert pins["run_state.json"].startswith("42f82f50")
-    assert pins["run_state.json"].endswith("bd4e")
+    assert pins["predictions.csv"].startswith("2e0eddd6")
+    assert pins["predictions.csv"].endswith("0d6a")
+    assert pins["run_state.json"].startswith("2a619b81")
+    assert pins["run_state.json"].endswith("67f6")
     assert driver.INPUT_PINS.read_text() == (
         json.dumps(record, indent=2, sort_keys=True) + "\n"
     )

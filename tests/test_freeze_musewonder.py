@@ -893,9 +893,13 @@ def test_the_installed_record_is_the_one_the_live_stage_holds():
     if installed.get("spec_sha256") != sha(driver.ROOT / driver.SPEC_PATH):
         pytest.skip("the live stage was installed under an earlier spec")
     receipt = {"files": {str(BUNDLE / "us" / EXCLUSIONS): sha(staged)}}
+    # With the engine upgrade installed, the record is the build's (48
+    # records on policyengine-us 2.41.0); without it, release 20261010's.
+    upgrade = driver.stage_upgrade(stage)
+    text = release_exclusions_text() if upgrade is None else upgrade.exclusions_text
     assert (
-        release.verify_installed_exclusions(stage, receipt, release_exclusions_text())
-        == hashlib.sha256(release_exclusions_text().encode()).hexdigest()
+        release.verify_installed_exclusions(stage, receipt, text, upgrade)
+        == hashlib.sha256(text.encode()).hexdigest()
     )
 
 

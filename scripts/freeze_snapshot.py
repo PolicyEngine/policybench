@@ -1677,7 +1677,8 @@ def verify_regeneration_target_pins(upgrade: dict) -> None:
             # fix_location); every other module is under AUDIT_FIXES_DIR.
             path = item.get("path") or f"{AUDIT_FIXES_DIR}/{item.get('module')}"
             if not re.fullmatch(
-                r"reference_audit/[0-9a-z-]+/fixes/" + re.escape(str(item.get("module"))),
+                r"reference_audit/[0-9a-z-]+/fixes/"
+                + re.escape(str(item.get("module"))),
                 path,
             ):
                 raise SystemExit(
