@@ -464,14 +464,16 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   thinking-default class and takes that class's 300s timeout. The
     #   16,384-token starting budget is the Gemini family's.
     # - request_timeout_seconds None: the class default; the slowest of 87
-    #   harness-path probe calls took 41s and the board run's slowest
-    #   household 53s.
-    # - provider_max_completion_tokens 32_768: the most one non-streaming
-    #   generateContent request returns ("One non-streaming request returns
-    #   up to 32,768 tokens", Google's Gemini 4 Argon guide, read 2026-10-13;
-    #   the Models API's outputTokenLimit says the same). The model page's
-    #   65,536 is the streaming and SDK figure: the SDKs continue across
-    #   requests, but litellm makes one REST request, which stops at 32,768.
+    #   harness-path probe calls took 41s, and the slowest board household
+    #   took 53s in the first board run and 47s in the second.
+    # - provider_max_completion_tokens 32_768. Google's pages disagree: the
+    #   Gemini 4 Argon guide for generateContent says "One non-streaming
+    #   request returns up to 32,768 tokens" (64K per stream), and the
+    #   Models API's outputTokenLimit is 32,768 (models-get-gemini-4-argon
+    #   .json in the onboarding record, read 2026-10-13); the model page
+    #   lists 65,536 as "default synchronous". litellm makes one
+    #   non-streaming REST request, so the card follows the guide; 32,768 is
+    #   the safe value either way.
     # - expected_cost_per_scenario_usd 0.032: the gauntlet's full-scenario
     #   probe at $2/$10 per 1M.
     "gemini/gemini-4-argon": ModelCard(
@@ -498,7 +500,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "reasoning tokens on 80 and a tool_choice auto run on 82 (Fisher "
             "exact p = 0.86; 70 households reasoned in both runs, 10 only "
             "when forced, 12 only under auto, 8 in neither), so the row has no "
-            "tool_choice auto sensitivity run. Earlier probes agree: on the "
+            "tool_choice auto sensitivity run; the second board run, below, "
+            "reasoned on 85. Earlier probes agree: on the "
             "board's own request for 13 households (29 calls a shape) the "
             "forced tool returned reasoning tokens on 20 calls, auto on 25 and "
             "the JSON contract on 22 (forced against auto, p = 0.21), and all "
@@ -510,15 +513,15 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "budget escalation, for $2.77 (a median of 20s and about 2,030 "
             "completion tokens per household, at most 6,374 against the "
             "16,384-token starting budget). It ran with a 65,536-token "
-            "escalation ceiling, the model page's figure, which one "
-            "non-streaming request cannot reach (32,768, above), so the board "
-            "row is a second run on this card: all 100 households in one "
+            "escalation ceiling, the model page's figure, but Google's "
+            "generateContent guide and the Models API give 32,768 for one "
+            "non-streaming request, which is what the harness sends, so the "
+            "board row is a second run on this card: all 100 households in one "
             "request each, 1,984/1,984 parsed, no budget escalation, $2.79, "
             "reasoning tokens on 85 households (a median of 22s and about "
             "1,990 completion tokens per household, at most 47s and 4,872). "
-            "The Models API and the request "
-            "limit agree on 32,768; requests asking for up to 131,072 returned "
-            "200, which shows only that the parameter is accepted."
+            "Requests asking for up to 131,072 tokens returned 200, which "
+            "shows only that the parameter is accepted."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(
@@ -699,7 +702,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "58s), about $0.020 per scenario at $1.25/$4.25 per 1M with $0.15 "
             "cache reads. A four-household smoke on the run path (16, 20, 28 "
             "and 32 outputs) parsed 96/96 in one request each. The board run "
-            "answered all 100 households in one request each, the largest "
+            "answered all 100 households in one request each (four replayed "
+            "from the smoke, below), the largest "
             "(scenario_008, 56 outputs) included: 1,984/1,984 parsed, no "
             "budget escalation, at most 96s and 9,871 completion tokens per "
             "household, so the row keeps the thinking class's 300s timeout "
