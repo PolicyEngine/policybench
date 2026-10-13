@@ -2139,7 +2139,8 @@ def _builder_setup(inherited: dict) -> dict:
     """The setup build_references_upgrade.py records on a later upgrade (the
     delta review's finding 6): the inherited conventions, composer and
     adapter with their paths, then latest_final.py and the sales-tax table,
-    each pinned to its committed bytes, and the builder's note."""
+    each pinned to its committed bytes, and the builder's note (the
+    2026-10-10 upgrade's: the first of freeze_snapshot.UPGRADE_BUILDERS)."""
     fixes = "reference_audit/2026-09-28/fixes"
     entries = [
         {"module": e["module"], "path": f"{fixes}/{e['module']}", "sha256": e["sha256"]}
@@ -2154,7 +2155,7 @@ def _builder_setup(inherited: dict) -> dict:
     ):
         digest = hashlib.sha256(base_blob(Path(path))).hexdigest()
         entries.append({"module": name, "path": path, "sha256": digest})
-    return {"fix_modules": entries, "builder": freezer.UPGRADE_BUILDER}
+    return {"fix_modules": entries, "builder": freezer.UPGRADE_BUILDERS[0]}
 
 
 def test_the_mock_setup_is_the_real_builders():
