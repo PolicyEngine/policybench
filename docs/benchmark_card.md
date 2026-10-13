@@ -53,7 +53,7 @@ selects the tool transport, or the same fields returned as a JSON object where
 it selects JSON. For most JSON rows the card records that the provider rejects
 a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
 DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
-K3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
+K3, Muse Spark 1.3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
 select JSON without recording a rejection, and the older Gemini rows answer as
 JSON by the Gemini family default. The per-model transport is in the
 snapshot's `model_serving_config.json`.
@@ -70,8 +70,8 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
 when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
-UTC). policyengine-us 2.41.2, the newest release when PolicyBench checked PyPI
-on 2026-10-13 at 11:34 UTC, gives the same value as 2.41.0 for all 1,984
+UTC). policyengine-us 2.41.3, the newest release when PolicyBench checked PyPI
+on 2026-10-13 at 17:22 UTC, gives the same value as 2.41.0 for all 1,984
 outputs under the same conventions and adapter. The 49 excluded outputs keep
 the values they were decided on (29 computed with policyengine-us 1.755.4, 18
 with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that
