@@ -1,8 +1,8 @@
 {
-  "note": "Inputs of the release after dashboard-data-20261013b, read by scripts/finish_argon.py. The release folds Google Gemini 4 Argon and Meta Muse Spark 1.3 (Max 2026-10-13, d1441) onto release dashboard-data-20261013b. Its references stay that release's, computed on policyengine-us 2.41.0: the newest policyengine-us release gives the same value for every output, so no engine upgrade is installed. It rules no exclusion: d1252 (VA scenario_039 federal and OH scenario_025 state income tax, held references) and d1263 (the Tax Table against the rate schedule) were open when it was staged, so nothing scored changes on their points.",
+  "note": "Inputs of the release after dashboard-data-20261013b, read by scripts/finish_argon.py. The release folds Google Gemini 4 Argon and Meta Muse Spark 1.3 (Max 2026-10-13, d1441) onto release dashboard-data-20261013b (release 20261013 with five audit verdicts re-judged, PR #218). Its references stay that release's, computed on policyengine-us 2.41.0: the newest policyengine-us release gives the same value for every output, so no engine upgrade is installed. It rules no exclusion: d1252 (VA scenario_039 federal and OH scenario_025 state income tax, held references) and d1263 (the Tax Table against the rate schedule) were open when it was staged, so nothing scored changes on their points.",
   "release_tag": "dashboard-data-20261014",
-  "base_tag": "dashboard-data-20261013",
-  "base_sha256": "aef5dc73a76433c97994430f8eb6dfad6bdc6518b18ee3ea8f79cee704757477",
+  "base_tag": "dashboard-data-20261013b",
+  "base_sha256": "c06177e65913fa7886c239f776483982a140cc126e18e734b443dc890b74ea32",
   "rulings": {
     "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'. The publication check found policyengine-us 2.41.3, the newest release on 2026-10-13, equal to 2.41.0 on all 1,984 outputs, so the references do not move.",
     "d1441": "Max, 2026-10-13: yes, add Muse Spark 1.3; it goes in this release",

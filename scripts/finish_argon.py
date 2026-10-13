@@ -42,14 +42,12 @@ sys.path.insert(0, str(ROOT))
 RUN_NAME = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN_NAME
 ANNOTATIONS = ROOT / "annotations" / RUN_NAME
-# PENDING(#218): develop against release 20261013 (byte-identical models,
-# references, exclusions and adjudications); becomes dashboard-data-20261013b.
-BASE_TAG = "dashboard-data-20261013"
+BASE_TAG = "dashboard-data-20261013b"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_argon.py and the design note read it from here.
 RELEASE_TAG = "dashboard-data-20261014"
-# PENDING(#218): release 20261013b's payload sha256, set when PR #218 merges.
-BASE_SHA256 = "aef5dc73a76433c97994430f8eb6dfad6bdc6518b18ee3ea8f79cee704757477"
+# PENDING(#218): the payload at PR #218's frozen head; confirm at its merge.
+BASE_SHA256 = "c06177e65913fa7886c239f776483982a140cc126e18e734b443dc890b74ea32"
 BASE_MODELS = 48
 BASE_OUTPUTS = 1984
 BASE_EXCLUSIONS = 49
@@ -163,9 +161,9 @@ JUDGE_PROMPT_NUDGE = (
     "[structured-output-enforce] You MUST call the StructuredOutput tool to "
     "complete this request. Call this tool now."
 )
-# The merge of PR #218 on main, whose tree holds release 20261013b.
-# PENDING(#218): set when PR #218 merges.
-BASE_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
+# The commit whose tree holds release 20261013b. PENDING(#218): PR #218's
+# frozen head; becomes its squash merge on main, whose tree must be the same.
+BASE_COMMIT = "6a334d07f4c6096742eb2d849068816ba6e571ca"
 # Release 20261013b's references (policyengine-us 2.41.0), which are release
 # 20261013's byte for byte: 20261013b re-judged five verdicts and changed no
 # reference. Prepare stages them unchanged, and they stay the release's.
@@ -200,8 +198,8 @@ GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7
 # This pins that file's bytes; prepare refuses any other seed and binds this
 # one in stage.json, and a carried-over verdict must keep the seed's bytes.
 SEED_DIGEST = ROOT / "docs/argon/seed_digest.csv"
-# PENDING(#218): the digest of release 20261013b's seed tree.
-SEED_DIGEST_SHA256 = "112f6bb4108cc350adaef5cab18ade2b5f73fb2604b0f82bab8b22fda0375312"
+# docs/release_20261013b/seed_digest.csv, copied.
+SEED_DIGEST_SHA256 = "0f59925720a5c4f73f05585d7fffce4df8f70d78f506d0ed3c58587bddff911d"
 # Each new model's supervised run as it finished, pinned outside the stage: the
 # sha256 of the run directory's predictions.csv and run_state.json, which
 # --step pin-inputs writes here. Export and the freeze read the file as

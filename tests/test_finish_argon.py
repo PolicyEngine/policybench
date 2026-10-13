@@ -162,9 +162,9 @@ def test_the_additions_are_argon_and_muse_spark_on_a_50_model_board():
     assert driver.BASE_EXCLUSIONS == 49 and driver.BASE_SCORED == 1935
     assert driver.NEW_EXCLUSIONS == 0 and driver.RELEASE_EXCLUSIONS == 49
     assert driver.RELEASE_SCORED == 1935
-    # PENDING(#218): dashboard-data-20261013b and PR #218's merge commit.
-    assert driver.BASE_TAG == "dashboard-data-20261013"
-    assert driver.BASE_COMMIT == "bc305793c527531e7b3573dc789a436a7bc883d5"
+    assert driver.BASE_TAG == "dashboard-data-20261013b"
+    # PENDING(#218): PR #218's squash merge on main.
+    assert driver.BASE_COMMIT == "6a334d07f4c6096742eb2d849068816ba6e571ca"
     assert driver.SEED_RELEASE_COMMIT == driver.BASE_COMMIT
     assert set(driver.BASE_REFERENCE_SHA256) == set(driver.REFERENCE_FILES)
     assert driver.JUDGE_MODEL == "claude-opus-5-5"
@@ -1986,14 +1986,13 @@ def test_the_committed_seed_digest_is_the_pinned_one():
     assert all(len(h) == 64 and set(h) <= set("0123456789abcdef") for h in hexes)
 
 
-def test_the_seed_is_release_20261013s_audit():
-    """Runs anywhere: the committed digest is release 20261013's seed digest
-    (docs/musewonder/seed_digest.csv) with every case that release judged
-    (docs/musewonder/judge_provenance.json) written over it, and nothing
-    else: the audit that release published.
-
-    PENDING(#218): release 20261013b re-judges five of these cases; its
-    provenance record's five entries are then written over them here too."""
+def test_the_seed_is_release_20261013bs_audit():
+    """Runs anywhere: the committed digest is release 20261013b's seed digest
+    (docs/release_20261013b/seed_digest.csv), which is release 20261013's
+    (docs/musewonder/seed_digest.csv with the 151 cases that release judged,
+    docs/musewonder/judge_provenance.json, written over it) with the five
+    cases release 20261013b re-judged (docs/release_20261013b/
+    judge_provenance.json) written over those, and nothing else."""
 
     def read(path: Path) -> dict:
         lines = path.read_text().splitlines()
@@ -2004,13 +2003,21 @@ def test_the_seed_is_release_20261013s_audit():
 
     expected = read(REPO / "docs/musewonder/seed_digest.csv")
     judged = json.loads((REPO / "docs/musewonder/judge_provenance.json").read_text())
+    rejudged = json.loads(
+        (REPO / "docs/release_20261013b/judge_provenance.json").read_text()
+    )
     assert len(expected) == 677 and len(judged["verdicts"]) == 151
-    for entry in judged["verdicts"]:
+    assert len(rejudged["verdicts"]) == 5
+    for entry in [*judged["verdicts"], *rejudged["verdicts"]]:
         expected[entry["case_id"]] = {
             "prompt_sha256": entry["prompt_sha256"],
             "verdict_sha256": entry["verdict_sha256"],
         }
     assert _committed_seed_digest() == expected
+    assert (
+        driver.SEED_DIGEST.read_bytes()
+        == (REPO / "docs/release_20261013b/seed_digest.csv").read_bytes()
+    )
 
 
 def test_every_committed_adjudication_decides_a_case_the_seed_judged():
