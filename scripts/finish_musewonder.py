@@ -1884,6 +1884,18 @@ def resolve_live_base(args) -> dict:
     return base_payload_from_commit()
 
 
+def resolved_model_id(route: str) -> str:
+    """The model id a provider's responses report for a registry route.
+
+    OpenRouter reports its own id, the route after "openrouter/" (Muse
+    Wonder's rows say "meta/muse-wonder"); a first-party provider reports the
+    bare model id, the route's last segment ("claude-haiku-5-5").
+    """
+    if route.startswith("openrouter/"):
+        return route.removeprefix("openrouter/")
+    return route.split("/")[-1]
+
+
 def prepare_inputs(args, runs, base, reference) -> tuple[Path, dict]:
     """Copy immutable inputs and fold full or explicitly partial cohorts."""
     import pandas as pd
@@ -1948,7 +1960,7 @@ def prepare_inputs(args, runs, base, reference) -> tuple[Path, dict]:
                 field in frame and frame[field].notna().all(),
                 f"missing {field}: {run.model}",
             )
-        expected_provider = registry[run.model].split("/")[-1]
+        expected_provider = resolved_model_id(registry[run.model])
         require(
             set(frame.provider_resolved_model) == {expected_provider},
             f"unexpected provider-resolved model: {run.model}",

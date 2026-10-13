@@ -3055,6 +3055,27 @@ HAIKU_RUN = (
 PINNED = ("predictions.csv", "run_state.json")
 
 
+@pytest.mark.parametrize(
+    "route, reported",
+    [
+        ("openrouter/meta/muse-wonder", "meta/muse-wonder"),
+        ("openrouter/thinkingmachines/inkling", "thinkingmachines/inkling"),
+        ("claude-haiku-5-5", "claude-haiku-5-5"),
+        ("gemini/gemini-3.8-flash", "gemini-3.8-flash"),
+    ],
+)
+def test_the_resolved_model_is_the_id_the_provider_reports(route, reported):
+    """Muse Wonder's run reports "meta/muse-wonder" on every row, OpenRouter's
+    id; the registry route's last segment alone would refuse it."""
+    assert driver.resolved_model_id(route) == reported
+
+
+def test_muse_wonders_route_resolves_to_what_its_run_reported():
+    from policybench.config import MODELS
+
+    assert driver.resolved_model_id(MODELS["muse-wonder"]) == "meta/muse-wonder"
+
+
 def _write_run(stage, bundle) -> dict:
     """Muse Wonder's run files as prepare stages them, the bundle's
     predictions holding its row, and the prepare-time hashes in stage.json
