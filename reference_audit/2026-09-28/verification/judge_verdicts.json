@@ -26,16 +26,16 @@
       "committed_on": "2026-10-09"
     },
     "2026-10-06": {
-      "commit": null,
+      "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
       "release": "dashboard-data-20261010",
-      "pull_request": null,
-      "adjudications_written_on": "2026-10-09"
+      "pull_request": 208,
+      "committed_on": "2026-10-10"
     },
     "2026-10-10": {
-      "commit": null,
+      "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
       "release": "dashboard-data-20261010",
-      "pull_request": null,
-      "adjudications_written_on": "2026-10-10"
+      "pull_request": 208,
+      "committed_on": "2026-10-10"
     }
   },
   "cases": {
@@ -591,6 +591,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-09-23T12:00:01.365298+00:00",
         "verdict_sha256": "f6be4503a154edd7f8a1ab2ee95fa8c23b9affae7582d0b98c2d9774990218a8"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "judged_on_utc": null
       }
     },
     "us__scenario_052__federal_income_tax_before_refundable_credits": {
@@ -1989,6 +1997,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-09T11:21:03.164972+00:00",
         "verdict_sha256": "ac25f9a957e6df1a804ffbc0826fb5f27581670aedfe4512f1b136e2654f5e6f"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "judged_on_utc": "2026-10-09"
       }
     },
     "us__scenario_093__federal_income_tax_before_refundable_credits": {
@@ -2000,6 +2016,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-09T11:24:55.980556+00:00",
         "verdict_sha256": "64c3a1b7c1e9dba12bd5460cf18033a610f4f11ed3c685a1977986ef3342c086"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "household_unit_or_filing_status",
+        "judged_on_utc": "2026-10-09"
       }
     },
     "us__scenario_093__state_income_tax_before_refundable_credits": {
@@ -2011,6 +2035,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-09T11:27:21.537119+00:00",
         "verdict_sha256": "3bb92b597392168d3797344d6d533f5469324efe8f9bbcc246eed79e132a000e"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "household_unit_or_filing_status",
+        "judged_on_utc": "2026-10-09"
       }
     },
     "us__scenario_123__federal_income_tax_before_refundable_credits": {
@@ -2022,6 +2054,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-09T11:30:57.145495+00:00",
         "verdict_sha256": "4f6f31d6328752b8321dd1bf304c4fc915568398d887aef734e362c41ac99e02"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "household_unit_or_filing_status",
+        "judged_on_utc": "2026-10-09"
       }
     },
     "us__scenario_123__state_income_tax_before_refundable_credits": {
@@ -2033,6 +2073,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-09T11:32:09.911176+00:00",
         "verdict_sha256": "ad43142d632889e7c01321c24189a6c1c30fac9148f5d24c28123cb66fa7b12e"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "household_unit_or_filing_status",
+        "judged_on_utc": "2026-10-09"
       }
     },
     "us__scenario_015__local_income_tax": {
@@ -2044,6 +2092,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-10T05:58:15.427599+00:00",
         "verdict_sha256": "e2f324f633297e6cfcd3832de8cba9d5a71b8f022d3bb0694dd30a0cb6e9ce91"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "prompt_ambiguity",
+        "case_failure_subtype": "state_local_rule",
+        "judged_on_utc": "2026-10-10"
       }
     },
     "us__scenario_067__local_income_tax": {
@@ -2055,6 +2111,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-10T06:05:07.402541+00:00",
         "verdict_sha256": "14c23bf7f38ae94b31c2f01fda8774837e4b599dcd43f38e2d21025c3cf19531"
+      },
+      "published": {
+        "release": "dashboard-data-20261010",
+        "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "prompt_ambiguity",
+        "case_failure_subtype": "state_local_rule",
+        "judged_on_utc": "2026-10-10"
       }
     }
   }
