@@ -85,6 +85,9 @@ STAGE_ROOT = Path("results/local")
 DOCS = Path("docs/release_20261013b")
 PROVENANCE = DOCS / "judge_provenance.json"
 SEED_DIGEST = DOCS / "seed_digest.csv"
+# Developer corrections of the new verdicts' published wording: a committed
+# input, applied by collect and appended to the committed amendments record.
+WORDING = DOCS / "wording_amendments.json"
 ADJUDICATIONS = "us_adjudications.json"
 ROWS = "us_audit_row_annotations.csv"
 NOTES = "us_case_notes.csv"
@@ -841,6 +844,11 @@ def verify_annotations(
         base = base_blob(ANNOTATIONS / name)
         if name in ANNOTATION_CSVS:
             changes[name] = annotation_changes(base.decode(), current.decode(), name)
+        elif name == AMENDMENTS:
+            require(
+                current == committed_amendments(),
+                f"{name} is not release 20261013's with this release's appended",
+            )
         else:
             require(current == base, f"{name} differs from release 20261013's")
     if expected_changes is not None:
@@ -849,6 +857,99 @@ def verify_annotations(
             "the annotation changes differ from annotation-changes.json",
         )
     return changes
+
+
+# --- Wording amendments ----------------------------------------------------------
+
+AMENDED_FIELDS = {"annotation": ROWS, "case_annotation": NOTES}
+AMENDMENT_KEYS = {
+    "annotation": {"case_id", "field", "model", "old", "new", "reason"},
+    "case_annotation": {"case_id", "field", "old", "new", "reason"},
+}
+
+
+def load_amendments() -> list[dict]:
+    """The listed wording amendments, each checked for form.
+
+    An amendment replaces text a new verdict wrote, in one of the five cases:
+    a model row's ``annotation`` (it names the ``model``) or the case note
+    (``case_annotation``). It cannot touch a class, a flag or another case.
+    """
+    path = ROOT / WORDING
+    if not path.is_file():
+        return []
+    listed = json.loads(path.read_text())
+    require(
+        isinstance(listed, dict) and set(listed) == {"note", "amendments"},
+        f"{WORDING} must hold a note and a list of amendments",
+    )
+    amendments = listed["amendments"]
+    for item in amendments:
+        field = item.get("field") if isinstance(item, dict) else None
+        require(field in AMENDED_FIELDS, f"an amendment names field {field!r}")
+        require(
+            set(item) == AMENDMENT_KEYS[field],
+            f"an amendment has keys {sorted(item)}",
+        )
+        require(
+            item["case_id"] in REJUDGE,
+            f"an amendment names {item['case_id']}, which was not re-judged",
+        )
+        require(
+            all(isinstance(item[k], str) and item[k].strip() for k in item)
+            and item["old"] != item["new"],
+            f"an amendment of {item['case_id']} has an empty or unchanged text",
+        )
+    return amendments
+
+
+def apply_amendments(rows, notes, amendments: list[dict]) -> None:
+    """Apply each amendment in order; its old text must occur exactly once."""
+    for item in amendments:
+        scenario, variable = case_key(item["case_id"])
+        field = item["field"]
+        frame = rows if field == "annotation" else notes
+        mask = (frame.scenario_id == scenario) & (frame.variable == variable)
+        label = item["case_id"]
+        if field == "annotation":
+            mask &= frame.model == item["model"]
+            label += f" {item['model']}"
+        require(int(mask.sum()) == 1, f"an amendment names no single record: {label}")
+        index = frame.index[mask][0]
+        text = str(frame.at[index, field])
+        require(
+            text.count(item["old"]) == 1,
+            f"{label}: the amended text occurs {text.count(item['old'])} times",
+        )
+        frame.at[index, field] = text.replace(item["old"], item["new"])
+
+
+def committed_amendments() -> bytes:
+    """The wording-amendments record this release commits.
+
+    Release 20261013's record is never replaced: its wording is still
+    published. This release's amendments are appended after it, in their own
+    order, and the note says which they are.
+    """
+    base = base_blob(ANNOTATIONS / AMENDMENTS)
+    added = load_amendments()
+    if not added:
+        return base
+    record = json.loads(base)
+    require(
+        json.dumps(record, indent=1, ensure_ascii=False).encode() == base
+        and list(record) == ["note", "amendments"],
+        f"release 20261013's {AMENDMENTS} is not in its committed form",
+    )
+    listed_note = json.loads((ROOT / WORDING).read_text())["note"].strip()
+    note = (
+        f"{record['note']} The last {len(added)} (after the first "
+        f"{len(record['amendments'])}) are for the five cases release "
+        "dashboard-data-20261013b re-judged (scripts/release_20261013b.py "
+        f"load_amendments). {listed_note}"
+    )
+    merged = {"note": note, "amendments": record["amendments"] + added}
+    return json.dumps(merged, indent=1, ensure_ascii=False).encode()
 
 
 # --- Collect ---------------------------------------------------------------------
@@ -958,13 +1059,16 @@ def collect(args) -> None:
     )
 
     def five(frame):
-        return frame[frame[KEY].apply(tuple, axis=1).isin(REJUDGE_KEYS)]
+        return frame[frame[KEY].apply(tuple, axis=1).isin(REJUDGE_KEYS)].copy()
 
+    five_rows, five_notes = five(rows), five(notes)
+    amendments = load_amendments()
+    apply_amendments(five_rows, five_notes, amendments)
     spliced = {}
-    for name, frame in ((ROWS, rows), (NOTES, notes)):
+    for name, frame in ((ROWS, five_rows), (NOTES, five_notes)):
         key, _ = ANNOTATION_CSVS[name]
         base_text = base_blob(ANNOTATIONS / name).decode()
-        spliced[name] = splice_annotations(base_text, five(frame), key)
+        spliced[name] = splice_annotations(base_text, frame, key)
         annotation_changes(base_text, spliced[name], name)
     # Everything is checked before anything is written; each write is atomic.
     for name, text in spliced.items():
@@ -985,7 +1089,10 @@ def collect(args) -> None:
     seed = base_driver.seed_digest(stage / "audit")
     (ROOT / SEED_DIGEST).write_text(seed_digest_text(seed))
     counts = {name: len(v) for name, v in changes.items()}
-    print(f"Collected {RELEASE_TAG}: changed records {counts}")
+    print(
+        f"Collected {RELEASE_TAG}: changed records {counts}; "
+        f"{len(amendments)} wording amendments applied"
+    )
     print(f"Wrote {PROVENANCE} and {SEED_DIGEST} ({len(seed)} judged cases)")
 
 
@@ -1135,6 +1242,7 @@ def export(args) -> None:
             "models": BOARD_MODELS,
             "provenance_sha256": digest(ROOT / PROVENANCE),
             "seed_digest_sha256": digest(ROOT / SEED_DIGEST),
+            "amendments_sha256": sha(committed_amendments()),
             "files": {str(p.relative_to(stage)): digest(p) for p in files},
         },
     )
@@ -1171,9 +1279,10 @@ def verify_receipt(stage: Path) -> dict:
         and receipt.get("base_commit") == BASE_COMMIT
         and receipt.get("models") == BOARD_MODELS
         and receipt.get("provenance_sha256") == digest(ROOT / PROVENANCE)
-        and receipt.get("seed_digest_sha256") == digest(ROOT / SEED_DIGEST),
-        "the receipt does not bind this release, its base, the judge provenance "
-        "and the seed digest",
+        and receipt.get("seed_digest_sha256") == digest(ROOT / SEED_DIGEST)
+        and receipt.get("amendments_sha256") == sha(committed_amendments()),
+        "the receipt does not bind this release, its base, the judge provenance, "
+        "the seed digest and the wording amendments",
     )
     payload = stage / f"data-board{BOARD_MODELS}.json"
     require(
@@ -1309,8 +1418,9 @@ def freeze(args) -> None:
     freezer.main()
 
     # freeze_snapshot rebuilds the annotations directory from the stage; the
-    # wording-amendments record is committed beside it and does not change.
-    (ROOT / ANNOTATIONS / AMENDMENTS).write_bytes(base_blob(ANNOTATIONS / AMENDMENTS))
+    # wording-amendments record is committed beside it, release 20261013's
+    # with this release's amendments appended.
+    (ROOT / ANNOTATIONS / AMENDMENTS).write_bytes(committed_amendments())
     verify_annotations(ROOT / ANNOTATIONS, committed, changes)
     for name in STAGED_ANNOTATIONS:
         require(

@@ -31,6 +31,96 @@ def sha(data: bytes | str) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+# ---------------------------------------------------------------- the release
+
+
+def frozen_manifest() -> dict:
+    return json.loads((ROOT / driver.MANIFEST).read_text())
+
+
+def frozen_is_this_release() -> bool:
+    """Whether this checkout still freezes release 20261013b. A later release
+    supersedes it, and its snapshot is then in git history."""
+    return (
+        frozen_manifest()["published_dashboard_artifact"]["tag"] == driver.RELEASE_TAG
+    )
+
+
+def test_the_frozen_payload_is_release_20261013s_but_for_the_five():
+    """Every section of the frozen payload but scenarioPredictions is release
+    20261013's, and inside it only the five cases' annotation fields differ."""
+    if not frozen_is_this_release():
+        pytest.skip("a later release has superseded 20261013b")
+    import gzip
+
+    blob = (ROOT / driver.SNAPSHOT_RUN / "data.json.gz").read_bytes()
+    payload = {"countries": {"us": json.loads(gzip.decompress(blob))}}
+    diff = driver.verify_payload(payload, driver.base_payload())
+    assert {(path[3], path[4]) for path in diff} == driver.REJUDGE_KEYS
+    assert {path[6] for path in diff} <= driver.ANNOTATION_FIELDS
+
+
+def test_the_committed_annotations_are_release_20261013s_but_for_the_five():
+    if not frozen_is_this_release():
+        pytest.skip("a later release has superseded 20261013b")
+    names = driver.base_annotation_names()
+    changes = driver.verify_annotations(ROOT / driver.ANNOTATIONS, names)
+    assert {(c["scenario_id"], c["variable"]) for c in changes[ROWS]} == (
+        driver.REJUDGE_KEYS
+    )
+    assert {(c["scenario_id"], c["variable"]) for c in changes[NOTES]} == (
+        driver.REJUDGE_KEYS
+    )
+    # 21 model rows and five case notes, and no class changes: every row and
+    # case stays llm_error.
+    assert (len(changes[ROWS]), len(changes[NOTES])) == (21, 5)
+    changed = {
+        column for c in changes[ROWS] + changes[NOTES] for column in c["changes"]
+    }
+    assert changed == {"annotation", "failure_subtype", "case_annotation"}
+
+
+def test_the_frozen_manifest_moves_only_in_this_releases_scope():
+    if not frozen_is_this_release():
+        pytest.skip("a later release has superseded 20261013b")
+    base = json.loads(driver.base_blob(driver.MANIFEST))
+    manifest = frozen_manifest()
+    assert driver.manifest_problems(base, manifest) == []
+    for field in ("snapshot_date", "model_response_date", "reference_exclusions"):
+        assert manifest[field] == base[field]
+    by_judge = manifest["audit_annotation_artifacts"]["judge_provenance"]["by_judge"]
+    before = base["audit_annotation_artifacts"]["judge_provenance"]["by_judge"]
+    moved = {
+        judge: by_judge[judge]["cases"] - before[judge]["cases"] for judge in before
+    }
+    assert moved == {"claude-opus-5": -1, "claude-opus-5-5": 4, "gpt-5.6-sol": -3}
+
+
+def test_the_committed_judge_provenance_and_seed_digest_agree():
+    """The provenance record lists the five, each isolated and on template v2,
+    and the seed digest is the base's tree with those five replaced."""
+    record = json.loads((ROOT / driver.PROVENANCE).read_text())
+    entries = {entry["case_id"]: entry for entry in record["verdicts"]}
+    assert set(entries) == set(driver.REJUDGE)
+    assert record["note"] == driver.PROVENANCE_NOTE
+    with open(ROOT / driver.SEED_DIGEST) as stream:
+        seed = {row["case_id"]: row for row in csv.DictReader(stream)}
+    base = driver.base_seed()
+    assert set(seed) == set(base)
+    for case, row in seed.items():
+        mine = {key: row[key] for key in ("prompt_sha256", "verdict_sha256")}
+        if case in driver.REJUDGE:
+            entry = entries[case]
+            assert entry["isolated"] is True
+            assert entry["judge_template_version"] == driver.JUDGE_TEMPLATE_VERSION
+            assert entry["judge_model_reported"] == [driver.JUDGE_MODEL]
+            assert mine == {key: entry[key] for key in mine}
+            assert mine["verdict_sha256"] != base[case]["verdict_sha256"]
+            assert mine["prompt_sha256"] != base[case]["prompt_sha256"]
+        else:
+            assert mine == base[case]
+
+
 # ---------------------------------------------------------------- the pins
 
 
@@ -306,6 +396,97 @@ def test_verify_annotations_needs_exactly_the_named_files(monkeypatch, tmp_path)
     (tmp_path / "us_adjudications.json").write_text("{}\n")
     with pytest.raises(SystemExit, match="annotation-changes.json"):
         driver.verify_annotations(tmp_path, sorted(base), {NOTES: [], ROWS: [{}]})
+
+
+# ---------------------------------------------------------------- amendments
+
+NOTE_AMENDMENT = {
+    "case_id": CASE,
+    "field": "case_annotation",
+    "old": "New note.",
+    "new": "Corrected note.",
+    "reason": "The record contradicts it.",
+}
+ROW_AMENDMENT = {
+    "case_id": CASE,
+    "field": "annotation",
+    "model": "m1",
+    "old": "New one.",
+    "new": "Corrected one.",
+    "reason": "The record contradicts it.",
+}
+
+
+def write_wording(tmp_path, monkeypatch, amendments, note="Why they were made."):
+    path = tmp_path / "wording_amendments.json"
+    path.write_text(json.dumps({"note": note, "amendments": amendments}))
+    monkeypatch.setattr(driver, "WORDING", path)
+
+
+def new_notes():
+    import pandas as pd
+
+    return pd.DataFrame(
+        {
+            "scenario_id": ["scenario_086"],
+            "variable": ["federal_refundable_credits"],
+            "case_annotation": ["New note."],
+        }
+    )
+
+
+def test_amendments_replace_text_found_exactly_once(tmp_path, monkeypatch):
+    write_wording(tmp_path, monkeypatch, [NOTE_AMENDMENT, ROW_AMENDMENT])
+    amendments = driver.load_amendments()
+    rows, notes = new_rows(), new_notes()
+    driver.apply_amendments(rows, notes, amendments)
+    assert notes.case_annotation.tolist() == ["Corrected note."]
+    assert rows.set_index("model").annotation["m1"] == "Corrected one."
+    assert rows.set_index("model").annotation["m2"] == "New two,\nover two lines."
+    with pytest.raises(SystemExit, match="occurs 0 times"):
+        driver.apply_amendments(rows, notes, amendments)
+    twice = new_notes().assign(case_annotation="New note. New note.")
+    with pytest.raises(SystemExit, match="occurs 2 times"):
+        driver.apply_amendments(new_rows(), twice, [NOTE_AMENDMENT])
+    with pytest.raises(SystemExit, match="no single record"):
+        driver.apply_amendments(
+            new_rows(), new_notes(), [dict(ROW_AMENDMENT, model="x")]
+        )
+
+
+@pytest.mark.parametrize(
+    "item, message",
+    [
+        (dict(NOTE_AMENDMENT, case_id=OTHER), "was not re-judged"),
+        (dict(NOTE_AMENDMENT, field="failure_source"), "names field"),
+        (dict(NOTE_AMENDMENT, field="reference_suspect"), "names field"),
+        (dict(NOTE_AMENDMENT, model="m1"), "has keys"),
+        ({k: v for k, v in ROW_AMENDMENT.items() if k != "model"}, "has keys"),
+        (dict(NOTE_AMENDMENT, new="New note."), "empty or unchanged"),
+        (dict(NOTE_AMENDMENT, reason=" "), "empty or unchanged"),
+    ],
+)
+def test_an_amendment_outside_the_fives_wording_is_refused(
+    tmp_path, monkeypatch, item, message
+):
+    write_wording(tmp_path, monkeypatch, [item])
+    with pytest.raises(SystemExit, match=message):
+        driver.load_amendments()
+
+
+def test_the_committed_amendments_record_only_gains_this_releases(
+    tmp_path, monkeypatch
+):
+    earlier = {"note": "Earlier.", "amendments": [{"case_id": "x", "field": "f"}]}
+    base = json.dumps(earlier, indent=1, ensure_ascii=False).encode()
+    monkeypatch.setattr(driver, "base_blob", lambda path: base)
+    monkeypatch.setattr(driver, "WORDING", tmp_path / "absent.json")
+    assert driver.committed_amendments() == base
+    write_wording(tmp_path, monkeypatch, [NOTE_AMENDMENT])
+    record = json.loads(driver.committed_amendments())
+    assert record["amendments"] == [*earlier["amendments"], NOTE_AMENDMENT]
+    assert record["note"].startswith("Earlier. The last 1 (after the first 1) ")
+    assert record["note"].endswith("Why they were made.")
 
 
 # ---------------------------------------------------------------- the judge
@@ -716,6 +897,7 @@ def test_the_freeze_refuses_a_receipt_that_does_not_bind_its_inputs(
         driver.verify_receipt(tmp_path)
     receipt["provenance_sha256"] = sha("PROVENANCE")
     receipt["seed_digest_sha256"] = sha("SEED_DIGEST")
+    receipt["amendments_sha256"] = sha(driver.committed_amendments())
     (tmp_path / "release-ready.json").write_text(json.dumps(receipt))
     with pytest.raises(SystemExit, match="the receipt does not bind"):
         driver.verify_receipt(tmp_path)
