@@ -2081,9 +2081,14 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     # The audit's fix-module evidence: corrected values on an engine that still
     # has the defect (where later engine changes moved the output).
     evidence: dict = {}
-    for path in (ROOT / "reference_audit/2026-10-09-engine-upgrade/evidence").glob(
-        "*.json"
-    ):
+    from policybench.paper_results import OCTOBER_UPGRADE_AUDITS
+
+    paths = [
+        path
+        for audit in OCTOBER_UPGRADE_AUDITS
+        for path in sorted((ROOT / audit / "evidence").glob("*.json"))
+    ]
+    for path in paths:
         doc = json.loads(path.read_text())
         if doc.get("kind") != "regeneration_evidence":
             continue  # the request that produced it, say

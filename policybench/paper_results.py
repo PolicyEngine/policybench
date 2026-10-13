@@ -2895,11 +2895,15 @@ class PaperResults:
                 "them at its corrected value; it stays excluded because it also "
                 "moves under an input the prompt does not state."
             )
+        amount = (
+            f"all {count_word(count)}"
+            if count == self.engine_defect_exclusion_count
+            else f"{count_word(count)} of them"
+        )
         return (
-            f"policyengine-us {self.policyengine_us_version} computes "
-            f"{count_word(count)} of them at their corrected values; they stay "
-            "excluded because each also moves under an input the prompt does not "
-            "state."
+            f"policyengine-us {self.policyengine_us_version} computes {amount} at "
+            "their corrected values; they stay excluded because each also moves "
+            "under an input the prompt does not state."
         )
 
     @property

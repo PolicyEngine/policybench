@@ -212,8 +212,8 @@ manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
 output a defect not fixed upstream moved by more than a dollar. Of those
 records, 5 remain as engine-defect exclusions. policyengine-us 2.41.0 computes
-five of them at their corrected values; they stay excluded because each also
-moves under an input the prompt does not state. An output such a defect moves that was
+all five at their corrected values; they stay excluded because each also moves
+under an input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
 same value, or it moved and a re-review found the exclusion still holds.
