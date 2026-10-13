@@ -610,9 +610,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Onboarded 2026-10-13; Meta released it on 2026-09-02. OpenRouter "
             "lists one endpoint, Meta's own (meta/muse-spark-1.3-20260902), so "
             "OpenRouter passes requests to Meta's API. As for Muse Wonder, "
-            "that API accepts tool_choice 'auto' only: a forced "
-            "(named-function) or 'required' tool choice returned a 400 on "
-            'each of three tries (\'only "auto" is supported for '
+            "that API accepts tool_choice 'auto' only, and Meta rejects forced "
+            "tool choices: a named-function or 'required' tool choice returned "
+            'a 400 on each of three tries (\'only "auto" is supported for '
             "tool_choice'), so the row runs the JSON contract whole-scenario. "
             "A request with no reasoning parameter reasons at the provider "
             "default: on a one-question probe, 4,311, 7,684 and 8,174 of "
@@ -624,11 +624,15 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "the token limit (384 tokens); with it, 3/3 and 16/16 parsed on "
             "the JSON contract (8,163 and 4,258 completion tokens, 106s and "
             "58s), about $0.020 per scenario at $1.25/$4.25 per 1M with $0.15 "
-            "cache reads. A four-household smoke on the run path, with the "
-            "board's two largest households (28 and 32 outputs), parsed 96/96 "
-            "in one request each (43s to 93s, at most 7,115 completion "
-            "tokens), so the row keeps the thinking class's 300s timeout and "
-            "16,384-token starting budget."
+            "cache reads. A four-household smoke on the run path (16, 20, 28 "
+            "and 32 outputs) parsed 96/96 in one request each. The board run "
+            "answered all 100 households in one request each, the largest "
+            "(scenario_008, 56 outputs) included: 1,984/1,984 parsed, no "
+            "budget escalation, at most 96s and 9,871 completion tokens per "
+            "household, so the row keeps the thinking class's 300s timeout "
+            "and 16,384-token starting budget. Its four smoke households "
+            "replay the smoke's responses from the harness cache (identical "
+            "requests), as the smoke households of earlier rows do."
         ),
     ),
     "openrouter/z-ai/glm-5.2": ModelCard(
