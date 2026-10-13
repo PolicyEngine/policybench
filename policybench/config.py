@@ -67,8 +67,27 @@ MODELS = {
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+    # Google deprecated gemini-3.5-flash and gemini-3.7-flash on 2026-10-08
+    # (ai.google.dev/gemini-api/docs/changelog, entry of that date, read
+    # 2026-10-13): both left the AI Studio model picker, and requests under
+    # gemini-3.5-flash now route to gemini-3.6-flash. On 2026-10-13 a
+    # gemini-3.5-flash request answered with modelVersion gemini-3.6-flash.
+    # The row's answers are unchanged since the frozen predictions were first
+    # committed on 2026-06-15, before Gemini 3.6 Flash was released
+    # (2026-07-21), so they are Gemini 3.5 Flash, and this name can no longer
+    # re-run them.
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
+    # gemini-3.7-flash now routes to gemini-3.8-flash: on 2026-10-13 a request
+    # under that name answered with modelVersion gemini-3.8-flash. The row's
+    # answers were requested on 2026-08-18, before Gemini 3.8 Flash was
+    # released (2026-09-02), so they are Gemini 3.7 Flash, and this name can
+    # no longer re-run them. A synchronous run, which row repairs also use,
+    # would not show either re-route: litellm 1.88.1 sets the response model
+    # to the requested name and never reads Gemini's modelVersion, so
+    # provider_resolved_model records gemini-3.7-flash or gemini-3.5-flash.
+    # The Gemini batch path (google-genai) does record modelVersion. GET
+    # models/<name> still returns each retired model's own version string.
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3.8-flash": "gemini/gemini-3.8-flash",
     "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",
