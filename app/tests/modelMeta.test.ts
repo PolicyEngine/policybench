@@ -29,6 +29,7 @@ describe("model metadata", () => {
     ["qwen-3.7-max", "Qwen 3.7 Max", "alibaba"],
     ["grok-4.7", "Grok 4.7", "xai"],
     ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash", "deepseek"],
+    ["muse-wonder", "Muse Wonder", "meta"],
   ] as const)("maps %s to its label and provider", (model, label, provider) => {
     expect(MODEL_LABELS[model]).toBe(label);
     expect(getProviderForModel(model)).toBe(provider);
@@ -37,6 +38,7 @@ describe("model metadata", () => {
   test("labels the added providers", () => {
     expect(PROVIDER_LABELS).toMatchObject({
       alibaba: "Alibaba",
+      meta: "Meta",
       minimax: "MiniMax",
       moonshot: "Moonshot AI",
       zai: "Z.ai",

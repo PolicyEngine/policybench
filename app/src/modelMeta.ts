@@ -52,6 +52,7 @@ export const MODEL_ORDER = [
   "inkling",
   "qwen3.8-max",
   "qwen-3.7-max",
+  "muse-wonder",
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
@@ -103,6 +104,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "qwen-3.7-max": "Qwen 3.7 Max",
   "qwen3.8-max": "Qwen 3.8 Max",
   inkling: "Inkling",
+  "muse-wonder": "Muse Wonder",
 };
 
 export type ProviderKey =
@@ -110,6 +112,7 @@ export type ProviderKey =
   | "anthropic"
   | "deepseek"
   | "google"
+  | "meta"
   | "minimax"
   | "moonshot"
   | "openai"
@@ -177,6 +180,7 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   anthropic: "Anthropic",
   deepseek: "DeepSeek",
   google: "Google",
+  meta: "Meta",
   minimax: "MiniMax",
   moonshot: "Moonshot AI",
   openai: "OpenAI",
@@ -196,6 +200,7 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("grok-")) return "xai";
   if (model.startsWith("kimi-")) return "moonshot";
   if (model.startsWith("minimax-")) return "minimax";
+  if (model.startsWith("muse-")) return "meta";
   if (model.startsWith("qwen")) return "alibaba";
   if (model.startsWith("inkling")) return "thinkingmachines";
   return null;
@@ -227,6 +232,7 @@ const FRONTIER_MODEL_GROUPS = [
   ["minimax-m3"],
   ["inkling"],
   ["qwen3.8-max", "qwen-3.7-max"],
+  ["muse-wonder"],
 ] as const;
 
 export const FRONTIER_MODELS: readonly string[] = FRONTIER_MODEL_GROUPS.map(
