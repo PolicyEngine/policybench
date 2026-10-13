@@ -67,6 +67,8 @@ def test_frozen_roster_has_48_display_names_and_release_dates():
     assert MODEL_DISPLAY_NAMES["gpt-6.1-sol"] == "GPT-6.1 Sol"
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
     assert MODEL_DISPLAY_NAMES["muse-wonder"] == "Muse Wonder"
+    assert MODEL_DISPLAY_NAMES["muse-spark-1.3"] == "Muse Spark 1.3"
+    assert MODEL_DISPLAY_NAMES["gemini-4-argon"] == "Gemini 4 Argon"
 
 
 def test_claude_haiku_5_5_release_date_is_recorded():

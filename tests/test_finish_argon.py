@@ -312,12 +312,12 @@ def test_pin_inputs_writes_the_finished_runs_file_hashes(runs, tmp_path, monkeyp
 # design note gives them.
 COMMITTED_PINS = {
     SLUG: {
-        "predictions.csv": ("656ef003", "a74a"),
-        "run_state.json": ("d9ddcc46", "98b5"),
+        "predictions.csv": ("76724f96", "6462"),
+        "run_state.json": ("b2af6808", "f80d"),
     },
     OTHER_SLUG: {
-        "predictions.csv": ("PENDING", "PENDING"),
-        "run_state.json": ("PENDING", "PENDING"),
+        "predictions.csv": ("1e4c81a1", "87d3"),
+        "run_state.json": ("923d8c2b", "292c"),
     },
 }
 

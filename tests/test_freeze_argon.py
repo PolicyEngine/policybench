@@ -33,12 +33,16 @@ import freeze_snapshot as freezer  # noqa: E402
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
 from policybench.judge_template import template_header  # noqa: E402
-from tests import test_finish_argon as mock_builds  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 RUN = driver.RUN_NAME
+# The two additions. Most synthetic cases use the first; a gate that names
+# every registered model gets both.
 SLUG = "argon"
 NEW = "gemini-4-argon"
+OTHER_SLUG = "musespark"
+OTHER = "muse-spark-1.3"
+ADDITIONS = {SLUG: NEW, OTHER_SLUG: OTHER}
 PINNED = driver.PINNED_INPUTS
 BUNDLE = Path("publish") / RUN
 SNAPSHOT_DIR = Path("paper/snapshot/20260501")
@@ -83,10 +87,10 @@ _BASE_COMMIT_BLOB = driver.base_commit_blob
 _BASE_PAYLOAD = driver.base_payload_from_commit
 _HEAD_BLOB = driver.head_blob
 
-# The runs root Gemini 4 Argon's supervised run is written under (its run is
+# The runs root each addition's supervised run is written under (its run is
 # <root>/<slug>/run); docs/argon/input_pins.json names it once the run
 # is pinned.
-RUNS = {SLUG: f"argon-runs/{SLUG}"}
+RUNS = {slug: f"argon-runs/{slug}" for slug in ADDITIONS}
 
 
 @functools.cache
@@ -256,11 +260,11 @@ def base_references(directory: Path) -> Path:
     return directory
 
 
-# The fingerprint Gemini 4 Argon's supervised run records when it starts, as the
+# The fingerprint an addition's supervised run records when it starts, as the
 # registry gives it (validate_treatment's expected treatment, which the freeze
 # checks the run state against), so it follows the model card.
 @functools.cache
-def _registry_fingerprint() -> str:
+def _registry_fingerprint(model: str = NEW) -> str:
     from policybench.config import MODELS, PROGRAMS
     from policybench.eval_no_tools import (
         _first_request_variables,
@@ -278,7 +282,7 @@ def _registry_fingerprint() -> str:
     from policybench.scenarios import load_scenarios_from_manifest
     from policybench.spec import expand_programs_for_scenario
 
-    provider_id = MODELS[NEW]
+    provider_id = MODELS[model]
     contract = answer_contract_for(provider_id)
     scenarios = REPO / FROZEN_RUN / "scenarios.csv"
     first = load_scenarios_from_manifest(scenarios)[0]
@@ -304,25 +308,41 @@ def _registry_fingerprint() -> str:
     )
 
 
-NEW_FINGERPRINT = json.loads(_registry_fingerprint())
+FINGERPRINTS = {
+    model: json.loads(_registry_fingerprint(model)) for model in ADDITIONS.values()
+}
+NEW_FINGERPRINT = FINGERPRINTS[NEW]
 COLUMNS = (
     "model,scenario_id,variable,prediction,explanation,raw_response,"
     "provider_resolved_model,prompt_tokens,completion_tokens,error,"
     "estimated_cost_usd,total_cost_usd,total_tokens,elapsed_seconds,"
     "request_started_at,request_completed_at\n"
 )
-# MOCK: Gemini 4 Argon's run file as the synthetic stage pins it: the usage
+# MOCK: each addition's run file as the synthetic stage pins it: the usage
 # columns its published cost, tokens and latency come from, and the request
 # times the response window is dated by (2026-10-13 UTC).
-NEW_RUN = COLUMNS + (
-    "gemini-4-argon,scenario_000,snap,1200.0,Used the 2026 allotment.,{},"
-    "gemini-4-argon,4000,96,,0.0125,0.0125,4096.5,12.75,1791850000.5,"
-    "1791850012.25\n"
-    "gemini-4-argon,scenario_001,snap,0.0,Not eligible.,{},gemini-4-argon,"
-    "3900,88,,0.011,0.011,3900.25,11.5,1791850010.0,1791850021.5\n"
-)
+NEW_RUNS = {
+    NEW: COLUMNS
+    + (
+        "gemini-4-argon,scenario_000,snap,1200.0,Used the 2026 allotment.,{},"
+        "gemini-4-argon,4000,96,,0.0125,0.0125,4096.5,12.75,1791850000.5,"
+        "1791850012.25\n"
+        "gemini-4-argon,scenario_001,snap,0.0,Not eligible.,{},gemini-4-argon,"
+        "3900,88,,0.011,0.011,3900.25,11.5,1791850010.0,1791850021.5\n"
+    ),
+    OTHER: COLUMNS
+    + (
+        "muse-spark-1.3,scenario_000,snap,1150.0,Used the 2026 allotment.,{},"
+        "meta/muse-spark-1.3,2100,6900,,0.032,0.032,9000.5,77.25,1791853000.5,"
+        "1791853077.75\n"
+        "muse-spark-1.3,scenario_001,snap,0.0,Not eligible.,{},"
+        "meta/muse-spark-1.3,1300,4300,,0.02,0.02,5600.25,51.5,1791853010.0,"
+        "1791853061.5\n"
+    ),
+}
+NEW_RUN = NEW_RUNS[NEW]
 WINDOW = "2026-06-12 to 2026-10-13"
-# An incumbent row the bundle's predictions hold beside Gemini 4 Argon's.
+# An incumbent row the bundle's predictions hold beside the additions'.
 INCUMBENT_ROW = (
     f"{INCUMBENT},scenario_000,snap,900.0,Used the 2025 allotment.,,"
     f"{INCUMBENT},,,,,,,,,\n"
@@ -335,7 +355,7 @@ def restamp(stage: Path) -> None:
     names = [
         BUNDLE / "us" / name for name in (*driver.REFERENCE_FILES, "predictions.csv")
     ]
-    names += [Path("inputs") / SLUG / name for name in PINNED]
+    names += [Path("inputs") / slug / name for slug in ADDITIONS for name in PINNED]
     files = {str(name): sha(stage / name) for name in names}
     installed = {
         "base_sha256": driver.BASE_REFERENCE_SHA256[EXCLUSIONS],
@@ -352,37 +372,42 @@ def restamp(stage: Path) -> None:
         "exclusions_installed": installed,
     }
     (stage / "stage.json").write_text(json.dumps(record))
-    inputs = stage / "inputs" / SLUG
-    state = json.loads((inputs / "run_state.json").read_text())
-    provenance = {
-        NEW: {
+    provenance = {}
+    for slug, model in ADDITIONS.items():
+        inputs = stage / "inputs" / slug
+        state = json.loads((inputs / "run_state.json").read_text())
+        provenance[model] = {
             "predictions_sha256": sha(inputs / "predictions.csv"),
             "treatment_fingerprint": state["treatment_fingerprint"],
         }
-    }
     (stage / "model-provenance.json").write_text(json.dumps(provenance))
 
 
 def write_inputs(stage: Path) -> dict:
-    """Gemini 4 Argon's run files, the bundle's predictions holding its rows
+    """Each addition's run files, the bundle's predictions holding their rows
     as prepare folds them, and the prepare-time hashes; returns the pins."""
-    inputs = stage / "inputs" / SLUG
-    inputs.mkdir(parents=True, exist_ok=True)
-    (inputs / "predictions.csv").write_text(NEW_RUN)
-    state = {
-        "model": NEW,
-        "total": 100,
-        "completed": 100,
-        "stopped_reason": None,
-        "treatment_fingerprint": NEW_FINGERPRINT,
-    }
-    (inputs / "run_state.json").write_text(json.dumps(state))
-    header, *rows = NEW_RUN.splitlines(keepends=True)
+    folded = []
+    for slug, model in ADDITIONS.items():
+        inputs = stage / "inputs" / slug
+        inputs.mkdir(parents=True, exist_ok=True)
+        (inputs / "predictions.csv").write_text(NEW_RUNS[model])
+        state = {
+            "model": model,
+            "total": 100,
+            "completed": 100,
+            "stopped_reason": None,
+            "treatment_fingerprint": FINGERPRINTS[model],
+        }
+        (inputs / "run_state.json").write_text(json.dumps(state))
+        folded += NEW_RUNS[model].splitlines(keepends=True)[1:]
     (stage / BUNDLE / "us/predictions.csv").write_text(
-        header + INCUMBENT_ROW + "".join(rows)
+        COLUMNS + INCUMBENT_ROW + "".join(folded)
     )
     restamp(stage)
-    return {SLUG: {name: sha(inputs / name) for name in PINNED}}
+    return {
+        slug: {name: sha(stage / "inputs" / slug / name) for name in PINNED}
+        for slug in ADDITIONS
+    }
 
 
 def write_audit(audit: Path) -> None:
@@ -502,10 +527,10 @@ def write_judge_verdicts(cases: Path, record: dict) -> None:
         (case / "verdict.json").write_text(json.dumps(verdict))
 
 
-def test_the_freeze_adds_muse_wonder_alone_under_the_driver_tag():
-    assert release.NEW_MODELS == {SLUG: NEW} == driver.MODELS
-    assert release.BOARD_MODELS == 48
-    assert (driver.RELEASE_EXCLUSIONS, driver.RELEASE_SCORED) == (58, 1926)
+def test_the_freeze_adds_the_two_additions_under_the_driver_tag():
+    assert release.NEW_MODELS == ADDITIONS == driver.MODELS
+    assert release.BOARD_MODELS == 50
+    assert (driver.RELEASE_EXCLUSIONS, driver.RELEASE_SCORED) == (49, 1935)
     assert release.RUN == RUN
 
 
@@ -515,7 +540,7 @@ def freeze_preflight(tmp_path, monkeypatch):
     point_freeze_at(workspace, monkeypatch)
     stage = workspace / "results/local/stage"
     stage.mkdir(parents=True)
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     payload.write_text(json.dumps({"countries": {"us": {"modelStats": []}}}))
     evidence = [
         BUNDLE / "us" / name for name in (*driver.REFERENCE_FILES, "predictions.csv")
@@ -527,13 +552,18 @@ def freeze_preflight(tmp_path, monkeypatch):
         (stage / name).write_text(f"Evidence: {name.name}\n")
     # install-exclusions wrote the release's record into the bundle.
     (stage / BUNDLE / "us" / EXCLUSIONS).write_text(release_exclusions_text())
-    # Gemini 4 Argon's run files are the committed pins' (stubbed here), and
-    # the bundle's predictions hold its rows as prepare folded them.
+    # Each addition's run files are the committed pins' (stubbed here), and
+    # the bundle's predictions hold their rows as prepare folded them.
     pins = write_inputs(stage)
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins)
     # The input pins as HEAD commits them, which name the supervised run the
     # frozen serving evidence must name (release.evidence_runs).
-    record = {"inputs": {SLUG: {"run": f"{RUNS[SLUG]}/run", "sha256": pins[SLUG]}}}
+    record = {
+        "inputs": {
+            slug: {"run": f"{RUNS[slug]}/run", "sha256": pins[slug]}
+            for slug in ADDITIONS
+        }
+    }
     monkeypatch.setattr(
         driver,
         "head_blob",
@@ -543,7 +573,7 @@ def freeze_preflight(tmp_path, monkeypatch):
             else _HEAD_BLOB(path)
         ),
     )
-    evidence += [Path("inputs") / SLUG / name for name in PINNED]
+    evidence += [Path("inputs") / slug / name for slug in ADDITIONS for name in PINNED]
     evidence += [Path("model-provenance.json"), Path("stage.json")]
     write_audit(stage / "audit")
     evidence += AUDIT_EVIDENCE
@@ -555,7 +585,7 @@ def freeze_preflight(tmp_path, monkeypatch):
         "base_tag": driver.BASE_TAG,
         "base_sha256": driver.BASE_SHA256,
         "payload_sha256": sha(payload),
-        "models": 48,
+        "models": 50,
         "partial": False,
         "files": {str(name): sha(stage / name) for name in evidence},
     }
@@ -615,19 +645,21 @@ def test_a_tag_that_is_not_a_dated_release_is_refused(freeze_preflight):
         release.main(["--stage-dir", str(stage), "--tag", "latest", "--dry-run"])
 
 
-def test_the_freeze_refuses_an_unbound_MOCK_engine_upgrade(freeze_preflight):
-    """MOCK: an engine name alone does not bind an installed build."""
+def test_the_freeze_refuses_a_stage_that_records_an_installed_build(freeze_preflight):
+    """This release installs no engine upgrade, so a stage whose stage.json
+    records one (MOCK) was not prepared by its driver: both the freeze and
+    its dry run refuse it and write nothing."""
     stage, _, receipt = freeze_preflight
-    assert not release.engine_upgrade_installed(stage)
-    assert not release.engine_upgrade_installed(stage / "absent")
-    (stage / "stage.json").write_text(
-        json.dumps({"references_installed": {"engine_version": "MOCK 2.40.9"}})
-    )
+    release.verify_no_upgrade(stage)
+    prepared = json.loads((stage / "stage.json").read_text())
+    prepared["references_installed"] = {"engine_version": "MOCK 2.41.9"}
+    (stage / "stage.json").write_text(json.dumps(prepared))
     rewrite_receipt(stage, receipt)
-    assert release.engine_upgrade_installed(stage)
+    with pytest.raises(SystemExit, match="records an installed reference build"):
+        release.verify_no_upgrade(stage)
     before = workspace_files()
     for dry_run in ([], ["--dry-run"]):
-        with pytest.raises(SystemExit, match="does not bind the installed build"):
+        with pytest.raises(SystemExit, match="records an installed reference build"):
             release.main(["--stage-dir", str(stage), *dry_run])
     assert workspace_files() == before
 
@@ -659,7 +691,7 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
         receipt["files"] = {}
         message = "missing staged evidence hashes"
     elif defect == "board46":
-        receipt["models"] = 47
+        receipt["models"] = 49
     elif defect == "partial":
         receipt["partial"] = True
     elif defect == "base_tag":
@@ -683,8 +715,7 @@ def test_freeze_refuses_changed_or_unbound_evidence(freeze_preflight, defect):
         str(BUNDLE / "us" / EXCLUSIONS),
         str(BUNDLE / "annotations" / ADJUDICATIONS),
         str(BUNDLE / "annotations" / EXPLANATIONS),
-        f"inputs/{SLUG}/run_state.json",
-        f"inputs/{SLUG}/predictions.csv",
+        *(f"inputs/{slug}/{name}" for slug in ADDITIONS for name in PINNED),
         "model-provenance.json",
         driver.PROMPT_CHANGES,
         "stage.json",
@@ -777,7 +808,7 @@ def test_the_freeze_refuses_a_spec_without_its_dates(spec, field, value, message
 
 def test_the_spec_names_this_release_and_its_snapshot_date():
     value = release.release_spec(driver.RELEASE_TAG)
-    assert value["snapshot_date"] == "2026-10-13"
+    assert value["snapshot_date"] == "2026-10-14"
     # It rules nothing, so it names no day a ruled wave's decisions were written.
     assert driver.spec_records(value) == []
     assert "adjudications_written_on" not in value
@@ -825,10 +856,10 @@ def _record_installed(stage: Path, edit) -> None:
     [
         ("record_edited", "is not release 20261013b's record; run"),
         ("receipt_hash", "Staged evidence changed since strict export.*exclusions"),
-        ("not_installed", "stage.json does not record the release's 58"),
-        ("wrong_count", "stage.json does not record the release's 58"),
-        ("wrong_base", "stage.json does not record the release's 58"),
-        ("stale_files", "stage.json does not record the release's 58"),
+        ("not_installed", "stage.json does not record the release's 49"),
+        ("wrong_count", "stage.json does not record the release's 49"),
+        ("wrong_base", "stage.json does not record the release's 49"),
+        ("stale_files", "stage.json does not record the release's 49"),
     ],
 )
 def test_the_freeze_refuses_a_stage_without_the_installed_exclusions(
@@ -851,7 +882,7 @@ def test_the_freeze_refuses_a_stage_without_the_installed_exclusions(
     else:
         edits = {
             "not_installed": lambda r: r.pop("exclusions_installed"),
-            "wrong_count": lambda r: r["exclusions_installed"].update(records=57),
+            "wrong_count": lambda r: r["exclusions_installed"].update(records=48),
             "wrong_base": lambda r: r["exclusions_installed"].update(
                 base_sha256="0" * 64
             ),
@@ -892,23 +923,25 @@ def test_the_installed_record_is_the_one_the_live_stage_holds():
     if installed.get("spec_sha256") != sha(driver.ROOT / driver.SPEC_PATH):
         pytest.skip("the live stage was installed under an earlier spec")
     receipt = {"files": {str(BUNDLE / "us" / EXCLUSIONS): sha(staged)}}
-    # With the engine upgrade installed, the record is the build's (48
-    # records on policyengine-us 2.41.0); without it, release 20261013b's.
-    upgrade = driver.stage_upgrade(stage)
-    text = release_exclusions_text() if upgrade is None else upgrade.exclusions_text
+    # No engine upgrade is installed, so the record is release 20261013b's.
+    text = release_exclusions_text()
     assert (
-        release.verify_installed_exclusions(stage, receipt, text, upgrade)
+        release.verify_installed_exclusions(stage, receipt, text)
         == hashlib.sha256(text.encode()).hexdigest()
     )
 
 
-def _payload_country(exclusions: list[dict], n: int = 1926) -> dict:
+def _payload_country(exclusions: list[dict], n: int = 1935) -> dict:
     return {
         "referenceExclusions": [
             {"scenarioId": r["scenario_id"], "variable": r["variable"]}
             for r in exclusions
         ],
-        "modelStats": [{"model": "a", "n": n}, {"model": NEW, "n": n}],
+        "modelStats": [
+            {"model": "a", "n": n},
+            {"model": NEW, "n": n},
+            {"model": OTHER, "n": n},
+        ],
     }
 
 
@@ -920,25 +953,27 @@ def test_the_payload_must_list_the_releases_exclusions_in_order():
     with pytest.raises(SystemExit, match="their order"):
         release.verify_scored_outputs(_payload_country(swapped), records)
     with pytest.raises(
-        SystemExit, match="57 excluded outputs are not the release's 58"
+        SystemExit, match="48 excluded outputs are not the release's 49"
     ):
         release.verify_scored_outputs(_payload_country(records[:-1]), records)
     extra = records + [{"scenario_id": "scenario_017", "variable": "snap"}]
-    with pytest.raises(SystemExit, match="59 excluded outputs.*scenario_017"):
+    with pytest.raises(SystemExit, match="50 excluded outputs.*scenario_017"):
         release.verify_scored_outputs(_payload_country(extra), records)
 
 
-def test_every_model_must_be_scored_on_1926_outputs():
+def test_every_model_must_be_scored_on_1935_outputs():
     records = release_exclusions()
-    country = _payload_country(records)
-    country["modelStats"][1]["n"] = 1920
-    with pytest.raises(SystemExit, match=f"scored on 1926 outputs.*{NEW}': 1920"):
-        release.verify_scored_outputs(country, records)
+    for index, model in ((1, NEW), (2, OTHER)):
+        country = _payload_country(records)
+        country["modelStats"][index]["n"] = 1920
+        with pytest.raises(SystemExit, match=f"scored on 1935 outputs.*{model}': 1920"):
+            release.verify_scored_outputs(country, records)
 
 
 # --- The staged board ------------------------------------------------------------
 
-# One unadjudicated case of the synthetic payload, as two models answered it.
+# One unadjudicated case of the synthetic payload, as an incumbent and the
+# two additions answered it.
 CASE = ("scenario_017", "snap")
 
 
@@ -986,12 +1021,12 @@ def exports():
 
 @pytest.fixture
 def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
-    """A 48-row payload past the receipt, with release 20261013b's snapshot in
+    """A 50-row payload past the receipt, with release 20261013b's snapshot in
     the workspace.
 
     export_full_run is stubbed to return what it would for the bound bundle:
-    with the release's 58 exclusions (release 20261013b's, nothing ruled) every
-    model is scored on 1,926 outputs and the incumbents' rows are that
+    with the release's 49 exclusions (release 20261013b's, nothing ruled) every
+    model is scored on 1,935 outputs and the incumbents' rows are that
     release's, as they are with its record put back. The freeze's rebuild runs
     export's own build (scope check included) on it, so an unedited payload
     rebuilds, and each test that stops at a later gate still reaches it.
@@ -1022,15 +1057,26 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
     (stage / BUNDLE / "annotations" / EXPLANATIONS).write_bytes(
         base_blob(ANNOTATIONS_DIR / EXPLANATIONS)
     )
-    added = {
-        "model": NEW,
-        "condition": "no_tools",
-        "exact": 58.25,
-        "score": 71.5,
-        "n": driver.RELEASE_SCORED,
-    }
+    added = [
+        {
+            "model": model,
+            "condition": "no_tools",
+            "exact": exact,
+            "score": score,
+            "n": driver.RELEASE_SCORED,
+        }
+        for model, exact, score in ((NEW, 58.25, 71.5), (OTHER, 54.5, 69.25))
+    ]
     scenario, variable = CASE
-    cases = {scenario: {variable: {INCUMBENT: _case_row(900.0), NEW: _case_row(950.0)}}}
+    cases = {
+        scenario: {
+            variable: {
+                INCUMBENT: _case_row(900.0),
+                NEW: _case_row(950.0),
+                OTHER: _case_row(975.0),
+            }
+        }
+    }
 
     def board(stats, exclusions):
         country = {
@@ -1045,10 +1091,10 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
 
     released = base_stats()
     assert {row["n"] for row in released} == {driver.RELEASE_SCORED}
-    staged = board([*released, added], release_exclusions())
+    staged = board([*released, *added], release_exclusions())
     payload.write_text(json.dumps(staged))
     base_exclusions = json.loads(base_blob(FROZEN_RUN / EXCLUSIONS))["exclusions"]
-    scoped = board([*base_stats(), added], base_exclusions)
+    scoped = board([*base_stats(), *added], base_exclusions)
     exports["release"] = _without_carried_usage(staged)
     exports["scope"] = _without_carried_usage(scoped)
     monkeypatch.setattr(
@@ -1132,7 +1178,7 @@ def test_the_freeze_refuses_incumbent_stats_edited_after_export(staged_board, dr
     mutation: export's rebuild from the bound bundle does not give it."""
     stage, rebind = staged_board
     pinned_references(stage / BUNDLE / "us")
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     board = json.loads(payload.read_text())
     index, row = next(
         (index, row)
@@ -1160,7 +1206,7 @@ def test_the_scope_check_refuses_an_incumbent_change_the_ten_records_do_not_expl
     20261013b's, byte for byte."""
     stage, rebind = staged_board
     pinned_references(stage / BUNDLE / "us")
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     board = json.loads(payload.read_text())
     index, model = next(
         (index, row["model"])
@@ -1207,7 +1253,7 @@ def _edit_case_review(board: dict) -> list[str]:
 def _edit_exclusion_text(board: dict) -> list[str]:
     item = board["countries"]["us"]["referenceExclusions"][-2]
     item["note"] = "A note no record carries."
-    return ["payload.countries.us.referenceExclusions[56].note (only staged)"]
+    return ["payload.countries.us.referenceExclusions[47].note (only staged)"]
 
 
 # Edits to the staged payload, each of which passes every other gate once the
@@ -1229,7 +1275,7 @@ def test_the_freeze_refuses_a_payload_edited_after_export(staged_board, edit, dr
     export builds from the bound bundle is not the staged one."""
     stage, rebind = staged_board
     pinned_references(stage / BUNDLE / "us")
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     board = json.loads(payload.read_text())
     paths = PAYLOAD_EDITS[edit](board)
     payload.write_text(json.dumps(board))
@@ -1293,7 +1339,7 @@ def test_the_rebuild_reads_only_the_bytes_the_receipt_binds(staged_board, rebuil
     """A bound bundle file that changes after the receipt was checked is
     refused rather than exported."""
     stage, rebind = staged_board
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     receipt = json.loads((stage / "release-ready.json").read_text())
     base = driver.base_payload_from_commit()
     release.rebuild_payload(stage, receipt, payload, base)
@@ -1407,7 +1453,7 @@ def _edit_new_rows(path: Path, edit) -> list[str]:
 def _republish_new_usage(stage: Path, exports: dict) -> None:
     """The payload as export would rebuild it from the edited predictions:
     Gemini 4 Argon's costUsd changes, and the export stub agrees."""
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     board = json.loads(payload.read_text())
     for target in (board, exports["release"], exports["scope"]):
         stats = target["countries"]["us"]["modelStats"]
@@ -1568,7 +1614,7 @@ def test_the_freeze_refuses_a_failure_class_no_judge_gave(
         assert list(frame.loc[kept, column]) == ["llm_error"]
         frame.loc[kept, column] = "prompt_ambiguity"
         frame.to_csv(annotations / name, index=False)
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     board = json.loads(payload.read_text())
     scenario, variable = CASE
     for target in (board, exports["release"], exports["scope"]):
@@ -1675,18 +1721,22 @@ def test_the_freeze_baseline_is_release_20261013b_in_git_not_the_working_tree(
 
 def _serving_from_the_registry(destination: Path) -> None:
     """What freeze_serving_configuration writes in a checkout without the
-    historical run directories: every incumbent registry-backed, and Muse
-    Wonder backed by its run state."""
+    historical run directories: every incumbent registry-backed, and each
+    addition backed by its run state."""
     base = json.loads(base_blob(SNAPSHOT_DIR / "model_serving_config.json"))
     serving = copy.deepcopy(base)
     for row in serving["models"].values():
         row["evidence"] = {"kind": "registry"}
-    serving["models"][NEW] = {
-        **copy.deepcopy(base["models"][INCUMBENT]),
-        "provider_id": NEW_FINGERPRINT["model_id"],
-        "evidence": {"kind": "run_state", "run": "somewhere/else"},
+    for model in ADDITIONS.values():
+        serving["models"][model] = {
+            **copy.deepcopy(base["models"][INCUMBENT]),
+            "provider_id": FINGERPRINTS[model]["model_id"],
+            "evidence": {"kind": "run_state", "run": "somewhere/else"},
+        }
+    serving["evidence_summary"] = {
+        "registry": len(base["models"]),
+        "run_state": len(ADDITIONS),
     }
-    serving["evidence_summary"] = {"registry": 47, "run_state": 1}
     serving["registry_commit"] = "the freezer's commit"
     destination.write_text(json.dumps(serving, indent=2, sort_keys=True) + "\n")
 
@@ -1766,7 +1816,7 @@ def _fake_freezer_main(calls: list, defects: set):
             manifest["committed_snapshot_artifacts"]["us_reference_outputs.csv"] = (
                 freezer.REFERENCE_PINS["reference_outputs.csv"]
             )
-        manifest["scope"]["models"] = 47 if "models_47" in defects else 48
+        manifest["scope"]["models"] = 49 if "models_49" in defects else 50
         manifest["model_response_date"] = window
         records = json.loads((run / EXCLUSIONS).read_text())["exclusions"]
         manifest["reference_exclusions"]["outputs"] = len(records)
@@ -1858,9 +1908,9 @@ def test_a_dry_run_of_a_releasable_stage_writes_nothing(frozen_board, capsys):
     assert workspace_files() == before
     assert frozen_board.calls == []
     out = capsys.readouterr().out
-    assert f"Validated local release inputs: {driver.RELEASE_TAG}, 48 models" in out
-    assert "58 exclusions (0 new)" in out
-    assert f"model responses {WINDOW}; snapshot 2026-10-13; nothing written" in out
+    assert f"Validated local release inputs: {driver.RELEASE_TAG}, 50 models" in out
+    assert "49 exclusions (0 new)" in out
+    assert f"model responses {WINDOW}; snapshot 2026-10-14; nothing written" in out
 
 
 def _live_version(versions: dict) -> dict:
@@ -1874,7 +1924,7 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     amendments record, the serving rows, and the release's predictions
     asset."""
     stage = frozen_board.stage
-    payload = stage / "data-board48.json"
+    payload = stage / "data-board50.json"
     release.main(["--stage-dir", str(stage)])
     assert f"Built {driver.RELEASE_TAG} locally" in capsys.readouterr().out
     root = release.ROOT
@@ -1897,10 +1947,10 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     versions = json.loads((root / release.VERSIONS).read_text())
     previous = json.loads(base_blob(Path(release.VERSIONS)))
     live = _live_version(versions)
-    assert live["snapshotLabel"] == "Snapshot 2026-10-13"
-    assert live["description"].endswith(" - 48 models")
+    assert live["snapshotLabel"] == "Snapshot 2026-10-14"
+    assert live["description"].endswith(" - 50 models")
     assert (
-        "the 58 excluded outputs keep the values they were decided on: 38 from "
+        "the 49 excluded outputs keep the values they were decided on: 29 from "
         "policyengine-us 1.755.4, 18 from 2.15.17, 2 from 2.38.6" in live["description"]
     )
     others = [v for v in versions["versions"] if v is not live]
@@ -1908,7 +1958,7 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     # The frozen run: release 20261013b's references and the release's record.
     frozen = root / FROZEN_RUN
     assert (frozen / EXCLUSIONS).read_text() == release_exclusions_text()
-    assert len(json.loads((frozen / EXCLUSIONS).read_text())["exclusions"]) == 58
+    assert len(json.loads((frozen / EXCLUSIONS).read_text())["exclusions"]) == 49
     for name in release.PINNED_REFERENCES:
         assert (frozen / name).read_bytes() == base_blob(FROZEN_RUN / name)
     # The annotations: the staged record and CSVs, and the amendments record.
@@ -1940,25 +1990,26 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
     assert (annotations / AMENDMENTS_RECORD).read_bytes() == base_blob(
         ANNOTATIONS_DIR / AMENDMENTS_RECORD
     )
-    # The serving rows: release 20261013b's, and Gemini 4 Argon's run state.
+    # The serving rows: release 20261013b's, and each addition's run state.
     serving = json.loads(
         (root / SNAPSHOT_DIR / "model_serving_config.json").read_text()
     )
     previous_serving = json.loads(base_blob(SNAPSHOT_DIR / "model_serving_config.json"))
     for model, row in previous_serving["models"].items():
         assert serving["models"][model] == row
-    assert serving["models"][NEW]["evidence"] == {
-        "kind": "run_state",
-        "run": f"{RUNS[SLUG]}",
-    }
+    for slug, model in ADDITIONS.items():
+        assert serving["models"][model]["evidence"] == {
+            "kind": "run_state",
+            "run": f"{RUNS[slug]}",
+        }
     assert serving["evidence_summary"] == {
         "registry": previous_serving["evidence_summary"]["registry"],
-        "run_state": previous_serving["evidence_summary"]["run_state"] + 1,
+        "run_state": previous_serving["evidence_summary"]["run_state"] + len(ADDITIONS),
     }
     assert serving["registry_commit"] == "f" * 40
     # The freezer read the stage, as configured.
     [configured] = frozen_board.calls
-    assert configured["SNAPSHOT_DATE"] == "2026-10-13"
+    assert configured["SNAPSHOT_DATE"] == "2026-10-14"
     assert configured["SOURCE_RUN"] == stage / BUNDLE
     assert configured["SOURCE_US"] == stage / BUNDLE / "us"
     assert configured["SOURCE_ANNOTATIONS"] == staged_annotations
@@ -1970,7 +2021,8 @@ def test_the_freeze_writes_the_release(frozen_board, capsys):
         key: pointer[key] for key in ("tag", "asset", "url", "sha256", "bytes")
     }
     assert configured["RUN_STATE_EVIDENCE"] == {
-        NEW: str(stage / "inputs" / SLUG / "run_state.json")
+        model: str(stage / "inputs" / slug / "run_state.json")
+        for slug, model in ADDITIONS.items()
     }
     assert configured["AUDIT_CASES_DIR"] == stage / "audit/cases"
     assert frozen_board.checked == [[]]
@@ -2001,7 +2053,7 @@ def test_freezing_twice_writes_the_same_files(frozen_board):
         ("outside", r"changes outside the release: \['population_weight_artifact"),
         ("pinned_reference", r"outside the release: \['source_run_artifacts\..*"),
         ("explanations_pin", f"outside the release.*files.{EXPLANATIONS}"),
-        ("models_47", "does not state the release.*'scope.models': 47"),
+        ("models_49", "does not state the release.*'scope.models': 49"),
         ("window", "does not state the release.*model_response_date"),
     ],
 )
@@ -2077,19 +2129,19 @@ def test_verify_frozen_checks_what_the_freezer_wrote(frozen_board, defect, messa
     stage = frozen_board.stage
     release.main(["--stage-dir", str(stage)])
     annotations = release.ROOT / ANNOTATIONS_DIR
-    window, snapshot_date = WINDOW, "2026-10-13"
+    window, snapshot_date = WINDOW, "2026-10-14"
     if defect == "extra_file":
         (annotations / "notes.txt").write_text("Left behind.\n")
     elif defect == "named_wave":
         text = (annotations / ADJUDICATIONS).read_text()
-        named = text.replace(" or 2026-10-10)", ", 2026-10-10 or 2026-10-13)", 1)
+        named = text.replace(" or 2026-10-10)", ", 2026-10-10 or 2026-10-14)", 1)
         assert named != text
         for path in (annotations, stage / BUNDLE / "annotations"):
             (path / ADJUDICATIONS).write_text(named)
     elif defect == "other_window":
         window = "2026-06-12 to 2026-10-09"
     else:
-        snapshot_date = "2026-10-14"
+        snapshot_date = "2026-10-15"
     pointer = json.loads((release.ROOT / release.POINTER).read_text())
     serving = json.loads(base_blob(SNAPSHOT_DIR / "model_serving_config.json"))
     arguments = dict(
@@ -2104,7 +2156,7 @@ def test_verify_frozen_checks_what_the_freezer_wrote(frozen_board, defect, messa
         snapshot_date=snapshot_date,
         previous_serving=serving,
         incumbents=set(serving["models"]),
-        runs={SLUG: f"{RUNS[SLUG]}"},
+        runs=dict(RUNS),
     )
     with pytest.raises(SystemExit, match=message):
         release.verify_frozen(**arguments)
@@ -2203,7 +2255,7 @@ def test_the_version_description_counts_the_releases_exclusions():
     live, before = _live_version(out), _live_version(versions)
     # The record is release 20261013b's, so only the model count moves.
     assert live["description"] == (
-        before["description"].replace(" - 47 models", " - 48 models")
+        before["description"].replace(" - 48 models", " - 50 models")
     )
     assert live["snapshotLabel"] == "Snapshot 2026-10-09"
     assert {
@@ -2216,7 +2268,7 @@ def test_the_version_description_counts_the_releases_exclusions():
     day=st.dates(
         min_value=datetime.date(2026, 1, 1), max_value=datetime.date(2030, 12, 31)
     ),
-    drop=st.integers(min_value=0, max_value=57),
+    drop=st.integers(min_value=0, max_value=48),
 )
 def test_release_versions_changes_nothing_when_applied_twice(day, drop):
     """For any snapshot date and any record of both engines, the second
@@ -2231,7 +2283,7 @@ def test_release_versions_changes_nothing_when_applied_twice(day, drop):
     for got, had in zip(once["versions"], versions["versions"], strict=True):
         if had["id"] == versions["default"]:
             assert got["snapshotLabel"] == f"Snapshot {day.isoformat()}"
-            assert got["description"].endswith(" - 48 models")
+            assert got["description"].endswith(" - 50 models")
             assert f"the {len(records)} excluded outputs" in got["description"]
             got = {**got, "description": None, "snapshotLabel": None}
             had = {**had, "description": None, "snapshotLabel": None}
@@ -2252,14 +2304,14 @@ def test_release_versions_refuses_an_unexpected_version_list(defect):
         records = [*records, {**records[0], "engine_version": "policyengine-us 3"}]
         message = "counts exclusions decided on"
     else:
-        live["description"] = live["description"].replace(" - 47 models", "")
+        live["description"] = live["description"].replace(" - 48 models", "")
         message = "unexpected model-count shape"
     with pytest.raises(SystemExit, match=message):
         release.release_versions(versions, records, "2026-10-09")
 
 
 def test_the_pointer_names_the_release_asset(tmp_path):
-    payload = tmp_path / "data-board48.json"
+    payload = tmp_path / "data-board50.json"
     payload.write_text('{"countries": {}}')
     tag = driver.RELEASE_TAG
     pointer = release.release_pointer(tag, payload, "a" * 64)
@@ -2530,12 +2582,12 @@ def _verify(ruled, rejudged=frozenset(), amendments=()):
 
 def test_the_staged_record_passes_the_record_gate(ruled):
     """The spec rules nothing: the record adjudicate-exclusions writes is
-    release 20261013b's, byte for byte, and it excludes the release's 58."""
+    release 20261013b's, byte for byte, and it excludes the release's 49."""
     assert ruled.staged.read_bytes() == base_blob(ADJUDICATIONS_PATH)
     assert _verify(ruled) == 0
     from policybench.adjudications import excluded_case_keys, load_adjudications
 
-    assert len(excluded_case_keys(load_adjudications(ruled.staged))) == 58
+    assert len(excluded_case_keys(load_adjudications(ruled.staged))) == 49
 
 
 def test_the_record_must_exclude_what_the_staged_record_lists(ruled):
@@ -2563,9 +2615,8 @@ def test_triage_may_add_a_decision_that_keeps_the_output_scored(ruled):
         _verify(ruled, rejudged={_case(added)})
     _bind_current_verdict(ruled.cases, added)
     assert _verify(ruled, rejudged={_case(added)}) == 1
-    # A decision on a case Gemini 4 Argon did not re-open has no reason to
-    # appear.
-    with pytest.raises(SystemExit, match="did not re-open"):
+    # A decision on a case no new model re-opened has no reason to appear.
+    with pytest.raises(SystemExit, match="no new model re-opened"):
         _verify(ruled)
 
 
@@ -2697,11 +2748,12 @@ def test_bytes_the_entry_gate_cannot_see_are_refused(ruled, spec, defect):
     elif defect == "compact":
         text = json.dumps(record)
     elif defect == "named_wave":
-        # An engine upgrade's wave, which this stage did not install.
-        spec["upgrade_adjudications_written_on"] = mock_builds.MOCK_DATE
+        # A wave this release does not decide (MOCK day): the conventions may
+        # not name it, and only an engine upgrade could add one.
+        spec["upgrade_adjudications_written_on"] = "2026-10-14"
         record["date_conventions"] = driver.release_date_conventions(
             base["date_conventions"],
-            driver.DecisionWave(mock_builds.MOCK_DATE, excludes=True, affirms=False),
+            driver.DecisionWave("2026-10-14", excludes=True, affirms=False),
         )
         assert record["date_conventions"] != base["date_conventions"]
         text = driver.record_text(record)
