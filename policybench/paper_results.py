@@ -3265,6 +3265,15 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gemini-3.8-flash": "2026-09-02",
     # blog.google/products/gemini/gemini-3-7-flash (2026-08-13)
     "gemini-3.7-flash": "2026-08-13",
+    # ai.google.dev/gemini-api/docs/changelog ("October 13, 2026": Gemini 4
+    # Argon, gemini-4-argon, generally available) and blog.google/
+    # innovation-and-ai/models-and-research/gemini-models/
+    # introducing-gemini-4-argon (2026-10-13: the paid tier of the Gemini
+    # API, and Google AI Pro and Ultra subscribers in the Gemini app), both
+    # read 2026-10-13. Google announced the model on 2026-09-30 for Fairwind
+    # Program cyber partners only (techcrunch.com 2026-09-30); that day is
+    # excluded under the public-availability rule.
+    "gemini-4-argon": "2026-10-13",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17

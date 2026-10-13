@@ -72,6 +72,13 @@ MODELS = {
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3.8-flash": "gemini/gemini-3.8-flash",
     "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",
+    # Gemini 4 Argon. Google announced it on 2026-09-30 for Fairwind Program
+    # cyber partners only and opened it to the public on 2026-10-13, when the
+    # Gemini API changelog lists gemini-4-argon as generally available
+    # (ai.google.dev/gemini-api/docs/changelog, read 2026-10-13). It runs on
+    # the first-party Gemini API like the other Gemini rows. The id is the
+    # model page's one stable version; Google lists no dated snapshot.
+    "gemini-4-argon": "gemini/gemini-4-argon",
     # Cloaked OpenRouter preview listed 2026-08-20 (free window); Z.ai later
     # identified it as GLM-5.3-Flash. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
@@ -196,6 +203,17 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "gemini-3.8-flash": {"input": 0.75, "output": 3.75},
     # gemini-3.5-flash-lite: $0.30 / $2.50 per 1M (Google list, 2026-09-03).
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
+    # gemini-4-argon: $2 / $10 per 1M input/output tokens (output includes
+    # thinking tokens) and $0.10 cached input, the standard-tier rates Google
+    # lists "through November 30, 2026"; from 2026-12-01 they double to
+    # $4 / $20 and $0.20 (ai.google.dev/gemini-api/docs/pricing, last updated
+    # and read 2026-10-13). The row is priced at the rate in force on its run
+    # day, as gemini-3.7-flash and gemini-3.8-flash are at their dated
+    # introductory rates. The page lists one rate at every prompt length and
+    # implicit caching only. litellm's remote price map carries the same
+    # three rates (read 2026-10-13); the override keeps the row priced if the
+    # map is unavailable or changes on 2026-12-01.
+    "gemini-4-argon": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
     "glm-5.3": {"input": 1.40, "output": 4.40},
     # deepseek dated snapshots via OpenRouter (list prices 2026-09-03).

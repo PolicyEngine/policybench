@@ -448,6 +448,82 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "whole-scenario (622 completion tokens)."
         ),
     ),
+    # Every field below comes from the 2026-10-13 onboarding record in
+    # ~/reviews/policybench-gemini-4-argon/{probes,onboard,smoke,board-run}
+    # (the reasoning probes, the output-limit probe, the gauntlet report, the
+    # two-scenario smoke, and the forced and tool_choice auto 100-household
+    # runs' comparison):
+    # - answer_contract "tool": the Gemini API accepts a forced function call
+    #   on this model (litellm sends mode ANY with allowed_function_names),
+    #   and the gauntlet passed on it, so the row takes the board's forced
+    #   answer tool, as Gemini 3.6, 3.7 and 3.8 Flash do.
+    # - explanation_chunk_size None: 16/16 on the canonical whole-scenario
+    #   request (chunking is closed to new models anyway).
+    # - thinking_budget True: the model reasons by default (Google's guide
+    #   gives a default thinking_level of medium), so it is in the
+    #   thinking-default class and takes that class's 300s timeout. The
+    #   16,384-token starting budget is the Gemini family's.
+    # - request_timeout_seconds None: the class default; the slowest of 87
+    #   harness-path probe calls took 41s, and the slowest board household
+    #   took 53s in the first board run and 47s in the second.
+    # - provider_max_completion_tokens 32_768. Google's pages disagree: the
+    #   Gemini 4 Argon guide for generateContent says "One non-streaming
+    #   request returns up to 32,768 tokens" (64K per stream), and the
+    #   Models API's outputTokenLimit is 32,768 (models-get-gemini-4-argon
+    #   .json in the onboarding record, read 2026-10-13); the model page
+    #   lists 65,536 as "default synchronous". litellm makes one
+    #   non-streaming REST request, so the card follows the guide; 32,768 is
+    #   the safe value either way.
+    # - expected_cost_per_scenario_usd 0.032: the gauntlet's full-scenario
+    #   probe at $2/$10 per 1M.
+    "gemini/gemini-4-argon": ModelCard(
+        litellm_id="gemini/gemini-4-argon",
+        answer_contract="tool",
+        thinking_budget=True,
+        provider_max_completion_tokens=32_768,
+        expected_cost_per_scenario_usd=0.032,
+        notes=(
+            "Onboarded 2026-10-13, the day Google opened the model to the "
+            "public (the Gemini API changelog lists gemini-4-argon as "
+            "generally available that day; the 2026-09-30 launch was limited "
+            "to Fairwind Program cyber partners). The Gemini API accepts a "
+            "forced function call on this model, so the row takes the "
+            "board's forced answer tool: the gauntlet, run with no card, "
+            "passed 3/3 (442 completion tokens, 5s) and 16/16 whole-scenario "
+            "(2,619 tokens, 24s) on the tool contract, about $0.032 per "
+            "scenario at $2/$10 per 1M. The harness sends no thinkingConfig, "
+            "and Google's guide gives a default thinking_level of medium. "
+            "The model decides call by call whether to think. A forced tool "
+            "does not switch its reasoning off, and no statistically "
+            "significant reduction in how often it reasons was detected. Over "
+            "the 100 board households a first forced-tool board run returned "
+            "reasoning tokens on 80 and a tool_choice auto run on 82 (Fisher "
+            "exact p = 0.86; 70 households reasoned in both runs, 10 only "
+            "when forced, 12 only under auto, 8 in neither), so the row has no "
+            "tool_choice auto sensitivity run; the second board run, below, "
+            "reasoned on 85. Earlier probes agree: on the "
+            "board's own request for 13 households (29 calls a shape) the "
+            "forced tool returned reasoning tokens on 20 calls, auto on 25 and "
+            "the JSON contract on 22 (forced against auto, p = 0.21), and all "
+            "87 calls parsed every output; on a one-question probe (10 calls a "
+            "shape) it returned thought tokens on 6 forced calls, 7 auto, 5 "
+            "with mode ANY and no named function, and none with no tools or "
+            "with a JSON response type. The first board run answered all 100 "
+            "households in one request each, 1,984/1,984 parsed, with no "
+            "budget escalation, for $2.77 (a median of 20s and about 2,030 "
+            "completion tokens per household, at most 6,374 against the "
+            "16,384-token starting budget). It ran with a 65,536-token "
+            "escalation ceiling, the model page's figure, but Google's "
+            "generateContent guide and the Models API give 32,768 for one "
+            "non-streaming request, which is what the harness sends, so the "
+            "board row is a second run on this card: all 100 households in one "
+            "request each, 1,984/1,984 parsed, no budget escalation, $2.79, "
+            "reasoning tokens on 85 households (a median of 22s and about "
+            "1,990 completion tokens per household, at most 47s and 4,872). "
+            "Requests asking for up to 131,072 tokens returned 200, which "
+            "shows only that the parameter is accepted."
+        ),
+    ),
     "openrouter/z-ai/glm-5.3": ModelCard(
         litellm_id="openrouter/z-ai/glm-5.3",
         answer_contract="tool",
