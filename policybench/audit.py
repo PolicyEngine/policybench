@@ -49,6 +49,12 @@ from policybench.spec import metric_type_for_output
 # is a parse failure, not a substantive error.
 MISSING_VALUE = "missing"
 
+# Which wrong models a judged case needs with no value before its case note may
+# say parse_contract_failure (decision d1514): "any" keeps the judge's label
+# while at least one of them returned no value; "all" keeps it only when every
+# one did, which no judged case has (collect_audit classifies those itself).
+CASE_PARSE_FAILURE_NEEDS_MISSING = "any"
+
 
 @dataclass(frozen=True)
 class WrongModel:
@@ -658,6 +664,23 @@ def _row_failure_source(meta: dict, model: str, requested_source: str) -> str:
     return source
 
 
+def _case_failure_source(meta: dict, case_source: str) -> str:
+    """Keep a judged case's parse-contract label to cases with missing values.
+
+    ``case_source`` is the judge's case class after collect_audit's
+    budget-exhaustion check. Like a row, a case note says parse_contract_failure
+    only when its wrong models returned no value: at least one of them, or all
+    of them, as :data:`CASE_PARSE_FAILURE_NEEDS_MISSING` says.
+    """
+    if case_source != "parse_contract_failure":
+        return case_source
+    missing_models = set(meta.get("missing_models", []))
+    needs = {"any": any, "all": all}[CASE_PARSE_FAILURE_NEEDS_MISSING]
+    if needs(model in missing_models for model in meta.get("wrong_models", [])):
+        return case_source
+    return "llm_error"
+
+
 def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]:
     """Fold verdicts into the annotation schema.
 
@@ -782,7 +805,9 @@ def collect_audit(country_dir: Path, audit_dir: Path) -> dict[str, pd.DataFrame]
                 "scenario_id": meta["scenario_id"],
                 "variable": meta["variable"],
                 "wrong_model_count": len(meta["wrong_models"]),
-                "case_failure_source": case_source,
+                # Only the case note: a row the verdict leaves unlabelled
+                # still falls back to the judge's case class above.
+                "case_failure_source": _case_failure_source(meta, case_source),
                 "case_failure_subtype": case_subtype,
                 "reference_suspect": reference_suspect,
                 "reference_bug_hypothesis": str(
