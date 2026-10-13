@@ -233,7 +233,12 @@ def test_the_audit_harness_builds_the_same_situations():
 @pytest.mark.slow
 def test_dropping_the_structured_interest_moves_no_reference(monkeypatch):
     """On the pinned engine every output of the 11 households is the same with
-    the tax-unit interest inputs passed and without them."""
+    the tax-unit interest inputs passed and without them; an engine that no
+    longer defines them (policyengine-us 2.41.0, after the structured mortgage
+    inputs were removed) refuses them, so dropping them is what lets the
+    households run there."""
+    from policyengine_us.system import system
+
     import policybench.scenarios as scenarios_module
     from policybench.ground_truth import calculate_ground_truth
 
@@ -251,6 +256,13 @@ def test_dropping_the_structured_interest_moves_no_reference(monkeypatch):
         "first_home_mortgage_interest"
         in (carriers[0].to_pe_household()["tax_units"]["tax_unit"])
     )
+    names = PE_DROPPED_INPUTS["tax_unit"]
+    defined = {name for name in names if name in system.variables}
+    if not defined:
+        with pytest.raises(Exception, match="first_home_mortgage_interest"):
+            calculate_ground_truth(carriers, programs=meta["programs"], year=2026)
+        return
+    assert defined == names
     passed = calculate_ground_truth(carriers, programs=meta["programs"], year=2026)
     pd.testing.assert_frame_equal(dropped, passed, check_exact=True)
 

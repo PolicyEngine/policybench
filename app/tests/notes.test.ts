@@ -79,17 +79,52 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 6 one", () => {
+  test("the newest note is the frozen release's, ahead of the October 10 one", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toContain("claude-haiku-5-5-joins-the-board");
+    expect(notes[0].slug).toContain("muse-wonder-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
-    expect(notes[1].slug).toBe(
+    // The October 10 note keeps its own release and board snapshot.
+    expect(notes[1].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[1].release).toBe("dashboard-data-20261010");
+    expect(notes[1].boardSnapshot).toBe("2026-10-10");
+    expect(notes[2].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
-    expect(notes[1].release).toBe("dashboard-data-20261006");
-    expect(notes[1].boardSnapshot).toBe("2026-09-30");
+  });
+
+  test("the Muse Wonder note renders its figures", () => {
+    const note = notes[0];
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "Meta&#x27;s Muse Wonder joined the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models.",
+    );
+    // Board rates keep one decimal.
+    expect(markup).toContain("It gets 90.1% of answers within $1");
+    expect(markup).toContain("#10 of 48");
+    expect(markup).toContain("it ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
+    expect(markup).toContain(
+      "GPT-6 Sol still leads on answers within $1 at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
+    );
+    expect(markup).toContain("so Muse Wonder Full is not on the board");
+    expect(markup).toContain("from policyengine-us 2.38.6 to 2.41.0");
+    expect(markup).toContain(
+      "Every model is now scored on 1,936 of its 1,984 requested outputs; PolicyBench excludes the other 48.",
+    );
+    // Falls are not board rates, so they keep their two decimals; counts
+    // under ten are words.
+    expect(markup).toContain("falls, by 0.23 to 0.46 points");
+    expect(markup).toContain(
+      "half of them are answered within $1 by at most one of the 48 models, and four by none. Muse Wonder answers one of them within $1.",
+    );
+    expect(markup).toContain('href="/model/muse-wonder"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261013"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
   test("a words placeholder spells out whole numbers under ten", () => {

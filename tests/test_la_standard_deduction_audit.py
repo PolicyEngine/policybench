@@ -133,6 +133,9 @@ def test_scoring_moves_exact_match_for_exactly_the_models_that_match():
     models = pd.read_csv(VERIFICATION / "leaderboard_impact_models.csv")
     published = json.loads(gzip.decompress((RUN / "data.json.gz").read_bytes()))
     predictions = published["scenarioPredictions"]
+    # The audit scored the board it reviewed; rows a later release added
+    # (Claude Haiku 5.5, Muse Wonder) are outside it.
+    audited = set(models["model"])
     for option in ("keep", "ldr_published", "ldr_official", "hold_2025"):
         values = summary["reference_values"][option]
         matched = set()
@@ -141,7 +144,8 @@ def test_scoring_moves_exact_match_for_exactly_the_models_that_match():
             within = sorted(
                 model
                 for model, row in predictions[sid][variable].items()
-                if row.get("prediction") is not None
+                if model in audited
+                and row.get("prediction") is not None
                 and abs(float(row["prediction"]) - reference) <= 1.0
             )
             assert within == summary["options"][option]["exact_models"][key]

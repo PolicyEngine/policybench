@@ -657,16 +657,16 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # below full bounded score 9,599, llm_error 6,883, parse failures 644).
     expected_audit_counts = {
         "us": {
-            "annotated": 8_001,
-            "exact_misses": 7_997,
-            "annotated_exact_misses": 7_997,
+            "annotated": 8_550,
+            "exact_misses": 8_546,
+            "annotated_exact_misses": 8_546,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 10_139,
-            "unannotated_below_full_bounded_score": 2_138,
+            "below_full_bounded_score": 10_768,
+            "unannotated_below_full_bounded_score": 2_218,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_342, "parse_contract_failure": 659},
+        "us": {"llm_error": 7_880, "parse_contract_failure": 670},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

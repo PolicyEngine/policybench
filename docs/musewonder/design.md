@@ -25,7 +25,7 @@ The engine upgrade's builder, actions, evidence and narratives are in `reference
 | Requested outputs per model | 1,984 | 1,984 | 1,984 |
 | Exclusions | 58: 42 unlisted inputs, 14 engine defects, 2 later-published law | 58, the same records | 48: 42 unlisted inputs, 4 engine defects, 2 later-published law |
 | Scored outputs per model | 1,926 | 1,926 | 1,936 |
-| Adjudications | 70, of which 58 exclude | 70, the same decisions | 60 before triage, of which 48 exclude |
+| Adjudications | 70, of which 58 exclude | 70, the same decisions | 60, of which 48 exclude |
 
 The build removes the ten records it regenerates and drops their decisions, as release 20261010's did; it adds none. Each of the ten regenerated records has exactly one decision in release 20261010's record, which `adjudicate-exclusions` drops; triage may add a decision only on a re-opened case.
 
@@ -68,12 +68,11 @@ PR #210 made the judge template versioned. `prepare_audit` keeps a verdict on th
 
 **Provider.** Meta's own Model API serves the model as `muse-wonder-1.0`, but PolicyBench holds no Meta key. OpenRouter lists `meta/muse-wonder` with a single endpoint, whose provider is Meta, serving `meta/muse-wonder-20261012`. So the board calls Meta's model through OpenRouter, as it calls Kimi, GLM, Qwen, MiniMax and Inkling. The card and the config record the route. The price is OpenRouter's list price, $4 per million input tokens and $20 per million output (cache read $0.20).
 
-**Pending.** The card PR (#216) waits on access: every OpenRouter call to `meta/muse-wonder` returns HTTP 403 until the account confirms the age attestation OpenRouter requires for this model (d1445). Then, in order:
+**The card (#216, merged).** Access opened once Max confirmed OpenRouter's age attestation for the model (d1445, 2026-10-13). Meta's API accepts `tool_choice` "auto" only: a forced (named-function) or "required" tool choice returns a 400, so the card selects the JSON contract, as Claude Opus 5.5's and Claude Sonnet 5.5's do. A request with no reasoning parameter reasons at the provider default, with or without tools, so the row reasons on the JSON contract and needs no `tool_choice` auto sensitivity run. The gauntlet passed 3/3 and 16/16 on the JSON contract once the card gave the reasoning budget (16,384 tokens shared across up to 16 variables); without it the 3-variable probe stopped at the token limit.
 
-1. the reasoning probes (plain, forced tool, `tool_choice` auto, required), as `sensitivity/claude-thinking-2026-08.md` did for Claude, recorded on the card;
-2. the card's `answer_contract`: a forced answer tool unless the provider rejects it;
-3. the onboarding gauntlet and the board run on the frozen 100-household manifest with a budget cap set from the probes' token counts;
-4. the `tool_choice` auto sensitivity run, if forcing the tool suppresses reasoning.
+**The board run.** All 100 households and 1,984 answers, every one parsed, from 02:50 to 03:01 UTC on 2026-10-13, for $7.86 at OpenRouter's prices (the frozen `analysis/usage_summary.csv`; the run's files are pinned in `input_pins.json`). OpenRouter reports the resolved model as `meta/muse-wonder`, so `prepare` compares the route's full id (`resolved_model_id`).
+
+**Judging.** The run re-opened 151 cases, all rendered on judge template v2 and judged by Claude Opus 5.5: 113 on Subfleet lane claude-10 (Fleet ops' loan of 2026-10-13: serial calls, five-hour usage read after each, stopped at 85%) and 38 on the pb-judge login (`judge_provenance.json`).
 
 ## The engine upgrade
 
@@ -106,6 +105,12 @@ A `record` target is the exclusion record's alternative value. A `fix_modules` t
 
 **DecisionWave.** Release 20261010's driver dated every triage decision by its ruled 2026-10-06 wave. This release rules nothing, so a triage decision (a developer affirming a reference the upgrade changed, which a re-judged verdict flagged) is dated by the engine upgrade's revision day. The upgrade's day is named as a wave in the date conventions whenever the upgrade decides anything, a new exclusion or a triage affirmation (`decision_wave`, `release_date_conventions`), with the day its decisions were written (`upgrade_adjudications_written_on`). With no decision, the conventions stay release 20261010's.
 
+**scenario_080 (SNAP).** Its 2026-09-22 record noted that the heat-and-eat allowance would stand ($3,576) were the household's disabled head a member 7 U.S.C. 2012(j) counts as disabled, and excluded the output on either reading. The prompt states none of the routes 2012(j) lists and tells the reader to treat unlisted statuses as false and not to infer benefit receipt, and 2.41.0 places the head's Medicaid in the adult group. So the reference takes the non-disabled path, as the card's disability convention has every disabled person's references do, and the output is scored at the record's corrected value, $3,240. The upgrade audit's README, the card and the paper say so.
+
+**The publication check.** At 09:39 UTC on 2026-10-13 PyPI's newest release was 2.41.1; `sweep_timing.py check` re-swept every output on it (`verification/publication_check_2_41_1.csv`), and all 1,984 equal 2.41.0's. policyengine-us main at `2f3053c845` (pyproject 2.41.2, with the AMT child exemption and Vermont renter credit fixes queued to publish) also gives 2.41.0's value for every output (`~/reviews/policybench-muse-wonder/engine-check`). If a newer release publishes before the merge, run the check again and re-render.
+
+**Two October moves in the paper.** The paper's engine-upgrade accessors describe the last upgrade. `PaperResults.upgrade_view("2.38.6")` gives the same accessors for the 2026-10-10 move, so the paper keeps a paragraph and a discrepancy-table row for each move (`october_upgrade_row`). The restored-fix phrase now names a cause a fix-modules target's modules correct beyond the record's (scenario_099's educator expense addback), and joins two outputs whose causes nest under the same pull requests (the two Wisconsin outputs of #10026); release 20261010's phrase is unchanged. With no exclusion resting on a defect 2.41.0 still has, the abstract, the September audit paragraph and the limitations say so instead of printing a zero (`abstract_exclusion_sentence`, `engine_defect_unfixed_sentence`, `engine_defect_limitation_lead`).
+
 **Builder notes.** A sidecar keeps every upgrade's revision. `scripts/freeze_snapshot.py` accepts both later builders' notes (`UPGRADE_BUILDERS`): the 2026-10-10 upgrade's and this one's. Both pin the same inherited setup (the 2026-09-29 conventions, composer and adapter, `latest_final.py` and the sales-tax table).
 
 ## Open decisions checked before the freeze
@@ -116,4 +121,4 @@ A `record` target is the exclusion record's alternative value. A `fix_modules` t
 | d1263 (rate schedule against the Tax Table) | open | none: federal references keep the section 1 rate schedule |
 | d1441 (add Muse Spark 1.3 in this release) | open | not added without Max's yes |
 
-Check `cos decisions --all` again before freezing and apply any ruling.
+Checked again on 2026-10-13 at 10:10 UTC, before the final freeze: all three still open, so nothing changes.

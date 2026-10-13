@@ -33,6 +33,18 @@ The exclusion record falls from 58 records to 48, so each model is scored on 1,9
 Each of the seven pull requests is an ancestor of 2.41.0's release commit, de3815f4cc. The
 published wheel's 1,984 computed outputs are identical to a first pass on that commit.
 
+scenario_080's 2026-09-22 record also noted that the heat-and-eat allowance would stand ($3,576)
+were the household's disabled head a member 7 U.S.C. 2012(j) counts as disabled, and excluded the
+output on either reading. Its prompt states none of the routes 2012(j) lists (SSI, Social Security
+disability benefits and the rest), and tells the reader to treat any unlisted status as false and
+not to infer benefit receipt; policyengine-us 2.41.0 places the head's Medicaid in the adult group,
+not a disability pathway (`medicaid_category` ADULT). So the reference takes the non-disabled path,
+as the benchmark card's disability convention has every disabled person's references do, and the
+output returns to scoring at the record's corrected value, $3,240.
+
+Before publication, PolicyBench re-swept every output on 2.41.1, the newest release when it checked
+PyPI (`verification/publication_check_2_41_1.csv`): all 1,984 are identical to 2.41.0's.
+
 ## Files
 
 - `final_actions.json`: the reviewed actions the build ran on. Its sha256, `2bd0ce83…`, is the

@@ -75,9 +75,16 @@ RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 # defect the new engine fixes but whose reference rests on another one.
 FURTHER_DEFECT = "rests on a further engine defect"
 
-# The October 2026 engine move's audit: its builder, and the timing record and
-# publication check scripts/sweep_timing.py writes there.
-OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
+# The October 2026 engine moves' audits, oldest first: each holds its builder,
+# its fix-module evidence, and the timing record and publication check
+# scripts/sweep_timing.py writes there. The timing accessors read the newest
+# one, whose builder made the last upgrade (the 2026-10-12 audit moved the
+# references from 2.38.6 to 2.41.0, after the 2026-10-09 audit's move to 2.38.6).
+OCTOBER_UPGRADE_AUDITS = (
+    "reference_audit/2026-10-09-engine-upgrade",
+    "reference_audit/2026-10-12-engine-upgrade",
+)
+OCTOBER_UPGRADE_AUDIT = OCTOBER_UPGRADE_AUDITS[-1]
 OCTOBER_SWEEP_TIMING = (
     ROOT / OCTOBER_UPGRADE_AUDIT / "verification" / "sweep_timing.json"
 )
@@ -105,7 +112,8 @@ ROOT_CAUSE_LABELS = {
     ),
     "r07_idaho_health_premiums": "Idaho's subtraction for health insurance premiums",
     "r08_eitc_earned_income_deferrals": (
-        "elective deferrals in the earned income behind the EITC"
+        "elective deferrals in the earned income behind the EITC and the "
+        "refundable child tax credit"
     ),
     "r11_ca_itemized_conformity": "California's itemized deduction conformity",
     "r22_ma_part_a_loss_offset": "Massachusetts's Part A capital loss offset",
@@ -113,7 +121,17 @@ ROOT_CAUSE_LABELS = {
     "r32_wi_capital_gain_distributions": (
         "Wisconsin's capital gain subtraction for distributions"
     ),
+    # The 2026-10-12 audit's own fix module (not the 2026-09-22 audit's r33,
+    # the Michigan child support cause): California adds back the federal
+    # educator expense deduction (policyengine-us#10052).
+    "r33_ca_educator_expense_addback": "California's educator expense addback",
 }
+# A fix module's file names the root cause it corrects: the cause, then an
+# optional revision suffix (r02_ira_219g_v2.py corrects r02_ira_219g). A stem
+# that is neither a named root cause nor an audit cause (rNN_...) is a
+# convention or helper module, not a cause.
+FIX_MODULE_STEM = re.compile(r"^(?P<stem>.+?)(?:_v\d+)?\.py$")
+AUDIT_CAUSE = re.compile(r"^r\d+_")
 # The same for the cause of a scored reference an upgrade changes.
 CHANGE_CAUSE_LABELS = {
     "id_permanent_building_fund_tax": (
@@ -609,6 +627,7 @@ MODEL_DISPLAY_NAMES = {
     "qwen-3.7-max": "Qwen3.7-max",
     "qwen3.8-max": "Qwen3.8-Max",
     "inkling": "Inkling",
+    "muse-wonder": "Muse Wonder",
     "grok-build-0.1": "Grok Build 0.1",
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",
@@ -710,10 +729,17 @@ class PaperResults:
     the manuscript prose.
     """
 
+    def __init__(self, snapshot_dir: Path | None = None):
+        """``snapshot_dir`` reads another tree's paper/snapshot/20260501 (a
+        superseded release's snapshot from git, in the note tests); the
+        annotations, audits and sensitivity summaries still come from this
+        checkout."""
+        self.snapshot_dir = SNAPSHOT_DIR if snapshot_dir is None else snapshot_dir
+
     # ----- raw artifact loaders ------------------------------------------
     @cached_property
     def manifest(self) -> dict:
-        return json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+        return json.loads((self.snapshot_dir / "manifest.json").read_text())
 
     @cached_property
     def us_run_label(self) -> str:
@@ -721,15 +747,15 @@ class PaperResults:
 
     @cached_property
     def dashboard(self) -> dict:
-        return read_run_payload(SNAPSHOT_DIR / "runs" / self.us_run_label)
+        return read_run_payload(self.snapshot_dir / "runs" / self.us_run_label)
 
     @cached_property
     def serving_config(self) -> dict:
-        return json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+        return json.loads((self.snapshot_dir / "model_serving_config.json").read_text())
 
     @cached_property
     def reference_meta(self) -> dict:
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         return meta["policyengine_bundles"]["us"]
 
@@ -737,7 +763,7 @@ class PaperResults:
     def sample_bundle(self) -> dict:
         """Runtime metadata of the scenario draw: the certified dataset build
         the benchmark households were sampled from."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "scenarios.csv.meta.json").read_text())
         return meta["policyengine_bundles"]["us"]
 
@@ -800,7 +826,7 @@ class PaperResults:
     def reference_exclusions(self) -> list[dict]:
         """Outputs removed from scoring for every model (frozen record)."""
         return load_reference_exclusions(
-            SNAPSHOT_DIR / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
+            self.snapshot_dir / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
         )
 
     @cached_property
@@ -1087,7 +1113,7 @@ class PaperResults:
 
     def _benchmark_people(self) -> list[dict]:
         """Every person in the frozen US scenarios, with their prompt inputs."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         scenarios = pd.read_csv(run_dir / "scenarios.csv")
         people = []
         for text in scenarios["scenario_json"]:
@@ -1227,7 +1253,7 @@ class PaperResults:
         and some parse failures never captured one; the manuscript states the
         preservation rule with these exceptions rather than as absolute.
         """
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         frame = pd.read_csv(
             run_dir / "predictions.csv.gz", usecols=["model", "raw_response"]
         )
@@ -1276,7 +1302,7 @@ class PaperResults:
         as they are from every published score)."""
         from policybench.reference_exclusions import scored_reference_for
 
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         scored, _ = scored_reference_for(run_dir / "reference_outputs.csv")
         return [float(value) for value in scored["value"]]
 
@@ -1310,7 +1336,7 @@ class PaperResults:
         from policybench.reference_exclusions import scored_reference_for
         from policybench.spec import get_output_ids, output_group_id
 
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         # The scored reference: excluded outputs are out of the baseline as
         # they are out of every model's score.
         ground_truth, _ = scored_reference_for(run_dir / "reference_outputs.csv")
@@ -1711,7 +1737,7 @@ class PaperResults:
     @cached_property
     def reference_revisions(self) -> list[dict]:
         """Revisions recorded in the frozen reference sidecar (oldest first)."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         return meta.get("revisions", [])
 
@@ -1734,7 +1760,7 @@ class PaperResults:
     @cached_property
     def frozen_references(self) -> dict[tuple[str, str], float]:
         """The frozen reference for every output, scored or excluded."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         frozen = pd.read_csv(run_dir / "reference_outputs.csv")
         return {
             (row.scenario_id, row.variable): float(row.value)
@@ -1953,21 +1979,50 @@ class PaperResults:
         each one's name, how many outputs it restores and the upstream pull
         requests its regenerated_exclusions entries name (not the related
         ones), in the sidecar's order. A record with several root causes names
-        each."""
+        each, and so does a fix-modules target whose modules correct a cause
+        the record does not name (scenario_099's educator expense addback,
+        policyengine-us#10052). Outputs whose causes are the same or one
+        within the other, under the same pull requests, are one fix (the two
+        Wisconsin outputs of #10026); other outputs with the same causes are
+        one fix too, with the union of their pull requests."""
         last = self.last_engine_upgrade
-        fixes: dict[str, tuple[int, list[str]]] = {}
+        groups: list[dict] = []
         for entry in [] if last is None else last.revision["regenerated_exclusions"]:
             causes = entry["record"]["root_cause"].split("+")
+            if entry["target"]["kind"] == "fix_modules":
+                for module in entry["target"]["modules"]:
+                    match = FIX_MODULE_STEM.match(module["module"])
+                    stem = match.group("stem") if match else ""
+                    named = stem in ROOT_CAUSE_LABELS or AUDIT_CAUSE.match(stem)
+                    if named and stem not in causes:
+                        causes.append(stem)
             unnamed = [c for c in causes if c not in ROOT_CAUSE_LABELS]
             if unnamed:
                 raise ValueError(f"no paper name for the root causes {unnamed}")
-            label = " and ".join(ROOT_CAUSE_LABELS[c] for c in causes)
             prs = UPSTREAM_PR.findall(entry["upstream"].split("; related")[0])
             if not prs:
                 raise ValueError(f"{_key(entry)} names no upstream pull request")
-            count, known = fixes.get(label, (0, []))
-            fixes[label] = (count + 1, known + [p for p in prs if p not in known])
-        return [(label, count, prs) for label, (count, prs) in fixes.items()]
+            for group in groups:
+                same = group["causes"] == causes
+                nested = set(group["prs"]) == set(prs) and (
+                    set(causes) <= set(group["causes"])
+                    or set(group["causes"]) <= set(causes)
+                )
+                if same or nested:
+                    group["causes"] += [c for c in causes if c not in group["causes"]]
+                    group["prs"] += [p for p in prs if p not in group["prs"]]
+                    group["count"] += 1
+                    break
+            else:
+                groups.append({"causes": causes, "prs": prs, "count": 1})
+        return [
+            (
+                _series([ROOT_CAUSE_LABELS[c] for c in group["causes"]]),
+                group["count"],
+                group["prs"],
+            )
+            for group in groups
+        ]
 
     @property
     def engine_upgrade_restored_fix_phrase(self) -> str:
@@ -1987,6 +2042,47 @@ class PaperResults:
         if not phrase:
             return ""
         return f"The restored outputs take the upstream fixes for {phrase}."
+
+    @property
+    def engine_upgrade_audit_dir(self) -> str:
+        """The audit folder whose builder made the last upgrade, as its
+        sidecar revision names the builder (``<audit>/scripts/...``)."""
+        last = self.last_engine_upgrade
+        builder = "" if last is None else str(last.revision.get("builder", ""))
+        head = builder.split(";")[0].strip()
+        if "/scripts/" not in head:
+            raise ValueError(f"the last upgrade's builder names no audit: {builder!r}")
+        return head.split("/scripts/")[0]
+
+    @property
+    def engine_upgrade_change_summary_sentence(self) -> str:
+        """What the last upgrade did to the scored references and to scoring:
+        the scored references it moved beyond and within the dollar tolerance,
+        and the outputs it removed from scoring."""
+        beyond = self.engine_upgrade_scored_change_count
+        within = self.engine_upgrade_within_tolerance_count
+        removed = self.engine_upgrade_new_exclusion_count
+        if not (beyond or within or removed):
+            return (
+                "The move changes no scored reference, by any amount, and removes "
+                "no output from scoring."
+            )
+        references = "reference" if beyond == 1 else "references"
+        outputs = "output" if removed == 1 else "outputs"
+        return (
+            f"The move changes {count_word(beyond)} scored {references} beyond the "
+            f"dollar tolerance and {within} within it, and removes "
+            f"{count_word(removed)} {outputs} from scoring."
+        )
+
+    def upgrade_view(self, version: str) -> "PaperResults":
+        """These accessors as of the engine upgrade to ``version``: a view of
+        the same snapshot whose last_engine_upgrade is that move, so the
+        engine_upgrade_* sentences describe it (the paper's paragraph and
+        table row on an earlier October move). Accessors that read the
+        current exclusion record or engine still describe the current
+        snapshot."""
+        return _UpgradeView(self.snapshot_dir, self.engine_upgrade_to(version))
 
     @property
     def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
@@ -2700,12 +2796,18 @@ class PaperResults:
 
     @cached_property
     def upgrade_fix_evidence(self) -> dict[tuple[str, str], list[float]]:
-        """Per output, the corrected values the October audit's committed
-        fix-module evidence gives (reference_audit/2026-10-09-engine-upgrade/
-        evidence): each on an engine that still has the defect, kept only where
-        the modules moved the output beyond the exact-match tolerance there."""
+        """Per output, the corrected values the October audits' committed
+        fix-module evidence gives (each audit's evidence/ folder,
+        OCTOBER_UPGRADE_AUDITS): each on an engine that still has the defect,
+        kept only where the modules moved the output beyond the exact-match
+        tolerance there."""
         found: dict[tuple[str, str], list[float]] = {}
-        for path in sorted((ROOT / OCTOBER_UPGRADE_AUDIT / "evidence").glob("*.json")):
+        paths = [
+            path
+            for audit in OCTOBER_UPGRADE_AUDITS
+            for path in sorted((ROOT / audit / "evidence").glob("*.json"))
+        ]
+        for path in paths:
             doc = json.loads(path.read_text())
             if doc.get("kind") != "regeneration_evidence":
                 continue
@@ -2818,6 +2920,71 @@ class PaperResults:
             if _key(item) in self.engine_defect_further_defect_keys
         }
         return self.engine_defect_unfixed_root_cause_count + len(reasons)
+
+    @property
+    def engine_defect_unfixed_sentence(self) -> str:
+        """Whether the reference engine still has the recorded defects behind
+        the engine-defect exclusions; empty when there are none."""
+        if not self.engine_defect_exclusion_count:
+            return ""
+        version = self.policyengine_us_version
+        unfixed = self.engine_defect_unfixed_count
+        if not unfixed:
+            return (
+                f"policyengine-us {version} no longer has the recorded defect "
+                "behind any of them."
+            )
+        return (
+            f"policyengine-us {version} still has the defect behind {unfixed} of "
+            f"them, across {self.engine_defect_unfixed_root_cause_count} root causes."
+        )
+
+    @property
+    def abstract_exclusion_sentence(self) -> str:
+        """The abstract's account of what PolicyBench excludes from scoring:
+        the outputs resting on engine defects the reference engine still has
+        (when any do), on an input the prompt does not state, and on an amount
+        a state published after the freeze."""
+        present = self.engine_defect_present_count
+        unstated = self.unstated_input_exclusion_total
+        later = self.later_law_exclusion_count_word
+        lead = "PolicyBench excludes from scoring, for every model, the "
+        if present:
+            return (
+                f"{lead}{present} outputs whose references rest on engine defects "
+                f"the audits found and upstream has not fixed, the {unstated} whose "
+                "references depend on an input the prompt does not state, and "
+                f"{later} whose references rest on an amount a state published "
+                "after the freeze."
+            )
+        return (
+            f"{lead}{unstated} outputs whose references depend on an input the "
+            f"prompt does not state and the {later} whose references rest on an "
+            "amount a state published after the freeze. No excluded output rests "
+            "on an engine defect the audits found that policyengine-us "
+            f"{self.policyengine_us_version} still has."
+        )
+
+    @property
+    def engine_defect_limitation_lead(self) -> str:
+        """The limitations list's lead on reference-engine defects."""
+        present = self.engine_defect_present_count
+        if present:
+            return (
+                f"the reference engine carries known defects: {present} outputs, "
+                "recorded as engine-defect exclusions, rest on "
+                f"{self.engine_defect_present_root_cause_count} root causes that "
+                "the audits found in policyengine-us "
+                f"{self.september_upgrade.previous_engine_version} or later "
+                f"releases and that {self.policyengine_us_version} does not fix, "
+                "and are excluded until a reference version built on a fixed "
+                "engine restores them"
+            )
+        return (
+            "the reference engine can carry defects the audits have not found: "
+            f"policyengine-us {self.policyengine_us_version} no longer has any "
+            "defect the audits recorded behind an excluded output"
+        )
 
     @property
     def unstated_input_exclusion_total(self) -> int:
@@ -2965,6 +3132,20 @@ class PaperResults:
 
 # Module-level singleton, imported by the paper as ``from
 # policybench.paper_results import r``.
+
+
+class _UpgradeView(PaperResults):
+    """PaperResults whose last engine upgrade is a given one (upgrade_view)."""
+
+    def __init__(self, snapshot_dir: Path, upgrade: EngineUpgrade):
+        super().__init__(snapshot_dir)
+        self._upgrade = upgrade
+
+    @property
+    def last_engine_upgrade(self) -> EngineUpgrade:
+        return self._upgrade
+
+
 r = PaperResults()
 
 

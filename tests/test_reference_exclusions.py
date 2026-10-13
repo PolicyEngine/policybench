@@ -168,23 +168,21 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     # move to policyengine-us 2.38.6 regenerated the outputs whose defects
     # that release fixes, the four 2026-10-06 defects and 14 2026-09-22
     # engine-defect records, and excluded two Indiana county income tax
-    # outputs it moves onto a county no prompt states.
-    assert len(exclusions) == 58
-    sidecar = json.loads((RUN_DIR / "reference_outputs.csv.meta.json").read_text())
-    upgrade_day = [
-        r["date"] for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"
-    ][-1]
+    # outputs it moves onto a county no prompt states. The 2026-10-13 move to
+    # policyengine-us 2.41.0 regenerated ten more 2026-09-22 engine-defect
+    # records and excluded nothing new.
+    assert len(exclusions) == 48
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
         {
-            "reference_engine_defect": 14,
+            "reference_engine_defect": 4,
             "reference_depends_on_unlisted_input": 42,
             "reference_law_published_after_freeze": 2,
         }
     )
     assert Counter(e["engine_version"] for e in exclusions) == Counter(
         {
-            "policyengine-us 1.755.4": 38,
+            "policyengine-us 1.755.4": 28,
             "policyengine-us 2.15.17": 18,
             "policyengine-us 2.38.6": 2,
         }
@@ -192,11 +190,11 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     assert Counter(e["decided_on"] for e in exclusions) == Counter(
         {
             "2026-09-05": 11,
-            "2026-09-22": 27,
+            "2026-09-22": 17,
             "2026-09-29": 4,
             "2026-10-05": 8,
             "2026-10-06": 6,
-            upgrade_day: 2,
+            "2026-10-10": 2,
         }
     )
     inputs = {
