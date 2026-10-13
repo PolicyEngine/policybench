@@ -466,15 +466,19 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # - request_timeout_seconds None: the class default; the slowest of 87
     #   harness-path probe calls took 41s and the board run's slowest
     #   household 53s.
-    # - provider_max_completion_tokens 65_536: the model page's synchronous
-    #   maximum output.
+    # - provider_max_completion_tokens 32_768: the most one non-streaming
+    #   generateContent request returns ("One non-streaming request returns
+    #   up to 32,768 tokens", Google's Gemini 4 Argon guide, read 2026-10-13;
+    #   the Models API's outputTokenLimit says the same). The model page's
+    #   65,536 is the streaming and SDK figure: the SDKs continue across
+    #   requests, but litellm makes one REST request, which stops at 32,768.
     # - expected_cost_per_scenario_usd 0.032: the gauntlet's full-scenario
     #   probe at $2/$10 per 1M.
     "gemini/gemini-4-argon": ModelCard(
         litellm_id="gemini/gemini-4-argon",
         answer_contract="tool",
         thinking_budget=True,
-        provider_max_completion_tokens=65_536,
+        provider_max_completion_tokens=32_768,
         expected_cost_per_scenario_usd=0.032,
         notes=(
             "Onboarded 2026-10-13, the day Google opened the model to the "
@@ -487,26 +491,30 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "(2,619 tokens, 24s) on the tool contract, about $0.032 per "
             "scenario at $2/$10 per 1M. The harness sends no thinkingConfig, "
             "and Google's guide gives a default thinking_level of medium. "
-            "The model decides call by call whether to think, and a forced "
-            "tool does not suppress it. Over the 100 board households the "
-            "forced-tool board run returned reasoning tokens on 80 and a "
-            "tool_choice auto run on 82 (Fisher exact p = 0.86; 70 households "
-            "reasoned in both runs, 10 only when forced, 12 only under auto, "
-            "8 in neither), so the row has no tool_choice auto sensitivity "
-            "run. Earlier probes agree: on the board's own request for 13 "
-            "households (29 calls a shape) the forced tool returned reasoning "
-            "tokens on 20 calls, auto on 25 and the JSON contract on 22 "
-            "(forced against auto, p = 0.21), and all 87 calls parsed every "
-            "output; on a one-question probe (10 calls a shape) it returned "
-            "thought tokens on 6 forced calls, 7 auto, 5 with mode ANY and no "
-            "named function, and none with no tools or with a JSON response "
-            "type. The board run answered all 100 households in one request "
-            "each, 1,984/1,984 parsed, with no budget escalation, for $2.77 "
-            "(a median of 20s and about 2,030 completion tokens per household, "
-            "at most 6,374 against the 16,384-token starting budget). The Models API "
-            "lists an output limit of 32,768 tokens and the model page a "
-            "synchronous maximum of 65,536; requests asking for up to 131,072 "
-            "returned 200."
+            "The model decides call by call whether to think. A forced tool "
+            "does not switch its reasoning off, and no statistically "
+            "significant reduction in how often it reasons was detected. Over "
+            "the 100 board households a first forced-tool board run returned "
+            "reasoning tokens on 80 and a tool_choice auto run on 82 (Fisher "
+            "exact p = 0.86; 70 households reasoned in both runs, 10 only "
+            "when forced, 12 only under auto, 8 in neither), so the row has no "
+            "tool_choice auto sensitivity run. Earlier probes agree: on the "
+            "board's own request for 13 households (29 calls a shape) the "
+            "forced tool returned reasoning tokens on 20 calls, auto on 25 and "
+            "the JSON contract on 22 (forced against auto, p = 0.21), and all "
+            "87 calls parsed every output; on a one-question probe (10 calls a "
+            "shape) it returned thought tokens on 6 forced calls, 7 auto, 5 "
+            "with mode ANY and no named function, and none with no tools or "
+            "with a JSON response type. The first board run answered all 100 "
+            "households in one request each, 1,984/1,984 parsed, with no "
+            "budget escalation, for $2.77 (a median of 20s and about 2,030 "
+            "completion tokens per household, at most 6,374 against the "
+            "16,384-token starting budget). It ran with a 65,536-token "
+            "escalation ceiling, the model page's figure, which one "
+            "non-streaming request cannot reach (32,768, above), so the board "
+            "row is a second run on this card. The Models API and the request "
+            "limit agree on 32,768; requests asking for up to 131,072 returned "
+            "200, which shows only that the parameter is accepted."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(
