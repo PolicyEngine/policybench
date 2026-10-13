@@ -3345,6 +3345,11 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # released alongside it, is limited to Muse Code subscriptions and has
     # no API, so the board cannot run it.
     "muse-wonder": "2026-10-12",
+    # research.meta.ai/blog/introducing-muse-spark-1-3 (2026-09-02: "available
+    # today in Muse Code and in Meta Model API"); datanorth.ai 2026-09-03;
+    # OpenRouter lists meta/muse-spark-1.3 from 2026-09-02. Proprietary: no
+    # weights.
+    "muse-spark-1.3": "2026-09-02",
     # openrouter.ai/stealth/ox-alpha ("released on August 20, 2026" as a
     # stealth preview; the 2026-09-01 table carried 08-21 from the listing's
     # first observed day). After the row's run Z.ai identified the preview as
