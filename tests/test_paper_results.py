@@ -81,6 +81,15 @@ def test_muse_wonder_release_date_is_recorded():
     assert MODEL_RELEASE_DATES["muse-wonder"] == "2026-10-12"
 
 
+def test_gemini_4_argon_release_date_is_its_public_day():
+    """Google announced Gemini 4 Argon on 2026-09-30 for Fairwind Program
+    cyber partners only (TechCrunch, that day) and opened it to the public on
+    2026-10-13 (the Gemini API changelog's general-availability entry and
+    Google's launch post, both that day). The partner-only day is excluded
+    under the public-availability rule, as GPT-6 Astra's is."""
+    assert MODEL_RELEASE_DATES["gemini-4-argon"] == "2026-10-13"
+
+
 def test_app_release_dates_mirror_the_paper_registry():
     """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
     update both together); every runnable model has a date, and the two

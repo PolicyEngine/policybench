@@ -69,6 +69,7 @@ EXPECTED = {
     "openrouter/deepseek/deepseek-v4-flash-0731": ("tool", None, 2400, 98_304),
     "openrouter/z-ai/glm-5.3": ("tool", None, 2400, 16_384),
     "openrouter/meta/muse-wonder": ("json", None, 300, 16_384),
+    "gemini/gemini-4-argon": ("tool", None, 300, 16_384),
 }
 
 
@@ -151,6 +152,7 @@ def test_provider_max_clamps_initial_completion_budget(monkeypatch):
         ("gemini/gemini-3.5-flash", 65_535),
         ("gemini/gemini-3-flash-preview", 65_535),
         ("gemini/gemini-3.6-flash", 65_536),
+        ("gemini/gemini-4-argon", 65_536),
     ],
 )
 def test_roster_model_provider_maximums_limit_escalation(model_id, expected):

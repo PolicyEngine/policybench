@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from policybench.config import (
     COUNTRY_PROGRAMS,
@@ -3122,6 +3124,115 @@ def test_muse_wonder_override_reconstructs_token_costs(
 
     assert reconstructed.usd == pytest.approx(expected)
     assert reconstructed.is_estimated is False
+
+
+def test_gemini_4_argon_runs_first_party_at_googles_dated_rate():
+    """Gemini 4 Argon runs on the first-party Gemini API, like the other
+    Gemini rows, at the rate Google's pricing page lists through 2026-11-30:
+    $2 / $10 per 1M input/output tokens and $0.10 cached input, at every
+    prompt length (the page doubles all three from 2026-12-01)."""
+    assert MODELS["gemini-4-argon"] == "gemini/gemini-4-argon"
+    assert PRICE_OVERRIDES_PER_1M["gemini-4-argon"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.10,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 2.0),
+        (0, 1_000_000, 0, 10.0),
+        (1_000_000, 1_000_000, 0, 12.0),
+        (1_000_000, 0, 1_000_000, 0.10),
+        (1_000_000, 0, 250_000, 1.525),
+        # The gauntlet's whole-scenario probe used 2,619 completion tokens
+        # (reasoning included); the same request's prompt is 2,762 tokens in
+        # the harness probe. That is the card's $0.032.
+        (2_762, 2_619, 0, 0.031714),
+    ],
+)
+def test_gemini_4_argon_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="gemini-4-argon",
+        model_id="gemini/gemini-4-argon",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+@given(
+    prompt_tokens=st.integers(min_value=0, max_value=1_048_576),
+    completion_tokens=st.integers(min_value=0, max_value=131_072),
+    cached_share=st.floats(min_value=0.0, max_value=1.0),
+)
+def test_gemini_4_argon_cost_is_linear_in_tokens_and_bounded_by_the_cache_rates(
+    prompt_tokens, completion_tokens, cached_share
+):
+    """Invariants of the override's reconstruction: the cost is the sum of
+    uncached input at $2, cached input at $0.10 and output at $10 per 1M; it
+    is never negative; and it lies between the all-cached and the uncached
+    cost of the same call."""
+    cached = int(prompt_tokens * cached_share)
+
+    def cost(cached_prompt_tokens):
+        return _reconstruct_token_cost(
+            model_name="gemini-4-argon",
+            model_id="gemini/gemini-4-argon",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+        ).usd
+
+    expected = (
+        (prompt_tokens - cached) * 2.0 + cached * 0.10 + completion_tokens * 10.0
+    ) / 1_000_000
+    assert cost(cached) == pytest.approx(expected, abs=1e-12)
+    assert cost(cached) >= 0
+    assert cost(prompt_tokens) - 1e-12 <= cost(cached) <= cost(0) + 1e-12
+
+
+def test_gemini_4_argon_request_forces_the_answer_tool_and_sets_no_reasoning(
+    mini_scenario,
+):
+    """The Gemini API accepts a forced function call on Gemini 4 Argon, so
+    its card selects the board's forced answer tool (the older Gemini rows
+    answer as JSON by the family default). The request carries no reasoning
+    parameter: the model reasons at Google's default. It takes the
+    thinking-default class's 300s timeout and the Gemini family's
+    16,384-token starting budget."""
+    from policybench.eval_no_tools import (
+        ANSWER_FUNCTION_NAME,
+        _answer_contract_for_model,
+        _chat_completion_request_kwargs,
+    )
+
+    model_id = "gemini/gemini-4-argon"
+    assert _answer_contract_for_model(model_id, env={}) == "tool"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 300
+
+    _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "function": {"name": ANSWER_FUNCTION_NAME},
+    }
+    assert [tool["function"]["name"] for tool in kwargs["tools"]] == [
+        ANSWER_FUNCTION_NAME
+    ]
+    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["timeout"] == 300
+    assert "response_format" not in kwargs
+    for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
+        assert reasoning_key not in kwargs
 
 
 def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
