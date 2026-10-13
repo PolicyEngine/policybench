@@ -169,6 +169,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "qwen-3.7-max": "2026-05-19",
   "qwen3.8-max": "2026-08-03",
   inkling: "2026-07-15",
+  "muse-wonder": "2026-10-12",
 };
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {

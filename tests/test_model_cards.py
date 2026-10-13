@@ -68,6 +68,7 @@ EXPECTED = {
     "openrouter/deepseek/deepseek-v4-pro-0813": ("tool", None, 2400, 98_304),
     "openrouter/deepseek/deepseek-v4-flash-0731": ("tool", None, 2400, 98_304),
     "openrouter/z-ai/glm-5.3": ("tool", None, 2400, 16_384),
+    "openrouter/meta/muse-wonder": ("json", None, 300, 16_384),
 }
 
 
