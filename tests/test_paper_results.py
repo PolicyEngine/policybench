@@ -2145,6 +2145,14 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     )
     sentence = r.engine_defect_fixed_kept_sentence
     assert f"policyengine-us {r.policyengine_us_version} computes" in sentence
+    from policybench.paper_results import count_word
+
+    kept = r.engine_defect_fixed_kept_count
+    if kept > 1 and kept == r.engine_defect_exclusion_count:
+        # Every engine-defect record is fixed but kept: "all five", not a subset.
+        assert f"computes all {count_word(kept)} at" in sentence
+    elif kept > 1:
+        assert f"computes {count_word(kept)} of them at" in sentence
     paper = (ROOT / "paper/index.qmd").read_text()
     # Both sentences render inside engine_defect_class_sentence, which is never
     # empty, so an empty one never shows as code (final review finding 4).

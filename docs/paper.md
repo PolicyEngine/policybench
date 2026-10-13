@@ -77,8 +77,9 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   depends on an input the prompt never states, or rests on an amount published
   after the reference freeze (49 in this snapshot, five of them engine-defect
   records whose defect policyengine-us 2.41.0 fixes but which also move under an
-  input the prompt does not state; 1,935 of 1,984 outputs per model are scored), the file's hash, and the tallies by
-  unlisted input and by engine-defect root cause.
+  input the prompt does not state; 1,935 of 1,984 outputs per model are scored),
+  the file's hash, and the tallies by unlisted input and by engine-defect root
+  cause.
 - `reproducibility_notes`, covering model-alias instability and what is not
   retained locally (LiteLLM cache, since it is a generated request cache)
 
