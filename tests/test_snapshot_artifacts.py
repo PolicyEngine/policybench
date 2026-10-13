@@ -657,16 +657,16 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # below full bounded score 9,599, llm_error 6,883, parse failures 644).
     expected_audit_counts = {
         "us": {
-            "annotated": 8_001,
-            "exact_misses": 7_997,
-            "annotated_exact_misses": 7_997,
+            "annotated": 8_503,
+            "exact_misses": 8_499,
+            "annotated_exact_misses": 8_499,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 10_139,
-            "unannotated_below_full_bounded_score": 2_138,
+            "below_full_bounded_score": 10_721,
+            "unannotated_below_full_bounded_score": 2_218,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_342, "parse_contract_failure": 659},
+        "us": {"llm_error": 7_834, "parse_contract_failure": 669},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -921,7 +921,7 @@ def test_manifest_names_the_build_the_households_came_from():
     modules = {entry["module"] for entry in upgrade["fix_modules"]}
     conventions = {m for m in modules if m.startswith("latest_c_")}
     base_modules = {"latest_conventions.py", "latest_md_local_output_scope.py"}
-    if upgrade["builder"] == freeze_snapshot.UPGRADE_BUILDER:
+    if upgrade["builder"] in freeze_snapshot.UPGRADE_BUILDERS:
         assert modules - conventions == base_modules | (
             freeze_snapshot.UPGRADE_SUPPORT_MODULES
         )
@@ -1330,7 +1330,7 @@ def test_the_published_upgrades_pins_are_their_committed_bytes():
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
     upgrades = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
     for index, upgrade in enumerate(upgrades):
-        inherits = upgrade.get("builder") == freeze_snapshot.UPGRADE_BUILDER
+        inherits = upgrade.get("builder") in freeze_snapshot.UPGRADE_BUILDERS
         freeze_snapshot.verify_fix_module_pins(
             upgrade["fix_modules"], upgrades[:index] if inherits else []
         )

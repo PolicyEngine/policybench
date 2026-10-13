@@ -1505,13 +1505,19 @@ UPGRADE_MODULE_PATHS = {
         "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
     ),
 }
-UPGRADE_BUILDER = (
-    "reference_audit/2026-10-09-engine-upgrade/scripts/"
+# Each later builder's note, oldest first: the 2026-10-10 upgrade's, then the
+# 2026-10-12 one's. Both build households as the 2026-09-29 upgrade did and pin
+# the same inherited setup; a sidecar keeps every upgrade's revision, so each
+# note must still read as a later builder's.
+UPGRADE_BUILDERS = tuple(
+    f"reference_audit/{folder}/scripts/"
     "build_references_upgrade.py; households from "
     "policybench.scenarios.Scenario.to_pe_household through "
     "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
     "2026-09-29 upgrade"
+    for folder in ("2026-10-09-engine-upgrade", "2026-10-12-engine-upgrade")
 )
+UPGRADE_BUILDER = UPGRADE_BUILDERS[-1]
 
 
 def read_reference_engine_setup() -> dict[str, int]:
@@ -1561,7 +1567,7 @@ def read_reference_engine_setup() -> dict[str, int]:
     if not isinstance(builder, str):
         raise SystemExit("the engine_upgrade builder note must be a string")
     inherited_builder = (
-        builder == UPGRADE_BUILDER
+        builder in UPGRADE_BUILDERS
         and set(others) == expected | UPGRADE_SUPPORT_MODULES
         and any(
             isinstance(previous.get("builder"), str)
@@ -1653,7 +1659,8 @@ AUDIT_FIXES_DIR = "reference_audit/2026-09-22/fixes"
 def verify_regeneration_target_pins(upgrade: dict) -> None:
     """Each regenerated output held to the audit's fix modules publishes the
     bytes that ran: every module and sibling its target pins is the file
-    committed under AUDIT_FIXES_DIR, and its evidence file is the committed
+    committed under AUDIT_FIXES_DIR (or at the path it names, in an upgrade
+    audit's own fixes/), and its evidence file is the committed
     one. The builder and driver check this before the install; the freeze
     checks what the published sidecar says."""
     for entry in upgrade.get("regenerated_exclusions", []):
@@ -1665,7 +1672,19 @@ def verify_regeneration_target_pins(upgrade: dict) -> None:
         if not target.get("modules"):
             raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
         for item in pins:
-            path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            # A module an upgrade audit adds after 2026-09-22 names its own
+            # path, in that audit's fixes/ (the 2026-10-12 builder's
+            # fix_location); every other module is under AUDIT_FIXES_DIR.
+            path = item.get("path") or f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            if not re.fullmatch(
+                r"reference_audit/[0-9a-z-]+/fixes/"
+                + re.escape(str(item.get("module"))),
+                path,
+            ):
+                raise SystemExit(
+                    f"regenerated {key}: {item.get('module')} names path {path!r}, "
+                    "not an audit's fixes/ directory"
+                )
             committed = committed_sha256(path)
             if committed is None or item.get("sha256") != committed:
                 raise SystemExit(

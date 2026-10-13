@@ -276,11 +276,11 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # summarizeAuditUniverse recomputes the same counts from the payload
     # (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_001,
-        "exact_misses": 7_997,
-        "annotated_exact_misses": 7_997,
+        "annotated": 8_503,
+        "exact_misses": 8_499,
+        "annotated_exact_misses": 8_499,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_138,
+        "unannotated_below_full_bounded_score": 2_218,
     }
 
     for path in (
@@ -638,13 +638,24 @@ def _abstract_exclusion_sentence() -> str:
     )
     # The three groups are the whole exclusion record.
     assert sum(counts) == r.excluded_output_count
+    if counts[0]:
+        return (
+            "PolicyBench excludes from scoring, for every model, the "
+            f"{counts[0]} outputs whose references rest on engine defects the "
+            f"audits found and upstream has not fixed, the {counts[1]} whose "
+            "references depend on an input the prompt does not state, and "
+            f"{r.later_law_exclusion_count_word} whose references rest on an "
+            "amount a state published after the freeze."
+        )
+    # No engine-defect record rests on a defect the engine still has (release
+    # 20261013 on policyengine-us 2.41.0): the abstract says so.
     return (
         "PolicyBench excludes from scoring, for every model, the "
-        f"{counts[0]} outputs whose references rest on engine defects the audits "
-        f"found and upstream has not fixed, the {counts[1]} whose references "
-        "depend on an input the prompt does not state, and "
-        f"{r.later_law_exclusion_count_word} whose references rest on an amount a "
-        "state published after the freeze."
+        f"{counts[1]} outputs whose references depend on an input the prompt "
+        f"does not state and the {r.later_law_exclusion_count_word} whose "
+        "references rest on an amount a state published after the freeze. No "
+        "excluded output rests on an engine defect the audits found that "
+        f"policyengine-us {r.policyengine_us_version} still has."
     )
 
 
@@ -805,8 +816,10 @@ def test_newest_engine_claims_are_anchored_to_a_time():
             assert any(phrase in window for phrase in anchored), (path.name, window)
 
 
+# The timing record of the move to the current engine (the 2026-10-12 audit's;
+# the 2026-10-09 audit timed the move to 2.38.6 that preceded it).
 OCTOBER_TIMING = (
-    ROOT / "reference_audit/2026-10-09-engine-upgrade/verification/sweep_timing.json"
+    ROOT / "reference_audit/2026-10-12-engine-upgrade/verification/sweep_timing.json"
 )
 
 
@@ -892,7 +905,7 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
     # The move to the current engine: its sweep's timing record, checked last
     # so that a missing record does not hide the checks above.
     assert OCTOBER_TIMING.is_file(), (
-        "record the sweep with reference_audit/2026-10-09-engine-upgrade/scripts/"
+        "record the sweep with reference_audit/2026-10-12-engine-upgrade/scripts/"
         "sweep_timing.py and state its times in the card"
     )
     october = json.loads(OCTOBER_TIMING.read_text())
@@ -961,24 +974,54 @@ def test_card_counts_follow_the_frozen_records():
 
     r = PaperResults()
     card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
-    # The October move: what it restores, from where, and why.
-    restored, ruled = r.engine_upgrade_restored_count, r.ruled_regenerated_count
+    # The October 10 move to 2.38.6: what it restores, from where, and why.
+    v10 = r.upgrade_view("2.38.6")
+    restored, ruled = v10.engine_upgrade_restored_count, r.ruled_regenerated_count
+    assert ruled == v10.engine_upgrade_restored_ruled_count
     assert (
-        f"The new version fixes the defects behind {count_word(restored)} outputs. "
+        f"That version fixes the defects behind {count_word(restored)} outputs. "
         f"Release 20261006 excluded {count_word(restored - ruled)} of them, which "
         f"return to scoring; the other {count_word(ruled)} are the 2026-10-06 "
         "defects below, which stay scored."
     ) in card
-    october = card[card.index("PolicyBench moved the references again") :]
+    october_10 = card[card.index("On 2026-10-10 PolicyBench moved the references") :]
+    october_10 = october_10[: october_10.index("On 2026-10-13 PolicyBench moved")]
+    for label, _, prs in v10.engine_upgrade_restored_fixes:
+        assert label in october_10, label
+        assert all(f"#{pr}" in october_10 for pr in prs), (label, prs)
+    changed = v10.engine_upgrade_scored_change_count
+    noun = "reference" if changed == 1 else "references"
+    assert f"The move changes {count_word(changed)} scored {noun} beyond" in (
+        october_10
+    )
+    new = v10.engine_upgrade_new_exclusion_count
+    assert f"moves {count_word(new)} Indiana households' local income tax" in (
+        october_10
+    )
+    # The October 13 move to the current engine: it restores outputs earlier
+    # releases excluded, none of them still scored, and changes nothing else.
+    october = card[card.index("On 2026-10-13 PolicyBench moved the references") :]
     october = october[: october.index("## ")]
-    for label, _, prs in r.engine_upgrade_restored_fixes:
+    assert (
+        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
+        in (october)
+    )
+    assert r.engine_upgrade_restored_ruled_count == 0
+    assert (
+        "The new version fixes the defects behind "
+        f"{count_word(r.engine_upgrade_restored_count)} outputs. Earlier releases "
+        "excluded them, and they return to scoring."
+    ) in october
+    for label, count, prs in r.engine_upgrade_restored_fixes:
         assert label in october, label
         assert all(f"#{pr}" in october for pr in prs), (label, prs)
-    changed = r.engine_upgrade_scored_change_count
-    noun = "reference" if changed == 1 else "references"
-    assert f"The move changes {count_word(changed)} scored {noun} beyond" in october
-    new = r.engine_upgrade_new_exclusion_count
-    assert f"moves {count_word(new)} Indiana households' local income tax" in october
+        if count > 1:
+            assert f"{count_word(count)} outputs)" in october, label
+    assert r.engine_upgrade_change_summary_sentence == (
+        "The move changes no scored reference, by any amount, and removes no "
+        "output from scoring."
+    )
+    assert r.engine_upgrade_change_summary_sentence in october
     # The exclusion breakdown.
     assert (
         f"{_sentence_number(r.excluded_output_count)} outputs in "
@@ -989,19 +1032,30 @@ def test_card_counts_follow_the_frozen_records():
         f"Of those records, {r.engine_defect_exclusion_count} remain as "
         "engine-defect exclusions."
     ) in card
-    assert (
-        f"{_sentence_number(r.engine_defect_unfixed_count)} rest on the "
-        f"{count_word(r.engine_defect_unfixed_root_cause_count)} root causes "
-        f"policyengine-us {r.policyengine_us_version} does not fix"
-    ) in card
+    if r.engine_defect_unfixed_count:
+        assert (
+            f"{_sentence_number(r.engine_defect_unfixed_count)} rest on the "
+            f"{count_word(r.engine_defect_unfixed_root_cause_count)} root causes "
+            f"policyengine-us {r.policyengine_us_version} does not fix"
+        ) in card
+    else:
+        # policyengine-us 2.41.0 fixes every remaining record's defect; the
+        # card must not still name root causes it does not fix.
+        assert "root causes policyengine-us" not in card
+        assert r.engine_defect_fixed_kept_count == r.engine_defect_exclusion_count
     if r.engine_defect_fixed_kept_count:
         assert r.engine_defect_fixed_kept_sentence in card
-    if r.engine_defect_further_defect_count:
-        assert r.engine_defect_further_defect_sentence in card
     else:
         # No fixed-but-kept records: the card must not still claim one.
         assert "at its corrected value; it stays excluded" not in card
         assert "at their corrected values; they stay excluded" not in card
+    if r.engine_defect_further_defect_count:
+        assert r.engine_defect_further_defect_sentence in card
+    else:
+        # No record kept for a further defect: the card must not still claim
+        # one (release 20261013; 2.41.0 fixes the California one).
+        assert "corrected value, but its reference rests on a further" not in card
+        assert "corrected values, but each reference rests on a further" not in card
     # The root causes the card names as unfixed are ones the engine still has.
     unfixed = {
         cause
@@ -1011,10 +1065,13 @@ def test_card_counts_follow_the_frozen_records():
         not in r.engine_defect_fixed_kept_keys
         for cause in exclusion_basis(entry).split("+")
     }
-    named = card[card.index("does not fix (among them") :]
-    named = named[: named.index(").")]
-    listed = [cause for cause, label in ROOT_CAUSE_LABELS.items() if label in named]
-    assert listed and set(listed) <= unfixed, set(listed) - unfixed
+    if r.engine_defect_unfixed_count:
+        named = card[card.index("does not fix (among them") :]
+        named = named[: named.index(").")]
+        listed = [cause for cause, label in ROOT_CAUSE_LABELS.items() if label in named]
+        assert listed and set(listed) <= unfixed, set(listed) - unfixed
+    else:
+        assert "does not fix (among them" not in card
     assert (
         f"{_sentence_number(r.unlisted_input_exclusion_count)} depend on an input "
         "the prompt never states"
@@ -1054,7 +1111,7 @@ def test_json_transport_rows_are_attributed_as_their_cards_record():
             continue
         card = card_for(treatment["provider_id"])
         notes = card.notes if card is not None else ""
-        if re.search(r"reject|returns 400", notes, re.IGNORECASE):
+        if re.search(r"reject|returns (?:a )?400", notes, re.IGNORECASE):
             rejecting.append(model)
         elif card is not None and card.answer_contract == "json":
             card_choice.append(model)

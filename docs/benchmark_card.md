@@ -53,7 +53,7 @@ selects the tool transport, or the same fields returned as a JSON object where
 it selects JSON. For most JSON rows the card records that the provider rejects
 a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
 DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
-K3, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
+K3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
 select JSON without recording a rejection, and the older Gemini rows answer as
 JSON by the Gemini family default. The per-model transport is in the
 snapshot's `model_serving_config.json`.
@@ -68,15 +68,16 @@ be described as faithful reasoning traces.
 ## Reference outputs
 
 PolicyBench computes each scored US reference by running
-`policyengine_us.Simulation` from policyengine-us 2.38.6, the newest release
-when PolicyBench began sweeping the references on 2026-10-10 (uploaded 05:39
-UTC). policyengine-us 2.38.6 was still the newest release when PolicyBench
-checked PyPI on 2026-10-10 at 06:53 UTC. The 58 excluded outputs keep the
-values they were decided on (38 computed with policyengine-us 1.755.4, 18 with
-2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 17 of them that move on
-2.38.6; all 17 stay excluded. The manifest also records policyengine.py 6.1.2
-for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
-policyengine.py does not load beside 2.38.6.
+`policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
+when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
+UTC). policyengine-us 2.41.2, the newest release when PolicyBench checked PyPI
+on 2026-10-13 at 11:34 UTC, gives the same value as 2.41.0 for all 1,984
+outputs under the same conventions and adapter. The 49 excluded outputs keep
+the values they were decided on (29 computed with policyengine-us 1.755.4, 18
+with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that
+move on 2.41.0; all 12 stay excluded. The manifest also records policyengine.py
+6.1.2 for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
+policyengine.py does not load beside 2.41.0.
 
 A scored reference follows from the stated facts and from law published before
 PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
@@ -109,7 +110,7 @@ review behind each.
 
 On 2026-10-10 PolicyBench moved the references again, from 2.15.17 to 2.38.6, a
 release that fixes engine defects behind excluded outputs, and recomputed every
-output under the same conventions and adapter. The new version fixes the
+output under the same conventions and adapter. That version fixes the
 defects behind 18 outputs. Release 20261006 excluded 14 of them, which return to
 scoring; the other four are the 2026-10-06 defects below, which stay scored.
 Each lands within $1 of its audited corrected value, and the sidecar's
@@ -136,26 +137,54 @@ Schedule CA (540), Section C, line 11), which policyengine-us 2.38.6 still
 allows. `reference_audit/2026-10-09-engine-upgrade/` holds the builder, its
 evidence and the reviewed actions.
 
+On 2026-10-13 PolicyBench moved the references a third time, from 2.38.6 to
+2.41.0, the first release with every fix the previous move was waiting on, and
+recomputed every output under the same conventions and adapter. The new version
+fixes the defects behind nine outputs. Earlier releases excluded them, and they
+return to scoring. Each lands within $1 of its audited corrected value, and the
+sidecar's 2026-10-13 revision names the upstream fix behind it: Idaho's
+subtraction for health insurance premiums (#10023; two outputs), Wisconsin's
+retirement income exclusion before refundable credits and Wisconsin's capital
+gain subtraction for distributions (#10026; two outputs), the IRA deduction's
+active-participant phase-out, California's itemized deduction conformity and
+California's educator expense addback (#10032, #10034, #10052) and elective
+deferrals in the earned income behind the EITC and the refundable child tax
+credit (#10030; four outputs). For the two Idaho outputs, the audited value is
+the one the audit's fix modules give on 2.38.6, $10 above the record's, because
+policyengine-us counts Idaho's $10 permanent building fund tax from 2.38.6. For
+the California output, it is the value the fix modules give on 2.38.6 with the
+educator expense addback this audit added, the further defect the previous move
+found behind that output. The new version also fixes the heat-and-eat SNAP
+utility allowance (#10033), and a SNAP output it excluded lands on its corrected
+value, $3,240, but stays excluded: as the 2026-09-29 recheck found, the stated
+facts do not decide it. The prompt calls the head disabled but states no route
+by which 7 U.S.C. 2012(j) makes a member disabled (with one, the allowance would
+stand, at $3,576), and it does not say whether the household's $2,000 energy
+subsidy is a LIHEAP payment or a State-law payment, which 7 U.S.C. 2014(k)(4)
+treats differently. The move changes no scored reference, by any amount, and
+removes no output from scoring. `reference_audit/2026-10-12-engine-upgrade/` holds the
+builder, its evidence and the reviewed actions.
+
 ## Audit scope
 
-The frozen US annotations cover 8,001 scored rows selected because their
-legacy threshold score is below 1 (2,212 further annotated rows sit on the 58
+The frozen US annotations cover 8,503 scored rows selected because their
+legacy threshold score is below 1 (1,843 further annotated rows sit on the 49
 excluded outputs and are description, not audit). This audit universe contains
-7,997 of the snapshot's 7,997 exact-match misses and four exact hits. Another
-2,138 scored rows have a bounded score below 100 but fall outside the
+8,499 of the snapshot's 8,499 exact-match misses and four exact hits. Another
+2,218 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 269 cases, Claude Opus 5 through the Claude Code CLI for the 94 cases
+CLI for 269 cases, Claude Opus 5 through the Claude Code CLI for the 93 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 314 cases the September 22, September 29, September 30 and October 9
-additions joined or a reference revision changed; the
+5.5 for 315 cases the September 22, September 29, September 30, October 9 and
+October 13 additions joined or a reference revision changed; the
 manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
 Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-70: one for each excluded output, one for each flagged reference the
+61: one for each excluded output, one for each flagged reference the
 adjudication affirmed or replaced with a regenerated reference, and two for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
@@ -174,24 +203,17 @@ fixes on 1.755.4 to the 15 scored references they move; policyengine-us 2.15.17
 contains all eight, so the references now take them from the engine. An output
 one of them moves that an unfixed cause also moves stays excluded. The capital
 gain fix as first built also applied Wisconsin's capital gain exclusion to the
-distributions, which the upstream fix does not; that part is recorded as its
-own defect, not fixed upstream.
+distributions, which the upstream fix did not; that part was recorded as its
+own defect, which policyengine-us fixed later (#10026).
 
-Fifty-eight outputs in 42 households are excluded from scoring for every model
+Forty-nine outputs in 37 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
 output a defect not fixed upstream moved by more than a dollar. Of those
-records, 14 remain as engine-defect exclusions. Nine rest on the five root
-causes policyengine-us 2.38.6 does not fix (among them Idaho's subtraction for
-health insurance premiums, elective deferrals in the earned income behind the
-EITC, and the heat-and-eat SNAP utility allowance that P.L. 119-21 ended for
-households without an elderly or disabled member). policyengine-us 2.38.6
-computes four of them at their corrected values; they stay excluded because
-each also moves under an input the prompt does not state. policyengine-us
-2.38.6 computes one more at its recorded corrected value, but its reference
-rests on a further engine defect, found on 2.38.6 and not fixed there, so it
-stays excluded. An output such a defect moves that was
+records, 5 remain as engine-defect exclusions. policyengine-us 2.41.0 computes
+all five at their corrected values; they stay excluded because each also moves
+under an input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
 same value, or it moved and a re-review found the exclusion still holds.
@@ -222,9 +244,9 @@ requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
 reading; with the program's test reading SSI's definition of disability, the
 head qualifies only by meeting it.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
-with rows that did not, so every model is scored on 1,926 of its 1,984
+with rows that did not, so every model is scored on 1,935 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:
-each carries its exclusion's class, except the 48 answers that never parsed,
+each carries its exclusion's class, except the 38 answers that never parsed,
 which stay parse_contract_failure; no scored row carries a descriptive class.
 The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
@@ -363,7 +385,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-10 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-13 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

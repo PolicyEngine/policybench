@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 18
+    "run_state": 19
   },
   "models": {
     "claude-fable-5": {
@@ -1493,6 +1493,63 @@
       "shared_completion_budget_tokens": 16384,
       "tool_choice": "forced"
     },
+    "muse-wonder": {
+      "answer_contract": "json",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "ed4cbd03e82d4874de4243dc454922f4851ff13b53d59213cc34e9ad0870485a",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "musewonder-runs/musewonder",
+        "source_predictions_sha256": "2e0eddd68fdd39201f564ed07d485329e13a80450881a3bad63d24f726380d6a",
+        "source_rows_sha256": "ed4cbd03e82d4874de4243dc454922f4851ff13b53d59213cc34e9ad0870485a",
+        "treatment_fingerprint": {
+          "answer_contract": "json",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "openrouter/meta/muse-wonder",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 300,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": null
+        }
+      },
+      "provider_id": "openrouter/meta/muse-wonder",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 300,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
     "ox-alpha": {
       "answer_contract": "tool",
       "evidence": {
@@ -1585,7 +1642,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "0562d77a9d263c14bb9c9fa93ba3c765fcff95a9",
+  "registry_commit": "3ef45909db7367abdffd08379babde5bcf5c549e",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",
