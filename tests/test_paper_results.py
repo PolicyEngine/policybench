@@ -75,6 +75,13 @@ def test_claude_haiku_5_5_release_date_is_recorded():
     assert MODEL_RELEASE_DATES["claude-haiku-5.5"] == "2026-10-07"
 
 
+def test_muse_spark_1_3_release_date_is_recorded():
+    """Meta's post "Introducing Muse Spark 1.3" is dated 2026-09-02 and says
+    the model is available that day in Muse Code and the Meta Model API;
+    OpenRouter lists meta/muse-spark-1.3 from the same day."""
+    assert MODEL_RELEASE_DATES["muse-spark-1.3"] == "2026-09-02"
+
+
 def test_muse_wonder_release_date_is_recorded():
     """Meta released Muse Wonder on 2026-10-12 (TechCrunch and VentureBeat,
     both that day), on its Model API and OpenRouter from launch."""

@@ -113,6 +113,13 @@ MODELS = {
     # meta/muse-wonder-20261012; openrouter.ai/api/v1/models/meta/
     # muse-wonder/endpoints, read 2026-10-12).
     "muse-wonder": "openrouter/meta/muse-wonder",
+    # Meta Muse Spark 1.3 (2026-09-02). Like Muse Wonder it runs through
+    # OpenRouter, whose one endpoint for the id is Meta itself (provider
+    # "Meta", serving meta/muse-spark-1.3-20260902; openrouter.ai/api/v1/
+    # models/meta/muse-spark-1.3/endpoints, read 2026-10-13). The cheaper
+    # meta/muse-spark-1.3-contributor listing is Meta's contributor mode, a
+    # different endpoint with its own rate card; the board runs standard mode.
+    "muse-spark-1.3": "openrouter/meta/muse-spark-1.3",
 }
 
 # Configured per-1M-token USD list prices, keyed by the predictions.csv.gz model
@@ -173,6 +180,12 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # the OpenRouter listing, both read 2026-10-12); litellm's price map
     # does not yet cover the id.
     "muse-wonder": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
+    # muse-spark-1.3: $1.25 / $4.25 per 1M input/output tokens, $0.15 cached
+    # input, standard mode, one rate at every prompt length ("No long-context
+    # premium"; Meta's rate card, dev.meta.ai/docs/pricing-rate-limits, and
+    # the OpenRouter endpoint listing, both read 2026-10-13); litellm's price
+    # map is not relied on for the id.
+    "muse-spark-1.3": {"input": 1.25, "output": 4.25, "cache_read": 0.15},
     # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
     # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
     "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
