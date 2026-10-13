@@ -625,10 +625,7 @@ def case_problems(stage: Path, case: str) -> list[str]:
     import jsonschema
 
     from policybench.audit import is_hedged
-    from policybench.judge_template import (
-        recorded_template_version,
-        template_version_of,
-    )
+    from policybench.judge_template import recorded_template_version, template_header
 
     audit = stage / "audit"
     case_dir = audit / "cases" / case
@@ -670,7 +667,10 @@ def case_problems(stage: Path, case: str) -> list[str]:
         "the sidecar does not bind the prompt": meta.get("prompt_sha256")
         == staged_prompt,
         f"the prompt is not on template v{JUDGE_TEMPLATE_VERSION}": (
-            template_version_of(prompt) == JUDGE_TEMPLATE_VERSION
+            # The prompt begins with this release's header; no version is
+            # read off it (policybench.judge_template: only the tree check
+            # does that).
+            prompt.startswith(template_header(JUDGE_TEMPLATE_VERSION).encode("utf-8"))
             and recorded_template_version(meta) == JUDGE_TEMPLATE_VERSION
         ),
         "the verdict is the replaced one": sha(blob) != REJUDGE[case][0],
