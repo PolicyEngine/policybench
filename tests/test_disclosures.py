@@ -276,9 +276,9 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # summarizeAuditUniverse recomputes the same counts from the payload
     # (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_550,
-        "exact_misses": 8_546,
-        "annotated_exact_misses": 8_546,
+        "annotated": 8_503,
+        "exact_misses": 8_499,
+        "annotated_exact_misses": 8_499,
         "annotated_exact_hits": 4,
         "unannotated_below_full_bounded_score": 2_218,
     }

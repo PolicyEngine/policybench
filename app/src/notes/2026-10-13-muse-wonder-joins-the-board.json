@@ -5,7 +5,7 @@
   "paragraphs": [
     "Meta's Muse Wonder joined the board on {releaseDate}, the day after Meta released it, bringing the board to {nModels} models. It is the first Meta model on the board. It gets {museExact}% of answers within $1, weighted by household impact, #{museRank} of {nModels}. On the bounded score, which gives partial credit for amounts close to the reference, it ranks #{museBoundedRank}, behind only GPT-6 Sol and Claude Opus 5.5. GPT-6 Sol still leads on answers within $1 at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
     "Meta released Muse Wonder Full the same day, but only to Muse Code subscribers, with no API. PolicyBench runs every model through its provider's API under one protocol, so Muse Wonder Full is not on the board. PolicyBench reaches Muse Wonder through OpenRouter, whose one endpoint for it is Meta's own API. That API accepts only an automatic tool choice and rejects a forced tool call, so the row answers as a JSON object, as Claude Opus 5.5's and Claude Sonnet 5.5's do, and reasons at Meta's default setting.",
-    "The release also moves PolicyBench's references from policyengine-us {previousEngine} to {engineVersion}, the first release with the fixes for the engine defects behind {restored:words} outputs the previous release excluded. They return to scoring at the new version's values, each within $1 of the corrected value PolicyBench's audits computed for it. Between them they take the upstream fixes for {restoredFixes}. No reference PolicyBench already scored changes, and nothing is newly excluded. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs; PolicyBench excludes the other {excluded}.",
+    "The release also moves PolicyBench's references from policyengine-us {previousEngine} to {engineVersion}, the first release with every fix the previous release was waiting on. Of the outputs the previous release excluded, {restored:words} return to scoring at the new version's values, each within $1 of the corrected value PolicyBench's audits computed for it. Between them they take the upstream fixes for {restoredFixes}. The new version also fixes the defect behind a SNAP output, the heat-and-eat utility allowance, but that output stays excluded because the stated facts do not decide it. No reference PolicyBench already scored changes, and nothing is newly excluded. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs; PolicyBench excludes the other {excluded}.",
     "Against the previous release, the exact rate of every one of the {incumbents} earlier models falls, by {fallMin} to {fallMax} points. The cause is the {restored:words} restored outputs, which few models get right: half of them are answered within $1 by at most {restoredHalfAtMost:words} of the {nModels} models, and {restoredUnmatched:words} by none. Muse Wonder answers {museRestored:words} of them within $1. Without them, every earlier model's rate would be the previous release's."
   ],
   "facts": {
@@ -19,14 +19,14 @@
     "sol56Exact": 93.1,
     "previousEngine": "2.38.6",
     "engineVersion": "2.41.0",
-    "restored": 10,
-    "restoredFixes": "Idaho's subtraction for health insurance premiums (policyengine-us #10023; two outputs), Wisconsin's retirement income exclusion before refundable credits and Wisconsin's capital gain subtraction for distributions (policyengine-us #10026; two outputs), the heat-and-eat SNAP utility allowance (policyengine-us #10033), the IRA deduction's active-participant phase-out, California's itemized deduction conformity and California's educator expense addback (policyengine-us #10032, #10034, #10052) and elective deferrals in the earned income behind the EITC and the refundable child tax credit (policyengine-us #10030; four outputs)",
-    "scoredOutputs": 1936,
+    "restored": 9,
+    "restoredFixes": "Idaho's subtraction for health insurance premiums (policyengine-us #10023; two outputs), Wisconsin's retirement income exclusion before refundable credits and Wisconsin's capital gain subtraction for distributions (policyengine-us #10026; two outputs), the IRA deduction's active-participant phase-out, California's itemized deduction conformity and California's educator expense addback (policyengine-us #10032, #10034, #10052) and elective deferrals in the earned income behind the EITC and the refundable child tax credit (policyengine-us #10030; four outputs)",
+    "scoredOutputs": 1935,
     "totalOutputs": 1984,
-    "excluded": 48,
+    "excluded": 49,
     "incumbents": 47,
-    "fallMin": 0.23,
-    "fallMax": 0.46,
+    "fallMin": 0.18,
+    "fallMax": 0.42,
     "restoredHalfAtMost": 1,
     "restoredUnmatched": 4,
     "museRestored": 1

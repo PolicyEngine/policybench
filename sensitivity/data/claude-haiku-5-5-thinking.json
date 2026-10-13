@@ -11,27 +11,27 @@
       "bytes": 171655
     },
     "sensitivity-claude-haiku-5-5-thinking-by-variable.csv.gz": {
-      "sha256": "6c17e0ac673c21166b5a1236acb6dd6bbd44e5e7d1ef1dfd694ebf0b0192dff4",
-      "bytes": 900
+      "sha256": "8e9710dd41f74ec5619803e20b936f9084e3dd262c4a0e08e76322f884b5d947",
+      "bytes": 892
     }
   },
   "board": {
-    "exact": 79.235,
-    "within1pct": 80.307,
-    "score": 85.93,
-    "n": 1936,
-    "n_parsed": 1936
+    "exact": 79.264,
+    "within1pct": 80.337,
+    "score": 85.959,
+    "n": 1935,
+    "n_parsed": 1935
   },
   "sensitivity": {
-    "exact": 88.78,
-    "within1pct": 90.335,
-    "score": 94.418,
+    "exact": 88.82,
+    "within1pct": 90.376,
+    "score": 94.459,
     "would_rank": 11,
     "n": 1984,
     "n_parsed": 1984,
     "cost_usd": 0.2702,
     "cost_per_household": 0.002702
   },
-  "delta_exact": 9.545,
-  "scored_against": "the frozen 48-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 48 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,936 scored outputs); exact, within-1% and the bounded score all on that universe"
+  "delta_exact": 9.556,
+  "scored_against": "the frozen 48-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe"
 }

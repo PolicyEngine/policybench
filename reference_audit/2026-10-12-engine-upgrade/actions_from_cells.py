@@ -267,6 +267,24 @@ def first_upgrade_rechecks(meta: dict) -> dict:
     return {key_of(r): r for r in last["excluded_outputs_rechecked"]}
 
 
+# What an earlier upgrade's recheck says of an output whose reference the
+# stated facts do not decide (scenario_080's SNAP, 2026-09-29).
+INDETERMINATE = "indeterminate on the stated facts"
+
+
+def indeterminate_rechecks(meta: dict) -> dict:
+    """The outputs an earlier engine upgrade's recheck found indeterminate on
+    the stated facts, each with that upgrade's date (the first such recheck)."""
+    found: dict = {}
+    for revision in meta["revisions"]:
+        if revision["kind"] != "engine_upgrade":
+            continue
+        for item in revision.get("excluded_outputs_rechecked", []):
+            if INDETERMINATE in item.get("reason", ""):
+                found.setdefault(key_of(item), revision["date"])
+    return found
+
+
 def second_reason(record: dict) -> str:
     """The record's note when it names an unlisted input besides the defect."""
     note = str(record.get("note", ""))
@@ -310,12 +328,17 @@ def draft_actions(
     precise: bool,
     evidence: dict | None = None,
     upstreams: dict | None = None,
+    indeterminate: dict | None = None,
 ) -> tuple[dict, list[dict]]:
     """The draft actions file and the judgment calls, one per moved output.
 
     ``evidence`` is {"ref": {path, sha256}, "doc": the loaded evidence file}:
     a pre-fix engine's values for engine-defect outputs without and with
-    their fix modules."""
+    their fix modules. ``indeterminate`` maps an output an earlier upgrade's
+    recheck found indeterminate on the stated facts to that upgrade's date
+    (indeterminate_rechecks): such an output stays excluded even where the
+    new engine fixes its defect, since an engine cannot settle the facts."""
+    indeterminate = indeterminate or {}
     evidence_items = {}
     if evidence is not None:
         for item in evidence["doc"]["items"]:
@@ -389,6 +412,28 @@ def draft_actions(
                     )
                 on_target = lands(target)
                 second = second_reason(record)
+                if on_target and k in indeterminate:
+                    reason = (
+                        f"Stays excluded on {engine}: the engine gives "
+                        f"{money(cell.new)}, on the record's corrected value "
+                        f"{money(target)}, so its defect ({record['root_cause']}) "
+                        f"is fixed there, but the {indeterminate[k]} recheck found "
+                        f"the output {INDETERMINATE}, a second reason that a new "
+                        f"engine does not settle; the record keeps {money(kept_value)}."
+                    )
+                    actions["excluded_rechecked"].append(
+                        {"scenario_id": k[0], "variable": k[1], "reason": reason}
+                    )
+                    call(
+                        cell,
+                        "PROPOSED",
+                        f"RECHECK ({source} engine defect {record['root_cause']} "
+                        f"lands on target, but the {indeterminate[k]} recheck found "
+                        f"it {INDETERMINATE}): regenerate only if a reviewer rules "
+                        "that reason out",
+                        "excluded_rechecked",
+                    )
+                    continue
                 if on_target and second:
                     reason = (
                         f"Stays excluded on {engine}: the engine gives "
@@ -608,6 +653,7 @@ def main(argv: list[str] | None = None) -> None:
         precise=computed is not None,
         evidence=evidence,
         upstreams=json.loads(Path(args.upstreams).read_text()) if args.upstreams else None,
+        indeterminate=indeterminate_rechecks(base.meta),
     )
     Path(args.out).write_text(json.dumps(actions, indent=2) + "\n")
     print_calls(calls)

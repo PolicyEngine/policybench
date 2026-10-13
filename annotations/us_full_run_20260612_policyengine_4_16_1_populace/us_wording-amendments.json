@@ -5369,9 +5369,9 @@
    "case_id": "us__scenario_080__snap",
    "field": "annotation",
    "model": "qwen-3.7-max",
-   "old": "It also ignored the household's disability status, which raises the limit and removes the gross income test.",
-   "new": "The recorded reference treats the household as having no SNAP elderly or disabled member because the prompt states none of the qualifying benefit-receipt routes.",
-   "reason": "reference_outputs.csv.meta.json revisions[19].regenerated_exclusions preserves the developer's r30 record, which treats the household as having no elderly or disabled member because the prompt states no qualifying route under 7 U.S.C. 2012(j)."
+   "old": "It applied a $2,750 asset limit (also the wrong figure for a household with a disabled member) and denied SNAP.",
+   "new": "It applied a $2,750 asset limit and denied SNAP.",
+   "reason": "The kept exclusion record for scenario_080 SNAP (reference_exclusions.json) and the engine treat the household as having no SNAP elderly or disabled member, because the prompt states no qualifying route under 7 U.S.C. 2012(j); the aside calling it a household with a disabled member contradicts that, and the asset test is waived either way."
   },
   {
    "case_id": "us__scenario_081__federal_income_tax_before_refundable_credits",

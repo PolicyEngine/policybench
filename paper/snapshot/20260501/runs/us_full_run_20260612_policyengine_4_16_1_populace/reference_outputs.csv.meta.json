@@ -60,7 +60,7 @@
   "split": "public",
   "split_seed": 1042,
   "task": "reference_outputs",
-  "reference_csv_sha256": "9bc1b6b9708dc5eb4b6501a7adf7b47585c7a1d27d9be97f9d3ff943c29e047d",
+  "reference_csv_sha256": "2d00cf595adf183fcfa3d069756723b5ce09bd4123fbf3e673635474346b3a0c",
   "revisions": [
     {
       "date": "2026-09-22",
@@ -2353,7 +2353,7 @@
         "builder_sha256": "106359647da224dae243c6365b78fa324102f832e830cbc2d1b82a1ba1e7cf29",
         "harness": "reference_audit/2026-09-28/scripts/sweep.py",
         "harness_sha256": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69",
-        "actions_sha256": "2bd0ce83719b7f0d2b3dd2aa6458ddba332c53ad44ccaeb5fd0560758cefd6de",
+        "actions_sha256": "cfe9f33544b08f962be62ba8601518c82d072bdbada0b2962351a01f8ae04a42",
         "release_spec_sha256": "ea4c63192bcd072dd12ce15e9cfd9cde5d2f9e548160149b19e78cee62c7c347",
         "base_commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
         "policyengine_core": "3.32.29"
@@ -2402,6 +2402,13 @@
           "kept_value": 2669.217041015625,
           "value_on_2_41_0": 2628.0,
           "reason": "Stays excluded on policyengine-us 2.41.0: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,669.22, and policyengine-us 2.41.0 gives $2,628.00. The value is 2.38.6's, rechecked on 2026-10-10 (release 20261010's engine_upgrade revision's excluded_outputs_rechecked)."
+        },
+        {
+          "scenario_id": "scenario_080",
+          "variable": "snap",
+          "kept_value": 3596.039794921875,
+          "value_on_2_41_0": 3240.0,
+          "reason": "Stays excluded on policyengine-us 2.41.0: the engine gives $3,240.00, on the record's corrected value $3,240.00, so its defect (r30_snap_heat_and_eat_sua) is fixed there (PolicyEngine/policyengine-us#10033), but the 2026-09-29 recheck found the output indeterminate on the stated facts, a second reason that a new engine does not settle: the prompt calls the head disabled but states no route by which 7 U.S.C. 2012(j) makes a member disabled (the allowance would stand, at $3,576, were the head one), and it does not say whether the $2,000 energy subsidy is a LIHEAP payment or a State-law payment, which 7 U.S.C. 2014(k)(4) treats differently. The record keeps $3,596.04."
         },
         {
           "scenario_id": "scenario_081",
@@ -2562,40 +2569,6 @@
             "law": "Idaho Code 63-3022P; Idaho Form 39R",
             "upstream": "to be filed",
             "note": "Corrected value applies r07_idaho_health_premiums_v2 with every publication convention and upstream fix."
-          }
-        },
-        {
-          "scenario_id": "scenario_080",
-          "variable": "snap",
-          "root_cause": "r30_snap_heat_and_eat_sua",
-          "decided_on": "2026-09-22",
-          "kept_value": 3596.039794921875,
-          "value_on_2_41_0": 3240.0,
-          "audited_alternative_value": 3240.0,
-          "target": {
-            "kind": "record",
-            "value": 3240.0,
-            "engine": "policyengine-us 1.755.4"
-          },
-          "regenerated": 3240.0,
-          "tolerance": 1.0,
-          "upstream": "PolicyEngine/policyengine-us#10033",
-          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10033) is regenerated with the fix: policyengine-us 2.41.0 gives $3,240.00, within $1 of the corrected value $3,240.00 the 2026-09-22 record computed (r30_snap_heat_and_eat_sua: PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended).",
-          "record": {
-            "scenario_id": "scenario_080",
-            "variable": "snap",
-            "reason_code": "reference_engine_defect",
-            "root_cause": "r30_snap_heat_and_eat_sua",
-            "alternative_reading": "A LIHEAP payment makes a household eligible for the standard utility allowance only if the household has an elderly or disabled member; other households take the allowance only if they incur heating or cooling costs.",
-            "frozen_value": 3596.039794921875,
-            "alternative_value": 3240.0,
-            "engine_version": "policyengine-us 1.755.4",
-            "decided_on": "2026-09-22",
-            "decided_by": "developer",
-            "defect": "PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended",
-            "law": "7 U.S.C. 2014(e)(6)(C)(iv)(I), as amended by P.L. 119-21 sec. 10103(a) (approved 2025-07-04)",
-            "upstream": "to be filed",
-            "note": "Corrected value applies r30_snap_heat_and_eat_sua with every publication convention and upstream fix. The prompt says the head is disabled but states none of the routes 7 U.S.C. 2012(j) lists for a disabled member, such as receipt of SSI or Social Security disability benefits, so the engine and this record treat the household as having no elderly or disabled member (verification/v9_axiom_us-2014-sua.md). Read the other way, the LIHEAP payment would still confer the standard utility allowance, and the value the publication conventions and upstream SNAP fixes give, 3,576.00 (the reference it would carry if scored), would stand; the output is excluded either way."
           }
         },
         {
@@ -2858,15 +2831,6 @@
           "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10023) is regenerated with the fix: policyengine-us 2.41.0 gives $2,186.06, within $1 of the corrected value $2,186.06 its fix modules (r07_idaho_health_premiums_v2.py) give on policyengine-us 2.38.6, which still has the defect ($2,451.06 without them) (r07_idaho_health_premiums: PolicyEngine omits Idaho's subtraction for health insurance premiums the taxpayer pays)."
         },
         {
-          "scenario_id": "scenario_080",
-          "variable": "snap",
-          "frozen": 3596.039794921875,
-          "previous": 3596.039794921875,
-          "regenerated": 3240.0,
-          "cause": "regenerated_upstream_fix",
-          "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10033) is regenerated with the fix: policyengine-us 2.41.0 gives $3,240.00, within $1 of the corrected value $3,240.00 the 2026-09-22 record computed (r30_snap_heat_and_eat_sua: PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended)."
-        },
-        {
           "scenario_id": "scenario_091",
           "variable": "state_income_tax_before_refundable_credits",
           "frozen": 843.6614990234375,
@@ -2923,5 +2887,5 @@
       ]
     }
   ],
-  "regenerated_at_utc": "2026-10-13T02:12:48.924871+00:00"
+  "regenerated_at_utc": "2026-10-13T11:04:44.733127+00:00"
 }

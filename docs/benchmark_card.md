@@ -70,12 +70,12 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
 when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
-UTC). policyengine-us 2.41.1, the newest release when PolicyBench checked PyPI
-on 2026-10-13 at 09:39 UTC, gives the same value as 2.41.0 for all 1,984
-outputs under the same conventions and adapter. The 48 excluded outputs keep
-the values they were decided on (28 computed with policyengine-us 1.755.4, 18
-with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 11 of them that
-move on 2.41.0; all 11 stay excluded. The manifest also records policyengine.py
+UTC). policyengine-us 2.41.2, the newest release when PolicyBench checked PyPI
+on 2026-10-13 at 11:34 UTC, gives the same value as 2.41.0 for all 1,984
+outputs under the same conventions and adapter. The 49 excluded outputs keep
+the values they were decided on (29 computed with policyengine-us 1.755.4, 18
+with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that
+move on 2.41.0; all 12 stay excluded. The manifest also records policyengine.py
 6.1.2 for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
 policyengine.py does not load beside 2.41.0.
 
@@ -140,36 +140,37 @@ evidence and the reviewed actions.
 On 2026-10-13 PolicyBench moved the references a third time, from 2.38.6 to
 2.41.0, the first release with every fix the previous move was waiting on, and
 recomputed every output under the same conventions and adapter. The new version
-fixes the defects behind ten outputs. Earlier releases excluded them, and they
+fixes the defects behind nine outputs. Earlier releases excluded them, and they
 return to scoring. Each lands within $1 of its audited corrected value, and the
 sidecar's 2026-10-13 revision names the upstream fix behind it: Idaho's
 subtraction for health insurance premiums (#10023; two outputs), Wisconsin's
 retirement income exclusion before refundable credits and Wisconsin's capital
-gain subtraction for distributions (#10026; two outputs), the heat-and-eat SNAP
-utility allowance (#10033), the IRA deduction's active-participant phase-out,
-California's itemized deduction conformity and California's educator expense
-addback (#10032, #10034, #10052) and elective deferrals in the earned income
-behind the EITC and the refundable child tax credit (#10030; four outputs). For
-the two Idaho outputs, the audited value is the one the audit's fix modules
-give on 2.38.6, $10 above the record's, because policyengine-us counts Idaho's
-$10 permanent building fund tax from 2.38.6. For the California output, it is
-the value the fix modules give on 2.38.6 with the educator expense addback this
-audit added, the further defect the previous move found behind that output. The
-SNAP output's record also noted that the allowance would stand, at $3,576, were
-the household's disabled head a member 7 U.S.C. 2012(j) counts as disabled. The
-prompt states none of the routes that section lists and tells the reader not to
-infer benefit receipt, so the reference takes the non-disabled path, as every
-disabled person's references do (below), at the record's corrected value of
-$3,240. The move changes no scored reference, by any amount, and removes no
-output from scoring. `reference_audit/2026-10-12-engine-upgrade/` holds the
+gain subtraction for distributions (#10026; two outputs), the IRA deduction's
+active-participant phase-out, California's itemized deduction conformity and
+California's educator expense addback (#10032, #10034, #10052) and elective
+deferrals in the earned income behind the EITC and the refundable child tax
+credit (#10030; four outputs). For the two Idaho outputs, the audited value is
+the one the audit's fix modules give on 2.38.6, $10 above the record's, because
+policyengine-us counts Idaho's $10 permanent building fund tax from 2.38.6. For
+the California output, it is the value the fix modules give on 2.38.6 with the
+educator expense addback this audit added, the further defect the previous move
+found behind that output. The new version also fixes the heat-and-eat SNAP
+utility allowance (#10033), and a SNAP output it excluded lands on its corrected
+value, $3,240, but stays excluded: as the 2026-09-29 recheck found, the stated
+facts do not decide it. The prompt calls the head disabled but states no route
+by which 7 U.S.C. 2012(j) makes a member disabled (with one, the allowance would
+stand, at $3,576), and it does not say whether the household's $2,000 energy
+subsidy is a LIHEAP payment or a State-law payment, which 7 U.S.C. 2014(k)(4)
+treats differently. The move changes no scored reference, by any amount, and
+removes no output from scoring. `reference_audit/2026-10-12-engine-upgrade/` holds the
 builder, its evidence and the reviewed actions.
 
 ## Audit scope
 
-The frozen US annotations cover 8,550 scored rows selected because their
-legacy threshold score is below 1 (1,795 further annotated rows sit on the 48
+The frozen US annotations cover 8,503 scored rows selected because their
+legacy threshold score is below 1 (1,843 further annotated rows sit on the 49
 excluded outputs and are description, not audit). This audit universe contains
-8,546 of the snapshot's 8,546 exact-match misses and four exact hits. Another
+8,499 of the snapshot's 8,499 exact-match misses and four exact hits. Another
 2,218 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
@@ -183,7 +184,7 @@ reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-60: one for each excluded output, one for each flagged reference the
+61: one for each excluded output, one for each flagged reference the
 adjudication affirmed or replaced with a regenerated reference, and two for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
@@ -205,13 +206,13 @@ gain fix as first built also applied Wisconsin's capital gain exclusion to the
 distributions, which the upstream fix did not; that part was recorded as its
 own defect, which policyengine-us fixed later (#10026).
 
-Forty-eight outputs in 36 households are excluded from scoring for every model
+Forty-nine outputs in 37 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
 output a defect not fixed upstream moved by more than a dollar. Of those
-records, 4 remain as engine-defect exclusions. policyengine-us 2.41.0 computes
-four of them at their corrected values; they stay excluded because each also
+records, 5 remain as engine-defect exclusions. policyengine-us 2.41.0 computes
+five of them at their corrected values; they stay excluded because each also
 moves under an input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
@@ -243,9 +244,9 @@ requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
 reading; with the program's test reading SSI's definition of disability, the
 head qualifies only by meeting it.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
-with rows that did not, so every model is scored on 1,936 of its 1,984
+with rows that did not, so every model is scored on 1,935 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:
-each carries its exclusion's class, except the 37 answers that never parsed,
+each carries its exclusion's class, except the 38 answers that never parsed,
 which stay parse_contract_failure; no scored row carries a descriptive class.
 The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,

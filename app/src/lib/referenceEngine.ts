@@ -16,7 +16,7 @@ import type { ReferenceExclusion } from "../types";
  */
 export const ENGINE_UPGRADE_RECHECK = {
   engineVersion: "2.41.0",
-  rechecked: 11,
+  rechecked: 12,
 };
 
 function compareVersions(a: string, b: string): number {

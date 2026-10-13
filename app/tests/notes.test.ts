@@ -110,13 +110,19 @@ describe("notes", () => {
       "GPT-6 Sol still leads on answers within $1 at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
     );
     expect(markup).toContain("so Muse Wonder Full is not on the board");
+    expect(markup).toContain(
+      "Of the outputs the previous release excluded, nine return to scoring",
+    );
+    expect(markup).toContain(
+      "that output stays excluded because the stated facts do not decide it",
+    );
     expect(markup).toContain("from policyengine-us 2.38.6 to 2.41.0");
     expect(markup).toContain(
-      "Every model is now scored on 1,936 of its 1,984 requested outputs; PolicyBench excludes the other 48.",
+      "Every model is now scored on 1,935 of its 1,984 requested outputs; PolicyBench excludes the other 49.",
     );
     // Falls are not board rates, so they keep their two decimals; counts
     // under ten are words.
-    expect(markup).toContain("falls, by 0.23 to 0.46 points");
+    expect(markup).toContain("falls, by 0.18 to 0.42 points");
     expect(markup).toContain(
       "half of them are answered within $1 by at most one of the 48 models, and four by none. Muse Wonder answers one of them within $1.",
     );

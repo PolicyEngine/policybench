@@ -1284,7 +1284,7 @@ scenario_080,self_employment_tax,0.0,
 scenario_080,state_income_tax_before_refundable_credits,0.0,
 scenario_080,state_refundable_credits,0.0,
 scenario_080,local_income_tax,0.0,
-scenario_080,snap,3240.0,
+scenario_080,snap,3596.039794921875,
 scenario_080,ssi,0.0,
 scenario_080,tanf,0.0,
 scenario_080,head_wic_eligible,0.0,0.0

@@ -10,30 +10,30 @@
       "bytes": 183014
     },
     "sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz": {
-      "sha256": "61b64fbeba1f38d428eeb9c5bbd7290cfefdc56ff37a8528abd4ab32744f1235",
-      "bytes": 828
+      "sha256": "4d7a9ebb217ef0e5f188d9ecb9305bb9d0c1225b2c153b9e85f2c05de57fcff4",
+      "bytes": 814
     }
   },
   "board": {
-    "exact": 90.871,
-    "within1pct": 92.438,
-    "score": 96.782,
+    "exact": 90.91,
+    "within1pct": 92.477,
+    "score": 96.781,
     "cost_per_household": 0.257,
     "latency_seconds": 49.12,
-    "n_parsed": 1936,
-    "n": 1936
+    "n_parsed": 1935,
+    "n": 1935
   },
   "sensitivity": {
-    "exact": 91.705,
+    "exact": 91.748,
     "would_rank": 4,
-    "within1pct": 93.72,
-    "score": 97.426,
+    "within1pct": 93.764,
+    "score": 97.429,
     "cost_per_household": 0.3481,
     "cost_usd": 34.81,
     "latency_seconds": 52.54,
     "n_parsed": 1984,
     "n": 1984
   },
-  "delta_exact": 0.834,
-  "scored_against": "the frozen 48-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 48 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,936 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
+  "delta_exact": 0.838,
+  "scored_against": "the frozen 48-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
 }

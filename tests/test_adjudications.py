@@ -264,12 +264,12 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # and Louisiana's two outputs as later law, scenario_051's restated in
     # place from a regenerated-reference decision) and the two Indiana county
     # outputs the upgrade newly excludes (2026-10-10): 70. Release 20261013
-    # drops the decisions on the ten 2026-09-22 engine-defect records its
-    # engine upgrade regenerated, and adds none: 60.
-    assert len(entries) == 60
+    # drops the decisions on the nine 2026-09-22 engine-defect records its
+    # engine upgrade regenerated, and adds none: 61.
+    assert len(entries) == 61
     assert Counter(e["adjudicated_failure_source"] for e in entries) == Counter(
         {
-            "reference_engine_defect": 4,
+            "reference_engine_defect": 5,
             "prompt_ambiguity": 42,
             "llm_error": 12,
             "reference_later_law": 2,
@@ -303,7 +303,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # September 29 judge called later law (scenario_007 federal income tax
     # and scenario_008 New Jersey refundable credits), whose law predates the
     # reference freeze.
-    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 48
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 49
     assert Counter(
         e.get("reference_verdict")
         for e in entries
@@ -348,7 +348,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
     manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
-    assert block["cases"] == 60
+    assert block["cases"] == 61
     # The judge's own class for each case (its verdict.json), not the
     # adjudicated one; the freezer refuses a record that differs from it.
     # After the 2026-09-30 restatements (release 20260929 had llm_error 50,
@@ -358,12 +358,12 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # Release 20261010's Opus 5.5 verdicts on the cases Claude Haiku 5.5
     # re-opened, the decisions it adds and the 14 it drops give its counts
     # (llm_error 59, reference_model_issue_fixed 2). Release 20261013 drops
-    # the ten decisions on the records its engine upgrade regenerated (eight
+    # the nine decisions on the records its engine upgrade regenerated (seven
     # the judge had called an LLM error, two reference_model_issue_fixed), and
     # its Opus 5.5 verdicts on the cases Muse Wonder re-opened keep each
     # remaining decision's judge class.
     assert block["by_judge_verdict"] == {
-        "llm_error": 51,
+        "llm_error": 52,
         "prompt_ambiguity": 6,
         "reference_data_issue_fixed": 1,
         "reference_engine_defect": 1,
@@ -375,7 +375,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # unlisted_input was 20 in release 20260930 and 28 in release 20261006.
     assert block["by_reference_verdict"] == {
         "affirmed": 5,
-        "engine_defect": 4,
+        "engine_defect": 5,
         "later_law": 2,
         "regenerated": 5,
         "unlisted_input": 34,
@@ -393,7 +393,7 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     }
     assert not any(e["judge_reference_suspect"] for e in new_wave)
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
-    assert manifest["reference_exclusions"]["outputs"] == 48
+    assert manifest["reference_exclusions"]["outputs"] == 49
 
 
 def test_verify_requires_agreement_with_the_complete_record():
@@ -556,8 +556,10 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
     # in release 20261006). Release 20261010 drops 14 of them with the
     # decisions on the records its engine upgrade regenerated, and its
     # restatements of the cases Claude Haiku 5.5 re-opened gave 12 more
-    # theirs: 56.
-    assert rejudged == 56
+    # theirs: 56. Release 20261013 drops the decisions on the nine records its
+    # engine upgrade regenerated and restates those on the cases Muse Wonder
+    # re-opened: 57.
+    assert rejudged == 57
 
 
 def _write_case(root: Path, case: str, verdict: dict, meta: dict) -> None:
@@ -969,9 +971,9 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
                 reviewed["judged_on"],
             ) == (*published_verdict, published["judged_on_utc"]), case
             assert published["release"] in reviewed["recorded_in"], case
-    # 31 in release 20261010; nine of the ten decisions release 20261013 drops
-    # with the records its engine upgrade regenerated were among them.
-    assert later_than_wave == 22
+    # 31 in release 20261010; eight of the nine decisions release 20261013
+    # drops with the records its engine upgrade regenerated were among them.
+    assert later_than_wave == 23
     assert later_than_own_wave == 5
 
 
@@ -1542,4 +1544,4 @@ def test_release_20261013_restates_only_the_cases_muse_wonder_reopened(tmp_path)
         history = entry.get("judge_previous", [])
         if history[:-1] == before.get("judge_previous", []) and history:
             replaced += 1
-    assert replaced == len(verdicts) == 49
+    assert replaced == len(verdicts) == 50

@@ -169,20 +169,20 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     # that release fixes, the four 2026-10-06 defects and 14 2026-09-22
     # engine-defect records, and excluded two Indiana county income tax
     # outputs it moves onto a county no prompt states. The 2026-10-13 move to
-    # policyengine-us 2.41.0 regenerated ten more 2026-09-22 engine-defect
+    # policyengine-us 2.41.0 regenerated nine more 2026-09-22 engine-defect
     # records and excluded nothing new.
-    assert len(exclusions) == 48
+    assert len(exclusions) == 49
     reasons = Counter(e["reason_code"] for e in exclusions)
     assert reasons == Counter(
         {
-            "reference_engine_defect": 4,
+            "reference_engine_defect": 5,
             "reference_depends_on_unlisted_input": 42,
             "reference_law_published_after_freeze": 2,
         }
     )
     assert Counter(e["engine_version"] for e in exclusions) == Counter(
         {
-            "policyengine-us 1.755.4": 28,
+            "policyengine-us 1.755.4": 29,
             "policyengine-us 2.15.17": 18,
             "policyengine-us 2.38.6": 2,
         }
@@ -190,7 +190,7 @@ def test_frozen_snapshot_carries_the_exclusion_record():
     assert Counter(e["decided_on"] for e in exclusions) == Counter(
         {
             "2026-09-05": 11,
-            "2026-09-22": 17,
+            "2026-09-22": 18,
             "2026-09-29": 4,
             "2026-10-05": 8,
             "2026-10-06": 6,

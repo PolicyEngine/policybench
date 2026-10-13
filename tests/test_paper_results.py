@@ -21,6 +21,7 @@ from hypothesis import strategies as st
 from policybench.analysis import model_cost_latency
 from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.paper_results import (
+    INDETERMINATE,
     MODEL_DISPLAY_NAMES,
     MODEL_RELEASE_DATES,
     REVIEW_DATE,
@@ -106,20 +107,20 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # and the 14 outputs its engine upgrade returns to scoring bring back 19
     # (Kimi K2.6 11, GLM-5.2 four, GLM-5.3 two, Kimi K3 two): 659. Claude
     # Haiku 5.5 parsed every answer. Release 20261013's ten outputs the 2.41.0
-    # upgrade returns to scoring bring back 11 (Kimi K2.6 seven, GLM-5.2 one,
-    # GLM-5.3 two, Kimi K3 one): 670. Muse Wonder parsed every answer.
+    # upgrade returns to scoring bring back 10 (Kimi K2.6 seven, GLM-5.3 two,
+    # Kimi K3 one): 669. Muse Wonder parsed every answer.
     assert r.parse_contract_failure_counts == Counter(
         {
             "kimi-k2.6": 397,
-            "glm-5.2": 137,
+            "glm-5.2": 136,
             "glm-5.3": 75,
             "kimi-k3": 61,
         }
     )
-    assert r.parse_contract_failure_count == 670
-    assert r.parse_contract_failure_count_fmt == "670"
-    # 670 of the 48-model board's 92,928 scored answers (48 x 1,936).
-    assert r.n_canonical_rows == 92_928
+    assert r.parse_contract_failure_count == 669
+    assert r.parse_contract_failure_count_fmt == "669"
+    # 669 of the 48-model board's 92,880 scored answers (48 x 1,935).
+    assert r.n_canonical_rows == 92_880
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
@@ -129,15 +130,15 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # eight outputs the 2026-10-05 review excluded: 7,527, 7,523 and 2,072 in
     # release 20261006. Release 20261010 adds Claude Haiku 5.5's rows and
     # moves the scored outputs: 8,001, 7,997 and 2,138. Release 20261013 adds
-    # Muse Wonder's rows and returns ten outputs to scoring: 8,550, 8,546 and
+    # Muse Wonder's rows and returns nine outputs to scoring: 8,503, 8,499 and
     # 2,218.
-    assert r.audit_annotated_row_count == 8_550
-    assert r.audit_annotated_row_count_fmt == "8,550"
+    assert r.audit_annotated_row_count == 8_503
+    assert r.audit_annotated_row_count_fmt == "8,503"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 8_546
-    assert r.exact_match_miss_count_fmt == "8,546"
-    assert r.annotated_exact_miss_count == 8_546
-    assert r.annotated_exact_miss_count_fmt == "8,546"
+    assert r.exact_match_miss_count == 8_499
+    assert r.exact_match_miss_count_fmt == "8,499"
+    assert r.annotated_exact_miss_count == 8_499
+    assert r.annotated_exact_miss_count_fmt == "8,499"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
     assert r.unannotated_below_full_bounded_score_count == 2_218
@@ -145,7 +146,7 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
 
 
 def test_contract_violations_are_counted_both_ways():
-    """670 scored rows never parsed a number (rows on excluded outputs are outside
+    """669 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 59 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -154,7 +155,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "59"
-    assert r.contract_violation_count_fmt == "729"
+    assert r.contract_violation_count_fmt == "728"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (55), Kimi K2.6 (3), and Claude Haiku 4.5 (1)"
     )
@@ -387,18 +388,18 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # Release 20261010 adds the six ruled records its engine upgrade keeps
     # and the two Indiana county records, and returns 14 of release 20261006's
     # excluded outputs to scoring: 58 in 42 households. Release 20261013's
-    # 2.41.0 upgrade returns ten engine-defect outputs, in eight households,
-    # to scoring; six of those households have no other excluded output: 48
-    # in 36 households, four of them engine-defect records kept for an
-    # unstated input, none of them SNAP.
-    assert r.excluded_output_count == 48
-    assert r.excluded_output_phrase == "48 outputs"
-    assert r.excluded_output_households_phrase == "36 households"
+    # 2.41.0 upgrade returns nine engine-defect outputs, in seven households,
+    # to scoring; five of those households have no other excluded output: 49
+    # in 37 households, five of them engine-defect records kept for an
+    # unstated input, one of them SNAP (scenario_080).
+    assert r.excluded_output_count == 49
+    assert r.excluded_output_phrase == "49 outputs"
+    assert r.excluded_output_households_phrase == "37 households"
     assert r.unlisted_input_exclusion_count == 42
-    assert r.engine_defect_exclusion_count == 4
-    assert r.engine_defect_root_cause_count == 2
-    assert r.snap_engine_defect_exclusion_count == 0
-    assert r.engine_defect_unflagged_count == 1
+    assert r.engine_defect_exclusion_count == 5
+    assert r.engine_defect_root_cause_count == 3
+    assert r.snap_engine_defect_exclusion_count == 1
+    assert r.engine_defect_unflagged_count == 2
     # The September 22 regenerations, made on policyengine-us 1.755.4; the
     # engine upgrade's own changes are counted separately below.
     assert r.regenerated_reference_count == 26
@@ -435,20 +436,20 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert by_input[part_b] == 1
     assert by_input[payroll] == 4
     assert by_input["county of residence (Indiana county income tax)"] == 2
-    assert r.scored_outputs_per_model_fmt == "1,936"
+    assert r.scored_outputs_per_model_fmt == "1,935"
     assert r.total_outputs_per_model_fmt == "1,984"
     # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
     # rows on the review's eight outputs (2,444 in release 20261006), moved by
     # release 20261010's exclusions, regenerations and Claude Haiku 5.5's rows
     # (2,212), then by release 20261013's ten restored outputs and Muse
     # Wonder's rows.
-    assert r.excluded_output_annotation_row_count == 1795
+    assert r.excluded_output_annotation_row_count == 1843
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
     # 1,145 in release 20261006.
     assert r.prompt_ambiguity_row_count == 1481
     assert (
-        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 37
+        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 38
     )
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
@@ -468,7 +469,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1936
+        assert stats["n"] == 1935
 
 
 # The reference records, as committed and with a synthetic second upgrade
@@ -1626,12 +1627,23 @@ def test_the_upgrade_sentences_name_what_the_sidecar_records():
     for record in records:
         assert record["unlisted_input"] in r.engine_upgrade_new_exclusion_sentence
     paper = (ROOT / "paper/index.qmd").read_text()
+    assert "`{python} r.engine_upgrade_restored_sentence`" in paper
+    # The change sentences render inside one non-empty accessor, so an empty
+    # one never shows as code (final review finding 4).
+    assert "`{python} r.engine_upgrade_change_details`" in paper
+    for accessor in (
+        "engine_upgrade_change_summary_sentence",
+        "engine_upgrade_scored_change_sentence",
+        "engine_upgrade_new_exclusion_sentence",
+    ):
+        assert f"`{{python}} r.{accessor}`" not in paper
+        sentence = getattr(r, accessor)
+        assert sentence in r.engine_upgrade_change_details
     for accessor in (
         "engine_upgrade_restored_sentence",
         "engine_upgrade_scored_change_sentence",
         "engine_upgrade_new_exclusion_sentence",
     ):
-        assert f"`{{python}} r.{accessor}`" in paper
         # The discrepancy table's row for each October move (october_upgrade_row).
         assert f"{{view.{accessor}}}" in paper
     assert "`{python} r.engine_upgrade_restored_target_sentence`" in paper
@@ -1679,13 +1691,13 @@ def test_the_fixed_outputs_split_into_returned_and_still_scored():
     return to scoring; the four the 2026-10-06 rulings decided were still
     scored and stay scored (final review finding 2). The paper says so instead
     of returning all of them to scoring. The 2.41.0 move that followed
-    restores ten outputs, all of them excluded before, and no ruled one."""
+    restores nine outputs, all of them excluded before, and no ruled one."""
     assert (r.engine_upgrade_restored_count, r.engine_upgrade_restored_ruled_count) == (
-        10,
+        9,
         0,
     )
     assert r.engine_upgrade_restored_split_sentence == (
-        "The move fixes the engine defects behind ten outputs. Earlier releases "
+        "The move fixes the engine defects behind nine outputs. Earlier releases "
         "excluded them, and they return to scoring at the new version's values."
     )
     october_10 = r.upgrade_view("2.38.6")
@@ -2093,8 +2105,9 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
             for target in targets
         ):
             # Each landed record stays excluded for one stated reason: the
-            # unstated input its note names, or a further engine defect.
-            if "(unlisted input)" in record["note"]:
+            # unstated input its note names (or a recheck finding the output
+            # indeterminate on the stated facts), or a further engine defect.
+            if "(unlisted input)" in record["note"] or INDETERMINATE in item["reason"]:
                 expected.add(key)
                 assert "second reason" in item["reason"], key
             else:
@@ -2128,8 +2141,15 @@ def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     sentence = r.engine_defect_fixed_kept_sentence
     assert f"policyengine-us {r.policyengine_us_version} computes" in sentence
     paper = (ROOT / "paper/index.qmd").read_text()
-    assert "`{python} r.engine_defect_fixed_kept_sentence`" in paper
-    assert "`{python} r.engine_defect_further_defect_sentence`" in paper
+    # Both sentences render inside engine_defect_class_sentence, which is never
+    # empty, so an empty one never shows as code (final review finding 4).
+    assert (
+        "`reference_engine_defect` `{python} r.engine_defect_class_sentence`" in paper
+    )
+    assert "`{python} r.engine_defect_fixed_kept_sentence`" not in paper
+    assert "`{python} r.engine_defect_further_defect_sentence`" not in paper
+    for part in (sentence, r.engine_defect_further_defect_sentence):
+        assert part in r.engine_defect_class_sentence
     if r.engine_defect_further_defect_count:
         assert f"found on {r.policyengine_us_version}" in (
             r.engine_defect_further_defect_sentence
@@ -2210,6 +2230,56 @@ def _restored_entries(draw):
             }
         )
     return entries
+
+
+def _restored_groups(entries: list[dict]) -> list[tuple]:
+    """MOCK: the restored-fix groups of an upgrade restoring ``entries``, as an
+    order-free list of (causes, pull requests, count)."""
+    from policybench.paper_results import EngineUpgrade
+
+    results = PaperResults()
+    revision = {"date": "2026-10-13", "regenerated_exclusions": entries}
+    results.__dict__["engine_upgrades"] = [
+        EngineUpgrade(revision, frozenset(), frozenset())
+    ]
+    return sorted(
+        (sorted(g["causes"]), sorted(g["prs"]), g["count"])
+        for g in results.engine_upgrade_restored_fix_groups
+    )
+
+
+def _restored_entry(index: int, causes: str, pr: str) -> dict:
+    return {
+        "scenario_id": f"scenario_{index:03d}",
+        "variable": "state_income_tax_before_refundable_credits",
+        "record": {"root_cause": causes},
+        "upstream": f"PolicyEngine/policyengine-us#{pr}",
+        "target": {"kind": "record"},
+    }
+
+
+def test_nested_causes_under_one_fix_join_in_any_order():
+    """Final review finding 5: {r06}, {r32} and {r06, r32}, all under #10026,
+    are one fix of three outputs whichever comes first (merging stopped at the
+    first match before, so the combined entry's place decided the groups)."""
+    r06, r32 = "r06_wi_act15_before_refundable", "r32_wi_capital_gain_distributions"
+    orders = [
+        [r06, r32, f"{r06}+{r32}"],
+        [f"{r06}+{r32}", r06, r32],
+        [r32, f"{r06}+{r32}", r06],
+    ]
+    for order in orders:
+        entries = [_restored_entry(i, c, "10026") for i, c in enumerate(order)]
+        assert _restored_groups(entries) == [(sorted([r06, r32]), ["10026"], 3)]
+
+
+@settings(max_examples=200, deadline=None)
+@given(_restored_entries(), st.randoms(use_true_random=False))
+def test_restored_fix_groups_do_not_depend_on_the_sidecar_order(entries, rng):
+    """The same restored entries in any order give the same groups."""
+    shuffled = list(entries)
+    rng.shuffle(shuffled)
+    assert _restored_groups(shuffled) == _restored_groups(entries)
 
 
 @settings(max_examples=200, deadline=None)

@@ -1871,3 +1871,88 @@ def test_the_freeze_accepts_a_target_module_only_under_an_audits_fixes():
     target["modules"][0]["path"] = f"scripts/{R33}"
     with pytest.raises(SystemExit, match="not an audit's fixes/ directory"):
         freeze_snapshot.verify_regeneration_target_pins(upgrade)
+
+
+def test_an_output_found_indeterminate_earlier_is_rechecked_not_regenerated():
+    """scenario_003 snap lands on its corrected value (its fix modules'
+    evidence), which alone would regenerate it; an earlier upgrade's recheck
+    that found it indeterminate on the stated facts keeps it excluded instead
+    (scenario_080's SNAP in this release, final review finding 1)."""
+    computed = _unchanged()
+    computed[("scenario_003", "snap")] = 2600.0
+    base = _base()
+    release, ruled = _release(base)
+    kwargs = dict(engine_version="9.9.9", date=DATE, spec_sha256="spec", precise=True)
+    args = (
+        _cells(computed),
+        release,
+        ruled,
+        {build.key_of(r) for r in base.exclusions["exclusions"]},
+        {},
+    )
+    evidence = {"ref": dict(EVIDENCE), "doc": _evidence()}
+    plain, _ = drafting.draft_actions(*args, **kwargs, evidence=evidence)
+    assert [build.key_of(e) for e in plain["regenerated_exclusions"]] == [
+        ("scenario_003", "snap")
+    ]
+    actions, calls = drafting.draft_actions(
+        *args,
+        **kwargs,
+        evidence=evidence,
+        indeterminate={("scenario_003", "snap"): "2026-09-29"},
+    )
+    assert actions["regenerated_exclusions"] == []
+    (entry,) = actions["excluded_rechecked"]
+    assert drafting.INDETERMINATE in entry["reason"]
+    assert "the 2026-09-29 recheck found" in entry["reason"]
+    assert "second reason" in entry["reason"]
+    (call,) = [c for c in calls if c["scenario_id"] == "scenario_003"]
+    assert call["placed_in"] == "excluded_rechecked"
+
+
+def test_indeterminate_rechecks_reads_every_upgrade_revision():
+    """indeterminate_rechecks finds the outputs any engine upgrade's recheck
+    called indeterminate on the stated facts, dated by the first such upgrade;
+    on the committed sidecar that is scenario_080's SNAP, on 2026-09-29."""
+    meta = {
+        "revisions": [
+            {"kind": "convention", "date": "2026-09-22"},
+            {
+                "kind": "engine_upgrade",
+                "date": "2026-09-29",
+                "excluded_outputs_rechecked": [
+                    {
+                        "scenario_id": "scenario_001",
+                        "variable": "snap",
+                        "reason": f"... {drafting.INDETERMINATE}, and stays excluded.",
+                    },
+                    {"scenario_id": "scenario_002", "variable": "ssi", "reason": "x"},
+                ],
+            },
+            {
+                "kind": "engine_upgrade",
+                "date": "2026-10-10",
+                "excluded_outputs_rechecked": [
+                    {
+                        "scenario_id": "scenario_001",
+                        "variable": "snap",
+                        "reason": f"again {drafting.INDETERMINATE}",
+                    }
+                ],
+            },
+        ]
+    }
+    assert drafting.indeterminate_rechecks(meta) == {
+        ("scenario_001", "snap"): "2026-09-29"
+    }
+    sidecar = json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / "us_full_run_20260612_policyengine_4_16_1_populace"
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
+    )
+    assert drafting.indeterminate_rechecks(sidecar) == {
+        ("scenario_080", "snap"): "2026-09-29"
+    }

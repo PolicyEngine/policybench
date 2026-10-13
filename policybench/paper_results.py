@@ -74,6 +74,11 @@ RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 # The phrase an upgrade's recheck reason uses for an output whose recorded
 # defect the new engine fixes but whose reference rests on another one.
 FURTHER_DEFECT = "rests on a further engine defect"
+# The phrase an upgrade's recheck uses for an output whose recorded defect the
+# new engine fixes but whose reference the stated facts do not decide (as an
+# earlier recheck found, e.g. scenario_080's SNAP on 2026-09-29): it stays
+# excluded for an input the prompt does not state.
+INDETERMINATE = "indeterminate on the stated facts"
 
 # The October 2026 engine moves' audits, oldest first: each holds its builder,
 # its fix-module evidence, and the timing record and publication check
@@ -1984,9 +1989,19 @@ class PaperResults:
         policyengine-us#10052). Outputs whose causes are the same or one
         within the other, under the same pull requests, are one fix (the two
         Wisconsin outputs of #10026); other outputs with the same causes are
-        one fix too, with the union of their pull requests."""
+        one fix too, with the union of their pull requests. Outputs join
+        transitively, so the groups do not depend on the sidecar's order."""
+        return [
+            (_series([ROOT_CAUSE_LABELS[c] for c in g["causes"]]), g["count"], g["prs"])
+            for g in self.engine_upgrade_restored_fix_groups
+        ]
+
+    @property
+    def engine_upgrade_restored_fix_groups(self) -> list[dict]:
+        """engine_upgrade_restored_fixes before naming: each group's root
+        causes and pull requests (first-seen order) and how many outputs."""
         last = self.last_engine_upgrade
-        groups: list[dict] = []
+        items: list[tuple[list[str], list[str]]] = []
         for entry in [] if last is None else last.revision["regenerated_exclusions"]:
             causes = entry["record"]["root_cause"].split("+")
             if entry["target"]["kind"] == "fix_modules":
@@ -2002,27 +2017,41 @@ class PaperResults:
             prs = UPSTREAM_PR.findall(entry["upstream"].split("; related")[0])
             if not prs:
                 raise ValueError(f"{_key(entry)} names no upstream pull request")
-            for group in groups:
-                same = group["causes"] == causes
-                nested = set(group["prs"]) == set(prs) and (
-                    set(causes) <= set(group["causes"])
-                    or set(group["causes"]) <= set(causes)
-                )
-                if same or nested:
-                    group["causes"] += [c for c in causes if c not in group["causes"]]
-                    group["prs"] += [p for p in prs if p not in group["prs"]]
-                    group["count"] += 1
-                    break
-            else:
-                groups.append({"causes": causes, "prs": prs, "count": 1})
-        return [
-            (
-                _series([ROOT_CAUSE_LABELS[c] for c in group["causes"]]),
-                group["count"],
-                group["prs"],
-            )
-            for group in groups
-        ]
+            items.append((causes, prs))
+
+        def joins(one: tuple[list[str], list[str]], other) -> bool:
+            if one[0] == other[0]:
+                return True
+            nested = set(one[0]) <= set(other[0]) or set(other[0]) <= set(one[0])
+            return set(one[1]) == set(other[1]) and nested
+
+        # Join outputs transitively (union-find), so the groups do not depend
+        # on the sidecar's order; each group then lists its causes and pull
+        # requests in first-seen order.
+        parent = list(range(len(items)))
+
+        def root(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i in range(len(items)):
+            for j in range(i):
+                if joins(items[i], items[j]):
+                    parent[root(i)] = root(j)
+        groups: list[dict] = []
+        by_root: dict[int, dict] = {}
+        for i, (causes, prs) in enumerate(items):
+            group = by_root.get(root(i))
+            if group is None:
+                group = {"causes": [], "prs": [], "count": 0}
+                by_root[root(i)] = group
+                groups.append(group)
+            group["causes"] += [c for c in causes if c not in group["causes"]]
+            group["prs"] += [p for p in prs if p not in group["prs"]]
+            group["count"] += 1
+        return groups
 
     @property
     def engine_upgrade_restored_fix_phrase(self) -> str:
@@ -2074,6 +2103,18 @@ class PaperResults:
             f"dollar tolerance and {within} within it, and removes "
             f"{count_word(removed)} {outputs} from scoring."
         )
+
+    @property
+    def engine_upgrade_change_details(self) -> str:
+        """The change summary with the sentences naming the changed scored
+        references and the new exclusions, where there are any: one non-empty
+        string, so the paper never renders an empty inline expression."""
+        parts = [
+            self.engine_upgrade_change_summary_sentence,
+            self.engine_upgrade_scored_change_sentence,
+            self.engine_upgrade_new_exclusion_sentence,
+        ]
+        return " ".join(part for part in parts if part)
 
     def upgrade_view(self, version: str) -> "PaperResults":
         """These accessors as of the engine upgrade to ``version``: a view of
@@ -2758,9 +2799,10 @@ class PaperResults:
         recorded defect is fixed there, split by why the
         upgrade's recheck keeps each excluded: ``unlisted_input``, for the
         second reason the record's note names (an input the prompt does not
-        state); ``further_defect``, because the recheck found the reference
-        rests on a further engine defect the new engine does not fix (its
-        reason says so). A landed record that is neither is refused."""
+        state) or a recheck that finds the output indeterminate on the stated
+        facts (INDETERMINATE); ``further_defect``, because the recheck found
+        the reference rests on a further engine defect the new engine does not
+        fix (its reason says so). A landed record that is neither is refused."""
         last = self.last_engine_upgrade
         kinds: dict[str, set] = {"unlisted_input": set(), "further_defect": set()}
         if last is None:
@@ -2783,7 +2825,9 @@ class PaperResults:
                 for target in targets
             ):
                 continue
-            if "(unlisted input)" in record.get("note", ""):
+            if "(unlisted input)" in record.get("note", "") or (
+                INDETERMINATE in item["reason"]
+            ):
                 kinds["unlisted_input"].add(key)
             elif FURTHER_DEFECT in item["reason"]:
                 kinds["further_defect"].add(key)
@@ -2938,6 +2982,22 @@ class PaperResults:
             f"policyengine-us {version} still has the defect behind {unfixed} of "
             f"them, across {self.engine_defect_unfixed_root_cause_count} root causes."
         )
+
+    @property
+    def engine_defect_class_sentence(self) -> str:
+        """What the reference_engine_defect class marks, with the records the
+        reference engine fixes but keeps excluded (an unstated input, or a
+        further defect), where there are any; never empty."""
+        lead = (
+            f"marks the {self.engine_defect_exclusion_count} outputs where that "
+            "engine misapplies the law on stated facts."
+        )
+        parts = [
+            lead,
+            self.engine_defect_fixed_kept_sentence,
+            self.engine_defect_further_defect_sentence,
+        ]
+        return " ".join(part for part in parts if part)
 
     @property
     def abstract_exclusion_sentence(self) -> str:

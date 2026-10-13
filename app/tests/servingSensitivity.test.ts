@@ -62,7 +62,7 @@ describe("serving sensitivity", () => {
       }),
     );
     expect(rank).toBe(7);
-    expect(html).toContain("auto 91.4 · #7");
+    expect(html).toContain("auto 91.5 · #7");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
     expect(html).toContain("would rank #7");
     expect(html).toContain("(+8.1 against its 83.3% on the unfiltered board)");
@@ -82,8 +82,8 @@ describe("serving sensitivity", () => {
         wouldRank: rank,
       }),
     );
-    // The would-rank comes from the unrounded score: 91.705 sits just above
-    // Claude Sonnet 5.5's 91.694, which rounds level with it.
+    // The would-rank comes from the unrounded score: 91.748 sits just above
+    // Claude Sonnet 5.5's 91.738, which rounds level with it.
     expect(rank).toBe(fable51Summary.sensitivity.would_rank);
     expect(rank).toBe(4);
     expect(html).toContain("auto 91.7 · #4");
@@ -109,7 +109,7 @@ describe("serving sensitivity", () => {
     expect(rank).toBe(11);
     expect(html).toContain("auto 88.8 · #11");
     expect(html).toContain("switches Claude&#x27;s extended thinking off");
-    expect(html).toContain("(+9.5 against its 79.2% on the unfiltered board)");
+    expect(html).toContain("(+9.6 against its 79.3% on the unfiltered board)");
     expect(html).toContain("sensitivity/claude-thinking-2026-08.md");
   });
 
@@ -144,7 +144,7 @@ describe("serving sensitivity", () => {
     // 88.183 − 86.945 = 1.238 → +1.2; rounding first would have said +1.3.
     expect(formatDelta(88.183, 86.945)).toBe("+1.2");
     expect(formatDelta(88.2, 86.945)).toBe("+1.3");
-    // The pinned Fable 5.1 pair on the frozen board: 91.705 − 90.871 = 0.834.
+    // The pinned Fable 5.1 pair on the frozen board: 91.748 − 90.910 = 0.838.
     expect(
       formatDelta(fable51Summary.sensitivity.exact, fable51Summary.board.exact),
     ).toBe("+0.8");
@@ -152,7 +152,7 @@ describe("serving sensitivity", () => {
     const fable5 = Object.values(augustSummary.runs).find(
       (run) => run.model === "claude-fable-5",
     )!;
-    // 91.41 − 83.295 = 8.115 → +8.1.
+    // 91.451 − 83.331 = 8.120 → +8.1.
     expect(formatDelta(fable5.sensitivity.exact, fable5.board.exact)).toBe("+8.1");
   });
 

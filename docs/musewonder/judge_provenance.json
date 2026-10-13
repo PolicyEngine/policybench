@@ -1,7 +1,7 @@
 {
  "counts": {
-  "isolated: setup-token 2": 38,
-  "isolated: subfleet lane claude-10": 113
+  "isolated: setup-token 2": 39,
+  "isolated: subfleet lane claude-10": 112
  },
  "note": "Provenance of the new Opus 5.5 judge verdicts in the Muse Wonder stage: every case Muse Wonder or the policyengine-us 2.41.0 references re-opened. Every verdict ran through scripts/run_audit_claude.sh from an empty directory outside the repo, with no tools, an allowlisted environment, no user settings and a token login, at effort xhigh; each transcript passes the runner's checks. Most ran one at a time on subfleet lane claude-10's token, lent by Fleet ops while Max's second setup-token login (2026-09-30 opt-in) was at its weekly limit; the rest ran on that setup-token login after its limit reset. Counts are by group. Scores do not depend on judge verdicts.",
  "verdicts": [
@@ -1379,17 +1379,17 @@
   },
   {
    "case_id": "us__scenario_080__snap",
-   "group": "isolated: subfleet lane claude-10",
+   "group": "isolated: setup-token 2",
    "isolated": true,
-   "judge_account_declared": "claude:<account withheld> (subfleet lane claude-10)",
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
    "judge_effort": "xhigh",
    "judge_model_reported": [
     "claude-opus-5-5"
    ],
    "judge_template_version": 2,
-   "judged_at_utc": "2026-10-13T06:46:29.726260+00:00",
-   "prompt_sha256": "85a6c2afda45befc6007ec8bd8a2de22bb8e6848928b1aa681379975be1e05b8",
-   "verdict_sha256": "f8daa071c3f88478c964647f713799cbcd16f002c62c8f27d9d24d94b249b821"
+   "judged_at_utc": "2026-10-13T11:08:15.219764+00:00",
+   "prompt_sha256": "98b2240070d1b98cd44a2d18565b28e10d42f145e845d5465177a14a4599e0cb",
+   "verdict_sha256": "1d3f0edf84a87de1fe630aa4de521f979f5543a31858a562425f203a98aef4f6"
   },
   {
    "case_id": "us__scenario_081__federal_income_tax_before_refundable_credits",

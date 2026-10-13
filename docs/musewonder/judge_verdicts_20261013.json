@@ -235,6 +235,14 @@
    "judged_at_utc": "2026-10-13T06:39:25.843881+00:00",
    "verdict_sha256": "2caf4422cbf1c773309fc859892acfaf4e002a8a57c789406c631181438da326"
   },
+  "us__scenario_080__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-13T11:08:15.219764+00:00",
+   "verdict_sha256": "1d3f0edf84a87de1fe630aa4de521f979f5543a31858a562425f203a98aef4f6"
+  },
   "us__scenario_081__federal_income_tax_before_refundable_credits": {
    "judge_model": "claude-opus-5-5",
    "case_failure_source": "llm_error",

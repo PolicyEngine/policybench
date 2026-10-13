@@ -2,11 +2,12 @@
   "note": "When PolicyBench began sweeping the references for the 2026-10-12 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
   "pypi": {
     "source": "https://pypi.org/pypi/policyengine-us/json",
-    "read_at_utc": "2026-10-13T09:39:14Z",
-    "newest_at_read": "2.41.1",
+    "read_at_utc": "2026-10-13T11:34:13Z",
+    "newest_at_read": "2.41.2",
     "wheel_uploaded_at_utc": {
       "2.41.0": "2026-10-13T01:44:55.991829Z",
-      "2.41.1": "2026-10-13T07:38:49.871102Z"
+      "2.41.1": "2026-10-13T07:38:49.871102Z",
+      "2.41.2": "2026-10-13T10:49:01.550263Z"
     },
     "yanked_newer": {}
   },
@@ -27,40 +28,40 @@
     "first_output_sha256": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926"
   },
   "publication_check": {
-    "engine": "2.41.1",
-    "engine_installed_at_utc": "2026-10-13T08:51:39Z",
-    "engine_installed_evidence": "results/local/musewonder/check-venv-2.41.1/lib/python3.12/site-packages/policyengine_us-2.41.1.dist-info",
-    "check_computed": "results/local/check-sweep-2.41.1-5vdl5run/sweep/computed.csv",
+    "engine": "2.41.2",
+    "engine_installed_at_utc": "2026-10-13T11:29:07Z",
+    "engine_installed_evidence": "results/local/musewonder/check-venv-2.41.2/lib/python3.12/site-packages/policyengine_us-2.41.2.dist-info",
+    "check_computed": "results/local/check-sweep-2.41.2-xq2tac5o/sweep/computed.csv",
     "check_computed_sha256": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926",
     "check_sweep": {
       "builder_sha256": "106359647da224dae243c6365b78fa324102f832e830cbc2d1b82a1ba1e7cf29",
-      "venv": "results/local/musewonder/check-venv-2.41.1",
+      "venv": "results/local/musewonder/check-venv-2.41.2",
       "command": "build_references_upgrade.py --actions <empty> --allow-draft",
       "exit_code": 1,
       "engine_install": {
-        "version": "2.41.1",
-        "files_verified": 18507,
+        "version": "2.41.2",
+        "files_verified": 18508,
         "editable": false,
         "imported_from_package": true,
         "fresh_bytecode_cache": true
       }
     },
-    "output_at_utc": "2026-10-13T09:40:06Z",
-    "output": "reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_41_1.csv",
-    "output_sha256": "4b58331747e417a7cc253c2a3cc792334df42f495e706b9884d08a95af0eeeff",
-    "build": "results/local/musewonder/engine/final/build",
+    "output_at_utc": "2026-10-13T11:37:39Z",
+    "output": "reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_41_2.csv",
+    "output_sha256": "463bb8fd3a4c296e67d6b1dfeb4353e0d020831d4d4a0af82673d14d8fe4c8c6",
+    "build": "results/local/musewonder/engine/final2/build",
     "build_sha256": {
       "computed.csv": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926",
-      "reference_outputs.csv": "9bc1b6b9708dc5eb4b6501a7adf7b47585c7a1d27d9be97f9d3ff943c29e047d",
-      "reference_outputs.csv.meta.json": "5ed3170e2dc6ec9ceb832a26d977a1428a9e8b938cc258a18275933debdfe354",
-      "reference_exclusions.json": "75e802d66c93e91b639edf9f5a086f321c3857bfe89de4451a5d947bcc35f66f",
+      "reference_outputs.csv": "2d00cf595adf183fcfa3d069756723b5ce09bd4123fbf3e673635474346b3a0c",
+      "reference_outputs.csv.meta.json": "0dc1ba15a11a20d9a3915a4537a33127e5406b5fde4797586d39ce5dbf170915",
+      "reference_exclusions.json": "a2ddf91634ed66124d13105a09badea39ec6b5f11863011fa51f9ca17f8f3939",
       "builder": "106359647da224dae243c6365b78fa324102f832e830cbc2d1b82a1ba1e7cf29"
     },
-    "scored_outputs": 1936,
+    "scored_outputs": 1935,
     "outputs": 1984,
     "same": 1984,
     "differ": [],
-    "scored_same": 1936,
+    "scored_same": 1935,
     "scored_differ": [],
     "excluded_differ": [],
     "max_abs_delta": 0.0

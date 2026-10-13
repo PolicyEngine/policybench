@@ -54,17 +54,6 @@
       }
     },
     {
-      "scenario_id": "scenario_080",
-      "variable": "snap",
-      "alternative_value": 3240.0,
-      "tolerance": 1.0,
-      "upstream": "PolicyEngine/policyengine-us#10033",
-      "basis": "An engine defect fixed upstream (PolicyEngine/policyengine-us#10033) is regenerated with the fix: policyengine-us 2.41.0 gives $3,240.00, within $1 of the corrected value $3,240.00 the 2026-09-22 record computed (r30_snap_heat_and_eat_sua: PolicyEngine grants the heat-and-eat standard utility allowance to households without an elderly or disabled member, which P.L. 119-21 sec. 10103 ended).",
-      "target": {
-        "kind": "record"
-      }
-    },
-    {
       "scenario_id": "scenario_091",
       "variable": "state_income_tax_before_refundable_credits",
       "alternative_value": 878.515747,
@@ -171,6 +160,11 @@
       "scenario_id": "scenario_057",
       "variable": "snap",
       "reason": "Stays excluded on policyengine-us 2.41.0: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,669.22, and policyengine-us 2.41.0 gives $2,628.00. The value is 2.38.6's, rechecked on 2026-10-10 (release 20261010's engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_080",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.41.0: the engine gives $3,240.00, on the record's corrected value $3,240.00, so its defect (r30_snap_heat_and_eat_sua) is fixed there (PolicyEngine/policyengine-us#10033), but the 2026-09-29 recheck found the output indeterminate on the stated facts, a second reason that a new engine does not settle: the prompt calls the head disabled but states no route by which 7 U.S.C. 2012(j) makes a member disabled (the allowance would stand, at $3,576, were the head one), and it does not say whether the $2,000 energy subsidy is a LIHEAP payment or a State-law payment, which 7 U.S.C. 2014(k)(4) treats differently. The record keeps $3,596.04."
     },
     {
       "scenario_id": "scenario_081",
@@ -317,8 +311,8 @@
       "status": "excluded 20261010: r30_snap_heat_and_eat_sua",
       "hub_audited_target": "",
       "decision": "PROPOSED",
-      "placed_in": "regenerated_exclusions",
-      "call": "REGENERATE (20261010 engine defect r30_snap_heat_and_eat_sua): lands on $3,240.00 vs target $3,240.00. Confirm the fix is released upstream and name it in upstream (PolicyEngine/policyengine-us#10033). It was rechecked on 2026-10-10: read that reason in release 20261010's engine_upgrade revision."
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261010 engine defect r30_snap_heat_and_eat_sua lands on target, but the 2026-09-29 recheck found it indeterminate on the stated facts): kept excluded. Final review (2026-10-13) confirmed the second reason: the energy subsidy's source and the head's 2012(j) status are unstated."
     },
     {
       "scenario_id": "scenario_081",
@@ -453,5 +447,5 @@
       "call": "RECHECK (20261010 engine defect r02_ira_219g, on the corrected value release 20261010's recheck found, with a second reason) - check the drafted reason"
     }
   ],
-  "note": "Reviewed 2026-10-13 on policyengine-us 2.41.0, the published wheel, whose 1,984 computed outputs are identical to a first pass on its release commit de3815f4cc. No scored reference changes. 10 regenerations of engine-defect records the release fixes, each naming its upstream pull request (#10023, #10026, #10030, #10032, #10033, #10034 and #10052, each an ancestor of de3815f4cc); 11 rechecks of excluded outputs that move and stay excluded; no approval and no new exclusion. The rechecks of scenario_005 and scenario_120 federal income tax keep release 20261010's finding: the engine's value is the one 2.38.6 gave on the corrected value, and each record's second reason (an unlisted input) keeps the output excluded."
+  "note": "Reviewed 2026-10-13 on policyengine-us 2.41.0, the published wheel, whose 1,984 computed outputs are identical to a first pass on its release commit de3815f4cc. No scored reference changes. 9 regenerations of engine-defect records the release fixes, each naming its upstream pull request (#10023, #10026, #10030, #10032, #10034 and #10052, each an ancestor of de3815f4cc); 12 rechecks of excluded outputs that move and stay excluded; no approval and no new exclusion. The rechecks of scenario_005 and scenario_120 federal income tax keep release 20261010's finding: the engine's value is the one 2.38.6 gave on the corrected value, and each record's second reason (an unlisted input) keeps the output excluded. scenario_080 SNAP lands on its corrected value (#10033 fixes r30) but stays excluded: the 2026-09-29 recheck found it indeterminate on the stated facts."
 }

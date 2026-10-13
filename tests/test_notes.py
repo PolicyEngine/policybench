@@ -5344,6 +5344,25 @@ def test_release_20261013_note_claims() -> None:
             for entry in entries.values()
         )
     assert facts["scoredOutputs"] == facts["totalOutputs"] - facts["excluded"]
+    # "The new version also fixes the defect behind a SNAP output ... but that
+    # output stays excluded because the stated facts do not decide it": one
+    # SNAP record lands on its corrected value and its recheck finds it
+    # indeterminate on the stated facts; it is still excluded.
+    from policybench.paper_results import INDETERMINATE
+
+    landed = [
+        item
+        for item in r.last_engine_upgrade.rechecked
+        if INDETERMINATE in item["reason"]
+    ]
+    assert [(i["scenario_id"], i["variable"]) for i in landed] == [
+        ("scenario_080", "snap")
+    ]
+    assert ("scenario_080", "snap") in _excluded_at(ROOT)
+    assert (
+        "#10033" in landed[0]["reason"]
+        or "policyengine-us#10033" in (landed[0]["reason"])
+    )
     # Links resolve to committed paths.
     for entry in note["data"]:
         href = entry["href"]

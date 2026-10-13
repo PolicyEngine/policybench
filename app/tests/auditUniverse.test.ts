@@ -20,13 +20,13 @@ describe("audit universe", () => {
     );
     // Release 20261013: the counts tests/test_disclosures.py recomputes
     // from the frozen annotations and payload (48 models; Muse Wonder's rows
-    // join, and the ten outputs the 2.41.0 upgrade regenerates return to
+    // join, and the nine outputs the 2.41.0 upgrade regenerates return to
     // scoring).
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 8_550,
-      legacyThresholdRowCount: 8_550,
-      exactMissCount: 8_546,
-      annotatedExactMissCount: 8_546,
+      annotatedRowCount: 8_503,
+      legacyThresholdRowCount: 8_503,
+      exactMissCount: 8_499,
+      annotatedExactMissCount: 8_499,
       annotatedExactHitCount: 4,
       unannotatedBelowFullBoundedScoreCount: 2_218,
     });

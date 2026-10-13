@@ -1062,7 +1062,7 @@ def test_paper_results_count_the_rerun_sweeps_the_same_way(tree):
     ("folder", "engine", "counts"),
     [
         ("2026-10-09-engine-upgrade", "policyengine-us 2.38.6", (18, 17, 2)),
-        ("2026-10-12-engine-upgrade", "policyengine-us 2.41.0", (10, 11, 0)),
+        ("2026-10-12-engine-upgrade", "policyengine-us 2.41.0", (9, 12, 0)),
     ],
 )
 def test_the_october_upgrade_commits_the_actions_its_sidecar_pins(
