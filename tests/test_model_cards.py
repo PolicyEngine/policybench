@@ -152,7 +152,7 @@ def test_provider_max_clamps_initial_completion_budget(monkeypatch):
         ("gemini/gemini-3.5-flash", 65_535),
         ("gemini/gemini-3-flash-preview", 65_535),
         ("gemini/gemini-3.6-flash", 65_536),
-        ("gemini/gemini-4-argon", 65_536),
+        ("gemini/gemini-4-argon", 32_768),
     ],
 )
 def test_roster_model_provider_maximums_limit_escalation(model_id, expected):
