@@ -31,7 +31,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 ROOT = Path(__file__).resolve().parents[1]
@@ -2460,12 +2460,18 @@ def validate_verdicts(
     seed verdict over: the verdict must be the seed's, byte for byte, and any
     prompt_sha256 its sidecar records must match. Every other verdict is new
     and must record the sha256 of the prompt it judged and template
-    JUDGE_TEMPLATE_VERSION. A verdict naming
+    JUDGE_TEMPLATE_VERSION. Every judged case's prompt must begin with the
+    header of the version its sidecar records
+    (policybench.audit.template_version_problems), so a new verdict's sidecar
+    cannot claim v2 for a prompt rendered on another version. A verdict naming
     Muse Wonder also needs bound Opus 5.5 provenance. Returns the pending
     cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
     that fails is refused outright: a re-judge cannot restore it.
     """
     import jsonschema
+
+    from policybench.audit import template_version_problems
+    from policybench.judge_template import recorded_template_version
 
     schema = json.loads((audit / "schema.json").read_text())
     manifest = {
@@ -2473,6 +2479,7 @@ def validate_verdicts(
         for item in map(json.loads, (audit / "cases.jsonl").read_text().splitlines())
     }
     seed = seed or {}
+    templates = dict(template_version_problems(audit))
     pending, refused = [], []
     for case_id, item in manifest.items():
         if item["parse_failure_only"]:
@@ -2497,6 +2504,8 @@ def validate_verdicts(
                 raise ValueError("verdict provenance is not an object")
             if meta.get("verdict_sha256") != hashlib.sha256(blob).hexdigest():
                 raise ValueError("the sidecar is not bound to this verdict")
+            if case_id in templates:
+                raise ValueError(f"judge template: {templates[case_id]}")
             bound = meta.get("prompt_sha256")
             if carried:
                 if hashlib.sha256(blob).hexdigest() != seed[case_id]["verdict_sha256"]:
@@ -2505,9 +2514,11 @@ def validate_verdicts(
                     raise ValueError("verdict is bound to a different prompt")
             elif bound != digest(prompt):
                 raise ValueError("a new verdict is not bound to this prompt")
-            elif meta.get("judge_template_version") != JUDGE_TEMPLATE_VERSION:
+            elif recorded_template_version(meta) != JUDGE_TEMPLATE_VERSION:
                 # A new or re-opened case is rendered on this release's
-                # template, and its judge must have read that version.
+                # template, and its judge must have read that version: the
+                # sidecar records it, and the prompt's header (checked above)
+                # is that version's.
                 raise ValueError(
                     f"a new verdict is not on judge template v{JUDGE_TEMPLATE_VERSION}"
                 )
@@ -3481,13 +3492,24 @@ def committed_dependencies(names: list[str]) -> list[str]:
     (fix_module_blob), in the builder's order: the builder's module_dependencies
     (policybench.fix_module_closure), re-derived here from the committed
     bytes. Raises ClosureError for a module that loads local files any way
-    but Path(__file__).with_name("<file>")."""
-    from policybench.fix_module_closure import dependency_closure
+    but Path(__file__).with_name("<file>"), and for a sibling whose name
+    resolves to another folder than the module's own: the module loads it
+    from its own directory, so the pin would name a file other than the one
+    that runs."""
+    from policybench.fix_module_closure import ClosureError, dependency_closure
 
     found: list[str] = []
     for name in names:
         read = lambda file: fix_module_blob(file)[1]  # noqa: E731
+        home = PurePosixPath(fix_module_blob(name)[0]).parent
         for dep in dependency_closure(name, read):
+            where = PurePosixPath(fix_module_blob(dep)[0]).parent
+            if where != home:
+                raise ClosureError(
+                    f"{name} loads {dep} from {home}, but that name is pinned "
+                    f"from {where}: a fix module's siblings must be committed "
+                    "beside it"
+                )
             if dep not in names and dep not in found:
                 found.append(dep)
     return found

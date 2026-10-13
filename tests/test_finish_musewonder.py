@@ -137,8 +137,6 @@ def ruled_case(item: dict) -> str:
     return f"us__{item['scenario_id']}__{item['variable']}"
 
 
-
-
 @pytest.fixture
 def unruled_spec(monkeypatch):
     """A spec whose rulings decide no adjudication, so the gates ported from
@@ -838,6 +836,15 @@ def _verdict(models, source="llm_error"):
     }
 
 
+def judged_prompt(body: str, version: int = driver.JUDGE_TEMPLATE_VERSION) -> str:
+    """A synthetic prompt that begins with the header of ``version``, as
+    every rendered prompt does: validate_verdicts holds a prompt's header to
+    the version its verdict's sidecar records."""
+    from policybench.judge_template import template_header
+
+    return template_header(version) + "\n" + body
+
+
 def write_verdict(case, verdict, **meta):
     """A verdict and its sidecar, bound to the verdict and the case's prompt;
     a meta value of None leaves that key out."""
@@ -868,7 +875,7 @@ def write_verdict(case, verdict, **meta):
 def _audit(root, wrong_models):
     case = root / "cases/us__scenario_000__snap"
     case.mkdir(parents=True)
-    (case / "prompt.md").write_text("Classify these wrong answers.\n")
+    (case / "prompt.md").write_text(judged_prompt("Classify these wrong answers.\n"))
     (root / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA))
     (root / "cases.jsonl").write_text(
         json.dumps(
@@ -958,6 +965,43 @@ def test_new_model_verdict_requires_bound_opus55_provenance(audit, defect):
             meta = [meta]
         path.write_text(json.dumps(meta))
     assert driver.validate_verdicts(root) == [case.name]
+
+
+def test_a_new_verdict_must_stand_on_a_v2_prompt_whatever_its_sidecar_says(audit):
+    """The review's case: a new verdict whose prompt.md is rendered on v1,
+    with its verdict and prompt hashes bound and a sidecar that claims v2, is
+    refused: the prompt's header must be the version the sidecar records."""
+    root, case, verdict = audit
+    assert driver.validate_verdicts(root) == []
+    (case / "prompt.md").write_text(
+        judged_prompt("Classify these wrong answers.\n", version=1)
+    )
+    write_verdict(case, verdict)
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    assert meta["judge_template_version"] == 2
+    assert meta["prompt_sha256"] == sha(case / "prompt.md")
+    assert driver.validate_verdicts(root) == [case.name]
+    # Recording v1 for it agrees with its header but is not this release's.
+    write_verdict(case, verdict, judge_template_version=1)
+    assert driver.validate_verdicts(root) == [case.name]
+
+
+def test_a_carried_verdict_whose_sidecar_disagrees_with_its_prompt_is_refused(audit):
+    """A seed case keeps its seed bytes, and its sidecar must still record the
+    version its prompt was rendered on."""
+    root, case, _ = audit
+    seed = {
+        case.name: {
+            "prompt_sha256": sha(case / "prompt.md"),
+            "verdict_sha256": sha(case / "verdict.json"),
+        }
+    }
+    assert driver.validate_verdicts(root, seed=seed) == []
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    meta["judge_template_version"] = 1
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+    with pytest.raises(SystemExit, match="carried-over verdicts.*judge template"):
+        driver.validate_verdicts(root, seed=seed)
 
 
 def test_every_verdict_is_bound_to_its_own_bytes(tmp_path):
@@ -1901,6 +1945,7 @@ def test_the_seed_is_release_20261006s_with_release_20261010s_rejudged_cases():
     (docs/haiku55/seed_digest.csv) with every case release 20261010
     re-judged (docs/haiku55/judge_provenance.json) written over it, and
     nothing else: the rebuilt audit is the one that release published."""
+
     def read(path: Path) -> dict:
         lines = path.read_text().splitlines()
         return {
@@ -1937,7 +1982,10 @@ def test_the_recovery_record_names_each_rejudged_case_once_at_its_hashes():
         assert item["prompt_sha256"] == entry["prompt_sha256"]
         assert item["verdict_sha256"] == entry["verdict_sha256"]
     assert record["counts"] == {"claude-18": 39, "pb-judge": 193}
-    groups = {"pb-judge": "isolated: setup-token 2", "claude-18": "isolated: subfleet lane claude-18"}
+    groups = {
+        "pb-judge": "isolated: setup-token 2",
+        "claude-18": "isolated: subfleet lane claude-18",
+    }
     assert all(provenance[c["case_id"]]["group"] == groups[c["login"]] for c in cases)
 
 
@@ -2282,7 +2330,9 @@ def test_the_upgrade_wave_is_named_once_after_the_2026_10_10_wave(monkeypatch):
 
 
 def test_the_upgrade_wave_needs_its_written_day():
-    spec = {k: v for k, v in real_spec().items() if k != "upgrade_adjudications_written_on"}
+    spec = {
+        k: v for k, v in real_spec().items() if k != "upgrade_adjudications_written_on"
+    }
     with mock.patch.object(driver, "load_spec", lambda: spec):
         with pytest.raises(SystemExit, match="upgrade_adjudications_written_on"):
             driver.release_date_conventions(
@@ -4955,6 +5005,34 @@ def _evidence_target(key, modules, *, after_offset: float) -> tuple[dict, float]
     }, value
 
 
+def test_a_local_target_module_cannot_load_an_audited_name_as_its_sibling(
+    monkeypatch,
+):
+    """The review's case: a module in this audit's fixes/ that loads
+    Path(__file__).with_name("r02_ira_219g_v2.py") runs the file beside it,
+    but that name resolves to the 2026-09-22 module, so the pin would name
+    another file. It is refused; a sibling committed beside it is pinned."""
+    from policybench.fix_module_closure import ClosureError
+
+    loads = b'from pathlib import Path\nSIBLING = Path(__file__).with_name("%s")\n'
+    local = {
+        "rx_shadow.py": loads % b"r02_ira_219g_v2.py",
+        "rx_beside.py": loads % b"rx_helper.py",
+        "rx_helper.py": b"X = 1\n",
+    }
+    real = driver.fix_module_blob
+
+    def located(name):
+        if name in local:
+            return (driver.LOCAL_FIXES / name).as_posix(), local[name]
+        return real(name)
+
+    monkeypatch.setattr(driver, "fix_module_blob", located)
+    with pytest.raises(ClosureError, match="rx_shadow.py loads r02_ira_219g_v2.py"):
+        driver.committed_dependencies(["rx_shadow.py"])
+    assert driver.committed_dependencies(["rx_beside.py"]) == ["rx_helper.py"]
+
+
 def test_a_target_module_whose_closure_cannot_be_established_is_refused():
     """The delta review's case: a fix_modules target naming
     c13v3_upstream_plus_r30.py, which loads its siblings through
@@ -5999,8 +6077,8 @@ def test_adjudicate_exclusions_drops_the_regenerated_decisions(upgraded):
     cases = {driver.case_id(entry) for entry in entries}
     assert len(entries) == 70 - 5
     assert not UPGRADED_CASES & cases
-    assert written["date_conventions"] == (
-        base_adjudication_record()["date_conventions"]
+    assert (
+        written["date_conventions"] == (base_adjudication_record()["date_conventions"])
     )
     built = json.loads(upgraded.upgrade.exclusions_text)["exclusions"]
     assert excluded_case_keys(entries) == exclusion_keys(built)

@@ -33,6 +33,7 @@ import freeze_musewonder as release  # noqa: E402
 import freeze_snapshot as freezer  # noqa: E402
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+from policybench.judge_template import template_header  # noqa: E402
 from tests import test_finish_musewonder as mock_builds  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
@@ -410,7 +411,10 @@ def write_audit(audit: Path) -> None:
     (audit / "cases.jsonl").write_text(
         "".join(json.dumps(item) + "\n" for item in manifest)
     )
-    (case / "prompt.md").write_text("Classify these wrong answers.\n")
+    # A seed case: its sidecar records no template version, so v1.
+    (case / "prompt.md").write_text(
+        template_header(1) + "\nClassify these wrong answers.\n"
+    )
     verdict = {
         "reference_suspect": False,
         "reference_bug_hypothesis": "",
@@ -530,9 +534,7 @@ def freeze_preflight(tmp_path, monkeypatch):
     monkeypatch.setattr(driver, "committed_input_pins", lambda: pins)
     # The input pins as HEAD commits them, which name the supervised run the
     # frozen serving evidence must name (release.evidence_runs).
-    record = {
-        "inputs": {SLUG: {"run": f"{RUNS[SLUG]}/run", "sha256": pins[SLUG]}}
-    }
+    record = {"inputs": {SLUG: {"run": f"{RUNS[SLUG]}/run", "sha256": pins[SLUG]}}}
     monkeypatch.setattr(
         driver,
         "head_blob",
@@ -1025,9 +1027,7 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
         "n": driver.RELEASE_SCORED,
     }
     scenario, variable = CASE
-    cases = {
-        scenario: {variable: {INCUMBENT: _case_row(900.0), NEW: _case_row(950.0)}}
-    }
+    cases = {scenario: {variable: {INCUMBENT: _case_row(900.0), NEW: _case_row(950.0)}}}
 
     def board(stats, exclusions):
         country = {
@@ -1337,14 +1337,15 @@ def test_payload_differences_name_the_first_differing_paths():
 
 
 @pytest.mark.parametrize("dry_run", [True, False])
-@pytest.mark.parametrize("defect", ["edited_kept", "unbound_new"])
+@pytest.mark.parametrize("defect", ["edited_kept", "unbound_new", "v1_claims_v2"])
 def test_the_freeze_refuses_a_verdict_edited_after_export(
     staged_board, monkeypatch, defect, dry_run
 ):
     """Export validates the verdicts before it writes the receipt. A kept
     verdict edited afterwards, its classes kept, its sidecar and its receipt
     entry re-hashed, must still be refused before any workspace mutation; so
-    must a verdict the seed does not carry that is bound to no prompt."""
+    must a verdict the seed does not carry that is bound to no prompt, and a
+    new verdict bound to a v1 prompt whose sidecar claims v2."""
     stage, rebind = staged_board
     pinned_references(stage / BUNDLE / "us")
     case = stage / "audit/cases" / KEPT
@@ -1360,6 +1361,15 @@ def test_the_freeze_refuses_a_verdict_edited_after_export(
     else:
         monkeypatch.setattr(driver, "load_seed", lambda stage: {})
         message = f"fail validation.*{KEPT}"
+        if defect == "v1_claims_v2":
+            meta = json.loads((case / "verdict.meta.json").read_text())
+            meta.update(
+                prompt_sha256=sha(case / "prompt.md"),
+                judge_template_version=driver.JUDGE_TEMPLATE_VERSION,
+            )
+            (case / "verdict.meta.json").write_text(json.dumps(meta))
+            pending = driver.validate_verdicts(stage / "audit")
+            assert pending == [KEPT]
     rebind()
     before = workspace_files()
     with pytest.raises(SystemExit, match=message):
@@ -2516,6 +2526,7 @@ def test_MOCK_unsupported_manifest_sidecar_is_refused_before_any_write(
         regenerated={**mock_builds.MOCK_REGENERATED, mock_builds.WI_042: 0.0},
         added={},
     )
+
     def edit(meta):
         revision = meta["revisions"][-1]
         revision.update(copy.deepcopy(_builder_setup()))

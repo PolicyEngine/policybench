@@ -73,9 +73,7 @@ build = _module(
 narratives = _module(
     "narratives_upgrade_1012", UPGRADE / "scripts" / "narratives_upgrade.py", build
 )
-drafting = _module(
-    "actions_from_cells_1012", UPGRADE / "actions_from_cells.py", build
-)
+drafting = _module("actions_from_cells_1012", UPGRADE / "actions_from_cells.py", build)
 
 
 def test_this_audits_scripts_use_this_audits_builder():
@@ -84,6 +82,7 @@ def test_this_audits_scripts_use_this_audits_builder():
     assert narratives.BASE_COMMIT == build.BASE_COMMIT
     assert drafting.PREVIOUS_ENGINE == build.PREVIOUS_ENGINE
     assert drafting.load_base is build.load_base
+
 
 ENGINE = "policyengine-us 9.9.9"
 DATE = "2026-10-09"
@@ -1561,6 +1560,57 @@ def test_the_draft_keeps_an_on_target_record_that_names_a_second_reason():
     assert calls[0]["placed_in"] == "excluded_rechecked"
 
 
+def test_a_value_release_20261010_found_on_target_keeps_that_finding():
+    """Release 20261010's recheck found scenario_003 snap on the corrected
+    value its 2.38.6 evidence gave, and kept it excluded for a second reason.
+    The engine has not moved it since, so it misses the record's older
+    alternative value without the defect being unfixed: the draft says so
+    and keeps the second reason. A value that moved since is drafted as
+    before."""
+    computed = _unchanged()
+    computed[("scenario_003", "snap")] = 2600.0
+    base = _base()
+    release, ruled = _release(base)
+    for record in release["exclusions"]:
+        if build.key_of(record) == ("scenario_003", "snap"):
+            record["note"] = "The output also moves under r23 (unlisted input)."
+    earlier = {
+        ("scenario_003", "snap"): {
+            "value_on_2_38_6": 2600.0,
+            "reason": (
+                "Stays excluded on policyengine-us 2.38.6: the engine gives "
+                "$2,600.00, on the record's corrected value $2,600.00, but the "
+                "record names a second reason that a new engine does not settle."
+            ),
+        }
+    }
+    kwargs = dict(engine_version="9.9.9", date=DATE, spec_sha256="spec", precise=True)
+    args = (
+        _cells(computed),
+        release,
+        ruled,
+        {build.key_of(r) for r in base.exclusions["exclusions"]},
+    )
+    actions, calls = drafting.draft_actions(*args, earlier, **kwargs)
+    (entry,) = actions["excluded_rechecked"]
+    assert "is not fixed" not in entry["reason"]
+    assert "found it on its corrected value" in entry["reason"]
+    assert "names a second reason" in entry["reason"]
+    assert entry["reason"].endswith(
+        "The value is 2.38.6's, rechecked on 2026-10-10 "
+        "(release 20261010's engine_upgrade revision's excluded_outputs_rechecked)."
+    )
+    moved = {
+        ("scenario_003", "snap"): {
+            **earlier[("scenario_003", "snap")],
+            "value_on_2_38_6": 2550.0,
+        }
+    }
+    actions, _ = drafting.draft_actions(*args, moved, **kwargs)
+    (entry,) = actions["excluded_rechecked"]
+    assert "is not fixed in this release" in entry["reason"]
+
+
 def test_the_draft_aims_a_drifted_record_at_its_fix_modules_evidence():
     """scenario_003 snap misses its record's 1.755.4 corrected value; with
     evidence it is drafted against the modules' pre-fix corrected value, and
@@ -1739,6 +1789,42 @@ def test_a_local_module_edited_after_its_commit_is_refused(tmp_path, monkeypatch
         build.audit_module_pins([R33])
 
 
+def test_a_local_module_cannot_pin_a_sibling_from_the_audited_fixes(
+    tmp_path, monkeypatch
+):
+    """The review's case: a local module that loads
+    Path(__file__).with_name("r02_ira_219g_v2.py") runs the copy beside it in
+    this audit's fixes/, whatever that holds, while the name resolves to the
+    2026-09-22 module's committed bytes. It is refused, so no pin names a
+    file other than the one that runs; a sibling committed beside it passes."""
+    loads = b'from pathlib import Path\nSIBLING = Path(__file__).with_name("%s")\n'
+    local = {
+        "rx_shadow.py": loads % b"r02_ira_219g_v2.py",
+        "rx_beside.py": loads % b"rx_helper.py",
+        "rx_helper.py": b"X = 1\n",
+    }
+    real = build.fix_location
+
+    def located(name):
+        if name in local:
+            return f"{build.LOCAL_FIXES_REL}/{name}", local[name]
+        return real(name)
+
+    monkeypatch.setattr(build, "fix_location", located)
+    copy_dir = tmp_path / "fixes"
+    copy_dir.mkdir()
+    for name, blob in local.items():
+        (copy_dir / name).write_bytes(blob)
+    monkeypatch.setattr(build, "LOCAL_FIXES", copy_dir)
+    with pytest.raises(build.Refusal, match="rx_shadow.py loads r02_ira_219g_v2.py"):
+        build.audit_module_pins(["rx_shadow.py"])
+    pins = build.audit_module_pins(["rx_beside.py"])
+    assert set(pins) == {"rx_beside.py", "rx_helper.py"}
+    assert build.module_pin("rx_helper.py", pins)["path"] == (
+        f"{build.LOCAL_FIXES_REL}/rx_helper.py"
+    )
+
+
 def test_the_committed_evidence_targets_ca_099_with_r33():
     """evidence/pe2.38.6.json gives CA 099's state income tax with r02, r11 and
     r33 on an engine with the defect: the addback moves it $27.00, from
@@ -1750,7 +1836,11 @@ def test_the_committed_evidence_targets_ca_099_with_r33():
         for i in doc["items"]
         if (i["scenario_id"], i["variable"]) == ("scenario_099", S)
     ]
-    assert item["modules"] == ["r02_ira_219g_v2.py", "r11_ca_itemized_conformity_v2.py", R33]
+    assert item["modules"] == [
+        "r02_ira_219g_v2.py",
+        "r11_ca_itemized_conformity_v2.py",
+        R33,
+    ]
     assert round(item["corrected_value"] - item["engine_value"], 2) == 27.00
     assert doc["modules"][R33] == build.sha256(build.LOCAL_FIXES / R33)
 

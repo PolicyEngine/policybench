@@ -152,7 +152,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -1362,10 +1362,26 @@ def audit_module_pins(names, fixes_dir: Path = AUDIT_FIXES) -> dict[str, str]:
     (module_dependencies): the bytes committed at BASE_COMMIT under
     reference_audit/2026-09-22/fixes, or, for a module this audit adds, the
     bytes committed at HEAD under LOCAL_FIXES_REL (fix_location); and nothing
-    else."""
+    else.
+
+    A module loads its siblings from its own directory
+    (Path(__file__).with_name), so each must be pinned from there: a sibling
+    whose name resolves to the other folder (a local module loading a name
+    the 2026-09-22 audit also has, say) is refused, since the pin would name
+    a file other than the one that runs."""
     names = sorted(set(names))
     for name in list(names):
-        names += [d for d in module_dependencies(name, committed_fix) if d not in names]
+        home = PurePosixPath(fix_location(name)[0]).parent
+        for dependency in module_dependencies(name, committed_fix):
+            where = PurePosixPath(fix_location(dependency)[0]).parent
+            if where != home:
+                raise Refusal(
+                    f"{name} loads {dependency} from {home}, but that name is "
+                    f"pinned from {where}: a fix module's siblings must be "
+                    "committed beside it"
+                )
+            if dependency not in names:
+                names.append(dependency)
     pins = {}
     for name in sorted(set(names)):
         if Path(name).name != name or not name.endswith((".py", ".json")):

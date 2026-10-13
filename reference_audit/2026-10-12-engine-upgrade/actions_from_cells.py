@@ -455,22 +455,49 @@ def draft_actions(
                         "regenerated_exclusions",
                     )
                     continue
-                reason = (
-                    f"Stays excluded on {engine}: the engine gives {money(cell.new)}, "
-                    f"{money(abs(cell.new - target))} from the record's corrected "
-                    f"value {money(target)}, so the defect ({record['root_cause']}) "
-                    f"is not fixed in this release; the record keeps "
-                    f"{money(kept_value)}."
-                )
-                if cell.audited_target.startswith("pending"):
-                    reason += (
-                        " The US hub's sweep marks it pending on more than one fix "
-                        f"({cell.audited_target.removeprefix('pending: ')})."
+                earlier = first_rechecks.get(k)
+                if (
+                    second
+                    and earlier is not None
+                    and abs(float(earlier[ver_key]) - cell.new) <= 1e-3
+                    and "on the record's corrected value" in earlier.get("reason", "")
+                ):
+                    # Release 20261010's recheck found this value on the
+                    # corrected value its evidence gave on 2.38.6, and the
+                    # engine has not moved it since. The record's own
+                    # alternative value predates that evidence, so missing it
+                    # says nothing about the defect; the second reason keeps
+                    # the output excluded.
+                    reason = (
+                        f"Stays excluded on {engine}: the engine gives "
+                        f"{money(cell.new)}, the value policyengine-us 2.38.6 "
+                        "gave when release 20261010's recheck found it on its "
+                        "corrected value, but the record names a second reason "
+                        f"that a new engine does not settle ({second}); the record "
+                        f"keeps {money(kept_value)}."
                     )
-                text = (
-                    f"RECHECK ({source} engine defect {record['root_cause']}, off "
-                    f"target by {money(abs(cell.new - target))})"
-                )
+                    text = (
+                        f"RECHECK ({source} engine defect {record['root_cause']}, "
+                        "on the corrected value release 20261010's recheck found, "
+                        "with a second reason)"
+                    )
+                else:
+                    reason = (
+                        f"Stays excluded on {engine}: the engine gives "
+                        f"{money(cell.new)}, {money(abs(cell.new - target))} from "
+                        f"the record's corrected value {money(target)}, so the "
+                        f"defect ({record['root_cause']}) is not fixed in this "
+                        f"release; the record keeps {money(kept_value)}."
+                    )
+                    if cell.audited_target.startswith("pending"):
+                        reason += (
+                            " The US hub's sweep marks it pending on more than one "
+                            f"fix ({cell.audited_target.removeprefix('pending: ')})."
+                        )
+                    text = (
+                        f"RECHECK ({source} engine defect {record['root_cause']}, "
+                        f"off target by {money(abs(cell.new - target))})"
+                    )
             else:
                 reason = (
                     f"Stays excluded on {engine}: the reference depends on "
