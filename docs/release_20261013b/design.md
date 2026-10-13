@@ -42,6 +42,20 @@ Each of the five is judged by Claude Opus 5.5 through `scripts/run_audit_claude.
 
 The login is `pb-judge`, the setup-token login Max opted into for judging on 2026-09-30. Releases 20261010 and 20261013 used the same login. Its config directory is `~/.policybench-judge/pb-judge-config`; it is never the desktop login. `docs/release_20261013b/judge_provenance.json` records each verdict's hashes, account group, effort, template version and time, in the form of `docs/musewonder/judge_provenance.json`.
 
+## Wording review
+
+The five verdicts write 26 published texts: five case notes and 21 model annotations. An independent reviewer (Claude Opus 5.5, with no part in the release) read each against its case's prompt and against policyengine-us 2.41.0's code and parameters, and reported every statement the record contradicts. Each reported correction was then checked again against the engine. For scenario_015's Medicaid pathway that check was a calculation of the household: PolicyEngine does not count the head as disabled, because earnings exceed SSI's substantial gainful activity limit; its income test passes; and its asset test fails.
+
+Nine corrections are applied as listed wording amendments (`docs/release_20261013b/wording_amendments.json`), each with the text it replaces, the replacement and the evidence:
+
+- four in scenario_015's Medicaid case note and one in a model annotation there, which described Indiana's disability pathway and the engine's handling of it loosely or as a general fact about PolicyEngine;
+- one each in a scenario_045 SNAP annotation and a scenario_086 annotation, which misreported what the model's reasoning said;
+- one each in the scenario_086 and scenario_015 federal refundable credits case notes, which overstated a count and a rule's scope.
+
+One reported point is left as written: SNAP's "about 232% of the guideline" holds for January to September and is 227% from October, and both fail both limits.
+
+`collect` applies each amendment only if its old text occurs exactly once in a re-judged case's note or annotation. An amendment cannot name another case, a class or a flag. The committed record `annotations/.../us_wording-amendments.json` is release 20261013's with these nine appended.
+
 ## What the gates enforce
 
 Each step refuses with `SystemExit` before it writes anything outside the stage. Tests are in `tests/test_release_20261013b.py`.
@@ -57,6 +71,7 @@ Each step refuses with `SystemExit` before it writes anything outside the stage.
 | Each new verdict's transcript passes the current release driver's checks (`finish_musewonder.transcript_problems`): one user message that is exactly the prompt, one accepted structured answer that is exactly the verdict, no tool call, no account data, an empty session context and no git working directory. Every event must also carry the sidecar's session id. | `case_problems`, `session_problems` |
 | A verdict that fails is set aside with the reasons and the case is judged again, up to three rounds. A round the runner ends without a new verdict stops the step, because the login cannot judge. | `judge` |
 | A re-judge that flags the reference, or leaves a scored row outside `llm_error`, `parse_contract_failure` and `budget_exhausted_at_ceiling`, stops `collect`. That is a new reference question for Max. | `collect` |
+| A wording amendment names one of the five cases and its case note or one model's annotation, and replaces text found exactly once there. The committed amendments record is release 20261013's with this release's appended. | `load_amendments`, `apply_amendments`, `committed_amendments` |
 | The annotation files are release 20261013's committed bytes with only the five cases' records replaced. Records compare as text, field by field. Within the five, no record is added, dropped or reordered, and only the columns a verdict decides may change. The annotations directory holds exactly the expected files. | `splice_annotations`, `annotation_changes`, `verify_annotations` |
 | Two exports of the stage give the same bytes. Every payload section but `scenarioPredictions` equals the base's. Inside it, only the five cases' `annotation`, `failureSource`, `failureSubtype`, `caseAnnotation`, `caseFailureSources` and `caseFailureSubtypes` differ. | `export`, `verify_payload`, `allowed_path` |
 | The receipt binds the payload, the base, the judge provenance, the next seed digest, every export input and each re-judge's verdict, sidecar, prompt and transcript. The freeze refuses a receipt that binds less, or anything changed since export. | `export`, `verify_receipt` |
@@ -84,6 +99,6 @@ CLAUDE_CONFIG_DIR="$HOME/.policybench-judge/pb-judge-config" \
 .venv/bin/python scripts/release_20261013b.py freeze --stage "$PB_STAGE"
 ```
 
-`collect` also writes `docs/release_20261013b/judge_provenance.json` and `docs/release_20261013b/seed_digest.csv`, the prompt and verdict hashes of all 677 judged cases in this release's tree. The next release takes that tree as its audit seed.
+`collect` applies `docs/release_20261013b/wording_amendments.json`. It also writes `docs/release_20261013b/judge_provenance.json` and `docs/release_20261013b/seed_digest.csv`, the prompt and verdict hashes of all 677 judged cases in this release's tree. The next release takes that tree as its audit seed.
 
 The freeze is a local build and uploads nothing. The release assets are `<stage>/predictions.csv.gz` and the staged payload renamed to `dashboard-data.json`, under tag `dashboard-data-20261013b`. After review and green CI, create the release, verify the downloaded sha256 against the pointer, and then merge.
