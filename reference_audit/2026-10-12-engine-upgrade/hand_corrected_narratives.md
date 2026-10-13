@@ -7,7 +7,10 @@ records policyengine-us 2.41.0 regenerates. It is applied through
 narratives. Each text states the value and figures of the 2.41.0 build's trace
 (`reference_traces.json`), and where a text names a rule, the rule is the one in
 policyengine-us 2.41.0's code or parameters. Every sum a text states was
-recomputed from its figures.
+recomputed from its figures. Where the cent-rounded figures miss the trace's
+total by a cent (scenario_042's taxable income), the text gives the trace's
+total and says so. The SNAP text gives each threshold for the months it
+applies, since the engine changes them at October.
 
 The writer's drafts misstated the change behind six of the ten, and a figure or
 term in the others:
@@ -46,7 +49,12 @@ term in the others:
   conformity adjustment; California does not conform to the federal deduction.
   It also called the $1,256.00 of exemption credits the two dependents'; they
   are the joint filers' and the two dependents'.
-- **scenario_080 SNAP (#10033).** The draft's figures were right. It now states
-  that the household's only deduction is the standard deduction, with no
-  utility allowance or shelter deduction, which is what the fix changed. It also
-  names the poverty guideline the tests use ($1,304.17 a month, not $1,330).
+- **scenario_080 SNAP (#10033).** The draft's benefit arithmetic was right. It
+  now states that the household's only deduction is the standard deduction,
+  with no utility allowance or shelter deduction, which is what the fix
+  changed. The draft gave one $1,330 guideline for both income tests; the
+  engine's monthly poverty guideline is $1,304.17 from January through
+  September and $1,330.00 from October through December (and the TANF gross
+  income limit $2,608.33, then $2,660.00), and the text now says so. It also
+  shows the two roundings: net income of $92.33 to the engine's $92.00, and
+  the expected contribution of $27.60 up to $28.00.

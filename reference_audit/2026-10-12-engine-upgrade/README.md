@@ -3,7 +3,8 @@
 This directory records how PolicyBench's US references moved from policyengine-us 2.38.6 to
 policyengine-us 2.41.0. 2.41.0 was the newest PyPI release when PolicyBench began sweeping the
 references on 2026-10-13 (`verification/sweep_timing.json`): its wheel was uploaded at 01:44:55
-UTC, installed at 01:49:51 and first used at 01:51:12. It is the first release carrying every fix
+UTC and installed at 01:49:51; the sweep's first pass began at 01:50:17 and wrote its first
+output at 01:51:12. It is the first release carrying every fix
 release 20261010 was waiting on. The directory is named for the day the audit began
 (2026-10-12); the records date the upgrade by its UTC day, 2026-10-13.
 
