@@ -28,8 +28,8 @@
     },
     "files": {
       "us_adjudications.json": "dffea2d9935084ffbab074a6e86325e7e819539dc1d99e25fd3cb2ea2dc181ef",
-      "us_audit_row_annotations.csv": "b663ba16d39029c58ecf0121a49993ec859d5f275667e8f7736c09db9749c9b1",
-      "us_case_notes.csv": "05b61a9a103392491336f70deee7489c718c743a3cb1a400e3fe5afcd810f092",
+      "us_audit_row_annotations.csv": "2667b19ce7d9f5ab4b1d6479a51e72773544a6e7cb8c045868c749e4f91d2409",
+      "us_case_notes.csv": "79a65000c693ed3d9211bbe8e0ad5425743ff3519891a5c7f7611a91ae14d2f1",
       "us_case_reference_explanations.csv": "0e6797d079d41858b960117f54027bdc9681999daafa6f278fd57f2884f9e534"
     },
     "judge_provenance": {
@@ -80,7 +80,7 @@
   "files": [
     {
       "path": "runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz",
-      "sha256": "56fbe44809a28fe4acb8344ad726c3c6358981314b0bd4bb8b064c9355448acc"
+      "sha256": "d1d6a577d22e41f653e8dd57ce1b08bb28774d67c22dc2db6d51933b42b172e1"
     }
   ],
   "household_dataset": {
@@ -92,9 +92,9 @@
   },
   "live_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 130982273,
+    "bytes": 130982477,
     "derivation": "At freeze time the live artifact equals the frozen published_dashboard_artifact: the combined export of the source-run data.json listed under source_run_artifacts. Annotation-class republishes may advance this entry ahead of the frozen pin without changing any score.",
-    "sha256": "c06177e65913fa7886c239f776483982a140cc126e18e734b443dc890b74ea32",
+    "sha256": "0a4b754a4ce3b249e0608efac62e52646e4c6f33c6a28c1a496c4c9fda49b507",
     "tag": "dashboard-data-20261013b",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20261013b/dashboard-data.json"
   },
@@ -110,8 +110,8 @@
   },
   "published_dashboard_artifact": {
     "asset": "dashboard-data.json",
-    "bytes": 130982273,
-    "sha256": "c06177e65913fa7886c239f776483982a140cc126e18e734b443dc890b74ea32",
+    "bytes": 130982477,
+    "sha256": "0a4b754a4ce3b249e0608efac62e52646e4c6f33c6a28c1a496c4c9fda49b507",
     "tag": "dashboard-data-20261013b",
     "url": "https://github.com/PolicyEngine/policybench/releases/download/dashboard-data-20261013b/dashboard-data.json"
   },
@@ -163,12 +163,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "aa6f70f7cc98c74e2545315a17439d74720b10a42a674a29e227e4dc863c4d9e"
+      "sha256": "cee26d0956da316ec4addce6176355b3c1c466f03521be0a70ff383daaaf48c6"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "78805980cc6acfb770762501043be172c8bc96c30ebb19cb9d2f191c943c33da",
-        "index.html": "27c7e5fc7d775685b452eeb958d068582908446a5e663b0167a68ab183982244",
+        "index.html": "320e58e444701c4b44e5376e2fd2fb70d985d8a047c96f22e2ebfb8666fc390a",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -227,7 +227,7 @@
         "analysis/summary_by_model.csv": "1358582a2eeaa5121d8a8a94a0578f403a1317f851d610b69151b2931e94e458",
         "analysis/summary_by_variable.csv": "a186582a84a8639968e7f1ae84dc1b4594c3fc6f49fc9e8a716e776777863f74",
         "analysis/usage_summary.csv": "92ea6183ec69d70e1c94e1468cd9a907776cdfe0c3221b92580df57586d24a6a",
-        "data.json.gz": "56fbe44809a28fe4acb8344ad726c3c6358981314b0bd4bb8b064c9355448acc",
+        "data.json.gz": "d1d6a577d22e41f653e8dd57ce1b08bb28774d67c22dc2db6d51933b42b172e1",
         "predictions.csv.gz": "bb37b988275ebcd08cb62215257626afd9ad481b7d6dd6b103395703c94c6746",
         "reference_exclusions.json": "a2ddf91634ed66124d13105a09badea39ec6b5f11863011fa51f9ca17f8f3939",
         "reference_outputs.csv": "2d00cf595adf183fcfa3d069756723b5ce09bd4123fbf3e673635474346b3a0c",

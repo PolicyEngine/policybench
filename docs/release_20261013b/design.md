@@ -44,17 +44,25 @@ The login is `pb-judge`, the setup-token login Max opted into for judging on 202
 
 ## Wording review
 
-The five verdicts write 26 published texts: five case notes and 21 model annotations. Two independent reviewers read each against its case's prompt and against policyengine-us 2.41.0's code and parameters, and reported every statement the record contradicts: Claude Opus 5.5 in a session with no part in the release, and GPT-6.1 Sol on a Codex lane. Their reviews are in `~/reviews/policybench-judge-isolation/wording-review/`. They agreed on six corrections, and each found others the other did not. Every reported correction was then checked again against the engine. For scenario_015's Medicaid pathway that check was a calculation of the household: PolicyEngine does not count the head as disabled, because earnings exceed SSI's substantial gainful activity limit; its income test passes; and its asset test fails.
+The five verdicts write 26 published texts: five case notes and 21 model annotations. Two independent reviewers read each against its case's prompt and against policyengine-us 2.41.0's code and parameters, and reported every statement the record contradicts: Claude Opus 5.5 in a session with no part in the release, and GPT-6.1 Sol on a Codex lane. Their reviews are in `~/reviews/policybench-judge-isolation/wording-review/`. They agreed on six corrections, and each found others the other did not. The review of this release's pull request (`~/reviews/policybench-judge-isolation/pr-review/`) then found three more texts in scenario_015's Medicaid case that still said, or implied, that the head fails the pathway's income test, and a misstated end point for the childless EITC in scenario_014.
 
-Eleven corrections are applied as listed wording amendments (`docs/release_20261013b/wording_amendments.json`), each with the text it replaces, the replacement and the evidence:
+Every reported correction was checked again against the engine. For scenario_015's Medicaid pathway that check was a calculation of the household on policyengine-us 2.41.0:
 
-- four in scenario_015's Medicaid case note and one in a model annotation there, which described Indiana's disability pathway and the engine's handling of it loosely or as a general fact about PolicyEngine;
+- PolicyEngine does not count the head as disabled, because $45,000 of earnings, $3,750 a month, exceeds SSI's substantial gainful activity limit of $1,690 a month.
+- The pathway's income test passes: its countable income is $0 for anyone who is not SSI-eligible.
+- The asset test fails: $584,850 against Indiana's $2,000 limit.
+- The result does not rest on `meets_ssi_disability_criteria`, an input the household data never set. With it set to true, the head is still not SSI-disabled and `medicaid_category` is still NONE.
+
+Fourteen corrections are applied as listed wording amendments (`docs/release_20261013b/wording_amendments.json`), each with the text it replaces, the replacement and the evidence:
+
+- four in scenario_015's Medicaid case note and two in model annotations there, which described Indiana's disability pathway and the engine's handling of it loosely, as a general fact about PolicyEngine, or as an income-test failure;
 - one each in a scenario_045 SNAP annotation and a scenario_086 annotation, which misreported what the model's reasoning said;
-- three in scenario_015's federal refundable credits texts and one in scenario_086's case note, which overstated a rule's scope, a count or what a model's figure shows.
+- three in scenario_015's federal refundable credits texts and one in scenario_086's case note, which overstated a rule's scope, a count or what a model's figure shows;
+- two in scenario_014's federal refundable credits texts, which put the end of the childless EITC for joint filers at about $26,000; it is $26,820.
 
 One reported point is left as written: SNAP's "about 232% of the guideline" holds for January to September and is 227% from October, and both fail both limits.
 
-`collect` applies each amendment only if its old text occurs exactly once in a re-judged case's note or annotation. An amendment cannot name another case, a class or a flag. The committed record `annotations/.../us_wording-amendments.json` is release 20261013's with these nine appended.
+`collect` applies each amendment only if its old text occurs exactly once in a re-judged case's note or annotation. An amendment cannot name another case, a class or a flag. The committed record `annotations/.../us_wording-amendments.json` is release 20261013's with these fourteen appended.
 
 ## What the gates enforce
 
@@ -70,13 +78,13 @@ Each step refuses with `SystemExit` before it writes anything outside the stage.
 | Each new verdict satisfies the schema and names exactly its case's wrong models. Its sidecar binds the verdict and the v2 prompt and records Opus 5.5 (requested and reported), a judging time, the isolated runner, a token login and a declared account. No text is hedged. | `case_problems` |
 | Each new verdict's transcript passes the current release driver's checks (`finish_musewonder.transcript_problems`): one user message that is exactly the prompt, one accepted structured answer that is exactly the verdict, no tool call, no account data, an empty session context and no git working directory. Every event must also carry the sidecar's session id. | `case_problems`, `session_problems` |
 | A verdict that fails is set aside with the reasons and the case is judged again, up to three rounds. A round the runner ends without a new verdict stops the step, because the login cannot judge. | `judge` |
-| A re-judge that flags the reference, or leaves a scored row outside `llm_error`, `parse_contract_failure` and `budget_exhausted_at_ceiling`, stops `collect`. That is a new reference question for Max. | `collect` |
+| A re-judge that flags the reference, or leaves a scored row outside `llm_error`, `parse_contract_failure` and `budget_exhausted_at_ceiling`, stops `collect`. That is a new reference question for Max. | `collect`, `reference_questions` |
 | A wording amendment names one of the five cases and its case note or one model's annotation, and replaces text found exactly once there. The committed amendments record is release 20261013's with this release's appended. | `load_amendments`, `apply_amendments`, `committed_amendments` |
 | The annotation files are release 20261013's committed bytes with only the five cases' records replaced. Records compare as text, field by field. Within the five, no record is added, dropped or reordered, and only the columns a verdict decides may change. The annotations directory holds exactly the expected files. | `splice_annotations`, `annotation_changes`, `verify_annotations` |
 | Two exports of the stage give the same bytes. Every payload section but `scenarioPredictions` equals the base's. Inside it, only the five cases' `annotation`, `failureSource`, `failureSubtype`, `caseAnnotation`, `caseFailureSources` and `caseFailureSubtypes` differ. | `export`, `verify_payload`, `allowed_path` |
-| The receipt binds the payload, the base, the judge provenance, the next seed digest, every export input and each re-judge's verdict, sidecar, prompt and transcript. The freeze refuses a receipt that binds less, or anything changed since export. | `export`, `verify_receipt` |
-| Before it writes, the freeze requires the working tree to be release 20261013's in the manifest, the pointer, the version registry, the serving configuration, the frozen references and predictions, and every annotation file. | `freeze` |
-| After it writes, the annotations directory holds exactly the committed files, the serving configuration, version registry, references, exclusions and predictions are unchanged, and the manifest differs from release 20261013's only in the two annotation hashes, the judge provenance, the dashboard artifact, the payload's two hashes and the rendered paper. | `freeze`, `manifest_problems` |
+| The receipt binds the payload, the base, the judge provenance, the next seed digest, every export input, each re-judge's verdict, sidecar, prompt and transcript, and every verdict set aside. The freeze refuses a receipt that binds less, or anything changed since export. | `export`, `verify_receipt` |
+| Before it writes, the freeze requires the working tree to be release 20261013's in the manifest, the pointer, the version registry, the serving configuration, the frozen references and predictions, and every annotation file. | `freeze`, `verify_base_working_tree` |
+| After it writes, the annotations directory holds exactly the committed files, the pointer is the one the freeze wrote, the serving configuration, version registry, references, exclusions and predictions are unchanged, and the manifest differs from release 20261013's only in the two annotation hashes, the judge provenance, the dashboard artifact, the payload's two hashes and the rendered paper. | `freeze`, `manifest_problems` |
 
 ## Commands
 
