@@ -1,5 +1,5 @@
 {
- "note": "Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. An independent reviewer read all 26 new texts against each case's prompt and the engine (docs/release_20261013b/design.md); each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score.",
+ "note": "Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine (docs/release_20261013b/design.md); each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score.",
  "amendments": [
   {
    "case_id": "us__scenario_015__head_medicaid_eligible",
@@ -66,6 +66,21 @@
    "old": "the Recovery Rebate and payroll tax credits are inactive in 2026",
    "new": "the Recovery Rebate and payroll tax credits are $0 in 2026",
    "reason": "The case's prompt says each component returned $0. In policyengine-us 2.41.0 the refundable payroll tax credit is an input with no dated rule (refundable_payroll_tax_credit has no formula), so 'inactive in 2026' fits only the Recovery Rebate."
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "field": "case_annotation",
+   "old": "Any positive figure means the model either invented a child-based credit or applied the with-children EITC schedule.",
+   "new": "Any positive figure is incorrect for this household.",
+   "reason": "The case's prompt shows every refundable credit component at $0, which supports rejecting any positive answer but not a claim that these two errors are the only way to reach one. policyengine-us 2.41.0's 2026 EITC at $45,000 of earnings for a single filer is $0 with no child (maximum $664), $1,054 with one and $2,870 with two (gov.irs.credits.eitc max, phase_out.start, phase_out.rate), so $1,735.80 fits none of the 2026 schedules."
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "field": "annotation",
+   "model": "qwen3.8-max",
+   "old": "The EITC figure only fits the with-children phase-out schedule.",
+   "new": "The EITC figure does not fit the childless schedule.",
+   "reason": "The model's reasoning in the case's prompt gives $1,735.80 without a schedule. policyengine-us 2.41.0's 2026 EITC at $45,000 of earnings for a single filer is $0 with no child (maximum $664), $1,054 with one and $2,870 with two (gov.irs.credits.eitc max, phase_out.start, phase_out.rate), so $1,735.80 fits none of the 2026 schedules. It exceeds the childless maximum, which is all the record shows."
   }
  ]
 }

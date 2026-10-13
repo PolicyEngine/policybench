@@ -44,13 +44,13 @@ The login is `pb-judge`, the setup-token login Max opted into for judging on 202
 
 ## Wording review
 
-The five verdicts write 26 published texts: five case notes and 21 model annotations. An independent reviewer (Claude Opus 5.5, with no part in the release) read each against its case's prompt and against policyengine-us 2.41.0's code and parameters, and reported every statement the record contradicts. Each reported correction was then checked again against the engine. For scenario_015's Medicaid pathway that check was a calculation of the household: PolicyEngine does not count the head as disabled, because earnings exceed SSI's substantial gainful activity limit; its income test passes; and its asset test fails.
+The five verdicts write 26 published texts: five case notes and 21 model annotations. Two independent reviewers read each against its case's prompt and against policyengine-us 2.41.0's code and parameters, and reported every statement the record contradicts: Claude Opus 5.5 in a session with no part in the release, and GPT-6.1 Sol on a Codex lane. Their reviews are in `~/reviews/policybench-judge-isolation/wording-review/`. They agreed on six corrections, and each found others the other did not. Every reported correction was then checked again against the engine. For scenario_015's Medicaid pathway that check was a calculation of the household: PolicyEngine does not count the head as disabled, because earnings exceed SSI's substantial gainful activity limit; its income test passes; and its asset test fails.
 
-Nine corrections are applied as listed wording amendments (`docs/release_20261013b/wording_amendments.json`), each with the text it replaces, the replacement and the evidence:
+Eleven corrections are applied as listed wording amendments (`docs/release_20261013b/wording_amendments.json`), each with the text it replaces, the replacement and the evidence:
 
 - four in scenario_015's Medicaid case note and one in a model annotation there, which described Indiana's disability pathway and the engine's handling of it loosely or as a general fact about PolicyEngine;
 - one each in a scenario_045 SNAP annotation and a scenario_086 annotation, which misreported what the model's reasoning said;
-- one each in the scenario_086 and scenario_015 federal refundable credits case notes, which overstated a count and a rule's scope.
+- three in scenario_015's federal refundable credits texts and one in scenario_086's case note, which overstated a rule's scope, a count or what a model's figure shows.
 
 One reported point is left as written: SNAP's "about 232% of the guideline" holds for January to September and is 227% from October, and both fail both limits.
 
