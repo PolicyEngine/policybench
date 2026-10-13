@@ -3089,6 +3089,47 @@ print("RESULT " + json.dumps(out))
     assert all(out["models"].values()), out["models"]
 
 
+def test_muse_spark_1_3_routes_through_openrouter_at_metas_standard_rate():
+    """Muse Spark 1.3 runs through OpenRouter, whose one endpoint for the id
+    is Meta's own, at Meta's standard-mode rate: $1.25 / $4.25 per 1M
+    input/output tokens and $0.15 cached input, at every prompt length. The
+    contributor-mode listing is a different endpoint and is not the board's."""
+    assert MODELS["muse-spark-1.3"] == "openrouter/meta/muse-spark-1.3"
+    assert PRICE_OVERRIDES_PER_1M["muse-spark-1.3"] == {
+        "input": 1.25,
+        "output": 4.25,
+        "cache_read": 0.15,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 1.25),
+        (0, 1_000_000, 0, 4.25),
+        (1_000_000, 1_000_000, 0, 5.50),
+        (1_000_000, 0, 1_000_000, 0.15),
+        (1_000_000, 0, 250_000, 0.975),
+        # The smoke's largest household: 2,080 prompt and 6,966 completion
+        # tokens, which Meta billed at $0.0322.
+        (2_080, 6_966, 0, 0.0322055),
+    ],
+)
+def test_muse_spark_1_3_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="muse-spark-1.3",
+        model_id="openrouter/meta/muse-spark-1.3",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
 def test_muse_wonder_routes_through_openrouter_at_metas_list_price():
     """Muse Wonder runs through OpenRouter, whose one endpoint for the id is
     Meta's own, at Meta's list price: $4 / $20 per 1M input/output tokens

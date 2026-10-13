@@ -59,6 +59,7 @@ EXPECTED = {
     "openrouter/z-ai/glm-5.2": ("json", 3, 300, 16_384),
     "openrouter/minimax/minimax-m3": ("tool", None, 300, 16_384),
     "openrouter/qwen/qwen3.7-max": ("json", 3, 600, 16_384),
+    "openrouter/meta/muse-spark-1.3": ("json", None, 300, 16_384),
     "gemini/gemini-3.8-flash": ("tool", None, 300, 16_384),
     "gemini/gemini-3.5-flash-lite": ("tool", None, 300, 16_384),
     "gpt-6-astra": ("tool", None, 300, 16_384),
