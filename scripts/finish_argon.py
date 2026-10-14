@@ -54,8 +54,8 @@ BASE_EXCLUSIONS = 49
 BASE_SCORED = BASE_OUTPUTS - BASE_EXCLUSIONS
 # Ruled exclusions, installed by --step install-exclusions and adjudicated by
 # --step adjudicate-exclusions, as docs/argon/spec.json lists them. This
-# release rules none: d1252 (VA 039, OH 025) and d1263 (the Tax Table) were
-# still open when it was staged, and it changes nothing scored on their points.
+# release rules none: Max ruled d1252 (VA 039, OH 025) and d1263 (the Tax
+# Table) on 2026-10-13, both to keep, so nothing scored changes on their points.
 SPEC_PATH = Path("docs/argon/spec.json")
 NEW_EXCLUSIONS = 0
 RELEASE_EXCLUSIONS = BASE_EXCLUSIONS + NEW_EXCLUSIONS

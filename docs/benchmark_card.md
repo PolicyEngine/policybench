@@ -79,6 +79,12 @@ move on 2.41.0; all 12 stay excluded. The manifest also records policyengine.py
 6.1.2 for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
 policyengine.py does not load beside 2.41.0.
 
+Federal income tax references apply the section 1 rate schedule to taxable
+income, to the cent, at every income, and not the IRS Tax Table, which the Form
+1040 instructions direct filers with taxable income under $100,000 to use. The
+two can differ by a few dollars, so an answer that follows the Tax Table can
+miss the $1 tolerance on those outputs (`reference_audit/2026-10-10-tax-table/`).
+
 A scored reference follows from the stated facts and from law published before
 PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
 a 2026 amount with a price index, or carries one published after the freeze,

@@ -2167,7 +2167,7 @@ def test_the_stage_holds_the_installed_release_exclusions():
 
 
 def test_the_spec_rules_no_exclusion():
-    """d1252 and d1263 were open when the release was staged: the spec names
+    """Max ruled d1252 and d1263 on 2026-10-13, both to keep: the spec names
     no proposal, no ruled adjudication and no restatement, so spec_records
     finds none and the release record is release 20261013b's."""
     spec = real_spec()

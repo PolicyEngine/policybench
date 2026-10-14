@@ -7,7 +7,7 @@ This release adds two models to release `dashboard-data-20261013b` (PR #218), ta
 1. Google's Gemini 4 Argon (display id `gemini-4-argon`, provider id `gemini/gemini-4-argon`, run slug `argon`). Google announced it on 2026-09-30 for Fairwind Program cyber partners only and opened it to the public on 2026-10-13.
 2. Meta's Muse Spark 1.3 (display id `muse-spark-1.3`, provider id `openrouter/meta/muse-spark-1.3`, run slug `musespark`), released 2026-09-02. Max added it to this release on 2026-10-13 (decision d1441).
 
-It moves no reference and rules no exclusion. The references stay release 20261013b's, computed on policyengine-us 2.41.0: the newest policyengine-us release when this release was staged, 2.41.3, gives the same value for all 1,984 outputs (below). Two decisions on reference conventions were open when it was staged: d1252 (VA scenario_039 federal and OH scenario_025 state income tax) and d1263 (the Tax Table against the rate schedule). The spec records both as open, so nothing scored changes on their points.
+It moves no reference and rules no exclusion. The references stay release 20261013b's, computed on policyengine-us 2.41.0: the newest policyengine-us release when this release was staged, 2.41.3, gives the same value for all 1,984 outputs (below). Max ruled on two reference conventions on 2026-10-13, both to keep: d1252 keeps VA scenario_039's federal and OH scenario_025's state income tax scored (the held-reference records now say so), and d1263 keeps the section 1 rate schedule for federal income tax, which the benchmark card and the paper now state. Neither changes a score.
 
 The driver is `scripts/finish_argon.py`, adapted from `scripts/finish_musewonder.py`. The freeze is `scripts/freeze_argon.py`, adapted from `scripts/freeze_musewonder.py`. Their mechanics are release 20261013's (`docs/musewonder/design.md`) except where this note says otherwise. The inputs are in `docs/argon/`:
 
@@ -70,6 +70,6 @@ Preparing the stage on the seed kept 482 judged prompts unchanged and re-opened 
 
 | Decision | State when staged | Effect here |
 |---|---|---|
-| d1252 (keep scoring VA scenario_039 federal and OH scenario_025 state income tax) | open | none: both stay scored as in release 20261013b |
-| d1263 (rate schedule against the Tax Table) | open | none: federal references keep the section 1 rate schedule |
+| d1252 (keep scoring VA scenario_039 federal and OH scenario_025 state income tax) | ruled 2026-10-13: keep both scored; fix the labels in the v2 prompt (#165) | none: both stay scored as in release 20261013b; `reference_audit/held_references.json` records the ruling |
+| d1263 (rate schedule against the Tax Table) | ruled 2026-10-13: keep the schedule and state the convention | none: federal references keep the section 1 rate schedule; the benchmark card and the paper state it (the v2 prompt line is #165) |
 | d1441 (add Muse Spark 1.3) | yes (2026-10-13) | added in this release |

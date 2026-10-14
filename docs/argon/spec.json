@@ -1,13 +1,13 @@
 {
-  "note": "Inputs of the release after dashboard-data-20261013b, read by scripts/finish_argon.py. The release folds Google Gemini 4 Argon and Meta Muse Spark 1.3 (Max 2026-10-13, d1441) onto release dashboard-data-20261013b (release 20261013 with five audit verdicts re-judged, PR #218). Its references stay that release's, computed on policyengine-us 2.41.0: the newest policyengine-us release gives the same value for every output, so no engine upgrade is installed. It rules no exclusion: d1252 (VA scenario_039 federal and OH scenario_025 state income tax, held references) and d1263 (the Tax Table against the rate schedule) were open when it was staged, so nothing scored changes on their points.",
+  "note": "Inputs of the release after dashboard-data-20261013b, read by scripts/finish_argon.py. The release folds Google Gemini 4 Argon and Meta Muse Spark 1.3 (Max 2026-10-13, d1441) onto release dashboard-data-20261013b (release 20261013 with five audit verdicts re-judged, PR #218). Its references stay that release's, computed on policyengine-us 2.41.0: the newest policyengine-us release gives the same value for every output, so no engine upgrade is installed. It rules no exclusion: Max ruled d1252 (VA scenario_039 federal and OH scenario_025 state income tax, held references) and d1263 (the Tax Table against the rate schedule) on 2026-10-13, both to keep, so nothing scored changes on their points.",
   "release_tag": "dashboard-data-20261014",
   "base_tag": "dashboard-data-20261013b",
   "base_sha256": "0a4b754a4ce3b249e0608efac62e52646e4c6f33c6a28c1a496c4c9fda49b507",
   "rulings": {
     "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'. The publication check found policyengine-us 2.41.3, the newest release on 2026-10-13, equal to 2.41.0 on all 1,984 outputs, so the references do not move.",
     "d1441": "Max, 2026-10-13: yes, add Muse Spark 1.3; it goes in this release",
-    "d1252": "open when staged: no change to VA scenario_039 federal or OH scenario_025 state income tax",
-    "d1263": "open when staged: federal references keep the section 1 rate schedule"
+    "d1252": "Max, 2026-10-13: keep scoring both (VA scenario_039 federal, OH scenario_025 state income tax); fix the labels in the v2 prompt (#165)",
+    "d1263": "Max, 2026-10-13: federal references keep the section 1 rate schedule; the card, paper and v2 prompt (#165) state the convention"
   },
   "proposals": [],
   "adjudications": [],
