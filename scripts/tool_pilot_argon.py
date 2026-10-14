@@ -84,6 +84,9 @@ MAX_PROVIDER_ATTEMPTS = 3
 TOOL_TIMEOUT_SECONDS = 60
 WORKER_START_TIMEOUT_SECONDS = 900
 DEFAULT_BUDGET_USD = 50.0
+# Infrastructure failures a resume reruns. Every other status is the model's
+# own outcome and stands, so no household is redrawn until it succeeds.
+RERUNNABLE_STATUSES = frozenset({"provider_error", "budget_stop", "harness_error"})
 
 MAX_PEOPLE = 16
 MAX_UNITS_PER_GROUP = 16
@@ -301,10 +304,15 @@ def normalize_request(
         }
 
     if isinstance(args, str):
+        if len(args) > 2 * MAX_SITUATION_CHARS:
+            problems.append("arguments are too large")
+            return fail()
         try:
             args = json.loads(args)
-        except json.JSONDecodeError as error:
-            problems.append(f"arguments are not valid JSON: {error}")
+        except (ValueError, RecursionError) as error:
+            problems.append(
+                f"arguments are not valid JSON: {error}"[:MAX_MESSAGE_CHARS]
+            )
             return fail()
     if not isinstance(args, dict):
         problems.append("arguments must be an object")
@@ -331,13 +339,17 @@ def normalize_request(
             return fail()
         try:
             situation = json.loads(situation)
-        except json.JSONDecodeError as error:
-            problems.append(f"situation is not valid JSON: {error}")
+        except (ValueError, RecursionError) as error:
+            problems.append(f"situation is not valid JSON: {error}"[:MAX_MESSAGE_CHARS])
             return fail()
     if not isinstance(situation, dict):
         problems.append("situation must be a JSON object")
         return fail()
-    if len(json.dumps(situation, default=str)) > MAX_SITUATION_CHARS:
+    try:
+        too_large = len(json.dumps(situation, default=str)) > MAX_SITUATION_CHARS
+    except (ValueError, RecursionError):
+        too_large = True
+    if too_large:
         problems.append("situation is too large")
         return fail()
     extra = sorted(set(situation) - {"people", *GROUPS})
@@ -381,6 +393,11 @@ def normalize_request(
         normalized_units = {}
         for unit_name, unit in units.items():
             where = f"{group}.{unit_name}"
+            if not isinstance(unit_name, str) or not unit_name or len(unit_name) > 64:
+                problems.append(
+                    f"{group} unit name {unit_name!r} must be a short string"
+                )
+                continue
             if not isinstance(unit, dict):
                 problems.append(f"{where} must be an object with members")
                 continue
@@ -483,9 +500,44 @@ def execute_request(system, registry, request: dict, simulation_cls=None) -> dic
     return {"results": results}
 
 
+def pinned_fix_modules(snapshot: Path = SNAPSHOT) -> list[dict]:
+    """The fix modules the 2.41.0 references were built with, as the sidecar's
+    engine_upgrade revision pins them (path and sha256)."""
+    meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
+    revisions = [
+        r
+        for r in meta["revisions"]
+        if r.get("kind") == "engine_upgrade"
+        and r.get("engine_version") == f"policyengine-us {REFERENCE_ENGINE}"
+    ]
+    if len(revisions) != 1:
+        raise SystemExit(f"expected one {REFERENCE_ENGINE} engine_upgrade revision")
+    return revisions[0]["fix_modules"]
+
+
+def verify_fix_pins(fixes_dir: Path = FIX_MODULE.parent) -> None:
+    """Every module latest_final.py composes must be the pinned bytes.
+
+    Each pin is checked at its recorded path; a module the reform reads from
+    its own directory (the sales tax tables) is also checked there.
+    """
+    problems = []
+    for pin in pinned_fix_modules():
+        candidates = {ROOT / pin["path"], fixes_dir / pin["module"]}
+        for path in sorted(candidates):
+            if path.exists() and _sha256(path) != pin["sha256"]:
+                problems.append(f"{path} does not match the pinned {pin['sha256']}")
+        if not any(path.exists() for path in candidates):
+            problems.append(f"{pin['module']} is missing")
+    if _sha256(FIX_MODULE) != FIX_MODULE_SHA256:
+        problems.append(f"{FIX_MODULE} does not match {FIX_MODULE_SHA256}")
+    if problems:
+        raise SystemExit("; ".join(problems))
+
+
 def load_fix_reform(path: Path = FIX_MODULE):
-    if path == FIX_MODULE and _sha256(path) != FIX_MODULE_SHA256:
-        raise SystemExit(f"{path} does not match the pinned sha256 {FIX_MODULE_SHA256}")
+    if path == FIX_MODULE:
+        verify_fix_pins()
     spec = importlib.util.spec_from_file_location("tool_pilot_latest_final", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -530,14 +582,18 @@ class ToolPool:
         fix_path: Path = FIX_MODULE,
         timeout: float = TOOL_TIMEOUT_SECONDS,
         reform: bool = True,
+        worker_target: Callable | None = None,
     ):
         self._ctx = mp.get_context("spawn")
         self._fix_path = str(fix_path)
         self._reform = reform
+        self._target = worker_target or _worker_main
         self.timeout = timeout
         self._idle: queue.Queue = queue.Queue()
+        self._lock = threading.Lock()
         self.timeouts = 0
         self.crashes = 0
+        self.lost = 0
         starting = [self._start() for _ in range(size)]
         for worker in starting:
             self._idle.put(self._await_ready(worker))
@@ -545,7 +601,7 @@ class ToolPool:
     def _start(self):
         parent, child = self._ctx.Pipe()
         process = self._ctx.Process(
-            target=_worker_main,
+            target=self._target,
             args=(child, self._fix_path, self._reform),
             daemon=True,
         )
@@ -563,27 +619,39 @@ class ToolPool:
         return worker
 
     def call(self, args) -> tuple[dict, float]:
-        worker = self._idle.get()
-        process, conn = worker
         started = time.perf_counter()
+        try:
+            worker = self._idle.get(timeout=WORKER_START_TIMEOUT_SECONDS + self.timeout)
+        except queue.Empty:
+            return (
+                {"error": "engine", "message": "no tool worker is available"},
+                time.perf_counter() - started,
+            )
+        process, conn = worker
         try:
             conn.send(args)
             if conn.poll(self.timeout):
                 _, result = conn.recv()
                 self._idle.put(worker)
                 return result, time.perf_counter() - started
-            self.timeouts += 1
+            with self._lock:
+                self.timeouts += 1
             result = {
                 "error": "timeout",
                 "message": f"the calculation exceeded {self.timeout:.0f} seconds",
             }
         except (EOFError, BrokenPipeError, OSError) as error:
-            self.crashes += 1
+            with self._lock:
+                self.crashes += 1
             result = {"error": "engine", "message": f"tool worker failed: {error}"}
         elapsed = time.perf_counter() - started
         process.kill()
         process.join(timeout=10)
-        self._idle.put(self._await_ready(self._start()))
+        try:
+            self._idle.put(self._await_ready(self._start()))
+        except RuntimeError:
+            with self._lock:
+                self.lost += 1
         return result, elapsed
 
     def close(self) -> None:
@@ -766,6 +834,7 @@ def run_household(
         _build_answer_tool,
         _enforce_explanation_value_contract,
         _extract_usage_metadata,
+        _merge_repair_cells,
         _missing_explanations,
         _response_finish_reason,
         _serialize_response_payload,
@@ -860,7 +929,12 @@ def run_household(
             record["error"] = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
             break
 
-        message = response.choices[0].message
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            record["status"] = "provider_error"
+            record["error"] = "response has no choices"
+            break
+        message = choices[0].message
         content = getattr(message, "content", None)
         calls = _tool_calls(message)
         raw = _serialize_response_payload(
@@ -905,11 +979,21 @@ def run_household(
             got, got_explanations = _enforce_explanation_value_contract(
                 got, got_explanations, answer_variables
             )
-            for variable in answer_variables:
-                if got.get(variable) is not None:
-                    predictions[variable] = got[variable]
-                if got_explanations.get(variable):
-                    explanations[variable] = got_explanations[variable]
+            # The board's merge: a repair fills only cells still missing, and a
+            # valid earlier value or explanation always stands.
+            disagreements = record.setdefault("repair_disagreements", [])
+            predictions = _merge_repair_cells(
+                predictions,
+                {v: got.get(v) for v in answer_variables},
+                field="prediction",
+                disagreements=disagreements,
+            )
+            explanations = _merge_repair_cells(
+                explanations,
+                {v: got_explanations.get(v) for v in answer_variables},
+                field="explanation",
+                disagreements=disagreements,
+            )
             turn["calls"].append(
                 {
                     "name": "submit_outputs",
@@ -1051,14 +1135,26 @@ def _num(value) -> float:
     return number if math.isfinite(number) else 0.0
 
 
+def record_cost_with_prior_attempts(record: dict) -> float:
+    """A record's spend, including attempts a resume replaced."""
+    prior = sum(
+        _num(a.get("totals", {}).get("cost_usd"))
+        for a in record.get("prior_attempts", [])
+    )
+    return _num(record.get("totals", {}).get("cost_usd")) + prior
+
+
 def household_totals(record: dict) -> dict:
+    """Tokens, cost and time over every request, truncated ones included;
+    ``model_turns`` counts the turns that reached the conversation."""
     turns = record.get("turns", [])
     calls = [c for t in turns for c in t.get("calls", []) if c.get("name") == TOOL_NAME]
     errors = [
         c for c in calls if isinstance(c.get("result"), dict) and "error" in c["result"]
     ]
     return {
-        "model_turns": len(turns),
+        "model_turns": sum(1 for t in turns if not t.get("truncated_and_retried")),
+        "truncation_retries": sum(1 for t in turns if t.get("truncated_and_retried")),
         "tool_calls": len(calls),
         "tool_errors": len(errors),
         "tool_error_kinds": sorted({c["result"]["error"] for c in errors}),
@@ -1226,6 +1322,25 @@ def hit(variable: str, prediction, reference) -> bool:
     return row_hit_scores(variable, float(reference), float(prediction))["exact"] == 1.0
 
 
+def resume_state(households_dir: Path) -> tuple[float, set[str], dict[str, dict]]:
+    """Spend so far, the households that keep their record, and every record.
+
+    A model outcome (complete, incomplete, turn_limit) stands; only an
+    infrastructure failure (RERUNNABLE_STATUSES) is rerun, so a resume cannot
+    redraw a household until it succeeds. Spend includes replaced attempts.
+    """
+    spent = 0.0
+    done: set[str] = set()
+    previous: dict[str, dict] = {}
+    for path in sorted(households_dir.glob("*.json")):
+        record = json.loads(path.read_text())
+        spent += record_cost_with_prior_attempts(record)
+        previous[record["scenario_id"]] = record
+        if record.get("status") not in RERUNNABLE_STATUSES:
+            done.add(record["scenario_id"])
+    return spent, done, previous
+
+
 def command_run(args) -> None:
     _require_engine()
     if not os.environ.get("GEMINI_API_KEY"):
@@ -1242,13 +1357,7 @@ def command_run(args) -> None:
     if args.limit:
         ids = ids[: args.limit]
 
-    spent_before = 0.0
-    done = set()
-    for path in households_dir.glob("*.json"):
-        record = json.loads(path.read_text())
-        spent_before += _num(record.get("totals", {}).get("cost_usd"))
-        if record.get("status") == "complete":
-            done.add(record["scenario_id"])
+    spent_before, done, previous = resume_state(households_dir)
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -1282,13 +1391,30 @@ def command_run(args) -> None:
         def one(sid: str) -> dict:
             if spend.exhausted(args.reserve_usd):
                 return {"scenario_id": sid, "status": "budget_stop"}
-            record = run_household(
-                board["scenarios"][sid],
-                board["variables"][sid],
-                pool.call,
-                completion,
-                spend,
-            )
+            try:
+                record = run_household(
+                    board["scenarios"][sid],
+                    board["variables"][sid],
+                    pool.call,
+                    completion,
+                    spend,
+                )
+            except Exception as error:  # one household must not end the run
+                record = {
+                    "scenario_id": sid,
+                    "variables": board["variables"][sid],
+                    "status": "harness_error",
+                    "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
+                    "turns": [],
+                    "predictions": {v: None for v in board["variables"][sid]},
+                    "explanations": {v: None for v in board["variables"][sid]},
+                }
+                record["totals"] = household_totals(record)
+            if sid in previous:
+                prior = previous[sid]
+                record["prior_attempts"] = prior.get("prior_attempts", []) + [
+                    {"status": prior.get("status"), "totals": prior.get("totals", {})}
+                ]
             (households_dir / f"{sid}.json").write_text(
                 json.dumps(record, indent=1, default=str)
             )
@@ -1355,7 +1481,9 @@ def command_score(args) -> None:
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
     )
-    households = sorted(records) if args.all_records else complete
+    # The board's rule: every household counts, and an unparsed output is a
+    # miss. Scoring only completed households would select on the outcome.
+    households = complete if args.complete_only else sorted(records)
     if not households:
         raise SystemExit("no household records to score")
     scored = board["scored"][board["scored"].scenario_id.isin(households)]
@@ -1782,9 +1910,11 @@ def tool_value_for_output(call: dict, scenario, output: str):
             return None
         value = values[names[index]]
     else:
-        numbers = [
-            float(v) if not isinstance(v, str) else math.nan for v in values.values()
-        ]
+        numbers = []
+        for item in values.values():
+            if item is None or isinstance(item, str):
+                return None  # a non-finite or non-numeric result has no value
+            numbers.append(float(item))
         value = sum(numbers)
         if aggregation == "any_positive":
             value = float(value > 0)
@@ -1879,9 +2009,9 @@ def situation_diff(
     """Inputs set differently in the model's situation and the reference's.
 
     People are matched by position (the prompt lists them in scenario order);
-    each group's single unit is matched to the reference's. An input absent on
-    one side compares as the other side's value against the engine default,
-    which the caller supplies through ``defaults``.
+    each group's first unit is matched to the reference's. An input absent on
+    one side shows as an empty dict; callers drop differences that are only an
+    input left at the engine default (``_is_default_only``).
     """
     diffs = []
     model_people = list(model_situation.get("people", {}).items())
@@ -2081,7 +2211,11 @@ def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
 
 
 def situation_fidelity(records, board, system, registry, defaults, out: Path) -> None:
-    """How each household's last computed situation differs from the reference's.
+    """How each household's main situation differs from the reference's.
+
+    The main situation is ``main_call``'s: the successful call that computed
+    the most of the household's outputs. (``classify_miss`` reads the last call
+    that computed the missed output, which is what the answer rests on.)
 
     Inputs left at the engine default on one side are dropped. A remaining
     difference is reported with whether setting it as the reference does would
@@ -2154,6 +2288,7 @@ def command_diagnose(args) -> None:
     registry = None
     defaults = {}
     if not args.no_engine_defaults:
+        _require_engine()
         system = build_tool_system(reform=True)
         registry = build_registry(system)
         defaults = {
@@ -2265,7 +2400,11 @@ def main(argv: list[str] | None = None) -> None:
                 help="stop starting households when this much budget remains",
             )
         if name == "score":
-            p.add_argument("--all-records", action="store_true")
+            p.add_argument(
+                "--complete-only",
+                action="store_true",
+                help="score only households whose conversation completed",
+            )
         if name == "diagnose":
             p.add_argument("--no-engine-defaults", action="store_true")
     args = parser.parse_args(argv)

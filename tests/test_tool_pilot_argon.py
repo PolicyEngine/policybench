@@ -207,23 +207,99 @@ json_values = st.recursive(
 
 @settings(max_examples=300, deadline=None)
 @given(args=json_values)
-def test_validator_never_raises_and_accepts_only_known_names(args):
-    """Invariant: any input gets exactly one of a request or an error, and an
-    accepted request names only registry variables on their own entities."""
+def test_validator_never_raises_on_arbitrary_json(args):
+    """Invariant: any JSON value gets exactly one of a request or an error."""
     request, error = pilot.normalize_request(args, REGISTRY)
     assert (request is None) != (error is None)
-    if request is None:
-        return
-    for name in request["variables"]:
-        assert name in REGISTRY
-    for person in request["situation"]["people"].values():
-        for name, periods in person.items():
-            assert REGISTRY[name].entity == "person"
-            assert all(pilot.PERIOD_RE.match(k) for k in periods)
-    for group, entity in pilot.GROUPS.items():
-        for unit in request["situation"].get(group, {}).values():
-            for name in unit:
-                assert name == "members" or REGISTRY[name].entity == entity
+
+
+PERSON_NAMES = st.sampled_from(["head", "kid", "x"])
+VARIABLE_NAMES = st.one_of(
+    st.sampled_from([*REGISTRY]), st.sampled_from(["nope", "members"])
+)
+# Mostly plausible values, so a good share of calls is accepted, plus
+# arbitrary JSON scalars so the type checks are exercised too.
+PLAUSIBLE = st.one_of(
+    st.integers(min_value=0, max_value=120),
+    st.floats(min_value=0, max_value=1e6, allow_nan=False),
+    st.booleans(),
+    st.sampled_from(["CO", "TX", "SINGLE", "JOINT"]),
+)
+SCALARS = st.one_of(PLAUSIBLE, PLAUSIBLE, PLAUSIBLE, json_scalars)
+PERIOD_VALUES = st.one_of(
+    SCALARS,
+    st.dictionaries(st.sampled_from(["2026", "2026-01", "26"]), SCALARS, max_size=2),
+)
+INPUTS = st.dictionaries(VARIABLE_NAMES, PERIOD_VALUES, max_size=3)
+UNITS = st.dictionaries(
+    st.sampled_from(["u1", "u2"]),
+    st.builds(
+        lambda members, inputs: {"members": members, **inputs},
+        st.lists(PERSON_NAMES, max_size=3),
+        INPUTS,
+    ),
+    max_size=2,
+)
+SITUATIONS = st.builds(
+    lambda people, groups: {"people": people, **groups},
+    st.dictionaries(PERSON_NAMES, INPUTS, min_size=1, max_size=3),
+    st.fixed_dictionaries(
+        {}, optional={g: UNITS for g in ("tax_units", "spm_units", "households")}
+    ),
+)
+CALLS = st.fixed_dictionaries(
+    {
+        "situation": st.one_of(SITUATIONS, SITUATIONS.map(json.dumps)),
+        "variables": st.lists(VARIABLE_NAMES, min_size=1, max_size=4),
+    },
+    optional={"period": st.sampled_from(["2026", "2026-03", "bad"])},
+)
+
+
+def test_validator_accepts_only_known_names_on_their_entities():
+    """Invariant: an accepted call names only registry variables, each on its
+    own entity, with valid periods, and every unit member is a listed person.
+    The structured strategy reaches acceptance often enough to check it."""
+    accepted = []
+
+    @settings(max_examples=600, deadline=None, derandomize=True, database=None)
+    @given(args=CALLS)
+    def check(args):
+        request, error = pilot.normalize_request(args, REGISTRY)
+        assert (request is None) != (error is None)
+        if request is None:
+            return
+        accepted.append(1)
+        situation = request["situation"]
+        for name in request["variables"]:
+            assert name in REGISTRY
+        for person in situation["people"].values():
+            for name, periods in person.items():
+                assert REGISTRY[name].entity == "person"
+                assert periods and all(pilot.PERIOD_RE.match(k) for k in periods)
+        for group, entity in pilot.GROUPS.items():
+            seen = set()
+            for unit in situation.get(group, {}).values():
+                for member in unit["members"]:
+                    assert member in situation["people"] and member not in seen
+                    seen.add(member)
+                for name, periods in unit.items():
+                    if name != "members":
+                        assert REGISTRY[name].entity == entity
+                        assert all(pilot.PERIOD_RE.match(k) for k in periods)
+
+    check()
+    assert len(accepted) >= 30, f"only {len(accepted)} of 600 calls were accepted"
+
+
+def test_deeply_nested_arguments_are_refused_not_raised():
+    for text in ("[" * 5000, '{"situation": ' + "[" * 5000 + "}"):
+        request, error = pilot.normalize_request(text, REGISTRY)
+        assert request is None and error["error"] == "validation"
+    request, error = pilot.normalize_request(
+        {"situation": "[" * 5000, "variables": ["snap"]}, REGISTRY
+    )
+    assert request is None and error["error"] == "validation"
 
 
 @settings(max_examples=200, deadline=None)
@@ -840,3 +916,199 @@ def test_main_call_is_the_one_that_computed_the_most_outputs():
     outputs = ["snap", "federal_income_tax_before_refundable_credits"]
     assert pilot.main_call(record, make_scenario(), outputs) is full
     assert pilot.main_call(household([]), make_scenario(), outputs) is None
+
+
+def test_a_repair_never_overwrites_a_valid_first_value():
+    """The board's merge: the first valid value stands even when its
+    explanation needed a repair and the repair answers differently."""
+    first = tool_call(
+        "submit_outputs",
+        {
+            "outputs": {
+                "snap": {"value": 2553, "explanation": "No trailer here."},
+                VARIABLES[1]: {"value": 7, "explanation": "Tax. value = 7"},
+            }
+        },
+        "s1",
+    )
+    repair = tool_call(
+        "submit_outputs",
+        {"outputs": {"snap": {"value": 0, "explanation": "Recomputed. value = 0"}}},
+        "s2",
+    )
+    model = FakeModel([response([first]), response([repair])])
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0)
+    )
+    assert record["repair_rounds"] == 1 and record["status"] == "complete"
+    assert record["predictions"]["snap"] == 2553.0
+    assert record["explanations"]["snap"] == "Recomputed. value = 0"
+    assert record["repair_disagreements"][0]["variable"] == "snap"
+
+
+def test_a_truncated_turn_is_retried_at_the_ceiling_and_paid_for():
+    truncated = response([calculate()], prompt=1000, completion=16384)
+    truncated.choices[0].finish_reason = "length"
+    model = FakeModel(
+        [
+            truncated,
+            response([calculate()]),
+            response([submit({"snap": 1, VARIABLES[1]: 2})]),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(make_scenario(), VARIABLES, fake_tool, model, spend)
+    budgets = [r.get("max_completion_tokens") for r in model.requests]
+    assert budgets[0] < budgets[1] == 32_768
+    totals = record["totals"]
+    assert totals["truncation_retries"] == 1 and totals["model_turns"] == 2
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+    assert totals["cost_usd"] == pytest.approx(
+        (3000 * 2 + (16384 + 200 + 200) * 10) / 1e6
+    )
+
+
+def test_submit_in_the_same_turn_as_a_calculation_ends_it_without_running_it():
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    model = FakeModel([response([calculate(), submit({"snap": 1, VARIABLES[1]: 2})])])
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, counting_tool, model, pilot.Spend(50.0)
+    )
+    assert record["status"] == "complete" and ran == []
+    tool_messages = [m for m in record["messages"] if m.get("role") == "tool"]
+    assert len(tool_messages) == 2
+    assert "not run" in tool_messages[0]["content"]
+
+
+def test_replies_without_a_function_call_end_at_the_turn_limit():
+    model = FakeModel([response([], content="thinking aloud")] * pilot.MAX_TOTAL_TURNS)
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0)
+    )
+    assert record["status"] == "turn_limit"
+    assert len(model.requests) == pilot.MAX_TOTAL_TURNS
+    assert all(v is None for v in record["predictions"].values())
+
+
+def test_a_litellm_message_keeps_its_thought_signature_round_trip():
+    """Gemini refuses a function-call history without thought signatures; the
+    assistant message goes back as litellm returned it."""
+    from litellm.types.utils import ChatCompletionMessageToolCall, Function, Message
+
+    call = ChatCompletionMessageToolCall(
+        id="call_1__thought__c2lnbmF0dXJl",
+        type="function",
+        function=Function(name=pilot.TOOL_NAME, arguments='{"variables": ["snap"]}'),
+    )
+    message = Message(role="assistant", content=None, tool_calls=[call])
+    assert pilot._has_thought_signature(message)
+    data = pilot._message_dict(message)
+    assert data["tool_calls"][0]["id"] == "call_1__thought__c2lnbmF0dXJl"
+    assert json.loads(json.dumps(data))["role"] == "assistant"
+
+
+def _scripted_worker(conn, fix_path, reform):
+    conn.send(("ready", None))
+    while True:
+        args = conn.recv()
+        if args is None:
+            return
+        if args == "sleep":
+            import time as _time
+
+            _time.sleep(30)
+        if args == "die":
+            import os as _os
+
+            _os._exit(1)
+        conn.send(("ok", {"results": {"echo": args}}))
+
+
+def test_the_pool_times_out_and_restarts_a_worker_and_survives_a_crash():
+    pool = pilot.ToolPool(size=1, timeout=1.0, worker_target=_scripted_worker)
+    try:
+        assert pool.call("hi")[0] == {"results": {"echo": "hi"}}
+        result, elapsed = pool.call("sleep")
+        assert result["error"] == "timeout" and elapsed < 10
+        assert pool.call("after-timeout")[0] == {"results": {"echo": "after-timeout"}}
+        result, _ = pool.call("die")
+        assert result["error"] == "engine"
+        assert pool.call("after-crash")[0] == {"results": {"echo": "after-crash"}}
+        assert (pool.timeouts, pool.crashes, pool.lost) == (1, 1, 0)
+    finally:
+        pool.close()
+
+
+def _record(sid, variables, predictions, status="complete", cost=0.01):
+    record = {
+        "scenario_id": sid,
+        "variables": variables,
+        "predictions": predictions,
+        "explanations": {v: "x" for v in variables},
+        "status": status,
+        "turns": [{"total_cost_usd": cost, "calls": []}],
+        "cap_hit": False,
+        "wall_seconds": 1.0,
+    }
+    record["totals"] = pilot.household_totals(record)
+    return record
+
+
+def test_score_counts_every_household_and_unparsed_outputs_as_misses(tmp_path):
+    """No selection on outcome: an incomplete household stays in both arms,
+    its unparsed outputs scored as misses, as the board scores them."""
+    import argparse
+
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    households = tmp_path / "households"
+    households.mkdir()
+    for sid, status in (("scenario_000", "complete"), ("scenario_001", "incomplete")):
+        variables = board["variables"][sid]
+        predictions = {v: float(reference[(sid, v)]) for v in variables}
+        if status == "incomplete":
+            predictions[variables[0]] = None
+        record = _record(sid, variables, predictions, status)
+        (households / f"{sid}.json").write_text(json.dumps(record))
+    pilot.command_score(argparse.Namespace(out_dir=str(tmp_path), complete_only=False))
+    score = json.loads((tmp_path / "score.json").read_text())
+    assert score["households"] == 2
+    scored = board["scored"][
+        board["scored"].scenario_id.isin(["scenario_000", "scenario_001"])
+    ]
+    missed = int(
+        (
+            (scored.scenario_id == "scenario_001")
+            & (scored.variable == board["variables"]["scenario_001"][0])
+        ).sum()
+    )
+    assert score["unweighted_hits"]["arm2"] == len(scored) - missed
+    pilot.command_score(argparse.Namespace(out_dir=str(tmp_path), complete_only=True))
+    assert json.loads((tmp_path / "score.json").read_text())["households"] == 1
+
+
+def test_a_resume_reruns_only_infrastructure_failures_and_keeps_their_cost(tmp_path):
+    statuses = {
+        "a": "complete",
+        "b": "incomplete",
+        "c": "turn_limit",
+        "d": "provider_error",
+        "e": "budget_stop",
+        "f": "harness_error",
+    }
+    for sid, status in statuses.items():
+        record = _record(sid, ["snap"], {"snap": None}, status, cost=1.0)
+        if sid == "d":
+            record["prior_attempts"] = [
+                {"status": "provider_error", "totals": {"cost_usd": 0.5}}
+            ]
+        (tmp_path / f"{sid}.json").write_text(json.dumps(record))
+    spent, done, previous = pilot.resume_state(tmp_path)
+    assert done == {"a", "b", "c"}
+    assert set(previous) == set(statuses)
+    assert spent == pytest.approx(6.5)
