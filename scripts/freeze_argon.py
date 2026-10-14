@@ -468,10 +468,12 @@ def verify_adjudication_record(
     committed entry may change. The record excludes exactly the outputs the
     staged exclusion record lists. The staged file's bytes must be exactly its
     parsed content, with release 20261013b's note, and its date conventions
-    with any wave the release adds named (driver.release_date_conventions). Returns
-    how many staged decisions, beyond the ruled ones, the committed record
-    lacks. The staged record, prompt-changes.json and the amendments are bound
-    by the receipt, which export writes only after triage applied them.
+    with any wave the release adds named (driver.release_date_conventions). A
+    new decision must be one the spec lists (driver.verify_adjudication_changes
+    refuses any other), so the count it returns, of new decisions beyond the
+    spec's, is always 0. The staged record, prompt-changes.json and the
+    amendments are bound by the receipt, which export writes only after triage
+    applied them.
     """
     from policybench.adjudications import excluded_case_keys, load_adjudications
     from policybench.reference_exclusions import (
@@ -1186,6 +1188,10 @@ def main(argv: list[str] | None = None) -> None:
         amendments,
         cases_dir,
     )
+    if added:
+        raise SystemExit(
+            f"Staged adjudications add {added} decisions the spec does not list"
+        )
     verify_annotation_amendments(staged_annotations, amendments, stage / "audit")
     previous_rows = base_prediction_rows()
     staged_rows = pd.read_csv(source_us / "predictions.csv", low_memory=False)
@@ -1248,8 +1254,8 @@ def main(argv: list[str] | None = None) -> None:
             f"Validated local release inputs: {args.tag}, {BOARD_MODELS} models, "
             f"{payload_hash}; references unchanged; {driver.RELEASE_EXCLUSIONS} "
             f"exclusions ({driver.NEW_EXCLUSIONS} new); "
-            f"{len(driver.triage_items(None))} triage decisions; {added} "
-            f"adjudications added beyond them; {len(amendments)} wording "
+            f"{len(driver.triage_items(None))} triage decisions and no other "
+            f"new adjudication; {len(amendments)} wording "
             f"amendments; model responses {window}; snapshot {snapshot_date}; "
             "nothing written"
         )
