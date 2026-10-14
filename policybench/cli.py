@@ -1120,9 +1120,12 @@ def main():
         args.command in {"retry-failed-responses", "repair-failed-rows"}
         and args.use_cache
     ):
-        from policybench.cache import enable_cache
+        from policybench.cache import UnsafeCacheDirError, enable_cache
 
-        enable_cache()
+        try:
+            enable_cache()
+        except UnsafeCacheDirError as exc:
+            raise SystemExit(str(exc)) from exc
 
     if args.command == "uk-audit-sample":
         from policybench.uk_audit import UK_AUDIT_SEED, write_uk_audit_sample
