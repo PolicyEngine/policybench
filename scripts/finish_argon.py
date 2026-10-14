@@ -2813,9 +2813,10 @@ def verify_judge_provenance(
 
 
 # The provenance groups of this release's new verdicts, by the account their
-# sidecar declares: the pb-judge setup-token login of Max's 2026-09-30 opt-in
-# (the GPT-6.1 Sol stage's "setup-token 2"), and subfleet lane claude-18's token
-# for those judged after that login's weekly limit (Fleet ops, 2026-10-09).
+# sidecar declares. Every one ran on the pb-judge setup-token login of Max's
+# 2026-09-30 opt-in (the GPT-6.1 Sol stage's "setup-token 2"). The two Subfleet
+# lanes earlier releases borrowed stay listed so a record naming either is
+# grouped, not refused; this release used neither.
 PROVENANCE_GROUPS = {
     "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30": (
         "isolated: setup-token 2"
@@ -2828,16 +2829,17 @@ PROVENANCE_GROUPS = {
     ),
 }
 PROVENANCE_NOTE = (
-    "Provenance of the new Opus 5.5 judge verdicts in the Gemini 4 Argon stage: "
-    "every case Gemini 4 Argon or the policyengine-us 2.41.0 references "
-    "re-opened. Every verdict ran through scripts/run_audit_claude.sh from an "
-    "empty directory outside the repo, with no tools, an allowlisted "
-    "environment, no user settings and a token login, at effort xhigh; each "
-    "transcript passes the runner's checks. Most ran one at a time on subfleet "
-    "lane claude-10's token, lent by Fleet ops while Max's second setup-token "
-    "login (2026-09-30 opt-in) was at its weekly limit; the rest ran on that "
-    "setup-token login after its limit reset. Counts are by group. Scores do "
-    "not depend on judge verdicts."
+    "Provenance of the new Opus 5.5 judge verdicts in the Gemini 4 Argon and "
+    "Muse Spark 1.3 stage: every case either new model re-opened. Every "
+    "verdict ran through scripts/run_audit_claude.sh from an empty directory "
+    "outside the repo, with no tools, an allowlisted environment, no user "
+    "settings and a token login, at effort xhigh, on judge template v2; each "
+    "transcript passes the runner's checks. All ran on Max's second "
+    "setup-token login (2026-09-30 opt-in), two at a time and then one at a "
+    "time. A call whose transcript failed the runner's checks (a dropped "
+    "network connection leaves retry events in it), or whose verdict missed a "
+    "model, was judged again. "
+    "Counts are by group. Scores do not depend on judge verdicts."
 )
 
 
