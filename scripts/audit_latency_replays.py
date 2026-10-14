@@ -21,7 +21,7 @@ script runs only on the machine that holds them:
 Two kinds of evidence need only the frozen predictions. OpenRouter ids
 (``gen-<unix seconds>-...``) and OpenAI Responses ids (``resp_`` + 16 hex +
 ``00`` + 8 hex seconds) embed their creation time. On live households that
-time falls within a few seconds of the row's ``request_started_at``. A
+time falls within 23 seconds of the row's ``request_started_at``. A
 creation time more than a minute before the request began means the response
 already existed when the request was sent.
 
@@ -61,7 +61,8 @@ FROZEN_PREDICTIONS = (
 )
 OUTPUT = ROOT / "docs" / "latency_replay_audit" / "households.csv"
 # A response that existed this long before the request began was not generated
-# for it. Live households sit within 4 seconds of their request start.
+# for it. On live households an id's creation time sits within 23 seconds of
+# the request start (OpenRouter; OpenAI ids within 4).
 MARGIN_SECONDS = 60.0
 # Every replayed household in the frozen run sums to under 0.12 s; the fastest
 # live household (Gemini 3.5 Flash-Lite) takes 1.75 s.
@@ -134,10 +135,26 @@ def cache_store_times(cache_dirs: list[Path]) -> dict[str, float]:
     return stored
 
 
+# Trees that hold no run artifacts, skipped so a walk over a large review
+# folder stays quick.
+SKIP_DIRS = frozenset(
+    {".git", ".venv", "venv", "node_modules", "site-packages", "__pycache__"}
+)
+
+
+def walk_files(root: Path, suffix: str):
+    """Files under ``root`` ending in ``suffix``, skipping SKIP_DIRS."""
+    for directory, subdirs, names in os.walk(root):
+        subdirs[:] = [name for name in subdirs if name not in SKIP_DIRS]
+        for name in names:
+            if name.endswith(suffix):
+                yield Path(directory) / name
+
+
 def ledger_records(roots: list[Path]) -> pd.DataFrame:
     records = []
     for root in roots:
-        for path in root.rglob("*.spend.jsonl"):
+        for path in walk_files(root, ".spend.jsonl"):
             for line in path.read_text().splitlines():
                 try:
                     record = json.loads(line)
@@ -151,7 +168,7 @@ def ledger_records(roots: list[Path]) -> pd.DataFrame:
 def smoke_file_ids(roots: list[Path]) -> set[str]:
     ids: set[str] = set()
     for root in roots:
-        for path in root.rglob("*.csv"):
+        for path in walk_files(root, ".csv"):
             if "smoke" not in str(path):
                 continue
             try:

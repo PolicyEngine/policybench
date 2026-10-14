@@ -92,3 +92,120 @@ def test_all_null_latency_is_omitted_not_zero():
 
 def test_empty_predictions_returns_empty():
     assert model_cost_latency(pd.DataFrame()) == {}
+
+
+# ----- invariants of household latency (docs/latency_replay_audit.md) -------
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+from policybench.analysis import (  # noqa: E402
+    REPLAYED_HOUSEHOLD_SECONDS,
+    household_latency_seconds,
+)
+
+# A household's calls: each call's latency and how many rows it answered.
+CALLS = st.lists(
+    st.tuples(
+        st.floats(min_value=0.0, max_value=2_000.0, allow_nan=False),
+        st.integers(min_value=1, max_value=8),
+    ),
+    min_size=1,
+    max_size=6,
+)
+HOUSEHOLDS = st.lists(CALLS, min_size=1, max_size=15)
+
+
+def _split_rows(households):
+    """Rows the way the harness writes them: each call's latency divided
+    equally among the rows it answered."""
+    rows = []
+    for index, calls in enumerate(households):
+        for seconds, n_rows in calls:
+            rows += [_row("m", f"s{index:03d}", 0.01, seconds / n_rows)] * n_rows
+    return pd.DataFrame(rows)
+
+
+@given(HOUSEHOLDS)
+@settings(max_examples=200, deadline=None)
+def test_household_latency_is_the_sum_of_its_calls(households):
+    """Splitting a call's latency across its rows and summing the rows gives
+    back the household's total request time."""
+    latency = household_latency_seconds(_split_rows(households))
+    for index, calls in enumerate(households):
+        expected = sum(seconds for seconds, _ in calls)
+        assert latency[("m", f"s{index:03d}")] == pytest.approx(expected, abs=1e-9)
+
+
+@given(HOUSEHOLDS)
+@settings(max_examples=200, deadline=None)
+def test_published_latency_is_the_median_household(households):
+    preds = _split_rows(households)
+    expected = float(np.median([sum(s for s, _ in calls) for calls in households]))
+    out = model_cost_latency(preds)
+    assert out["m"]["latencySeconds"] == pytest.approx(expected, abs=1e-6)
+    # Cost is additive the same way: the run total is every row's cost.
+    assert out["m"]["costUsd"] == pytest.approx(0.01 * len(preds))
+
+
+@given(
+    st.lists(
+        st.floats(min_value=0.0, max_value=2_000.0, allow_nan=False),
+        min_size=1,
+        max_size=20,
+    ),
+    st.data(),
+)
+@settings(max_examples=200, deadline=None)
+def test_a_replay_can_only_lower_the_median(seconds, data):
+    """Replacing a household's time with a cache lookup's (smaller) time
+    never raises the published median, so replays bias it down, never up."""
+    index = data.draw(st.integers(min_value=0, max_value=len(seconds) - 1))
+    lookup = data.draw(st.floats(min_value=0.0, max_value=seconds[index]))
+    before = model_cost_latency(
+        pd.DataFrame([_row("m", f"s{i}", 0.01, t) for i, t in enumerate(seconds)])
+    )["m"]["latencySeconds"]
+    replayed = list(seconds)
+    replayed[index] = lookup
+    after = model_cost_latency(
+        pd.DataFrame([_row("m", f"s{i}", 0.01, t) for i, t in enumerate(replayed)])
+    )["m"]["latencySeconds"]
+    assert after <= before + 1e-9
+
+
+@given(
+    st.integers(min_value=0, max_value=12),
+    st.integers(min_value=0, max_value=12),
+)
+def test_a_median_under_a_second_means_most_households_replayed(n_fast, n_slow):
+    """With replays under the line and calls above it, the median is under the
+    line when more than half the households replayed and at or above it when
+    fewer than half did: the paper's dash rule is a majority-replay rule."""
+    if n_fast + n_slow == 0:
+        return
+    seconds = [0.02] * n_fast + [30.0] * n_slow
+    median = model_cost_latency(
+        pd.DataFrame([_row("m", f"s{i}", 0.01, t) for i, t in enumerate(seconds)])
+    )["m"]["latencySeconds"]
+    if 2 * n_fast > n_fast + n_slow:
+        assert median < REPLAYED_HOUSEHOLD_SECONDS
+    if 2 * n_fast < n_fast + n_slow:
+        assert median >= REPLAYED_HOUSEHOLD_SECONDS
+
+
+@given(
+    st.lists(st.floats(min_value=1.0, max_value=500.0), min_size=1, max_size=10),
+    st.integers(min_value=1, max_value=10),
+)
+def test_untimed_households_are_left_out_not_counted_as_zero(seconds, n_untimed):
+    timed = [_row("m", f"t{i}", 0.01, t) for i, t in enumerate(seconds)]
+    untimed = [_row("m", f"u{i}", 0.01, np.nan) for i in range(n_untimed)]
+    out = model_cost_latency(pd.DataFrame(timed + untimed))
+    assert out["m"]["latencySeconds"] == pytest.approx(float(np.median(seconds)))
+    latency = household_latency_seconds(pd.DataFrame(untimed))
+    assert latency.isna().all()
+
+
+def test_household_latency_of_nothing_is_empty():
+    assert household_latency_seconds(pd.DataFrame()).empty
+    assert household_latency_seconds(pd.DataFrame([{"model": "m"}])).empty

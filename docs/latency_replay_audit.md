@@ -11,9 +11,10 @@ The household-level evidence is `latency_replay_audit/households.csv`, written b
 ## How latency is recorded
 
 The harness times each provider call. A household that needs several calls
-(one or three outputs per request, a repair round, or a retry round) makes them
-one after another in `run_single_no_tools`. Their times are summed, and the sum
-is divided equally among the household's rows (`elapsed_seconds / batch_size`
+(one or three outputs per request, a repair after an incomplete answer, or a
+re-request with a larger completion budget) makes them one after another, as
+`run_single_no_tools` does for chunks. Their times are summed, and the sum is
+divided equally among the household's rows (`elapsed_seconds / batch_size`
 in `policybench/eval_no_tools.py`; all three lines date from 2026-05-01, before
 every board run). A household's latency is therefore the sum over its rows.
 `analysis.household_latency_seconds` computes that sum.
@@ -64,11 +65,12 @@ before the household's request began. The evidence is any of the following:
   than a minute before the request (`.policybench_cache` in the main checkout,
   121,648 entries).
 - **OpenRouter id.** OpenRouter ids are `gen-<unix seconds>-…`, and the time
-  is more than a minute before the request. On live households it falls
-  within 4 seconds of `request_started_at`.
+  is more than a minute before the request. On all 962 live households that
+  carry one, it falls within 23 seconds of `request_started_at`, and within 10
+  seconds on 99% of them.
 - **OpenAI id.** An OpenAI Responses id embeds its creation time in hex, after
-  litellm's base64 wrapper is removed. On live households it falls within 4
-  seconds.
+  litellm's base64 wrapper is removed. On all 694 live households that carry
+  one, it falls within 4 seconds.
 - **Spend ledger.** The board run's spend ledger records `cache_hit: true` for
   the call.
 - **Smoke.** The same response id was served live in the model's onboarding
@@ -79,8 +81,10 @@ the cache. Every full replay in the run sums to under 0.12 s, while the fastest
 live household takes 1.75 s (Gemini 3.5 Flash-Lite), so the one-second line
 (`analysis.REPLAYED_HOUSEHOLD_SECONDS`) separates them cleanly. A partial replay
 sums to a second or more. Its first recorded call was a replay, and a later
-call (another chunk, a repair, or a retry round's new request) went to the
-provider. Its time leaves out the replayed call's original duration.
+call (another chunk, a repair, or a re-request with a larger completion budget)
+went to the provider. Its time leaves out the replayed call's original
+duration. In GLM-5.3's scenario_007, for example, the ledger shows the replayed
+16,384-token call, then live calls at 32,768 and 65,536 tokens.
 
 | Model | Full | Partial | Where the replayed responses came from | Published median (s) | Without sub-second households (s) |
 |---|---|---|---|---|---|
@@ -115,16 +119,17 @@ the last one.
 
 ### The four open-weight models: a multi-pass run
 
-Kimi K2.6, GLM-5.2, MiniMax M3 and Qwen3.7-max were added on 2026-07-05 to 07
-(`results/local/openweight_run_20260705.md`). OpenRouter's connection
-allowance collapsed under concurrent long-lived requests, so whole households
-errored and wrote no rows. `results/local/rerun_openweight.sh` and
-`results/local/grind_model.sh` then re-ran each model's full range several
-times. Each pass deleted the part files and re-requested every household, and
-the cache answered the households earlier passes had completed. The board rows
-are each model's final pass. MiniMax M3's first pass completed 53 of its 100
-households, and 53 of its households are full replays. Qwen3.7-max reached
-93/100 in the round before its last, and 93 are full replays. Kimi K2.6's
+Kimi K2.6, GLM-5.2, MiniMax M3 and Qwen3.7-max were added on 2026-07-05 to 07.
+The run notes (`results/local/openweight_run_20260705.md`) record that
+concurrent long-lived requests exhausted the OpenRouter key's connections, so
+whole households errored and wrote no rows. `results/local/rerun_openweight.sh`
+and `results/local/grind_model.sh` then re-ran each model's full range several
+times. Each pass deletes the part files and re-requests every household, and the
+cache answered the households earlier passes had completed. The board rows are
+each model's final pass. The notes record MiniMax M3's first pass at 53 of 100
+households, and 53 of its households are full replays. They record Qwen3.7-max
+at 93/100 in the round before its last, and 93 of its households are full
+replays. Kimi K2.6's
 scenario_109 shows a partial replay at work. In earlier rounds its answer call
 succeeded and was cached, but its explanation repair timed out at 300 s
 (`part_84_100.grind*.log`). In the final pass the answer was replayed and only
@@ -132,11 +137,11 @@ the repair reached the provider, so the household records 777 s and the
 replayed answer's id.
 
 For these four models the households left after removing replays are the ones
-earlier passes failed on, which are the slow ones. Their medians (10.7 to
-1,194 s) are not estimates of the model's latency. For OpenRouter responses,
-the cache's store time minus the id's creation time approximates a replayed
-call's original duration. It agrees with the recorded time to a median of
-0.5 s on single-call live households. Applied to the replays it gives medians
+earlier passes failed on, many of them after timeouts and retries. Their
+medians (10.7 to 1,194 s) are not estimates of the model's latency. For
+OpenRouter responses, the cache's store time minus the id's creation time
+approximates a call's duration. It agrees with the recorded time to a median of
+0.5 s on live households, and it misses badly where a household retried. Applied to the replays it gives medians
 of about 133 s (Qwen3.7-max), 117 s (GLM-5.2), 294 s (Kimi K2.6) and 10 s
 (MiniMax M3). It measures only the call that succeeded, not the retries the
 harness timer would include, so it is a different quantity, and nothing
@@ -149,9 +154,10 @@ publishes it.
   median of household sums with replays counted as calls. Every value
   reproduces from the frozen predictions except Fable 5's, which is carried
   from its original rows. For the four open-weight models it publishes 0.003 to
-  0.033 seconds, which is cache-lookup time and not latency. For the twelve
-  other models with full replays it publishes medians lowered by up to 2.5 s
-  (DeepSeek V4 Pro); partial replays lower them further by an unknown amount.
+  0.033 seconds, which is cache-lookup time and not latency. For the eleven
+  other models with sub-second households it publishes medians lowered by up
+  to 2.5 s (DeepSeek V4 Pro). Partial replays lower medians further, by an
+  unknown amount.
   GPT-5.5 has no `latencySeconds`.
 - **The leaderboard** shows no latency: the column was dropped on 2026-07-05
   (#100), and `latencySeconds` is not rendered anywhere in the app.
@@ -163,14 +169,16 @@ publishes it.
   generation". That fits no model in the board: GPT-5.5's batch rows log no
   time at all, and the four sub-second models ran synchronously. The paragraph
   and caption now give the real causes, computed from the frozen data
-  (`PaperResults.latency_dash_models` and its neighbours). The rounded table
-  values are unchanged; without sub-second households Claude Sonnet 5 would
-  read 65 s rather than 64 s and DeepSeek V4 Pro 172 s rather than 170 s.
+  (`PaperResults.latency_dash_models` and its neighbours). The table values
+  are unchanged. Without sub-second households, Claude Sonnet 5 would read 65 s
+  rather than 64 s, DeepSeek V4 Pro 172 s rather than 170 s and GPT-5.6 Luna
+  15 s rather than 14 s.
 - **`costUsd`.** A replayed response keeps the cost recorded when it was
   generated. Spend ledgers record each cache hit's spend as $0 and the replayed
-  cost as `cached_response_cost_usd`, and the board row carries the latter
-  (163 hits). On 43 single-call MiniMax M3 replays the row cost equals the
-  cost embedded in the cached response exactly. A household's published cost
+  cost as `cached_response_cost_usd`. On all ten ledger-era full replays (Muse
+  Spark 1.3, Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5), the board
+  household's cost equals that field exactly. On 43 of MiniMax M3's full
+  replays, the row cost equals the cost embedded in the cached response. A household's published cost
   therefore counts each of its responses once, whether or not the board run
   paid for it, and leaves out spend on attempts that did not make the board,
   such as the open-weight models' failed passes. That matches the paper's
@@ -187,10 +195,32 @@ publishes it.
 
 ## Changing the published numbers
 
-Excluding replayed households from `latencySeconds`, or publishing none for the
-four open-weight models, changes published numbers, so it is a methodology
-choice for Max (decision queued with `cos add-decision`). This audit changes
-only disclosures, comments and the tests that tie them to the data.
+Changing `latencySeconds` changes published numbers, so it is a methodology
+choice for Max, queued as a decision. This audit changes only disclosures,
+comments, and the tests that tie them to the data. The options:
+
+- **A. Keep the numbers.** This PR discloses them. The dashboard data keeps
+  0.003 to 0.033 s for the four open-weight models.
+- **B. Leave replays out of the median (recommended).** `model_cost_latency`
+  would take the median over households that sum to a second or more. It would
+  publish no latency when more than half a model's households are replays,
+  which is the rule the paper's dash already applies (the property test
+  `test_a_median_under_a_second_means_most_households_replayed`). The four
+  open-weight models would lose `latencySeconds`. Eleven other medians would
+  rise by 0.02 to 2.5 s. In the paper table, Claude Sonnet 5 would read 65 s
+  instead of 64 s, DeepSeek V4 Pro 172 s instead of 170 s and GPT-5.6 Luna 15 s
+  instead of 14 s, and nothing else would change after rounding. Partial
+  replays would stay as disclosed lower bounds, because finding them needs
+  response-id times or the caches, not just household times.
+- **C. Reconstruct the replayed calls' durations** from cache store time minus
+  OpenRouter creation time. That gives about 133, 117, 294 and 10 s for the four
+  models, but it times only the call that succeeded, not the retries the
+  harness timer includes.
+- **D. Re-time the four models.** Re-send their replayed households live with
+  the cache off, for latency only, leaving their predictions alone. The full
+  replays' recorded cost suggests about $47 (Kimi K2.6 $28.38, Qwen3.7-max
+  $11.99, GLM-5.2 $6.23, MiniMax M3 $0.36). The timings would come
+  from a later date than the board's answers.
 
 ## Reproducing
 
