@@ -8,11 +8,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from policybench.chunked_eval import model_requires_serial_execution
 from policybench.config import MODELS
-from policybench.eval_no_tools import is_infrastructure_error_text, run_single_no_tools
+from policybench.eval_no_tools import (
+    NO_TOOLS_CALL_PROVENANCE_COLUMNS,
+    is_infrastructure_error_text,
+    run_single_no_tools,
+)
 from policybench.reparse_predictions import reparse_predictions_frame
 from policybench.scenarios import load_scenarios_from_manifest
 
@@ -462,7 +467,21 @@ def merge_row_repair_predictions(
         valid = pd.DataFrame(columns=repair.columns)
 
     merged = source.copy()
+    # A repair written before the call-provenance columns existed says nothing
+    # about its request, so the row it replaces loses the source's values:
+    # they described the replaced request, and kept beside the repair's time
+    # they could exceed it.
+    unknown_provenance = [
+        column
+        for column in NO_TOOLS_CALL_PROVENANCE_COLUMNS
+        if column in merged.columns and column not in valid.columns
+    ]
     if not valid.empty:
+        # Counts read back as int64 unless a cell is empty; a replacement's
+        # empty cell or a cleared one needs room for NaN.
+        for column in NO_TOOLS_CALL_PROVENANCE_COLUMNS:
+            if column in merged.columns:
+                merged[column] = merged[column].astype("float64")
         valid_by_key = valid.set_index(KEY_COLUMNS, drop=False)
         for index, row in merged.iterrows():
             key = tuple(str(row[column]) for column in KEY_COLUMNS)
@@ -479,6 +498,8 @@ def merge_row_repair_predictions(
                 if isinstance(replacement[column], str):
                     merged[column] = merged[column].astype("object")
                 merged.at[index, column] = replacement[column]
+            for column in unknown_provenance:
+                merged.at[index, column] = np.nan
 
     accepted_keys = valid[KEY_COLUMNS].drop_duplicates() if not valid.empty else valid
     target_rows = row_repair_targets(

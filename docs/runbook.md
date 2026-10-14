@@ -465,11 +465,14 @@ Batch rows have `cache_hit_calls` 0 (batch requests never read the disk
 cache), `live_calls` 1 when a response answered them, and no live time, like
 their empty `elapsed_seconds`. Rows written before these columns existed,
 including the frozen board's, leave all three empty, and a supervised run
-resumed across the change accepts those scenario files.
+resumed across the change accepts those scenario files. A row-repair merge
+that applies an older repair, written without the columns, empties them on
+the row it replaces rather than keep the replaced request's values.
 
 The values hold these invariants, which `tests/test_call_provenance.py`
-checks with property-based tests against the real request path and against
-the spend ledger's records of the same calls:
+checks with property-based tests that drive the real request path, failed
+requests included, against the calls actually made and the spend ledger's
+records of them:
 
 - the counts are non-negative integers;
 - `0 <= live_elapsed_seconds <= elapsed_seconds`, and both are empty together;
