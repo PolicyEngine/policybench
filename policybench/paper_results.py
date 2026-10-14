@@ -633,6 +633,8 @@ MODEL_DISPLAY_NAMES = {
     "qwen3.8-max": "Qwen3.8-Max",
     "inkling": "Inkling",
     "muse-wonder": "Muse Wonder",
+    "muse-spark-1.3": "Muse Spark 1.3",
+    "gemini-4-argon": "Gemini 4 Argon",
     "grok-build-0.1": "Grok Build 0.1",
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",

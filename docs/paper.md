@@ -67,8 +67,8 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The
-  frozen annotations cover 8,503 scored rows whose legacy threshold score is
-  below 1: 8,499 of 8,499 exact-match misses and 4 exact hits. Another 2,218
+  frozen annotations cover 8,765 scored rows whose legacy threshold score is
+  below 1: 8,761 of 8,761 exact-match misses and 4 exact hits. Another 2,329
   scored rows have bounded score below 100 but were outside that selection and
   are not annotated. A judge_provenance block tallies which judge model produced
   each case verdict.

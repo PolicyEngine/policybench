@@ -53,7 +53,7 @@ selects the tool transport, or the same fields returned as a JSON object where
 it selects JSON. For most JSON rows the card records that the provider rejects
 a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
 DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
-K3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
+K3, Muse Spark 1.3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
 select JSON without recording a rejection, and the older Gemini rows answer as
 JSON by the Gemini family default. The per-model transport is in the
 snapshot's `model_serving_config.json`.
@@ -70,14 +70,20 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
 when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
-UTC). policyengine-us 2.41.2, the newest release when PolicyBench checked PyPI
-on 2026-10-13 at 11:34 UTC, gives the same value as 2.41.0 for all 1,984
+UTC). policyengine-us 2.42.4, the newest release when PolicyBench checked PyPI
+on 2026-10-14 at 04:03 UTC, gives the same value as 2.41.0 for all 1,984
 outputs under the same conventions and adapter. The 49 excluded outputs keep
 the values they were decided on (29 computed with policyengine-us 1.755.4, 18
 with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that
 move on 2.41.0; all 12 stay excluded. The manifest also records policyengine.py
 6.1.2 for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
 policyengine.py does not load beside 2.41.0.
+
+Federal income tax references apply the section 1 rate schedule to taxable
+income, to the cent, at every income, and not the IRS Tax Table, which the Form
+1040 instructions direct filers with taxable income under $100,000 to use. The
+two can differ by a few dollars, so an answer that follows the Tax Table can
+miss the $1 tolerance on those outputs (`reference_audit/2026-10-10-tax-table/`).
 
 A scored reference follows from the stated facts and from law published before
 PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
@@ -167,17 +173,17 @@ builder, its evidence and the reviewed actions.
 
 ## Audit scope
 
-The frozen US annotations cover 8,503 scored rows selected because their
-legacy threshold score is below 1 (1,843 further annotated rows sit on the 49
+The frozen US annotations cover 8,765 scored rows selected because their
+legacy threshold score is below 1 (1,915 further annotated rows sit on the 49
 excluded outputs and are description, not audit). This audit universe contains
-8,499 of the snapshot's 8,499 exact-match misses and four exact hits. Another
-2,218 scored rows have a bounded score below 100 but fall outside the
+8,761 of the snapshot's 8,761 exact-match misses and four exact hits. Another
+2,329 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 266 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
+CLI for 264 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 319 cases: those the September 22, September 29, September 30, October 9
-and October 13 additions joined or a reference revision changed, and five whose
+5.5 for 322 cases: those the September 22, September 29, September 30, October 9,
+October 13 and October 14 additions joined or a reference revision changed, and five whose
 earlier verdicts an audit of the judges' transcripts could not show came from a
 judge that saw only its prompt
 (docs/judge_isolation_2026-09-30/REPORT.md); the
@@ -187,8 +193,8 @@ reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-61: one for each excluded output, one for each flagged reference the
-adjudication affirmed or replaced with a regenerated reference, and two for
+63: one for each excluded output, one for each flagged reference the
+adjudication affirmed or replaced with a regenerated reference, and three for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
 freeze.
@@ -388,7 +394,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-13 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-14 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
@@ -418,6 +424,19 @@ where no reconstruction was available. List-price overrides apply at request tim
 recorded costs. Models without per-call costs use the frozen release-metadata
 cost. Published model costs retain these recorded totals rather than repricing
 past calls at today's rates.
+
+The harness caches provider responses on disk, keyed on the request and the
+prompt contract version (`policybench/cache.py`). A board request identical to
+one sent earlier, such as an onboarding smoke on the same household, returns
+the cached response: the row records that response's answers, tokens and cost,
+and a latency of about zero. Each prediction row records its call's latency
+divided among the call's outputs, so a household's latency is the sum over its
+rows. The Muse Spark 1.3 row replays its four smoke households (scenario_000,
+scenario_001, scenario_099 and scenario_119), each with the smoke's provider
+response id and a household latency of 0.03 seconds or less. In the frozen
+predictions other rows also have households under 0.05 seconds by that sum,
+among them scenario_000 and scenario_001 for Muse Wonder and Claude Opus 5.5
+and scenario_000 for Claude Haiku 5.5.
 
 ## Country data paths
 

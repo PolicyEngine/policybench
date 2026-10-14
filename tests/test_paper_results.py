@@ -40,10 +40,10 @@ from tests.second_engine_upgrade import (
 )
 
 
-def test_frozen_roster_has_48_display_names_and_release_dates():
+def test_frozen_roster_has_50_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 48
+    assert len(roster) == 50
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -67,6 +67,10 @@ def test_frozen_roster_has_48_display_names_and_release_dates():
     assert MODEL_DISPLAY_NAMES["gpt-6.1-sol"] == "GPT-6.1 Sol"
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
     assert MODEL_DISPLAY_NAMES["muse-wonder"] == "Muse Wonder"
+    assert MODEL_DISPLAY_NAMES["muse-spark-1.3"] == "Muse Spark 1.3"
+    assert MODEL_DISPLAY_NAMES["gemini-4-argon"] == "Gemini 4 Argon"
+    assert MODEL_RELEASE_DATES["gemini-4-argon"] == "2026-10-13"
+    assert MODEL_RELEASE_DATES["muse-spark-1.3"] == "2026-09-02"
 
 
 def test_claude_haiku_5_5_release_date_is_recorded():
@@ -124,7 +128,8 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # (Kimi K2.6 11, GLM-5.2 four, GLM-5.3 two, Kimi K3 two): 659. Claude
     # Haiku 5.5 parsed every answer. Release 20261013's ten outputs the 2.41.0
     # upgrade returns to scoring bring back 10 (Kimi K2.6 seven, GLM-5.3 two,
-    # Kimi K3 one): 669. Muse Wonder parsed every answer.
+    # Kimi K3 one): 669. Muse Wonder parsed every answer, and so did Gemini 4
+    # Argon and Muse Spark 1.3.
     assert r.parse_contract_failure_counts == Counter(
         {
             "kimi-k2.6": 397,
@@ -135,8 +140,8 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     )
     assert r.parse_contract_failure_count == 669
     assert r.parse_contract_failure_count_fmt == "669"
-    # 669 of the 48-model board's 92,880 scored answers (48 x 1,935).
-    assert r.n_canonical_rows == 92_880
+    # 669 of the 50-model board's 96,750 scored answers (50 x 1,935).
+    assert r.n_canonical_rows == 96_750
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
@@ -147,18 +152,21 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # release 20261006. Release 20261010 adds Claude Haiku 5.5's rows and
     # moves the scored outputs: 8,001, 7,997 and 2,138. Release 20261013 adds
     # Muse Wonder's rows and returns nine outputs to scoring: 8,503, 8,499 and
-    # 2,218.
-    assert r.audit_annotated_row_count == 8_503
-    assert r.audit_annotated_row_count_fmt == "8,503"
+    # 2,218. Release 20261014 adds Gemini 4 Argon's 118 and Muse Spark 1.3's
+    # 144 annotated misses, on unchanged references and exclusions, and 111
+    # of their rows outside that selection with a bounded score below full:
+    # 8,765, 8,761 and 2,329.
+    assert r.audit_annotated_row_count == 8_765
+    assert r.audit_annotated_row_count_fmt == "8,765"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 8_499
-    assert r.exact_match_miss_count_fmt == "8,499"
-    assert r.annotated_exact_miss_count == 8_499
-    assert r.annotated_exact_miss_count_fmt == "8,499"
+    assert r.exact_match_miss_count == 8_761
+    assert r.exact_match_miss_count_fmt == "8,761"
+    assert r.annotated_exact_miss_count == 8_761
+    assert r.annotated_exact_miss_count_fmt == "8,761"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_218
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,218"
+    assert r.unannotated_below_full_bounded_score_count == 2_329
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,329"
 
 
 def test_contract_violations_are_counted_both_ways():
@@ -261,19 +269,20 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
             "completion ceiling",
         ],
     }
-    # GPT-6.1 Sol's, Claude Haiku 5.5's and Muse Wonder's supervised runs
-    # fingerprint all four fields, and their reasoning setup and timeouts.
+    # GPT-6.1 Sol's, Claude Haiku 5.5's, Muse Wonder's, Gemini 4 Argon's and
+    # Muse Spark 1.3's supervised runs fingerprint all four fields, and their
+    # reasoning setup and timeouts.
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 19,
-        "request shape": 19,
-        "tool choice": 18,
-        "completion ceiling": 19,
+        "answer contract": 21,
+        "request shape": 21,
+        "tool choice": 20,
+        "completion ceiling": 21,
     }
-    assert summary == {"registry": 29, "run_state": 19}
+    assert summary == {"registry": 29, "run_state": 21}
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for 19 rows; tool choice for 18 rows; reasoning "
-        "setup and timeouts for nine rows. Reasoning setup and timeouts for the "
+        "and completion ceiling for 21 rows; tool choice for 20 rows; reasoning "
+        "setup and timeouts for 11 rows. Reasoning setup and timeouts for the "
         "other ten fingerprinted rows, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -285,11 +294,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 18
+    assert results.serving_evidence_pinned_counts["tool choice"] == 20
     del fable_evidence["legacy_tool_choice_label"]
-    assert results.serving_evidence_pinned_counts["tool choice"] == 19
+    assert results.serving_evidence_pinned_counts["tool choice"] == 21
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 18
+    assert results.serving_evidence_pinned_counts["answer contract"] == 20
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
@@ -369,20 +378,24 @@ def test_judge_provenance_is_frozen_in_the_manifest():
     # cases Muse Wonder re-opened (one of them Opus 5's; 93, 315 and 269 in
     # release 20261013), and again that day for the five carried-over
     # verdicts the judge-isolation audit could not clear (one of them Opus
-    # 5's, three GPT-5.6 Sol's, one Opus 5.5's own; release 20261013b).
-    # A re-judged case with an adjudication keeps the replaced verdict under
-    # judge_previous.
+    # 5's, three GPT-5.6 Sol's, one Opus 5.5's own; release 20261013b), and
+    # on 2026-10-13 and 2026-10-14 for the 196 cases Gemini 4 Argon and Muse
+    # Spark 1.3 re-opened (one new; two of them GPT-5.6 Sol's, scenario_043
+    # head Medicaid and scenario_056 self-employment tax; 92, 322 and 264 in
+    # release 20261014, of 678). A re-judged case with an adjudication keeps
+    # the replaced verdict under judge_previous.
     assert prov["by_judge"]["claude-opus-5"]["cases"] == 92
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 319
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 322
     assert "2026-09-30" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-09" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-13" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 266
-    assert r.audit_case_count_fmt == "677"
+    assert "2026-10-14" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 264
+    assert r.audit_case_count_fmt == "678"
     assert r.audit_opus_judged_case_count_fmt == "92"
-    assert r.audit_opus55_judged_case_count_fmt == "319"
-    assert r.audit_sol_judged_case_count_fmt == "266"
+    assert r.audit_opus55_judged_case_count_fmt == "322"
+    assert r.audit_sol_judged_case_count_fmt == "264"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
@@ -461,12 +474,15 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # rows on the review's eight outputs (2,444 in release 20261006), moved by
     # release 20261010's exclusions, regenerations and Claude Haiku 5.5's rows
     # (2,212), then by release 20261013's ten restored outputs and Muse
-    # Wonder's rows.
-    assert r.excluded_output_annotation_row_count == 1843
+    # Wonder's rows (1,843), then by Gemini 4 Argon's 35 and Muse Spark
+    # 1.3's 37 rows on the same 49 outputs.
+    assert r.excluded_output_annotation_row_count == 1915
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
-    # 1,145 in release 20261006.
-    assert r.prompt_ambiguity_row_count == 1481
+    # 1,145 in release 20261006; 1,481 in release 20261013. Release 20261014
+    # adds Gemini 4 Argon's 29 and Muse Spark 1.3's 30 rows on the
+    # unlisted-input exclusions.
+    assert r.prompt_ambiguity_row_count == 1540
     assert (
         r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 38
     )

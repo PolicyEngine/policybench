@@ -1,3 +1,4 @@
+import gemini4ArgonJoinsTheBoard from "./2026-10-14-gemini-4-argon-joins-the-board.json";
 import museWonderJoinsTheBoard from "./2026-10-13-muse-wonder-joins-the-board.json";
 import claudeHaiku55JoinsTheBoard from "./2026-10-10-claude-haiku-5-5-joins-the-board.json";
 import claudeFable51Added from "./2026-09-01-claude-fable-5-1-added.json";
@@ -31,6 +32,7 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
+  gemini4ArgonJoinsTheBoard,
   museWonderJoinsTheBoard,
   claudeHaiku55JoinsTheBoard,
   stopsScoringEightTaxOutputs,

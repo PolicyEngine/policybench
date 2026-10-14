@@ -30,6 +30,8 @@ describe("model metadata", () => {
     ["grok-4.7", "Grok 4.7", "xai"],
     ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash", "deepseek"],
     ["muse-wonder", "Muse Wonder", "meta"],
+    ["muse-spark-1.3", "Muse Spark 1.3", "meta"],
+    ["gemini-4-argon", "Gemini 4 Argon", "google"],
   ] as const)("maps %s to its label and provider", (model, label, provider) => {
     expect(MODEL_LABELS[model]).toBe(label);
     expect(getProviderForModel(model)).toBe(provider);
@@ -80,6 +82,21 @@ describe("model metadata", () => {
     ]);
   });
 
+  test("shows Gemini 4 Argon as Google's flagship, and 3.1 Pro without it", () => {
+    expect(
+      frontierModelsFor(["gemini-4-argon", "gemini-3.1-pro-preview"]),
+    ).toEqual(["gemini-4-argon"]);
+    expect(frontierModelsFor(["gemini-3.1-pro-preview"])).toEqual([
+      "gemini-3.1-pro-preview",
+    ]);
+  });
+
+  test("keeps Muse Wonder as Meta's flagship over Muse Spark 1.3", () => {
+    expect(frontierModelsFor(["muse-spark-1.3", "muse-wonder"])).toEqual([
+      "muse-wonder",
+    ]);
+  });
+
   test("gives every represented provider a frontier model", () => {
     const models = [
       "claude-fable-5",
@@ -123,7 +140,6 @@ describe("MODEL_RELEASE_DATES", () => {
   });
 });
 
-
 describe("shortModelLabel", () => {
   test("drops a parenthetical qualifier before keeping the last two words", () => {
     expect(shortModelLabel("GLM-5.3-Flash (preview)")).toBe("GLM-5.3-Flash");
@@ -136,8 +152,12 @@ describe("shortModelLabel", () => {
 describe("MODEL_PROVENANCE_NOTES", () => {
   test("the GLM-5.3-Flash preview row records the listing it was queried under", () => {
     expect(MODEL_LABELS["ox-alpha"]).toBe("GLM-5.3-Flash (preview)");
-    expect(MODEL_PROVENANCE_NOTES["ox-alpha"]).toContain('Queried as "Ox Alpha"');
+    expect(MODEL_PROVENANCE_NOTES["ox-alpha"]).toContain(
+      'Queried as "Ox Alpha"',
+    );
     expect(MODEL_PROVENANCE_NOTES["ox-alpha"]).toContain("2026-08-20");
-    expect(Object.keys(MODEL_PROVENANCE_NOTES).every((id) => id in MODEL_LABELS)).toBe(true);
+    expect(
+      Object.keys(MODEL_PROVENANCE_NOTES).every((id) => id in MODEL_LABELS),
+    ).toBe(true);
   });
 });

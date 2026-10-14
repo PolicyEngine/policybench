@@ -381,3 +381,19 @@ def excluded_case_keys(adjudications: list[dict]) -> set[tuple[str, str]]:
         for e in adjudications
         if e.get("excluded_from_scoring")
     }
+
+
+def judge_ever_flagged(entry: dict) -> bool:
+    """Whether any judge verdict the entry records flagged the case's reference.
+
+    The record keeps every verdict a re-judge replaced (judge_previous) and a
+    flag an earlier run raised (judge_reference_suspect_source, at the top level
+    or on the judge_previous item it belongs to), so a case a later verdict no
+    longer flags still counts as judge-flagged.
+    """
+    verdicts = [entry, *entry.get("judge_previous", [])]
+    return any(
+        bool(item.get("judge_reference_suspect"))
+        or bool(item.get("judge_reference_suspect_source"))
+        for item in verdicts
+    )
