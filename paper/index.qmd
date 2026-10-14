@@ -783,6 +783,15 @@ def load_us_cost_latency() -> dict:
 
 
 us_cost_latency = load_us_cost_latency()
+# Every model the board prices shows a cost. One whose frozen rows record no
+# usage (Claude Fable 5) takes its modelStats figure, not a dash.
+_unpriced = [
+    row["model"]
+    for _, row in us_model.iterrows()
+    if (row.get("costPerHousehold") or 0) > 0
+    and us_cost_latency.get(row["model"], {}).get("costPerHousehold") is None
+]
+assert not _unpriced, _unpriced
 
 
 def cost_latency_table() -> pd.DataFrame:

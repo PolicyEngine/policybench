@@ -1422,10 +1422,11 @@ def model_cost_latency(
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When a
     model's reconstructed cost is missing (a provider preview model not yet in
-    litellm's price map), it is filled from ``price_overrides``, but only from
-    recorded prompt and completion token counts. A model whose rows record
-    neither (Claude Fable 5's frozen board rows record no usage) gets no cost,
-    not $0.
+    litellm's price map), it is filled from ``price_overrides`` by pricing the
+    rows that recorded both prompt and completion token counts. A row missing
+    either count adds nothing, as ``eval_no_tools._reconstruct_token_cost``
+    prices no such row, and a model with no row to price (Claude Fable 5's
+    frozen board rows record no usage) gets no cost, not $0.
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}
@@ -1440,19 +1441,25 @@ def model_cost_latency(
             .median()
         )
     overrides = price_overrides or {}
+    token_columns = ["prompt_tokens", "completion_tokens"]
+    priceable = pd.DataFrame(columns=token_columns)
+    if set(token_columns) <= set(predictions.columns):
+        priceable = (
+            predictions.dropna(subset=token_columns)
+            .groupby("model")[token_columns]
+            .sum()
+        )
     out: dict[str, dict[str, float]] = {}
     for _, row in usage.iterrows():
         model = str(row["model"])
         cost = row.get("total_cost_usd")
-        prompt = row.get("prompt_tokens")
-        completion = row.get("completion_tokens")
         if (
             (cost is None or pd.isna(cost))
             and model in overrides
-            and not (prompt is None or pd.isna(prompt))
-            and not (completion is None or pd.isna(completion))
+            and row["model"] in priceable.index
         ):
             price = overrides[model]
+            prompt, completion = priceable.loc[row["model"], token_columns]
             cost = (
                 float(prompt) * price["input"] / 1e6
                 + float(completion) * price["output"] / 1e6

@@ -3,12 +3,13 @@
 Cost invariants, for every input (the property test executes them):
 - costUsd and costPerHousehold are both present or both absent;
 - a model has a cost exactly when one of its rows recorded total_cost_usd, or
-  it has a price override and its rows recorded prompt and completion token
-  counts; a cost is never built from a count nobody recorded, so a model
-  with no usage at all gets no cost rather than $0;
+  it has a price override and one of its rows recorded both prompt and
+  completion token counts; a row missing either count is not priced, so no
+  cost rests on a count nobody recorded, and a model with no usage at all
+  gets no cost rather than $0;
 - a recorded cost is the sum of the recorded row costs and the override is
-  not consulted; a filled cost is the recorded token sums at the override's
-  prices;
+  not consulted; a filled cost is the override's prices applied to the token
+  sums of the rows that recorded both counts;
 - costPerHousehold is costUsd over the distinct households in the input.
 The frozen-snapshot tests check the published figures: every model's usage
 fields but Claude Fable 5's reproduce from the frozen predictions, and Fable
@@ -154,6 +155,33 @@ def test_price_override_needs_both_token_counts(prompt, completion):
     assert "costPerHousehold" not in out["m"]
 
 
+def test_price_override_needs_both_counts_on_one_row():
+    """Counts split across rows price no row: each row is missing one side."""
+    preds = pd.DataFrame(
+        [
+            _row("m", "s1", np.nan, 5.0, prompt=1_000_000, completion=np.nan),
+            _row("m", "s2", np.nan, 5.0, prompt=np.nan, completion=1_000_000),
+        ]
+    )
+    out = model_cost_latency(preds, {"m": {"input": 1.0, "output": 2.0}})
+    assert "costUsd" not in out["m"]
+
+
+def test_price_override_prices_only_rows_with_both_counts():
+    """A row missing a count adds nothing; it is not priced at $0 for it."""
+    preds = pd.DataFrame(
+        [
+            _row("m", "s1", np.nan, 5.0, prompt=1_000_000, completion=2_000_000),
+            _row("m", "s2", np.nan, 5.0, prompt=3_000_000, completion=np.nan),
+            _row("m", "s3", np.nan, 5.0, prompt=np.nan, completion=np.nan),
+        ]
+    )
+    out = model_cost_latency(preds, {"m": {"input": 1.0, "output": 2.0}})
+    # s1 only: 1M * $1/1M + 2M * $2/1M
+    assert out["m"]["costUsd"] == pytest.approx(5.0)
+    assert out["m"]["costPerHousehold"] == pytest.approx(5.0 / 3)
+
+
 def test_recorded_zero_cost_and_recorded_zero_tokens_stay_zero():
     """A $0 the rows record (a free model, or zero tokens) is a real $0."""
     preds = pd.DataFrame(
@@ -200,24 +228,44 @@ def _reference_cost(rows: list[dict], override: dict | None) -> float | None:
     ]
     if recorded:
         return math.fsum(recorded)
-    prompt = [r["prompt_tokens"] for r in rows if not math.isnan(r["prompt_tokens"])]
-    completion = [
-        r["completion_tokens"] for r in rows if not math.isnan(r["completion_tokens"])
+    priced = [
+        r
+        for r in rows
+        if not math.isnan(r["prompt_tokens"]) and not math.isnan(r["completion_tokens"])
     ]
-    if override is None or not prompt or not completion:
+    if override is None or not priced:
         return None
     return (
-        math.fsum(prompt) * override["input"] / 1e6
-        + math.fsum(completion) * override["output"] / 1e6
+        math.fsum(r["prompt_tokens"] for r in priced) * override["input"] / 1e6
+        + math.fsum(r["completion_tokens"] for r in priced) * override["output"] / 1e6
     )
 
 
 @settings(max_examples=300, deadline=None)
 @given(
-    rows=st.lists(usage_row, min_size=1, max_size=12),
+    drawn=st.lists(usage_row, min_size=1, max_size=12),
     overrides=st.dictionaries(st.sampled_from(MODEL_NAMES), price, max_size=3),
+    uncosted=st.sets(st.sampled_from(MODEL_NAMES)),
+    untokened=st.sets(st.sampled_from(MODEL_NAMES)),
 )
-def test_cost_is_present_exactly_when_recorded_usage_supports_it(rows, overrides):
+def test_cost_is_present_exactly_when_recorded_usage_supports_it(
+    drawn, overrides, uncosted, untokened
+):
+    # Whole models with no recorded cost, or (like Fable 5) no token counts,
+    # so the fill and the no-usage cases are drawn often.
+    nan = float("nan")
+    rows = [
+        {
+            **row,
+            **({"total_cost_usd": nan} if row["model"] in uncosted else {}),
+            **(
+                {"prompt_tokens": nan, "completion_tokens": nan}
+                if row["model"] in untokened
+                else {}
+            ),
+        }
+        for row in drawn
+    ]
     frame = pd.DataFrame(rows)
     frame["variable"] = "v"
     frame["prediction"] = 1.0
