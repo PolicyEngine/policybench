@@ -234,40 +234,71 @@ def names_on(entity: str) -> list[str]:
     return [n for n, info in REGISTRY.items() if info.entity == entity]
 
 
+def typed_value(name: str):
+    """A value of the variable's own type, so a group input can be valid."""
+    info = REGISTRY.get(name)
+    if info is None:
+        return SCALARS
+    if info.value_type == "Enum":
+        return st.sampled_from(list(info.possible_values))
+    if info.value_type in {"float", "int"}:
+        return st.one_of(
+            st.integers(min_value=0, max_value=120),
+            st.floats(min_value=0, max_value=1e6, allow_nan=False),
+        )
+    if info.value_type == "bool":
+        return st.booleans()
+    return SCALARS
+
+
 def inputs_for(entity: str):
-    """Inputs weighted toward the entity's own variables, with some misplaced
-    or unknown names so the rejections are exercised as well."""
+    """Mostly typed inputs on the entity's own variables, with some misplaced
+    or unknown names and arbitrary values so the rejections are exercised."""
     own = names_on(entity)
+    wrong = st.tuples(OTHER_NAMES, PERIOD_VALUES)
     if not own:  # families and marital units carry no inputs in REGISTRY
         return st.one_of(
-            st.just({}),
-            st.just({}),
-            st.dictionaries(OTHER_NAMES, PERIOD_VALUES, max_size=1),
+            st.just({}), st.just({}), st.lists(wrong, max_size=1).map(dict)
         )
-    names = st.one_of(*[st.sampled_from(own)] * 4, OTHER_NAMES)
-    return st.dictionaries(names, PERIOD_VALUES, max_size=2)
+    right = st.sampled_from(own).flatmap(
+        lambda name: st.one_of(
+            typed_value(name),
+            st.dictionaries(
+                st.sampled_from(["2026", "2026-01"]),
+                typed_value(name),
+                min_size=1,
+                max_size=2,
+            ),
+        ).map(lambda value: (name, value))
+    )
+    return st.lists(st.one_of(right, right, right, wrong), max_size=2).map(dict)
 
 
 def situations():
-    """People first, then each group's single unit over a non-empty, unique
-    subset of those people, so accepted calls carry groups."""
+    """People first, then each group's units, mostly over unique, non-empty
+    subsets of those people; some memberships are invalid (a ghost, a person
+    twice or in two units), so the membership checks can fail."""
 
     def with_groups(people):
         names = sorted(people)
+        valid = st.lists(
+            st.sampled_from(names), min_size=1, max_size=len(names), unique=True
+        )
+        invalid = st.lists(st.sampled_from([*names, "ghost"]), max_size=3)
 
         def unit(entity):
             return st.builds(
                 lambda members, inputs: {"members": members, **inputs},
-                st.lists(
-                    st.sampled_from(names), min_size=1, max_size=len(names), unique=True
-                ),
+                st.one_of(valid, valid, valid, invalid),
                 inputs_for(entity),
             )
 
         groups = st.fixed_dictionaries(
             {},
             optional={
-                group: st.dictionaries(st.just("u1"), unit(entity), min_size=1)
+                group: st.dictionaries(
+                    st.sampled_from(["u1", "u1", "u2"]), unit(entity), min_size=1
+                )
                 for group, entity in pilot.GROUPS.items()
             },
         )
@@ -294,6 +325,7 @@ def test_validator_accepts_only_known_names_on_their_entities():
     in at most one unit of its group. The strategy reaches acceptance, with
     groups and group inputs, often enough to check it."""
     accepted = []
+    with_units = []
     with_group_inputs = []
 
     @settings(max_examples=1000, deadline=None, derandomize=True, database=None)
@@ -312,6 +344,8 @@ def test_validator_accepts_only_known_names_on_their_entities():
                 assert REGISTRY[name].entity == "person"
                 assert periods and all(pilot.PERIOD_RE.match(k) for k in periods)
         group_input = False
+        if any(situation.get(group) for group in pilot.GROUPS):
+            with_units.append(1)
         for group, entity in pilot.GROUPS.items():
             seen = set()
             for unit in situation.get(group, {}).values():
@@ -327,8 +361,12 @@ def test_validator_accepts_only_known_names_on_their_entities():
             with_group_inputs.append(1)
 
     check()
-    assert len(accepted) >= 50, f"only {len(accepted)} of 1000 calls were accepted"
-    assert len(with_group_inputs) >= 10, (
+    # Floors well under the worst of four seeds measured (322 accepted, 58
+    # with units, 14 with group inputs), so a Hypothesis upgrade or an edit to
+    # this function cannot quietly make the checks vacuous or flaky.
+    assert len(accepted) >= 100, f"only {len(accepted)} of 1000 calls were accepted"
+    assert len(with_units) >= 20, f"only {len(with_units)} accepted calls had units"
+    assert len(with_group_inputs) >= 5, (
         f"only {len(with_group_inputs)} accepted calls carried a group input"
     )
 
@@ -1245,3 +1283,21 @@ def test_an_explanation_only_repair_names_the_kept_value():
     pilot.run_household(make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0))
     prompt = model.requests[1]["messages"][-1]["content"]
     assert "keep your value 2553" in prompt and "value = 2553" in prompt
+
+
+@pytest.mark.parametrize(
+    "value, text",
+    [
+        (2553.0, "2553"),
+        (12345.67, "12345.67"),
+        (1234567.0, "1234567"),
+        (1e-05, "0.00001"),
+        (-12.5, "-12.5"),
+        (0.0, "0"),
+    ],
+)
+def test_plain_number_round_trips_through_the_boards_trailer_pattern(value, text):
+    from policybench.eval_no_tools import _extract_terminal_explanation_value
+
+    assert pilot.plain_number(value) == text
+    assert _extract_terminal_explanation_value(f"Reason. value = {text}") == value

@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import copy
+import decimal
 import difflib
 import hashlib
 import importlib.metadata
@@ -1065,10 +1066,11 @@ def run_household(
                 repair_rounds += 1
                 answer_variables = still
                 kept = [
-                    f"{v} (keep your value {predictions[v]:g}; its explanation must "
-                    f"end with `value = {predictions[v]:g}`)"
+                    f"{v} (keep your value {number}; its explanation must end "
+                    f"with `value = {number}`)"
                     for v in still
                     if predictions[v] is not None
+                    for number in [plain_number(predictions[v])]
                 ]
                 messages.append(
                     {
@@ -1107,11 +1109,6 @@ def run_household(
                         )
                     else:
                         result, tool_latency = tool_call(_call_arguments(call))
-                    if (
-                        isinstance(result, dict)
-                        and result.get("error") == POOL_UNAVAILABLE
-                    ):
-                        pool_down = True
                     turn["calls"].append(
                         {
                             "name": TOOL_NAME,
@@ -1120,6 +1117,12 @@ def run_household(
                             "tool_latency_seconds": tool_latency,
                         }
                     )
+                    if (
+                        isinstance(result, dict)
+                        and result.get("error") == POOL_UNAVAILABLE
+                    ):
+                        pool_down = True
+                        break
                     messages.append(
                         {
                             "role": "tool",
@@ -1187,6 +1190,13 @@ def run_household(
     record["messages"] = messages
     record["totals"] = household_totals(record)
     return record
+
+
+def plain_number(value) -> str:
+    """A number as plain decimal digits, never scientific notation, so the
+    board's `value = X` trailer pattern can read it back."""
+    text = format(decimal.Decimal(repr(float(value))), "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def _num(value) -> float:
@@ -1453,6 +1463,14 @@ def command_run(args) -> None:
         def one(sid: str) -> dict:
             if spend.exhausted(args.reserve_usd):
                 return {"scenario_id": sid, "status": "budget_stop"}
+            if pool.counters()["lost"] >= args.workers:
+                # Every worker is gone: start nothing more. The household keeps
+                # no record, so a resume runs it.
+                return {
+                    "scenario_id": sid,
+                    "status": "harness_error",
+                    "error": "every tool worker was lost",
+                }
             try:
                 record = run_household(
                     board["scenarios"][sid],
@@ -1506,6 +1524,11 @@ def command_run(args) -> None:
         "budget_usd": args.budget_usd,
         "statuses": dict(sorted(Counter(r.get("status") for r in results).items())),
         "rerunnable_households": rerunnable,
+        "errors": {
+            r["scenario_id"]: r.get("error")
+            for r in results
+            if r.get("status") in RERUNNABLE_STATUSES and r.get("error")
+        },
         "tool_pool": counters,
     }
     (
