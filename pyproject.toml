@@ -28,9 +28,12 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+# The paper render environment (paper/render_paper.py, .github/workflows/paper.yml):
+# the Jupyter kernel and notebook runner that Quarto's Jupyter engine drives.
+# jupyter-book, which builds the docs/ site, stays out of uv.lock on purpose:
+# docs/requirements.txt declares it (README.md, "Paper and documentation site").
 docs = [
     "ipykernel>=6.0",
-    "jupyter-book>=2.0",
     "nbformat>=5.0",
     "nbclient>=0.10",
 ]
