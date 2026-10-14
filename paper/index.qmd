@@ -1178,19 +1178,10 @@ def cost_latency_caption() -> str:
     assert sorted(latency_dash) == r.latency_dash_models, latency_dash
     zero_cost = r.zero_cost_models_fmt
     return (
-        "Estimated cost and median latency per household for the frozen US snapshot, "
-        "alongside the headline exact-match rate. Each row uses its recorded per-call "
-        "cost: reconstructed from token counts at the list price configured at request "
-        "time, or the provider-reported charge where no reconstruction was available. "
-        "List-price overrides apply at request time, not retroactively to recorded "
-        "costs. Claude Fable 5's cost and latency come from its original run's per-call "
-        "rows, which its board rows do not carry. Latency is the median across "
-        "households of each household's summed request time. A cost dash marks a "
-        f"provider-reported charge of zero on every call ({zero_cost}). A latency dash "
-        f"marks rows that record no request time ({r.batch_latency_models_fmt}, through "
-        "OpenAI's batch API) or a median household answered from the harness's "
-        f"response cache rather than by the provider ({r.replayed_latency_models_fmt}; "
-        "see text)."
+        "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: reconstructed from token counts at the list price configured at request time, or the provider-reported charge where no reconstruction was available. List-price overrides apply at request time, not retroactively to recorded costs. Claude Fable 5's cost and latency come from its original run's per-call rows, which its board rows do not carry. Latency is the median across households of each household's summed request time. "
+        f"A cost dash marks a provider-reported charge of zero on every call ({zero_cost}). "
+        f"A latency dash marks rows that record no request time ({r.batch_latency_models_fmt}, through OpenAI's batch API) "
+        f"or a median household answered from the harness's response cache rather than by the provider ({r.replayed_latency_models_fmt}; see text)."
     )
 
 
