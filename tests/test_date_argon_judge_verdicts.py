@@ -109,7 +109,9 @@ def test_new_waves_allows_only_the_spec_triage_wave():
     triaged = _record(_entry("scenario_009", suspect=False))
     assert dating.new_waves(triaged, spec) == {DAY: DAY}
     with pytest.raises(SystemExit, match="decides only its triage wave"):
-        dating.new_waves(_record(_entry("scenario_009", suspect=False, day="2026-10-15")), spec)
+        dating.new_waves(
+            _record(_entry("scenario_009", suspect=False, day="2026-10-15")), spec
+        )
     with pytest.raises(SystemExit, match="decides only its triage wave"):
         dating.new_waves(triaged, _spec(triage_adjudications=[]))
     with pytest.raises(SystemExit, match="written before it"):
@@ -165,9 +167,13 @@ def test_the_triage_wave_joins_uncommitted_with_its_stage_verdicts(
         assert found["current"]["reference_suspect"] is entry["judge_reference_suspect"]
         assert "published" not in found
     # The earlier waves and every other case are untouched.
-    base = {k: v for k, v in out["cases"].items() if k not in map(dating.case_id, entries)}
+    base = {
+        k: v for k, v in out["cases"].items() if k not in map(dating.case_id, entries)
+    }
     assert base == {
-        k: v for k, v in evidence["cases"].items() if k not in map(dating.case_id, entries)
+        k: v
+        for k, v in evidence["cases"].items()
+        if k not in map(dating.case_id, entries)
     }
     # A second pass on its own output writes the same evidence.
     assert dating.updated_evidence(out, tmp_path, record) == out

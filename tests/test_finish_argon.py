@@ -4196,9 +4196,7 @@ def test_decision_wave_is_the_triage_wave_and_refuses_an_upgrades_records():
     with pytest.raises(SystemExit, match="installs no engine upgrade"):
         driver.decision_wave([({}, {"decided_on": TRIAGE_DAY})], [affirm])
     with pytest.raises(SystemExit, match="several days"):
-        driver.decision_wave(
-            (), [affirm, {**resolve, "adjudicated_on": "2026-10-15"}]
-        )
+        driver.decision_wave((), [affirm, {**resolve, "adjudicated_on": "2026-10-15"}])
 
 
 def test_the_triage_wave_is_named_once_after_the_2026_10_10_wave():
@@ -4218,9 +4216,7 @@ def test_the_triage_wave_is_named_once_after_the_2026_10_10_wave():
             "verdict flagged or resolving rows the judge gave a class outside the "
             f"final set, and were written on {TRIAGE_DAY} UTC."
         )
-        assert out == conventions.replace(
-            driver.DATE_CONVENTIONS_BASE, named
-        ).replace(
+        assert out == conventions.replace(driver.DATE_CONVENTIONS_BASE, named).replace(
             driver.DATE_CONVENTIONS_ANCHOR, driver.DATE_CONVENTIONS_ANCHOR + sentence
         )
         # tests/test_adjudications.py splits the conventions at ". ": the
@@ -4255,7 +4251,8 @@ def test_the_triage_wave_sentence_names_exactly_the_kinds_decided(kinds):
     """For any mix of affirmations and unflagged resolutions, the wave is
     named once and its sentence names each kind present and no other."""
     items = [
-        _triage_item((f"scenario_{i:03d}", "snap"), kind) for i, kind in enumerate(kinds)
+        _triage_item((f"scenario_{i:03d}", "snap"), kind)
+        for i, kind in enumerate(kinds)
     ]
     spec = _triage_spec(*items)
     wave = driver.decision_wave((), driver.triage_items(None, spec))
@@ -4279,7 +4276,11 @@ def test_the_staged_record_carries_the_spec_triage_decisions():
     items = driver.triage_items(None)
     expected = [
         driver.triage_entry(
-            item, STAGE / "audit" / "cases" / f"us__{item['scenario_id']}__{item['variable']}"
+            item,
+            STAGE
+            / "audit"
+            / "cases"
+            / f"us__{item['scenario_id']}__{item['variable']}",
         )
         for item in items
     ]

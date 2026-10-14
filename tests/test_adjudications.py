@@ -1079,9 +1079,7 @@ def test_published_verdicts_in_the_evidence_match_each_wave_release():
     # evidence names the verdict the new decision reviewed. scenario_051's
     # decision, which release 20261010's 2026-10-06 wave restated in place, is
     # compared with that release's publication.
-    assert restated == {
-        "us__scenario_064__state_income_tax_before_refundable_credits"
-    }
+    assert restated == {"us__scenario_064__state_income_tax_before_refundable_credits"}
     louisiana = "us__scenario_051__state_income_tax_before_refundable_credits"
     assert published[louisiana][0] == "dashboard-data-20261010"
     compared = 0

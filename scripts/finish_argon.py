@@ -1115,7 +1115,9 @@ def triage_entry(item: dict, case_dir: Path) -> dict:
     fields = TRIAGE_FIELDS
     if not affirms:
         fields = tuple(
-            f for f in TRIAGE_FIELDS if f not in ("reference_verdict", "reference_basis")
+            f
+            for f in TRIAGE_FIELDS
+            if f not in ("reference_verdict", "reference_basis")
         )
         entry = {name: entry[name] for name in fields}
     require(list(entry) == list(fields), "triage entry fields out of order")
