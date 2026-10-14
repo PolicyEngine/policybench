@@ -209,6 +209,9 @@ def _empty_repair_row(
         "provider_response_id": None,
         "provider_system_fingerprint": None,
         "provider_resolved_model": None,
+        "live_calls": 0,
+        "cache_hit_calls": 0,
+        "live_elapsed_seconds": None,
     }
 
 
@@ -267,6 +270,9 @@ def repair_prediction_row(
                     "provider_system_fingerprint"
                 ),
                 "provider_resolved_model": result.get("provider_resolved_model"),
+                "live_calls": result.get("live_calls"),
+                "cache_hit_calls": result.get("cache_hit_calls"),
+                "live_elapsed_seconds": result.get("live_elapsed_seconds"),
             }
         except Exception as exc:
             row = _empty_repair_row(
@@ -288,10 +294,31 @@ def repair_prediction_row(
 
 
 def _append_rows(path: Path, rows: list[dict]) -> None:
+    """Append rows under the file's header, widening it first if needed.
+
+    A repair round resumed by a newer harness can carry columns the file's
+    header lacks (the call-provenance columns, for one). Appended under the old
+    header they would shift every later cell, so the file is first rewritten
+    with the new columns at the end, each existing cell kept as its exact text.
+    """
     if not rows:
         return
     frame = pd.DataFrame(rows)
-    frame.to_csv(path, mode="a", index=False, header=not path.exists())
+    header: list[str] = []
+    if path.exists():
+        try:
+            header = list(pd.read_csv(path, nrows=0).columns)
+        except pd.errors.EmptyDataError:
+            header = []
+    if not header:
+        frame.to_csv(path, index=False)
+        return
+    added = [column for column in frame.columns if column not in header]
+    if added:
+        existing = pd.read_csv(path, dtype=str, keep_default_na=False, na_filter=False)
+        header = [*header, *added]
+        existing.reindex(columns=header, fill_value="").to_csv(path, index=False)
+    frame.reindex(columns=header).to_csv(path, mode="a", index=False, header=False)
 
 
 def _completed_repair_keys(

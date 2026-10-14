@@ -135,6 +135,24 @@ _RESPONSE_COLUMNS = (
     "provider_response_id",
     "provider_system_fingerprint",
     "provider_resolved_model",
+    # Call provenance (eval_no_tools.NO_TOOLS_CALL_PROVENANCE_COLUMNS): absent
+    # from CSVs written before it existed, which then export without it.
+    "live_calls",
+    "cache_hit_calls",
+    "live_elapsed_seconds",
+)
+
+# Typed copies kept in ``responses.usage_json`` for querying, alongside tokens.
+_USAGE_JSON_COLUMNS = (
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "reasoning_tokens",
+    "cached_prompt_tokens",
+    "cache_write_prompt_tokens",
+    "live_calls",
+    "cache_hit_calls",
+    "live_elapsed_seconds",
 )
 
 # Prediction-level columns (one value per output id).
@@ -828,14 +846,7 @@ class RunStore:
     ) -> dict[str, Any]:
         usage = {
             field: _store_scalar(record.get(field))
-            for field in (
-                "prompt_tokens",
-                "completion_tokens",
-                "total_tokens",
-                "reasoning_tokens",
-                "cached_prompt_tokens",
-                "cache_write_prompt_tokens",
-            )
+            for field in _USAGE_JSON_COLUMNS
             if field in record
         }
         usage = {k: v for k, v in usage.items() if v is not None}
