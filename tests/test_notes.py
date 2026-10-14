@@ -5567,7 +5567,10 @@ def test_release_20261014_note_claims() -> None:
             assert row["score"] == then_stats[row["model"]]["score"], row["model"]
     # The publication check: the newest release gives 2.41.0's value for all
     # 1,984 outputs.
-    check = _read_csv(PUBLICATION_CHECK / "publication_check_2_41_3.csv")
+    # The latest check, the one sweep_timing.json records.
+    timing = _load_json(PUBLICATION_CHECK / "sweep_timing.json")
+    check = _read_csv(ROOT / timing["publication_check"]["output"])
+    assert timing["publication_check"]["engine"] == facts["checkedEngine"]
     assert len(check) == facts["totalOutputs"]
     assert all(row["same"] == "True" and float(row["delta"]) == 0.0 for row in check)
     assert {(row["reference_engine"], row["engine"]) for row in check} == {

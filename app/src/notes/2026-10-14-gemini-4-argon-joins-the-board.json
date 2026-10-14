@@ -28,7 +28,7 @@
     "boardReasoning": 85,
     "autoReasoning": 82,
     "argonCost": "2.79",
-    "checkedEngine": "2.41.3",
+    "checkedEngine": "2.42.4",
     "engineVersion": "2.41.0",
     "scoredOutputs": 1935,
     "totalOutputs": 1984,
@@ -44,8 +44,8 @@
       "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/argon/design.md"
     },
     {
-      "label": "Publication check against policyengine-us 2.41.3",
-      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_41_3.csv"
+      "label": "Publication check against policyengine-us 2.42.4",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_42_4.csv"
     },
     {
       "label": "Gemini 4 Argon model page",

@@ -5,7 +5,8 @@ Gemini 4 Argon and Meta's Muse Spark 1.3 (Max, 2026-10-13, d1441), onto the
 48-model board of release dashboard-data-20261013b, and changes no tracked
 data. The references stay that
 release's, computed on policyengine-us 2.41.0: the newest release when this
-one was staged, 2.41.3, gives the same value for every output
+one was staged, 2.41.3, and when it was frozen, 2.42.4, give the same value
+for every output
 (reference_audit/2026-10-12-engine-upgrade/verification/), so the driver
 installs no reference build and has no --step install-references (see "No
 engine upgrade of the references" below). The release rules no new exclusion,

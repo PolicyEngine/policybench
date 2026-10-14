@@ -70,8 +70,8 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
 when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
-UTC). policyengine-us 2.41.3, the newest release when PolicyBench checked PyPI
-on 2026-10-13 at 17:22 UTC, gives the same value as 2.41.0 for all 1,984
+UTC). policyengine-us 2.42.4, the newest release when PolicyBench checked PyPI
+on 2026-10-14 at 04:03 UTC, gives the same value as 2.41.0 for all 1,984
 outputs under the same conventions and adapter. The 49 excluded outputs keep
 the values they were decided on (29 computed with policyengine-us 1.755.4, 18
 with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that

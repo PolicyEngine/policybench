@@ -2,13 +2,15 @@
   "note": "When PolicyBench began sweeping the references for the 2026-10-12 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
   "pypi": {
     "source": "https://pypi.org/pypi/policyengine-us/json",
-    "read_at_utc": "2026-10-13T17:22:46Z",
-    "newest_at_read": "2.41.3",
+    "read_at_utc": "2026-10-14T04:03:05Z",
+    "newest_at_read": "2.42.4",
     "wheel_uploaded_at_utc": {
       "2.41.0": "2026-10-13T01:44:55.991829Z",
       "2.41.1": "2026-10-13T07:38:49.871102Z",
       "2.41.2": "2026-10-13T10:49:01.550263Z",
-      "2.41.3": "2026-10-13T15:15:33.955827Z"
+      "2.41.3": "2026-10-13T15:15:33.955827Z",
+      "2.41.4": "2026-10-13T19:58:54.450468Z",
+      "2.42.4": "2026-10-14T03:40:42.303987Z"
     },
     "yanked_newer": {}
   },
@@ -29,27 +31,27 @@
     "first_output_sha256": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926"
   },
   "publication_check": {
-    "engine": "2.41.3",
-    "engine_installed_at_utc": "2026-10-13T17:21:37Z",
-    "engine_installed_evidence": "results/local/argon/check-venv-2.41.3/lib/python3.12/site-packages/policyengine_us-2.41.3.dist-info",
-    "check_computed": "results/local/check-sweep-2.41.3-qviz42_j/sweep/computed.csv",
+    "engine": "2.42.4",
+    "engine_installed_at_utc": "2026-10-14T04:02:56Z",
+    "engine_installed_evidence": "results/local/argon/check-venv-2.42.4/lib/python3.12/site-packages/policyengine_us-2.42.4.dist-info",
+    "check_computed": "results/local/check-sweep-2.42.4-neiuuvfr/sweep/computed.csv",
     "check_computed_sha256": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926",
     "check_sweep": {
       "builder_sha256": "106359647da224dae243c6365b78fa324102f832e830cbc2d1b82a1ba1e7cf29",
-      "venv": "results/local/argon/check-venv-2.41.3",
+      "venv": "results/local/argon/check-venv-2.42.4",
       "command": "build_references_upgrade.py --actions <empty> --allow-draft",
       "exit_code": 1,
       "engine_install": {
-        "version": "2.41.3",
-        "files_verified": 18523,
+        "version": "2.42.4",
+        "files_verified": 18579,
         "editable": false,
         "imported_from_package": true,
         "fresh_bytecode_cache": true
       }
     },
-    "output_at_utc": "2026-10-13T17:25:56Z",
-    "output": "reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_41_3.csv",
-    "output_sha256": "e50d9ead9dde848b10a8b775d75a9f9dd87447f39be1b9fc989b9f046c0cbe69",
+    "output_at_utc": "2026-10-14T04:03:58Z",
+    "output": "reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_42_4.csv",
+    "output_sha256": "3cc82b7e7b8a08d19ce465f351d081a38959e96fa2a1f126711da396d73b7732",
     "build": "/Users/maxghenis/reviews/policybench-muse-wonder/engine-2.41.0/final2/build",
     "build_sha256": {
       "computed.csv": "a30d2d84494fd6a4b2aadb4c493736cee1f439d177c69acdc432efc350725926",

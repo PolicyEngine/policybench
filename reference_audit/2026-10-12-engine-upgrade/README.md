@@ -50,7 +50,9 @@ PyPI at 11:34 UTC (`verification/publication_check_2_41_2.csv`): all 1,984 are i
 For the next release (Gemini 4 Argon and Muse Spark 1.3), which keeps these references,
 PolicyBench re-swept every output on 2.41.3, the newest release when it checked PyPI at 17:22 UTC
 on 2026-10-13 (`verification/publication_check_2_41_3.csv`): all 1,984 are again identical to
-2.41.0's. `verification/sweep_timing.json` holds the latest check.
+2.41.0's. After that release froze, it checked once more on 2.42.4, the newest release when it
+checked PyPI at 04:03 UTC on 2026-10-14 (`verification/publication_check_2_42_4.csv`): all 1,984
+are still identical. `verification/sweep_timing.json` holds the latest check.
 
 ## Files
 
