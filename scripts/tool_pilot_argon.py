@@ -50,6 +50,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -63,8 +64,8 @@ SNAPSHOT = (
 )
 FIX_MODULE = ROOT / "reference_audit/2026-09-28/fixes/latest_final.py"
 # The bytes the 2.41.0 references were built with: the sidecar's 2026-10-13
-# engine_upgrade revision pins latest_final.py to this sha256. The modules it
-# composes are checked end to end by the oracle subcommand.
+# engine_upgrade revision pins latest_final.py to this sha256, and
+# verify_fix_pins checks it and every module it composes against that revision.
 FIX_MODULE_SHA256 = "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e"
 
 MODEL_NAME = "gemini-4-argon"
@@ -87,6 +88,7 @@ DEFAULT_BUDGET_USD = 50.0
 # Infrastructure failures a resume reruns. Every other status is the model's
 # own outcome and stands, so no household is redrawn until it succeeds.
 RERUNNABLE_STATUSES = frozenset({"provider_error", "budget_stop", "harness_error"})
+POOL_UNAVAILABLE = "pool_unavailable"
 
 MAX_PEOPLE = 16
 MAX_UNITS_PER_GROUP = 16
@@ -261,6 +263,11 @@ def _normalize_inputs(
             )
             continue
         if isinstance(value, dict):
+            if not value:
+                problems.append(
+                    f"{where}: {name} has no values; set it as {{period: value}}."
+                )
+                continue
             periods = value
         else:
             periods = {period: value}
@@ -583,12 +590,18 @@ class ToolPool:
         timeout: float = TOOL_TIMEOUT_SECONDS,
         reform: bool = True,
         worker_target: Callable | None = None,
+        acquire_timeout: float | None = None,
     ):
         self._ctx = mp.get_context("spawn")
         self._fix_path = str(fix_path)
         self._reform = reform
         self._target = worker_target or _worker_main
         self.timeout = timeout
+        self.acquire_timeout = (
+            WORKER_START_TIMEOUT_SECONDS + timeout
+            if acquire_timeout is None
+            else acquire_timeout
+        )
         self._idle: queue.Queue = queue.Queue()
         self._lock = threading.Lock()
         self.timeouts = 0
@@ -609,22 +622,38 @@ class ToolPool:
         return process, parent
 
     def _await_ready(self, worker):
+        """The worker once it reports ready; RuntimeError (worker killed) if it
+        does not start, however it fails."""
         process, conn = worker
-        if not conn.poll(WORKER_START_TIMEOUT_SECONDS):
+        try:
+            if not conn.poll(WORKER_START_TIMEOUT_SECONDS):
+                raise RuntimeError("tool worker did not start")
+            status, _ = conn.recv()
+            if status != "ready":
+                raise RuntimeError(f"tool worker failed to start: {status}")
+        except (RuntimeError, EOFError, OSError, ValueError) as error:
             process.kill()
-            raise RuntimeError("tool worker did not start")
-        status, _ = conn.recv()
-        if status != "ready":
-            raise RuntimeError(f"tool worker failed to start: {status}")
+            process.join(timeout=10)
+            raise RuntimeError(f"tool worker failed to start: {error}") from error
         return worker
+
+    def counters(self) -> dict:
+        with self._lock:
+            return {
+                "timeouts": self.timeouts,
+                "crashes": self.crashes,
+                "lost": self.lost,
+            }
 
     def call(self, args) -> tuple[dict, float]:
         started = time.perf_counter()
         try:
-            worker = self._idle.get(timeout=WORKER_START_TIMEOUT_SECONDS + self.timeout)
+            worker = self._idle.get(timeout=self.acquire_timeout)
         except queue.Empty:
+            # Infrastructure, not the model: run_household stops the household
+            # with a rerunnable status rather than show the model this result.
             return (
-                {"error": "engine", "message": "no tool worker is available"},
+                {"error": POOL_UNAVAILABLE, "message": "no tool worker is available"},
                 time.perf_counter() - started,
             )
         process, conn = worker
@@ -640,7 +669,7 @@ class ToolPool:
                 "error": "timeout",
                 "message": f"the calculation exceeded {self.timeout:.0f} seconds",
             }
-        except (EOFError, BrokenPipeError, OSError) as error:
+        except (EOFError, BrokenPipeError, OSError, ValueError) as error:
             with self._lock:
                 self.crashes += 1
             result = {"error": "engine", "message": f"tool worker failed: {error}"}
@@ -864,217 +893,268 @@ def run_household(
     answer_variables = list(variables)
     household_started = time.perf_counter()
 
-    for turn_index in range(MAX_TOTAL_TURNS):
-        if spend.exhausted():
-            record["status"] = "budget_stop"
-            break
-        if repair_rounds:
-            kind = "repair"
-            tool_choice = forced_answer_choice()
-            tools = [
-                calculate_tool,
-                _build_answer_tool(answer_variables, country=scenario.country),
-            ]
-        elif forced or tool_turns >= turn_cap:
-            kind = "forced_answer"
-            forced = True
-            tool_choice = forced_answer_choice()
-            tools = base["tools"]
-        else:
-            kind = "open"
-            tool_choice = "required"
-            tools = base["tools"]
-        kwargs = {k: v for k, v in base.items() if k not in {"tools", "tool_choice"}}
-        kwargs.update(
-            {
-                "model": model_id,
-                "messages": messages,
-                "tools": tools,
-                "tool_choice": tool_choice,
+    try:
+        for turn_index in range(MAX_TOTAL_TURNS):
+            if spend.exhausted():
+                record["status"] = "budget_stop"
+                break
+            if repair_rounds:
+                kind = "repair"
+                tool_choice = forced_answer_choice()
+                tools = [
+                    calculate_tool,
+                    _build_answer_tool(answer_variables, country=scenario.country),
+                ]
+            elif forced or tool_turns >= turn_cap:
+                kind = "forced_answer"
+                forced = True
+                tool_choice = forced_answer_choice()
+                tools = base["tools"]
+            else:
+                kind = "open"
+                tool_choice = "required"
+                tools = base["tools"]
+            kwargs = {
+                k: v for k, v in base.items() if k not in {"tools", "tool_choice"}
             }
-        )
-        _apply_thinking_configuration(kwargs, model_id)
-        budget_key = (
-            "max_completion_tokens"
-            if "max_completion_tokens" in kwargs
-            else "max_tokens"
-        )
-        escalated_from = None
-        try:
-            response, started_at, completed_at, latency = _request_with_retries(
-                completion_fn, kwargs
+            kwargs.update(
+                {
+                    "model": model_id,
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": tool_choice,
+                }
             )
-            finish_reason = _response_finish_reason(response, responses_api=False)
-            if finish_reason == "length" and kwargs.get(budget_key, 0) < ceiling:
-                usage = _extract_usage_metadata(response, model_id, messages, "")
-                spend.add(usage.get("total_cost_usd"))
-                record["turns"].append(
-                    {
-                        "index": turn_index,
-                        "kind": kind,
-                        "truncated_and_retried": True,
-                        "completion_budget": kwargs.get(budget_key),
-                        "latency_seconds": latency,
-                        **usage,
-                    }
-                )
-                escalated_from = kwargs.get(budget_key)
-                kwargs[budget_key] = ceiling
+            _apply_thinking_configuration(kwargs, model_id)
+            budget_key = (
+                "max_completion_tokens"
+                if "max_completion_tokens" in kwargs
+                else "max_tokens"
+            )
+            escalated_from = None
+            try:
                 response, started_at, completed_at, latency = _request_with_retries(
                     completion_fn, kwargs
                 )
                 finish_reason = _response_finish_reason(response, responses_api=False)
-        except Exception as error:
-            record["status"] = "provider_error"
-            record["error"] = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
-            break
+                if finish_reason == "length" and kwargs.get(budget_key, 0) < ceiling:
+                    usage = _extract_usage_metadata(response, model_id, messages, "")
+                    spend.add(usage.get("total_cost_usd"))
+                    record["turns"].append(
+                        {
+                            "index": turn_index,
+                            "kind": kind,
+                            "truncated_and_retried": True,
+                            "completion_budget": kwargs.get(budget_key),
+                            "latency_seconds": latency,
+                            **usage,
+                        }
+                    )
+                    escalated_from = kwargs.get(budget_key)
+                    kwargs[budget_key] = ceiling
+                    response, started_at, completed_at, latency = _request_with_retries(
+                        completion_fn, kwargs
+                    )
+                    finish_reason = _response_finish_reason(
+                        response, responses_api=False
+                    )
+            except Exception as error:
+                record["status"] = "provider_error"
+                record["error"] = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
+                break
 
-        choices = getattr(response, "choices", None) or []
-        if not choices:
-            record["status"] = "provider_error"
-            record["error"] = "response has no choices"
-            break
-        message = choices[0].message
-        content = getattr(message, "content", None)
-        calls = _tool_calls(message)
-        raw = _serialize_response_payload(
-            content=content, tool_calls=calls, function_call=None
-        )
-        usage = _extract_usage_metadata(
-            response, model_id, messages, raw or content or ""
-        )
-        spend.add(usage.get("total_cost_usd"))
-        turn = {
-            "index": turn_index,
-            "kind": kind,
-            "tool_choice": tool_choice,
-            "completion_budget": kwargs.get(budget_key),
-            "escalated_from": escalated_from,
-            "request_started_at": started_at,
-            "request_completed_at": completed_at,
-            "latency_seconds": latency,
-            "finish_reason": finish_reason,
-            "content": content,
-            "reasoning_content": getattr(message, "reasoning_content", None),
-            "has_thought_signature": _has_thought_signature(message),
-            "calls": [],
-            **usage,
-        }
-        record["turns"].append(turn)
-        messages.append(_message_dict(message))
+            choices = getattr(response, "choices", None) or []
+            if not choices:
+                record["status"] = "provider_error"
+                record["error"] = "response has no choices"
+                break
+            message = choices[0].message
+            content = getattr(message, "content", None)
+            calls = _tool_calls(message)
+            raw = _serialize_response_payload(
+                content=content, tool_calls=calls, function_call=None
+            )
+            usage = _extract_usage_metadata(
+                response, model_id, messages, raw or content or ""
+            )
+            spend.add(usage.get("total_cost_usd"))
+            turn = {
+                "index": turn_index,
+                "kind": kind,
+                "tool_choice": tool_choice,
+                "completion_budget": kwargs.get(budget_key),
+                "escalated_from": escalated_from,
+                "request_started_at": started_at,
+                "request_completed_at": completed_at,
+                "latency_seconds": latency,
+                "finish_reason": finish_reason,
+                "content": content,
+                "reasoning_content": getattr(message, "reasoning_content", None),
+                "has_thought_signature": _has_thought_signature(message),
+                "calls": [],
+                **usage,
+            }
+            record["turns"].append(turn)
+            messages.append(_message_dict(message))
 
-        answer_calls = [c for c in calls if _call_name(c) == "submit_outputs"]
-        calculate_calls = [c for c in calls if _call_name(c) == TOOL_NAME]
-        other_calls = [
-            c for c in calls if c not in answer_calls and c not in calculate_calls
-        ]
-
-        if answer_calls:
-            got = extract_predictions(
-                content, answer_variables, tool_calls=answer_calls
-            )
-            got_explanations = extract_explanations(
-                content, answer_variables, tool_calls=answer_calls
-            )
-            got, got_explanations = _enforce_explanation_value_contract(
-                got, got_explanations, answer_variables
-            )
-            # The board's merge: a repair fills only cells still missing, and a
-            # valid earlier value or explanation always stands.
-            disagreements = record.setdefault("repair_disagreements", [])
-            predictions = _merge_repair_cells(
-                predictions,
-                {v: got.get(v) for v in answer_variables},
-                field="prediction",
-                disagreements=disagreements,
-            )
-            explanations = _merge_repair_cells(
-                explanations,
-                {v: got_explanations.get(v) for v in answer_variables},
-                field="explanation",
-                disagreements=disagreements,
-            )
-            turn["calls"].append(
-                {
-                    "name": "submit_outputs",
-                    "arguments": _call_arguments(answer_calls[0]),
-                    "ignored_calls": len(calculate_calls)
-                    + len(other_calls)
-                    + len(answer_calls)
-                    - 1,
-                }
-            )
-            pending = [v for v in variables if predictions[v] is None]
-            missing_explanation = _missing_explanations(explanations, variables)
-            still = [
-                v for v in variables if v in set(pending) | set(missing_explanation)
+            answer_calls = [c for c in calls if _call_name(c) == "submit_outputs"]
+            calculate_calls = [c for c in calls if _call_name(c) == TOOL_NAME]
+            other_calls = [
+                c for c in calls if c not in answer_calls and c not in calculate_calls
             ]
-            for call in calls:
+
+            if answer_calls:
+                got = extract_predictions(
+                    content, answer_variables, tool_calls=answer_calls
+                )
+                got_explanations = extract_explanations(
+                    content, answer_variables, tool_calls=answer_calls
+                )
+                got, got_explanations = _enforce_explanation_value_contract(
+                    got, got_explanations, answer_variables
+                )
+                # The board's merge: a repair fills only cells still missing, and a
+                # valid earlier value or explanation always stands.
+                disagreements = record.setdefault("repair_disagreements", [])
+                predictions = _merge_repair_cells(
+                    predictions,
+                    {v: got.get(v) for v in answer_variables},
+                    field="prediction",
+                    disagreements=disagreements,
+                )
+                explanations = _merge_repair_cells(
+                    explanations,
+                    {v: got_explanations.get(v) for v in answer_variables},
+                    field="explanation",
+                    disagreements=disagreements,
+                )
+                turn["calls"].append(
+                    {
+                        "name": "submit_outputs",
+                        "arguments": _call_arguments(answer_calls[0]),
+                        "ignored_calls": len(calculate_calls)
+                        + len(other_calls)
+                        + len(answer_calls)
+                        - 1,
+                    }
+                )
+                pending = [v for v in variables if predictions[v] is None]
+                missing_explanation = _missing_explanations(explanations, variables)
+                still = [
+                    v for v in variables if v in set(pending) | set(missing_explanation)
+                ]
+                for call in calls:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": _call_id(call),
+                            "name": _call_name(call),
+                            "content": json.dumps(
+                                {"accepted": not still, "missing": still}
+                                if call is answer_calls[0]
+                                else {"error": "not run: submit_outputs ended the turn"}
+                            ),
+                        }
+                    )
+                if not still:
+                    record["status"] = "complete"
+                    break
+                if repair_rounds >= MAX_REPAIR_ROUNDS:
+                    record["status"] = "incomplete"
+                    break
+                repair_rounds += 1
+                answer_variables = still
+                kept = [
+                    f"{v} (keep your value {predictions[v]:g}; its explanation must "
+                    f"end with `value = {predictions[v]:g}`)"
+                    for v in still
+                    if predictions[v] is not None
+                ]
                 messages.append(
                     {
-                        "role": "tool",
-                        "tool_call_id": _call_id(call),
-                        "name": _call_name(call),
-                        "content": json.dumps(
-                            {"accepted": not still, "missing": still}
-                            if call is answer_calls[0]
-                            else {"error": "not run: submit_outputs ended the turn"}
+                        "role": "user",
+                        "content": (
+                            "Your submit_outputs call omitted or left unusable these "
+                            f"outputs: {', '.join(still)}. Call submit_outputs again "
+                            "with only these outputs, each with a numeric value and an "
+                            "explanation ending with `value = X`."
+                            + (
+                                " Explanations only are missing for: "
+                                + "; ".join(kept)
+                                + "."
+                                if kept
+                                else ""
+                            )
                         ),
                     }
                 )
-            if not still:
-                record["status"] = "complete"
-                break
-            if repair_rounds >= MAX_REPAIR_ROUNDS:
-                record["status"] = "incomplete"
-                break
-            repair_rounds += 1
-            answer_variables = still
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "Your submit_outputs call omitted or left unusable these "
-                        f"outputs: {', '.join(still)}. Call submit_outputs again "
-                        "with only these outputs, each with a numeric value and an "
-                        "explanation ending with `value = X`."
-                    ),
-                }
-            )
-            continue
+                continue
 
-        if calculate_calls:
-            tool_turns += 1
-            for position, call in enumerate(calculate_calls):
-                if position >= MAX_CALCULATIONS_PER_TURN:
-                    result, tool_latency = (
+            if calculate_calls:
+                tool_turns += 1
+                pool_down = False
+                for position, call in enumerate(calculate_calls):
+                    if position >= MAX_CALCULATIONS_PER_TURN:
+                        result, tool_latency = (
+                            {
+                                "error": "not_run",
+                                "message": (
+                                    f"at most {MAX_CALCULATIONS_PER_TURN} "
+                                    "calculations per turn"
+                                ),
+                            },
+                            0.0,
+                        )
+                    else:
+                        result, tool_latency = tool_call(_call_arguments(call))
+                    if (
+                        isinstance(result, dict)
+                        and result.get("error") == POOL_UNAVAILABLE
+                    ):
+                        pool_down = True
+                    turn["calls"].append(
                         {
-                            "error": "not_run",
-                            "message": (
-                                f"at most {MAX_CALCULATIONS_PER_TURN} "
-                                "calculations per turn"
-                            ),
-                        },
-                        0.0,
+                            "name": TOOL_NAME,
+                            "arguments": _call_arguments(call),
+                            "result": result,
+                            "tool_latency_seconds": tool_latency,
+                        }
                     )
-                else:
-                    result, tool_latency = tool_call(_call_arguments(call))
-                turn["calls"].append(
-                    {
-                        "name": TOOL_NAME,
-                        "arguments": _call_arguments(call),
-                        "result": result,
-                        "tool_latency_seconds": tool_latency,
-                    }
-                )
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": _call_id(call),
-                        "name": TOOL_NAME,
-                        "content": json.dumps(result),
-                    }
-                )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": _call_id(call),
+                            "name": TOOL_NAME,
+                            "content": json.dumps(result),
+                        }
+                    )
+                for call in other_calls:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": _call_id(call),
+                            "name": _call_name(call) or "unknown",
+                            "content": json.dumps({"error": "unknown function"}),
+                        }
+                    )
+                if pool_down:
+                    # Infrastructure, not the model: a rerunnable status, so the
+                    # household is not scored on an answer the pool prevented.
+                    record["status"] = "harness_error"
+                    record["error"] = "the tool pool had no worker"
+                    break
+                if tool_turns >= turn_cap:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"You have used all {turn_cap} calculation turns. Call "
+                                "submit_outputs now with your final answers."
+                            ),
+                        }
+                    )
+                continue
+
             for call in other_calls:
                 messages.append(
                     {
@@ -1084,35 +1164,17 @@ def run_household(
                         "content": json.dumps({"error": "unknown function"}),
                     }
                 )
-            if tool_turns >= turn_cap:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            f"You have used all {turn_cap} calculation turns. Call "
-                            "submit_outputs now with your final answers."
-                        ),
-                    }
-                )
-            continue
-
-        for call in other_calls:
             messages.append(
                 {
-                    "role": "tool",
-                    "tool_call_id": _call_id(call),
-                    "name": _call_name(call) or "unknown",
-                    "content": json.dumps({"error": "unknown function"}),
+                    "role": "user",
+                    "content": "Call calculate_household or submit_outputs.",
                 }
             )
-        messages.append(
-            {
-                "role": "user",
-                "content": "Call calculate_household or submit_outputs.",
-            }
-        )
-    else:
-        record["status"] = "turn_limit"
+        else:
+            record["status"] = "turn_limit"
+    except Exception as error:  # keep the turns, and their spend, so far
+        record["status"] = "harness_error"
+        record["error"] = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
 
     if record["status"] == "running":
         record["status"] = "incomplete"
@@ -1432,8 +1494,24 @@ def command_run(args) -> None:
         ) as executor:
             results = list(executor.map(one, todo))
     finally:
+        counters = pool.counters()
         pool.close()
     stopped = [r["scenario_id"] for r in results if r.get("status") == "budget_stop"]
+    rerunnable = sorted(
+        r["scenario_id"] for r in results if r.get("status") in RERUNNABLE_STATUSES
+    )
+    summary = {
+        "finished_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "spent_usd": spend.spent_usd,
+        "budget_usd": args.budget_usd,
+        "statuses": dict(sorted(Counter(r.get("status") for r in results).items())),
+        "rerunnable_households": rerunnable,
+        "tool_pool": counters,
+    }
+    (
+        out / f"run-summary-{summary['finished_at_utc'].replace(':', '')}.json"
+    ).write_text(json.dumps(summary, indent=2))
+    print(f"tool pool: {counters}; rerunnable households: {rerunnable}")
     print(
         f"spent ${spend.spent_usd:.4f} of ${args.budget_usd:.2f}; "
         f"budget stops: {stopped}"
@@ -1486,6 +1564,14 @@ def command_score(args) -> None:
     households = complete if args.complete_only else sorted(records)
     if not households:
         raise SystemExit("no household records to score")
+    leftover = sorted(
+        sid for sid in households if records[sid].get("status") in RERUNNABLE_STATUSES
+    )
+    if leftover:
+        print(
+            f"WARNING: {len(leftover)} households ended on an infrastructure "
+            f"failure and score as misses until a resume reruns them: {leftover}"
+        )
     scored = board["scored"][board["scored"].scenario_id.isin(households)]
     arm1 = arm1_predictions()
     arm1 = arm1[arm1.scenario_id.isin(households)]
@@ -1585,6 +1671,7 @@ def command_score(args) -> None:
             {
                 "households": len(households),
                 "incomplete_households": sorted(set(records) - set(complete)),
+                "rerunnable_households": leftover,
                 "scored_outputs": int(len(scored)),
                 "summary": summary[columns].to_dict(orient="records"),
                 "unweighted_hits": {

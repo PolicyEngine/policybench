@@ -214,9 +214,7 @@ def test_validator_never_raises_on_arbitrary_json(args):
 
 
 PERSON_NAMES = st.sampled_from(["head", "kid", "x"])
-VARIABLE_NAMES = st.one_of(
-    st.sampled_from([*REGISTRY]), st.sampled_from(["nope", "members"])
-)
+OTHER_NAMES = st.sampled_from([*REGISTRY, "nope", "members"])
 # Mostly plausible values, so a good share of calls is accepted, plus
 # arbitrary JSON scalars so the type checks are exercised too.
 PLAUSIBLE = st.one_of(
@@ -230,27 +228,61 @@ PERIOD_VALUES = st.one_of(
     SCALARS,
     st.dictionaries(st.sampled_from(["2026", "2026-01", "26"]), SCALARS, max_size=2),
 )
-INPUTS = st.dictionaries(VARIABLE_NAMES, PERIOD_VALUES, max_size=3)
-UNITS = st.dictionaries(
-    st.sampled_from(["u1", "u2"]),
-    st.builds(
-        lambda members, inputs: {"members": members, **inputs},
-        st.lists(PERSON_NAMES, max_size=3),
-        INPUTS,
-    ),
-    max_size=2,
-)
-SITUATIONS = st.builds(
-    lambda people, groups: {"people": people, **groups},
-    st.dictionaries(PERSON_NAMES, INPUTS, min_size=1, max_size=3),
-    st.fixed_dictionaries(
-        {}, optional={g: UNITS for g in ("tax_units", "spm_units", "households")}
-    ),
-)
+
+
+def names_on(entity: str) -> list[str]:
+    return [n for n, info in REGISTRY.items() if info.entity == entity]
+
+
+def inputs_for(entity: str):
+    """Inputs weighted toward the entity's own variables, with some misplaced
+    or unknown names so the rejections are exercised as well."""
+    own = names_on(entity)
+    if not own:  # families and marital units carry no inputs in REGISTRY
+        return st.one_of(
+            st.just({}),
+            st.just({}),
+            st.dictionaries(OTHER_NAMES, PERIOD_VALUES, max_size=1),
+        )
+    names = st.one_of(*[st.sampled_from(own)] * 4, OTHER_NAMES)
+    return st.dictionaries(names, PERIOD_VALUES, max_size=2)
+
+
+def situations():
+    """People first, then each group's single unit over a non-empty, unique
+    subset of those people, so accepted calls carry groups."""
+
+    def with_groups(people):
+        names = sorted(people)
+
+        def unit(entity):
+            return st.builds(
+                lambda members, inputs: {"members": members, **inputs},
+                st.lists(
+                    st.sampled_from(names), min_size=1, max_size=len(names), unique=True
+                ),
+                inputs_for(entity),
+            )
+
+        groups = st.fixed_dictionaries(
+            {},
+            optional={
+                group: st.dictionaries(st.just("u1"), unit(entity), min_size=1)
+                for group, entity in pilot.GROUPS.items()
+            },
+        )
+        return groups.map(lambda g: {"people": people, **g})
+
+    return st.dictionaries(
+        PERSON_NAMES, inputs_for("person"), min_size=1, max_size=3
+    ).flatmap(with_groups)
+
+
+SITUATIONS = situations()
 CALLS = st.fixed_dictionaries(
     {
         "situation": st.one_of(SITUATIONS, SITUATIONS.map(json.dumps)),
-        "variables": st.lists(VARIABLE_NAMES, min_size=1, max_size=4),
+        "variables": st.lists(OTHER_NAMES, min_size=1, max_size=4),
     },
     optional={"period": st.sampled_from(["2026", "2026-03", "bad"])},
 )
@@ -258,11 +290,13 @@ CALLS = st.fixed_dictionaries(
 
 def test_validator_accepts_only_known_names_on_their_entities():
     """Invariant: an accepted call names only registry variables, each on its
-    own entity, with valid periods, and every unit member is a listed person.
-    The structured strategy reaches acceptance often enough to check it."""
+    own entity, with valid periods, and every unit member is a listed person
+    in at most one unit of its group. The strategy reaches acceptance, with
+    groups and group inputs, often enough to check it."""
     accepted = []
+    with_group_inputs = []
 
-    @settings(max_examples=600, deadline=None, derandomize=True, database=None)
+    @settings(max_examples=1000, deadline=None, derandomize=True, database=None)
     @given(args=CALLS)
     def check(args):
         request, error = pilot.normalize_request(args, REGISTRY)
@@ -277,6 +311,7 @@ def test_validator_accepts_only_known_names_on_their_entities():
             for name, periods in person.items():
                 assert REGISTRY[name].entity == "person"
                 assert periods and all(pilot.PERIOD_RE.match(k) for k in periods)
+        group_input = False
         for group, entity in pilot.GROUPS.items():
             seen = set()
             for unit in situation.get(group, {}).values():
@@ -285,19 +320,30 @@ def test_validator_accepts_only_known_names_on_their_entities():
                     seen.add(member)
                 for name, periods in unit.items():
                     if name != "members":
+                        group_input = True
                         assert REGISTRY[name].entity == entity
                         assert all(pilot.PERIOD_RE.match(k) for k in periods)
+        if group_input:
+            with_group_inputs.append(1)
 
     check()
-    assert len(accepted) >= 30, f"only {len(accepted)} of 600 calls were accepted"
+    assert len(accepted) >= 50, f"only {len(accepted)} of 1000 calls were accepted"
+    assert len(with_group_inputs) >= 10, (
+        f"only {len(with_group_inputs)} accepted calls carried a group input"
+    )
 
 
 def test_deeply_nested_arguments_are_refused_not_raised():
-    for text in ("[" * 5000, '{"situation": ' + "[" * 5000 + "}"):
+    # Deep enough to raise RecursionError (not JSONDecodeError) in json.loads,
+    # yet under the size cap, so the RecursionError path is what refuses it.
+    deep = "[" * 100_000 + "]" * 100_000
+    with pytest.raises(RecursionError):
+        json.loads(deep)
+    for text in (deep, '{"situation": ' + deep + "}"):
         request, error = pilot.normalize_request(text, REGISTRY)
         assert request is None and error["error"] == "validation"
     request, error = pilot.normalize_request(
-        {"situation": "[" * 5000, "variables": ["snap"]}, REGISTRY
+        {"situation": "[" * 100_000 + "]" * 100_000, "variables": ["snap"]}, REGISTRY
     )
     assert request is None and error["error"] == "validation"
 
@@ -1112,3 +1158,90 @@ def test_a_resume_reruns_only_infrastructure_failures_and_keeps_their_cost(tmp_p
     assert done == {"a", "b", "c"}
     assert set(previous) == set(statuses)
     assert spent == pytest.approx(6.5)
+
+
+def _dies_on_restart_worker(conn, marker, reform):
+    """Starts once; a replacement (the marker exists) exits before ready."""
+    from pathlib import Path as _Path
+
+    if _Path(marker).exists():
+        import os as _os
+
+        _os._exit(3)
+    _Path(marker).touch()
+    conn.send(("ready", None))
+    while True:
+        args = conn.recv()
+        if args is None:
+            return
+        if args == "die":
+            import os as _os
+
+            _os._exit(1)
+        conn.send(("ok", {"results": {"echo": args}}))
+
+
+def test_a_replacement_that_fails_to_start_is_counted_lost_not_raised(tmp_path):
+    pool = pilot.ToolPool(
+        size=1,
+        fix_path=tmp_path / "started",
+        timeout=1.0,
+        worker_target=_dies_on_restart_worker,
+        acquire_timeout=0.5,
+    )
+    try:
+        result, _ = pool.call("die")
+        assert result["error"] == "engine"
+        assert pool.counters() == {"timeouts": 0, "crashes": 1, "lost": 1}
+        result, _ = pool.call("anything")
+        assert result["error"] == pilot.POOL_UNAVAILABLE
+    finally:
+        pool.close()
+
+
+def test_an_unavailable_pool_stops_the_household_as_rerunnable():
+    def no_pool(args):
+        return {"error": pilot.POOL_UNAVAILABLE, "message": "none"}, 0.5
+
+    model = FakeModel([response([calculate()])])
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, no_pool, model, pilot.Spend(50.0)
+    )
+    assert record["status"] == "harness_error"
+    assert record["status"] in pilot.RERUNNABLE_STATUSES
+    assert len(model.requests) == 1
+
+
+def test_a_harness_exception_keeps_the_turns_and_their_spend():
+    def broken_tool(args):
+        raise RuntimeError("tool bug")
+
+    model = FakeModel([response([calculate()])])
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(make_scenario(), VARIABLES, broken_tool, model, spend)
+    assert record["status"] == "harness_error" and "tool bug" in record["error"]
+    assert len(record["turns"]) == 1
+    assert record["totals"]["cost_usd"] > 0
+    assert record["totals"]["cost_usd"] == pytest.approx(spend.spent_usd)
+
+
+def test_an_explanation_only_repair_names_the_kept_value():
+    first = tool_call(
+        "submit_outputs",
+        {
+            "outputs": {
+                "snap": {"value": 2553, "explanation": "No trailer."},
+                VARIABLES[1]: {"value": 7, "explanation": "Tax. value = 7"},
+            }
+        },
+        "s1",
+    )
+    repair = tool_call(
+        "submit_outputs",
+        {"outputs": {"snap": {"value": 2553, "explanation": "SNAP. value = 2553"}}},
+        "s2",
+    )
+    model = FakeModel([response([first]), response([repair])])
+    pilot.run_household(make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0))
+    prompt = model.requests[1]["messages"][-1]["content"]
+    assert "keep your value 2553" in prompt and "value = 2553" in prompt
