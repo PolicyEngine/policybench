@@ -1861,7 +1861,7 @@ def frozen_board(staged_board, monkeypatch):
     release's exclusion record, the ruled record as adjudicate-exclusions
     writes it, and each decided case's verdict. Gates whose inputs the
     synthetic audit cannot hold (the annotations rebuilt from release
-    20261013b's 77 decided cases, and the applied-adjudications check) are
+    20261013b's 61 decided cases, and the applied-adjudications check) are
     stubbed; they are tested above and in test_finish_argon.py. The
     freezer's own main is a stand-in (_fake_freezer_main)."""
     import pandas as pd
@@ -1919,7 +1919,7 @@ def _live_version(versions: dict) -> dict:
 
 def test_the_freeze_writes_the_release(frozen_board, capsys):
     """The pointer, the version list, the frozen run's references and
-    58-record exclusion record (release 20261013b's), the annotations with the
+    49-record exclusion record (release 20261013b's), the annotations with the
     staged record, whose date conventions name no new wave, the wording
     amendments record, the serving rows, and the release's predictions
     asset."""

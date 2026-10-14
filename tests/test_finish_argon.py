@@ -1231,8 +1231,10 @@ def seeded_stage(tmp_path, monkeypatch):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = tmp_path / "seed"
     seed_board = _board(tmp_path / "seed-board", INCUMBENT_ROWS)
-    # Release 20261013b's seed was judged on judge template v1, before versions
-    # existed, so its sidecars record none.
+    # MOCK: a synthetic seed judged on judge template v1 before versions
+    # existed, so its sidecars record none (release 20261013b's real seed mixes
+    # v1 and v2 verdicts; test_every_seed_prompt_rerenders_from_the_base_on_its_
+    # recorded_version covers it).
     prepare_audit(seed_board / "us", seed, grounding_lookup=lookup, template_version=1)
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(

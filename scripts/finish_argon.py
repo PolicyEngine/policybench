@@ -2291,9 +2291,10 @@ def check_prompt_changes(
     """Only a case a new model joins, or one release 20261013b reworded,
     may change or appear.
 
-    The seed's prompts re-render byte-identically from release 20260930's
-    committed snapshot and the pinned grounding, so an incumbent-only case
-    whose prompt differs (or that is new) means an input changed under the
+    The seed's prompts re-render byte-identically from release 20261013b's
+    committed snapshot (SEED_RELEASE_COMMIT) and the pinned grounding, so an
+    incumbent-only case whose prompt differs (or that is new) means an input
+    changed under the
     carried-over verdicts, unless its reference explanation is one release
     20261013b reworded (reworded_since_seed), or its reference value or
     explanation is one an installed engine upgrade changed (``upgraded``,
@@ -3038,17 +3039,17 @@ def build_payload(
 ) -> dict:
     """The payload export writes, built from ``bundle``; the one definition.
 
-    export_full_run's US payload must hold all 46 models. For a release, its
-    roster must be the base's incumbents plus the addition, Fable 5's usage is
-    carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
-    dashboard schema. The freeze rebuilds the staged payload with this.
-    export_full_run writes data.json, us/data.json and us/analysis/ into
+    export_full_run's US payload must hold all BOARD_MODELS (50) models. For a
+    release, its roster must be the base's 48 incumbents plus the two
+    additions, Fable 5's usage is carried from ``live`` (CARRIED_USAGE), every
+    model is scored on RELEASE_SCORED outputs, and no incumbent may drift;
+    then the dashboard schema. The freeze rebuilds the staged payload with
+    this. export_full_run writes data.json, us/data.json and us/analysis/ into
     ``bundle``.
 
-    With an engine upgrade installed (``upgrade``) the scope check is two-sided:
-    (a) with release 20261013b's references and exclusion record both put back,
-    every incumbent's modelStats is release 20261013b's byte for byte; (b)
-    every model is scored on 1,984 outputs less the build's exclusion count.
+    The scope check: this release changes no reference and no exclusion, so
+    with release 20261013b's exclusion record put back every incumbent's
+    modelStats must be release 20261013b's byte for byte.
     """
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
@@ -3080,10 +3081,8 @@ def build_payload(
             f"every model must be scored on {expected} outputs: {scored}",
         )
         # The scope check: with release 20261013b's exclusion record put back,
-        # every incumbent's modelStats is release 20261013b's byte for byte, so
-        # every incumbent change comes from the ten ruled records. With an
-        # engine upgrade, its references are put back too, so every change
-        # comes from the build's references and exclusion record.
+        # every incumbent's modelStats is release 20261013b's byte for byte.
+        # The release's record is that record, so no incumbent may change.
         import tempfile
 
         from release_20261006 import export_payload
