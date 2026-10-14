@@ -11,7 +11,7 @@ project:
     - microsimulation
     - benchmarking
     - large language models
-  license: MIT
+  license: Unlicense
   toc:
     - file: index
     - file: paper
