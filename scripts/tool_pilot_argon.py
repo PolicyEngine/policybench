@@ -1450,6 +1450,8 @@ def command_score(args) -> None:
     usage.to_csv(out / "usage_by_household.csv", index=False)
     usage_summary = summarize_usage(usage)
     print(json.dumps(usage_summary, indent=2))
+    tool_use = tool_use_summary({sid: records[sid] for sid in households})
+    print(json.dumps(tool_use, indent=2))
     (out / "score.json").write_text(
         json.dumps(
             {
@@ -1465,6 +1467,7 @@ def command_score(args) -> None:
                     k: int(v) for k, v in flips.sum(axis=0).to_dict().items()
                 },
                 "household_bootstrap": bootstrap,
+                "tool_use": tool_use,
                 "usage": usage_summary,
             },
             indent=2,
@@ -1601,6 +1604,74 @@ def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
         grouped.reset_index(), on="scenario_id", how="left"
     )
     return frame
+
+
+def tool_use_summary(records: Mapping[str, dict]) -> dict:
+    """How the model used the tool: calls, error kinds, and what it got wrong."""
+    from collections import Counter
+
+    problem_kinds: Counter = Counter()
+    unknown_names: Counter = Counter()
+    misplaced: Counter = Counter()
+    requested: Counter = Counter()
+    error_kinds: Counter = Counter()
+    first_call_ok = 0
+    households = 0
+    calls_before_first_success = []
+    for record in records.values():
+        calls = [
+            c
+            for t in record.get("turns", [])
+            for c in t.get("calls", [])
+            if c.get("name") == TOOL_NAME
+        ]
+        if not calls:
+            continue
+        households += 1
+        ok_index = next(
+            (i for i, c in enumerate(calls) if "results" in (c.get("result") or {})),
+            None,
+        )
+        first_call_ok += ok_index == 0
+        calls_before_first_success.append(ok_index)
+        for call in calls:
+            result = call.get("result") or {}
+            if "results" in result:
+                try:
+                    args = json.loads(call["arguments"])
+                    requested.update(args.get("variables") or [])
+                except (TypeError, ValueError):
+                    pass
+                continue
+            error_kinds[result.get("error")] += 1
+            for problem in result.get("problems", []):
+                if "unknown variable" in problem:
+                    problem_kinds["unknown variable"] += 1
+                    found = re.search(r"unknown variable '([^']+)'", problem)
+                    if found:
+                        unknown_names[found.group(1)] += 1
+                elif " variable; set it under " in problem:
+                    problem_kinds["variable on the wrong entity"] += 1
+                    misplaced[problem.split(": ", 1)[1].split(" is a ")[0]] += 1
+                elif "period" in problem:
+                    problem_kinds["bad period"] += 1
+                elif "member" in problem:
+                    problem_kinds["unit membership"] += 1
+                elif "takes" in problem:
+                    problem_kinds["wrong value type"] += 1
+                else:
+                    problem_kinds["other"] += 1
+    never = sum(1 for i in calls_before_first_success if i is None)
+    return {
+        "households_using_tool": households,
+        "first_call_succeeded": int(first_call_ok),
+        "households_with_no_successful_call": int(never),
+        "failed_calls_by_kind": dict(error_kinds),
+        "validation_problems_by_kind": dict(problem_kinds.most_common()),
+        "most_common_unknown_names": dict(unknown_names.most_common(15)),
+        "most_common_misplaced_variables": dict(misplaced.most_common(10)),
+        "most_requested_variables": dict(requested.most_common(30)),
+    }
 
 
 def summarize_usage(usage: pd.DataFrame) -> dict:
@@ -1880,32 +1951,45 @@ def _canon(value):
     return value
 
 
-def output_value(system, situation: dict, scenario, output: str) -> float | None:
-    """One benchmark output from a situation, people read by position."""
+def output_values(system, situation: dict, scenario, outputs) -> dict:
+    """Benchmark outputs from one simulation of a situation, people by position."""
     from policyengine_us import Simulation
 
     from policybench.ground_truth import (
         _aggregation_for_output,
         _pe_variable_for_output,
+        _person_index_for_output,
     )
 
     try:
         simulation = Simulation(
             tax_benefit_system=system, situation=copy.deepcopy(situation)
         )
-        values = simulation.calculate(_pe_variable_for_output(output, "us"), YEAR)
     except Exception:
-        return None
-    aggregation = _aggregation_for_output(output, "us")
-    if aggregation == "person":
-        from policybench.ground_truth import _person_index_for_output
+        return {output: None for output in outputs}
+    values = {}
+    for output in outputs:
+        try:
+            array = simulation.calculate(_pe_variable_for_output(output, "us"), YEAR)
+        except Exception:
+            values[output] = None
+            continue
+        aggregation = _aggregation_for_output(output, "us")
+        if aggregation == "person":
+            index = _person_index_for_output(scenario, output)
+            values[output] = (
+                None if index is None or index >= len(array) else float(array[index])
+            )
+        else:
+            total = float(array.sum())
+            values[output] = (
+                float(total > 0) if aggregation == "any_positive" else total
+            )
+    return values
 
-        index = _person_index_for_output(scenario, output)
-        if index is None or index >= len(values):
-            return None
-        return float(values[index])
-    total = float(values.sum())
-    return float(total > 0) if aggregation == "any_positive" else total
+
+def output_value(system, situation: dict, scenario, output: str) -> float | None:
+    return output_values(system, situation, scenario, [output])[output]
 
 
 def apply_reference_input(model: dict, reference: dict, diff: dict) -> dict | None:
@@ -1978,6 +2062,86 @@ def attribute_miss(
     return {"single_causes": causes, "all_differences_fix_it": joint}
 
 
+def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
+    """The successful call that computed the most of the household's outputs.
+
+    A model often ends with a narrow probe on a skeleton situation (one
+    person, no state); the situation its answers rest on is the one that
+    computed the outputs. Ties go to the later call.
+    """
+    best, best_count = None, -1
+    for call in _successful_calls(record):
+        count = sum(
+            tool_value_for_output(call, scenario, output) is not None
+            for output in outputs
+        )
+        if count >= best_count:
+            best, best_count = call, count
+    return best
+
+
+def situation_fidelity(records, board, system, registry, defaults, out: Path) -> None:
+    """How each household's last computed situation differs from the reference's.
+
+    Inputs left at the engine default on one side are dropped. A remaining
+    difference is reported with whether setting it as the reference does would
+    move any scored output beyond the board's tolerance, so a harmless
+    difference (another name for the same fact, a formula input set
+    explicitly) is told apart from one that matters.
+    """
+    scored = board["scored"]
+    rows = []
+    for sid, record in sorted(records.items()):
+        outputs = list(scored[scored.scenario_id == sid].variable)
+        call = main_call(record, board["scenarios"][sid], outputs)
+        if call is None:
+            rows.append({"scenario_id": sid, "differences": None})
+            continue
+        request, _ = normalize_request(call["arguments"], registry)
+        if request is None:
+            rows.append({"scenario_id": sid, "differences": None})
+            continue
+        scenario = board["scenarios"][sid]
+        reference = scenario.to_pe_household()
+        diffs = [
+            d
+            for d in situation_diff(request["situation"], reference, scenario)
+            if not _is_default_only(d, defaults)
+        ]
+        base = output_values(system, request["situation"], scenario, outputs)
+        detail = []
+        for diff in diffs:
+            applied = apply_reference_input(request["situation"], reference, diff)
+            moved = None
+            if applied is not None:
+                after = output_values(system, applied, scenario, outputs)
+                moved = [v for v in outputs if not hit(v, after[v], base[v])]
+            detail.append(
+                {
+                    "input": f"{diff['entity']}.{diff['variable']}",
+                    "reference": diff.get("reference"),
+                    "model": diff.get("model"),
+                    "outputs_it_moves": moved,
+                }
+            )
+        rows.append(
+            {
+                "scenario_id": sid,
+                "differences": len(diffs),
+                "differences_that_move_an_output": sum(
+                    1 for d in detail if d["outputs_it_moves"]
+                ),
+                "detail": json.dumps(detail, default=str),
+            }
+        )
+    frame = pd.DataFrame(rows)
+    frame.to_csv(out / "situation_fidelity.csv", index=False)
+    print(
+        f"situations matching the reference on every non-default input: "
+        f"{int((frame.differences == 0).sum())} of {len(frame)}"
+    )
+
+
 def command_diagnose(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
@@ -1995,6 +2159,8 @@ def command_diagnose(args) -> None:
         defaults = {
             name: system.variables[name].default_value for name in system.variables
         }
+    if registry is not None:
+        situation_fidelity(records, board, system, registry, defaults, out)
     out_rows = []
     if misses.empty:
         print("no arm-2 misses")

@@ -800,3 +800,43 @@ def test_household_scores_average_to_the_boards_weighted_exact():
         published.loc[pilot.ARM1_LABEL, "weighted_exact"], abs=1e-12
     )
     assert table["scenario_id"].nunique() == 100
+
+
+def test_tool_use_summary_counts_failed_first_calls_and_unknown_names():
+    bad = {
+        "name": pilot.TOOL_NAME,
+        "arguments": "{}",
+        "result": {
+            "error": "validation",
+            "problems": [
+                "variables: unknown variable 'chip_eligible'. "
+                "Close matches: is_chip_eligible.",
+                "spm_units.s: auto_loan_balance is a household variable; "
+                "set it under households.",
+            ],
+        },
+    }
+    good = call_record({"snap": {"spm": 1.0}})
+    records = {
+        "a": {"turns": [{"calls": [bad]}, {"calls": [good]}]},
+        "b": {"turns": [{"calls": [good]}]},
+        "c": {"turns": [{"calls": []}]},
+    }
+    summary = pilot.tool_use_summary(records)
+    assert summary["households_using_tool"] == 2
+    assert summary["first_call_succeeded"] == 1
+    assert summary["households_with_no_successful_call"] == 0
+    assert summary["most_common_unknown_names"] == {"chip_eligible": 1}
+    assert summary["most_common_misplaced_variables"] == {"auto_loan_balance": 1}
+    assert summary["most_requested_variables"] == {"snap": 2}
+
+
+def test_main_call_is_the_one_that_computed_the_most_outputs():
+    full = call_record(
+        {"snap": {"spm": 1.0}, "income_tax_before_refundable_credits": {"tu": 2.0}}
+    )
+    probe = call_record({"snap": {"spm": 3.0}}, people=("head",))
+    record = household([full, probe])
+    outputs = ["snap", "federal_income_tax_before_refundable_credits"]
+    assert pilot.main_call(record, make_scenario(), outputs) is full
+    assert pilot.main_call(household([]), make_scenario(), outputs) is None
