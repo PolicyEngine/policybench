@@ -59,9 +59,11 @@ BOUND_EXCLUSIONS = f"publish/{driver.RUN_NAME}/us/{EXCLUSIONS_NAME}"
 # rendered with, the supervised runs root and the live stage. All local only;
 # nothing here writes to them.
 SEED = REPO / "results/local/argon/seed-20261013b/audit"
-STAGE = REPO / "results/local/argon/stage"
-# The working stage: STAGE itself (local only). The committed judge
-# provenance record describes it.
+# The release's stage, prepared on BASE_COMMIT 6c44858f with the first
+# stage's audit carried in (local only).
+STAGE = REPO / "results/local/argon/stage2"
+# The working stage: STAGE itself. The committed judge provenance record
+# describes it.
 WORKING_STAGE = STAGE
 GROUNDING = Path(
     "/Users/maxghenis/PolicyEngine/policybench/results/local/unified_audit/"
@@ -143,13 +145,15 @@ def ruled_case(item: dict) -> str:
 
 @pytest.fixture
 def unruled_spec(monkeypatch):
-    """A spec whose rulings decide no adjudication, so the gates ported from
-    the GPT-6.1 Sol release see their own synthetic records only."""
+    """A spec whose rulings decide no adjudication and that lists no triage
+    decision, so the gates ported from the GPT-6.1 Sol release see their own
+    synthetic records only."""
     spec = {
         **real_spec(),
         "adjudications_written_on": WRITTEN_ON,
         "adjudications": [],
         "restated_adjudications": [],
+        "triage_adjudications": [],
     }
     monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
     return spec
@@ -3980,6 +3984,309 @@ def test_the_committed_provenance_record_describes_the_stage():
         driver.rejudged_cases(WORKING_STAGE),
         driver.JUDGE_PROVENANCE,
     )
+
+
+# --- Triage decisions: this release's wave ---------------------------------------
+
+TRIAGE_DAY = "2026-10-14"
+FLAGGED_CASE = ("scenario_064", "state_income_tax_before_refundable_credits")
+UNFLAGGED_CASE = ("scenario_009", "federal_income_tax_before_refundable_credits")
+
+
+def _triage_item(case, verdict, **changes) -> dict:
+    item = {
+        "scenario_id": case[0],
+        "variable": case[1],
+        "adjudicated_failure_source": "llm_error",
+        "adjudicated_failure_subtype": "thresholds_rates",
+        "adjudicated_on": TRIAGE_DAY,
+        "reference_verdict": verdict,
+        "reference_basis": "Wis. Stat. 71.05(10)(c)2." if verdict else None,
+        "reasoning": "MOCK reasoning.",
+    }
+    return {**item, **changes}
+
+
+def _triage_spec(*items, **changes) -> dict:
+    return {
+        **real_spec(),
+        "triage_adjudications": list(items),
+        "triage_decided_on": TRIAGE_DAY,
+        "triage_adjudications_written_on": TRIAGE_DAY,
+        **changes,
+    }
+
+
+def _bind_verdict(cases: Path, case, *, suspect: bool, rows=("llm_error",)) -> Path:
+    """A case folder whose sidecar binds a verdict with the given flag and
+    per-model classes."""
+    folder = cases / f"us__{case[0]}__{case[1]}"
+    folder.mkdir(parents=True, exist_ok=True)
+    verdict = {
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "models": [
+            {"model": f"m{i}", "failure_source": source, "failure_subtype": "other"}
+            for i, source in enumerate(rows)
+        ],
+        "rationale": "MOCK",
+        "reference_bug_hypothesis": "MOCK" if suspect else "",
+        "reference_suspect": suspect,
+    }
+    (folder / "verdict.json").write_text(json.dumps(verdict))
+    (folder / "verdict.meta.json").write_text(
+        json.dumps(
+            {
+                "verdict_sha256": driver.digest(folder / "verdict.json"),
+                "judge_model_requested": driver.JUDGE_MODEL,
+                "judged_at_utc": "2026-10-13T19:09:37+00:00",
+            }
+        )
+    )
+    return folder
+
+
+def test_the_spec_lists_this_releases_two_triage_decisions():
+    """Both keep the output scored with the judge's own class: scenario_064's
+    affirms the Wisconsin reference the verdict flagged, and scenario_009's,
+    on an unflagged case, resolves the rows the judge called later law."""
+    spec = real_spec()
+    items = driver.triage_items(None, spec)
+    assert [driver.spec_key(item) for item in items] == [UNFLAGGED_CASE, FLAGGED_CASE]
+    assert spec["triage_decided_on"] == TRIAGE_DAY
+    assert spec["triage_adjudications_written_on"] == TRIAGE_DAY
+    assert {item["adjudicated_on"] for item in items} == {TRIAGE_DAY}
+    assert {item["adjudicated_failure_source"] for item in items} == {"llm_error"}
+    by_case = {driver.spec_key(item): item for item in items}
+    assert by_case[FLAGGED_CASE]["reference_verdict"] == "affirmed"
+    assert "71.05(10)(c)2." in by_case[FLAGGED_CASE]["reference_basis"]
+    assert by_case[UNFLAGGED_CASE]["reference_verdict"] is None
+    assert by_case[UNFLAGGED_CASE]["reference_basis"] is None
+    # The design note and the spec's note say the release decides these two.
+    assert "two developer triage decisions" in spec["note"]
+
+
+def test_triage_items_refuses_an_upgrade_and_reads_none_from_an_empty_spec():
+    with pytest.raises(SystemExit, match="installs no engine upgrade"):
+        driver.triage_items(SimpleNamespace(revision={"date": TRIAGE_DAY}), {})
+    assert driver.triage_items(None, {**real_spec(), "triage_adjudications": []}) == []
+
+
+@pytest.mark.parametrize(
+    "item, spec_changes, message",
+    [
+        (
+            _triage_item(FLAGGED_CASE, "unlisted_input"),
+            {},
+            "may only affirm a reference",
+        ),
+        (
+            _triage_item(FLAGGED_CASE, "affirmed", reference_basis=None),
+            {},
+            "may only affirm a reference",
+        ),
+        (
+            _triage_item(FLAGGED_CASE, "affirmed", reference_basis="  "),
+            {},
+            "may only affirm a reference",
+        ),
+        (
+            _triage_item(UNFLAGGED_CASE, None, reference_basis="a law"),
+            {},
+            "may only affirm a reference",
+        ),
+        (
+            _triage_item(FLAGGED_CASE, "affirmed", adjudicated_on="2026-10-13"),
+            {},
+            "dated by this release's wave",
+        ),
+        (
+            _triage_item(FLAGGED_CASE, "affirmed"),
+            {"triage_decided_on": None},
+            "names no triage_decided_on",
+        ),
+        (
+            {**_triage_item(FLAGGED_CASE, "affirmed"), "excluded_from_scoring": True},
+            {},
+            "must be items with",
+        ),
+    ],
+)
+def test_triage_items_refuses_a_malformed_decision(item, spec_changes, message):
+    with pytest.raises(SystemExit, match=message):
+        driver.triage_items(None, _triage_spec(item, **spec_changes))
+
+
+def test_triage_items_refuses_a_case_listed_twice():
+    item = _triage_item(FLAGGED_CASE, "affirmed")
+    with pytest.raises(SystemExit, match="listed twice"):
+        driver.triage_items(None, _triage_spec(item, copy.deepcopy(item)))
+
+
+def test_triage_entry_affirms_a_flagged_reference(tmp_path):
+    from policybench.adjudications import parse_adjudications
+
+    folder = _bind_verdict(tmp_path, FLAGGED_CASE, suspect=True)
+    entry = driver.triage_entry(_triage_item(FLAGGED_CASE, "affirmed"), folder)
+    assert list(entry) == list(driver.TRIAGE_FIELDS)
+    assert entry["judge_reference_suspect"] is True
+    assert entry["reference_verdict"] == "affirmed"
+    assert entry["judge_model"] == driver.JUDGE_MODEL
+    assert entry["judged_on_utc"] == "2026-10-13"
+    assert "excluded_from_scoring" not in entry
+    parse_adjudications({"adjudications": [entry]}, "MOCK")
+
+
+def test_triage_entry_without_a_verdict_resolves_rows_outside_the_final_set(
+    tmp_path,
+):
+    from policybench.adjudications import parse_adjudications
+
+    folder = _bind_verdict(
+        tmp_path,
+        UNFLAGGED_CASE,
+        suspect=False,
+        rows=("llm_error", "reference_later_law"),
+    )
+    entry = driver.triage_entry(_triage_item(UNFLAGGED_CASE, None), folder)
+    # The form of release 20261013b's scenario_007 decision: no reference
+    # verdict or basis, the case unflagged.
+    assert list(entry) == [
+        f
+        for f in driver.TRIAGE_FIELDS
+        if f not in ("reference_verdict", "reference_basis")
+    ]
+    assert entry["judge_reference_suspect"] is False
+    parse_adjudications({"adjudications": [entry]}, "MOCK")
+
+
+@pytest.mark.parametrize(
+    "suspect, verdict, rows, message",
+    [
+        (True, None, ("reference_later_law",), "exactly when the case's verdict flags"),
+        (False, "affirmed", ("llm_error",), "exactly when the case's verdict flags"),
+        (False, None, ("llm_error", "parse_contract_failure"), "nothing to decide"),
+    ],
+)
+def test_triage_entry_must_answer_what_triage_stops_on(
+    tmp_path, suspect, verdict, rows, message
+):
+    folder = _bind_verdict(tmp_path, FLAGGED_CASE, suspect=suspect, rows=rows)
+    with pytest.raises(SystemExit, match=message):
+        driver.triage_entry(_triage_item(FLAGGED_CASE, verdict), folder)
+
+
+def test_triage_entry_needs_a_bound_verdict(tmp_path):
+    folder = _bind_verdict(tmp_path, FLAGGED_CASE, suspect=True)
+    (folder / "verdict.json").write_text("{}")
+    with pytest.raises(SystemExit, match="does not bind its verdict"):
+        driver.triage_entry(_triage_item(FLAGGED_CASE, "affirmed"), folder)
+
+
+def test_decision_wave_is_the_triage_wave_and_refuses_an_upgrades_records():
+    affirm = _triage_item(FLAGGED_CASE, "affirmed")
+    resolve = _triage_item(UNFLAGGED_CASE, None)
+    assert driver.decision_wave((), []) is None
+    assert driver.decision_wave((), [affirm, resolve]) == driver.DecisionWave(
+        TRIAGE_DAY, excludes=False, affirms=True, upgrade=False, resolves=True
+    )
+    assert driver.decision_wave((), [resolve]) == driver.DecisionWave(
+        TRIAGE_DAY, excludes=False, affirms=False, upgrade=False, resolves=True
+    )
+    with pytest.raises(SystemExit, match="installs no engine upgrade"):
+        driver.decision_wave([({}, {"decided_on": TRIAGE_DAY})], [affirm])
+    with pytest.raises(SystemExit, match="several days"):
+        driver.decision_wave(
+            (), [affirm, {**resolve, "adjudicated_on": "2026-10-15"}]
+        )
+
+
+def test_the_triage_wave_is_named_once_after_the_2026_10_10_wave():
+    spec = _triage_spec(
+        _triage_item(FLAGGED_CASE, "affirmed"), _triage_item(UNFLAGGED_CASE, None)
+    )
+    wave = driver.decision_wave((), driver.triage_items(None, spec))
+    conventions = base_adjudication_record()["date_conventions"]
+    with mock.patch.object(driver, "load_spec", lambda: copy.deepcopy(spec)):
+        out = driver.release_date_conventions(conventions, wave)
+        named = driver.DATE_CONVENTIONS_BASE.replace(
+            " or 2026-10-10)", f", 2026-10-10 or {TRIAGE_DAY})"
+        )
+        sentence = (
+            f" The {TRIAGE_DAY} wave's decisions keep scored outputs on cases this "
+            "release's new models re-opened, affirming a reference the case's "
+            "verdict flagged or resolving rows the judge gave a class outside the "
+            f"final set, and were written on {TRIAGE_DAY} UTC."
+        )
+        assert out == conventions.replace(
+            driver.DATE_CONVENTIONS_BASE, named
+        ).replace(
+            driver.DATE_CONVENTIONS_ANCHOR, driver.DATE_CONVENTIONS_ANCHOR + sentence
+        )
+        # tests/test_adjudications.py splits the conventions at ". ": the
+        # sentence holds none before its end.
+        assert ". " not in sentence.strip().removesuffix(".")
+        with pytest.raises(SystemExit, match="are not release 20261013b's"):
+            driver.release_date_conventions(out, wave)
+    written = {k: v for k, v in spec.items() if k != "triage_adjudications_written_on"}
+    with mock.patch.object(driver, "load_spec", lambda: written):
+        with pytest.raises(SystemExit, match="triage_adjudications_written_on"):
+            driver.release_date_conventions(conventions, wave)
+    with mock.patch.object(driver, "load_spec", lambda: copy.deepcopy(spec)):
+        with pytest.raises(SystemExit, match="never excludes"):
+            driver.release_date_conventions(
+                conventions,
+                driver.DecisionWave(
+                    TRIAGE_DAY, excludes=True, affirms=True, upgrade=False
+                ),
+            )
+        with pytest.raises(SystemExit, match="decides nothing"):
+            driver.release_date_conventions(
+                conventions,
+                driver.DecisionWave(
+                    TRIAGE_DAY, excludes=False, affirms=False, upgrade=False
+                ),
+            )
+
+
+@settings(max_examples=60, deadline=None)
+@given(kinds=st.lists(st.sampled_from(["affirmed", None]), min_size=1, max_size=6))
+def test_the_triage_wave_sentence_names_exactly_the_kinds_decided(kinds):
+    """For any mix of affirmations and unflagged resolutions, the wave is
+    named once and its sentence names each kind present and no other."""
+    items = [
+        _triage_item((f"scenario_{i:03d}", "snap"), kind) for i, kind in enumerate(kinds)
+    ]
+    spec = _triage_spec(*items)
+    wave = driver.decision_wave((), driver.triage_items(None, spec))
+    conventions = base_adjudication_record()["date_conventions"]
+    with mock.patch.object(driver, "load_spec", lambda: copy.deepcopy(spec)):
+        out = driver.release_date_conventions(conventions, wave)
+    assert out.count(f"The {TRIAGE_DAY} wave's decisions") == 1
+    assert out.count(f" or {TRIAGE_DAY})") == 1
+    assert ("affirming a reference" in out) == ("affirmed" in kinds)
+    assert ("resolving rows" in out) == (None in kinds)
+
+
+def test_the_staged_record_carries_the_spec_triage_decisions():
+    """Local only: the staged record ends with the two triage entries the
+    driver builds from the spec and the stage's bound verdicts, and triage's
+    reports list nothing."""
+    path = STAGE / "publish" / driver.RUN_NAME / "annotations" / driver.ADJUDICATIONS
+    if not path.is_file():
+        pytest.skip("needs the Gemini 4 Argon working stage")
+    record = json.loads(path.read_text())
+    items = driver.triage_items(None)
+    expected = [
+        driver.triage_entry(
+            item, STAGE / "audit" / "cases" / f"us__{item['scenario_id']}__{item['variable']}"
+        )
+        for item in items
+    ]
+    assert record["adjudications"][-len(items) :] == expected
+    assert len(record["adjudications"]) == 61 + len(items)
+    for name in ("reference-flags.csv", "unresolved-rows.csv"):
+        assert pd.read_csv(STAGE / name).empty, name
 
 
 # --- The fold ------------------------------------------------------------------

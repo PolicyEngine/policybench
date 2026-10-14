@@ -216,9 +216,10 @@ def no_real_freezer(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def spec(monkeypatch):
-    """The spec every driver read sees: the committed one. A test may edit
-    the dict."""
-    value = release_spec()
+    """The spec every driver read sees: the committed one without its triage
+    decisions, whose cases the synthetic stage does not hold (the triage
+    tests below add them back). A test may edit the dict."""
+    value = {**release_spec(), "triage_adjudications": []}
     monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(value))
     return value
 
@@ -2618,6 +2619,102 @@ def test_triage_may_add_a_decision_that_keeps_the_output_scored(ruled):
     # A decision on a case no new model re-opened has no reason to appear.
     with pytest.raises(SystemExit, match="no new model re-opened"):
         _verify(ruled)
+
+
+def _bind_triage_verdicts(cases: Path) -> None:
+    """A bound Opus 5.5 verdict for each of the spec's triage cases: flagged
+    where the decision affirms the reference, and otherwise unflagged with a
+    row the judge called later law."""
+    for item in release_spec()["triage_adjudications"]:
+        case = cases / case_dir_name(*driver.spec_key(item))
+        case.mkdir(parents=True, exist_ok=True)
+        affirms = item["reference_verdict"] == "affirmed"
+        verdict = {
+            "case_failure_source": "llm_error",
+            "case_failure_subtype": item["adjudicated_failure_subtype"],
+            "models": [
+                {
+                    "model": "MOCK",
+                    "failure_source": "llm_error" if affirms else "reference_later_law",
+                    "failure_subtype": "other",
+                }
+            ],
+            "reference_suspect": affirms,
+        }
+        (case / "verdict.json").write_text(json.dumps(verdict))
+        (case / "verdict.meta.json").write_text(
+            json.dumps(
+                {
+                    "verdict_sha256": sha(case / "verdict.json"),
+                    "judge_model_requested": driver.JUDGE_MODEL,
+                    "judge_model_reported": [driver.JUDGE_MODEL],
+                    "judged_at_utc": "2026-10-13T19:00:00+00:00",
+                }
+            )
+        )
+
+
+@pytest.fixture
+def triaged(ruled, spec):
+    """The staged record with the spec's two triage decisions, as
+    adjudicate-exclusions writes it, and the two cases re-opened."""
+    spec["triage_adjudications"] = release_spec()["triage_adjudications"]
+    _bind_triage_verdicts(ruled.cases)
+    record = driver.exclusion_adjudications(
+        driver.base_adjudication_record(),
+        ruled.cases,
+        triage=driver.triage_items(None),
+    )
+    _write(ruled.staged, record)
+    rejudged = frozenset(
+        case_dir_name(*driver.spec_key(item)) for item in spec["triage_adjudications"]
+    )
+    return ruled, record, rejudged
+
+
+def test_the_record_gate_accepts_the_spec_triage_decisions(triaged):
+    """Release 20261013b's 61 decisions and the two triage decisions, the
+    date conventions naming their wave; neither excludes an output, so the
+    record still excludes the release's 49, and the gate counts no decision
+    beyond the ones the spec makes."""
+    from policybench.adjudications import excluded_case_keys, load_adjudications
+
+    ruled, record, rejudged = triaged
+    assert len(record["adjudications"]) == 63
+    assert [e["adjudicated_on"] for e in record["adjudications"][-2:]] == [
+        "2026-10-14"
+    ] * 2
+    assert "2026-10-10 or 2026-10-14)" in record["date_conventions"]
+    assert _verify(ruled, rejudged=rejudged) == 0
+    assert len(excluded_case_keys(load_adjudications(ruled.staged))) == 49
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("reasoning", "differs from the triage decision's entry"),
+        ("drop_entry", "no staged triage decision"),
+        ("no_wave", "only entries may change"),
+        ("not_reopened", "did not re-open"),
+    ],
+)
+def test_the_record_gate_refuses_triage_decisions_other_than_the_spec(
+    triaged, defect, message
+):
+    ruled, record, rejudged = triaged
+    if defect == "reasoning":
+        record["adjudications"][-1]["reasoning"] += " Edited."
+    elif defect == "drop_entry":
+        record["adjudications"].pop()
+    elif defect == "no_wave":
+        record["date_conventions"] = driver.base_adjudication_record()[
+            "date_conventions"
+        ]
+    else:
+        rejudged = frozenset(sorted(rejudged)[:1])
+    _write(ruled.staged, record)
+    with pytest.raises(SystemExit, match=message):
+        _verify(ruled, rejudged=rejudged)
 
 
 def _restated(entry, day="2026-10-08"):

@@ -1,20 +1,24 @@
 """Record the verdicts release dashboard-data-20261014's adjudications name.
 
-Adapted from scripts/date_musewonder_judge_verdicts.py. The Gemini 4 Argon
-and Muse Spark 1.3 release restated the judge fields of every decision on a
-case a new model re-opened (scripts/restate_gpt61sol_adjudications.py). It
-rules nothing and installs no engine upgrade, so it adds no wave of
-decisions. Run on the exported stage after the freeze, this script
+Adapted from scripts/date_musewonder_judge_verdicts.py and, for the wave,
+scripts/date_haiku55_judge_verdicts.py. The Gemini 4 Argon and Muse Spark 1.3
+release restated the judge fields of every decision on a case a new model
+re-opened (scripts/restate_gpt61sol_adjudications.py). It rules nothing and
+installs no engine upgrade; its one wave is its own triage decisions (the
+spec's triage_adjudications, dated by its triage_decided_on), each keeping an
+output scored. Run on the exported stage after the freeze, this script
 
 - writes docs/argon/judge_verdicts_<release day>.json: for each committed
-  decision on a re-opened case, the case's verdict in the stage, read from
-  verdict.json and its sha256-bound verdict.meta.json, as release 20261013's
-  did; and
-- checks reference_audit/2026-09-28/verification/judge_verdicts.json against
-  this release and rewrites it unchanged: releases 20261013 and 20261013b
-  decided no wave, so no wave waits for the base commit to fill it, and this
-  release adds none. A wave the record names beyond release 20261013b's is
-  refused.
+  decision on a re-opened case, the triage decisions included, the case's
+  verdict in the stage, read from verdict.json and its sha256-bound
+  verdict.meta.json, as release 20261013's did; and
+- updates reference_audit/2026-09-28/verification/judge_verdicts.json:
+  releases 20261013 and 20261013b decided no wave, so no earlier wave waits
+  for the base commit to fill it; this release's triage wave joins,
+  uncommitted (no commit or pull request until the next release fills them,
+  and the day its decisions were written), and each of its decisions gains
+  the stage verdict it names, as release 20261010's waves did. Any other
+  wave beyond release 20261013b's is refused.
 
 tests/test_adjudications.py reads both files on machines without the stage.
 A second run on the same stage writes the same bytes.
@@ -35,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import finish_argon as driver  # noqa: E402
+from date_adds0928_judge_verdicts import _evidence  # noqa: E402
 
 # Named for the release tag's date (dashboard-data-YYYYMMDD).
 OUT = ROOT / f"docs/argon/judge_verdicts_{driver.RELEASE_TAG[-8:]}.json"
@@ -140,25 +145,47 @@ def restatements(stage: Path, record: dict) -> dict:
     }
 
 
-def new_waves(record: dict) -> list[str]:
-    """The waves the record names beyond release 20261013b's. The release
-    rules nothing and installs no engine upgrade, so there must be none."""
+def new_waves(record: dict, spec: dict | None = None) -> dict[str, str]:
+    """The waves the record names beyond release 20261013b's, each with the
+    UTC day its decisions were written. The release rules nothing and installs
+    no engine upgrade, so the only one allowed is its triage wave (the spec's
+    triage_decided_on, written on its triage_adjudications_written_on), and
+    only when the spec lists triage decisions."""
+    spec = driver.load_spec() if spec is None else spec
     waves = sorted(
         {e["adjudicated_on"] for e in record["adjudications"]} - set(BASE_WAVES)
     )
+    allowed = {spec["triage_decided_on"]} if spec.get("triage_adjudications") else set()
     driver.require(
-        not waves,
-        f"this release decides no wave, but the record names {waves}",
+        set(waves) <= allowed,
+        f"this release decides only its triage wave {sorted(allowed)}, but the "
+        f"record names {waves}",
     )
-    return waves
+    written = {}
+    for wave in waves:
+        written[wave] = spec["triage_adjudications_written_on"]
+        driver.require(wave <= written[wave], f"the {wave} wave was written before it")
+    return written
 
 
 def base_wave_releases(waves: dict) -> dict:
     """Release 20261013b's waves alone, each naming the commit that published
-    it: nothing waits to be filled."""
+    it: nothing waits to be filled. Waves after them are this release's own,
+    uncommitted, from an earlier pass; they are dropped and written again."""
     driver.require(
-        list(waves) == BASE_WAVES,
+        list(waves)[: len(BASE_WAVES)] == BASE_WAVES,
         "the evidence's waves are not release 20261013b's",
+    )
+    ours = [
+        wave
+        for wave in list(waves)[len(BASE_WAVES) :]
+        if waves[wave].get("commit") is None
+        and waves[wave].get("release") == driver.RELEASE_TAG
+    ]
+    driver.require(
+        ours == list(waves)[len(BASE_WAVES) :],
+        "the evidence names waves after release 20261013b's that are not this "
+        "release's",
     )
     unfilled = [wave for wave in BASE_WAVES if waves[wave].get("commit") is None]
     driver.require(
@@ -168,12 +195,32 @@ def base_wave_releases(waves: dict) -> dict:
     return {wave: waves[wave] for wave in BASE_WAVES}
 
 
-def updated_evidence(evidence: dict, record: dict) -> dict:
-    """The evidence, checked against this release: its waves are release
-    20261013b's, all published, and the record adds none. Nothing changes."""
+def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
+    """The evidence, checked against this release and given its wave: the
+    earlier waves are release 20261013b's, all published, and are kept as
+    they are; this release's triage wave joins uncommitted, and each of its
+    decisions gains the stage verdict it names ('current')."""
     evidence = copy.deepcopy(evidence)
     waves = base_wave_releases(evidence["wave_releases"])
-    new_waves(record)
+    for wave, written in new_waves(record).items():
+        waves[wave] = {
+            "commit": None,
+            "release": driver.RELEASE_TAG,
+            "pull_request": None,
+            "adjudications_written_on": written,
+        }
+        for entry in record["adjudications"]:
+            if entry["adjudicated_on"] != wave:
+                continue
+            case = case_id(entry)
+            verdict, meta = bound_verdict(stage / "audit" / "cases" / case)
+            wrong = judge_disagreements(entry, verdict, meta)
+            driver.require(
+                not wrong, f"{case}: the decision does not name its verdict: {wrong}"
+            )
+            found = evidence["cases"].setdefault(case, {})
+            found["current"] = _evidence("stage", (verdict, meta))
+            found.pop("published", None)
     evidence["wave_releases"] = dict(sorted(waves.items()))
     return evidence
 
@@ -184,7 +231,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     record = committed_record()
     OUT.write_text(json.dumps(restatements(args.stage_dir, record), indent=1) + "\n")
-    evidence = updated_evidence(json.loads(EVIDENCE.read_text()), record)
+    evidence = updated_evidence(
+        json.loads(EVIDENCE.read_text()), args.stage_dir, record
+    )
     EVIDENCE.write_text(json.dumps(evidence, indent=2) + "\n")
     print(f"Wrote {OUT.relative_to(ROOT)} and {EVIDENCE.relative_to(ROOT)}")
 

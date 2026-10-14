@@ -7,11 +7,11 @@ This release adds two models to release `dashboard-data-20261013b` (PR #218), ta
 1. Google's Gemini 4 Argon (display id `gemini-4-argon`, provider id `gemini/gemini-4-argon`, run slug `argon`). Google announced it on 2026-09-30 for Fairwind Program cyber partners only and opened it to the public on 2026-10-13.
 2. Meta's Muse Spark 1.3 (display id `muse-spark-1.3`, provider id `openrouter/meta/muse-spark-1.3`, run slug `musespark`), released 2026-09-02. Max added it to this release on 2026-10-13 (decision d1441).
 
-It moves no reference and rules no exclusion. The references stay release 20261013b's, computed on policyengine-us 2.41.0: the newest policyengine-us release when this release was staged, 2.41.3, gives the same value for all 1,984 outputs (below). Max ruled on two reference conventions on 2026-10-13, both to keep: d1252 keeps VA scenario_039's federal and OH scenario_025's state income tax scored (the held-reference records now say so), and d1263 keeps the section 1 rate schedule for federal income tax, which the benchmark card and the paper now state. Neither changes a score.
+It moves no reference and rules no exclusion; its only decisions are two developer triage decisions on cases the new models re-opened, both keeping the output scored (below). The references stay release 20261013b's, computed on policyengine-us 2.41.0: the newest policyengine-us release when this release was staged, 2.41.3, gives the same value for all 1,984 outputs (below). Max ruled on two reference conventions on 2026-10-13, both to keep: d1252 keeps VA scenario_039's federal and OH scenario_025's state income tax scored (the held-reference records now say so), and d1263 keeps the section 1 rate schedule for federal income tax, which the benchmark card and the paper now state. Neither changes a score.
 
 The driver is `scripts/finish_argon.py`, adapted from `scripts/finish_musewonder.py`. The freeze is `scripts/freeze_argon.py`, adapted from `scripts/freeze_musewonder.py`. Their mechanics are release 20261013's (`docs/musewonder/design.md`) except where this note says otherwise. The inputs are in `docs/argon/`:
 
-- `spec.json`: the rulings, no proposals and no adjudications;
+- `spec.json`: the rulings and the two triage decisions (`triage_adjudications`), with no proposals and no ruled adjudications;
 - `input_pins.json`: the two finished runs (written by `--step pin-inputs`);
 - `seed_digest.csv`: the audit seed (below).
 
@@ -21,7 +21,7 @@ The driver is `scripts/finish_argon.py`, adapted from `scripts/finish_musewonder
 | Requested outputs per model | 1,984 | 1,984 |
 | Exclusions | 49: 42 unlisted inputs, 5 engine defects, 2 later-published law | 49, the same records |
 | Scored outputs per model | 1,935 | 1,935 |
-| Adjudications | 61, of which 49 exclude | 61, the same decisions |
+| Adjudications | 61, of which 49 exclude | 63: the same 61 and two triage decisions, neither excluding |
 
 ## The base
 
@@ -65,6 +65,19 @@ Both runs' files are pinned in `input_pins.json`.
 ## Judging
 
 Preparing the stage on the seed kept 482 judged prompts unchanged and re-opened 196 cases (195 whose wrong models changed and one new), none of them the five release 20261013b re-judged. All 196 are rendered on judge template v2 and judged by Claude Opus 5.5 through `scripts/run_audit_claude.sh` on the pb-judge setup-token login (`judge_provenance.json`).
+
+## Triage decisions
+
+Triage stopped on two re-opened cases, and the release records a developer decision on each, dated by its own wave, 2026-10-14 (`triage_decided_on`). Each keeps the output scored with the judge's own case class, as the 2026-09-22 and 2026-09-29 waves decided the same patterns:
+
+| Case | What triage stopped on | Decision |
+|---|---|---|
+| scenario_009 federal income tax | The verdict flags nothing but labels eight models' rows `reference_later_law`, a developer-only class, because they applied the pre-TCJA rules scheduled to return in 2026. | `llm_error` with no reference verdict: the reference applies P.L. 119-21 (enacted 2025-07-04), law published before the 2026-07-03 reference freeze. The 2026-09-29 wave decided scenario_007's federal income tax the same way. |
+| scenario_064 Wisconsin income tax | The verdict flags the reference, on the hypothesis that Wisconsin limits a net capital loss deduction to $500, and labels claude-opus-5.5's row `reference_model_issue_fixed`. | `llm_error`, reference affirmed: the $500 limit is Wis. Stat. 71.05(10)(c)1., for taxable years beginning before 2023; subd. 2. allows $3,000 ($1,500 married filing separately) after 2022, as line 28 of the 2025 Schedule WD does and as policyengine-us applies. The seed's verdict on the case, judged on 2026-10-13, called the $500 add-back a model error. |
+
+`finish_musewonder.py` read triage decisions only with an engine upgrade installed, dated by the upgrade's revision. Without one, this driver reads them from the spec, dated by `triage_decided_on`, and writes the wave into the record's date conventions with the day the spec says they were written (`triage_adjudications_written_on`). A decision may affirm a reference only where the case's verdict flags it, and may go without a reference verdict only where the verdict flags nothing and a class outside the final set remains. It never excludes an output. The freeze holds the record to exactly these entries, and `scripts/date_argon_judge_verdicts.py` adds the wave to the judge-verdict evidence uncommitted, as release 20261010 added its waves.
+
+Three restated decisions gained a reference flag on re-judging: scenario_056 SNAP, scenario_067 dependent 1 Medicaid and scenario_114 federal income tax. Each is an unlisted-input exclusion whose recorded basis already names the input the new hypothesis turns on, so all three stay excluded unchanged.
 
 ## Open decisions checked before the freeze
 

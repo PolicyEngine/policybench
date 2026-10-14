@@ -975,6 +975,9 @@ def exclusion_entry(
 
 # A triage decision's fields, in release 20261013b's entry order (an affirmed
 # reference carries no excluded_from_scoring, as release 20261013b's do not).
+# A decision on a case whose verdict flags nothing carries no reference_verdict
+# or reference_basis, as release 20261013b's scenario_007 and scenario_008
+# decisions do not.
 TRIAGE_FIELDS = (
     "country",
     "scenario_id",
@@ -1008,13 +1011,18 @@ TRIAGE_ITEM_KEYS = frozenset(
 
 def triage_items(upgrade, spec: dict | None = None) -> list[dict]:
     """docs/argon/spec.json's triage_adjudications: the developer's decisions
-    on re-opened cases whose verdict triage could not accept as it stands (a
-    reference flag the decision answers). Each affirms the reference: the
-    output stays scored and the case's rows take the decided class. They
-    answer the upgraded references' verdicts, so they are read only with an
-    engine upgrade installed; without one, none."""
-    if upgrade is None:
-        return []
+    on re-opened cases whose verdict triage could not accept as it stands.
+    Each keeps the output scored and gives the case's rows the decided final
+    class. It either affirms a reference the case's verdict flagged
+    (reference_verdict "affirmed", with its basis) or, where the verdict flags
+    nothing, resolves rows the judge gave a class outside the final set (no
+    reference verdict or basis, as release 20261013b's scenario_007 decision).
+    An exclusion is ruled, never a triage decision.
+
+    The driver installs no engine upgrade (``upgrade`` is always None), so the
+    decisions are this release's own wave: each is dated by the spec's
+    triage_decided_on."""
+    require(upgrade is None, "this release's driver installs no engine upgrade")
     spec = load_spec() if spec is None else spec
     items = spec.get("triage_adjudications", [])
     require(
@@ -1026,26 +1034,66 @@ def triage_items(upgrade, spec: dict | None = None) -> list[dict]:
     keys = [spec_key(item) for item in items]
     require(len(set(keys)) == len(keys), f"a triage decision is listed twice: {keys}")
     require(
-        all(item["reference_verdict"] == "affirmed" for item in items),
-        "a triage decision may only affirm a reference; an exclusion is ruled",
+        all(
+            (
+                item["reference_verdict"] == "affirmed"
+                and isinstance(item["reference_basis"], str)
+                and bool(item["reference_basis"].strip())
+            )
+            or (item["reference_verdict"] is None and item["reference_basis"] is None)
+            for item in items
+        ),
+        "a triage decision may only affirm a reference, with its basis, or leave "
+        "an unflagged reference without a verdict or basis; an exclusion is ruled",
     )
-    day = upgrade.revision["date"]
+    if not items:
+        return []
+    day = spec.get("triage_decided_on")
+    require(
+        isinstance(day, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) is not None,
+        f"{SPEC_PATH} names no triage_decided_on (YYYY-MM-DD), the wave its "
+        "triage decisions are dated by",
+    )
     wrong = sorted(spec_key(i) for i in items if i["adjudicated_on"] != day)
     require(
         not wrong,
-        f"a triage decision is dated by the engine upgrade's wave ({day}), "
-        f"the one this release names: {wrong}",
+        f"a triage decision is dated by this release's wave ({day}): {wrong}",
     )
     return sorted(items, key=spec_key)
 
 
+# The classes triage accepts on a scored row (triage's own list).
+TRIAGE_FINAL_SOURCES = frozenset(
+    {"llm_error", "parse_contract_failure", "budget_exhausted_at_ceiling"}
+)
+
+
 def triage_entry(item: dict, case_dir: Path) -> dict:
     """The adjudication of a triage decision, with the case's bound Opus 5.5
-    verdict as its judge fields."""
+    verdict as its judge fields.
+
+    The decision must answer what triage stops on in that verdict: an
+    affirmation needs the verdict's reference flag, and a decision without a
+    reference verdict needs an unflagged verdict whose case or rows carry a
+    class outside the final set."""
     from date_adds0928_judge_verdicts import _judge
     from release_20261006 import bound_verdict
 
     verdict, meta = bound_verdict(case_dir)
+    flagged = bool(verdict.get("reference_suspect"))
+    affirms = item["reference_verdict"] == "affirmed"
+    require(
+        flagged == affirms,
+        f"{case_dir.name}: a triage decision affirms the reference exactly when "
+        f"the case's verdict flags it (flagged {flagged}, affirmed {affirms})",
+    )
+    open_classes = {verdict["case_failure_source"]} | {
+        model["failure_source"] for model in verdict.get("models", [])
+    }
+    require(
+        affirms or bool(open_classes - TRIAGE_FINAL_SOURCES),
+        f"{case_dir.name}: the verdict leaves triage nothing to decide",
+    )
     entry = {
         "country": "us",
         "scenario_id": item["scenario_id"],
@@ -1057,13 +1105,19 @@ def triage_entry(item: dict, case_dir: Path) -> dict:
         "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
         "adjudicated_on": item["adjudicated_on"],
         "adjudicator": "developer",
-        "judge_reference_suspect": bool(verdict.get("reference_suspect")),
+        "judge_reference_suspect": flagged,
         "reference_verdict": item["reference_verdict"],
         "reference_basis": item["reference_basis"],
         "reasoning": item["reasoning"],
         "judged_on_utc": meta["judged_at_utc"][:10],
     }
-    require(list(entry) == list(TRIAGE_FIELDS), "triage entry fields out of order")
+    fields = TRIAGE_FIELDS
+    if not affirms:
+        fields = tuple(
+            f for f in TRIAGE_FIELDS if f not in ("reference_verdict", "reference_basis")
+        )
+        entry = {name: entry[name] for name in fields}
+    require(list(entry) == list(fields), "triage entry fields out of order")
     return entry
 
 
@@ -1152,27 +1206,41 @@ def exclusion_adjudications(
 
 @dataclass(frozen=True)
 class DecisionWave:
-    """The wave of an installed engine upgrade's decisions: its revision's UTC
-    day, and whether its decisions exclude outputs the upgrade moved onto an
-    unstated input (upgrade_decisions) or affirm references it changed
-    (triage_items)."""
+    """A wave of decisions this release adds, and its UTC day.
+
+    With ``upgrade`` (the form finish_musewonder.py has), the wave of an
+    installed engine upgrade's decisions: whether they exclude outputs the
+    upgrade moved onto an unstated input (upgrade_decisions) or affirm
+    references it changed. Without it, this release's own triage wave
+    (triage_items): whether its decisions affirm a flagged reference
+    (``affirms``) or resolve rows the judge gave a class outside the final set
+    on an unflagged case (``resolves``). This driver installs no engine
+    upgrade, so decision_wave builds only the second form."""
 
     day: str
     excludes: bool
     affirms: bool
+    upgrade: bool = True
+    resolves: bool = False
 
 
 def decision_wave(added, triage) -> DecisionWave | None:
-    """The DecisionWave of the upgrade's new exclusions (``added``, as
-    upgrade_decisions pairs them) and triage decisions (``triage``), or None
-    when the upgrade decides nothing. Both are dated by one day: a new record
-    by its decided_on, a triage item by its adjudicated_on."""
-    days = {record["decided_on"] for _, record in added}
-    days |= {item["adjudicated_on"] for item in triage}
-    require(len(days) <= 1, f"the upgrade's decisions name several days: {days}")
+    """The DecisionWave of the release's triage decisions (``triage``, as
+    triage_items lists them), or None when there are none, all dated by one
+    day, their adjudicated_on. ``added`` (upgrade_decisions) is always empty:
+    the driver installs no engine upgrade."""
+    require(not added, "this release's driver installs no engine upgrade")
+    days = {item["adjudicated_on"] for item in triage}
+    require(len(days) <= 1, f"the triage decisions name several days: {days}")
     if not days:
         return None
-    return DecisionWave(next(iter(days)), bool(added), bool(triage))
+    return DecisionWave(
+        next(iter(days)),
+        excludes=False,
+        affirms=any(item["reference_verdict"] == "affirmed" for item in triage),
+        upgrade=False,
+        resolves=any(item["reference_verdict"] is None for item in triage),
+    )
 
 
 def release_date_conventions(conventions: str, wave: DecisionWave | None = None) -> str:
@@ -1182,8 +1250,9 @@ def release_date_conventions(conventions: str, wave: DecisionWave | None = None)
 
     A wave is added for the spec's ruled records, when it rules any (its
     decided_on, with its wave_sentence and adjudications_written_on), and for
-    ``wave``, the installed engine upgrade's decisions (decision_wave), with
-    the day the spec says those decisions were written
+    ``wave`` (decision_wave): this release's triage decisions, with the day
+    the spec says they were written (triage_adjudications_written_on), or, in
+    finish_musewonder.py's form, an installed engine upgrade's decisions
     (upgrade_adjudications_written_on). With neither, the conventions are
     release 20261013b's, unchanged.
     """
@@ -1201,7 +1270,28 @@ def release_date_conventions(conventions: str, wave: DecisionWave | None = None)
             f" The {day} wave's decisions {spec['wave_sentence']} and were written "
             f"on {spec['adjudications_written_on']} UTC."
         )
-    if wave is not None:
+    if wave is not None and not wave.upgrade:
+        written = spec.get("triage_adjudications_written_on")
+        require(
+            isinstance(written, str) and written.strip(),
+            f"{SPEC_PATH} names no triage_adjudications_written_on, the UTC day "
+            "this release's triage decisions were written",
+        )
+        require(wave.day not in days, f"the {wave.day} wave is named twice")
+        require(not wave.excludes, "a triage decision never excludes an output")
+        days.append(wave.day)
+        how = []
+        if wave.affirms:
+            how.append("affirming a reference the case's verdict flagged")
+        if wave.resolves:
+            how.append("resolving rows the judge gave a class outside the final set")
+        require(bool(how), f"the {wave.day} wave decides nothing")
+        sentence += (
+            f" The {wave.day} wave's decisions keep scored outputs on cases this "
+            f"release's new models re-opened, {' or '.join(how)}, and were "
+            f"written on {written} UTC."
+        )
+    elif wave is not None:
         upgrade_written = spec.get("upgrade_adjudications_written_on")
         require(
             isinstance(upgrade_written, str) and upgrade_written.strip(),

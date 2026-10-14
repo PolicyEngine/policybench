@@ -479,16 +479,18 @@ def verify_adjudication_record(
         load_reference_exclusions,
     )
 
-    # No engine upgrade is installed, so none decides anything or names a wave.
+    # No engine upgrade is installed; the only wave the release may name is
+    # its own triage decisions' (the spec's triage_adjudications).
+    triage = driver.triage_items(None)
     driver.verify_record_form(
         staged.read_text(),
         driver.base_adjudication_record(),
-        None,
+        driver.decision_wave((), triage),
     )
     after = load_adjudications(staged)
     base = driver.base_adjudications()
     added = driver.verify_adjudication_changes(
-        base, after, rejudged, amendments, cases_dir
+        base, after, rejudged, amendments, cases_dir, triage=triage
     )
     driver.verify_restatements(base, after, rejudged, cases_dir)
     decided = excluded_case_keys(after)
@@ -993,7 +995,7 @@ def verify_frozen(
     driver.verify_record_form(
         (annotations / ADJUDICATIONS).read_text(),
         driver.base_adjudication_record(),
-        None,
+        driver.decision_wave((), driver.triage_items(None)),
     )
     if (annotations / COMMITTED_AMENDMENTS).read_bytes() != committed_amendments(stage):
         raise SystemExit(
