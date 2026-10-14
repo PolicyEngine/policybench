@@ -2623,6 +2623,17 @@ def test_triage_lets_a_rejudged_case_restate_its_judge_fields(triage_stage):
     assert entry == RESTATED
 
 
+def test_triage_refuses_a_decision_the_spec_does_not_list(triage_stage, monkeypatch):
+    """On a case the stage re-opened but release 20261013b never decided, a
+    hand-written decision is refused: only the spec's triage decisions may
+    be new, so none can bypass the triage gates."""
+    stage, record, run = triage_stage
+    monkeypatch.setattr(driver, "base_adjudication_record", lambda: _base_record())
+    record.write_text(_record(RESTATED))
+    with pytest.raises(SystemExit, match="decisions the spec does not list"):
+        run()
+
+
 @pytest.mark.parametrize(
     "tamper",
     [

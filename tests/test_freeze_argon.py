@@ -2601,22 +2601,33 @@ def test_the_record_must_exclude_what_the_staged_record_lists(ruled):
         _verify(ruled)
 
 
-def test_triage_may_add_a_decision_that_keeps_the_output_scored(ruled):
+@pytest.mark.parametrize("flagged", [False, True])
+def test_a_decision_the_spec_does_not_list_is_refused(ruled, flagged):
+    """Only the spec's triage decisions may be new. A hand-written decision
+    that keeps an output scored is refused even on a re-opened case whose
+    current verdict it names, so it cannot bypass the triage gates (here, an
+    affirmation of an unflagged reference)."""
     record = ruled.record
     scored = next(
         e
         for e in _unruled(record)
         if not e.get("excluded_from_scoring") and e["judge_model"] == driver.JUDGE_MODEL
     )
-    added = {**copy.deepcopy(scored), "scenario_id": "scenario_999"}
+    added = {
+        **copy.deepcopy(scored),
+        "scenario_id": "scenario_999",
+        "judge_reference_suspect": flagged,
+        "reference_verdict": "affirmed",
+        "reference_basis": "MOCK",
+    }
+    added.pop("judge_previous", None)
+    added.pop("judge_rejudged_on", None)
     record["adjudications"].append(added)
     _write(ruled.staged, record)
-    # A new decision names the case's current bound Opus 5.5 verdict.
-    with pytest.raises(SystemExit, match="not restated by the restate script"):
-        _verify(ruled, rejudged={_case(added)})
     _bind_current_verdict(ruled.cases, added)
-    assert _verify(ruled, rejudged={_case(added)}) == 1
-    # A decision on a case no new model re-opened has no reason to appear.
+    with pytest.raises(SystemExit, match="decisions the spec does not list"):
+        _verify(ruled, rejudged={_case(added)})
+    # A decision on a case no new model re-opened is refused first.
     with pytest.raises(SystemExit, match="no new model re-opened"):
         _verify(ruled)
 
@@ -2809,7 +2820,9 @@ def test_a_new_exclusion_is_refused(ruled):
     record["adjudications"].append(added)
     _write(ruled.staged, record)
     _bind_current_verdict(ruled.cases, added)
-    with pytest.raises(SystemExit, match="disagree on the excluded outputs"):
+    # The spec lists no such decision, so the record gate refuses it before
+    # the exclusion records are compared.
+    with pytest.raises(SystemExit, match="decisions the spec does not list"):
         _verify(ruled, rejudged={_case(added)})
 
 

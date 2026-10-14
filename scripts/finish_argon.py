@@ -1729,9 +1729,10 @@ def verify_adjudication_changes(
     its judge fields (the restate script's JUDGE_FIELDS) and in the reasoning
     wording the listed amendments change, exactly as they say. Every other
     field of every committed entry keeps its value and its place, key order
-    included, and the committed entries keep their order. A new entry may only
-    decide a re-opened case, and none may be dropped. Returns how many staged
-    entries are new.
+    included, and the committed entries keep their order. A new entry must be
+    one the spec lists (a ruled or triage decision), and none may be dropped.
+    Returns how many staged entries are new beyond those: always 0, since any
+    is refused.
 
     With an engine upgrade installed, ``regenerated`` names the ruled outputs
     it regenerated (no longer decided as ruled) and ``dropped`` the cases of
@@ -1799,6 +1800,15 @@ def verify_adjudication_changes(
         set(new) <= rejudged,
         "Staged adjudications add decisions on cases no new model "
         f"re-opened: {sorted(set(new) - rejudged)[:8]}",
+    )
+    # The only new decisions this release makes are the spec's (ruled and
+    # triage, gated above as ruled_cases); any other would bypass the triage
+    # restrictions, an affirmation of an unflagged reference among them.
+    require(
+        not new,
+        "Staged adjudications add decisions the spec does not list: "
+        f"{new[:8]}; a new decision goes in docs/argon/spec.json's "
+        "triage_adjudications",
     )
     require(
         [case for case in after if case in before] == list(before),
@@ -3303,7 +3313,7 @@ def export(args, bundle, live) -> dict:
 # policyengine-us 2.41.0, and the publication check
 # (reference_audit/2026-10-12-engine-upgrade/scripts/sweep_timing.py check)
 # found that the newest release gives the same value for every output. If a
-# later release moves an output before publication, that check exits non-zero
+# later release moves a scored output before publication, that check exits non-zero
 # and the release stops: moving the references then needs an engine-upgrade
 # audit with its own builder, as release 20261013 had, and a driver that
 # installs its build. The helpers that took an installed upgrade keep their

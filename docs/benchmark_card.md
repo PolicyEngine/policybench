@@ -429,11 +429,14 @@ The harness caches provider responses on disk, keyed on the request and the
 prompt contract version (`policybench/cache.py`). A board request identical to
 one sent earlier, such as an onboarding smoke on the same household, returns
 the cached response: the row records that response's answers, tokens and cost,
-and a latency of about zero. The Muse Spark 1.3 row replays its four smoke
-households (scenario_000, scenario_001, scenario_099 and scenario_119), each
-with the smoke's provider response id. In the frozen predictions other rows
-also answer some households in under 0.05 seconds, among them scenario_000 and
-scenario_001 for Muse Wonder, Claude Haiku 5.5 and Claude Opus 5.5.
+and a latency of about zero. Each prediction row records its call's latency
+divided among the call's outputs, so a household's latency is the sum over its
+rows. The Muse Spark 1.3 row replays its four smoke households (scenario_000,
+scenario_001, scenario_099 and scenario_119), each with the smoke's provider
+response id and a household latency of 0.03 seconds or less. In the frozen
+predictions other rows also have households under 0.05 seconds by that sum,
+among them scenario_000 and scenario_001 for Muse Wonder and Claude Opus 5.5
+and scenario_000 for Claude Haiku 5.5.
 
 ## Country data paths
 
