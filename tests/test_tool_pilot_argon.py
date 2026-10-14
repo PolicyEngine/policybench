@@ -692,3 +692,111 @@ def test_the_real_tool_runs_a_household_through_the_reference_engine():
     assert set(result["is_medicaid_eligible"]["values"]) == {"you", "kid"}
     assert isinstance(result["filing_status"]["values"]["tax_unit"], str)
     assert math.isfinite(result["snap"]["values"]["spm_unit"])
+
+
+def test_payroll_reads_the_equivalent_engine_variable():
+    call = call_record({"employee_payroll_tax": {"tax_unit": 1530.0}})
+    assert pilot.tool_value_for_output(call, make_scenario(), "payroll_tax") == 1530.0
+    assert pilot.tool_value_for_output(call, make_scenario(), "snap") is None
+
+
+def test_submitted_matches_names_the_tool_values_an_answer_copied():
+    calls = [
+        call_record({"state_income_tax": {"tax_unit": 812.4}, "snap": {"spm": 5.0}})
+    ]
+    assert pilot.submitted_matches(calls, 812.0) == ["state_income_tax[tax_unit]@2026"]
+    assert pilot.submitted_matches(calls, None) == []
+
+
+def test_apply_reference_input_sets_removes_and_replaces_units():
+    scenario = make_scenario()
+    reference = scenario.to_pe_household()
+    model = {
+        "people": {"me": {"age": {"2026": 40}}, "kid": {"age": {"2026": 4}}},
+        "households": {"h": {"members": ["me", "kid"], "state_name": {"2026": "CO"}}},
+    }
+    set_income = pilot.apply_reference_input(
+        model,
+        reference,
+        {
+            "entity": "person",
+            "reference_unit": "head",
+            "variable": "employment_income",
+            "reference": {"2026": 20000},
+            "model": {},
+        },
+    )
+    assert set_income["people"]["me"]["employment_income"] == {"2026": 20000}
+    assert "employment_income" not in model["people"]["me"]  # the input is not mutated
+    dropped = pilot.apply_reference_input(
+        model,
+        reference,
+        {
+            "entity": "households",
+            "variable": "state_name",
+            "reference": {},
+            "model": {},
+        },
+    )
+    assert "state_name" not in dropped["households"]["h"]
+    units = pilot.apply_reference_input(
+        model,
+        reference,
+        {"entity": "marital_units", "variable": "<units>", "reference": 2, "model": 0},
+    )
+    members = [u["members"] for u in units["marital_units"].values()]
+    assert sorted(members) == sorted(
+        [
+            [{"head": "me", "child1": "kid"}[m] for m in u["members"]]
+            for u in reference["marital_units"].values()
+        ]
+    )
+    assert (
+        pilot.apply_reference_input(
+            {"people": {"me": {}}},
+            reference,
+            {
+                "entity": "person",
+                "reference_unit": "head",
+                "variable": "age",
+                "reference": {},
+            },
+        )
+        is None
+    )
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    first=st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=40),
+    shift=st.floats(min_value=-0.5, max_value=0.5),
+)
+def test_paired_bootstrap_intervals_bracket_the_means(first, shift):
+    """Invariant: each interval contains its point estimate, and identical arms
+    give a zero difference interval."""
+    a = pd.Series(first)
+    b = (a + shift).clip(0, 1)
+    out = pilot.paired_bootstrap(a, b, draws=500)
+    low, high = out["difference_interval"]
+    assert low - 1e-9 <= out["difference"] <= high + 1e-9
+    assert out["households_better"] + out["households_worse"] + out[
+        "households_same"
+    ] == len(a)
+    same = pilot.paired_bootstrap(a, a, draws=200)
+    assert same["difference_interval"] == [0.0, 0.0]
+
+
+def test_household_scores_average_to_the_boards_weighted_exact():
+    """Differential: the household table reproduces the board's headline."""
+    board = pilot.load_board()
+    arm1 = pilot.arm1_predictions()
+    table = pilot.household_weighted_exact(
+        board["scored"], arm1, board["scenarios_frame"]
+    )
+    published = pd.read_csv(pilot.SNAPSHOT / "analysis/summary_by_model.csv").set_index(
+        "model"
+    )
+    assert table["weighted_exact"].mean() == pytest.approx(
+        published.loc[pilot.ARM1_LABEL, "weighted_exact"], abs=1e-12
+    )
+    assert table["scenario_id"].nunique() == 100

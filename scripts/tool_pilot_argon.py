@@ -1414,6 +1414,38 @@ def command_score(args) -> None:
     per_program.to_csv(out / "per_program.csv", index=False)
     print(per_program.to_string(index=False))
 
+    # Household scores, checked against the board's headline before use.
+    both = pd.concat([arm1, arm2], ignore_index=True)
+    by_household = household_weighted_exact(scored, both, scenarios)
+    means = by_household.groupby("model")["weighted_exact"].mean()
+    published = summary.set_index("model")["weighted_exact"]
+    for model in (ARM1_LABEL, ARM2_LABEL):
+        if abs(means[model] - published[model]) > 1e-9:
+            raise SystemExit(
+                f"household scores for {model} average {means[model]}, not the "
+                f"board's {published[model]}"
+            )
+    wide = by_household.pivot(
+        index="scenario_id", columns="model", values="weighted_exact"
+    )
+    wide.to_csv(out / "household_scores.csv")
+    bootstrap = paired_bootstrap(wide[ARM1_LABEL], wide[ARM2_LABEL])
+    print(json.dumps(bootstrap, indent=2))
+
+    flips = (
+        rows.assign(
+            transition=[
+                ("hit" if a else "miss") + "->" + ("hit" if b else "miss")
+                for a, b in zip(rows.arm1_hit, rows.arm2_hit)
+            ]
+        )
+        .groupby(["program", "transition"])
+        .size()
+        .unstack(fill_value=0)
+    )
+    flips.to_csv(out / "flips_by_program.csv")
+    print(flips.to_string())
+
     usage = usage_by_household(records, arm1, households)
     usage.to_csv(out / "usage_by_household.csv", index=False)
     usage_summary = summarize_usage(usage)
@@ -1429,12 +1461,100 @@ def command_score(args) -> None:
                     "arm1": int(rows.arm1_hit.sum()),
                     "arm2": int(rows.arm2_hit.sum()),
                 },
+                "transitions": {
+                    k: int(v) for k, v in flips.sum(axis=0).to_dict().items()
+                },
+                "household_bootstrap": bootstrap,
                 "usage": usage_summary,
             },
             indent=2,
             default=float,
         )
     )
+
+
+def household_weighted_exact(
+    scored: pd.DataFrame, predictions: pd.DataFrame, scenarios_frame: pd.DataFrame
+) -> pd.DataFrame:
+    """Each household's weighted exact score.
+
+    The steps of policybench.analysis.weighted_hit_rate_scores_by_model up to
+    its household table, which it then averages with equal household weight;
+    command_score checks that the mean of these equals its weighted_exact.
+    """
+    from policybench.analysis import (
+        _country_from_scenarios,
+        _drop_zero_weight_households,
+        _row_weights_for_ground_truth,
+        bounded_global_variable_weights,
+        row_hit_scores,
+    )
+
+    market_income = dict(
+        zip(
+            scenarios_frame["scenario_id"].astype(str),
+            pd.to_numeric(scenarios_frame["total_income"], errors="coerce").fillna(0.0),
+        )
+    )
+    weights = bounded_global_variable_weights(
+        scored, market_income, country=_country_from_scenarios(scenarios_frame)
+    )
+    row_weights = _row_weights_for_ground_truth(scored, weights)
+    models = sorted(predictions["model"].dropna().unique())
+    grid = (
+        scored.assign(_k=1)
+        .merge(pd.DataFrame({"model": models, "_k": 1}), on="_k")
+        .drop(columns="_k")
+    )
+    merged = grid.merge(
+        predictions[["model", "scenario_id", "variable", "prediction"]],
+        on=["model", "scenario_id", "variable"],
+        how="left",
+    )
+    merged["exact"] = [
+        row_hit_scores(v, t, p)["exact"]
+        for v, t, p in zip(merged["variable"], merged["value"], merged["prediction"])
+    ]
+    merged = merged.merge(row_weights, on=["scenario_id", "variable"], how="left")
+    merged["weight"] = merged["weight"].fillna(0.0)
+    merged = _drop_zero_weight_households(merged, row_weights)
+    merged["weighted_exact"] = merged["exact"] * merged["weight"]
+    return (
+        merged.groupby(["model", "scenario_id"])["weighted_exact"].sum().reset_index()
+    )
+
+
+def paired_bootstrap(
+    first: pd.Series, second: pd.Series, draws: int = 10_000, seed: int = 20261014
+) -> dict:
+    """Household-resampled 95% intervals for two arms' means and their difference."""
+    import numpy as np
+
+    a = first.to_numpy(dtype=float)
+    b = second.to_numpy(dtype=float)
+    rng = np.random.default_rng(seed)
+    index = rng.integers(0, len(a), size=(draws, len(a)))
+    mean_a = a[index].mean(axis=1)
+    mean_b = b[index].mean(axis=1)
+
+    def interval(values):
+        low, high = np.percentile(values, [2.5, 97.5])
+        return [float(low), float(high)]
+
+    return {
+        "households": int(len(a)),
+        "draws": draws,
+        "seed": seed,
+        "arm1_mean": float(a.mean()),
+        "arm2_mean": float(b.mean()),
+        "difference": float(b.mean() - a.mean()),
+        "arm1_interval": interval(mean_a),
+        "arm2_interval": interval(mean_b),
+        "difference_interval": interval(mean_b - mean_a),
+        "households_better": int((b > a + 1e-12).sum()),
+        "households_worse": int((b < a - 1e-12).sum()),
+        "households_same": int((abs(b - a) <= 1e-12).sum()),
+    }
 
 
 def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
@@ -1509,6 +1629,12 @@ def summarize_usage(usage: pd.DataFrame) -> dict:
 # Miss diagnosis.
 # ---------------------------------------------------------------------------
 
+# Engine variables equal to an output's own variable on these households. In
+# policyengine-us 2.41.0 spm_unit_payroll_tax is sum_contained_tax_units of
+# employee_payroll_tax, and an SPM unit's total is the same whichever of the
+# two the model asks for.
+EQUIVALENT_ENGINE_VARIABLES = {"payroll_tax": ("employee_payroll_tax",)}
+
 MISS_CATEGORIES = (
     "wrong_input_mapping",
     "wrong_variable_or_period",
@@ -1542,6 +1668,15 @@ def _person_names(arguments) -> list[str]:
         return []
 
 
+def engine_variables_for_output(output: str) -> tuple[str, ...]:
+    from policybench.ground_truth import _pe_variable_for_output
+
+    return (
+        _pe_variable_for_output(output, "us"),
+        *EQUIVALENT_ENGINE_VARIABLES.get(output, ()),
+    )
+
+
 def tool_value_for_output(call: dict, scenario, output: str):
     """The value one successful call returned for a benchmark output, or None.
 
@@ -1550,16 +1685,20 @@ def tool_value_for_output(call: dict, scenario, output: str):
     position (the prompt lists people in scenario order); group outputs take
     the board's aggregation over the returned units.
     """
-    from policybench.ground_truth import (
-        _aggregation_for_output,
-        _pe_variable_for_output,
-    )
+    from policybench.ground_truth import _aggregation_for_output
 
-    pe_variable = _pe_variable_for_output(output, "us")
-    entry = call["result"]["results"].get(pe_variable)
-    if not isinstance(entry, dict) or "values" not in entry:
-        return None
-    if str(entry.get("period")) != str(YEAR):
+    results = call["result"]["results"]
+    entry = None
+    for candidate in engine_variables_for_output(output):
+        found = results.get(candidate)
+        if (
+            isinstance(found, dict)
+            and "values" in found
+            and str(found.get("period")) == str(YEAR)
+        ):
+            entry = found
+            break
+    if entry is None:
         return None
     values = entry["values"]
     aggregation = _aggregation_for_output(output, "us")
@@ -1586,6 +1725,25 @@ def tool_value_for_output(call: dict, scenario, output: str):
         return None
 
 
+def submitted_matches(calls: list[dict], submitted, limit: int = 5) -> list[str]:
+    """Tool results within $1 of a submitted amount, as variable[member]@period."""
+    if submitted is None:
+        return []
+    matches = []
+    for call in calls:
+        for name, entry in call["result"]["results"].items():
+            if not isinstance(entry, dict):
+                continue
+            for member, value in (entry.get("values") or {}).items():
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+                if abs(float(value) - float(submitted)) <= 1.0:
+                    label = f"{name}[{member}]@{entry.get('period')}"
+                    if label not in matches:
+                        matches.append(label)
+    return matches[:limit]
+
+
 def classify_miss(record: dict, scenario, output: str, submitted, reference) -> dict:
     """One of MISS_CATEGORIES, with the evidence behind it.
 
@@ -1607,13 +1765,17 @@ def classify_miss(record: dict, scenario, output: str, submitted, reference) -> 
         c for c in calls if tool_value_for_output(c, scenario, output) is not None
     ]
     if not computed:
+        names = engine_variables_for_output(output)
         any_period = [
             c
             for c in calls
-            if pe_variable in c["result"]["results"]
-            and isinstance(c["result"]["results"][pe_variable], dict)
-            and "values" in c["result"]["results"][pe_variable]
+            if any(
+                isinstance(c["result"]["results"].get(name), dict)
+                and "values" in c["result"]["results"][name]
+                for name in names
+            )
         ]
+        evidence["submitted_matches"] = submitted_matches(calls, submitted)
         if not calls:
             return {
                 "category": "tool_error_or_cap",
@@ -1718,6 +1880,104 @@ def _canon(value):
     return value
 
 
+def output_value(system, situation: dict, scenario, output: str) -> float | None:
+    """One benchmark output from a situation, people read by position."""
+    from policyengine_us import Simulation
+
+    from policybench.ground_truth import (
+        _aggregation_for_output,
+        _pe_variable_for_output,
+    )
+
+    try:
+        simulation = Simulation(
+            tax_benefit_system=system, situation=copy.deepcopy(situation)
+        )
+        values = simulation.calculate(_pe_variable_for_output(output, "us"), YEAR)
+    except Exception:
+        return None
+    aggregation = _aggregation_for_output(output, "us")
+    if aggregation == "person":
+        from policybench.ground_truth import _person_index_for_output
+
+        index = _person_index_for_output(scenario, output)
+        if index is None or index >= len(values):
+            return None
+        return float(values[index])
+    total = float(values.sum())
+    return float(total > 0) if aggregation == "any_positive" else total
+
+
+def apply_reference_input(model: dict, reference: dict, diff: dict) -> dict | None:
+    """The model's situation with one differing input set as the reference sets it.
+
+    People are matched by position. A group input goes on the model's first
+    unit of that group (a new unit holding everyone if the model left the group
+    out); a unit-count difference replaces the model's group with the
+    reference's, members renamed to the model's people. Returns None for a
+    difference that cannot be applied (a different number of people).
+    """
+    situation = copy.deepcopy(model)
+    model_names = list(situation.get("people", {}))
+    reference_names = list(reference["people"])
+    if len(model_names) != len(reference_names):
+        return None
+    rename = dict(zip(reference_names, model_names))
+    variable = diff["variable"]
+    if diff["entity"] == "person":
+        person = situation["people"][rename[diff["reference_unit"]]]
+        if diff["reference"] in ({}, None):
+            person.pop(variable, None)
+        else:
+            person[variable] = copy.deepcopy(diff["reference"])
+        return situation
+    group = diff["entity"]
+    if variable == "<units>":
+        situation[group] = {
+            name: {
+                **copy.deepcopy(unit),
+                "members": [rename[m] for m in unit["members"]],
+            }
+            for name, unit in reference[group].items()
+        }
+        return situation
+    units = situation.setdefault(group, {})
+    if not units:
+        units[f"{group}_1"] = {"members": list(model_names)}
+    unit = next(iter(units.values()))
+    if diff["reference"] in ({}, None):
+        unit.pop(variable, None)
+    else:
+        unit[variable] = copy.deepcopy(diff["reference"])
+    return situation
+
+
+def attribute_miss(
+    system, model: dict, reference: dict, scenario, output: str, target, diffs
+) -> dict:
+    """Which differing inputs, set as the reference sets them, fix the output.
+
+    Each difference is applied alone; the ones that bring the output within
+    the board's tolerance of the reference are its single causes. When no
+    single input does, every applicable difference is applied together.
+    """
+    causes = []
+    for diff in diffs:
+        situation = apply_reference_input(model, reference, diff)
+        if situation is None:
+            continue
+        if hit(output, output_value(system, situation, scenario, output), target):
+            causes.append(f"{diff['entity']}.{diff['variable']}")
+    joint = None
+    if not causes and diffs:
+        situation = model
+        for diff in diffs:
+            applied = apply_reference_input(situation, reference, diff)
+            situation = applied if applied is not None else situation
+        joint = hit(output, output_value(system, situation, scenario, output), target)
+    return {"single_causes": causes, "all_differences_fix_it": joint}
+
+
 def command_diagnose(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
@@ -1736,6 +1996,12 @@ def command_diagnose(args) -> None:
             name: system.variables[name].default_value for name in system.variables
         }
     out_rows = []
+    if misses.empty:
+        print("no arm-2 misses")
+        pd.DataFrame(columns=["scenario_id", "variable", "category"]).to_csv(
+            out / "misses.csv", index=False
+        )
+        return
     for row in misses.itertuples():
         record = records[row.scenario_id]
         scenario = board["scenarios"][row.scenario_id]
@@ -1744,14 +2010,26 @@ def command_diagnose(args) -> None:
             record, scenario, row.variable, submitted, row.reference
         )
         diff = []
+        attribution = {}
         arguments = verdict.get("call_arguments")
         if arguments is not None and registry is not None:
             request, _ = normalize_request(arguments, registry)
             if request is not None:
+                reference_situation = scenario.to_pe_household()
                 diff = situation_diff(
-                    request["situation"], scenario.to_pe_household(), scenario
+                    request["situation"], reference_situation, scenario
                 )
                 diff = [d for d in diff if not _is_default_only(d, defaults)]
+                if verdict["category"] == "wrong_input_mapping":
+                    attribution = attribute_miss(
+                        system,
+                        request["situation"],
+                        reference_situation,
+                        scenario,
+                        row.variable,
+                        row.reference,
+                        diff,
+                    )
         out_rows.append(
             {
                 "scenario_id": row.scenario_id,
@@ -1767,6 +2045,9 @@ def command_diagnose(args) -> None:
                 "tool_value": verdict.get("tool_value"),
                 "status": record.get("status"),
                 "cap_hit": record.get("cap_hit"),
+                "submitted_matches": json.dumps(verdict.get("submitted_matches")),
+                "single_causes": json.dumps(attribution.get("single_causes")),
+                "all_differences_fix_it": attribution.get("all_differences_fix_it"),
                 "input_diff": json.dumps(diff, default=str),
             }
         )
