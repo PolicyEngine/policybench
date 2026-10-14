@@ -169,6 +169,12 @@ SUPERSEDED_RELEASES = {
     # facts are still recomputed, from the snapshot its commit holds
     # (RELEASE_20261010_COMMIT).
     "dashboard-data-20261010": "2026-10-10",
+    # Superseded by dashboard-data-20261013b, which re-judged five audit
+    # verdicts on the same board: no model, answer, reference or exclusion
+    # changed, and every payload section but the five cases' audit text is
+    # release 20261013's (tests/test_release_20261013b.py). The Muse Wonder
+    # note's facts are therefore still recomputed from this checkout.
+    "dashboard-data-20261013": "2026-10-13",
 }
 # The frozen release's board snapshot is its manifest's snapshot date.
 CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
@@ -182,6 +188,10 @@ RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 RELEASE_20261010 = "dashboard-data-20261010"
 RELEASE_20261010_COMMIT = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
+RELEASE_20261013 = "dashboard-data-20261013"
+# Release 20261013b: release 20261013's numbers with five audit verdicts
+# re-judged (scripts/release_20261013b.py).
+RELEASE_20261013B = "dashboard-data-20261013b"
 RELEASE_COMMITS = {
     "dashboard-data-20260929": RELEASE_20260929_COMMIT,
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
@@ -5222,7 +5232,10 @@ def test_release_20261013_note() -> None:
     the rest of what its sentences say."""
     note = _note(MUSE_NOTE)
     facts = note["facts"]
-    assert note["release"] == _frozen_release()
+    # The frozen release is the note's own or release 20261013b, whose numbers
+    # are the note's release's.
+    assert note["release"] == RELEASE_20261013
+    assert _frozen_release() in (RELEASE_20261013, RELEASE_20261013B)
     assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
     assert note["slug"].startswith(note["date"])
     assert facts["engineVersion"] in note["title"]

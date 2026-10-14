@@ -79,10 +79,15 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 10 one", () => {
-    // The live pointer names the frozen release (src/data.artifact.json).
+  test("the newest note is release 20261013's, ahead of the October 10 one", () => {
+    // The live pointer (src/data.artifact.json) names release 20261013 or
+    // 20261013b, which re-judged five audit verdicts on 20261013's numbers
+    // and added no note (scripts/release_20261013b.py).
     expect(notes[0].slug).toContain("muse-wonder-joins-the-board");
-    expect(notes[0].release).toBe(artifact.tag);
+    expect(notes[0].release).toBe("dashboard-data-20261013");
+    expect(["dashboard-data-20261013", "dashboard-data-20261013b"]).toContain(
+      artifact.tag,
+    );
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
     // The October 10 note keeps its own release and board snapshot.
