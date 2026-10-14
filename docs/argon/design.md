@@ -35,7 +35,7 @@ The base is release `dashboard-data-20261013b`: release 20261013 with five carri
 | `reference_outputs.csv.meta.json` | `0dc1ba15…0915` |
 | `reference_exclusions.json` | `a2ddf916…3f39` |
 | `scenarios.csv`, its sidecar | `71b16212…858a`, `03a66e90…aebb` |
-| `BASE_COMMIT` | the commit whose tree holds release 20261013b (PR #218's merge on main) |
+| `BASE_COMMIT` | `2cb77a17`, PR #218's squash merge on main, whose tree holds release 20261013b. The stage was prepared on #218's frozen head `6c44858f`, whose annotations, snapshot and audit records it keeps byte for byte (the squash differs from that head merged with main only in `app/tests/notes.test.ts`) |
 | `SEED_RELEASE_COMMIT` | `BASE_COMMIT` |
 | Grounding | `b1e4a9bc…b55c`, the main clone's `results/local/unified_audit/grounding.csv` |
 | Seed digest | `0f599257…f911d` (`docs/argon/seed_digest.csv`, a copy of `docs/release_20261013b/seed_digest.csv`; 677 judged cases) |

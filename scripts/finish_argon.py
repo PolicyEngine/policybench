@@ -47,7 +47,7 @@ BASE_TAG = "dashboard-data-20261013b"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_argon.py and the design note read it from here.
 RELEASE_TAG = "dashboard-data-20261014"
-# PENDING(#218): the payload at PR #218's frozen head; confirm at its merge.
+# Release 20261013b's payload, as published (PR #218, merged 2026-10-14).
 BASE_SHA256 = "0a4b754a4ce3b249e0608efac62e52646e4c6f33c6a28c1a496c4c9fda49b507"
 BASE_MODELS = 48
 BASE_OUTPUTS = 1984
@@ -162,9 +162,12 @@ JUDGE_PROMPT_NUDGE = (
     "[structured-output-enforce] You MUST call the StructuredOutput tool to "
     "complete this request. Call this tool now."
 )
-# The commit whose tree holds release 20261013b. PENDING(#218): PR #218's
-# frozen head; becomes its squash merge on main, whose tree must be the same.
-BASE_COMMIT = "6c44858feddc68890738e6f07b31ab9e6968bac1"
+# The commit whose tree holds release 20261013b: PR #218's squash merge on
+# main (2026-10-14 06:10 UTC). Its data trees (annotations, snapshot, audit
+# records) are those of #218's frozen head, 6c44858f, on which the stage
+# was prepared; the squash differs from that head merged with main only in
+# app/tests/notes.test.ts.
+BASE_COMMIT = "2cb77a17739abeace3ff32391f902a39127843c0"
 # Release 20261013b's references (policyengine-us 2.41.0), which are release
 # 20261013's byte for byte: 20261013b re-judged five verdicts and changed no
 # reference. Prepare stages them unchanged, and they stay the release's.

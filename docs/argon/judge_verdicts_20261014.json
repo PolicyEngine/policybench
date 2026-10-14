@@ -1,7 +1,7 @@
 {
- "note": "The verdicts release dashboard-data-20261014's adjudication entries name on the cases a new model re-opened: for each committed decision on such a case, the case's verdict in the exported stage, read by scripts/date_argon_judge_verdicts.py from verdict.json and its sha256-bound verdict.meta.json. The verdict each restatement replaced is release 20261013b's entry (git show 6c44858feddc:annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json). The 2 triage decisions of the 2026-10-14 wave are new and restate nothing.",
+ "note": "The verdicts release dashboard-data-20261014's adjudication entries name on the cases a new model re-opened: for each committed decision on such a case, the case's verdict in the exported stage, read by scripts/date_argon_judge_verdicts.py from verdict.json and its sha256-bound verdict.meta.json. The verdict each restatement replaced is release 20261013b's entry (git show 2cb77a17739a:annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json). The 2 triage decisions of the 2026-10-14 wave are new and restate nothing.",
  "release": "dashboard-data-20261014",
- "base_commit": "6c44858feddc68890738e6f07b31ab9e6968bac1",
+ "base_commit": "2cb77a17739abeace3ff32391f902a39127843c0",
  "cases": {
   "us__scenario_005__federal_income_tax_before_refundable_credits": {
    "judge_model": "claude-opus-5-5",

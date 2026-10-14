@@ -51,8 +51,8 @@ RELEASE_20261013_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
 # Argon and Muse Spark 1.3) builds on it: it restates the decisions on the
 # cases its new models re-opened (docs/argon/judge_verdicts_20261014.json)
 # and adds the 2026-10-14 wave's two triage decisions, which keep their
-# outputs scored. PENDING(#218): #218's head until its squash merge.
-RELEASE_20261013B_COMMIT = "6c44858feddc68890738e6f07b31ab9e6968bac1"
+# outputs scored. The squash merge of #218.
+RELEASE_20261013B_COMMIT = "2cb77a17739abeace3ff32391f902a39127843c0"
 (EVIDENCE_20261014,) = sorted((ROOT / "docs/argon").glob("judge_verdicts_*.json"))
 # This release's own wave: its triage decisions, not yet committed.
 TRIAGE_WAVE = "2026-10-14"

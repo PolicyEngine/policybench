@@ -59,8 +59,9 @@ BOUND_EXCLUSIONS = f"publish/{driver.RUN_NAME}/us/{EXCLUSIONS_NAME}"
 # rendered with, the supervised runs root and the live stage. All local only;
 # nothing here writes to them.
 SEED = REPO / "results/local/argon/seed-20261013b/audit"
-# The release's stage, prepared on BASE_COMMIT 6c44858f with the first
-# stage's audit carried in (local only).
+# The release's stage, prepared on #218's frozen head 6c44858f, whose data
+# trees BASE_COMMIT keeps, with the first stage's audit carried in (local
+# only).
 STAGE = REPO / "results/local/argon/stage2"
 # The working stage: STAGE itself. The committed judge provenance record
 # describes it.
@@ -167,8 +168,8 @@ def test_the_additions_are_argon_and_muse_spark_on_a_50_model_board():
     assert driver.NEW_EXCLUSIONS == 0 and driver.RELEASE_EXCLUSIONS == 49
     assert driver.RELEASE_SCORED == 1935
     assert driver.BASE_TAG == "dashboard-data-20261013b"
-    # PENDING(#218): PR #218's squash merge on main.
-    assert driver.BASE_COMMIT == "6c44858feddc68890738e6f07b31ab9e6968bac1"
+    # PR #218's squash merge on main.
+    assert driver.BASE_COMMIT == "2cb77a17739abeace3ff32391f902a39127843c0"
     assert driver.SEED_RELEASE_COMMIT == driver.BASE_COMMIT
     assert set(driver.BASE_REFERENCE_SHA256) == set(driver.REFERENCE_FILES)
     assert driver.JUDGE_MODEL == "claude-opus-5-5"
