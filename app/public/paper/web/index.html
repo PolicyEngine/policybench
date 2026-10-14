@@ -250,7 +250,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </tr>
 <tr class="even">
 <td>Scoring code SHA-256 prefix</td>
-<td>baaf2506800b</td>
+<td>e75a972a2f98</td>
 </tr>
 <tr class="odd">
 <td>US run label</td>
@@ -299,7 +299,7 @@ Table&nbsp;1: Frozen manuscript snapshot.
 </figure>
 </div>
 </div>
-<div id="7f7f2048" class="cell" data-execution_count="3">
+<div id="076a6925" class="cell" data-execution_count="3">
 <div class="cell-output cell-output-display cell-output-markdown" data-execution_count="3">
 <div id="tbl-model-runs" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
@@ -1096,15 +1096,15 @@ Table&nbsp;6: Top US benchmark models in the frozen manuscript snapshot, ranked 
 <p>Sampling uncertainty is substantial at this sample size. In the frozen snapshot, 6 of the other 49 models have an exact-match 95% interval that overlaps the leader’s. Small differences in the leaderboard ordering should therefore be read as ties rather than as a strict ranking, and the rank-range column makes the set of plausible positions explicit. These intervals are a manuscript artifact: the public leaderboard and app report point estimates only, because the benchmark sample, not run-to-run model variation, is the dominant source of uncertainty here.</p>
 <h3 id="cost-and-latency" class="anchored">Cost and latency</h3>
 <p>Accuracy is one axis; the price and speed of a no-tools answer are another. <a href="#tbl-us-cost-latency" class="quarto-xref">Table&nbsp;7</a> reports each model’s estimated cost to compute one household’s full output vector and its median per-household latency, next to the headline exact rate. Per-household cost spans $0.001 (Claude Haiku 5.5) to $0.541 (Claude Fable 5), and median per-household latency 3 s (Gemini 3.5 Flash-Lite) to 1023 s (Kimi K3). Neither dimension cleanly tracks accuracy: the top-scoring model, GPT-6 Sol at 95.2% exact, sits mid-pack at $0.027 per household and 23 s.</p>
-<div class="cell" data-execution_count="8">
-<div id="tbl-us-cost-latency" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="8">
+<div id="a62d2fd0" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display cell-output-markdown" data-execution_count="8">
+<div id="tbl-us-cost-latency" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl">
 <figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-us-cost-latency-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Table&nbsp;7: Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: reconstructed from token counts at the list price configured at request time, or the provider-reported charge where no reconstruction was available. List-price overrides apply at request time, not retroactively to recorded costs. Models without per-call costs use the frozen release-metadata cost. Latency is the median across households of each household’s summed request time. A dash marks usage or wall-clock latency that was not measured per call.
+Table&nbsp;7: Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: reconstructed from token counts at the list price configured at request time, or the provider-reported charge where no reconstruction was available. List-price overrides apply at request time, not retroactively to recorded costs. Claude Fable 5’s cost and latency come from its original run’s per-call rows, which its board rows do not carry. Latency is the median across households of each household’s summed request time. A cost dash marks a provider-reported charge of zero on every call (GLM-5.3-Flash (preview)). A latency dash marks rows that record no request time (GPT-5.5, through OpenAI’s batch API) or a median household answered from the harness’s response cache rather than by the provider (GLM-5.2, Kimi K2.6, MiniMax M3, and Qwen3.7-max; see text).
 </figcaption>
 <div aria-describedby="tbl-us-cost-latency-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell-output cell-output-display cell-output-markdown" data-execution_count="8">
-<table class="cell caption-top">
+<table class="caption-top">
 <thead>
 <tr class="header">
 <th>Model</th>
@@ -1417,11 +1417,12 @@ Table&nbsp;7: Estimated cost and median latency per household for the frozen US 
 </tbody>
 </table>
 </div>
-</div>
 </figure>
 </div>
 </div>
-<p>Cost preserves each call’s recorded total: a request-time reconstruction from token counts where one was available, and the provider-reported charge otherwise. Configured list-price overrides do not reprice recorded calls. Rows without per-call costs use the frozen release-metadata cost. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the 100 households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as a dash), and Claude Fable 5’s usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run’s providers, prompts, and serving configurations at evaluation time rather than fixed model constants.</p>
+</div>
+<p>Cost preserves each call’s recorded total: a request-time reconstruction from token counts where one was available, and the provider-reported charge otherwise. Configured list-price overrides do not reprice recorded calls. Claude Fable 5’s board rows carry no usage or timing fields, because they were rebuilt from release dashboard-data-20260701 without those columns; its cost, tokens and latency come from the per-call rows of its original run, which that release publishes. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the 100 households. The timer spans one request as the provider handles it, including anything that happens inside that call. When the harness retries a failed request, only the attempt that succeeded is timed, without the failed attempts or the wait between them. The median is reported in preference to the mean, which a few slow calls inflate. Latency is not comparable across serving regimes. A model served one or three outputs per request (<a href="#tbl-model-runs" class="quarto-xref">Table&nbsp;2</a>) sends a household’s calls one after another, and its household time is their sum. GPT-5.5 ran through OpenAI’s batch API, which records no per-call request time, so it shows a dash.</p>
+<p>The harness also caches provider responses on disk, keyed on the request and the prompt contract version. A request identical to an earlier one is answered from the cache in hundredths of a second, and the timer records that as if it were a call. A replayed response’s cost is computed from that response when its row is written: its token counts at the configured list price, or the provider’s charge embedded in it where no reconstruction exists. A household’s cost therefore counts each of its responses once, whether or not the board run paid for it. GLM-5.2, Kimi K2.6, MiniMax M3, and Qwen3.7-max were finished over several passes, each of which replayed the earlier passes’ successful responses. Each of them records a replay on 53 to 93 of its 100 households, so its median falls under a second and it shows a dash as well. In 11 other models, 29 households sum to under a second. The audit traces 27 of them to an earlier request on the same household, such as an onboarding smoke or a restarted chunk; the other two come from runs that predate per-call timestamps and left no cache or ledger behind. Dropping them would raise no model’s median by more than 2.5 seconds. A further 33 households replay their first recorded call and then reach the provider, so their times leave out that first call. The benchmark card summarizes the replays, and the repository’s latency replay audit lists each household. Both cost and latency are properties of this run’s providers, prompts, and serving configurations at evaluation time rather than fixed model constants.</p>
 <h3 id="simple-baselines" class="anchored">Simple baselines</h3>
 <p>Simple baselines help interpret score levels in a zero-heavy benchmark. <a href="#tbl-baselines" class="quarto-xref">Table&nbsp;8</a> reports an always-zero response and a median-reference-by-output response on the same frozen household sample, scored with the household-impact weighting. These are not model competitors; they show how much of each metric can be earned without household-specific policy calculation. The always-zero baseline scores 69.7% on the headline exact-match rate — below the 85% of outputs that are exact zeros because the weighting concentrates mass in high-dollar output groups that are rarely zero (<a href="#sec-headline-metric" class="quarto-xref">Section&nbsp;3.1</a>). The top model clears the baseline by 25.5 points, and the within-1% companion shows the same separation with near-miss tolerance.</p>
 <div class="cell" data-execution_count="9">

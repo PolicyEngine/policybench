@@ -1823,9 +1823,11 @@ def build_manifest(
             "failed or timed-out scenarios in bounded rounds; every model's "
             "canonical file covers all 100 households.",
             "Raw provider responses are retained in the compressed source-run "
-            "predictions.csv.gz file wherever the transport exposed them; rows "
-            "served through the Anthropic batch adapter (Claude Fable 5) and "
-            "64 Kimi K3 parse failures carry no raw payload. The separate "
+            "predictions.csv.gz file wherever the transport exposed them; "
+            "Claude Fable 5's rows, rebuilt from release dashboard-data-20260701 "
+            "without their raw payloads (that release's "
+            "claude-fable-5-predictions.csv.gz asset keeps them), and 64 Kimi "
+            "K3 parse failures carry none. The separate "
             "LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",

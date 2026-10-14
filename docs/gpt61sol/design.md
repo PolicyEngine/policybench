@@ -101,9 +101,10 @@ and `test_every_committed_adjudication_decides_a_case_the_seed_judged` run
 anywhere, and `prepare`, `bind-seed` and every later step check the seed and
 the stage's binding against it.
 
-The exporter still needs the Fable 5 usage carry-over. Fable 5 ran through the
-Anthropic batch adapter, and its committed rows carry no cost, token or latency
-fields, so `export_full_run` reports `costUsd` $0 and omits the rest. The live
+The exporter still needs the Fable 5 usage carry-over. Fable 5's committed rows
+were rebuilt from release 20260701 without their cost, token and latency
+fields (an earlier version of this note said it ran through the Anthropic
+batch adapter; it ran synchronously, see `docs/latency_replay_audit.md`), so `export_full_run` reports `costUsd` $0 and omits the rest. The live
 payload has $54.11, 3,850,174 tokens and 97.68 s. The driver copies those four
 values from the base, and the drift gate then checks every field and the key
 order. Ox Alpha's `costUsd` of $0.0 comes out of the exporter unchanged, so it
