@@ -180,7 +180,8 @@ def test_a_replay_can_only_lower_the_median(seconds, data):
 def test_a_median_under_a_second_means_most_households_replayed(n_fast, n_slow):
     """With replays under the line and calls above it, the median is under the
     line when more than half the households replayed and at or above it when
-    fewer than half did: the paper's dash rule is a majority-replay rule."""
+    fewer than half did. At exactly half it can fall either side (the tie test
+    below), so the paper's dash rule is a majority-replay rule only off ties."""
     if n_fast + n_slow == 0:
         return
     seconds = [0.02] * n_fast + [30.0] * n_slow
@@ -191,6 +192,25 @@ def test_a_median_under_a_second_means_most_households_replayed(n_fast, n_slow):
         assert median < REPLAYED_HOUSEHOLD_SECONDS
     if 2 * n_fast < n_fast + n_slow:
         assert median >= REPLAYED_HOUSEHOLD_SECONDS
+
+
+@given(
+    st.integers(min_value=1, max_value=12),
+    st.floats(min_value=0.0, max_value=0.12),
+    st.floats(min_value=1.0, max_value=3.0),
+)
+def test_at_exactly_half_replays_the_median_is_the_middle_pairs_mean(n, replay, call):
+    """Half replays and half calls: the median is the mean of the slowest
+    replay and the fastest call, which is under a second only when the calls
+    are fast enough (50 replays at 0.02 s and 50 calls at 1.75 s give 0.885 s)."""
+    seconds = [replay] * n + [call] * n
+    median = model_cost_latency(
+        pd.DataFrame([_row("m", f"s{i}", 0.01, t) for i, t in enumerate(seconds)])
+    )["m"]["latencySeconds"]
+    assert median == pytest.approx((replay + call) / 2)
+    assert (median < REPLAYED_HOUSEHOLD_SECONDS) == (
+        replay + call < 2 * REPLAYED_HOUSEHOLD_SECONDS
+    )
 
 
 @given(

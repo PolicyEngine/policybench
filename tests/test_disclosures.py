@@ -75,6 +75,10 @@ PAPER_FALSE_CLAIM_PATTERNS = (
     r"recorded\s+at\s+the\s+run\s+level",
     r"Anthropic\s+batch\s+adapter",
     r"not\s+measured\s+per\s+call",
+    # The harness restarts its timer on each retry and times only the attempt
+    # that succeeded; a replayed row's cost is recomputed when it is written.
+    r"spans\s+any\s+provider-side\s+retry",
+    r"keeps\s+the\s+cost\s+recorded\s+when\s+it\s+was\s+generated",
     # Exclusion covers what the audits found, not every defect or unstated
     # input: an output a fix or reading not run on the reference engine would
     # move can still be scored (the paper's limitations say so).

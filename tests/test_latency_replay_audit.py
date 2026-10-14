@@ -312,3 +312,128 @@ def test_the_rendered_paper_states_why_each_latency_is_missing():
     assert f"more than {r.subsecond_median_shift_fmt} seconds" in text
     assert f"A further {r.partial_replay_count} households replay" in text
     assert "Claude Fable 5's board rows carry no usage or timing fields" in text
+
+
+# ----- the builder's evidence rules (scripts/audit_latency_replays.py) -------
+
+
+def _frozen(rows):
+    """Frozen-style rows: (model, scenario, response id, start, household s)."""
+    records = []
+    for model, scenario, response_id, start, seconds in rows:
+        for variable in ("a", "b"):
+            records.append(
+                {
+                    "model": model,
+                    "scenario_id": scenario,
+                    "variable": variable,
+                    "provider_response_id": response_id,
+                    "request_started_at": start,
+                    "elapsed_seconds": seconds / 2,
+                }
+            )
+    return pd.DataFrame(records)
+
+
+def _ledger(rows):
+    """Ledger records: (response id, model, scenario, start, cache hit, smoke)."""
+    return pd.DataFrame(
+        [
+            {
+                "provider_response_id": response_id,
+                "model": model,
+                "scenario_id": scenario,
+                "request_started_at": start,
+                "request_completed_at": start + 30.0,
+                "cache_hit": hit,
+                "_smoke": smoke,
+            }
+            for response_id, model, scenario, start, hit, smoke in rows
+        ]
+    )
+
+
+def _built(predictions, stored=None, ledgers=None, smoke_times=None):
+    from scripts.audit_latency_replays import build
+
+    rows = build(
+        predictions,
+        stored or {},
+        ledgers if ledgers is not None else pd.DataFrame(),
+        smoke_times or {},
+    )
+    return {(row["model"], row["scenario_id"]): row for row in rows}
+
+
+def test_a_later_replay_of_a_live_board_response_is_not_evidence():
+    """A run after the board that replays a response the board fetched live
+    records a cache hit for the same id, but not at the board request."""
+    board = _frozen([("m", "s1", "chatcmpl-live", 1_000.0, 30.0)])
+    later = _ledger([("chatcmpl-live", "m", "s1", 5_000.0, True, False)])
+    assert _built(board, ledgers=later) == {}
+    same = _ledger([("chatcmpl-live", "m", "s1", 1_000.0, True, False)])
+    row = _built(board, ledgers=same)[("m", "s1")]
+    assert (row["replay"], row["evidence"]) == ("partial", "spend_ledger")
+    other = _ledger([("chatcmpl-live", "m", "s2", 1_000.0, True, False)])
+    assert _built(board, ledgers=other) == {}
+
+
+def test_a_smoke_counts_only_if_it_finished_before_the_request():
+    board = _frozen([("m", "s1", "chatcmpl-x", 1_000.0, 0.02)])
+    after = _built(board, smoke_times={"chatcmpl-x": 1_500.0})[("m", "s1")]
+    assert (after["replay"], after["evidence"]) == ("untraced", "")
+    before = _built(board, smoke_times={"chatcmpl-x": 900.0})[("m", "s1")]
+    assert (before["replay"], before["evidence"], before["source"]) == (
+        "full",
+        "smoke_file",
+        "onboarding smoke",
+    )
+    ledger = _ledger([("chatcmpl-x", "m", "s1", 1_500.0, False, True)])
+    late = _built(board, ledgers=ledger)[("m", "s1")]
+    assert late["evidence"] == ""
+
+
+def test_a_cached_response_counts_only_if_stored_before_the_request():
+    board = _frozen([("m", "s1", "chatcmpl-x", 1_000.0, 45.0)])
+    assert _built(board, stored={"chatcmpl-x": 1_010.0}) == {}
+    row = _built(board, stored={"chatcmpl-x": 990.0})[("m", "s1")]
+    assert (row["replay"], row["evidence"]) == ("partial", "cache")
+
+
+def test_id_times_need_the_margin_and_live_households_are_not_listed():
+    created = 1_783_264_675
+    early = f"gen-{created}-abcdefghijABCDEFGHIJ"
+    board = _frozen(
+        [
+            ("m", "s1", early, created + 120.0, 0.03),
+            ("m", "s2", early.replace("abc", "xyz"), created + 10.0, 40.0),
+            ("m", "s3", "chatcmpl-fast", created + 5.0, 0.04),
+        ]
+    )
+    built = _built(board)
+    assert built[("m", "s1")]["evidence"] == "openrouter_id"
+    assert built[("m", "s1")]["replay"] == "full"
+    assert ("m", "s2") not in built
+    assert built[("m", "s3")]["replay"] == "untraced"
+
+
+def test_smoke_file_times_read_columns_by_name(tmp_path):
+    """Smoke CSVs order their columns differently; a row without a completion
+    time cannot show order and is skipped, and files outside a smoke path are
+    not read."""
+    from scripts.audit_latency_replays import smoke_file_times
+
+    smoke = tmp_path / "x_smoke" / "run"
+    smoke.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "request_completed_at": [20.0, 10.0, None],
+            "provider_response_id": ["gen-a", "gen-a", "gen-b"],
+        }
+    ).to_csv(smoke / "predictions.csv", index=False)
+    board = tmp_path / "board"
+    board.mkdir()
+    pd.DataFrame(
+        {"provider_response_id": ["gen-c"], "request_completed_at": [5.0]}
+    ).to_csv(board / "predictions.csv", index=False)
+    assert smoke_file_times([tmp_path]) == {"gen-a": 10.0}

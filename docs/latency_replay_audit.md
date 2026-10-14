@@ -16,7 +16,12 @@ re-request with a larger completion budget) makes them one after another, as
 `run_single_no_tools` does for chunks. Their times are summed, and the sum is
 divided equally among the household's rows (`elapsed_seconds / batch_size`
 in `policybench/eval_no_tools.py`; all three lines date from 2026-05-01, before
-every board run). A household's latency is therefore the sum over its rows.
+every board run). A household's latency is therefore the sum over its rows. The
+timer wraps the provider call, so whatever happens inside that call counts.
+When the harness itself retries a failed request, it restarts the timer and
+keeps only the attempt that succeeded; the failed attempts and the backoff
+between them are not counted (the retry loop in `_request_predictions_once`, the
+same in the July code).
 `analysis.household_latency_seconds` computes that sum.
 `analysis.model_cost_latency` publishes the median across households as
 `latencySeconds`. A household whose rows carry no time is left out of the
@@ -130,21 +135,24 @@ each model's final pass. The notes record MiniMax M3's first pass at 53 of 100
 households, and 53 of its households are full replays. They record Qwen3.7-max
 at 93/100 in the round before its last, and 93 of its households are full
 replays. Kimi K2.6's
-scenario_109 shows a partial replay at work. In earlier rounds its answer call
-succeeded and was cached, but its explanation repair timed out at 300 s
-(`part_84_100.grind*.log`). In the final pass the answer was replayed and only
-the repair reached the provider, so the household records 777 s and the
-replayed answer's id.
+scenario_109 shows a partial replay at work. In earlier rounds its first call
+succeeded and was cached, and the household then failed on an explanation
+repair that timed out at 300 s (`part_84_100.grind*.log`). In the final pass
+its first call was replayed and its later calls reached the provider, so the
+household records 777 s next to the replayed first call's id.
 
 For these four models the households left after removing replays are the ones
 earlier passes failed on, many of them after timeouts and retries. Their
 medians (10.7 to 1,194 s) are not estimates of the model's latency. For
 OpenRouter responses, the cache's store time minus the id's creation time
 approximates a call's duration. It agrees with the recorded time to a median of
-0.5 s on live households, and it misses badly where a household retried. Applied to the replays it gives medians
+0.5 s on live households. It times only the first call, though, the one whose
+id the rows keep, so it falls far short wherever a household made several
+calls. Applied to the replays it gives medians
 of about 133 s (Qwen3.7-max), 117 s (GLM-5.2), 294 s (Kimi K2.6) and 10 s
-(MiniMax M3). It measures only the call that succeeded, not the retries the
-harness timer would include, so it is a different quantity, and nothing
+(MiniMax M3). Qwen3.7-max, GLM-5.2 and Kimi K2.6 were served three outputs
+per request, so their households make several calls and the first one is only
+part of each household's time. It is a different quantity, and nothing
 publishes it.
 
 ## What the published figures do with them
@@ -173,12 +181,18 @@ publishes it.
   are unchanged. Without sub-second households, Claude Sonnet 5 would read 65 s
   rather than 64 s, DeepSeek V4 Pro 172 s rather than 170 s and GPT-5.6 Luna
   15 s rather than 14 s.
-- **`costUsd`.** A replayed response keeps the cost recorded when it was
-  generated. Spend ledgers record each cache hit's spend as $0 and the replayed
-  cost as `cached_response_cost_usd`. On all ten ledger-era full replays (Muse
-  Spark 1.3, Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5), the board
-  household's cost equals that field exactly. On 43 of MiniMax M3's full
-  replays, the row cost equals the cost embedded in the cached response. A household's published cost
+- **`costUsd`.** A replayed row's cost is computed when the row is written,
+  from the replayed response itself (`_extract_usage_metadata`). Where a token
+  reconstruction exists, its token counts are priced at the list prices
+  configured then; otherwise it is the provider's charge embedded in the
+  response. Spend ledgers record each cache hit's spend as $0 and that computed
+  cost as `cached_response_cost_usd`, and on all ten ledger-era full replays
+  (Muse Spark 1.3, Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5) the board
+  household's cost equals it. That shows the row carries the computed value,
+  not that it matches what the original call was billed. For OpenRouter models
+  priced by the provider's charge, the cached response carries the original
+  charge: on 43 of MiniMax M3's full replays the row cost equals the cost
+  embedded in the cached response. A household's published cost
   therefore counts each of its responses once, whether or not the board run
   paid for it, and leaves out spend on attempts that did not make the board,
   such as the open-weight models' failed passes. That matches the paper's
@@ -203,9 +217,10 @@ comments, and the tests that tie them to the data. The options:
   0.003 to 0.033 s for the four open-weight models.
 - **B. Leave replays out of the median (recommended).** `model_cost_latency`
   would take the median over households that sum to a second or more. It would
-  publish no latency when more than half a model's households are replays,
-  which is the rule the paper's dash already applies (the property test
-  `test_a_median_under_a_second_means_most_households_replayed`). The four
+  publish no latency when more than half a model's households are replays.
+  Away from an exact tie, that is the rule the paper's dash already applies
+  (`test_a_median_under_a_second_means_most_households_replayed`); at exactly
+  half, the paper's median can fall on either side of a second. The four
   open-weight models would lose `latencySeconds`. Eleven other medians would
   rise by 0.02 to 2.5 s. In the paper table, Claude Sonnet 5 would read 65 s
   instead of 64 s, DeepSeek V4 Pro 172 s instead of 170 s and GPT-5.6 Luna 15 s

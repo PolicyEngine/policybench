@@ -432,10 +432,11 @@ release publishes as `claude-fable-5-predictions.csv.gz`.
 The harness caches provider responses on disk, keyed on the request and the
 prompt contract version (`policybench/cache.py`). A request identical to an
 earlier one returns the cached response, and its row records that response's
-answers, tokens and cost. A replayed response therefore keeps the cost recorded
-when it was generated. Each household's cost counts its responses once,
-whether or not the board run paid for them, and leaves out spend on attempts
-that did not reach the board.
+answers and tokens. Its cost is computed from the replayed response when the
+row is written: its token counts at the configured list price, or the
+provider's charge embedded in it where no reconstruction exists. Each
+household's cost counts its responses once, whether or not the board run paid
+for them, and leaves out spend on attempts that did not reach the board.
 
 ## Latency basis
 
@@ -443,7 +444,9 @@ Each prediction row records its household's request time divided among the
 household's rows, so a household's latency is the sum over its rows
 (`analysis.household_latency_seconds`). A household that needs several calls
 (one or three outputs per request, a repair, or a re-request with a larger
-completion budget) makes them one after another and records their sum. Published `latencySeconds` is the median
+completion budget) makes them one after another and records their sum. A
+request the harness retries after a provider error is timed only on the
+attempt that succeeded. Published `latencySeconds` is the median
 across households. A household with no recorded time is left out rather than
 counted as zero, so GPT-5.5, whose batch rows record none, has no latency.
 

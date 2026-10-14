@@ -1,7 +1,7 @@
 model,scenario_id,household_latency_seconds,replay,evidence,source,first_response_id,request_started_at,response_existed_at
 claude-haiku-4.5,scenario_009,0.026461,untraced,,untraced,chatcmpl-9c7cea35-2052-496a-bf4e-3602ca12515c,,
-claude-haiku-5.5,scenario_000,0.017322,full,smoke_file+spend_ledger,onboarding smoke,chatcmpl-992b7cba-d5e8-42da-9449-c06899393c28,1791495684.702,1791495644.564
-claude-haiku-5.5,scenario_001,0.117501,full,smoke_file+spend_ledger,onboarding smoke,chatcmpl-308e4847-b356-4499-a13a-3ab9f3208450,1791495684.777,1791495651.476
+claude-haiku-5.5,scenario_000,0.017322,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-992b7cba-d5e8-42da-9449-c06899393c28,1791495684.702,1791495644.564
+claude-haiku-5.5,scenario_001,0.117501,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-308e4847-b356-4499-a13a-3ab9f3208450,1791495684.777,1791495651.476
 claude-opus-5.5,scenario_000,0.029634,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-e65b82db-643d-47f9-b87a-d6143e484ca6,1790095878.103,1790095745.462
 claude-opus-5.5,scenario_001,0.029532,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-f5a49889-34ba-4ef9-8e78-3cd1cbd21ef7,1790095878.103,1790095771.107
 claude-sonnet-5,scenario_000,0.031374,full,cache+smoke_file,onboarding smoke,chatcmpl-d78ec31e-c962-43fd-a568-a6f2f8fc0214,1782978630.541,1782978530.271

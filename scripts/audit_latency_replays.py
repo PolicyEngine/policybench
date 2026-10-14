@@ -16,19 +16,30 @@ script runs only on the machine that holds them:
   ``--ledger-root``, repeatable), which record ``cache_hit`` per call. A ledger
   under a path containing ``smoke`` belongs to an onboarding smoke.
 - smoke prediction files (CSV under a path containing ``smoke``) below the
-  ledger roots, which keep each smoke response's id.
+  ledger roots, which keep each smoke response's id and request times.
 
-Two kinds of evidence need only the frozen predictions. OpenRouter ids
-(``gen-<unix seconds>-...``) and OpenAI Responses ids (``resp_`` + 16 hex +
-``00`` + 8 hex seconds) embed their creation time. On live households that
-time falls within 23 seconds of the row's ``request_started_at``. A
-creation time more than a minute before the request began means the response
-already existed when the request was sent.
+Each kind of evidence is tied to the frozen request it explains, the
+household's first call (the one whose id its rows keep):
 
-A household counts as replayed when any evidence holds for its first recorded
-response id. A full replay sums to under a second: every call came from the
-cache. A partial replay sums to a second or more, so a later call in the
-household (a repair, a retry round or another chunk) went to the provider.
+- ``cache``: an entry holding the response id was stored before the request
+  began. Both times are this machine's clock.
+- ``spend_ledger``: a ledger outside the smokes records ``cache_hit`` for that
+  response id on the same model and household, at the frozen request's own
+  start time. A later run that replayed a response the board fetched live
+  therefore does not count.
+- ``smoke_ledger`` / ``smoke_file``: an onboarding smoke served the same
+  response id and finished before the request began.
+- ``openrouter_id`` / ``openai_id``: the frozen predictions alone suffice.
+  OpenRouter ids (``gen-<unix seconds>-...``) and OpenAI Responses ids
+  (``resp_`` + 16 hex + ``00`` + 8 hex seconds) embed their creation time, on
+  the provider's clock. On live households that time falls within 23 seconds
+  of the row's ``request_started_at``, so a creation time more than a minute
+  before the request began means the response already existed.
+
+A household counts as replayed when any evidence holds. A full replay sums to
+under a second: every call came from the cache. A partial replay sums to a
+second or more, so a later call in the household (another chunk, a repair, or
+a re-request with a larger completion budget) went to the provider.
 """
 
 from __future__ import annotations
@@ -67,6 +78,9 @@ MARGIN_SECONDS = 60.0
 # Every replayed household in the frozen run sums to under 0.12 s; the fastest
 # live household (Gemini 3.5 Flash-Lite) takes 1.75 s.
 FULL_REPLAY_SECONDS = 1.0
+# A ledger record belongs to the frozen request when it starts at the same
+# moment; the board's own ledger records it to the microsecond.
+SAME_REQUEST_SECONDS = 0.5
 
 RESPONSE_ID = re.compile(
     rb"(gen-\d{10}-[A-Za-z0-9]{10,40}"
@@ -151,6 +165,12 @@ def walk_files(root: Path, suffix: str):
                 yield Path(directory) / name
 
 
+def _under_smoke(path: Path, root: Path) -> bool:
+    """Whether a file sits in a smoke run, judged below its root so a root
+    whose own path mentions a smoke does not make every file a smoke's."""
+    return "smoke" in str(path.relative_to(root))
+
+
 def ledger_records(roots: list[Path]) -> pd.DataFrame:
     records = []
     for root in roots:
@@ -160,54 +180,79 @@ def ledger_records(roots: list[Path]) -> pd.DataFrame:
                     record = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                record["_smoke"] = "smoke" in str(path)
+                record["_smoke"] = _under_smoke(path, root)
                 records.append(record)
     return pd.DataFrame(records)
 
 
-def smoke_file_ids(roots: list[Path]) -> set[str]:
-    ids: set[str] = set()
+def smoke_file_times(roots: list[Path]) -> dict[str, float]:
+    """When each smoke response was first served: the earliest completion time
+    of a smoke row carrying its id. Rows without a time cannot show order and
+    are skipped."""
+    finished: dict[str, float] = {}
+    wanted = {"provider_response_id", "request_completed_at"}
     for root in roots:
         for path in walk_files(root, ".csv"):
-            if "smoke" not in str(path):
+            if not _under_smoke(path, root):
                 continue
             try:
                 frame = pd.read_csv(
-                    path,
-                    usecols=lambda column: column == "provider_response_id",
-                    low_memory=False,
+                    path, usecols=lambda column: column in wanted, low_memory=False
                 )
             except (ValueError, pd.errors.ParserError, UnicodeDecodeError):
                 continue
-            if "provider_response_id" in frame:
-                ids.update(frame["provider_response_id"].dropna().astype(str))
-    return ids
+            if not wanted <= set(frame.columns):
+                continue
+            completed = pd.to_numeric(frame["request_completed_at"], errors="coerce")
+            pairs = pd.DataFrame(
+                {"id": frame["provider_response_id"], "completed": completed}
+            ).dropna()
+            for response_id, when in zip(pairs["id"], pairs["completed"]):
+                key = str(response_id)
+                if key not in finished or when < finished[key]:
+                    finished[key] = float(when)
+    return finished
+
+
+def _ledger_hits(ledgers: pd.DataFrame) -> dict[str, list[tuple[str, str, float]]]:
+    """Cache hits outside the smokes: response id -> (model, household, start)."""
+    hits: dict[str, list[tuple[str, str, float]]] = {}
+    if ledgers.empty or "cache_hit" not in ledgers:
+        return hits
+    board = ledgers[~ledgers["_smoke"] & (ledgers["cache_hit"] == True)]  # noqa: E712
+    board = board.dropna(subset=["provider_response_id", "request_started_at"])
+    columns = ["provider_response_id", "model", "scenario_id", "request_started_at"]
+    for response_id, model, scenario, started in board[columns].itertuples(index=False):
+        hits.setdefault(response_id, []).append((model, scenario, float(started)))
+    return hits
+
+
+def _smoke_ledger_times(ledgers: pd.DataFrame) -> dict[str, float]:
+    """When a smoke first served each response id live."""
+    if ledgers.empty or "cache_hit" not in ledgers:
+        return {}
+    smoke = ledgers[ledgers["_smoke"] & (ledgers["cache_hit"] != True)]  # noqa: E712
+    return (
+        smoke.dropna(subset=["provider_response_id", "request_completed_at"])
+        .groupby("provider_response_id")["request_completed_at"]
+        .min()
+        .to_dict()
+    )
 
 
 def build(
     predictions: pd.DataFrame,
     stored: dict[str, float],
     ledgers: pd.DataFrame,
-    smoke_ids: set[str],
+    smoke_times: dict[str, float],
 ) -> list[dict]:
     latency = household_latency_seconds(predictions)
     grouped = predictions.groupby(["model", "scenario_id"], sort=True)
     first_id = grouped["provider_response_id"].first()
     started = grouped["request_started_at"].min()
     board_start = predictions.groupby("model")["request_started_at"].min()
-
-    ledger_hit: set[str] = set()
-    smoke_live: dict[str, float] = {}
-    if not ledgers.empty:
-        board = ledgers[~ledgers["_smoke"] & (ledgers["cache_hit"] == True)]  # noqa: E712
-        ledger_hit = set(board["provider_response_id"].dropna())
-        smoke = ledgers[ledgers["_smoke"] & (ledgers["cache_hit"] != True)]  # noqa: E712
-        smoke_live = (
-            smoke.dropna(subset=["provider_response_id"])
-            .groupby("provider_response_id")["request_completed_at"]
-            .min()
-            .to_dict()
-        )
+    ledger_hits = _ledger_hits(ledgers)
+    smoke_ledger = _smoke_ledger_times(ledgers)
 
     rows = []
     for (model, scenario), seconds in latency.items():
@@ -216,25 +261,28 @@ def build(
         recorded = first_id.get((model, scenario))
         inner = provider_response_id(recorded)
         start = started.get((model, scenario))
-        existed: dict[str, float] = {}
+        timed = pd.notna(start)
+        # When the response is known to have existed, by source and clock.
+        local: dict[str, float] = {}
         if isinstance(inner, str) and inner in stored:
-            existed["cache"] = stored[inner]
+            local["cache"] = stored[inner]
+        if recorded in smoke_ledger:
+            local["smoke_ledger"] = float(smoke_ledger[recorded])
+        if recorded in smoke_times:
+            local["smoke_file"] = smoke_times[recorded]
+        existed = {name: when for name, when in local.items() if timed and when < start}
         created = id_created_at(inner)
-        if created is not None:
+        if created is not None and timed and created < start - MARGIN_SECONDS:
             name = "openrouter_id" if inner.startswith("gen-") else "openai_id"
             existed[name] = created
-        if recorded in smoke_live:
-            existed["smoke_ledger"] = float(smoke_live[recorded])
-        evidence = sorted(
-            name
-            for name, when in existed.items()
-            if pd.notna(start) and when < start - MARGIN_SECONDS
-        )
-        if recorded in ledger_hit:
-            evidence.append("spend_ledger")
-        if recorded in smoke_ids:
-            evidence.append("smoke_file")
-        evidence = sorted(set(evidence))
+        evidence = set(existed)
+        if timed and any(
+            hit_model == model
+            and hit_scenario == scenario
+            and abs(hit_start - start) <= SAME_REQUEST_SECONDS
+            for hit_model, hit_scenario, hit_start in ledger_hits.get(recorded, ())
+        ):
+            evidence.add("spend_ledger")
         if not evidence and seconds >= FULL_REPLAY_SECONDS:
             continue
         if not evidence:
@@ -242,9 +290,11 @@ def build(
         else:
             replay = "full" if seconds < FULL_REPLAY_SECONDS else "partial"
             earliest = min(existed.values()) if existed else None
-            if "smoke_ledger" in evidence or "smoke_file" in evidence:
+            if {"smoke_ledger", "smoke_file"} & evidence:
                 source = "onboarding smoke"
-            elif earliest is not None and earliest >= board_start[model]:
+            elif earliest is None:
+                source = "unknown"
+            elif earliest >= board_start[model]:
                 source = "same run"
             else:
                 source = "before the board rows"
@@ -254,10 +304,10 @@ def build(
                 "scenario_id": scenario,
                 "household_latency_seconds": f"{seconds:.6f}",
                 "replay": replay,
-                "evidence": "+".join(evidence),
+                "evidence": "+".join(sorted(evidence)),
                 "source": source,
                 "first_response_id": recorded,
-                "request_started_at": "" if pd.isna(start) else f"{start:.3f}",
+                "request_started_at": f"{start:.3f}" if timed else "",
                 "response_existed_at": (
                     f"{min(existed.values()):.3f}" if existed else ""
                 ),
@@ -279,7 +329,7 @@ def main() -> None:
         predictions,
         cache_store_times(args.cache_dir),
         ledger_records(args.ledger_root),
-        smoke_file_ids(args.ledger_root),
+        smoke_file_times(args.ledger_root),
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", newline="") as handle:

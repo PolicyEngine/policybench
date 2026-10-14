@@ -1434,7 +1434,11 @@ class PaperResults:
 
     @property
     def subsecond_median_shift_fmt(self) -> str:
-        return f"{self.subsecond_median_shift_seconds:.1f}"
+        """The shift rounded up to a tenth, so the prose's "no more than"
+        bound holds for the unrounded value."""
+        import math
+
+        return f"{math.ceil(self.subsecond_median_shift_seconds * 10) / 10:.1f}"
 
     @cached_property
     def latency_replay_audit(self) -> pd.DataFrame:
