@@ -106,6 +106,14 @@ def committed_record() -> dict:
 
 def restatements(stage: Path, record: dict) -> dict:
     """The current verdict of each committed decision on a re-opened case."""
+    spec = driver.load_spec()
+    triage = [
+        e
+        for e in record["adjudications"]
+        if spec.get("triage_adjudications")
+        and e["adjudicated_on"] == spec["triage_decided_on"]
+    ]
+    triage_day = spec.get("triage_decided_on")
     reopened = {
         entry["case_id"]
         for entry in json.loads(driver.JUDGE_PROVENANCE.read_text())["verdicts"]
@@ -128,17 +136,23 @@ def restatements(stage: Path, record: dict) -> dict:
             "judged_at_utc": meta["judged_at_utc"],
             "verdict_sha256": meta["verdict_sha256"],
         }
+    note = (
+        f"The verdicts release {driver.RELEASE_TAG}'s adjudication entries "
+        "name on the cases a new model re-opened: for each committed "
+        "decision on such a case, the case's verdict in the "
+        "exported stage, read by scripts/date_argon_judge_verdicts.py "
+        "from verdict.json and its sha256-bound verdict.meta.json. The "
+        "verdict each restatement replaced is release 20261013b's entry (git show "
+        f"{driver.BASE_COMMIT[:12]}:annotations/{driver.RUN_NAME}/"
+        f"{driver.ADJUDICATIONS})."
+    )
+    if triage:
+        note += (
+            f" The {len(triage)} triage decisions of the {triage_day} wave are "
+            "new and restate nothing."
+        )
     return {
-        "note": (
-            f"The verdicts release {driver.RELEASE_TAG}'s adjudication entries "
-            "name on the cases a new model re-opened: for each committed "
-            "decision on such a case, the case's verdict in the "
-            "exported stage, read by scripts/date_argon_judge_verdicts.py "
-            "from verdict.json and its sha256-bound verdict.meta.json. The "
-            "verdict each restatement replaced is release 20261013b's entry (git show "
-            f"{driver.BASE_COMMIT[:12]}:annotations/{driver.RUN_NAME}/"
-            f"{driver.ADJUDICATIONS})."
-        ),
+        "note": note,
         "release": driver.RELEASE_TAG,
         "base_commit": driver.BASE_COMMIT,
         "cases": dict(sorted(cases.items())),

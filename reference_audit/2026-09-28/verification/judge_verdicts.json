@@ -36,6 +36,12 @@
       "release": "dashboard-data-20261010",
       "pull_request": 208,
       "committed_on": "2026-10-10"
+    },
+    "2026-10-14": {
+      "commit": null,
+      "release": "dashboard-data-20261014",
+      "pull_request": null,
+      "adjudications_written_on": "2026-10-14"
     }
   },
   "cases": {
@@ -914,10 +920,10 @@
         "tree": "stage",
         "judge_model": "claude-opus-5-5",
         "case_failure_source": "llm_error",
-        "case_failure_subtype": "thresholds_rates",
-        "reference_suspect": false,
-        "judged_at_utc": "2026-09-29T01:49:55.706215+00:00",
-        "verdict_sha256": "806778b3960b2cb8e5aa46de8a5ccf1ab4191f09a7eecd45f6a31d96ee0fd4fa"
+        "case_failure_subtype": "state_local_rule",
+        "reference_suspect": true,
+        "judged_at_utc": "2026-10-14T00:30:26.806983+00:00",
+        "verdict_sha256": "724440358489b273096ef969de46a9974e853c6e0b360594ac3519d2e1271ef8"
       },
       "previous": {
         "tree": "20260922c",
@@ -927,14 +933,6 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-09-23T00:27:11.981428+00:00",
         "verdict_sha256": "0ae103e79bef21843fef6e173d865f26761c33ed1648a8d6d9fe1877c0d11408"
-      },
-      "published": {
-        "release": "dashboard-data-20260922",
-        "commit": "56844e2fa795e7cedc04cd3c34cfb4e67e6f08b5",
-        "judge_model": "claude-opus-5-5",
-        "case_failure_source": "llm_error",
-        "case_failure_subtype": "taxable_income_or_deductions",
-        "judged_on_utc": null
       }
     },
     "us__scenario_066__snap": {
@@ -2119,6 +2117,17 @@
         "case_failure_source": "prompt_ambiguity",
         "case_failure_subtype": "state_local_rule",
         "judged_on_utc": "2026-10-10"
+      }
+    },
+    "us__scenario_009__federal_income_tax_before_refundable_credits": {
+      "current": {
+        "tree": "stage",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "reference_suspect": false,
+        "judged_at_utc": "2026-10-13T19:09:37.041751+00:00",
+        "verdict_sha256": "72a05641e920398bbc9226f62c6218c8c7e7d3c85cb61ede2e8ed7bf04ee6636"
       }
     }
   }

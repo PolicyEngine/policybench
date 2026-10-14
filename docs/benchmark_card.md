@@ -394,7 +394,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-13 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-14 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
@@ -424,6 +424,16 @@ where no reconstruction was available. List-price overrides apply at request tim
 recorded costs. Models without per-call costs use the frozen release-metadata
 cost. Published model costs retain these recorded totals rather than repricing
 past calls at today's rates.
+
+The harness caches provider responses on disk, keyed on the request and the
+prompt contract version (`policybench/cache.py`). A board request identical to
+one sent earlier, such as an onboarding smoke on the same household, returns
+the cached response: the row records that response's answers, tokens and cost,
+and a latency of about zero. The Muse Spark 1.3 row replays its four smoke
+households (scenario_000, scenario_001, scenario_099 and scenario_119), each
+with the smoke's provider response id. In the frozen predictions other rows
+also answer some households in under 0.05 seconds, among them scenario_000 and
+scenario_001 for Muse Wonder, Claude Haiku 5.5 and Claude Opus 5.5.
 
 ## Country data paths
 

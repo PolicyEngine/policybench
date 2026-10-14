@@ -1247,8 +1247,9 @@ def main(argv: list[str] | None = None) -> None:
         print(
             f"Validated local release inputs: {args.tag}, {BOARD_MODELS} models, "
             f"{payload_hash}; references unchanged; {driver.RELEASE_EXCLUSIONS} "
-            f"exclusions ({driver.NEW_EXCLUSIONS} new); {added} adjudications "
-            f"added beyond the ruled outputs; {len(amendments)} wording "
+            f"exclusions ({driver.NEW_EXCLUSIONS} new); "
+            f"{len(driver.triage_items(None))} triage decisions; {added} "
+            f"adjudications added beyond them; {len(amendments)} wording "
             f"amendments; model responses {window}; snapshot {snapshot_date}; "
             "nothing written"
         )

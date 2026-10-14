@@ -79,23 +79,61 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 10 one", () => {
+  test("the newest note is the frozen release's, ahead of the October 13 one", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toContain("muse-wonder-joins-the-board");
+    expect(notes[0].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
-    // The October 10 note keeps its own release and board snapshot.
-    expect(notes[1].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[1].release).toBe("dashboard-data-20261010");
-    expect(notes[1].boardSnapshot).toBe("2026-10-10");
-    expect(notes[2].slug).toBe(
+    // The October 13 and October 10 notes keep their own releases and board
+    // snapshots.
+    expect(notes[1].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[1].release).toBe("dashboard-data-20261013");
+    expect(notes[1].boardSnapshot).toBe("2026-10-13");
+    expect(notes[2].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[2].release).toBe("dashboard-data-20261010");
+    expect(notes[2].boardSnapshot).toBe("2026-10-10");
+    expect(notes[3].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
   });
 
-  test("the Muse Wonder note renders its figures", () => {
+  test("the Gemini 4 Argon note renders its figures", () => {
     const note = notes[0];
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "Google&#x27;s Gemini 4 Argon joined the board on 2026-10-14, the day after Google opened it to the public Gemini API, and Meta&#x27;s Muse Spark 1.3 joined with it, bringing the board to 50 models.",
+    );
+    // Board rates keep one decimal.
+    expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers within $1");
+    expect(markup).toContain("#12 of 50 and the highest of any Gemini model");
+    expect(markup).toContain("Gemini 3.8 Flash, the previous best, gets 85.6% (#21)");
+    expect(markup).toContain(
+      "Muse Spark 1.3 gets 87.2% (#18), behind Meta&#x27;s Muse Wonder (90.1%, #10)",
+    );
+    expect(markup).toContain("it ranks #6.");
+    expect(markup).toContain(
+      "With the forced tool Gemini 4 Argon returned reasoning tokens on 80 of them, and on 85 in the board&#x27;s own run; with an automatic tool choice, on 82.",
+    );
+    // A cost keeps its cents.
+    expect(markup).toContain("the 100 households cost $2.79.");
+    expect(markup).toContain(
+      "every model is still scored on 1,935 of its 1,984 requested outputs. Each of the 48 earlier models keeps its score.",
+    );
+    expect(markup).toContain('href="/model/gemini-4-argon"');
+    expect(markup).toContain('href="/model/muse-spark-1.3"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261014"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the Muse Wonder note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-13-muse-wonder-joins-the-board",
+    )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );

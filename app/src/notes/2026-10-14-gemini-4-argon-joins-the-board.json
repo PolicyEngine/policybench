@@ -1,0 +1,65 @@
+{
+  "slug": "2026-10-14-gemini-4-argon-joins-the-board",
+  "date": "2026-10-14",
+  "title": "Google's Gemini 4 Argon and Meta's Muse Spark 1.3 join the board",
+  "paragraphs": [
+    "Google's Gemini 4 Argon joined the board on {releaseDate}, the day after Google opened it to the public Gemini API, and Meta's Muse Spark 1.3 joined with it, bringing the board to {nModels} models. Gemini 4 Argon gets {argonExact}% of answers within $1, weighted by household impact, #{argonRank} of {nModels} and the highest of any Gemini model; Gemini 3.8 Flash, the previous best, gets {flashExact}% (#{flashRank}). Muse Spark 1.3 gets {sparkExact}% (#{sparkRank}), behind Meta's Muse Wonder ({museExact}%, #{museRank}), but on the bounded score, which gives partial credit for amounts close to the reference, it ranks #{sparkBoundedRank}. GPT-6 Sol still leads on answers within $1 at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
+    "Google announced Gemini 4 Argon on September 30 for a group of partners and released it on the Gemini API on October 13. PolicyBench runs it there, as it does every Gemini model. The API accepts a forced answer tool, so the row answers through the board's tool and reasons at Google's default setting. A forced tool call suppresses some models' reasoning, as it does Claude Opus 5's, so PolicyBench fixed a test before looking at the results and ran all {households} households both ways. With the forced tool Gemini 4 Argon returned reasoning tokens on {forcedReasoning} of them, and on {boardReasoning} in the board's own run; with an automatic tool choice, on {autoReasoning}. The test found no significant reduction, so the board keeps the forced tool and publishes no second row. At Google's introductory price of $2 per million input tokens and $10 per million output tokens, which doubles on December 1, the {households} households cost ${argonCost}.",
+    "Muse Spark 1.3, which Meta released on September 2, is Meta's second model on the board. PolicyBench reaches it through OpenRouter, whose one endpoint for it is Meta's own API, as it does Muse Wonder. That API rejects a forced tool call, so the row answers as a JSON object and reasons at Meta's default setting.",
+    "Nothing else on the board moves. The newest policyengine-us release, {checkedEngine}, gives the same value as {engineVersion} for every output, so the references stay where they were, and every model is still scored on {scoredOutputs} of its {totalOutputs} requested outputs. Each of the {incumbents} earlier models keeps its score."
+  ],
+  "facts": {
+    "releaseDate": "2026-10-14",
+    "nModels": 50,
+    "argonExact": 88.7,
+    "argonRank": 12,
+    "flashExact": 85.6,
+    "flashRank": 21,
+    "sparkExact": 87.2,
+    "sparkRank": 18,
+    "museExact": 90.1,
+    "museRank": 10,
+    "sparkBoundedRank": 6,
+    "solExact": 95.2,
+    "opusExact": 94.1,
+    "sol56Exact": 93.1,
+    "households": 100,
+    "forcedReasoning": 80,
+    "boardReasoning": 85,
+    "autoReasoning": 82,
+    "argonCost": "2.79",
+    "checkedEngine": "2.41.3",
+    "engineVersion": "2.41.0",
+    "scoredOutputs": 1935,
+    "totalOutputs": 1984,
+    "incumbents": 48
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261014"
+    },
+    {
+      "label": "Release design note",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/argon/design.md"
+    },
+    {
+      "label": "Publication check against policyengine-us 2.41.3",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-12-engine-upgrade/verification/publication_check_2_41_3.csv"
+    },
+    {
+      "label": "Gemini 4 Argon model page",
+      "href": "/model/gemini-4-argon"
+    },
+    {
+      "label": "Muse Spark 1.3 model page",
+      "href": "/model/muse-spark-1.3"
+    },
+    {
+      "label": "Previous release note (October 13)",
+      "href": "/notes/2026-10-13-muse-wonder-joins-the-board"
+    }
+  ],
+  "boardSnapshot": "2026-10-14",
+  "release": "dashboard-data-20261014"
+}
