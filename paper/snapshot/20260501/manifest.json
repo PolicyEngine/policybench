@@ -20,12 +20,12 @@
       "file": "us_adjudications.json",
       "judge_flagged_by_reference_verdict": {
         "affirmed": 6,
-        "engine_defect": 2,
+        "engine_defect": 3,
         "later_law": 1,
         "regenerated": 5,
         "unlisted_input": 9
       },
-      "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records which entries the judge flagged."
+      "note": "Judge verdicts outside the final classes (llm_error, parse_contract_failure) are resolved by a recorded developer adjudication that keeps the judge's verdict and reasoning beside the adjudicated class; applied to the bundle before export so the published payload and the frozen annotations agree. Every case the judge flagged reference-suspect carries a reference verdict (affirmed, regenerated, engine_defect, unlisted_input, later_law) that clears the flag; judge_reference_suspect records whether the case's current verdict flagged it, and judge_flagged_by_reference_verdict counts a case any recorded judge verdict flagged (the current one, a judge_previous item, or an earlier run its judge_reference_suspect_source names)."
     },
     "files": {
       "us_adjudications.json": "df4cc1eb27bce6514185d294c4da3c7e76d94b9ead2b8fe921a8fd306090049e",
@@ -164,12 +164,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "cee26d0956da316ec4addce6176355b3c1c466f03521be0a70ff383daaaf48c6"
+      "sha256": "dd15047f8f75e10e6c011862d471ec8505a55e060a06a8d331e0b169b8454fee"
     },
     "web": {
       "files": {
-        "figures/positive_zero_scatter.png": "78805980cc6acfb770762501043be172c8bc96c30ebb19cb9d2f191c943c33da",
-        "index.html": "320e58e444701c4b44e5376e2fd2fb70d985d8a047c96f22e2ebfb8666fc390a",
+        "figures/positive_zero_scatter.png": "47a28fba15b58e86aa00cb52c991a09c5f393c40b9311c24001c201741610062",
+        "index.html": "5ddd44252dddc5cbeab5b80616bcd3c3eac3b3323bfb0b85d8090127af400e13",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",

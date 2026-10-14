@@ -56,6 +56,7 @@ import pandas as pd
 
 from policybench.adjudications import (
     excluded_case_keys,
+    judge_ever_flagged,
     load_adjudications,
     unresolved_suspect_cases,
     verify_adjudications_applied,
@@ -434,10 +435,13 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
         "by_reference_verdict": _count(
             e["reference_verdict"] for e in entries if e.get("reference_verdict")
         ),
+        # A case any recorded judge verdict flagged: the current one, a verdict
+        # a re-judge replaced (judge_previous), or an earlier run a
+        # judge_reference_suspect_source names.
         "judge_flagged_by_reference_verdict": _count(
             e["reference_verdict"]
             for e in entries
-            if e.get("judge_reference_suspect") and e.get("reference_verdict")
+            if judge_ever_flagged(e) and e.get("reference_verdict")
         ),
         "note": (
             "Judge verdicts outside the final classes (llm_error, "
@@ -447,8 +451,11 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             "published payload and the frozen annotations agree. Every case the "
             "judge flagged reference-suspect carries a reference verdict "
             "(affirmed, regenerated, engine_defect, unlisted_input, later_law) "
-            "that clears the flag; judge_reference_suspect records which "
-            "entries the judge flagged."
+            "that clears the flag; judge_reference_suspect records whether the "
+            "case's current verdict flagged it, and "
+            "judge_flagged_by_reference_verdict counts a case any recorded "
+            "judge verdict flagged (the current one, a judge_previous item, or "
+            "an earlier run its judge_reference_suspect_source names)."
         ),
     }
 

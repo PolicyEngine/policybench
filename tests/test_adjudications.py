@@ -12,6 +12,7 @@ import pytest
 from policybench.adjudications import (
     AdjudicationError,
     apply_adjudications,
+    judge_ever_flagged,
     load_adjudications,
     unresolved_suspect_cases,
     verify_adjudications_applied,
@@ -426,17 +427,35 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert block["by_reference_verdict"] == dict(
         Counter(e["reference_verdict"] for e in entries if e.get("reference_verdict"))
     )
-    # The judge flagged none of the 2026-10-05 wave's references. Release
-    # 20261014's re-judged verdicts flag one more unlisted-input case and one
-    # engine-defect case fewer, and its affirmed triage decision answers a
-    # flag.
+    # A case counts as judge-flagged when any verdict the record keeps flagged
+    # it (judge_ever_flagged). Release 20261014's re-judge flags one more
+    # unlisted-input case (scenario_114's federal income tax); its re-judge of
+    # scenario_005's federal income tax, an engine defect, no longer flags it,
+    # but the verdict it replaced did (judge_previous), so the case still
+    # counts; and its affirmed triage decision answers a flag.
     assert block["judge_flagged_by_reference_verdict"] == {
         "affirmed": 6,
-        "engine_defect": 2,
+        "engine_defect": 3,
         "later_law": 1,
         "regenerated": 5,
         "unlisted_input": 9,
     }
+    assert block["judge_flagged_by_reference_verdict"] == dict(
+        Counter(
+            e["reference_verdict"]
+            for e in entries
+            if e.get("reference_verdict") and judge_ever_flagged(e)
+        )
+    )
+    defect = next(
+        e
+        for e in entries
+        if (e["scenario_id"], e["variable"])
+        == ("scenario_005", "federal_income_tax_before_refundable_credits")
+    )
+    assert defect["reference_verdict"] == "engine_defect"
+    assert defect["judge_reference_suspect"] is False
+    assert defect["judge_previous"][-1]["judge_reference_suspect"] is True
     # When the 2026-10-05 wave decided them, the judge had flagged none of its
     # references: every verdict a decision kept from before release 20261014
     # is unflagged. Release 20261014's re-judge of scenario_114's federal
@@ -1675,3 +1694,33 @@ def test_release_20261014_restates_only_the_reopened_cases_and_adds_its_wave(
             replaced += 1
     # 51 restated decisions, each replacing release 20261013b's verdict.
     assert replaced == len(verdicts) - len(TRIAGE_CASES) == 51
+
+
+FLAG = st.fixed_dictionaries(
+    {},
+    optional={
+        "judge_reference_suspect": st.booleans(),
+        "judge_reference_suspect_source": st.sampled_from(["", "MOCK earlier run"]),
+    },
+)
+
+
+@settings(max_examples=200, deadline=None)
+@given(top=FLAG, previous=st.lists(FLAG, max_size=4), extra=FLAG)
+def test_judge_ever_flagged_properties(top, previous, extra):
+    """A case is judge-flagged exactly when the top-level verdict or any
+    judge_previous item carries a flag or names the run that raised one; a
+    re-judge appending to judge_previous never un-flags a case; and with no
+    history the helper is the top-level flag."""
+    entry = {**top, "judge_previous": previous}
+    flagged = [
+        bool(item.get("judge_reference_suspect"))
+        or bool(item.get("judge_reference_suspect_source"))
+        for item in (top, *previous)
+    ]
+    assert judge_ever_flagged(entry) == any(flagged)
+    if judge_ever_flagged(entry):
+        later = {**extra, "judge_previous": [*previous, top]}
+        assert judge_ever_flagged(later)
+    if not previous and not top.get("judge_reference_suspect_source"):
+        assert judge_ever_flagged(entry) == bool(top.get("judge_reference_suspect"))

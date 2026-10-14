@@ -173,17 +173,17 @@ builder, its evidence and the reviewed actions.
 
 ## Audit scope
 
-The frozen US annotations cover 8,503 scored rows selected because their
-legacy threshold score is below 1 (1,843 further annotated rows sit on the 49
+The frozen US annotations cover 8,765 scored rows selected because their
+legacy threshold score is below 1 (1,915 further annotated rows sit on the 49
 excluded outputs and are description, not audit). This audit universe contains
-8,499 of the snapshot's 8,499 exact-match misses and four exact hits. Another
-2,218 scored rows have a bounded score below 100 but fall outside the
+8,761 of the snapshot's 8,761 exact-match misses and four exact hits. Another
+2,329 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 266 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
+CLI for 264 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 319 cases: those the September 22, September 29, September 30, October 9
-and October 13 additions joined or a reference revision changed, and five whose
+5.5 for 322 cases: those the September 22, September 29, September 30, October 9,
+October 13 and October 14 additions joined or a reference revision changed, and five whose
 earlier verdicts an audit of the judges' transcripts could not show came from a
 judge that saw only its prompt
 (docs/judge_isolation_2026-09-30/REPORT.md); the
@@ -193,8 +193,8 @@ reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-61: one for each excluded output, one for each flagged reference the
-adjudication affirmed or replaced with a regenerated reference, and two for
+63: one for each excluded output, one for each flagged reference the
+adjudication affirmed or replaced with a regenerated reference, and three for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
 freeze.

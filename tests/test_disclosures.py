@@ -272,15 +272,17 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
     # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
     # below full bounded score (7,527, 7,523 and 2,072). Release 20261010
-    # adds Claude Haiku 5.5's rows and moves the scored outputs. The app's
-    # summarizeAuditUniverse recomputes the same counts from the payload
-    # (app/tests/auditUniverse.test.ts).
+    # adds Claude Haiku 5.5's rows and moves the scored outputs. Release
+    # 20261014 adds Gemini 4 Argon's and Muse Spark 1.3's rows (262 annotated
+    # misses, 111 unannotated rows below full bounded score) on unchanged
+    # references and exclusions. The app's summarizeAuditUniverse recomputes
+    # the same counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_503,
-        "exact_misses": 8_499,
-        "annotated_exact_misses": 8_499,
+        "annotated": 8_765,
+        "exact_misses": 8_761,
+        "annotated_exact_misses": 8_761,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_218,
+        "unannotated_below_full_bounded_score": 2_329,
     }
 
     for path in (
