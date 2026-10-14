@@ -1,0 +1,364 @@
+model,scenario_id,household_latency_seconds,replay,evidence,source,first_response_id,request_started_at,response_existed_at
+claude-haiku-4.5,scenario_009,0.026461,untraced,,untraced,chatcmpl-9c7cea35-2052-496a-bf4e-3602ca12515c,,
+claude-haiku-5.5,scenario_000,0.017322,full,smoke_file+spend_ledger,onboarding smoke,chatcmpl-992b7cba-d5e8-42da-9449-c06899393c28,1791495684.702,1791495644.564
+claude-haiku-5.5,scenario_001,0.117501,full,smoke_file+spend_ledger,onboarding smoke,chatcmpl-308e4847-b356-4499-a13a-3ab9f3208450,1791495684.777,1791495651.476
+claude-opus-5.5,scenario_000,0.029634,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-e65b82db-643d-47f9-b87a-d6143e484ca6,1790095878.103,1790095745.462
+claude-opus-5.5,scenario_001,0.029532,full,smoke_file+smoke_ledger+spend_ledger,onboarding smoke,chatcmpl-f5a49889-34ba-4ef9-8e78-3cd1cbd21ef7,1790095878.103,1790095771.107
+claude-sonnet-5,scenario_000,0.031374,full,cache+smoke_file,onboarding smoke,chatcmpl-d78ec31e-c962-43fd-a568-a6f2f8fc0214,1782978630.541,1782978530.271
+claude-sonnet-5,scenario_076,0.034917,full,cache,same run,chatcmpl-a1f0c372-ff8e-441d-9f94-18d544d87f47,1782980398.594,1782979796.859
+claude-sonnet-5,scenario_077,0.014105,full,cache,same run,chatcmpl-1ead1bd1-376b-45fe-8dad-599790a290be,1782980398.635,1782979899.118
+claude-sonnet-5,scenario_078,0.013461,full,cache,same run,chatcmpl-83be4c02-4aed-4c14-ac07-bd271ebb51c4,1782980398.652,1782979955.733
+claude-sonnet-5,scenario_079,0.014319,full,cache,same run,chatcmpl-89a48391-de8f-4e5b-a480-fe521adf292f,1782980398.669,1782980015.737
+claude-sonnet-5,scenario_080,60.086180,partial,cache,same run,chatcmpl-1a8790f3-4377-4791-8019-f8ec29b6b6cc,1782980398.686,1782980097.957
+claude-sonnet-5,scenario_108,0.028484,full,cache,same run,chatcmpl-0d161de2-daa8-474e-86ce-34c9856b4694,1782980402.165,1782979767.387
+claude-sonnet-5,scenario_109,0.040883,full,cache,same run,chatcmpl-d0c0f199-c820-4f87-bb5c-2efa48a36bde,1782980402.197,1782979823.052
+claude-sonnet-5,scenario_110,0.015177,full,cache,same run,chatcmpl-3d121844-95b6-43b5-b3cc-6c2704ffc17a,1782980402.247,1782979963.904
+claude-sonnet-5,scenario_111,0.017898,full,cache,same run,chatcmpl-24573c76-0a32-4835-b898-c519e810f0bd,1782980402.266,1782980022.908
+claude-sonnet-5,scenario_112,43.325586,partial,cache,same run,chatcmpl-f3062f00-4cf9-431b-afb0-dc821d65fb1c,1782980402.287,1782980090.591
+deepseek-v4-pro,scenario_000,0.008594,full,cache,before the board rows,9ef950f9-59da-4f99-9719-3ec6880ca9bd,1783264088.998,1783260231.726
+deepseek-v4-pro,scenario_001,0.001136,full,cache,before the board rows,902543e5-70c5-485d-a8c4-045a6f87e621,1783264089.007,1783260449.021
+glm-5.2,scenario_000,0.016873,full,cache+openrouter_id+smoke_file,onboarding smoke,gen-1783264675-wpwzQ9139F0ixJwnYjU6,1783331940.272,1783264675.000
+glm-5.2,scenario_001,0.007684,full,cache+openrouter_id+smoke_file,onboarding smoke,gen-1783264883-yVzMGCt6HL5zeDEZ1x21,1783331940.290,1783264883.000
+glm-5.2,scenario_002,0.007263,full,cache+openrouter_id,before the board rows,gen-1783266583-dTu6RztBLx3TX7bklky6,1783331940.299,1783266583.000
+glm-5.2,scenario_003,0.005803,full,cache+openrouter_id,before the board rows,gen-1783267235-LNoAViUajkhCjI10rkp8,1783331940.308,1783267235.000
+glm-5.2,scenario_004,0.006318,full,cache+openrouter_id,before the board rows,gen-1783267319-8HesUaIcOkl8n3N2jZQD,1783331940.315,1783267319.000
+glm-5.2,scenario_005,0.008563,full,cache+openrouter_id,before the board rows,gen-1783267850-H6Ou4TYXVgSzFKaVnry8,1783331940.322,1783267850.000
+glm-5.2,scenario_007,0.007492,full,cache+openrouter_id,before the board rows,gen-1783268397-EAIbLTW31jvbpSZcDl2R,1783331940.332,1783268397.000
+glm-5.2,scenario_008,0.030048,full,cache+openrouter_id,before the board rows,gen-1783269453-flMrbpFjayacmwkJJZ2S,1783331940.340,1783269453.000
+glm-5.2,scenario_009,0.005580,full,cache+openrouter_id,before the board rows,gen-1783271962-0K2VHknWlD1llXiMua1Y,1783331940.374,1783271962.000
+glm-5.2,scenario_012,0.007640,full,cache+openrouter_id,before the board rows,gen-1783272224-ppxmCCZVbJx83yRWUeVl,1783331940.380,1783272224.000
+glm-5.2,scenario_013,0.003717,full,cache+openrouter_id,before the board rows,gen-1783273142-UHDA014Q8pNNm0GLS4Pc,1783331940.389,1783273142.000
+glm-5.2,scenario_014,0.006413,full,cache+openrouter_id,before the board rows,gen-1783273348-Xj1UqttlBvGfyFHeDfb5,1783331940.393,1783273348.000
+glm-5.2,scenario_015,0.005958,full,cache+openrouter_id,before the board rows,gen-1783274195-dnJUUoeOYDxKX2w7cxGT,1783331940.401,1783274195.000
+glm-5.2,scenario_016,0.004191,full,cache+openrouter_id,before the board rows,gen-1783274669-dP0cmBPjXNPVCiuoNXtu,1783331940.407,1783274669.000
+glm-5.2,scenario_018,0.004627,full,cache+openrouter_id,before the board rows,gen-1783274711-S631hE9SOEtd3TadO5NN,1783331940.412,1783274711.000
+glm-5.2,scenario_020,0.004869,full,cache+openrouter_id,before the board rows,gen-1783274850-DWxn5YzbSYEEPLef22j1,1783331940.418,1783274850.000
+glm-5.2,scenario_021,0.004261,full,cache+openrouter_id,before the board rows,gen-1783275012-LdzAUp9Z8K3VntB1Tcje,1783331940.424,1783275012.000
+glm-5.2,scenario_022,0.007669,full,cache+openrouter_id,before the board rows,gen-1783275191-F8AF2A7iJv0aw7QxzoGo,1783331940.429,1783275191.000
+glm-5.2,scenario_023,0.007770,full,cache+openrouter_id,before the board rows,gen-1783275779-PfA1SQChuC6s5eqhGhdT,1783331940.437,1783275779.000
+glm-5.2,scenario_025,0.007165,full,cache+openrouter_id,before the board rows,gen-1783284666-lR2mGGVNlZZCEfA1GoHS,1783331940.446,1783284666.000
+glm-5.2,scenario_026,0.011444,full,cache+openrouter_id,before the board rows,gen-1783285120-qHCnsZjM8p00HlPDvcq9,1783331940.454,1783285120.000
+glm-5.2,scenario_027,0.012097,full,cache+openrouter_id,before the board rows,gen-1783285649-q6J5w9m1opbs0yAwdbUd,1783331940.468,1783285649.000
+glm-5.2,scenario_028,0.020727,full,cache+openrouter_id,before the board rows,gen-1783285698-jHyIHr6uFjh0SwpmLEFI,1783331940.482,1783285698.000
+glm-5.2,scenario_029,0.003923,full,cache+openrouter_id,before the board rows,gen-1783285783-m1bwLFWLkrdc3r6iu6Xm,1783331940.506,1783285783.000
+glm-5.2,scenario_030,0.003935,full,cache+openrouter_id,before the board rows,gen-1783285895-O8sipUdlWTV1rnSMK8m6,1783331940.511,1783285895.000
+glm-5.2,scenario_031,0.017882,full,cache+openrouter_id,before the board rows,gen-1783286076-BMAOcIJeOd1MfEPLqv41,1783331940.269,1783286076.000
+glm-5.2,scenario_032,0.023159,full,cache+openrouter_id,before the board rows,gen-1783286232-gAxiAq8YrTbMPsHXqM7U,1783331940.288,1783286232.000
+glm-5.2,scenario_033,0.007156,full,cache+openrouter_id,before the board rows,gen-1783287973-UvbqyCUGudTN6kBzTnmQ,1783331940.313,1783287973.000
+glm-5.2,scenario_036,0.007160,full,cache+openrouter_id,before the board rows,gen-1783288191-2Ko3ftXnBRVOTQdVabuL,1783331940.322,1783288191.000
+glm-5.2,scenario_037,0.004868,full,cache+openrouter_id,before the board rows,gen-1783289078-HSVaQRabeUmKRRnHWzMb,1783331940.330,1783289078.000
+glm-5.2,scenario_038,0.018407,full,cache+openrouter_id,before the board rows,gen-1783289456-0GCSJaw9iMhZShzp6Ucr,1783331940.335,1783289456.000
+glm-5.2,scenario_039,0.006487,full,cache+openrouter_id,before the board rows,gen-1783290940-JehQ5uSX1vbRkVxdX7wu,1783331940.356,1783290940.000
+glm-5.2,scenario_040,0.006169,full,cache+openrouter_id,before the board rows,gen-1783291214-HFIZyXsUnwrbzgNNKf4A,1783331940.363,1783291214.000
+glm-5.2,scenario_042,0.006445,full,cache+openrouter_id,before the board rows,gen-1783291447-f6YPEnMXI1OdCZfRdL49,1783331940.370,1783291447.000
+glm-5.2,scenario_043,0.004685,full,cache+openrouter_id,before the board rows,gen-1783291868-Jab45K33Zp8c5MT8pTVz,1783331940.378,1783291868.000
+glm-5.2,scenario_044,0.004609,full,cache+openrouter_id,before the board rows,gen-1783292488-ZL2duvKdwMKOD22SfKEH,1783331940.383,1783292488.000
+glm-5.2,scenario_045,0.006946,full,cache+openrouter_id,before the board rows,gen-1783292668-DUKUAUgjj8BOu920xIcQ,1783331940.389,1783292668.000
+glm-5.2,scenario_046,0.015504,full,cache+openrouter_id,before the board rows,gen-1783293350-eVBmjZqGx5ilW5av8q24,1783331940.396,1783293350.000
+glm-5.2,scenario_048,0.004639,full,cache+openrouter_id,before the board rows,gen-1783294113-gigBTYbMi87Slhljic2t,1783331940.414,1783294113.000
+glm-5.2,scenario_049,0.013697,full,cache+openrouter_id,before the board rows,gen-1783294772-VIbVIaIun5pCLxBqcI85,1783331940.419,1783294772.000
+glm-5.2,scenario_051,0.007044,full,cache+openrouter_id,before the board rows,gen-1783295024-4z0xWnmtg6rgIV4vMgAK,1783331940.435,1783295024.000
+glm-5.2,scenario_052,0.005729,full,cache+openrouter_id,before the board rows,gen-1783295505-J5mDMuhr39zvV9Pa46rN,1783331940.443,1783295505.000
+glm-5.2,scenario_053,0.003807,full,cache+openrouter_id,before the board rows,gen-1783295787-RkLKvfcewg0shPE6dOCl,1783331940.450,1783295787.000
+glm-5.2,scenario_054,0.011648,full,cache+openrouter_id,before the board rows,gen-1783295869-je6tQQQ8sm4RZaKTZu6O,1783331940.455,1783295869.000
+glm-5.2,scenario_055,0.004366,full,cache+openrouter_id,before the board rows,gen-1783296736-ZiHKeICIFbSE5NHxY9Np,1783331940.468,1783296736.000
+glm-5.2,scenario_056,0.008079,full,cache+openrouter_id,before the board rows,gen-1783296833-mndjxQmm5xxublVHP0RP,1783331940.473,1783296833.000
+glm-5.2,scenario_057,0.010171,full,cache+openrouter_id,before the board rows,gen-1783297498-unnyjX1F09SBP25meHPN,1783331940.482,1783297498.000
+glm-5.2,scenario_059,0.004785,full,cache+openrouter_id,before the board rows,gen-1783298873-ATvwj93EywbbNw0JP3Sr,1783331940.493,1783298873.000
+glm-5.2,scenario_060,0.006202,full,cache+openrouter_id,before the board rows,gen-1783298985-mzDG731e9oEjgBkIjxHw,1783331940.499,1783298985.000
+glm-5.2,scenario_062,0.004458,full,cache+openrouter_id,before the board rows,gen-1783299385-YOc1JzziCuCiyegqFuOO,1783331940.506,1783299385.000
+glm-5.2,scenario_064,0.037649,full,cache+openrouter_id,before the board rows,gen-1783266583-QdBf21Hct0zzY9pXzIZZ,1783331940.269,1783266583.000
+glm-5.2,scenario_066,0.007620,full,cache+openrouter_id,before the board rows,gen-1783268104-mXVnAaUCdHg4IMUH9S10,1783331940.311,1783268104.000
+glm-5.2,scenario_067,0.006880,full,cache+openrouter_id,before the board rows,gen-1783268952-ivYs5IMugKXLxPsj3qU1,1783331940.319,1783268952.000
+glm-5.2,scenario_068,0.006608,full,cache+openrouter_id,before the board rows,gen-1783269620-5G9p4Hu1BhI1ZZcROLMG,1783331940.327,1783269620.000
+glm-5.2,scenario_070,0.005462,full,cache+openrouter_id,before the board rows,gen-1783270125-HFLPRQj4UQC7NrWBcAc6,1783331940.335,1783270125.000
+glm-5.2,scenario_071,0.004727,full,cache+openrouter_id,before the board rows,gen-1783270368-OqxlidC2Sus8r9gXvZ2S,1783331940.341,1783270368.000
+glm-5.2,scenario_072,0.005811,full,cache+openrouter_id,before the board rows,gen-1783284434-C6r0fYsrE1BfqQriqVsP,1783331940.347,1783284434.000
+glm-5.2,scenario_073,0.005650,full,cache+openrouter_id,before the board rows,gen-1783284602-0b0Ked8ikI4CtMZrW1z1,1783331940.353,1783284602.000
+glm-5.2,scenario_074,0.005542,full,cache+openrouter_id,before the board rows,gen-1783284979-Mh64hhfSPmjlh910qTK6,1783331940.360,1783284979.000
+glm-5.2,scenario_075,0.007999,full,cache+openrouter_id,before the board rows,gen-1783285193-B1zfvrUkatvGpxORmdLM,1783331940.367,1783285193.000
+glm-5.2,scenario_076,0.007836,full,cache+openrouter_id,before the board rows,gen-1783285578-gwmPwYJr60p7p0bsbpsp,1783331940.375,1783285578.000
+glm-5.2,scenario_077,0.006071,full,cache+openrouter_id,before the board rows,gen-1783285905-MEbQM65Gj0leNbJPbH0L,1783331940.385,1783285905.000
+glm-5.2,scenario_078,0.004059,full,cache+openrouter_id,before the board rows,gen-1783286197-8bKqbLJsJxOrJKOIUwsk,1783331940.392,1783286197.000
+glm-5.2,scenario_079,0.009051,full,cache+openrouter_id,before the board rows,gen-1783286301-6tjVvXwGUY0OKeMvPTMG,1783331940.396,1783286301.000
+glm-5.2,scenario_080,0.010218,full,cache+openrouter_id,before the board rows,gen-1783286946-NGbwqQc0oX0CVmUQ2wWO,1783331940.406,1783286946.000
+glm-5.2,scenario_081,0.005579,full,cache+openrouter_id,before the board rows,gen-1783287433-kN9fZx22inubux95Wa7M,1783331940.418,1783287433.000
+glm-5.2,scenario_082,0.016309,full,cache+openrouter_id,before the board rows,gen-1783288326-mIJUhf8aXFhHcnwd1rIi,1783331940.425,1783288326.000
+glm-5.2,scenario_083,0.004758,full,cache+openrouter_id,before the board rows,gen-1783289434-n33lp4NDlIqs11pBA3Nk,1783331940.443,1783289434.000
+glm-5.2,scenario_084,0.005038,full,cache+openrouter_id,before the board rows,gen-1783289595-bVOV59e4DFEKfYfFbSlw,1783331940.449,1783289595.000
+glm-5.2,scenario_085,0.005083,full,cache+openrouter_id,before the board rows,gen-1783289830-KsJDuoKjQdmuL61aH94h,1783331940.454,1783289830.000
+glm-5.2,scenario_086,0.007000,full,cache+openrouter_id,before the board rows,gen-1783290022-D6zvgFVuW5HI1HmAGUaY,1783331940.460,1783290022.000
+glm-5.2,scenario_088,0.006379,full,cache+openrouter_id,before the board rows,gen-1783290330-GxRGZ71gWs0d88KAyJFy,1783331940.468,1783290330.000
+glm-5.2,scenario_089,0.006977,full,cache+openrouter_id,before the board rows,gen-1783291192-6Wrf9yE72w2bAD1MUOeK,1783331940.476,1783291192.000
+glm-5.2,scenario_090,0.003895,full,cache+openrouter_id,before the board rows,gen-1783291765-khoqjZLbGGQEp8Ez3B6B,1783331940.484,1783291765.000
+glm-5.2,scenario_091,0.004962,full,cache+openrouter_id,before the board rows,gen-1783292374-czt8mo2NroyfiRmGkZjQ,1783331940.488,1783292374.000
+glm-5.2,scenario_092,0.015390,full,cache+openrouter_id,before the board rows,gen-1783292562-BzyJY9NNHQF47MpCUI9N,1783333189.265,1783292562.000
+glm-5.2,scenario_093,0.007451,full,cache+openrouter_id,before the board rows,gen-1783292717-jSvawisBww1r8gqsMdu6,1783333189.281,1783292717.000
+glm-5.2,scenario_095,0.010188,full,cache+openrouter_id,before the board rows,gen-1783293828-bUEECmItUiDAZiJezOwC,1783333189.290,1783293828.000
+glm-5.2,scenario_098,0.005563,full,cache+openrouter_id,before the board rows,gen-1783294390-KH8cjOLjuqhmfkpVrPZK,1783333189.301,1783294390.000
+glm-5.2,scenario_099,0.013693,full,cache+openrouter_id,before the board rows,gen-1783331940-Aebly3eW1KYrgKWRZtu1,1783333189.308,1783331940.000
+glm-5.2,scenario_100,39.829285,partial,cache+openrouter_id,same run,gen-1783332255-zOaEFi0cUmXvZnyfHh4a,1783333189.323,1783332255.000
+glm-5.3,scenario_007,670.949044,partial,openrouter_id+spend_ledger,same run,gen-1788443437-kHB3di20R9eBcnvuAX6S,1788522468.992,1788443437.000
+glm-5.3,scenario_028,280.114137,partial,openrouter_id+spend_ledger,same run,gen-1788444666-BfwlvmD6jq7BRSDJbm3s,1788531688.961,1788444666.000
+glm-5.3,scenario_037,350.955777,partial,openrouter_id+spend_ledger,same run,gen-1788445259-ZoY2rZUiydfACfOec5d5,1788529640.906,1788445259.000
+glm-5.3,scenario_042,366.712537,partial,openrouter_id+spend_ledger,same run,gen-1788445513-9nhTScDFLYdxyAoTSg0n,1788535656.584,1788445513.000
+glm-5.3,scenario_043,55.408105,partial,openrouter_id+spend_ledger,same run,gen-1788445558-ZUZs55vSz5c1O3kHHDVM,1788523168.543,1788445558.000
+glm-5.3,scenario_046,102.070615,partial,openrouter_id+spend_ledger,same run,gen-1788445754-PFwn6BupdP1KRTp6UFKo,1788523263.040,1788445754.000
+glm-5.3,scenario_057,546.675098,partial,openrouter_id+spend_ledger,same run,gen-1788446232-xmkvi6ebZ6muMtxWdjmh,1788523615.857,1788446232.000
+glm-5.3,scenario_062,8.507851,partial,openrouter_id+spend_ledger,same run,gen-1788523847-iwtKxP7WTlCPcaYP5q2Y,1788556429.722,1788523847.000
+glm-5.3,scenario_064,3671.612833,partial,openrouter_id+spend_ledger,same run,gen-1788529640-XjMEO5vxBk5wuCwEr5NF,1788563482.334,1788529640.000
+glm-5.3,scenario_075,259.822257,partial,openrouter_id+spend_ledger,same run,gen-1788446387-clYogpRgQ6SiBl7JPxZA,1788524652.971,1788446387.000
+glm-5.3,scenario_086,112.633520,partial,openrouter_id+spend_ledger,same run,gen-1788525085-dTSkM98ErRDqCGEMumnx,1788530003.948,1788525085.000
+glm-5.3,scenario_091,45.313927,partial,openrouter_id+spend_ledger,same run,gen-1788525491-pK5oEjPwwzodUcGmRe9T,1788530129.901,1788525491.000
+glm-5.3,scenario_099,124.193102,partial,openrouter_id+spend_ledger,same run,gen-1788526049-zCakBsDZh7x7CoHgXNRV,1788530559.337,1788526049.000
+glm-5.3,scenario_102,158.606853,partial,openrouter_id+spend_ledger,same run,gen-1788526680-wE2KxUb2HCghIoIRzMxD,1788530559.338,1788526680.000
+glm-5.3,scenario_108,71.216645,partial,openrouter_id+spend_ledger,same run,gen-1788526914-2Ipat7Pm9uGb7w7LY3fH,1788531983.981,1788526914.000
+glm-5.3,scenario_117,84.563591,partial,openrouter_id+spend_ledger,same run,gen-1788446575-uo8BgHZi21mleE4CMwSr,1788527751.585,1788446575.000
+glm-5.3,scenario_119,616.636458,partial,openrouter_id+spend_ledger,same run,gen-1788527854-Emxg3msssl6gqhXCtU1w,1788532069.451,1788527854.000
+glm-5.3,scenario_122,389.279603,partial,openrouter_id+spend_ledger,same run,gen-1788446600-cgKyESrmHUNAnL2gAMOd,1788533524.876,1788446600.000
+gpt-5.6-luna,scenario_000,0.004324,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMDQ3OGVhN2ZkMDAyNjVhMDAwNmE0ZmVkMWRkNTY4ODE5ZWE3OGE5M2FhZmRmMWJlN2Q=,1783623249.474,1783622941.000
+gpt-5.6-luna,scenario_001,0.005954,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMDJjMDJiZDY3NWU5MWJjNjAwNmE0ZmVkMmE0YTcwODFhMWJlYmZkYjA4NjUwMzI3NDE=,1783623249.469,1783622954.000
+gpt-5.6-sol,scenario_000,0.006776,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMDhhMzE1ODVmNDJmZWUzMDAwNmE0ZmVjYzM4NTk4ODE5MTgyNWUzM2EwZmY4MDExZDA=,1783623303.475,1783622851.000
+gpt-5.6-sol,scenario_001,0.007025,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMGUxYmY2N2JjNzM4MGY1NzAwNmE0ZmVjZGVjNjU4ODE5ZDg3OWNlYTAzMjIwZjhmMzU=,1783623303.479,1783622878.000
+gpt-5.6-terra,scenario_000,0.006326,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMGE2ODVhMDk0NmQ1NTE1NDAwNmE0ZmVjZjk2MWE4ODE5Mjg5YTBjN2U1NzQxM2RkYzc=,1783623303.487,1783622905.000
+gpt-5.6-terra,scenario_001,0.006229,full,openai_id,before the board rows,resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfMDEyYzY4OWMyMjQ0YTI4ZDAwNmE0ZmVkMGJlZWZjODE5Zjg2NmMwMTBlMWU2Mzg5OTE=,1783623303.477,1783622923.000
+grok-4.3,scenario_000,0.021931,untraced,,untraced,4a87ac1c-9f23-909f-9f8b-d652a150e386,,
+kimi-k2.6,scenario_000,0.025560,full,cache+openrouter_id+smoke_file,onboarding smoke,gen-1783264675-MvBkFkbisFcUSVwUKEGM,1783420244.711,1783264675.000
+kimi-k2.6,scenario_001,0.022980,full,cache+openrouter_id+smoke_file,onboarding smoke,gen-1783265511-1BzQDC5BmQGyJzLlgkiw,1783420244.722,1783265511.000
+kimi-k2.6,scenario_002,0.020134,full,cache+openrouter_id,before the board rows,gen-1783266620-jkSxCNXhpwQX7nDLk4BK,1783420244.733,1783266620.000
+kimi-k2.6,scenario_003,0.020995,full,cache+openrouter_id,before the board rows,gen-1783267399-0lvWvDEXPVuWJ16HCkDt,1783420244.720,1783267399.000
+kimi-k2.6,scenario_004,0.019908,full,cache+openrouter_id,before the board rows,gen-1783268478-2A4MEh5EGJN6dACylNNS,1783420257.089,1783268478.000
+kimi-k2.6,scenario_005,0.030770,full,cache+openrouter_id,before the board rows,gen-1783268963-8QkfMfC6O7sMl3Limylo,1783420257.110,1783268963.000
+kimi-k2.6,scenario_007,0.031346,full,cache+openrouter_id,before the board rows,gen-1783271165-hX6BAmHVaFOBEgYBhN2P,1783420257.107,1783271165.000
+kimi-k2.6,scenario_008,0.067598,full,cache+openrouter_id,before the board rows,gen-1783272193-tgrp8KZffPV9vnXUEBnc,1783420257.093,1783272193.000
+kimi-k2.6,scenario_009,0.036505,full,cache+openrouter_id,before the board rows,gen-1783299623-eSJlBQJZNfVWcwKLMz88,1783420269.342,1783299623.000
+kimi-k2.6,scenario_012,0.047160,full,cache+openrouter_id,before the board rows,gen-1783300224-GPUwL5PUemor9fhyMDk3,1783420269.345,1783300224.000
+kimi-k2.6,scenario_013,0.023155,full,cache+openrouter_id,before the board rows,gen-1783301511-C9CR4I2NgE6Avdym8Ka4,1783420269.348,1783301511.000
+kimi-k2.6,scenario_014,0.036954,full,cache+openrouter_id,before the board rows,gen-1783362292-yupk4l3nmTvH2q949EqA,1783420269.342,1783362292.000
+kimi-k2.6,scenario_015,0.032797,full,cache+openrouter_id,before the board rows,gen-1783362896-CvVE77Y0kcpcq7ls9mhg,1783420282.559,1783362896.000
+kimi-k2.6,scenario_016,0.025906,full,cache+openrouter_id,before the board rows,gen-1783364817-0AYQSSQoYEYwj2ZkSuT7,1783420282.557,1783364817.000
+kimi-k2.6,scenario_018,0.030026,full,cache+openrouter_id,before the board rows,gen-1783365746-g0EGwxWi24XYDtwjkkMC,1783420282.559,1783365746.000
+kimi-k2.6,scenario_020,0.026624,full,cache+openrouter_id,before the board rows,gen-1783367534-LyfIwQjJNm2hrc0KYe2Y,1783420282.576,1783367534.000
+kimi-k2.6,scenario_021,0.036108,full,cache+openrouter_id,before the board rows,gen-1783368779-E2S1atFm3KGzYAk03zyT,1783420296.925,1783368779.000
+kimi-k2.6,scenario_022,0.037522,full,cache+openrouter_id,before the board rows,gen-1783355350-MkBJxY74vWFvuKlG7Xhp,1783420296.842,1783355350.000
+kimi-k2.6,scenario_023,0.039451,full,cache+openrouter_id,before the board rows,gen-1783357125-XbMLItNn1lOHOkXFvTlB,1783420296.844,1783357125.000
+kimi-k2.6,scenario_025,0.031495,full,cache+openrouter_id,before the board rows,gen-1783363013-hnaF3lovTZdUb7GYQAjt,1783420296.840,1783363013.000
+kimi-k2.6,scenario_026,0.056106,full,cache+openrouter_id,before the board rows,gen-1783364791-McGn6GLKUem52wjxgGAf,1783420309.768,1783364791.000
+kimi-k2.6,scenario_027,0.023750,full,cache+openrouter_id,before the board rows,gen-1783368433-8t5lHK3JUBnlp0n3kVHB,1783420309.774,1783368433.000
+kimi-k2.6,scenario_028,0.035226,full,cache+openrouter_id,before the board rows,gen-1783369848-4INgAbdDIuSemNHK4vXC,1783420309.768,1783369848.000
+kimi-k2.6,scenario_029,0.021021,full,cache+openrouter_id,before the board rows,gen-1783372098-TqKLVhyHVjQ5SeMVjsjt,1783420309.764,1783372098.000
+kimi-k2.6,scenario_030,0.028253,full,cache+openrouter_id,before the board rows,gen-1783387689-VlK6VB2iHZZgUunthzOL,1783420321.958,1783387689.000
+kimi-k2.6,scenario_031,0.018525,full,cache+openrouter_id,before the board rows,gen-1783266620-zn2a2MqqklxTWmVgi340,1783420321.956,1783266620.000
+kimi-k2.6,scenario_032,0.047279,full,cache+openrouter_id,before the board rows,gen-1783299409-kcjTZm7JVZ4XSH4kZW0R,1783420321.959,1783299409.000
+kimi-k2.6,scenario_033,0.023807,full,cache+openrouter_id,before the board rows,gen-1783388519-XpvVogYeMWers7WPzmqo,1783420321.958,1783388519.000
+kimi-k2.6,scenario_036,0.028435,full,cache+openrouter_id,before the board rows,gen-1783389273-Ylxv6Vaisri1QSSU7HtC,1783420455.259,1783389273.000
+kimi-k2.6,scenario_037,0.027188,full,cache+openrouter_id,before the board rows,gen-1783397356-uKARp2OvQialfu8XLeZj,1783420455.267,1783397356.000
+kimi-k2.6,scenario_038,0.045205,full,cache+openrouter_id,before the board rows,gen-1783403970-BnILa1kDEZNNSJTJEmcl,1783420455.259,1783403970.000
+kimi-k2.6,scenario_039,414.221534,partial,cache+openrouter_id,before the board rows,gen-1783407828-uPMHyKrXftW2GsWL7lMa,1783420455.262,1783407828.000
+kimi-k2.6,scenario_043,0.031529,full,cache+openrouter_id,before the board rows,gen-1783355350-wVYUwd3KlIwr62TNmEK9,1783420467.310,1783355350.000
+kimi-k2.6,scenario_044,0.026887,full,cache+openrouter_id,before the board rows,gen-1783356942-3K8MsVXqTCoxVeq0piNH,1783420476.395,1783356942.000
+kimi-k2.6,scenario_045,0.033757,full,cache+openrouter_id,before the board rows,gen-1783358186-OofNjEsOgja4q1FW2bAw,1783420486.332,1783358186.000
+kimi-k2.6,scenario_046,0.048324,full,cache+openrouter_id,before the board rows,gen-1783362292-1heJXaEJrIcaK3vkMHY6,1783420496.348,1783362292.000
+kimi-k2.6,scenario_048,0.023369,full,cache+openrouter_id,before the board rows,gen-1783363856-XQDv8RBTnfsjAz6Wpzxn,1783420506.712,1783363856.000
+kimi-k2.6,scenario_049,0.027492,full,cache+openrouter_id,before the board rows,gen-1783364291-9MscP3LsthSeEuqHe7s5,1783420516.718,1783364291.000
+kimi-k2.6,scenario_051,0.030375,full,cache+openrouter_id,before the board rows,gen-1783365389-QMJYe1zarXx0s5GDxxIm,1783420526.779,1783365389.000
+kimi-k2.6,scenario_052,0.029431,full,cache+openrouter_id,before the board rows,gen-1783366643-WEohM4ToBwZRv6jk4T74,1783420536.891,1783366643.000
+kimi-k2.6,scenario_053,0.024262,full,cache+openrouter_id,before the board rows,gen-1783367653-BjdCYhXUnAxgRX8z594w,1783420547.236,1783367653.000
+kimi-k2.6,scenario_054,0.037881,full,cache+openrouter_id,before the board rows,gen-1783369166-CzuxJ6WPLTfQysIPvOiw,1783420557.056,1783369166.000
+kimi-k2.6,scenario_055,0.019701,full,cache+openrouter_id,before the board rows,gen-1783371681-4L2RrcRDsL1gpNW55aPS,1783420566.870,1783371681.000
+kimi-k2.6,scenario_056,0.043097,full,cache+openrouter_id,before the board rows,gen-1783387959-cHoq0FsqgRA7uYEuSXfG,1783420576.901,1783387959.000
+kimi-k2.6,scenario_057,0.031445,full,cache+openrouter_id,before the board rows,gen-1783390372-mb7POQAXCoYPVLEHKHev,1783420586.812,1783390372.000
+kimi-k2.6,scenario_059,0.019348,full,cache+openrouter_id,before the board rows,gen-1783392683-WI3bfvIbtD9PfkEj3WNu,1783420596.721,1783392683.000
+kimi-k2.6,scenario_060,0.016183,full,cache+openrouter_id,before the board rows,gen-1783394046-tZ4skudh5inYY0CJwkaE,1783420606.849,1783394046.000
+kimi-k2.6,scenario_062,0.029063,full,cache+openrouter_id,before the board rows,gen-1783395526-hWQ8K7Lwt9zDzlsRTHDv,1783420616.797,1783395526.000
+kimi-k2.6,scenario_064,0.061694,full,cache+openrouter_id,before the board rows,gen-1783266620-06JXdv6urXLyaOi10cc2,1783420626.914,1783266620.000
+kimi-k2.6,scenario_066,0.021828,full,cache+openrouter_id,before the board rows,gen-1783299784-bAYcCcoQBPsKybwhzUWT,1783420636.966,1783299784.000
+kimi-k2.6,scenario_067,0.031418,full,cache+openrouter_id,before the board rows,gen-1783300618-Pt5iY9R6THgh171NHjKv,1783420646.901,1783300618.000
+kimi-k2.6,scenario_068,0.022989,full,cache+openrouter_id,before the board rows,gen-1783387176-i2JnoVlhpl9BKRQvs3tl,1783420656.971,1783387176.000
+kimi-k2.6,scenario_070,0.023721,full,cache+openrouter_id,before the board rows,gen-1783388718-UvkaYcPiOLsiUggnhzzu,1783420666.984,1783388718.000
+kimi-k2.6,scenario_071,0.020934,full,cache+openrouter_id,before the board rows,gen-1783396400-tjo1NPH4Xx49m4IvyV0V,1783420676.919,1783396400.000
+kimi-k2.6,scenario_072,0.024056,full,cache+openrouter_id,before the board rows,gen-1783397131-vmKGu6jqz92c0GHjI1Td,1783420687.177,1783397131.000
+kimi-k2.6,scenario_073,0.021378,full,cache+openrouter_id,before the board rows,gen-1783398699-it8NaXfXvd3vnX9yVdmF,1783420697.243,1783398699.000
+kimi-k2.6,scenario_074,0.029813,full,cache+openrouter_id,before the board rows,gen-1783399020-igoJsO6G8fmVZIbT1qeB,1783420707.170,1783399020.000
+kimi-k2.6,scenario_075,0.023099,full,cache+openrouter_id,before the board rows,gen-1783399775-PpDxK7O9uAbITO5ocuLj,1783420717.134,1783399775.000
+kimi-k2.6,scenario_076,0.036734,full,cache+openrouter_id,before the board rows,gen-1783404273-OcJ55m2J45uRkvjkDMMn,1783420727.193,1783404273.000
+kimi-k2.6,scenario_077,0.037854,full,cache+openrouter_id,before the board rows,gen-1783404763-cSYJjqxkdkuGE3SqIEg4,1783420737.325,1783404763.000
+kimi-k2.6,scenario_078,236.701054,partial,cache+openrouter_id,same run,gen-1783421113-OUloMQcpdEMLMoimeUDm,1783432001.450,1783421113.000
+kimi-k2.6,scenario_083,0.022446,full,cache+openrouter_id,before the board rows,gen-1783355350-P70VIc2gK4rj7XwO3GLE,1783423066.514,1783355350.000
+kimi-k2.6,scenario_084,0.023209,full,cache+openrouter_id,before the board rows,gen-1783356457-7sr7d87oOGyQso7wY1fh,1783423077.727,1783356457.000
+kimi-k2.6,scenario_085,0.024019,full,cache+openrouter_id,before the board rows,gen-1783358252-IveYSn7P4Uvb0GS7JLuK,1783423089.799,1783358252.000
+kimi-k2.6,scenario_086,0.040194,full,cache+openrouter_id,before the board rows,gen-1783359454-YsTX5gIFRb1yJumxlK8D,1783423099.744,1783359454.000
+kimi-k2.6,scenario_088,0.026725,full,cache+openrouter_id,before the board rows,gen-1783387443-K0Pxvh2OWOZLwUQvxcbL,1783423110.443,1783387443.000
+kimi-k2.6,scenario_089,0.034123,full,cache+openrouter_id,before the board rows,gen-1783388646-ChTE56zHNkyy5TDTp8jw,1783423121.315,1783388646.000
+kimi-k2.6,scenario_090,0.019432,full,cache+openrouter_id,before the board rows,gen-1783390934-eHovPWjELurt3tmSkvbY,1783423131.318,1783390934.000
+kimi-k2.6,scenario_091,0.032730,full,cache+openrouter_id,before the board rows,gen-1783396503-Ao1OayHmvfmRc8BjA0x5,1783423141.122,1783396503.000
+kimi-k2.6,scenario_092,0.029124,full,cache+openrouter_id,before the board rows,gen-1783266620-3ziZe5vQVmJXy2b1W9le,1783423151.088,1783266620.000
+kimi-k2.6,scenario_093,0.027950,full,cache+openrouter_id,before the board rows,gen-1783299409-nViiqzgc40F5W7xvIZk3,1783423161.109,1783299409.000
+kimi-k2.6,scenario_095,0.028090,full,cache+openrouter_id,before the board rows,gen-1783300266-4YWBfWhmqrwQbJgrrkF5,1783423171.313,1783300266.000
+kimi-k2.6,scenario_098,0.020831,full,cache+openrouter_id,before the board rows,gen-1783300802-hiHJAcilyIvlnxuz1wP0,1783423175.395,1783300802.000
+kimi-k2.6,scenario_099,0.044692,full,cache+openrouter_id,before the board rows,gen-1783398037-GWXnGXORP9FcoerMFGYg,1783423181.431,1783398037.000
+kimi-k2.6,scenario_100,0.044659,full,cache+openrouter_id,before the board rows,gen-1783404571-dsVPl6Vla5lrjQnaKSL5,1783423185.501,1783404571.000
+kimi-k2.6,scenario_107,0.033450,full,cache+openrouter_id,before the board rows,gen-1783355350-2YwODSzJOJBoA4GjLeyT,1783423908.758,1783355350.000
+kimi-k2.6,scenario_108,0.039933,full,cache+openrouter_id,before the board rows,gen-1783356685-Kn6JyttSXOAJuTnqS3fc,1783423921.083,1783356685.000
+kimi-k2.6,scenario_109,776.957269,partial,cache+openrouter_id,before the board rows,gen-1783358519-0nhzWBSTP5yVevGnCHWn,1783438481.948,1783358519.000
+kimi-k2.6,scenario_123,279.558510,partial,cache+openrouter_id,same run,gen-1783430400-6DcG4kkUriXTUnw43sNo,1783432713.641,1783430400.000
+kimi-k3,scenario_008,1591.501587,partial,cache+openrouter_id,same run,gen-1784382637-oyVCDk8yDTL7Df16gsc4,1784426539.404,1784382637.000
+kimi-k3,scenario_026,693.837113,partial,cache+openrouter_id,same run,gen-1784384047-3E45FwuF1bag4PUOEZNH,1784426539.401,1784384047.000
+minimax-m3,scenario_000,0.014041,full,cache+openrouter_id,before the board rows,gen-1783264298-9iQ10dYE9ySSbhPXFHuq,1783276494.117,1783264298.000
+minimax-m3,scenario_001,0.001252,full,cache+openrouter_id,before the board rows,gen-1783264305-fZUCVHiqrAEKj0tWQvsB,1783276494.132,1783264305.000
+minimax-m3,scenario_002,0.001052,full,cache+openrouter_id,before the board rows,gen-1783264313-4eTNra94ubxqvIfr7BdD,1783276494.133,1783264313.000
+minimax-m3,scenario_003,0.001275,full,cache+openrouter_id,before the board rows,gen-1783264325-Brw7uwILGQLGjSqSzBDU,1783276494.135,1783264325.000
+minimax-m3,scenario_004,0.001078,full,cache+openrouter_id,before the board rows,gen-1783264330-II0NZnN7LDc1zx2qhyUE,1783276494.136,1783264330.000
+minimax-m3,scenario_005,0.004243,full,cache+openrouter_id,before the board rows,gen-1783264341-xwX8ADdMN1vnme4E2f96,1783276494.138,1783264341.000
+minimax-m3,scenario_007,0.000990,full,cache+openrouter_id,before the board rows,gen-1783264355-xs03DPfLvEgYbnU5m34g,1783276494.143,1783264355.000
+minimax-m3,scenario_008,0.002376,full,cache+openrouter_id,before the board rows,gen-1783264362-oPNwqutlfVJHMEiWzoiq,1783276494.145,1783264362.000
+minimax-m3,scenario_009,0.001820,full,cache+openrouter_id,before the board rows,gen-1783264628-diJqtdgjjZJs1Yb8CcLS,1783276494.148,1783264628.000
+minimax-m3,scenario_012,0.001590,full,cache+openrouter_id,before the board rows,gen-1783264781-g9gBXVuoLlBIID4vC1yM,1783276494.150,1783264781.000
+minimax-m3,scenario_013,0.001412,full,cache+openrouter_id,before the board rows,gen-1783264860-nCOXnMppPB5wNbruELOM,1783276494.152,1783264860.000
+minimax-m3,scenario_014,0.000728,full,cache+openrouter_id,before the board rows,gen-1783264870-cBhmqfQNJ1F2XBYRTUd4,1783276494.154,1783264870.000
+minimax-m3,scenario_015,0.000689,full,cache+openrouter_id,before the board rows,gen-1783264883-OQzrFUHtLtid6JgXtPMR,1783276494.155,1783264883.000
+minimax-m3,scenario_016,0.000713,full,cache+openrouter_id,before the board rows,gen-1783264893-oq3eUcaRMtk7W0XxYat0,1783276494.156,1783264893.000
+minimax-m3,scenario_018,0.000704,full,cache+openrouter_id,before the board rows,gen-1783264905-OoKwsbJYdm3aVZGhu1gn,1783276494.157,1783264905.000
+minimax-m3,scenario_020,0.000783,full,cache+openrouter_id,before the board rows,gen-1783264910-yR0yOceot127VZuwneCd,1783276494.158,1783264910.000
+minimax-m3,scenario_021,0.000587,full,cache+openrouter_id,before the board rows,gen-1783264913-YiH6xq5Gra73oYTZleBO,1783276494.159,1783264913.000
+minimax-m3,scenario_022,0.000976,full,cache+openrouter_id,before the board rows,gen-1783264922-hxF931ATMcqMPCp30eo3,1783276494.160,1783264922.000
+minimax-m3,scenario_023,0.002535,full,cache+openrouter_id,before the board rows,gen-1783264929-v3bK3u3swxM6qYMMpgAJ,1783276494.161,1783264929.000
+minimax-m3,scenario_025,0.000733,full,cache+openrouter_id,before the board rows,gen-1783265126-KbnxrJaUFXGaeTQokDpf,1783276494.164,1783265126.000
+minimax-m3,scenario_026,15.547861,partial,cache+openrouter_id,before the board rows,gen-1783265136-hPy76ijxLRfWcnjxyb4P,1783276494.165,1783265136.000
+minimax-m3,scenario_064,0.015252,full,cache+openrouter_id,before the board rows,gen-1783264298-blf0WsiZOgsExfUmXTeW,1783276494.118,1783264298.000
+minimax-m3,scenario_066,0.001026,full,cache+openrouter_id,before the board rows,gen-1783264309-cHoPX5zcLrrDVACVBRTc,1783276494.134,1783264309.000
+minimax-m3,scenario_067,0.002441,full,cache+openrouter_id,before the board rows,gen-1783264315-d2qBotEM2cvL3WIFyb3K,1783276494.135,1783264315.000
+minimax-m3,scenario_068,0.002468,full,cache+openrouter_id,before the board rows,gen-1783264563-KJuskqm5bKLYiWkUjwB0,1783276494.138,1783264563.000
+minimax-m3,scenario_070,0.001029,full,cache+openrouter_id,before the board rows,gen-1783264720-tLcUSD4a86uSiMG5Cs6R,1783276494.141,1783264720.000
+minimax-m3,scenario_071,0.000836,full,cache+openrouter_id,before the board rows,gen-1783264728-OLjqoe1FQsVqUnBrAgcE,1783276494.142,1783264728.000
+minimax-m3,scenario_072,0.000832,full,cache+openrouter_id,before the board rows,gen-1783264734-vvIzLw8SEBCynOblFfVG,1783276494.143,1783264734.000
+minimax-m3,scenario_073,0.001550,full,cache+openrouter_id,before the board rows,gen-1783264746-p4OfKzCRa6VIiEDJh3Bv,1783276494.144,1783264746.000
+minimax-m3,scenario_074,0.000769,full,cache+openrouter_id,before the board rows,gen-1783264757-ulV63c3CWtxwkhylGD28,1783276494.146,1783264757.000
+minimax-m3,scenario_075,0.001613,full,cache+openrouter_id,before the board rows,gen-1783264765-38VvKOCnsROTRGpJ15V8,1783276494.148,1783264765.000
+minimax-m3,scenario_076,0.002518,full,cache+openrouter_id,before the board rows,gen-1783264861-5fYy30PJR8GKSMldc2K3,1783276494.150,1783264861.000
+minimax-m3,scenario_077,0.000735,full,cache+openrouter_id,before the board rows,gen-1783265117-7j33SN52q934PWGeiCX5,1783276494.153,1783265117.000
+minimax-m3,scenario_078,0.000681,full,cache+openrouter_id,before the board rows,gen-1783265125-RiAtULt1i3bEoZsb9Wze,1783276494.154,1783265125.000
+minimax-m3,scenario_079,0.000703,full,cache+openrouter_id,before the board rows,gen-1783265128-8NCDtaC1Jm2NBpUgdOcH,1783276494.154,1783265128.000
+minimax-m3,scenario_080,0.000694,full,cache+openrouter_id,before the board rows,gen-1783265137-kh7lGmbiE471wNFVEPfk,1783276494.155,1783265137.000
+minimax-m3,scenario_081,0.000482,full,cache+openrouter_id,before the board rows,gen-1783265147-SssVfKp0S3JjBZoCmt5S,1783276494.156,1783265147.000
+minimax-m3,scenario_082,0.001966,full,cache+openrouter_id,before the board rows,gen-1783265149-xQok5jaOvQVPkUstFBq8,1783276494.157,1783265149.000
+minimax-m3,scenario_083,0.000991,full,cache+openrouter_id,before the board rows,gen-1783265165-l3tczzxzDxDzjZmucKy9,1783276494.160,1783265165.000
+minimax-m3,scenario_084,0.000547,full,cache+openrouter_id,before the board rows,gen-1783265176-zBTk8o1Gyhhn4VzqHiwP,1783276494.161,1783265176.000
+minimax-m3,scenario_085,0.000940,full,cache+openrouter_id,before the board rows,gen-1783265184-FoJAvNiwLCSbIICf1BXU,1783276494.162,1783265184.000
+minimax-m3,scenario_086,0.001911,full,cache+openrouter_id,before the board rows,gen-1783265193-EtxmU31I1ETRLF7v70zW,1783276494.163,1783265193.000
+minimax-m3,scenario_088,0.000687,full,cache+openrouter_id,before the board rows,gen-1783265428-HHJ1Mk0Vwhhjr1RalLz3,1783276494.165,1783265428.000
+minimax-m3,scenario_089,0.001477,full,cache+openrouter_id,before the board rows,gen-1783265890-OfpppF9i0wJWZ2AsnU3V,1783276494.166,1783265890.000
+minimax-m3,scenario_090,0.000507,full,cache+openrouter_id,before the board rows,gen-1783266101-qzTPneeMSmphEjTxYH43,1783276494.168,1783266101.000
+minimax-m3,scenario_091,0.000852,full,cache+openrouter_id,before the board rows,gen-1783266113-WHcB7JtAn6p3hhzaIdYW,1783276494.169,1783266113.000
+minimax-m3,scenario_092,0.000783,full,cache+openrouter_id,before the board rows,gen-1783266119-oxOQf9soJEHcgQTyPKFy,1783276494.187,1783266119.000
+minimax-m3,scenario_093,0.000669,full,cache+openrouter_id,before the board rows,gen-1783266582-PuPeHRZ1lfIZ0OHCojFt,1783276494.189,1783266582.000
+minimax-m3,scenario_095,0.002148,full,cache+openrouter_id,before the board rows,gen-1783266591-26MwyBg9fxF9qHCS7w50,1783276494.190,1783266591.000
+minimax-m3,scenario_098,0.000572,full,cache+openrouter_id,before the board rows,gen-1783266825-MDSZrcB2ivWsIpGNrNuZ,1783276494.192,1783266825.000
+minimax-m3,scenario_099,0.000622,full,cache+openrouter_id,before the board rows,gen-1783266832-7O292eRUvYPNRaYBAo4n,1783276494.193,1783266832.000
+minimax-m3,scenario_100,0.000629,full,cache+openrouter_id,before the board rows,gen-1783266842-W4TeWKiyf6M0coeXN33V,1783276494.194,1783266842.000
+minimax-m3,scenario_101,0.002176,full,cache+openrouter_id,before the board rows,gen-1783266857-xENsYU7AEs49WC3EZKuj,1783276494.195,1783266857.000
+minimax-m3,scenario_102,0.001282,full,cache+openrouter_id,before the board rows,gen-1783266873-T0P09NrEJkNxDKrQeSeS,1783276494.198,1783266873.000
+muse-spark-1.3,scenario_000,0.021963,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791913993-DpxohcSu78LDiLgPpcLx,1791914304.295,1791913993.000
+muse-spark-1.3,scenario_001,0.020273,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791913993-5zJ3lqf7ETE5I6JRbs1T,1791914304.295,1791913993.000
+muse-spark-1.3,scenario_099,0.012316,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791913993-PQn6iUoqkvByarTtbdyC,1791915179.386,1791913993.000
+muse-spark-1.3,scenario_119,0.010278,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791913993-Hwjd8TvOupjGQoEWJMUH,1791915312.922,1791913993.000
+muse-wonder,scenario_000,0.010042,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791859722-dbN2jdViiyGxcdRzn0eG,1791859801.894,1791859722.000
+muse-wonder,scenario_001,0.009422,full,openrouter_id+smoke_file+smoke_ledger+spend_ledger,onboarding smoke,gen-1791859722-nZ1hgpzJG024bIN2YP6L,1791859801.912,1791859722.000
+ox-alpha,scenario_008,111.679407,partial,cache+openrouter_id+spend_ledger,same run,gen-1787353297-fclFQjwEeGUWqE54QgTr,1787360471.044,1787353297.000
+ox-alpha,scenario_023,351.659923,partial,cache+openrouter_id+spend_ledger,same run,gen-1787353751-tROrBhYcebBFVfaY5slH,1787360471.043,1787353751.000
+ox-alpha,scenario_038,271.122913,partial,cache+openrouter_id+spend_ledger,same run,gen-1787365665-hVIDbJuHcN35XLjHBTr9,1787395308.191,1787365665.000
+ox-alpha,scenario_039,275.210712,partial,cache+openrouter_id+spend_ledger,same run,gen-1787370980-uTCF2Ylw6h5y2dHyBWuN,1787395308.195,1787370980.000
+qwen-3.7-max,scenario_000,0.020002,full,cache+openrouter_id,before the board rows,gen-1783333641-JiEAUm8237YHFmJUM8hN,1783381171.662,1783333641.000
+qwen-3.7-max,scenario_001,0.011061,full,cache+openrouter_id,before the board rows,gen-1783333839-EWobKn29RdTgB3goyMuK,1783381171.683,1783333839.000
+qwen-3.7-max,scenario_002,0.010231,full,cache+openrouter_id,before the board rows,gen-1783335088-83zwIyqsij6RGWvIsNwp,1783381171.696,1783335088.000
+qwen-3.7-max,scenario_003,0.007404,full,cache+openrouter_id,before the board rows,gen-1783335635-XgbKgfYbuP7Jfv20CdQd,1783381171.708,1783335635.000
+qwen-3.7-max,scenario_004,0.008426,full,cache+openrouter_id,before the board rows,gen-1783335904-6Lat06V7LDjdivbOjQzf,1783381171.716,1783335904.000
+qwen-3.7-max,scenario_005,0.009426,full,cache+openrouter_id,before the board rows,gen-1783336176-aaJrXGJ8Az8bKTEXx1VC,1783381171.726,1783336176.000
+qwen-3.7-max,scenario_007,0.009372,full,cache+openrouter_id,before the board rows,gen-1783336909-SS2xlgkmq5vnjd5j1Xtj,1783381171.737,1783336909.000
+qwen-3.7-max,scenario_008,0.022191,full,cache+openrouter_id,before the board rows,gen-1783348516-629V5MW7GTNItkGi5hrr,1783381171.747,1783348516.000
+qwen-3.7-max,scenario_009,0.007921,full,cache+openrouter_id,before the board rows,gen-1783349087-pCf1n706YpcI5v79tTs7,1783381171.773,1783349087.000
+qwen-3.7-max,scenario_012,0.014097,full,cache+openrouter_id,before the board rows,gen-1783350019-TTHw2FxbeQT8e07kN6dq,1783381171.782,1783350019.000
+qwen-3.7-max,scenario_013,0.007858,full,cache+openrouter_id,before the board rows,gen-1783350966-PnT8Ehb2FIVim6l0NMC6,1783381171.798,1783350966.000
+qwen-3.7-max,scenario_014,0.009577,full,cache+openrouter_id,before the board rows,gen-1783353600-lgoVcdniXAVRpoF7ldPs,1783381171.807,1783353600.000
+qwen-3.7-max,scenario_015,0.008274,full,cache+openrouter_id,before the board rows,gen-1783356907-Y4Dc4EmbwiW3muHRCTn0,1783381171.818,1783356907.000
+qwen-3.7-max,scenario_016,0.006466,full,cache+openrouter_id,before the board rows,gen-1783357376-0Crtw2Ewsess5MC4d8zZ,1783381171.827,1783357376.000
+qwen-3.7-max,scenario_018,0.006626,full,cache+openrouter_id,before the board rows,gen-1783357578-pxOA9NuOmbkVCVnFCGPg,1783381171.835,1783357578.000
+qwen-3.7-max,scenario_020,0.005361,full,cache+openrouter_id,before the board rows,gen-1783359343-sa2sUysnYDtTpa1qx2lN,1783381171.843,1783359343.000
+qwen-3.7-max,scenario_021,0.005762,full,cache+openrouter_id,before the board rows,gen-1783359570-HrdmhDcBIoEAF1g8wrUG,1783381171.849,1783359570.000
+qwen-3.7-max,scenario_022,0.019229,full,cache+openrouter_id,before the board rows,gen-1783353600-FyuOMlAZkhow2KmnxhBU,1783381171.664,1783353600.000
+qwen-3.7-max,scenario_023,0.011890,full,cache+openrouter_id,before the board rows,gen-1783359330-Z3eN0GATWrACWFsdpHtM,1783381171.684,1783359330.000
+qwen-3.7-max,scenario_025,0.009880,full,cache+openrouter_id,before the board rows,gen-1783362291-Xq7WqzynEK2CJGQebRgS,1783381171.697,1783362291.000
+qwen-3.7-max,scenario_026,0.019781,full,cache+openrouter_id,before the board rows,gen-1783363173-PqZdP5x0Lm6m4n3ItLTM,1783381171.708,1783363173.000
+qwen-3.7-max,scenario_027,0.009971,full,cache+openrouter_id,before the board rows,gen-1783364848-Q1vL3H0o3oIWP7NWLWis,1783381171.730,1783364848.000
+qwen-3.7-max,scenario_028,0.017020,full,cache+openrouter_id,before the board rows,gen-1783365278-WgRwtwpxD0bV9nANqjL8,1783381171.741,1783365278.000
+qwen-3.7-max,scenario_029,0.008184,full,cache+openrouter_id,before the board rows,gen-1783366648-Cv4ouGY4pY89XgifVsOj,1783381171.760,1783366648.000
+qwen-3.7-max,scenario_030,0.010005,full,cache+openrouter_id,before the board rows,gen-1783366968-sWroWKZ8tN11tAVPKdgd,1783381171.770,1783366968.000
+qwen-3.7-max,scenario_031,0.007897,full,cache+openrouter_id,before the board rows,gen-1783333189-FWUJCrbL31VTkN2n6cXj,1783381171.781,1783333189.000
+qwen-3.7-max,scenario_032,0.016950,full,cache+openrouter_id,before the board rows,gen-1783368223-5xZMOzbLbmKdNC2cc7xE,1783381171.790,1783368223.000
+qwen-3.7-max,scenario_033,0.014286,full,cache+openrouter_id,before the board rows,gen-1783368908-8Tri7gnqDHUTM8MoIesl,1783381171.809,1783368908.000
+qwen-3.7-max,scenario_036,0.009349,full,cache+openrouter_id,before the board rows,gen-1783370445-I2CtN6zjP8dpRhKXbKfI,1783381171.825,1783370445.000
+qwen-3.7-max,scenario_037,129.838813,partial,cache+openrouter_id,before the board rows,gen-1783371326-XS92eHifygpz54E7dQ3o,1783381171.835,1783371326.000
+qwen-3.7-max,scenario_043,0.020905,full,cache+openrouter_id,before the board rows,gen-1783337764-d0sZATWxmXHLichUcBfm,1783381171.664,1783337764.000
+qwen-3.7-max,scenario_044,0.007368,full,cache+openrouter_id,before the board rows,gen-1783338346-IYrCEavUum1CRhHUwc2V,1783381171.686,1783338346.000
+qwen-3.7-max,scenario_045,0.008963,full,cache+openrouter_id,before the board rows,gen-1783339022-ubhzP6IGxTHxiESMsTBd,1783381171.694,1783339022.000
+qwen-3.7-max,scenario_046,0.011745,full,cache+openrouter_id,before the board rows,gen-1783340108-V23BYBBgCvrL795aUIzB,1783381171.704,1783340108.000
+qwen-3.7-max,scenario_048,0.007667,full,cache+openrouter_id,before the board rows,gen-1783340573-pPo1SKJ2n6x2Gd25nIoW,1783381171.718,1783340573.000
+qwen-3.7-max,scenario_049,0.007503,full,cache+openrouter_id,before the board rows,gen-1783340832-vjWe6xo9WA5nOCfHLqhm,1783381171.727,1783340832.000
+qwen-3.7-max,scenario_051,0.008564,full,cache+openrouter_id,before the board rows,gen-1783341115-B5NXWPqvIEz4AniVO4fB,1783381171.735,1783341115.000
+qwen-3.7-max,scenario_052,0.005778,full,cache+openrouter_id,before the board rows,gen-1783342291-hTV9KgQGxcSR8L1H6wHN,1783381171.745,1783342291.000
+qwen-3.7-max,scenario_053,0.008001,full,cache+openrouter_id,before the board rows,gen-1783342527-0gYfy9mMwR8s468JATYG,1783381171.752,1783342527.000
+qwen-3.7-max,scenario_054,0.014798,full,cache+openrouter_id,before the board rows,gen-1783343589-vjayFl4ZjCRjKWv7AlMn,1783381171.761,1783343589.000
+qwen-3.7-max,scenario_055,0.006931,full,cache+openrouter_id,before the board rows,gen-1783344575-PfI17Qj0CBgBLJ2TRzDJ,1783381171.777,1783344575.000
+qwen-3.7-max,scenario_056,0.009784,full,cache+openrouter_id,before the board rows,gen-1783345020-UvtCyHw6I89pAfMD0ZeQ,1783381171.786,1783345020.000
+qwen-3.7-max,scenario_057,0.012571,full,cache+openrouter_id,before the board rows,gen-1783348735-iZeeLUvBWLmkW8pTq6wX,1783381171.797,1783348735.000
+qwen-3.7-max,scenario_059,0.009834,full,cache+openrouter_id,before the board rows,gen-1783350131-2xH1tofDVu14jas7fW44,1783381171.811,1783350131.000
+qwen-3.7-max,scenario_060,0.009146,full,cache+openrouter_id,before the board rows,gen-1783350638-Rhg5iNCGCLxNjdFiMnXA,1783381171.822,1783350638.000
+qwen-3.7-max,scenario_062,0.007454,full,cache+openrouter_id,before the board rows,gen-1783353148-t5V4OI2mZO1sjS7HLr1x,1783381171.833,1783353148.000
+qwen-3.7-max,scenario_064,0.030334,full,cache+openrouter_id,before the board rows,gen-1783333189-5FTFNAtd8bbVqUJgSoMi,1783381171.662,1783333189.000
+qwen-3.7-max,scenario_066,0.010746,full,cache+openrouter_id,before the board rows,gen-1783335102-k4EXSaZqRnapjmlDEqIE,1783381171.695,1783335102.000
+qwen-3.7-max,scenario_067,0.015826,full,cache+openrouter_id,before the board rows,gen-1783336327-8gMp34PSfwluuQSMhskf,1783381171.707,1783336327.000
+qwen-3.7-max,scenario_068,0.007575,full,cache+openrouter_id,before the board rows,gen-1783341830-3PqmBpy6hlnr9aTcL00V,1783381171.725,1783341830.000
+qwen-3.7-max,scenario_070,0.007975,full,cache+openrouter_id,before the board rows,gen-1783341980-lyMvbC2iW1cvxTtQpdzT,1783381171.734,1783341980.000
+qwen-3.7-max,scenario_071,0.006763,full,cache+openrouter_id,before the board rows,gen-1783342538-avU2Hzb65hk91Ea8dBIv,1783381171.743,1783342538.000
+qwen-3.7-max,scenario_072,0.008540,full,cache+openrouter_id,before the board rows,gen-1783342901-dC6sQh6FSylnz13MkvqR,1783381171.750,1783342901.000
+qwen-3.7-max,scenario_073,0.008586,full,cache+openrouter_id,before the board rows,gen-1783343414-8GwVaI6SLUw27jVgAgny,1783381171.760,1783343414.000
+qwen-3.7-max,scenario_074,0.007795,full,cache+openrouter_id,before the board rows,gen-1783343893-w1TDyAJTpdlSfmx6mapH,1783381171.770,1783343893.000
+qwen-3.7-max,scenario_075,0.005245,full,cache+openrouter_id,before the board rows,gen-1783344229-62E95lH6FfwNnlnIIkl9,1783381171.778,1783344229.000
+qwen-3.7-max,scenario_076,0.012421,full,cache+openrouter_id,before the board rows,gen-1783344928-z4cAmIP9onGpNnttGvto,1783381171.785,1783344928.000
+qwen-3.7-max,scenario_077,0.013032,full,cache+openrouter_id,before the board rows,gen-1783346525-0A1znkWkDDifABJr3Tdi,1783381171.799,1783346525.000
+qwen-3.7-max,scenario_078,0.007941,full,cache+openrouter_id,before the board rows,gen-1783353149-OgJxCuiUEgboC5nKMlxP,1783381171.814,1783353149.000
+qwen-3.7-max,scenario_079,0.008331,full,cache+openrouter_id,before the board rows,gen-1783353479-RWoC9dvfFrDJSv2lBZM2,1783381171.823,1783353479.000
+qwen-3.7-max,scenario_080,0.008497,full,cache+openrouter_id,before the board rows,gen-1783353894-QYaygV8oQt8mzkiYNEOo,1783381171.832,1783353894.000
+qwen-3.7-max,scenario_081,0.006726,full,cache+openrouter_id,before the board rows,gen-1783354533-JVv7KwbPvDC7TxyVrTqi,1783381171.842,1783354533.000
+qwen-3.7-max,scenario_082,0.007264,full,cache+openrouter_id,before the board rows,gen-1783356375-zVeCuaVX93Z8VqqqX7kI,1783381171.850,1783356375.000
+qwen-3.7-max,scenario_083,0.018920,full,cache+openrouter_id,before the board rows,gen-1783337312-dU2wng53YTRLXUsjK5XN,1783381171.664,1783337312.000
+qwen-3.7-max,scenario_084,0.008864,full,cache+openrouter_id,before the board rows,gen-1783337643-e28jNbvjlj6PXyam4bga,1783381171.684,1783337643.000
+qwen-3.7-max,scenario_085,0.007309,full,cache+openrouter_id,before the board rows,gen-1783338166-erSnRqaiFxizZMkQhY00,1783381171.694,1783338166.000
+qwen-3.7-max,scenario_086,0.011688,full,cache+openrouter_id,before the board rows,gen-1783356827-dwoIinxC5irNynlohtOB,1783381171.702,1783356827.000
+qwen-3.7-max,scenario_088,0.006498,full,cache+openrouter_id,before the board rows,gen-1783357253-MuDtGMeR1cLzWvnhZdGH,1783381171.716,1783357253.000
+qwen-3.7-max,scenario_089,0.008486,full,cache+openrouter_id,before the board rows,gen-1783363194-XnAH4cNBO8GyS6QkN4z8,1783381171.723,1783363194.000
+qwen-3.7-max,scenario_090,0.010636,full,cache+openrouter_id,before the board rows,gen-1783363293-gI3BKPC0wyFGSi7qqX7U,1783381171.733,1783363293.000
+qwen-3.7-max,scenario_091,0.008203,full,cache+openrouter_id,before the board rows,gen-1783364169-oSVbVilFU1k8oDTYdImU,1783381171.745,1783364169.000
+qwen-3.7-max,scenario_092,0.006172,full,cache+openrouter_id,before the board rows,gen-1783333189-EmFPfX0kS90tLowl9XYz,1783381171.754,1783333189.000
+qwen-3.7-max,scenario_093,0.009682,full,cache+openrouter_id,before the board rows,gen-1783333946-zWBDA42vUuUzSIBj8FWI,1783381171.761,1783333946.000
+qwen-3.7-max,scenario_095,0.008939,full,cache+openrouter_id,before the board rows,gen-1783334968-LSTgC6PjF1KqcvLSrBbY,1783381171.772,1783334968.000
+qwen-3.7-max,scenario_098,0.007741,full,cache+openrouter_id,before the board rows,gen-1783335618-mybG2kwjoUpYIemZfXtq,1783381171.783,1783335618.000
+qwen-3.7-max,scenario_099,0.014834,full,cache+openrouter_id,before the board rows,gen-1783335936-9toDxItkDiGt9yb54hrn,1783381171.792,1783335936.000
+qwen-3.7-max,scenario_100,0.021292,full,cache+openrouter_id,before the board rows,gen-1783364647-yc9ODjVDuGzB6ll5UgnU,1783381171.809,1783364647.000
+qwen-3.7-max,scenario_101,0.008238,full,cache+openrouter_id,before the board rows,gen-1783366638-5GSOMxW4Ub8odULIBiXM,1783381171.833,1783366638.000
+qwen-3.7-max,scenario_102,0.009545,full,cache+openrouter_id,before the board rows,gen-1783367171-RCWy5E7Z0DlImfDdTc50,1783381171.842,1783367171.000
+qwen-3.7-max,scenario_104,0.005236,full,cache+openrouter_id,before the board rows,gen-1783368135-wEfeEF6gh6oAlcypvsEc,1783381171.853,1783368135.000
+qwen-3.7-max,scenario_107,0.020234,full,cache+openrouter_id,before the board rows,gen-1783337312-LEjY7wjJ1JsMxo6SiJ69,1783381171.664,1783337312.000
+qwen-3.7-max,scenario_108,0.010732,full,cache+openrouter_id,before the board rows,gen-1783338219-6zje5n81g9h6ux9Zhic0,1783381171.685,1783338219.000
+qwen-3.7-max,scenario_109,0.016645,full,cache+openrouter_id,before the board rows,gen-1783339649-GOHfzCLwTlwG4dWMhAvG,1783381171.697,1783339649.000
+qwen-3.7-max,scenario_110,0.008435,full,cache+openrouter_id,before the board rows,gen-1783341830-KfruepW2NIBkhcvSVMeb,1783381171.716,1783341830.000
+qwen-3.7-max,scenario_111,0.008858,full,cache+openrouter_id,before the board rows,gen-1783341929-oPttFtkWILtf11zsWNlR,1783381171.725,1783341929.000
+qwen-3.7-max,scenario_112,0.008089,full,cache+openrouter_id,before the board rows,gen-1783342243-EO3hHHrOuPZfFoLLTxpT,1783381171.736,1783342243.000
+qwen-3.7-max,scenario_114,0.007903,full,cache+openrouter_id,before the board rows,gen-1783353148-s8oYKCb29HEejr38ZK4j,1783381171.745,1783353148.000
+qwen-3.7-max,scenario_115,0.006686,full,cache+openrouter_id,before the board rows,gen-1783353245-JsEybk2B0yx2KqDDrHBk,1783381171.754,1783353245.000
+qwen-3.7-max,scenario_116,0.005974,full,cache+openrouter_id,before the board rows,gen-1783353511-u61td3KKS1wkg6eLxnZM,1783381171.761,1783353511.000
+qwen-3.7-max,scenario_117,0.015305,full,cache+openrouter_id,before the board rows,gen-1783353662-wpmaReU8bZXXldonFU3U,1783381171.769,1783353662.000
+qwen-3.7-max,scenario_118,0.006185,full,cache+openrouter_id,before the board rows,gen-1783354527-n28tpgPPKgfDA1X0zOVs,1783381171.787,1783354527.000
+qwen-3.7-max,scenario_119,0.014331,full,cache+openrouter_id,before the board rows,gen-1783359783-hNpqBKAjtdnjgWB9vBVM,1783381171.794,1783359783.000
+qwen-3.7-max,scenario_120,0.009706,full,cache+openrouter_id,before the board rows,gen-1783362292-rkGAofEpzk8zrObJ2L57,1783381171.811,1783362292.000
+qwen-3.7-max,scenario_121,0.012724,full,cache+openrouter_id,before the board rows,gen-1783363205-tltwvED2zYu9KsWAbLUf,1783381171.822,1783363205.000

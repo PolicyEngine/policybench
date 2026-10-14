@@ -54,6 +54,9 @@ from policybench.spec import metric_type_for_output
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
+# The frozen run's replayed households, traced from the disk caches, spend
+# ledgers and smoke files (scripts/audit_latency_replays.py).
+LATENCY_REPLAY_AUDIT = ROOT / "docs" / "latency_replay_audit" / "households.csv"
 
 # The 2026-09-29 move from policyengine-us 1.755.4 to 2.15.17. Its audit,
 # reference_audit/2026-09-28, holds the publication check, the sweep timing
@@ -1256,9 +1259,11 @@ class PaperResults:
     def blank_raw_response_counts(self) -> Counter:
         """Frozen prediction rows whose raw_response is empty, by model.
 
-        Rows served through the Anthropic batch adapter carry no raw payload,
-        and some parse failures never captured one; the manuscript states the
-        preservation rule with these exceptions rather than as absolute.
+        Claude Fable 5's board rows were rebuilt from the 20260701 release
+        without their raw payloads (that release's
+        claude-fable-5-predictions.csv.gz asset keeps them), and some parse
+        failures never captured one; the manuscript states the preservation
+        rule with these exceptions rather than as absolute.
         """
         run_dir = self.snapshot_dir / "runs" / self.us_run_label
         frame = pd.read_csv(
@@ -1279,6 +1284,179 @@ class PaperResults:
         if not items:
             return "every row carries its raw provider response"
         return "no raw payload is retained for " + _ordinal_join(items)
+
+    # ----- latency: untimed rows and cache replays -------------------------
+    @cached_property
+    def household_latencies(self) -> pd.Series:
+        """Each frozen household's summed request time, by (model, scenario)."""
+        from policybench.analysis import household_latency_seconds
+
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz",
+            usecols=["model", "scenario_id", "elapsed_seconds"],
+        )
+        return household_latency_seconds(frame)
+
+    def _published_latency(self, model_id: str) -> float | None:
+        value = self._stats_by_model.get(model_id, {}).get("latencySeconds")
+        return None if value is None or pd.isna(value) else float(value)
+
+    @cached_property
+    def untimed_latency_models(self) -> list[str]:
+        """Models none of whose frozen rows records a request time."""
+        timed = self.household_latencies.groupby("model").count()
+        return sorted(timed[timed == 0].index)
+
+    @cached_property
+    def replayed_latency_models(self) -> list[str]:
+        """Models whose median household is a cache replay, not a call."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        median = self.household_latencies.groupby("model").median()
+        return sorted(median[median < REPLAYED_HOUSEHOLD_SECONDS].index)
+
+    @cached_property
+    def latency_dash_models(self) -> list[str]:
+        """Models the cost-and-latency table shows without a latency.
+
+        A model is dashed when its frozen rows give no latency of a second or
+        more and its published modelStats carries none either; Claude Fable
+        5's rows are untimed but its published latency comes from its
+        original run's per-call rows, so it is not dashed.
+        """
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        dashed = []
+        for model in sorted(
+            set(self.untimed_latency_models) | set(self.replayed_latency_models)
+        ):
+            published = self._published_latency(model)
+            if published is None or published < REPLAYED_HOUSEHOLD_SECONDS:
+                dashed.append(model)
+        return dashed
+
+    @cached_property
+    def subsecond_household_counts(self) -> Counter:
+        """Households summing to under a second, by model."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        latency = self.household_latencies
+        fast = latency[latency < REPLAYED_HOUSEHOLD_SECONDS]
+        return Counter(fast.groupby("model").size().to_dict())
+
+    @cached_property
+    def zero_cost_models(self) -> list[str]:
+        """Models every one of whose frozen rows records a charge of zero."""
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz", usecols=["model", "total_cost_usd"]
+        )
+        cost = frame.groupby("model")["total_cost_usd"]
+        recorded = cost.count() == cost.size()
+        zero = cost.apply(lambda values: bool((values == 0).all()))
+        return sorted(recorded[recorded & zero].index)
+
+    @property
+    def zero_cost_models_fmt(self) -> str:
+        return _ordinal_join([self.model_name(m) for m in self.zero_cost_models])
+
+    @property
+    def batch_latency_models_fmt(self) -> str:
+        """Dashed models whose rows carry no request time (the batch run)."""
+        dashed = [
+            m for m in self.latency_dash_models if m in self.untimed_latency_models
+        ]
+        return _ordinal_join([self.model_name(m) for m in dashed])
+
+    @property
+    def replayed_latency_models_fmt(self) -> str:
+        dashed = [
+            m for m in self.latency_dash_models if m in self.replayed_latency_models
+        ]
+        return _ordinal_join([self.model_name(m) for m in dashed])
+
+    @property
+    def replayed_latency_range_fmt(self) -> str:
+        """Fewest to most replayed households among the dashed replay models."""
+        counts = [
+            self.subsecond_household_counts[m]
+            for m in self.latency_dash_models
+            if m in self.replayed_latency_models
+        ]
+        low, high = min(counts), max(counts)
+        return f"{low}" if low == high else f"{low} to {high}"
+
+    @cached_property
+    def _other_subsecond_models(self) -> list[str]:
+        """Shown models with some households under a second."""
+        return sorted(
+            m
+            for m, n in self.subsecond_household_counts.items()
+            if n and m not in self.latency_dash_models
+        )
+
+    @property
+    def other_subsecond_household_count(self) -> int:
+        return sum(
+            self.subsecond_household_counts[m] for m in self._other_subsecond_models
+        )
+
+    @property
+    def other_subsecond_model_count(self) -> int:
+        return len(self._other_subsecond_models)
+
+    @property
+    def other_subsecond_model_count_fmt(self) -> str:
+        return count_word(self.other_subsecond_model_count)
+
+    @property
+    def untraced_subsecond_count(self) -> int:
+        return self.other_subsecond_household_count - self.traced_other_subsecond_count
+
+    @property
+    def untraced_subsecond_count_fmt(self) -> str:
+        return count_word(self.untraced_subsecond_count)
+
+    @cached_property
+    def subsecond_median_shift_seconds(self) -> float:
+        """Largest rise in a shown model's median when its sub-second
+        households are dropped: how far the replays lower a published median."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        latency = self.household_latencies
+        shifts = []
+        for model in self._other_subsecond_models:
+            households = latency.loc[model].dropna()
+            kept = households[households >= REPLAYED_HOUSEHOLD_SECONDS]
+            shifts.append(float(kept.median() - households.median()))
+        return max(shifts) if shifts else 0.0
+
+    @property
+    def subsecond_median_shift_fmt(self) -> str:
+        return f"{self.subsecond_median_shift_seconds:.1f}"
+
+    @cached_property
+    def latency_replay_audit(self) -> pd.DataFrame:
+        """The audited replayed households (docs/latency_replay_audit)."""
+        return pd.read_csv(LATENCY_REPLAY_AUDIT)
+
+    @property
+    def traced_other_subsecond_count(self) -> int:
+        """Of the shown models' sub-second households, those the audit traced
+        to an earlier request on the same household."""
+        audit = self.latency_replay_audit
+        traced = audit[
+            (audit["replay"] == "full")
+            & audit["model"].isin(self._other_subsecond_models)
+        ]
+        return len(traced)
+
+    @property
+    def partial_replay_count(self) -> int:
+        """Households whose first recorded call is a replay and whose later
+        calls reached the provider."""
+        return int((self.latency_replay_audit["replay"] == "partial").sum())
 
     # ----- populace dataset construction ---------------------------------
     @property

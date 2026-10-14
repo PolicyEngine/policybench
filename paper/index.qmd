@@ -746,12 +746,14 @@ def fmt_cost_per_household(usd) -> str:
 def load_us_cost_latency() -> dict:
     # Cost and latency use the frozen run's recorded per-call costs and timings,
     # through the same model_cost_latency function as the leaderboard pipeline,
-    # then are reconciled against the frozen
-    # modelStats: Claude Fable 5's usage is recorded at the run level (its
-    # per-row usage columns are empty), and batch or asynchronous waves log
-    # submission times rather than generation time, so a zero or sub-second
-    # median is treated as unmeasured and falls back to modelStats or "—".
-    from policybench.analysis import model_cost_latency
+    # then are reconciled against the frozen modelStats. Claude Fable 5's board
+    # rows carry no usage or timing fields (they were rebuilt from the 20260701
+    # release without them), so its modelStats carries its original run's
+    # per-call figures. A zero cost is a recorded charge of zero, and a
+    # sub-second median is a model whose median household was replayed from the
+    # disk cache (docs/latency_replay_audit.md); both fall back to modelStats
+    # or "—".
+    from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS, model_cost_latency
     from policybench.config import PRICE_OVERRIDES_PER_1M
 
     predictions = pd.read_csv(
@@ -768,11 +770,13 @@ def load_us_cost_latency() -> dict:
                 float(fallback) if fallback and fallback > 0 else None
             )
         latency = entry.get("latencySeconds")
-        if latency is None or pd.isna(latency) or latency < 1:
+        if latency is None or pd.isna(latency) or latency < REPLAYED_HOUSEHOLD_SECONDS:
             fallback = None if row is None else row.get("latencySeconds")
             entry["latencySeconds"] = (
                 float(fallback)
-                if fallback is not None and not pd.isna(fallback) and fallback >= 1
+                if fallback is not None
+                and not pd.isna(fallback)
+                and fallback >= REPLAYED_HOUSEHOLD_SECONDS
                 else None
             )
     return computed
@@ -1164,12 +1168,38 @@ Sampling uncertainty is substantial at this sample size. In the frozen snapshot,
 Accuracy is one axis; the price and speed of a no-tools answer are another. @tbl-us-cost-latency reports each model's estimated cost to compute one household's full output vector and its median per-household latency, next to the headline exact rate. `{python} cost_latency_text`
 
 ```{python}
-#| label: tbl-us-cost-latency
-#| tbl-cap: "Estimated cost and median latency per household for the frozen US snapshot, alongside the headline exact-match rate. Each row uses its recorded per-call cost: reconstructed from token counts at the list price configured at request time, or the provider-reported charge where no reconstruction was available. List-price overrides apply at request time, not retroactively to recorded costs. Models without per-call costs use the frozen release-metadata cost. Latency is the median across households of each household's summed request time. A dash marks usage or wall-clock latency that was not measured per call."
-md_table(cost_latency)
+def cost_latency_caption() -> str:
+    """The table's caption, naming the model behind each dash and why."""
+    shown = list(us_model["model"])
+    cost_dash = [m for m in shown if us_cost_latency.get(m, {}).get("costPerHousehold") is None]
+    latency_dash = [m for m in shown if us_cost_latency.get(m, {}).get("latencySeconds") is None]
+    # Every dash is one the caption explains, or the render fails.
+    assert sorted(cost_dash) == r.zero_cost_models, cost_dash
+    assert sorted(latency_dash) == r.latency_dash_models, latency_dash
+    zero_cost = r.zero_cost_models_fmt
+    return (
+        "Estimated cost and median latency per household for the frozen US snapshot, "
+        "alongside the headline exact-match rate. Each row uses its recorded per-call "
+        "cost: reconstructed from token counts at the list price configured at request "
+        "time, or the provider-reported charge where no reconstruction was available. "
+        "List-price overrides apply at request time, not retroactively to recorded "
+        "costs. Claude Fable 5's cost and latency come from its original run's per-call "
+        "rows, which its board rows do not carry. Latency is the median across "
+        "households of each household's summed request time. A cost dash marks a "
+        f"provider-reported charge of zero on every call ({zero_cost}). A latency dash "
+        f"marks rows that record no request time ({r.batch_latency_models_fmt}, through "
+        "OpenAI's batch API) or a median household answered from the harness's "
+        f"response cache rather than by the provider ({r.replayed_latency_models_fmt}; "
+        "see text)."
+    )
+
+
+md_table(cost_latency, caption=cost_latency_caption(), label="tbl-us-cost-latency")
 ```
 
-Cost preserves each call's recorded total: a request-time reconstruction from token counts where one was available, and the provider-reported charge otherwise. Configured list-price overrides do not reprice recorded calls. Rows without per-call costs use the frozen release-metadata cost. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes: Claude-family models issue chunked serial calls that lengthen wall-clock time, several models ran through batch or asynchronous dispatch whose logged times reflect submission rather than generation (shown as a dash), and Claude Fable 5's usage and latency are recorded at the run level rather than per call. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
+Cost preserves each call's recorded total: a request-time reconstruction from token counts where one was available, and the provider-reported charge otherwise. Configured list-price overrides do not reprice recorded calls. Claude Fable 5's board rows carry no usage or timing fields, because they were rebuilt from the July 1, 2026 release without those columns; its cost, tokens and latency come from the per-call rows of its original run, which that release publishes. Latency is wall-clock request time as observed by the harness, summed within each household and taken as the median across the `{python} r.n_households_fmt` households. The per-call timer spans any provider-side retry or rate-limit backoff, so the median is reported in preference to the mean, which a few throttled calls inflate. Latency is not comparable across serving regimes. A model served one or three outputs per request (@tbl-model-runs) sends a household's calls one after another, and its household time is their sum. `{python} r.batch_latency_models_fmt` ran through OpenAI's batch API, which records no per-call request time, so it shows a dash.
+
+The harness also caches provider responses on disk, keyed on the request and the prompt contract version. A request identical to an earlier one is answered from the cache in hundredths of a second, and the timer records that as if it were a call. A replayed response keeps the cost recorded when it was generated, so a household's cost counts each of its responses once, whether or not the board run paid for it. `{python} r.replayed_latency_models_fmt` were finished over several passes, each of which replayed the earlier passes' successful responses. Each of them records a replay on `{python} r.replayed_latency_range_fmt` of its `{python} r.n_households_fmt` households, so its median falls under a second and it shows a dash as well. In `{python} r.other_subsecond_model_count_fmt` other models, `{python} r.other_subsecond_household_count` households sum to under a second. The audit traces `{python} r.traced_other_subsecond_count` of them to an earlier request on the same household, such as an onboarding smoke or a restarted chunk; the other `{python} r.untraced_subsecond_count_fmt` come from runs that predate per-call timestamps and left no cache or ledger behind. Dropping them would raise no model's median by more than `{python} r.subsecond_median_shift_fmt` seconds. A further `{python} r.partial_replay_count` households replay their first recorded call and then reach the provider, so their times leave out that first call. The benchmark card summarizes the replays, and the repository's latency replay audit lists each household. Both cost and latency are properties of this run's providers, prompts, and serving configurations at evaluation time rather than fixed model constants.
 
 ### Simple baselines
 
