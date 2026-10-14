@@ -47,7 +47,7 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 48-model board (2026-10-13). Scores are on the
+All ranks are on the 50-model board (2026-10-14). Scores are on the
 1,935 outputs the board scores; the 49 outputs `reference_exclusions.json`
 lists (engine defects, references that depend on an input the prompt never
 states, and references that rest on an amount a state published after the
@@ -56,9 +56,9 @@ all 1,984 outputs the thinking runs scored 87.2, 86.2 and 80.3.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 83.3 (#22) | **91.5** | +8.1 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 83.7 (#21) | **90.1** | +6.4 | #11 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.4 (#46) | **84.6** | +12.1 | #21 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.3 (#24) | **91.5** | +8.1 | **#7** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 83.7 (#23) | **90.1** | +6.4 | #11 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.4 (#48) | **84.6** | +12.1 | #23 | $0.086 | 64 | 1,928/1,984 |
 
 In this table and the tables below, deltas are differences of the
 unrounded scores, so a delta can differ by 0.1 from the difference of the
@@ -143,7 +143,7 @@ The sensitivity run for this model isolates request shape under thinking
 rather than thinking itself: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 48-model board (2026-10-13).
+reason. The ranks are on the 50-model board (2026-10-14).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
@@ -200,11 +200,11 @@ thinking block: the row answers without extended thinking, as Claude Opus
 5's does (its model card's notes). Its sensitivity run is the August
 condition: the answer tool declared with `tool_choice: "auto"`, over the
 whole scenario, as the board row also requests it. The ranks are on the
-48-model board (2026-10-13).
+50-model board (2026-10-14).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Haiku 5.5 | 79.3 (#38) | **88.8** | +9.6 | #11 | $0.0013 → $0.0027 | 5.1 → 17.4 | 1,984/1,984 |
+| Claude Haiku 5.5 | 79.3 (#40) | **88.8** | +9.6 | #11 | $0.0013 → $0.0027 | 5.1 → 17.4 | 1,984/1,984 |
 
 The model called the answer tool on every one of its 1,984 answers under
 `auto`. Its median household used 3,743 completion tokens against the board

@@ -272,15 +272,17 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
     # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
     # below full bounded score (7,527, 7,523 and 2,072). Release 20261010
-    # adds Claude Haiku 5.5's rows and moves the scored outputs. The app's
-    # summarizeAuditUniverse recomputes the same counts from the payload
-    # (app/tests/auditUniverse.test.ts).
+    # adds Claude Haiku 5.5's rows and moves the scored outputs. Release
+    # 20261014 adds Gemini 4 Argon's and Muse Spark 1.3's rows (262 annotated
+    # misses, 111 unannotated rows below full bounded score) on unchanged
+    # references and exclusions. The app's summarizeAuditUniverse recomputes
+    # the same counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_503,
-        "exact_misses": 8_499,
-        "annotated_exact_misses": 8_499,
+        "annotated": 8_765,
+        "exact_misses": 8_761,
+        "annotated_exact_misses": 8_761,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_218,
+        "unannotated_below_full_bounded_score": 2_329,
     }
 
     for path in (
@@ -1161,3 +1163,67 @@ def test_json_transport_rows_are_attributed_as_their_cards_record():
         assert names(model, note_choice), model
     assert "older Gemini rows" in note_choice
     assert sorted(m for m in serving if names(m, note_choice)) == sorted(card_choice)
+
+
+# The benchmark card's cache-replay examples ("Cost basis"): household
+# latency is the sum of its rows' elapsed_seconds, since each row records its
+# call's latency divided among the call's outputs.
+REPLAYED_SMOKE_HOUSEHOLDS = {
+    ("muse-spark-1.3", "scenario_000"),
+    ("muse-spark-1.3", "scenario_001"),
+    ("muse-spark-1.3", "scenario_099"),
+    ("muse-spark-1.3", "scenario_119"),
+}
+NEAR_ZERO_EXAMPLES = {
+    ("muse-wonder", "scenario_000"),
+    ("muse-wonder", "scenario_001"),
+    ("claude-opus-5.5", "scenario_000"),
+    ("claude-opus-5.5", "scenario_001"),
+    ("claude-haiku-5.5", "scenario_000"),
+}
+
+
+def _household_latency() -> dict[tuple[str, str], tuple[float, int]]:
+    """(model, scenario_id) -> (summed row latency in seconds, row count),
+    from the frozen predictions."""
+    import pandas as pd
+
+    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
+    run_dir = (
+        ROOT
+        / manifest["source_run_artifacts"][manifest["source_run_labels"]["us"]]["path"]
+    )
+    predictions = pd.read_csv(
+        run_dir / "predictions.csv.gz",
+        usecols=["model", "scenario_id", "elapsed_seconds"],
+    )
+    grouped = predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
+    sums, counts = grouped.sum(min_count=1), grouped.size()
+    return {key: (float(sums[key]), int(counts[key])) for key in sums.index}
+
+
+def test_cache_replay_examples_match_the_frozen_household_latencies():
+    """The card's replayed smoke households take 0.03 seconds or less, and
+    each other example it names sums to under 0.05 seconds; every example is
+    a household the card names, with recorded (not missing) latency."""
+    text = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    assert "a household's latency is the sum over its rows" in text
+    assert (
+        "The Muse Spark 1.3 row replays its four smoke households (scenario_000, "
+        "scenario_001, scenario_099 and scenario_119)"
+    ) in text
+    assert "a household latency of 0.03 seconds or less" in text
+    assert (
+        "among them scenario_000 and scenario_001 for Muse Wonder and Claude "
+        "Opus 5.5 and scenario_000 for Claude Haiku 5.5."
+    ) in text
+    latency = _household_latency()
+    for key in REPLAYED_SMOKE_HOUSEHOLDS:
+        seconds, rows = latency[key]
+        assert rows > 1 and 0 < seconds <= 0.03, (key, seconds)
+    for key in NEAR_ZERO_EXAMPLES:
+        seconds, rows = latency[key]
+        assert rows > 1 and 0 < seconds < 0.05, (key, seconds)
+    # Round 1's wrong example: the household is slower once its rows are
+    # summed, so the card must not name it.
+    assert latency[("claude-haiku-5.5", "scenario_001")][0] >= 0.05

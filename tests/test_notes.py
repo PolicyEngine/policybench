@@ -173,15 +173,20 @@ SUPERSEDED_RELEASES = {
     # verdicts on the same board: no model, answer, reference or exclusion
     # changed, and every payload section but the five cases' audit text is
     # release 20261013's (tests/test_release_20261013b.py). The Muse Wonder
-    # note's facts are therefore still recomputed from this checkout.
+    # note's facts are recomputed from release 20261013's commit
+    # (RELEASE_20261013_COMMIT).
     "dashboard-data-20261013": "2026-10-13",
+    # Superseded by dashboard-data-20261014, which adds Gemini 4 Argon and
+    # Muse Spark 1.3 on the same references and exclusions. Release 20261013b
+    # has no note of its own.
+    "dashboard-data-20261013b": "2026-10-13",
 }
 # The frozen release's board snapshot is its manifest's snapshot date.
 CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
     "snapshot_date"
 ]
 # The commit that froze each superseded release whose notes' facts are
-# recomputed from git: the merges of #182, #187, #202 and #208.
+# recomputed from git: the merges of #182, #187, #202, #208 and #217.
 RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 RELEASE_20260930 = "dashboard-data-20260930"
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
@@ -189,6 +194,8 @@ RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 RELEASE_20261010 = "dashboard-data-20261010"
 RELEASE_20261010_COMMIT = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
 RELEASE_20261013 = "dashboard-data-20261013"
+# The squash merge of #217, which froze release dashboard-data-20261013.
+RELEASE_20261013_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
 # Release 20261013b: release 20261013's numbers with five audit verdicts
 # re-judged (scripts/release_20261013b.py).
 RELEASE_20261013B = "dashboard-data-20261013b"
@@ -197,6 +204,7 @@ RELEASE_COMMITS = {
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
     "dashboard-data-20261006": RELEASE_20261006_COMMIT,
     RELEASE_20261010: RELEASE_20261010_COMMIT,
+    RELEASE_20261013: RELEASE_20261013_COMMIT,
 }
 
 
@@ -5127,14 +5135,14 @@ def _release_20261013_scoring() -> dict:
     exact on each (``matched``)."""
     import pandas as pd
 
-    from policybench.paper_results import PaperResults
     from policybench.scorer_vectors import canonical_filtered_scores
     from policybench.spec import output_group_id
 
-    payload = _dashboard()
-    reference = pd.read_csv(REFERENCES_PATH)
-    excluded = _excluded_at(ROOT)
-    restored = sorted(PaperResults().last_engine_upgrade.restored)
+    root = _release_root(RELEASE_20261013)
+    payload = _payload_at(root)
+    reference = pd.read_csv(_in(root, REFERENCES_PATH))
+    excluded = _excluded_at(root)
+    restored = sorted(_results_at(RELEASE_20261013).last_engine_upgrade.restored)
     assert not set(restored) & excluded
     predictions = pd.DataFrame(
         [
@@ -5174,12 +5182,10 @@ def _release_20261013_scoring() -> dict:
 
 
 def _release_20261013_facts() -> dict:
-    """The Muse Wonder release note's facts, recomputed from the frozen
-    release's payload, sidecar and exclusion record and from release 20261010's
-    payload at its commit."""
-    from policybench.paper_results import PaperResults
-
-    r = PaperResults()
+    """The Muse Wonder release note's facts, recomputed from release 20261013's
+    payload, sidecar and exclusion record at its commit and from release
+    20261010's payload at its commit."""
+    r = _results_at(RELEASE_20261013)
     board = r.model_stats
     by_model = {row["model"]: row for row in board}
     ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
@@ -5225,17 +5231,17 @@ def _release_20261013_facts() -> dict:
 
 
 def test_release_20261013_note() -> None:
-    """The Muse Wonder release note's facts are the frozen release's,
-    recomputed from its payload, sidecar and exclusion record and from release
-    20261010 at its commit; and the direction its last paragraph states (every
-    earlier model's rate falls) holds. test_release_20261013_note_claims checks
-    the rest of what its sentences say."""
+    """The Muse Wonder release note's facts are release 20261013's,
+    recomputed from its payload, sidecar and exclusion record at its commit
+    and from release 20261010 at its commit; and the direction its last
+    paragraph states (every earlier model's rate falls) holds.
+    test_release_20261013_note_claims checks the rest of what its sentences
+    say."""
     note = _note(MUSE_NOTE)
     facts = note["facts"]
-    # The frozen release is the note's own or release 20261013b, whose numbers
-    # are the note's release's.
+    # Releases 20261013b and 20261014 superseded the note's release.
     assert note["release"] == RELEASE_20261013
-    assert _frozen_release() in (RELEASE_20261013, RELEASE_20261013B)
+    assert _frozen_release() != RELEASE_20261013
     assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
     assert note["slug"].startswith(note["date"])
     assert facts["engineVersion"] in note["title"]
@@ -5248,11 +5254,12 @@ def test_release_20261013_note_claims() -> None:
     release, checked on the facts recomputed from it."""
     from policybench.analysis import metric_type_for_output, row_hit_scores
     from policybench.model_cards import card_for
-    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+    from policybench.paper_results import MODEL_RELEASE_DATES
 
     note = _note(MUSE_NOTE)
     facts = _release_20261013_facts()
-    r = PaperResults()
+    root = _release_root(RELEASE_20261013)
+    r = _results_at(RELEASE_20261013)
     board = r.model_stats
     then_payload = _payload_at(_release_root(RELEASE_20261010))
     then = _no_tools_exact(then_payload)
@@ -5261,7 +5268,9 @@ def test_release_20261013_note_claims() -> None:
     assert set(then) | {MUSE} == {row["model"] for row in board}
     released = date.fromisoformat(MODEL_RELEASE_DATES[MUSE])
     assert (date.fromisoformat(note["date"]) - released).days == 1
-    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    serving = _load_json(_in(root, SNAPSHOT_DIR / "model_serving_config.json"))[
+        "models"
+    ]
     meta = [
         m for m, t in serving.items() if t["provider_id"].startswith("openrouter/meta/")
     ]
@@ -5320,10 +5329,10 @@ def test_release_20261013_note_claims() -> None:
     assert not partition["new_exclusions"]
     then_root = _release_root(RELEASE_20261010)
     then_excluded = _excluded_at(then_root)
-    assert _excluded_at(ROOT) <= then_excluded
+    assert _excluded_at(root) <= then_excluded
     references = {
         (row["scenario_id"], row["variable"]): row["value"]
-        for row in _read_csv(REFERENCES_PATH)
+        for row in _read_csv(_in(root, REFERENCES_PATH))
     }
     for row in _read_csv(_in(then_root, REFERENCES_PATH)):
         key = (row["scenario_id"], row["variable"])
@@ -5371,7 +5380,7 @@ def test_release_20261013_note_claims() -> None:
     assert [(i["scenario_id"], i["variable"]) for i in landed] == [
         ("scenario_080", "snap")
     ]
-    assert ("scenario_080", "snap") in _excluded_at(ROOT)
+    assert ("scenario_080", "snap") in _excluded_at(root)
     assert (
         "#10033" in landed[0]["reason"]
         or "policyengine-us#10033" in (landed[0]["reason"])
@@ -5385,3 +5394,192 @@ def test_release_20261013_note_claims() -> None:
     text = " ".join(note["paragraphs"])
     assert "{restoredFixes}" in text
     assert "newest" not in text
+
+
+# --- Release dashboard-data-20261014: Gemini 4 Argon and Muse Spark 1.3 --------
+
+(ARGON_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-gemini-4-argon-joins-the-board.json")
+)
+ARGON = "gemini-4-argon"
+SPARK = "muse-spark-1.3"
+RELEASE_20261014 = "dashboard-data-20261014"
+PUBLICATION_CHECK = ROOT / "reference_audit/2026-10-12-engine-upgrade/verification"
+
+
+def _board_reasoning_households(model: str) -> int:
+    """How many of the frozen predictions' households returned reasoning
+    tokens for ``model``."""
+    import pandas as pd
+
+    predictions = pd.read_csv(
+        PREDICTIONS_PATH, usecols=["model", "scenario_id", "reasoning_tokens"]
+    )
+    rows = predictions[predictions["model"] == model]
+    by_household = rows.groupby("scenario_id")["reasoning_tokens"].sum()
+    return int((by_household > 0).sum())
+
+
+def _release_20261014_facts() -> dict:
+    """The Gemini 4 Argon release note's facts, recomputed from the frozen
+    release, the publication check and the model card."""
+    from policybench.paper_results import PaperResults
+
+    r = PaperResults()
+    board = r.model_stats
+    by_model = {row["model"]: row for row in board}
+    ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
+    by_score = sorted(board, key=lambda row: row["score"], reverse=True)
+    timing = _load_json(PUBLICATION_CHECK / "sweep_timing.json")
+
+    def one(value: float) -> float:
+        return float(f"{value:.1f}")
+
+    return {
+        "releaseDate": r.manifest["snapshot_date"],
+        "nModels": len(board),
+        "argonExact": one(by_model[ARGON]["exact"]),
+        "argonRank": ranks[ARGON],
+        "flashExact": one(by_model["gemini-3.8-flash"]["exact"]),
+        "flashRank": ranks["gemini-3.8-flash"],
+        "sparkExact": one(by_model[SPARK]["exact"]),
+        "sparkRank": ranks[SPARK],
+        "museExact": one(by_model[MUSE]["exact"]),
+        "museRank": ranks[MUSE],
+        "sparkBoundedRank": [row["model"] for row in by_score].index(SPARK) + 1,
+        "solExact": one(by_model["gpt-6-sol"]["exact"]),
+        "opusExact": one(by_model["claude-opus-5.5"]["exact"]),
+        "sol56Exact": one(by_model["gpt-5.6-sol"]["exact"]),
+        "households": len(r.dashboard["scenarioPredictions"]),
+        # The first forced run and the auto run are onboarding evidence, not
+        # on the board; the model card records their counts (checked below).
+        "forcedReasoning": 80,
+        "boardReasoning": _board_reasoning_households(ARGON),
+        "autoReasoning": 82,
+        "argonCost": f"{by_model[ARGON]['costUsd']:.2f}",
+        "checkedEngine": timing["pypi"]["newest_at_read"],
+        "engineVersion": r.policyengine_us_version,
+        "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
+        "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "incumbents": len(board) - 2,
+    }
+
+
+def test_release_20261014_note() -> None:
+    """The Gemini 4 Argon release note's facts are the frozen release's."""
+    note = _note(ARGON_NOTE)
+    facts = note["facts"]
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    assert note["release"] == RELEASE_20261014
+    assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
+    assert note["slug"].startswith(note["date"])
+    assert facts == _release_20261014_facts()
+
+
+def test_release_20261014_note_claims() -> None:
+    """What the Gemini 4 Argon release note's sentences claim holds on the
+    frozen release, release 20261013 at its commit (whose numbers release
+    20261013b keeps, tests/test_release_20261013b.py) and the model cards."""
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+    from policybench.model_cards import card_for
+    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+
+    note = _note(ARGON_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    facts = note["facts"]
+    r = PaperResults()
+    board = r.model_stats
+    names = [row["model"] for row in board]
+    then_root = _release_root(RELEASE_20261013)
+    then = _no_tools_exact(_payload_at(then_root))
+    # Two new rows on the previous board.
+    assert set(names) == set(then) | {ARGON, SPARK}
+    assert facts["nModels"] == len(then) + 2 == facts["incumbents"] + 2
+    # Gemini 4 Argon reached the public API the day before the release, and
+    # is the best Gemini row; Gemini 3.8 Flash was the best before it.
+    released = date.fromisoformat(MODEL_RELEASE_DATES[ARGON])
+    assert (date.fromisoformat(note["date"]) - released).days == 1
+    gemini = [m for m in names if m.startswith("gemini")]
+    assert gemini[0] == ARGON and gemini[1] == "gemini-3.8-flash"
+    assert max((e, m) for m, e in then.items() if m.startswith("gemini"))[1] == (
+        "gemini-3.8-flash"
+    )
+    # Muse Spark 1.3 is Meta's second row, behind Muse Wonder on answers
+    # within $1, and Meta released it on September 2.
+    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    meta = sorted(
+        m for m, t in serving.items() if t["provider_id"].startswith("openrouter/meta/")
+    )
+    assert meta == sorted([MUSE, SPARK])
+    assert names.index(MUSE) < names.index(SPARK)
+    assert MODEL_RELEASE_DATES[SPARK] == "2026-09-02"
+    # The leaders are unchanged: GPT-6 Sol, Claude Opus 5.5, GPT-5.6 Sol.
+    assert names[:3] == ["gpt-6-sol", "claude-opus-5.5", "gpt-5.6-sol"]
+    # Gemini 4 Argon runs on the Gemini API like every Gemini row, on the
+    # forced tool, with no reasoning parameter (Google's default).
+    for model in gemini:
+        assert serving[model]["provider_id"].startswith("gemini/"), model
+    argon = card_for(serving[ARGON]["provider_id"])
+    assert serving[ARGON]["answer_contract"] == argon.answer_contract == "tool"
+    assert "The harness sends no thinkingConfig" in argon.notes
+    assert "default thinking_level of medium" in argon.notes
+    # The reasoning test: 80 forced against 82 auto, no significant
+    # reduction; the board's own run reasoned on 85 (recomputed above from
+    # the frozen predictions).
+    assert (
+        f"returned reasoning tokens on {facts['forcedReasoning']} and a "
+        f"tool_choice auto run on {facts['autoReasoning']} (Fisher exact p = 0.86"
+    ) in argon.notes
+    assert f"reasoned on {facts['boardReasoning']}" in argon.notes
+    assert "no statistically significant reduction" in argon.notes
+    assert facts["households"] == 100
+    # A forced tool suppresses Claude Opus 5's thinking.
+    august = (ROOT / "sensitivity/claude-thinking-2026-08.md").read_text()
+    assert "Forcing the tool suppresses Claude's thinking in practice" in august
+    assert "Claude Opus 5 request three ways" in august
+    # The introductory price, doubling on December 1.
+    assert PRICE_OVERRIDES_PER_1M[ARGON]["input"] == 2.0
+    assert PRICE_OVERRIDES_PER_1M[ARGON]["output"] == 10.0
+    config = (ROOT / "policybench/config.py").read_text()
+    assert "from 2026-12-01 they double to" in config
+    # Muse Spark 1.3: one OpenRouter endpoint, Meta's own; forced tools
+    # rejected; the JSON contract at Meta's default reasoning.
+    spark = card_for(serving[SPARK]["provider_id"])
+    assert serving[SPARK]["answer_contract"] == spark.answer_contract == "json"
+    assert "OpenRouter lists one endpoint, Meta's own" in spark.notes
+    assert "Meta rejects forced tool choices" in spark.notes
+    assert "reasons at the provider default" in spark.notes
+    # "Nothing else on the board moves": the references and exclusions are
+    # release 20261013's, and every earlier model keeps its exact rate and
+    # bounded score.
+    assert _read_csv(REFERENCES_PATH) == _read_csv(_in(then_root, REFERENCES_PATH))
+    assert _excluded_at(ROOT) == _excluded_at(then_root)
+    then_stats = {
+        row["model"]: row
+        for row in _payload_at(then_root)["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+    for row in board:
+        if row["model"] in then_stats:
+            assert row["exact"] == then_stats[row["model"]]["exact"], row["model"]
+            assert row["score"] == then_stats[row["model"]]["score"], row["model"]
+    # The publication check: the newest release gives 2.41.0's value for all
+    # 1,984 outputs.
+    # The latest check, the one sweep_timing.json records.
+    timing = _load_json(PUBLICATION_CHECK / "sweep_timing.json")
+    check = _read_csv(ROOT / timing["publication_check"]["output"])
+    assert timing["publication_check"]["engine"] == facts["checkedEngine"]
+    assert len(check) == facts["totalOutputs"]
+    assert all(row["same"] == "True" and float(row["delta"]) == 0.0 for row in check)
+    assert {(row["reference_engine"], row["engine"]) for row in check} == {
+        (facts["engineVersion"], facts["checkedEngine"])
+    }
+    assert facts["scoredOutputs"] == facts["totalOutputs"] - r.excluded_output_count
+    # Links resolve to committed paths.
+    for entry in note["data"]:
+        href = entry["href"]
+        prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+        if href.startswith(prefix):
+            assert (ROOT / href.removeprefix(prefix)).exists(), href

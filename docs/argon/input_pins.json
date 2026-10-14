@@ -1,0 +1,19 @@
+{
+  "inputs": {
+    "argon": {
+      "run": "argon-runs/argon/run",
+      "sha256": {
+        "predictions.csv": "76724f96baef92d1958cfdbdcbbaec82b4a06d6b72c0e891534a9fa03e156462",
+        "run_state.json": "b2af6808c40bf5275bd46d87bb85f67aa0da6f9f93885fbe838d04f5f778f80d"
+      }
+    },
+    "musespark": {
+      "run": "argon-runs/musespark/run",
+      "sha256": {
+        "predictions.csv": "1e4c81a1c69b4be3dec92d007a2c3d3c22009bf7d56df29a2d2349a5be4887d3",
+        "run_state.json": "923d8c2b21429aa678b0ef96ded4ef49c6ba338117854b2c0fb520bd7a13292c"
+      }
+    }
+  },
+  "note": "The sha256 of each new model's supervised run files as the run finished, written by scripts/finish_argon.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}
