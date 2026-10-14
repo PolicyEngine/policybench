@@ -1893,8 +1893,9 @@ def _exported(incumbents):
     """What export_full_run returns: Fable's usage is gone, the addition is new."""
     stats = copy.deepcopy(incumbents)
     fable = stats[-1]
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     return stats + [_stat(NEW, 65.0, costUsd=2.0)]
 
 
