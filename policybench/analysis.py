@@ -1424,7 +1424,8 @@ def model_cost_latency(
     model's reconstructed cost is missing (a provider preview model not yet in
     litellm's price map), it is filled from ``price_overrides``, but only from
     recorded prompt and completion token counts. A model whose rows record
-    neither (Claude Fable 5's batch rows carry no usage) gets no cost, not $0.
+    neither (Claude Fable 5's frozen board rows record no usage) gets no cost,
+    not $0.
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}

@@ -121,7 +121,7 @@ def test_empty_predictions_returns_empty():
 
 
 def test_price_override_without_recorded_tokens_gives_no_cost():
-    """Claude Fable 5's batch rows record no cost, tokens or latency. Its
+    """Claude Fable 5's frozen board rows record no cost, tokens or latency. Its
     price override has nothing to price, so it gets no cost, not $0."""
     preds = pd.DataFrame(
         [

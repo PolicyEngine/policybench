@@ -1,8 +1,8 @@
 """Fable 5's carried usage: the export reports none of it, the carry restores it.
 
-Claude Fable 5 ran through the Anthropic batch adapter, and its rows record no
-cost, token or latency fields. So analysis.model_cost_latency computes none of
-its usage, and export_full_run reports none (it reported a $0 cost before
+Claude Fable 5's frozen board rows record no cost, token or latency fields.
+So analysis.model_cost_latency computes none of its usage, and
+export_full_run reports none (it reported a $0 cost before
 model_cost_latency stopped pricing unrecorded tokens). Every release driver
 carries the four published fields from its base release (CARRIED_USAGE). It
 then gates on serialized bytes, so key order counts as well as values.
