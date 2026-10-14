@@ -748,7 +748,8 @@ def load_us_cost_latency() -> dict:
     # through the same model_cost_latency function as the leaderboard pipeline,
     # then are reconciled against the frozen
     # modelStats: Claude Fable 5's usage is recorded at the run level (its
-    # per-row usage columns are empty), and batch or asynchronous waves log
+    # per-row usage columns are empty, so model_cost_latency returns nothing
+    # for it), and batch or asynchronous waves log
     # submission times rather than generation time, so a zero or sub-second
     # median is treated as unmeasured and falls back to modelStats or "—".
     from policybench.analysis import model_cost_latency
@@ -759,6 +760,8 @@ def load_us_cost_latency() -> dict:
     )
     computed = model_cost_latency(predictions, PRICE_OVERRIDES_PER_1M)
     stats = us_model.set_index("model")
+    for model_id in stats.index:
+        computed.setdefault(model_id, {})
     for model_id, entry in computed.items():
         row = stats.loc[model_id] if model_id in stats.index else None
         cost = entry.get("costPerHousehold")
