@@ -2651,6 +2651,20 @@ def _amounts(side) -> list[float]:
     ]
 
 
+def _entered_as(cause: dict, diffs: list[dict]) -> list[str]:
+    """The model's other inputs, on the cause's unit, that hold its amount."""
+    wanted = _amounts(cause["reference"])
+    found = []
+    for other in diffs:
+        if other is cause or other["entity"] != cause["entity"]:
+            continue
+        if other.get("model_unit") != cause.get("model_unit"):
+            continue
+        if any(abs(a - b) <= 1.0 for a in _amounts(other["model"]) for b in wanted):
+            found.append(f"{other['entity']}.{other['variable']}")
+    return found
+
+
 def _entered_elsewhere(cause: dict, diffs: list[dict]) -> bool:
     """Whether the model set this cause, or entered its amount elsewhere.
 
@@ -2663,17 +2677,7 @@ def _entered_elsewhere(cause: dict, diffs: list[dict]) -> bool:
     """
     if cause["model"] not in ({}, None):
         return True
-    wanted = _amounts(cause["reference"])
-    if not wanted:
-        return False
-    for other in diffs:
-        if other is cause or other["entity"] != cause["entity"]:
-            continue
-        if other.get("model_unit") != cause.get("model_unit"):
-            continue
-        if any(abs(a - b) <= 1.0 for a in _amounts(other["model"]) for b in wanted):
-            return True
-    return False
+    return bool(_entered_as(cause, diffs))
 
 
 def attribute_miss(
@@ -2728,12 +2732,45 @@ def attribute_miss(
             if any(_entered_elsewhere(d, diffs) for d in basis)
             else "left_out"
         )
+    # The inputs that hold an unset cause's amount: evidence for
+    # entered_differently, listed so a reader can tell a real re-entry
+    # (interest_income for taxable_interest_income) from a coincidence.
+    entered_as = sorted(
+        {
+            name
+            for d in basis
+            if d["model"] in ({}, None)
+            for name in _entered_as(d, diffs)
+        }
+    )
     return {
         "single_causes": causes,
         "all_differences_fix_it": joint,
         "necessary_inputs": necessary,
         "mapping_kind": kind,
+        "entered_as": entered_as,
     }
+
+
+def _entity_matches(call: dict, submitted, entities) -> list[str]:
+    """Results of one call within $1 of the submitted value, on the output's
+    entities only, as variable[member]@period."""
+    if submitted is None:
+        return []
+    matches = []
+    for name, entry in call["result"]["results"].items():
+        if not isinstance(entry, dict):
+            continue
+        if entities is not None and entry.get("entity") not in entities:
+            continue
+        for member, value in (entry.get("values") or {}).items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if abs(float(value) - float(submitted)) <= 1.0:
+                label = f"{name}[{member}]@{entry.get('period')}"
+                if label not in matches:
+                    matches.append(label)
+    return matches
 
 
 def resolve_unread_output(
@@ -2743,43 +2780,85 @@ def resolve_unread_output(
     output: str,
     submitted,
     board_value_for: Callable[[Any], float | None],
+    output_entities=None,
+    binary: bool = False,
 ) -> dict:
     """Settle a wrong_variable_or_period verdict with the board's own output.
 
     A model can read a variable other than the board's, such as a state's own
     ``ca_income_tax_before_refundable_credits``, so the output's engine
-    variable is never computed. The answering call is the last successful one
-    whose results hold the submitted value (else the main call), and
-    ``board_value_for`` computes the board's output on that call's situation.
-    If it equals the submitted value, the variable read was equivalent there
-    and the miss is the situation's: the verdict becomes wrong_input_mapping.
-    Otherwise the verdict stands, with the board's value recorded, which shows
-    whether the situation itself was right.
+    variable is never computed. Numbers alone do not show which call an
+    answer came from, so a verdict changes only on agreeing evidence:
+
+    - The holding calls are the successful ones with a result within $1 of
+      the submitted value on one of ``output_entities``, the entities of the
+      output's engine variables (an equal ``employment_income`` on a person
+      is not evidence for a tax-unit tax).
+    - ``board_value_for`` computes the board's output on each holding call's
+      situation. Only if every one equals the submitted value does the miss
+      become wrong_input_mapping. The situation attributed is then the
+      holding call that computed the most outputs.
+    - If they disagree, the verdict stands, marked ambiguous. If none equals
+      it, the verdict stands with the board's value on the last holding call
+      (which shows whether the situation itself was right). With no holding
+      call, the main call's value is recorded.
+    - A binary output is never reclassified: a 0 or 1 matches too much by
+      chance. Its main call's value is recorded.
     """
     if verdict.get("category") != "wrong_variable_or_period":
         return verdict
     calls = _successful_calls(record)
-    holding = [c for c in calls if submitted_matches([c], submitted)]
-    if holding:
-        call, basis = holding[-1], "holds the submitted value"
-    else:
+    holding = (
+        []
+        if binary
+        else [c for c in calls if _entity_matches(c, submitted, output_entities)]
+    )
+    if not holding:
         call = main_call(record, scenario, list(record["variables"]))
-        basis = "main call"
-    if call is None:
-        return verdict
-    value = board_value_for(call.get("arguments"))
+        if call is None:
+            return verdict
+        return {
+            **verdict,
+            "answering_call": "main call",
+            "board_output_on_situation": board_value_for(call.get("arguments")),
+            "call_arguments": call.get("arguments"),
+        }
+    values = {}
+    for call in holding:
+        key = json.dumps(call.get("arguments"), sort_keys=True, default=str)
+        if key not in values:
+            values[key] = board_value_for(call.get("arguments"))
+    agree = [v is not None and hit(output, submitted, v) for v in values.values()]
+    if all(agree):
+        call = main_call(
+            {"turns": [{"calls": holding}]}, scenario, list(record["variables"])
+        )
+        value = values[json.dumps(call.get("arguments"), sort_keys=True, default=str)]
+        read = ", ".join(_entity_matches(call, submitted, output_entities))
+        return {
+            **verdict,
+            "category": "wrong_input_mapping",
+            "detail": f"read {read}, equal to the board's output on that situation",
+            "answering_call": "holds the submitted value",
+            "holding_calls": len(holding),
+            "board_output_on_situation": value,
+            "tool_value": value,
+            "call_arguments": call.get("arguments"),
+        }
+    last = holding[-1]
     settled = {
         **verdict,
-        "answering_call": basis,
-        "board_output_on_situation": value,
-        "call_arguments": call.get("arguments"),
+        "answering_call": "holds the submitted value",
+        "holding_calls": len(holding),
+        "board_output_on_situation": values[
+            json.dumps(last.get("arguments"), sort_keys=True, default=str)
+        ],
+        "call_arguments": last.get("arguments"),
     }
-    if value is not None and holding and hit(output, submitted, value):
-        read = ", ".join(submitted_matches([call], submitted))
-        settled.update(
-            category="wrong_input_mapping",
-            detail=f"read {read}, equal to the board's output on that situation",
-            tool_value=value,
+    if any(agree):
+        settled["detail"] = (
+            "ambiguous: calls holding the submitted value disagree on the "
+            "board's output"
         )
     return settled
 
@@ -2869,6 +2948,8 @@ def situation_fidelity(records, board, system, registry, defaults, out: Path) ->
 
 
 def command_diagnose(args) -> None:
+    from policybench.spec import metric_type_for_output
+
     board = load_board()
     out = Path(args.out_dir)
     records = load_records(out)
@@ -2910,8 +2991,20 @@ def command_diagnose(args) -> None:
                     return None
                 return output_value(system, request["situation"], scenario, output)
 
+            entities = {
+                registry[name].entity
+                for name in engine_variables_for_output(row.variable)
+                if name in registry
+            }
             verdict = resolve_unread_output(
-                verdict, record, scenario, row.variable, submitted, board_value_for
+                verdict,
+                record,
+                scenario,
+                row.variable,
+                submitted,
+                board_value_for,
+                output_entities=entities or None,
+                binary=metric_type_for_output(row.variable) != "amount",
             )
         diff = []
         attribution = {}
@@ -2954,6 +3047,7 @@ def command_diagnose(args) -> None:
                 "all_differences_fix_it": attribution.get("all_differences_fix_it"),
                 "necessary_inputs": json.dumps(attribution.get("necessary_inputs")),
                 "mapping_kind": attribution.get("mapping_kind"),
+                "entered_as": json.dumps(attribution.get("entered_as")),
                 "answering_call": verdict.get("answering_call"),
                 "board_output_on_situation": verdict.get("board_output_on_situation"),
                 "input_diff": json.dumps(diff, default=str),

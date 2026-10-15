@@ -658,9 +658,11 @@ def test_hit_is_the_boards_exact_rule():
     assert not pilot.hit("snap", float("nan"), 1.0)
 
 
-def call_record(values: dict, period="2026", people=("head", "kid")):
+def call_record(
+    values: dict, period="2026", people=("head", "kid"), entity="x", age=30
+):
     sit = situation()
-    sit["people"] = {p: {"age": 30} for p in people}
+    sit["people"] = {p: {"age": age} for p in people}
     return {
         "name": pilot.TOOL_NAME,
         "arguments": json.dumps(
@@ -668,7 +670,7 @@ def call_record(values: dict, period="2026", people=("head", "kid")):
         ),
         "result": {
             "results": {
-                name: {"entity": "x", "period": period, "values": vals}
+                name: {"entity": entity, "period": period, "values": vals}
                 for name, vals in values.items()
             }
         },
@@ -1808,7 +1810,9 @@ def unread(calls, variables=(STATE_OUTPUT,)):
 def test_a_state_variable_equal_to_the_boards_output_is_the_situations_miss():
     """Sol read ca_income_tax_before_refundable_credits; on its situation the
     board's own output is the same number, so the inputs decide the miss."""
-    call = call_record({"ca_income_tax_before_refundable_credits": {"tu": 40483.32}})
+    call = call_record(
+        {"ca_income_tax_before_refundable_credits": {"tu": 40483.32}}, entity="tax_unit"
+    )
     record = unread([call])
     verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 40483.32, 1)
     assert verdict["category"] == "wrong_variable_or_period"
@@ -1819,7 +1823,13 @@ def test_a_state_variable_equal_to_the_boards_output_is_the_situations_miss():
         return 40483.3
 
     settled = pilot.resolve_unread_output(
-        verdict, record, make_scenario(), STATE_OUTPUT, 40483.32, board_value_for
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        40483.32,
+        board_value_for,
+        output_entities={"tax_unit"},
     )
     assert settled["category"] == "wrong_input_mapping"
     assert settled["call_arguments"] == call["arguments"] == asked[0]
@@ -1831,11 +1841,17 @@ def test_a_state_variable_equal_to_the_boards_output_is_the_situations_miss():
 def test_a_variable_that_differs_from_the_boards_output_stays_a_wrong_variable():
     """Sol read state_income_tax (after refundable credits); its situation gives
     the board's output exactly, so the situation was right and the read was not."""
-    call = call_record({"state_income_tax": {"tu": 6363.34}})
+    call = call_record({"state_income_tax": {"tu": 6363.34}}, entity="tax_unit")
     record = unread([call])
     verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 6363.34, 1)
     settled = pilot.resolve_unread_output(
-        verdict, record, make_scenario(), STATE_OUTPUT, 6363.34, lambda a: 6828.34
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        6363.34,
+        lambda a: 6828.34,
+        output_entities={"tax_unit"},
     )
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["board_output_on_situation"] == 6828.34
@@ -1854,7 +1870,13 @@ def test_an_answer_no_call_returned_falls_back_to_the_main_call():
     record = unread([parts], variables=("payroll_tax", "snap"))
     verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 1)
     settled = pilot.resolve_unread_output(
-        verdict, record, make_scenario(), "payroll_tax", 4590.0, lambda a: 4632.0
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        lambda a: 4632.0,
+        output_entities={"tax_unit", "spm_unit"},
     )
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["answering_call"] == "main call"
@@ -1916,18 +1938,35 @@ def test_leave_one_out_names_the_inputs_a_joint_fix_needs(monkeypatch):
 def test_a_single_cause_entered_under_another_name_is_entered_differently(
     monkeypatch,
 ):
+    """The reference sets `right`; the model put the same amount under `wrong`.
+    The diffs are situation_diff's own, so `right` has an empty model side."""
+
     def toy_value(system, situation, scenario, output):
         return 100.0 if "right" in situation["people"]["head"] else 0.0
 
     monkeypatch.setattr(pilot, "output_value", toy_value)
-    model = {"people": {"head": {"wrong": {"2026": 3}}}}
-    reference = {"people": {"head": {"right": {"2026": 3}}}}
-    diffs = [_diff("right", {"2026": 3}, {"2026": 3})]
-    diffs[0]["model"] = {"2026": 2}
+    groups = {group: {} for group in pilot.GROUPS}
+    model = {"people": {"head": {"wrong": {"2026": 3}}, "kid": {}}, **groups}
+    reference = {"people": {"head": {"right": {"2026": 3}}, "kid": {}}, **groups}
+    diffs = pilot.situation_diff(model, reference, make_scenario())
+    by_name = {d["variable"]: d for d in diffs}
+    assert by_name["right"]["model"] == {} and by_name["wrong"]["reference"] == {}
     result = pilot.attribute_miss(None, model, reference, None, "snap", 100.0, diffs)
     assert result["single_causes"] == ["person.right"]
     assert result["necessary_inputs"] == []
     assert result["mapping_kind"] == "entered_differently"
+    # Without the amount anywhere in the model's situation, it was left out.
+    bare = {"people": {"head": {}, "kid": {}}, **groups}
+    left = pilot.attribute_miss(
+        None,
+        bare,
+        reference,
+        None,
+        "snap",
+        100.0,
+        pilot.situation_diff(bare, reference, make_scenario()),
+    )
+    assert left["mapping_kind"] == "left_out"
 
 
 def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatch):
@@ -1948,6 +1987,7 @@ def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatc
     result = pilot.attribute_miss(None, model, reference, None, "snap", 0.0, diffs)
     assert result["single_causes"] == ["person.home_mortgage_interest"]
     assert result["mapping_kind"] == "entered_differently"
+    assert result["entered_as"] == ["person.mortgage_interest"]
     # The same cause with nothing like its amount elsewhere was left out, and a
     # true flag elsewhere does not count as the amount.
     unrelated = [
@@ -1962,3 +2002,96 @@ def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatc
         {**diffs[1], "model_unit": "kid", "reference_unit": "kid"},
     ]
     assert not pilot._entered_elsewhere(other_person[0], other_person)
+
+
+def test_a_coincidental_probe_on_another_entity_is_not_evidence():
+    """r2's case: the answer copies after-credit tax of $200 from the model's
+    situation, whose board output is $300; a later probe returns an
+    employment_income of $200 on a person. The probe does not count, so the
+    verdict stays a wrong variable on the real call."""
+    real = call_record({"state_income_tax": {"tu": 200.0}}, entity="tax_unit")
+    probe = call_record({"employment_income": {"head": 200.0}}, entity="person", age=41)
+    record = unread([real, probe])
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
+    board = {real["arguments"]: 300.0, probe["arguments"]: 200.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        200.0,
+        board.get,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["call_arguments"] == real["arguments"]
+    assert settled["board_output_on_situation"] == 300.0
+
+
+def test_holding_calls_that_disagree_leave_the_verdict_marked_ambiguous():
+    """Two tax-unit results both hold the answer, but only one situation's
+    board output equals it: no reclassification on evidence that splits."""
+    first = call_record({"state_income_tax": {"tu": 200.0}}, entity="tax_unit")
+    second = call_record({"xx_credit": {"tu": 200.0}}, entity="tax_unit", age=41)
+    record = unread([first, second])
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
+    board = {first["arguments"]: 300.0, second["arguments"]: 200.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        200.0,
+        board.get,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("ambiguous")
+    assert settled["holding_calls"] == 2
+
+
+def test_agreeing_holding_calls_attribute_the_fullest_one():
+    """Every holding call agrees; the situation attributed is the one that
+    computed the most of the household's outputs, not a later narrow probe."""
+    full = call_record(
+        {"ca_income_tax": {"tu": 500.0}, "snap": {"spm": 0.0}},
+        entity="tax_unit",
+    )
+    probe = call_record({"ca_income_tax": {"tu": 500.0}}, entity="tax_unit", age=41)
+    record = unread([full, probe], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 500.0, 900)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        500.0,
+        lambda a: 500.0,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_input_mapping"
+    assert settled["call_arguments"] == full["arguments"]
+    assert settled["holding_calls"] == 2
+
+
+def test_a_binary_output_is_never_reclassified():
+    call = call_record(
+        {"is_wic_eligible": {"head": True, "kid": False}}, entity="person"
+    )
+    record = unread([call], variables=("head_medicaid_eligible",))
+    verdict = pilot.classify_miss(
+        record, make_scenario(), "head_medicaid_eligible", 0.0, 1.0
+    )
+    assert verdict["category"] == "wrong_variable_or_period"
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "head_medicaid_eligible",
+        0.0,
+        lambda a: 0.0,
+        output_entities={"person"},
+        binary=True,
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["answering_call"] == "main call"
