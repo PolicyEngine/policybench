@@ -2641,6 +2641,41 @@ def apply_reference_input(model: dict, reference: dict, diff: dict) -> dict | No
     return situation
 
 
+def _amounts(side) -> list[float]:
+    if not isinstance(side, dict):
+        return []
+    return [
+        float(v)
+        for v in side.values()
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    ]
+
+
+def _entered_elsewhere(cause: dict, diffs: list[dict]) -> bool:
+    """Whether the model set this cause, or entered its amount elsewhere.
+
+    A cause the model set itself (a non-empty model side) was entered
+    differently. One the model left unset was still entered if the same
+    amount, within $1, sits on the model side of another difference on the
+    same unit: Sol's $10,777 of mortgage interest under ``mortgage_interest``
+    for a reference ``home_mortgage_interest``. Only numbers count, since a
+    true flag elsewhere says nothing about this one.
+    """
+    if cause["model"] not in ({}, None):
+        return True
+    wanted = _amounts(cause["reference"])
+    if not wanted:
+        return False
+    for other in diffs:
+        if other is cause or other["entity"] != cause["entity"]:
+            continue
+        if other.get("model_unit") != cause.get("model_unit"):
+            continue
+        if any(abs(a - b) <= 1.0 for a in _amounts(other["model"]) for b in wanted):
+            return True
+    return False
+
+
 def attribute_miss(
     system, model: dict, reference: dict, scenario, output: str, target, diffs
 ) -> dict:
@@ -2652,8 +2687,10 @@ def attribute_miss(
     if that fixes it, the necessary inputs are the ones whose omission from
     the full set leaves the output wrong (leave-one-out).
 
-    ``mapping_kind`` reads the causes (single, else necessary): "left_out"
-    when the model set none of them, "entered_differently" otherwise.
+    ``mapping_kind`` reads the causes (single, else necessary):
+    "entered_differently" when the model set one of them, or put a cause's
+    amount under another input of the same unit (``_entered_elsewhere``);
+    "left_out" otherwise.
     """
     causes, cause_diffs = [], []
     for diff in diffs:
@@ -2687,9 +2724,9 @@ def attribute_miss(
     kind = None
     if basis:
         kind = (
-            "left_out"
-            if all(d["model"] in ({}, None) for d in basis)
-            else "entered_differently"
+            "entered_differently"
+            if any(_entered_elsewhere(d, diffs) for d in basis)
+            else "left_out"
         )
     return {
         "single_causes": causes,

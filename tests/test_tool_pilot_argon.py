@@ -1917,14 +1917,48 @@ def test_a_single_cause_entered_under_another_name_is_entered_differently(
     monkeypatch,
 ):
     def toy_value(system, situation, scenario, output):
-        return float("right" in situation["people"]["head"])
+        return 100.0 if "right" in situation["people"]["head"] else 0.0
 
     monkeypatch.setattr(pilot, "output_value", toy_value)
     model = {"people": {"head": {"wrong": {"2026": 3}}}}
     reference = {"people": {"head": {"right": {"2026": 3}}}}
     diffs = [_diff("right", {"2026": 3}, {"2026": 3})]
     diffs[0]["model"] = {"2026": 2}
-    result = pilot.attribute_miss(None, model, reference, None, "snap", 1.0, diffs)
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 100.0, diffs)
     assert result["single_causes"] == ["person.right"]
     assert result["necessary_inputs"] == []
     assert result["mapping_kind"] == "entered_differently"
+
+
+def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatch):
+    """Sol's scenario_088: the reference's home_mortgage_interest is unset in
+    the model's situation, but the same $10,777 sits under mortgage_interest."""
+
+    def toy_value(system, situation, scenario, output):
+        # Outside the board's $1 tolerance either way.
+        return 0.0 if "home_mortgage_interest" in situation["people"]["head"] else 416.2
+
+    monkeypatch.setattr(pilot, "output_value", toy_value)
+    model = {"people": {"head": {"mortgage_interest": {"2026": 10777}}}}
+    reference = {"people": {"head": {"home_mortgage_interest": {"2026": 10777.0}}}}
+    diffs = [
+        _diff("home_mortgage_interest", {}, {"2026": 10777.0}),
+        _diff("mortgage_interest", {"2026": 10777}, {}),
+    ]
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 0.0, diffs)
+    assert result["single_causes"] == ["person.home_mortgage_interest"]
+    assert result["mapping_kind"] == "entered_differently"
+    # The same cause with nothing like its amount elsewhere was left out, and a
+    # true flag elsewhere does not count as the amount.
+    unrelated = [
+        _diff("home_mortgage_interest", {}, {"2026": 10777.0}),
+        _diff("is_disabled", {"2026": True}, {}),
+        _diff("rent", {"2026": 900}, {}),
+    ]
+    assert not pilot._entered_elsewhere(unrelated[0], unrelated)
+    assert pilot._entered_elsewhere(diffs[0], diffs)
+    other_person = [
+        diffs[0],
+        {**diffs[1], "model_unit": "kid", "reference_unit": "kid"},
+    ]
+    assert not pilot._entered_elsewhere(other_person[0], other_person)
