@@ -2648,23 +2648,103 @@ def attribute_miss(
 
     Each difference is applied alone; the ones that bring the output within
     the board's tolerance of the reference are its single causes. When no
-    single input does, every applicable difference is applied together.
+    single input does, every applicable difference is applied together, and
+    if that fixes it, the necessary inputs are the ones whose omission from
+    the full set leaves the output wrong (leave-one-out).
+
+    ``mapping_kind`` reads the causes (single, else necessary): "left_out"
+    when the model set none of them, "entered_differently" otherwise.
     """
-    causes = []
+    causes, cause_diffs = [], []
     for diff in diffs:
         situation = apply_reference_input(model, reference, diff)
         if situation is None:
             continue
         if hit(output, output_value(system, situation, scenario, output), target):
             causes.append(f"{diff['entity']}.{diff['variable']}")
+            cause_diffs.append(diff)
     joint = None
+    necessary, necessary_diffs = [], []
     if not causes and diffs:
-        situation = model
-        for diff in diffs:
-            applied = apply_reference_input(situation, reference, diff)
-            situation = applied if applied is not None else situation
-        joint = hit(output, output_value(system, situation, scenario, output), target)
-    return {"single_causes": causes, "all_differences_fix_it": joint}
+
+        def apply_all(skip=None) -> dict:
+            situation = model
+            for diff in diffs:
+                if diff is skip:
+                    continue
+                applied = apply_reference_input(situation, reference, diff)
+                situation = applied if applied is not None else situation
+            return situation
+
+        joint = hit(output, output_value(system, apply_all(), scenario, output), target)
+        if joint:
+            for diff in diffs:
+                value = output_value(system, apply_all(skip=diff), scenario, output)
+                if not hit(output, value, target):
+                    necessary.append(f"{diff['entity']}.{diff['variable']}")
+                    necessary_diffs.append(diff)
+    basis = cause_diffs or necessary_diffs
+    kind = None
+    if basis:
+        kind = (
+            "left_out"
+            if all(d["model"] in ({}, None) for d in basis)
+            else "entered_differently"
+        )
+    return {
+        "single_causes": causes,
+        "all_differences_fix_it": joint,
+        "necessary_inputs": necessary,
+        "mapping_kind": kind,
+    }
+
+
+def resolve_unread_output(
+    verdict: dict,
+    record: dict,
+    scenario,
+    output: str,
+    submitted,
+    board_value_for: Callable[[Any], float | None],
+) -> dict:
+    """Settle a wrong_variable_or_period verdict with the board's own output.
+
+    A model can read a variable other than the board's, such as a state's own
+    ``ca_income_tax_before_refundable_credits``, so the output's engine
+    variable is never computed. The answering call is the last successful one
+    whose results hold the submitted value (else the main call), and
+    ``board_value_for`` computes the board's output on that call's situation.
+    If it equals the submitted value, the variable read was equivalent there
+    and the miss is the situation's: the verdict becomes wrong_input_mapping.
+    Otherwise the verdict stands, with the board's value recorded, which shows
+    whether the situation itself was right.
+    """
+    if verdict.get("category") != "wrong_variable_or_period":
+        return verdict
+    calls = _successful_calls(record)
+    holding = [c for c in calls if submitted_matches([c], submitted)]
+    if holding:
+        call, basis = holding[-1], "holds the submitted value"
+    else:
+        call = main_call(record, scenario, list(record["variables"]))
+        basis = "main call"
+    if call is None:
+        return verdict
+    value = board_value_for(call.get("arguments"))
+    settled = {
+        **verdict,
+        "answering_call": basis,
+        "board_output_on_situation": value,
+        "call_arguments": call.get("arguments"),
+    }
+    if value is not None and holding and hit(output, submitted, value):
+        read = ", ".join(submitted_matches([call], submitted))
+        settled.update(
+            category="wrong_input_mapping",
+            detail=f"read {read}, equal to the board's output on that situation",
+            tool_value=value,
+        )
+    return settled
 
 
 def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
@@ -2785,6 +2865,17 @@ def command_diagnose(args) -> None:
         verdict = classify_miss(
             record, scenario, row.variable, submitted, row.reference
         )
+        if registry is not None:
+
+            def board_value_for(arguments, scenario=scenario, output=row.variable):
+                request, _ = normalize_request(arguments, registry)
+                if request is None:
+                    return None
+                return output_value(system, request["situation"], scenario, output)
+
+            verdict = resolve_unread_output(
+                verdict, record, scenario, row.variable, submitted, board_value_for
+            )
         diff = []
         attribution = {}
         arguments = verdict.get("call_arguments")
@@ -2824,6 +2915,10 @@ def command_diagnose(args) -> None:
                 "submitted_matches": json.dumps(verdict.get("submitted_matches")),
                 "single_causes": json.dumps(attribution.get("single_causes")),
                 "all_differences_fix_it": attribution.get("all_differences_fix_it"),
+                "necessary_inputs": json.dumps(attribution.get("necessary_inputs")),
+                "mapping_kind": attribution.get("mapping_kind"),
+                "answering_call": verdict.get("answering_call"),
+                "board_output_on_situation": verdict.get("board_output_on_situation"),
                 "input_diff": json.dumps(diff, default=str),
             }
         )
