@@ -1,4 +1,4 @@
-"""The Argon tool pilot's validator, conversation loop, scoring and diagnosis.
+"""The tool pilot's validator, conversation loop, scoring and diagnosis.
 
 Every model call is faked. The registry is a small stand-in for the engine's,
 so the validator tests need no PolicyEngine system; the tests that build the
@@ -568,9 +568,10 @@ def test_the_prompt_is_the_board_prompt_plus_the_notice():
     board_messages, _ = _chat_completion_request_kwargs(
         scenario, VARIABLES, "gemini/gemini-4-argon"
     )
-    messages, kwargs = pilot.build_initial_request(scenario, VARIABLES)
-    assert messages[0]["content"] == board_messages[0]["content"] + pilot.TOOL_NOTICE
-    assert "caching" not in kwargs
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES)
+    assert prompt == board_messages[0]["content"] + pilot.TOOL_NOTICE
+    assert "caching" not in kwargs and "messages" not in kwargs
+    assert kwargs["_answer_tool"]["function"]["name"] == "submit_outputs"
 
 
 def test_the_cap_forces_the_answer_tool():
@@ -657,9 +658,11 @@ def test_hit_is_the_boards_exact_rule():
     assert not pilot.hit("snap", float("nan"), 1.0)
 
 
-def call_record(values: dict, period="2026", people=("head", "kid")):
+def call_record(
+    values: dict, period="2026", people=("head", "kid"), entity="x", age=30
+):
     sit = situation()
-    sit["people"] = {p: {"age": 30} for p in people}
+    sit["people"] = {p: {"age": age} for p in people}
     return {
         "name": pilot.TOOL_NAME,
         "arguments": json.dumps(
@@ -667,7 +670,7 @@ def call_record(values: dict, period="2026", people=("head", "kid")):
         ),
         "result": {
             "results": {
-                name: {"entity": "x", "period": period, "values": vals}
+                name: {"entity": entity, "period": period, "values": vals}
                 for name, vals in values.items()
             }
         },
@@ -1301,3 +1304,942 @@ def test_plain_number_round_trips_through_the_boards_trailer_pattern(value, text
 
     assert pilot.plain_number(value) == text
     assert _extract_terminal_explanation_value(f"Reason. value = {text}") == value
+
+
+# ---------------------------------------------------------------------------
+# Other models: the Responses API (GPT-6 Sol) and the JSON contract (Opus 5.5).
+# ---------------------------------------------------------------------------
+
+SOL = "gpt-6-sol"
+OPUS = "claude-opus-5.5"
+
+
+def test_profiles_follow_the_boards_api_and_answer_contract():
+    argon, sol, opus = (pilot.model_profile(n) for n in (pilot.MODEL_NAME, SOL, OPUS))
+    assert (argon.api, argon.contract) == ("chat", "tool")
+    assert (sol.api, sol.contract) == ("responses", "tool")
+    assert (opus.api, opus.contract) == ("chat", "json")
+    assert argon.notice == pilot.TOOL_NOTICE and sol.notice == pilot.TOOL_NOTICE
+    assert opus.notice == pilot.JSON_TOOL_NOTICE
+    assert (argon.arm1_label, argon.arm2_label) == (pilot.ARM1_LABEL, pilot.ARM2_LABEL)
+    assert sol.arm2_label == "gpt-6-sol+pe-tool"
+    # Both notices describe the same tool; only the way to answer differs.
+    shared = "You may call it in up to 8 turns. Then "
+    assert pilot.TOOL_NOTICE.split(shared)[0] == pilot.JSON_TOOL_NOTICE.split(shared)[0]
+
+
+def test_a_responses_prompt_is_the_boards_input_plus_the_notice():
+    from policybench.eval_no_tools import _responses_request_kwargs
+
+    scenario = make_scenario()
+    profile = pilot.model_profile(SOL)
+    _, board = _responses_request_kwargs(scenario, VARIABLES, profile.model_id)
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES, profile)
+    assert prompt == board["input"] + pilot.TOOL_NOTICE
+    assert kwargs["max_output_tokens"] == board["max_output_tokens"]
+    assert "input" not in kwargs and "tools" not in kwargs
+
+
+def test_a_json_contract_prompt_is_the_boards_plus_the_json_notice():
+    from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+    scenario = make_scenario()
+    profile = pilot.model_profile(OPUS)
+    messages, board = _chat_completion_request_kwargs(
+        scenario, VARIABLES, profile.model_id
+    )
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES, profile)
+    assert prompt == messages[0]["content"] + pilot.JSON_TOOL_NOTICE
+    assert kwargs["_answer_tool"] is None
+    assert kwargs["response_format"] == board["response_format"]
+
+
+def function_call(name, arguments, call_id):
+    return SimpleNamespace(
+        type="function_call",
+        id=f"fc_{call_id}",
+        call_id=call_id,
+        name=name,
+        arguments=json.dumps(arguments),
+        status="completed",
+    )
+
+
+def responses_response(items, response_id, prompt=1000, completion=200, cached=0):
+    usage = SimpleNamespace(
+        input_tokens=prompt,
+        output_tokens=completion,
+        total_tokens=prompt + completion,
+        input_tokens_details=SimpleNamespace(cached_tokens=cached),
+        output_tokens_details=SimpleNamespace(reasoning_tokens=50),
+    )
+    return SimpleNamespace(
+        id=response_id,
+        output=[SimpleNamespace(type="reasoning", id=f"rs_{response_id}"), *items],
+        output_text=None,
+        status="completed",
+        incomplete_details=None,
+        usage=usage,
+        model=SOL,
+    )
+
+
+class FakeResponses:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.requests = []
+
+    def __call__(self, **kwargs):
+        self.requests.append(json.loads(json.dumps(kwargs, default=str)))
+        return self.responses.pop(0)
+
+
+def sol_calculate(call_id):
+    return function_call(
+        pilot.TOOL_NAME,
+        {"situation": json.dumps(situation()), "variables": ["snap"]},
+        call_id,
+    )
+
+
+def sol_submit(values, call_id="s1"):
+    outputs = {
+        k: {"value": v, "explanation": f"From the tool. value = {v}"}
+        for k, v in values.items()
+    }
+    return function_call("submit_outputs", {"outputs": outputs}, call_id)
+
+
+def test_a_responses_conversation_chains_and_returns_each_call_output():
+    model = FakeResponses(
+        [
+            responses_response([sol_calculate("call_a")], "resp_1"),
+            responses_response(
+                [sol_submit({"snap": 2553, VARIABLES[1]: 0})], "resp_2", cached=800
+            ),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        spend,
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete" and record["model"] == SOL
+    assert record["predictions"] == {"snap": 2553.0, VARIABLES[1]: 0.0}
+    first, second = model.requests
+    assert first["model"] == SOL and first["tool_choice"] == "required"
+    assert first["input"].endswith(pilot.TOOL_NOTICE)
+    assert "previous_response_id" not in first
+    # The Responses API's flat tool shape.
+    assert [t["name"] for t in first["tools"]] == [pilot.TOOL_NAME, "submit_outputs"]
+    assert all(t["type"] == "function" for t in first["tools"])
+    assert "max_output_tokens" in first and "max_completion_tokens" not in first
+    assert second["previous_response_id"] == "resp_1"
+    (output,) = second["input"]
+    assert output["type"] == "function_call_output" and output["call_id"] == "call_a"
+    assert json.loads(output["output"])["results"]["snap"]["values"] == {"spm": 2553.0}
+    # $2 / $10 per 1M; GPT cached input bills at a tenth of the input rate.
+    totals = record["totals"]
+    assert totals["cached_prompt_tokens"] == 800
+    assert totals["cost_usd"] == pytest.approx(
+        (1000 * 2 + 200 * 10 + (200 * 2 + 800 * 0.2 + 200 * 10)) / 1e6
+    )
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+
+
+def test_a_responses_cap_forces_the_answer_function():
+    cap = 2
+    model = FakeResponses(
+        [responses_response([sol_calculate(f"c{i}")], f"r{i}") for i in range(cap)]
+        + [responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "rz")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete" and record["cap_hit"]
+    assert model.requests[cap]["tool_choice"] == {
+        "type": "function",
+        "name": "submit_outputs",
+    }
+    # The cap notice goes with the last call output, in the same request.
+    last = model.requests[cap]["input"]
+    assert [i.get("type") for i in last] == ["function_call_output", None]
+    assert "used all 2 calculation turns" in last[1]["content"]
+
+
+def test_a_truncated_responses_turn_is_retried_at_the_ceiling():
+    truncated = responses_response([], "r_cut", completion=16384)
+    truncated.status = "incomplete"
+    truncated.incomplete_details = SimpleNamespace(reason="max_output_tokens")
+    model = FakeResponses(
+        [truncated, responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "r")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete"
+    budgets = [r["max_output_tokens"] for r in model.requests]
+    assert budgets[0] < budgets[1] == 128_000
+    # The retry resends the same turn: no response to chain from yet.
+    assert all("previous_response_id" not in r for r in model.requests)
+    assert record["totals"]["truncation_retries"] == 1
+
+
+def json_answer(values, fence=False):
+    text = json.dumps(
+        {
+            k: {"value": v, "explanation": f"From the tool. value = {v}"}
+            for k, v in values.items()
+        }
+    )
+    return f"```json\n{text}\n```" if fence else text
+
+
+def run_opus(model, **kwargs):
+    return pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        kwargs.pop("tool", fake_tool),
+        model,
+        kwargs.pop("spend", pilot.Spend(50.0)),
+        profile=pilot.model_profile(OPUS),
+        **kwargs,
+    )
+
+
+def test_a_json_contract_model_calculates_then_answers_in_json():
+    model = FakeModel(
+        [
+            response([calculate()]),
+            response([], content=json_answer({"snap": 2553, VARIABLES[1]: 0})),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = run_opus(model, spend=spend)
+    assert record["status"] == "complete" and record["model"] == OPUS
+    assert record["predictions"] == {"snap": 2553.0, VARIABLES[1]: 0.0}
+    first, second = model.requests
+    # The API refuses a forced tool on this model: auto, and no answer tool.
+    assert [r["tool_choice"] for r in model.requests] == ["auto", "auto"]
+    assert [t["function"]["name"] for t in first["tools"]] == [pilot.TOOL_NAME]
+    assert first["model"] == "claude-opus-5-5"
+    prompt = first["messages"][0]["content"]
+    assert prompt[0]["text"].endswith(pilot.JSON_TOOL_NOTICE)
+    # One prompt-cache breakpoint per request, on its last message; the stored
+    # conversation stays unmarked.
+    assert prompt[0]["cache_control"] == {"type": "ephemeral"}
+    assert isinstance(second["messages"][0]["content"], str)
+    assert second["messages"][-1]["role"] == "tool"
+    assert second["messages"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert not any("cache_control" in m for m in record["messages"])
+    # $4 / $20 per 1M at 1,000 input and 200 output tokens a turn.
+    assert record["totals"]["cost_usd"] == pytest.approx(2 * (4000 + 4000) / 1e6)
+
+
+def test_a_json_contract_cap_is_a_message_and_later_calls_do_not_run():
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    cap = 2
+    model = FakeModel(
+        [response([calculate(f"c{i}")]) for i in range(cap + 1)]
+        + [response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = run_opus(model, tool=counting_tool, turn_cap=cap)
+    assert record["status"] == "complete"
+    assert len(ran) == cap and record["tool_turns"] == cap and record["cap_hit"]
+    cap_request = model.requests[cap]
+    assert (
+        "used all 2 calculation turns"
+        in cap_request["messages"][-1]["content"][0]["text"]
+    )
+    refused = model.requests[cap + 1]["messages"][-1]
+    assert refused["role"] == "tool" and "not_run" in refused["content"]
+    assert record["totals"]["tool_error_kinds"] == ["not_run"]
+
+
+def test_a_json_contract_repair_asks_for_the_missing_output_in_json():
+    model = FakeModel(
+        [
+            response([], content=json_answer({"snap": 1}, fence=True)),
+            response([], content=json_answer({VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["predictions"] == {"snap": 1.0, VARIABLES[1]: 2.0}
+    repair = model.requests[1]["messages"][-1]["content"][0]["text"]
+    assert VARIABLES[1] in repair and "Reply with a JSON object" in repair
+    assert "submit_outputs" not in repair
+
+
+def test_a_json_contract_reply_with_no_answer_is_nudged_not_repaired():
+    model = FakeModel(
+        [
+            response([], content="Let me work through this."),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete" and record["repair_rounds"] == 0
+    nudge = model.requests[1]["messages"][-1]["content"][0]["text"]
+    assert "JSON object" in nudge and "calculate_household" in nudge
+
+
+def test_records_name_one_model_and_old_records_are_argons():
+    assert pilot.records_model({"a": {}, "b": {"model": pilot.MODEL_NAME}}) == (
+        pilot.MODEL_NAME
+    )
+    assert pilot.records_model({"a": {"model": SOL}}) == SOL
+    with pytest.raises(SystemExit):
+        pilot.records_model({"a": {"model": SOL}, "b": {"model": OPUS}})
+
+
+def test_arm_labels_follow_the_model():
+    records = {"s": _record("s", ["snap"], {"snap": 1.0})}
+    assert set(pilot.arm2_predictions(records, "gpt-6-sol+pe-tool").model) == {
+        "gpt-6-sol+pe-tool"
+    }
+    frozen = pilot.arm1_predictions(label=SOL)
+    assert set(frozen.model) == {SOL} and frozen.scenario_id.nunique() == 100
+    with pytest.raises(SystemExit):
+        pilot.arm1_predictions(label="no-such-model")
+
+
+def test_every_pilot_model_has_a_provider_key():
+    for name in (pilot.MODEL_NAME, SOL, OPUS):
+        assert pilot.provider_key(pilot.model_profile(name).model_id).endswith(
+            "_API_KEY"
+        )
+
+
+STEPS = st.lists(
+    st.one_of(
+        st.tuples(st.sampled_from(["calculate", "calculate_text"]), st.integers(1, 6)),
+        st.tuples(
+            st.sampled_from(["full", "partial", "prose", "empty", "truncated"]),
+            st.just(0),
+        ),
+    ),
+    max_size=16,
+)
+
+
+class ScriptedModel:
+    """Plays a script of turns in the model's own shape, then answers in full.
+
+    ``calculate_text`` sends text beside its calls; ``truncated`` is a reply
+    cut off at the output budget, which the harness retries at the ceiling.
+    """
+
+    def __init__(self, profile, steps):
+        self.profile = profile
+        self.steps = list(steps)
+        self.requests = []
+        self.responses = []
+
+    def __call__(self, **kwargs):
+        self.requests.append(json.loads(json.dumps(kwargs, default=str)))
+        kind, count = self.steps.pop(0) if self.steps else ("full", 0)
+        n = len(self.requests)
+        values = {"snap": 1, VARIABLES[1]: 2}
+        if kind == "partial":
+            values = {"snap": 1}
+        responses_api = self.profile.api == "responses"
+        if kind in {"calculate", "calculate_text", "truncated"}:
+            make = sol_calculate if responses_api else calculate
+            calls = [make(f"t{n}c{i}") for i in range(max(count, 1))]
+            content = "Checking with the tool." if kind == "calculate_text" else None
+        elif kind in {"full", "partial"} and self.profile.contract == "tool":
+            make = sol_submit if responses_api else submit
+            calls, content = [make(values, f"t{n}s")], None
+        elif kind in {"full", "partial"}:
+            calls, content = [], json_answer(values)
+        else:
+            calls, content = [], ("Thinking." if kind == "prose" else None)
+        if responses_api:
+            items = list(calls)
+            if content:
+                items.append(
+                    SimpleNamespace(
+                        type="message",
+                        content=[SimpleNamespace(type="output_text", text=content)],
+                    )
+                )
+            result = responses_response(items, f"resp_{n}")
+            if kind == "truncated":
+                result.status = "incomplete"
+                result.incomplete_details = SimpleNamespace(reason="max_output_tokens")
+        else:
+            result = response(calls, content=content)
+            if kind == "truncated":
+                result.choices[0].finish_reason = "length"
+        result.truncated = kind == "truncated"
+        self.responses.append(result)
+        return result
+
+
+def _response_call_ids(profile, result) -> list[str]:
+    if profile.api == "responses":
+        return [i.call_id for i in result.output if i.type == "function_call"]
+    return [c.id for c in result.choices[0].message.tool_calls or []]
+
+
+def _new_items(profile, request) -> list[tuple[str, str | None]]:
+    """What a request adds after the model's last turn, in order:
+    ("result", call id) for a function result, ("user", None) for user text."""
+    if profile.api == "responses":
+        items = request["input"]
+        return [
+            ("result", i["call_id"])
+            if i.get("type") == "function_call_output"
+            else ("user", None)
+            for i in items
+        ]
+    messages = request["messages"]
+    last_assistant = max(
+        i for i, m in enumerate(messages) if m.get("role") == "assistant"
+    )
+    return [
+        ("result", m["tool_call_id"]) if m.get("role") == "tool" else ("user", None)
+        for m in messages[last_assistant + 1 :]
+    ]
+
+
+@settings(max_examples=300, deadline=None, derandomize=True)
+@given(st.sampled_from([pilot.MODEL_NAME, SOL, OPUS]), STEPS, st.integers(1, 4))
+def test_any_conversation_keeps_the_protocol_the_cap_and_the_spend(name, steps, cap):
+    profile = pilot.model_profile(name)
+    model = ScriptedModel(profile, steps)
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        counting_tool,
+        model,
+        spend,
+        turn_cap=cap,
+        profile=profile,
+    )
+    assert record["status"] in {"complete", "incomplete", "turn_limit"}
+    assert set(record["predictions"]) == set(VARIABLES)
+    # At most MAX_TOTAL_TURNS turns reach the conversation; a turn cut off
+    # below the ceiling costs one more request (intended), never more.
+    totals = record["totals"]
+    assert totals["model_turns"] <= pilot.MAX_TOTAL_TURNS
+    assert len(model.requests) == totals["model_turns"] + totals["truncation_retries"]
+    assert totals["truncation_retries"] <= totals["model_turns"]
+    # The cap: at most `cap` turns run calculations, each at most 4 of them.
+    assert record["tool_turns"] <= cap
+    assert len(ran) <= cap * pilot.MAX_CALCULATIONS_PER_TURN
+    # Spend: the shared counter saw exactly the household's turns.
+    assert spend.spent_usd == pytest.approx(record["totals"]["cost_usd"])
+    # The protocol both APIs enforce: each function call of a response that
+    # reached the conversation gets exactly one result in the next request,
+    # before any user text, and a Responses request chains to that response.
+    # A response cut off below the budget ceiling never reaches it: the same
+    # request goes again at the ceiling.
+    from policybench.eval_no_tools import _completion_budget_ceiling
+
+    ceiling = _completion_budget_ceiling(profile.model_id)
+    budget_key = (
+        "max_output_tokens" if profile.api == "responses" else "max_completion_tokens"
+    )
+    for i, (result, request) in enumerate(zip(model.responses, model.requests[1:])):
+        sent = model.requests[i]
+        if result.truncated and sent[budget_key] < ceiling:
+            assert request[budget_key] == ceiling
+            assert {k: v for k, v in request.items() if k != budget_key} == {
+                k: v for k, v in sent.items() if k != budget_key
+            }
+            continue
+        items = _new_items(profile, request)
+        results = [call_id for kind, call_id in items if kind == "result"]
+        assert sorted(results) == sorted(_response_call_ids(profile, result))
+        kinds = [kind for kind, _ in items]
+        assert kinds == sorted(kinds), "user text came before a function result"
+        if profile.api == "responses":
+            assert request["previous_response_id"] == result.id
+    for request in model.requests:
+        names = [t.get("name") or t["function"]["name"] for t in request["tools"]]
+        if profile.contract == "json":
+            assert names == [pilot.TOOL_NAME] and request["tool_choice"] == "auto"
+        else:
+            assert names[0] == pilot.TOOL_NAME and names[1] == "submit_outputs"
+    if record["status"] == "complete":
+        assert all(v is not None for v in record["predictions"].values())
+
+
+# ---------------------------------------------------------------------------
+# Settling unread outputs, and leave-one-out attribution.
+# ---------------------------------------------------------------------------
+
+STATE_OUTPUT = "state_income_tax_before_refundable_credits"
+
+
+def unread(calls, variables=(STATE_OUTPUT,)):
+    record = household(calls)
+    record["variables"] = list(variables)
+    return record
+
+
+def test_a_state_variable_equal_to_the_boards_output_is_the_situations_miss():
+    """Sol read ca_income_tax_before_refundable_credits; on its situation the
+    board's own output is the same number, so the inputs decide the miss."""
+    call = call_record(
+        {
+            "ca_income_tax_before_refundable_credits": {"tu": 40483.32},
+            "snap": {"spm": 0.0},
+        },
+        entity="tax_unit",
+    )
+    record = unread([call], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 40483.32, 1)
+    assert verdict["category"] == "wrong_variable_or_period"
+    asked = []
+
+    def board_value_for(arguments):
+        asked.append(arguments)
+        return 40483.3
+
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        40483.32,
+        board_value_for,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_input_mapping"
+    assert settled["call_arguments"] == call["arguments"] == asked[0]
+    assert settled["tool_value"] == 40483.3
+    assert "ca_income_tax_before_refundable_credits" in settled["detail"]
+    assert settled["answering_call"] == "holds the submitted value"
+
+
+def test_a_variable_that_differs_from_the_boards_output_stays_a_wrong_variable():
+    """Sol read state_income_tax (after refundable credits); its situation gives
+    the board's output exactly, so the situation was right and the read was not."""
+    call = call_record({"state_income_tax": {"tu": 6363.34}}, entity="tax_unit")
+    record = unread([call])
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 6363.34, 1)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        6363.34,
+        lambda a: 6828.34,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["board_output_on_situation"] == 6828.34
+
+
+def test_an_answer_no_call_returned_falls_back_to_the_main_call():
+    """Opus summed two components itself; no single result holds its answer,
+    so the main call's situation is checked and the verdict stands."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"head": 3720.0},
+            "employee_medicare_tax": {"head": 870.0},
+            "snap": {"spm": 0.0},
+        }
+    )
+    record = unread([parts], variables=("payroll_tax", "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 1)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        lambda a: 4632.0,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["answering_call"] == "main call"
+    assert settled["board_output_on_situation"] == 4632.0
+
+
+def test_other_verdicts_pass_through_unsettled():
+    record = unread([call_record({STATE_OUTPUT: {"tu": 5.0}})])
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 5.0, 9.0)
+    assert verdict["category"] == "wrong_input_mapping"
+
+    def never(arguments):
+        raise AssertionError("no engine call for a settled verdict")
+
+    assert (
+        pilot.resolve_unread_output(
+            verdict, record, make_scenario(), STATE_OUTPUT, 5.0, never
+        )
+        is verdict
+    )
+
+
+def _diff(variable, model, reference, entity="person", unit="head"):
+    return {
+        "entity": entity,
+        "reference_unit": unit,
+        "model_unit": unit,
+        "variable": variable,
+        "model": model,
+        "reference": reference,
+    }
+
+
+def test_leave_one_out_names_the_inputs_a_joint_fix_needs(monkeypatch):
+    """A toy output that needs two inputs together (as the 401(k) limit needs
+    the requested amounts and no post-limit override): no single input fixes
+    it, the full set does, and leave-one-out names the two that matter."""
+
+    def toy_value(system, situation, scenario, output):
+        head = situation["people"]["head"]
+        a = head.get("a", {}).get("2026", 0)
+        b = head.get("b", {}).get("2026", 0)
+        return 100.0 if (a, b) == (1, 1) else 0.0
+
+    monkeypatch.setattr(pilot, "output_value", toy_value)
+    model = {"people": {"head": {"c": {"2026": 5}}, "kid": {}}}
+    reference = {"people": {"head": {"a": {"2026": 1}, "b": {"2026": 1}}, "kid": {}}}
+    diffs = [
+        _diff("a", {}, {"2026": 1}),
+        _diff("b", {}, {"2026": 1}),
+        _diff("c", {"2026": 5}, {}),
+    ]
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 100.0, diffs)
+    assert result["single_causes"] == [] and result["all_differences_fix_it"]
+    assert result["necessary_inputs"] == ["person.a", "person.b"]
+    assert result["mapping_kind"] == "left_out"
+
+
+def test_a_reviewed_re_entry_is_entered_differently_and_a_coincidence_is_not(
+    monkeypatch,
+):
+    """Sol's scenario_018 on situation_diff's own diffs: the prompt's taxable
+    interest went into interest_income (a reviewed pair), and 50 weekly hours
+    happen to equal it. The pair makes it entered_differently; the hours are
+    only a candidate. Without the pair, the same miss is left_out."""
+
+    def toy_value(system, situation, scenario, output):
+        head = situation["people"]["head"]
+        return 0.0 if "taxable_interest_income" in head else 6.01 + 100
+
+    monkeypatch.setattr(pilot, "output_value", toy_value)
+    groups = {group: {} for group in pilot.GROUPS}
+    reference = {
+        "people": {"head": {"taxable_interest_income": {"2026": 50.0}}, "kid": {}},
+        **groups,
+    }
+    model = {
+        "people": {
+            "head": {
+                "interest_income": {"2026": 50},
+                "weekly_hours_worked": {"2026": 50},
+            },
+            "kid": {},
+        },
+        **groups,
+    }
+    diffs = pilot.situation_diff(model, reference, make_scenario())
+    assert {d["variable"]: d["model"] for d in diffs}["taxable_interest_income"] == {}
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 0.0, diffs)
+    assert result["single_causes"] == ["person.taxable_interest_income"]
+    assert result["mapping_kind"] == "entered_differently"
+    assert result["entered_as"] == ["person.interest_income"]
+    assert result["entered_as_candidates"] == ["person.weekly_hours_worked"]
+
+    hours_only = {
+        "people": {"head": {"weekly_hours_worked": {"2026": 50}}, "kid": {}},
+        **groups,
+    }
+    coincidence = pilot.attribute_miss(
+        None,
+        hours_only,
+        reference,
+        None,
+        "snap",
+        0.0,
+        pilot.situation_diff(hours_only, reference, make_scenario()),
+    )
+    assert coincidence["mapping_kind"] == "left_out"
+    assert coincidence["entered_as"] == []
+    assert coincidence["entered_as_candidates"] == ["person.weekly_hours_worked"]
+
+
+def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatch):
+    """Sol's scenario_088: the reference's home_mortgage_interest is unset in
+    the model's situation, but the same $10,777 sits under mortgage_interest."""
+
+    def toy_value(system, situation, scenario, output):
+        # Outside the board's $1 tolerance either way.
+        return 0.0 if "home_mortgage_interest" in situation["people"]["head"] else 416.2
+
+    monkeypatch.setattr(pilot, "output_value", toy_value)
+    model = {"people": {"head": {"mortgage_interest": {"2026": 10777}}}}
+    reference = {"people": {"head": {"home_mortgage_interest": {"2026": 10777.0}}}}
+    diffs = [
+        _diff("home_mortgage_interest", {}, {"2026": 10777.0}),
+        _diff("mortgage_interest", {"2026": 10777}, {}),
+    ]
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 0.0, diffs)
+    assert result["single_causes"] == ["person.home_mortgage_interest"]
+    assert result["mapping_kind"] == "entered_differently"
+    assert result["entered_as"] == ["person.mortgage_interest"]
+    # The same cause with nothing like its amount elsewhere was left out, and a
+    # true flag elsewhere does not count as the amount.
+    unrelated = [
+        _diff("home_mortgage_interest", {}, {"2026": 10777.0}),
+        _diff("is_disabled", {"2026": True}, {}),
+        _diff("rent", {"2026": 900}, {}),
+    ]
+    assert not pilot._entered_elsewhere(unrelated[0], unrelated)
+    assert pilot._entered_elsewhere(diffs[0], diffs)
+    other_person = [
+        diffs[0],
+        {**diffs[1], "model_unit": "kid", "reference_unit": "kid"},
+    ]
+    assert not pilot._entered_elsewhere(other_person[0], other_person)
+
+
+def test_a_coincidental_probe_on_another_entity_is_not_evidence():
+    """r2's case: the answer copies after-credit tax of $200 from the model's
+    situation, whose board output is $300; a later probe returns an
+    employment_income of $200 on a person. The probe does not count, so the
+    verdict stays a wrong variable on the real call."""
+    real = call_record(
+        {"state_income_tax": {"tu": 200.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
+    probe = call_record({"employment_income": {"head": 200.0}}, entity="person", age=41)
+    record = unread([real, probe], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
+    board = {real["arguments"]: 300.0, probe["arguments"]: 200.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        200.0,
+        board.get,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["call_arguments"] == real["arguments"]
+    assert settled["board_output_on_situation"] == 300.0
+
+
+def test_holding_calls_that_disagree_leave_the_verdict_marked_ambiguous():
+    """Two tax-unit results both hold the answer, but only one situation's
+    board output equals it: no reclassification on evidence that splits."""
+    first = call_record(
+        {"state_income_tax": {"tu": 200.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
+    second = call_record({"xx_credit": {"tu": 200.0}}, entity="tax_unit", age=41)
+    record = unread([first, second], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
+    board = {first["arguments"]: 300.0, second["arguments"]: 200.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        200.0,
+        board.get,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("ambiguous")
+    assert settled["holding_calls"] == 2
+    # The evidence reported is the main situation's, not the probe's (r3).
+    assert settled["call_arguments"] == first["arguments"]
+    assert settled["board_output_on_situation"] == 300.0
+    assert settled["holding_board_values"] == [300.0, 200.0]
+
+
+def test_agreeing_holding_calls_attribute_the_fullest_one():
+    """Every holding call agrees; the situation attributed is the one that
+    computed the most of the household's outputs, not a later narrow probe."""
+    full = call_record(
+        {"ca_income_tax": {"tu": 500.0}, "snap": {"spm": 0.0}},
+        entity="tax_unit",
+    )
+    probe = call_record({"ca_income_tax": {"tu": 500.0}}, entity="tax_unit", age=41)
+    record = unread([full, probe], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 500.0, 900)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        500.0,
+        lambda a: 500.0,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_input_mapping"
+    assert settled["call_arguments"] == full["arguments"]
+    assert settled["holding_calls"] == 2
+
+
+def test_a_binary_output_is_never_reclassified():
+    # The call computes SNAP, so it is the main one; r5's construction.
+    call = call_record(
+        {"is_wic_eligible": {"head": True, "kid": False}, "snap": {"spm": 0.0}},
+        entity="person",
+    )
+    record = unread([call], variables=("head_medicaid_eligible", "snap"))
+    verdict = pilot.classify_miss(
+        record, make_scenario(), "head_medicaid_eligible", 0.0, 1.0
+    )
+    assert verdict["category"] == "wrong_variable_or_period"
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "head_medicaid_eligible",
+        0.0,
+        lambda a: 0.0,
+        output_entities={"person"},
+        binary=True,
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["answering_call"] == "main call"
+    # Binary outputs skip the holding check, so no note may claim that no
+    # call holds the answer (r5): a 0 sits in many results.
+    assert "no call's results hold it" not in settled.get("detail", "")
+
+
+def test_a_lone_probe_cannot_outvote_the_main_situation_for_a_summed_answer():
+    """r3's case: Opus summed $3,720 and $870 into $4,590 on its main
+    situation, whose board payroll is $4,632. A later tax-unit probe, which
+    computes fewer outputs, returns $4,590 on a situation whose board payroll
+    is also $4,590. The probe is the only holding call, but the main
+    situation disagrees, so the verdict stands on the main call."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+            "snap": {"spm": 0.0},
+            "ssi": {"head": 0.0},
+        },
+        entity="tax_unit",
+    )
+    probe = call_record({"xx_tax": {"tu": 4590.0}}, entity="tax_unit", age=41)
+    record = unread([parts, probe], variables=("payroll_tax", "snap", "ssi"))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    assert verdict["category"] == "wrong_variable_or_period"
+    board = {parts["arguments"]: 4632.0, probe["arguments"]: 4590.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        board.get,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["call_arguments"] == parts["arguments"]
+    assert settled["board_output_on_situation"] == 4632.0
+    assert settled["holding_board_values"] == [4590.0]
+    assert settled["detail"].startswith("ambiguous")
+
+
+def test_no_main_situation_when_every_call_ties_at_zero():
+    """r4's case: with payroll the only output and no call computing it, every
+    call ties at zero and the tie rule would make the last probe the main call,
+    vouching for itself. No situation is the main one, so nothing flips."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+        },
+        entity="tax_unit",
+    )
+    probe = call_record({"xx_tax": {"tu": 4590.0}}, entity="tax_unit", age=41)
+    record = unread([parts, probe], variables=("payroll_tax",))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    assert verdict["category"] == "wrong_variable_or_period"
+    board = {parts["arguments"]: 4632.0, probe["arguments"]: 4590.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        board.get,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("no call computed any")
+    assert pilot.main_call_and_count(record, make_scenario(), ["payroll_tax"])[1] == 0
+
+
+def test_a_main_situation_equal_to_an_answer_no_call_holds_is_noted():
+    """An answer the model built itself, on a main situation whose board output
+    equals it: strong evidence of a mapping miss, noted but not reclassified."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+            "snap": {"spm": 0.0},
+        },
+        entity="tax_unit",
+    )
+    record = unread([parts], variables=("payroll_tax", "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        lambda a: 4590.0,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert "no call's results hold it" in settled["detail"]
+
+
+def test_an_uncomputable_main_situation_is_noted_not_called_a_disagreement():
+    main = call_record(
+        {"ca_income_tax": {"tu": 500.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
+    record = unread([main], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 500.0, 900)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        500.0,
+        lambda a: None,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("the main situation could not be computed")
