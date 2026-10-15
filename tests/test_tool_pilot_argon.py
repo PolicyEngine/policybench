@@ -1811,9 +1811,13 @@ def test_a_state_variable_equal_to_the_boards_output_is_the_situations_miss():
     """Sol read ca_income_tax_before_refundable_credits; on its situation the
     board's own output is the same number, so the inputs decide the miss."""
     call = call_record(
-        {"ca_income_tax_before_refundable_credits": {"tu": 40483.32}}, entity="tax_unit"
+        {
+            "ca_income_tax_before_refundable_credits": {"tu": 40483.32},
+            "snap": {"spm": 0.0},
+        },
+        entity="tax_unit",
     )
-    record = unread([call])
+    record = unread([call], variables=(STATE_OUTPUT, "snap"))
     verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 40483.32, 1)
     assert verdict["category"] == "wrong_variable_or_period"
     asked = []
@@ -2159,3 +2163,78 @@ def test_a_lone_probe_cannot_outvote_the_main_situation_for_a_summed_answer():
     assert settled["board_output_on_situation"] == 4632.0
     assert settled["holding_board_values"] == [4590.0]
     assert settled["detail"].startswith("ambiguous")
+
+
+def test_no_main_situation_when_every_call_ties_at_zero():
+    """r4's case: with payroll the only output and no call computing it, every
+    call ties at zero and the tie rule would make the last probe the main call,
+    vouching for itself. No situation is the main one, so nothing flips."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+        },
+        entity="tax_unit",
+    )
+    probe = call_record({"xx_tax": {"tu": 4590.0}}, entity="tax_unit", age=41)
+    record = unread([parts, probe], variables=("payroll_tax",))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    assert verdict["category"] == "wrong_variable_or_period"
+    board = {parts["arguments"]: 4632.0, probe["arguments"]: 4590.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        board.get,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("no call computed any")
+    assert pilot.main_call_and_count(record, make_scenario(), ["payroll_tax"])[1] == 0
+
+
+def test_a_main_situation_equal_to_an_answer_no_call_holds_is_noted():
+    """An answer the model built itself, on a main situation whose board output
+    equals it: strong evidence of a mapping miss, noted but not reclassified."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+            "snap": {"spm": 0.0},
+        },
+        entity="tax_unit",
+    )
+    record = unread([parts], variables=("payroll_tax", "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        lambda a: 4590.0,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert "no call's results hold it" in settled["detail"]
+
+
+def test_an_uncomputable_main_situation_is_noted_not_called_a_disagreement():
+    main = call_record(
+        {"ca_income_tax": {"tu": 500.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
+    record = unread([main], variables=(STATE_OUTPUT, "snap"))
+    verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 500.0, 900)
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        STATE_OUTPUT,
+        500.0,
+        lambda a: None,
+        output_entities={"tax_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["detail"].startswith("the main situation could not be computed")

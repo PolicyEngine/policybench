@@ -2834,6 +2834,9 @@ def resolve_unread_output(
       when some agree and some do not.
     - A binary output is never reclassified: a 0 or 1 matches too much by
       chance.
+    - Nor is a miss in a household where no call computed any of its
+      outputs: every call ties at zero, so no situation is the main one
+      (the tie rule would otherwise let the last probe vouch for itself).
     """
     if verdict.get("category") != "wrong_variable_or_period":
         return verdict
@@ -2843,7 +2846,8 @@ def resolve_unread_output(
         return json.dumps(call.get("arguments"), sort_keys=True, default=str)
 
     calls = _successful_calls(record)
-    main = main_call(record, scenario, variables)
+    main, main_count = main_call_and_count(record, scenario, variables)
+    no_main = main is not None and main_count == 0
     holding = (
         []
         if binary
@@ -2858,7 +2862,13 @@ def resolve_unread_output(
         value = values[key(call)]
         return value is not None and hit(output, submitted, value)
 
-    if holding and all(agrees(c) for c in holding) and (main is None or agrees(main)):
+    if (
+        holding
+        and not no_main
+        and main is not None
+        and all(agrees(c) for c in holding)
+        and agrees(main)
+    ):
         call = main_call({"turns": [{"calls": holding}]}, scenario, variables)
         read = ", ".join(_entity_matches(call, submitted, output_entities))
         return {
@@ -2882,12 +2892,43 @@ def resolve_unread_output(
         "board_output_on_situation": values[key(main)],
         "call_arguments": main.get("arguments"),
     }
-    if holding and any(agrees(c) for c in holding + [main]):
+    if no_main:
+        settled["detail"] = (
+            "no call computed any of the household's outputs, so no situation "
+            "is the main one; not reclassified"
+        )
+    elif values[key(main)] is None:
+        settled["detail"] = (
+            "the main situation could not be computed (it no longer validates); "
+            "not reclassified"
+        )
+    elif not holding and agrees(main):
+        settled["detail"] = (
+            "the main situation's board output equals the answer, but no call's "
+            "results hold it (an answer the model built itself); not reclassified"
+        )
+    elif holding and any(agrees(c) for c in holding + [main]):
         settled["detail"] = (
             "ambiguous: the situations holding the submitted value, or the "
             "main one, disagree on the board's output"
         )
     return settled
+
+
+def main_call_and_count(
+    record: dict, scenario, outputs: list[str]
+) -> tuple[dict | None, int]:
+    """The successful call that computed the most of the household's outputs,
+    and how many it computed (-1 with no successful call)."""
+    best, best_count = None, -1
+    for call in _successful_calls(record):
+        count = sum(
+            tool_value_for_output(call, scenario, output) is not None
+            for output in outputs
+        )
+        if count >= best_count:
+            best, best_count = call, count
+    return best, best_count
 
 
 def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
@@ -2897,15 +2938,7 @@ def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
     person, no state); the situation its answers rest on is the one that
     computed the outputs. Ties go to the later call.
     """
-    best, best_count = None, -1
-    for call in _successful_calls(record):
-        count = sum(
-            tool_value_for_output(call, scenario, output) is not None
-            for output in outputs
-        )
-        if count >= best_count:
-            best, best_count = call, count
-    return best
+    return main_call_and_count(record, scenario, outputs)[0]
 
 
 def situation_fidelity(records, board, system, registry, defaults, out: Path) -> None:
