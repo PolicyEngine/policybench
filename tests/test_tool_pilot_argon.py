@@ -1935,38 +1935,58 @@ def test_leave_one_out_names_the_inputs_a_joint_fix_needs(monkeypatch):
     assert result["mapping_kind"] == "left_out"
 
 
-def test_a_single_cause_entered_under_another_name_is_entered_differently(
+def test_a_reviewed_re_entry_is_entered_differently_and_a_coincidence_is_not(
     monkeypatch,
 ):
-    """The reference sets `right`; the model put the same amount under `wrong`.
-    The diffs are situation_diff's own, so `right` has an empty model side."""
+    """Sol's scenario_018 on situation_diff's own diffs: the prompt's taxable
+    interest went into interest_income (a reviewed pair), and 50 weekly hours
+    happen to equal it. The pair makes it entered_differently; the hours are
+    only a candidate. Without the pair, the same miss is left_out."""
 
     def toy_value(system, situation, scenario, output):
-        return 100.0 if "right" in situation["people"]["head"] else 0.0
+        head = situation["people"]["head"]
+        return 0.0 if "taxable_interest_income" in head else 6.01 + 100
 
     monkeypatch.setattr(pilot, "output_value", toy_value)
     groups = {group: {} for group in pilot.GROUPS}
-    model = {"people": {"head": {"wrong": {"2026": 3}}, "kid": {}}, **groups}
-    reference = {"people": {"head": {"right": {"2026": 3}}, "kid": {}}, **groups}
+    reference = {
+        "people": {"head": {"taxable_interest_income": {"2026": 50.0}}, "kid": {}},
+        **groups,
+    }
+    model = {
+        "people": {
+            "head": {
+                "interest_income": {"2026": 50},
+                "weekly_hours_worked": {"2026": 50},
+            },
+            "kid": {},
+        },
+        **groups,
+    }
     diffs = pilot.situation_diff(model, reference, make_scenario())
-    by_name = {d["variable"]: d for d in diffs}
-    assert by_name["right"]["model"] == {} and by_name["wrong"]["reference"] == {}
-    result = pilot.attribute_miss(None, model, reference, None, "snap", 100.0, diffs)
-    assert result["single_causes"] == ["person.right"]
-    assert result["necessary_inputs"] == []
+    assert {d["variable"]: d["model"] for d in diffs}["taxable_interest_income"] == {}
+    result = pilot.attribute_miss(None, model, reference, None, "snap", 0.0, diffs)
+    assert result["single_causes"] == ["person.taxable_interest_income"]
     assert result["mapping_kind"] == "entered_differently"
-    # Without the amount anywhere in the model's situation, it was left out.
-    bare = {"people": {"head": {}, "kid": {}}, **groups}
-    left = pilot.attribute_miss(
+    assert result["entered_as"] == ["person.interest_income"]
+    assert result["entered_as_candidates"] == ["person.weekly_hours_worked"]
+
+    hours_only = {
+        "people": {"head": {"weekly_hours_worked": {"2026": 50}}, "kid": {}},
+        **groups,
+    }
+    coincidence = pilot.attribute_miss(
         None,
-        bare,
+        hours_only,
         reference,
         None,
         "snap",
-        100.0,
-        pilot.situation_diff(bare, reference, make_scenario()),
+        0.0,
+        pilot.situation_diff(hours_only, reference, make_scenario()),
     )
-    assert left["mapping_kind"] == "left_out"
+    assert coincidence["mapping_kind"] == "left_out"
+    assert coincidence["entered_as"] == []
+    assert coincidence["entered_as_candidates"] == ["person.weekly_hours_worked"]
 
 
 def test_an_amount_entered_under_another_input_is_entered_differently(monkeypatch):
@@ -2009,9 +2029,11 @@ def test_a_coincidental_probe_on_another_entity_is_not_evidence():
     situation, whose board output is $300; a later probe returns an
     employment_income of $200 on a person. The probe does not count, so the
     verdict stays a wrong variable on the real call."""
-    real = call_record({"state_income_tax": {"tu": 200.0}}, entity="tax_unit")
+    real = call_record(
+        {"state_income_tax": {"tu": 200.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
     probe = call_record({"employment_income": {"head": 200.0}}, entity="person", age=41)
-    record = unread([real, probe])
+    record = unread([real, probe], variables=(STATE_OUTPUT, "snap"))
     verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
     board = {real["arguments"]: 300.0, probe["arguments"]: 200.0}
     settled = pilot.resolve_unread_output(
@@ -2031,9 +2053,11 @@ def test_a_coincidental_probe_on_another_entity_is_not_evidence():
 def test_holding_calls_that_disagree_leave_the_verdict_marked_ambiguous():
     """Two tax-unit results both hold the answer, but only one situation's
     board output equals it: no reclassification on evidence that splits."""
-    first = call_record({"state_income_tax": {"tu": 200.0}}, entity="tax_unit")
+    first = call_record(
+        {"state_income_tax": {"tu": 200.0}, "snap": {"spm": 0.0}}, entity="tax_unit"
+    )
     second = call_record({"xx_credit": {"tu": 200.0}}, entity="tax_unit", age=41)
-    record = unread([first, second])
+    record = unread([first, second], variables=(STATE_OUTPUT, "snap"))
     verdict = pilot.classify_miss(record, make_scenario(), STATE_OUTPUT, 200.0, 300)
     board = {first["arguments"]: 300.0, second["arguments"]: 200.0}
     settled = pilot.resolve_unread_output(
@@ -2048,6 +2072,10 @@ def test_holding_calls_that_disagree_leave_the_verdict_marked_ambiguous():
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["detail"].startswith("ambiguous")
     assert settled["holding_calls"] == 2
+    # The evidence reported is the main situation's, not the probe's (r3).
+    assert settled["call_arguments"] == first["arguments"]
+    assert settled["board_output_on_situation"] == 300.0
+    assert settled["holding_board_values"] == [300.0, 200.0]
 
 
 def test_agreeing_holding_calls_attribute_the_fullest_one():
@@ -2095,3 +2123,39 @@ def test_a_binary_output_is_never_reclassified():
     )
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["answering_call"] == "main call"
+
+
+def test_a_lone_probe_cannot_outvote_the_main_situation_for_a_summed_answer():
+    """r3's case: Opus summed $3,720 and $870 into $4,590 on its main
+    situation, whose board payroll is $4,632. A later tax-unit probe, which
+    computes fewer outputs, returns $4,590 on a situation whose board payroll
+    is also $4,590. The probe is the only holding call, but the main
+    situation disagrees, so the verdict stands on the main call."""
+    parts = call_record(
+        {
+            "employee_social_security_tax": {"tu": 3720.0},
+            "employee_medicare_tax": {"tu": 870.0},
+            "snap": {"spm": 0.0},
+            "ssi": {"head": 0.0},
+        },
+        entity="tax_unit",
+    )
+    probe = call_record({"xx_tax": {"tu": 4590.0}}, entity="tax_unit", age=41)
+    record = unread([parts, probe], variables=("payroll_tax", "snap", "ssi"))
+    verdict = pilot.classify_miss(record, make_scenario(), "payroll_tax", 4590.0, 4632)
+    assert verdict["category"] == "wrong_variable_or_period"
+    board = {parts["arguments"]: 4632.0, probe["arguments"]: 4590.0}
+    settled = pilot.resolve_unread_output(
+        verdict,
+        record,
+        make_scenario(),
+        "payroll_tax",
+        4590.0,
+        board.get,
+        output_entities={"tax_unit", "spm_unit"},
+    )
+    assert settled["category"] == "wrong_variable_or_period"
+    assert settled["call_arguments"] == parts["arguments"]
+    assert settled["board_output_on_situation"] == 4632.0
+    assert settled["holding_board_values"] == [4590.0]
+    assert settled["detail"].startswith("ambiguous")
