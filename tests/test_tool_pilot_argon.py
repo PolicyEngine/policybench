@@ -2107,10 +2107,12 @@ def test_agreeing_holding_calls_attribute_the_fullest_one():
 
 
 def test_a_binary_output_is_never_reclassified():
+    # The call computes SNAP, so it is the main one; r5's construction.
     call = call_record(
-        {"is_wic_eligible": {"head": True, "kid": False}}, entity="person"
+        {"is_wic_eligible": {"head": True, "kid": False}, "snap": {"spm": 0.0}},
+        entity="person",
     )
-    record = unread([call], variables=("head_medicaid_eligible",))
+    record = unread([call], variables=("head_medicaid_eligible", "snap"))
     verdict = pilot.classify_miss(
         record, make_scenario(), "head_medicaid_eligible", 0.0, 1.0
     )
@@ -2127,6 +2129,9 @@ def test_a_binary_output_is_never_reclassified():
     )
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["answering_call"] == "main call"
+    # Binary outputs skip the holding check, so no note may claim that no
+    # call holds the answer (r5): a 0 sits in many results.
+    assert "no call's results hold it" not in settled.get("detail", "")
 
 
 def test_a_lone_probe_cannot_outvote_the_main_situation_for_a_summed_answer():

@@ -2902,7 +2902,7 @@ def resolve_unread_output(
             "the main situation could not be computed (it no longer validates); "
             "not reclassified"
         )
-    elif not holding and agrees(main):
+    elif not holding and not binary and agrees(main):
         settled["detail"] = (
             "the main situation's board output equals the answer, but no call's "
             "results hold it (an answer the model built itself); not reclassified"
