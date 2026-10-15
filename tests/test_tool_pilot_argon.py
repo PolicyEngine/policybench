@@ -1,4 +1,4 @@
-"""The Argon tool pilot's validator, conversation loop, scoring and diagnosis.
+"""The tool pilot's validator, conversation loop, scoring and diagnosis.
 
 Every model call is faked. The registry is a small stand-in for the engine's,
 so the validator tests need no PolicyEngine system; the tests that build the
@@ -568,9 +568,10 @@ def test_the_prompt_is_the_board_prompt_plus_the_notice():
     board_messages, _ = _chat_completion_request_kwargs(
         scenario, VARIABLES, "gemini/gemini-4-argon"
     )
-    messages, kwargs = pilot.build_initial_request(scenario, VARIABLES)
-    assert messages[0]["content"] == board_messages[0]["content"] + pilot.TOOL_NOTICE
-    assert "caching" not in kwargs
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES)
+    assert prompt == board_messages[0]["content"] + pilot.TOOL_NOTICE
+    assert "caching" not in kwargs and "messages" not in kwargs
+    assert kwargs["_answer_tool"]["function"]["name"] == "submit_outputs"
 
 
 def test_the_cap_forces_the_answer_tool():
@@ -1301,3 +1302,454 @@ def test_plain_number_round_trips_through_the_boards_trailer_pattern(value, text
 
     assert pilot.plain_number(value) == text
     assert _extract_terminal_explanation_value(f"Reason. value = {text}") == value
+
+
+# ---------------------------------------------------------------------------
+# Other models: the Responses API (GPT-6 Sol) and the JSON contract (Opus 5.5).
+# ---------------------------------------------------------------------------
+
+SOL = "gpt-6-sol"
+OPUS = "claude-opus-5.5"
+
+
+def test_profiles_follow_the_boards_api_and_answer_contract():
+    argon, sol, opus = (pilot.model_profile(n) for n in (pilot.MODEL_NAME, SOL, OPUS))
+    assert (argon.api, argon.contract) == ("chat", "tool")
+    assert (sol.api, sol.contract) == ("responses", "tool")
+    assert (opus.api, opus.contract) == ("chat", "json")
+    assert argon.notice == pilot.TOOL_NOTICE and sol.notice == pilot.TOOL_NOTICE
+    assert opus.notice == pilot.JSON_TOOL_NOTICE
+    assert (argon.arm1_label, argon.arm2_label) == (pilot.ARM1_LABEL, pilot.ARM2_LABEL)
+    assert sol.arm2_label == "gpt-6-sol+pe-tool"
+    # Both notices describe the same tool; only the way to answer differs.
+    shared = "You may call it in up to 8 turns. Then "
+    assert pilot.TOOL_NOTICE.split(shared)[0] == pilot.JSON_TOOL_NOTICE.split(shared)[0]
+
+
+def test_a_responses_prompt_is_the_boards_input_plus_the_notice():
+    from policybench.eval_no_tools import _responses_request_kwargs
+
+    scenario = make_scenario()
+    profile = pilot.model_profile(SOL)
+    _, board = _responses_request_kwargs(scenario, VARIABLES, profile.model_id)
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES, profile)
+    assert prompt == board["input"] + pilot.TOOL_NOTICE
+    assert kwargs["max_output_tokens"] == board["max_output_tokens"]
+    assert "input" not in kwargs and "tools" not in kwargs
+
+
+def test_a_json_contract_prompt_is_the_boards_plus_the_json_notice():
+    from policybench.eval_no_tools import _chat_completion_request_kwargs
+
+    scenario = make_scenario()
+    profile = pilot.model_profile(OPUS)
+    messages, board = _chat_completion_request_kwargs(
+        scenario, VARIABLES, profile.model_id
+    )
+    prompt, kwargs = pilot.build_initial_request(scenario, VARIABLES, profile)
+    assert prompt == messages[0]["content"] + pilot.JSON_TOOL_NOTICE
+    assert kwargs["_answer_tool"] is None
+    assert kwargs["response_format"] == board["response_format"]
+
+
+def function_call(name, arguments, call_id):
+    return SimpleNamespace(
+        type="function_call",
+        id=f"fc_{call_id}",
+        call_id=call_id,
+        name=name,
+        arguments=json.dumps(arguments),
+        status="completed",
+    )
+
+
+def responses_response(items, response_id, prompt=1000, completion=200, cached=0):
+    usage = SimpleNamespace(
+        input_tokens=prompt,
+        output_tokens=completion,
+        total_tokens=prompt + completion,
+        input_tokens_details=SimpleNamespace(cached_tokens=cached),
+        output_tokens_details=SimpleNamespace(reasoning_tokens=50),
+    )
+    return SimpleNamespace(
+        id=response_id,
+        output=[SimpleNamespace(type="reasoning", id=f"rs_{response_id}"), *items],
+        output_text=None,
+        status="completed",
+        incomplete_details=None,
+        usage=usage,
+        model=SOL,
+    )
+
+
+class FakeResponses:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.requests = []
+
+    def __call__(self, **kwargs):
+        self.requests.append(json.loads(json.dumps(kwargs, default=str)))
+        return self.responses.pop(0)
+
+
+def sol_calculate(call_id):
+    return function_call(
+        pilot.TOOL_NAME,
+        {"situation": json.dumps(situation()), "variables": ["snap"]},
+        call_id,
+    )
+
+
+def sol_submit(values, call_id="s1"):
+    outputs = {
+        k: {"value": v, "explanation": f"From the tool. value = {v}"}
+        for k, v in values.items()
+    }
+    return function_call("submit_outputs", {"outputs": outputs}, call_id)
+
+
+def test_a_responses_conversation_chains_and_returns_each_call_output():
+    model = FakeResponses(
+        [
+            responses_response([sol_calculate("call_a")], "resp_1"),
+            responses_response(
+                [sol_submit({"snap": 2553, VARIABLES[1]: 0})], "resp_2", cached=800
+            ),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        spend,
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete" and record["model"] == SOL
+    assert record["predictions"] == {"snap": 2553.0, VARIABLES[1]: 0.0}
+    first, second = model.requests
+    assert first["model"] == SOL and first["tool_choice"] == "required"
+    assert first["input"].endswith(pilot.TOOL_NOTICE)
+    assert "previous_response_id" not in first
+    # The Responses API's flat tool shape.
+    assert [t["name"] for t in first["tools"]] == [pilot.TOOL_NAME, "submit_outputs"]
+    assert all(t["type"] == "function" for t in first["tools"])
+    assert "max_output_tokens" in first and "max_completion_tokens" not in first
+    assert second["previous_response_id"] == "resp_1"
+    (output,) = second["input"]
+    assert output["type"] == "function_call_output" and output["call_id"] == "call_a"
+    assert json.loads(output["output"])["results"]["snap"]["values"] == {"spm": 2553.0}
+    # $2 / $10 per 1M; GPT cached input bills at a tenth of the input rate.
+    totals = record["totals"]
+    assert totals["cached_prompt_tokens"] == 800
+    assert totals["cost_usd"] == pytest.approx(
+        (1000 * 2 + 200 * 10 + (200 * 2 + 800 * 0.2 + 200 * 10)) / 1e6
+    )
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+
+
+def test_a_responses_cap_forces_the_answer_function():
+    cap = 2
+    model = FakeResponses(
+        [responses_response([sol_calculate(f"c{i}")], f"r{i}") for i in range(cap)]
+        + [responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "rz")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete" and record["cap_hit"]
+    assert model.requests[cap]["tool_choice"] == {
+        "type": "function",
+        "name": "submit_outputs",
+    }
+    # The cap notice goes with the last call output, in the same request.
+    last = model.requests[cap]["input"]
+    assert [i.get("type") for i in last] == ["function_call_output", None]
+    assert "used all 2 calculation turns" in last[1]["content"]
+
+
+def test_a_truncated_responses_turn_is_retried_at_the_ceiling():
+    truncated = responses_response([], "r_cut", completion=16384)
+    truncated.status = "incomplete"
+    truncated.incomplete_details = SimpleNamespace(reason="max_output_tokens")
+    model = FakeResponses(
+        [truncated, responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "r")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(SOL),
+    )
+    assert record["status"] == "complete"
+    budgets = [r["max_output_tokens"] for r in model.requests]
+    assert budgets[0] < budgets[1] == 128_000
+    # The retry resends the same turn: no response to chain from yet.
+    assert all("previous_response_id" not in r for r in model.requests)
+    assert record["totals"]["truncation_retries"] == 1
+
+
+def json_answer(values, fence=False):
+    text = json.dumps(
+        {
+            k: {"value": v, "explanation": f"From the tool. value = {v}"}
+            for k, v in values.items()
+        }
+    )
+    return f"```json\n{text}\n```" if fence else text
+
+
+def run_opus(model, **kwargs):
+    return pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        kwargs.pop("tool", fake_tool),
+        model,
+        kwargs.pop("spend", pilot.Spend(50.0)),
+        profile=pilot.model_profile(OPUS),
+        **kwargs,
+    )
+
+
+def test_a_json_contract_model_calculates_then_answers_in_json():
+    model = FakeModel(
+        [
+            response([calculate()]),
+            response([], content=json_answer({"snap": 2553, VARIABLES[1]: 0})),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = run_opus(model, spend=spend)
+    assert record["status"] == "complete" and record["model"] == OPUS
+    assert record["predictions"] == {"snap": 2553.0, VARIABLES[1]: 0.0}
+    first, second = model.requests
+    # The API refuses a forced tool on this model: auto, and no answer tool.
+    assert [r["tool_choice"] for r in model.requests] == ["auto", "auto"]
+    assert [t["function"]["name"] for t in first["tools"]] == [pilot.TOOL_NAME]
+    assert first["model"] == "claude-opus-5-5"
+    prompt = first["messages"][0]["content"]
+    assert prompt[0]["text"].endswith(pilot.JSON_TOOL_NOTICE)
+    # One prompt-cache breakpoint per request, on its last message; the stored
+    # conversation stays unmarked.
+    assert prompt[0]["cache_control"] == {"type": "ephemeral"}
+    assert isinstance(second["messages"][0]["content"], str)
+    assert second["messages"][-1]["role"] == "tool"
+    assert second["messages"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert not any("cache_control" in m for m in record["messages"])
+    # $4 / $20 per 1M at 1,000 input and 200 output tokens a turn.
+    assert record["totals"]["cost_usd"] == pytest.approx(2 * (4000 + 4000) / 1e6)
+
+
+def test_a_json_contract_cap_is_a_message_and_later_calls_do_not_run():
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    cap = 2
+    model = FakeModel(
+        [response([calculate(f"c{i}")]) for i in range(cap + 1)]
+        + [response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = run_opus(model, tool=counting_tool, turn_cap=cap)
+    assert record["status"] == "complete"
+    assert len(ran) == cap and record["tool_turns"] == cap and record["cap_hit"]
+    cap_request = model.requests[cap]
+    assert (
+        "used all 2 calculation turns"
+        in cap_request["messages"][-1]["content"][0]["text"]
+    )
+    refused = model.requests[cap + 1]["messages"][-1]
+    assert refused["role"] == "tool" and "not_run" in refused["content"]
+    assert record["totals"]["tool_error_kinds"] == ["not_run"]
+
+
+def test_a_json_contract_repair_asks_for_the_missing_output_in_json():
+    model = FakeModel(
+        [
+            response([], content=json_answer({"snap": 1}, fence=True)),
+            response([], content=json_answer({VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["predictions"] == {"snap": 1.0, VARIABLES[1]: 2.0}
+    repair = model.requests[1]["messages"][-1]["content"][0]["text"]
+    assert VARIABLES[1] in repair and "Reply with a JSON object" in repair
+    assert "submit_outputs" not in repair
+
+
+def test_a_json_contract_reply_with_no_answer_is_nudged_not_repaired():
+    model = FakeModel(
+        [
+            response([], content="Let me work through this."),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete" and record["repair_rounds"] == 0
+    nudge = model.requests[1]["messages"][-1]["content"][0]["text"]
+    assert "JSON object" in nudge and "calculate_household" in nudge
+
+
+def test_records_name_one_model_and_old_records_are_argons():
+    assert pilot.records_model({"a": {}, "b": {"model": pilot.MODEL_NAME}}) == (
+        pilot.MODEL_NAME
+    )
+    assert pilot.records_model({"a": {"model": SOL}}) == SOL
+    with pytest.raises(SystemExit):
+        pilot.records_model({"a": {"model": SOL}, "b": {"model": OPUS}})
+
+
+def test_arm_labels_follow_the_model():
+    records = {"s": _record("s", ["snap"], {"snap": 1.0})}
+    assert set(pilot.arm2_predictions(records, "gpt-6-sol+pe-tool").model) == {
+        "gpt-6-sol+pe-tool"
+    }
+    frozen = pilot.arm1_predictions(label=SOL)
+    assert set(frozen.model) == {SOL} and frozen.scenario_id.nunique() == 100
+    with pytest.raises(SystemExit):
+        pilot.arm1_predictions(label="no-such-model")
+
+
+def test_every_pilot_model_has_a_provider_key():
+    for name in (pilot.MODEL_NAME, SOL, OPUS):
+        assert pilot.provider_key(pilot.model_profile(name).model_id).endswith(
+            "_API_KEY"
+        )
+
+
+STEPS = st.lists(
+    st.one_of(
+        st.tuples(st.just("calculate"), st.integers(1, 6)),
+        st.tuples(st.sampled_from(["full", "partial", "prose", "empty"]), st.just(0)),
+    ),
+    max_size=16,
+)
+
+
+class ScriptedModel:
+    """Plays a script of turns in the model's own shape, then answers in full."""
+
+    def __init__(self, profile, steps):
+        self.profile = profile
+        self.steps = list(steps)
+        self.requests = []
+        self.responses = []
+
+    def __call__(self, **kwargs):
+        self.requests.append(json.loads(json.dumps(kwargs, default=str)))
+        kind, count = self.steps.pop(0) if self.steps else ("full", 0)
+        n = len(self.requests)
+        values = {"snap": 1, VARIABLES[1]: 2}
+        if kind == "partial":
+            values = {"snap": 1}
+        responses_api = self.profile.api == "responses"
+        if kind == "calculate":
+            make = sol_calculate if responses_api else calculate
+            calls, content = [make(f"t{n}c{i}") for i in range(count)], None
+        elif kind in {"full", "partial"} and self.profile.contract == "tool":
+            make = sol_submit if responses_api else submit
+            calls, content = [make(values, f"t{n}s")], None
+        elif kind in {"full", "partial"}:
+            calls, content = [], json_answer(values)
+        else:
+            calls, content = [], ("Thinking." if kind == "prose" else None)
+        if responses_api:
+            items = list(calls)
+            if content:
+                items.append(
+                    SimpleNamespace(
+                        type="message",
+                        content=[SimpleNamespace(type="output_text", text=content)],
+                    )
+                )
+            result = responses_response(items, f"resp_{n}")
+        else:
+            result = response(calls, content=content)
+        self.responses.append(result)
+        return result
+
+
+def _response_call_ids(profile, result) -> list[str]:
+    if profile.api == "responses":
+        return [i.call_id for i in result.output if i.type == "function_call"]
+    return [c.id for c in result.choices[0].message.tool_calls or []]
+
+
+def _answered_call_ids(profile, request) -> list[str]:
+    if profile.api == "responses":
+        return [
+            i["call_id"]
+            for i in request["input"]
+            if isinstance(i, dict) and i.get("type") == "function_call_output"
+        ]
+    messages = request["messages"]
+    last_assistant = max(
+        i for i, m in enumerate(messages) if m.get("role") == "assistant"
+    )
+    return [
+        m["tool_call_id"]
+        for m in messages[last_assistant + 1 :]
+        if m.get("role") == "tool"
+    ]
+
+
+@settings(max_examples=300, deadline=None, derandomize=True)
+@given(st.sampled_from([pilot.MODEL_NAME, SOL, OPUS]), STEPS, st.integers(1, 4))
+def test_any_conversation_keeps_the_protocol_the_cap_and_the_spend(name, steps, cap):
+    profile = pilot.model_profile(name)
+    model = ScriptedModel(profile, steps)
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        counting_tool,
+        model,
+        spend,
+        turn_cap=cap,
+        profile=profile,
+    )
+    assert record["status"] in {"complete", "incomplete", "turn_limit"}
+    assert set(record["predictions"]) == set(VARIABLES)
+    assert len(model.requests) <= pilot.MAX_TOTAL_TURNS
+    # The cap: at most `cap` turns run calculations, each at most 4 of them.
+    assert record["tool_turns"] <= cap
+    assert len(ran) <= cap * pilot.MAX_CALCULATIONS_PER_TURN
+    # Spend: the shared counter saw exactly the household's turns.
+    assert spend.spent_usd == pytest.approx(record["totals"]["cost_usd"])
+    # The protocol both APIs enforce: each function call of one response gets
+    # exactly one result in the next request, and a Responses request chains
+    # to the response before it.
+    for before, (result, request) in enumerate(
+        zip(model.responses, model.requests[1:])
+    ):
+        assert sorted(_answered_call_ids(profile, request)) == sorted(
+            _response_call_ids(profile, result)
+        )
+        if profile.api == "responses":
+            assert request["previous_response_id"] == f"resp_{before + 1}"
+    for request in model.requests:
+        names = [t.get("name") or t["function"]["name"] for t in request["tools"]]
+        if profile.contract == "json":
+            assert names == [pilot.TOOL_NAME] and request["tool_choice"] == "auto"
+        else:
+            assert names[0] == pilot.TOOL_NAME and names[1] == "submit_outputs"
+    if record["status"] == "complete":
+        assert all(v is not None for v in record["predictions"].values())

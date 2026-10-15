@@ -1,17 +1,22 @@
-"""Internal pilot: Gemini 4 Argon with a PolicyEngine tool on the board's 100 US
+"""Internal pilot: a board model with a PolicyEngine tool on the board's 100 US
 households. Not a board condition, and nothing here is published.
+
+The model defaults to Gemini 4 Argon, the first one piloted; ``run --model``
+takes any board model whose provider has an entry in PROVIDER_KEYS.
 
 The benchmark has one condition, ``no_tools`` (docs/benchmark_card.md,
 "Evaluation conditions"). This script stays outside the board pipeline: it
 writes only under --out-dir, never touches the run store, the snapshot, the
-cache or the dashboard, and labels its rows ``gemini-4-argon+pe-tool`` so no
-board export can take them for a board row.
+cache or the dashboard, and labels its rows ``<model>+pe-tool`` (for example
+``gemini-4-argon+pe-tool``) so no board export can take them for a board row.
 
 Arms, on the same 100 households:
-  1. No tools: Argon's frozen board predictions (release dashboard-data-20261014,
-     PR #221), read from the snapshot and never re-run.
-  2. PolicyEngine tool: the board prompt plus TOOL_NOTICE, the board's
-     ``submit_outputs`` answer tool, and ``calculate_household``, which runs the
+  1. No tools: the model's frozen board predictions (release
+     dashboard-data-20261014), read from the snapshot and never re-run.
+  2. PolicyEngine tool: the board's prompt and request settings for the model,
+     plus a tool notice, the board's answer (``submit_outputs`` for a
+     tool-contract model, the JSON reply for a JSON-contract one), and
+     ``calculate_household``, which runs the
      reference engine on a situation the model writes as JSON. The reference
      engine is the installed policyengine-us (2.41.0) with the reference
      builder's convention reform, reference_audit/2026-09-28/fixes/latest_final.py
@@ -26,7 +31,8 @@ executed.
 
 Subcommands:
   oracle    reference situations through the tool engine
-  run       call the model (needs GEMINI_API_KEY); one JSON record per household
+  run       call the model (needs its provider's key, PROVIDER_KEYS); one JSON
+            record per household
   score     both arms through the board's analyze_no_tools on the scored outputs
   diagnose  classify every arm-2 miss
 """
@@ -52,7 +58,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -72,6 +78,12 @@ FIX_MODULE_SHA256 = "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9
 MODEL_NAME = "gemini-4-argon"
 ARM1_LABEL = MODEL_NAME
 ARM2_LABEL = "gemini-4-argon+pe-tool"
+# The API key each provider's models need, by litellm model-id prefix.
+PROVIDER_KEYS = {
+    "gemini/": "GEMINI_API_KEY",
+    "gpt-": "OPENAI_API_KEY",
+    "claude-": "ANTHROPIC_API_KEY",
+}
 YEAR = 2026
 REFERENCE_ENGINE = "2.41.0"
 
@@ -114,6 +126,16 @@ TOOL_NOTICE = (
     "state taxes and benefits, on a household situation you build from the facts "
     "above. You may call it in up to 8 turns. Then call `submit_outputs` exactly "
     "once with your final answers, as instructed above."
+)
+
+# The notice for a JSON-contract model, whose API refuses a forced tool: the
+# same tool, and the board's JSON reply in place of submit_outputs.
+JSON_TOOL_NOTICE = (
+    "\n\nYou also have a `calculate_household` function. It runs PolicyEngine US "
+    "(policyengine-us 2.41.0), an open-source rules engine for US federal and "
+    "state taxes and benefits, on a household situation you build from the facts "
+    "above. You may call it in up to 8 turns. Then give your final answers as the "
+    "single JSON object described above."
 )
 
 CALCULATE_DESCRIPTION = (
@@ -732,34 +754,6 @@ def load_board(snapshot: Path = SNAPSHOT):
     }
 
 
-def build_initial_request(scenario, variables: list[str]) -> tuple[list[dict], dict]:
-    """The board's request for this household, plus the tool notice and tool."""
-    from policybench.config import MODELS
-    from policybench.eval_no_tools import (
-        _build_answer_tool,
-        _chat_completion_request_kwargs,
-        _completion_budget_ceiling,
-    )
-
-    model_id = MODELS[MODEL_NAME]
-    messages, kwargs = _chat_completion_request_kwargs(scenario, variables, model_id)
-    board_prompt = messages[0]["content"]
-    messages = [{"role": "user", "content": board_prompt + TOOL_NOTICE}]
-    answer_tool = _build_answer_tool(variables, country=scenario.country)
-    kwargs = {k: v for k, v in kwargs.items() if k not in {"messages", "caching"}}
-    kwargs["tools"] = [calculate_tool_schema(), answer_tool]
-    kwargs["tool_choice"] = "required"
-    kwargs["_board_prompt_sha256"] = hashlib.sha256(board_prompt.encode()).hexdigest()
-    kwargs["_budget_ceiling"] = _completion_budget_ceiling(model_id)
-    return messages, kwargs
-
-
-def forced_answer_choice() -> dict:
-    from policybench.eval_no_tools import ANSWER_FUNCTION_NAME, _tool_choice_for
-
-    return _tool_choice_for(ANSWER_FUNCTION_NAME)
-
-
 def _tool_calls(message) -> list:
     return list(getattr(message, "tool_calls", None) or [])
 
@@ -812,6 +806,303 @@ def _has_thought_signature(message) -> bool:
     return bool(isinstance(fields, dict) and fields.get("thought_signatures"))
 
 
+@dataclass(frozen=True)
+class ModelProfile:
+    """How the board sends one model, and how its tool arm answers.
+
+    ``api`` follows the board: the Responses API for GPT-5 and GPT-6 models
+    (``_uses_responses_api``), chat completions otherwise. ``contract`` is the
+    model card's answer contract: "tool" answers through the forced
+    ``submit_outputs`` function; "json" answers in the board's JSON reply,
+    for models whose API refuses a forced tool (the card says so for Claude
+    Opus 5.5), and offers ``calculate_household`` under tool_choice auto.
+    """
+
+    name: str
+    model_id: str
+    api: str
+    contract: str
+
+    @property
+    def notice(self) -> str:
+        return TOOL_NOTICE if self.contract == "tool" else JSON_TOOL_NOTICE
+
+    @property
+    def arm1_label(self) -> str:
+        return self.name
+
+    @property
+    def arm2_label(self) -> str:
+        return f"{self.name}+pe-tool"
+
+
+def model_profile(name: str = MODEL_NAME) -> ModelProfile:
+    from policybench.config import MODELS
+    from policybench.eval_no_tools import (
+        _answer_contract_for_model,
+        _uses_responses_api,
+    )
+
+    model_id = MODELS[name]
+    return ModelProfile(
+        name=name,
+        model_id=model_id,
+        api="responses" if _uses_responses_api(model_id) else "chat",
+        contract=_answer_contract_for_model(model_id),
+    )
+
+
+def build_initial_request(
+    scenario, variables: list[str], profile: ModelProfile | None = None
+) -> tuple[str, dict]:
+    """The board's prompt and request settings for this household, with the
+    tool notice appended and the calculate tool added."""
+    from policybench.eval_no_tools import (
+        _build_answer_tool,
+        _chat_completion_request_kwargs,
+        _completion_budget_ceiling,
+        _responses_request_kwargs,
+    )
+
+    profile = profile or model_profile()
+    if profile.api == "responses":
+        messages, kwargs = _responses_request_kwargs(
+            scenario, variables, profile.model_id
+        )
+        kwargs = {k: v for k, v in kwargs.items() if k not in {"input"}}
+    else:
+        messages, kwargs = _chat_completion_request_kwargs(
+            scenario, variables, profile.model_id
+        )
+        kwargs = {k: v for k, v in kwargs.items() if k not in {"messages", "caching"}}
+    board_prompt = messages[0]["content"]
+    kwargs.pop("tools", None)
+    kwargs.pop("tool_choice", None)
+    kwargs["_board_prompt_sha256"] = hashlib.sha256(board_prompt.encode()).hexdigest()
+    kwargs["_budget_ceiling"] = _completion_budget_ceiling(profile.model_id)
+    kwargs["_answer_tool"] = (
+        _build_answer_tool(variables, country=scenario.country)
+        if profile.contract == "tool"
+        else None
+    )
+    return board_prompt + profile.notice, kwargs
+
+
+def forced_answer_choice(profile: ModelProfile | None = None) -> dict:
+    from policybench.eval_no_tools import ANSWER_FUNCTION_NAME, _tool_choice_for
+
+    if profile is not None and profile.api == "responses":
+        return {"type": "function", "name": ANSWER_FUNCTION_NAME}
+    return _tool_choice_for(ANSWER_FUNCTION_NAME)
+
+
+def _responses_tool(chat_tool: dict) -> dict:
+    """A chat-completions function tool in the Responses API's flat shape."""
+    function = chat_tool["function"]
+    return {
+        "type": "function",
+        "name": function["name"],
+        "description": function["description"],
+        "parameters": function["parameters"],
+    }
+
+
+@dataclass
+class Call:
+    id: str
+    name: str | None
+    arguments: Any
+
+
+@dataclass
+class Turn:
+    response: Any
+    content: str | None
+    calls: list[Call]
+    finish_reason: str | None
+    reasoning_content: str | None = None
+    has_thought_signature: bool = False
+
+
+CACHE_BREAKPOINT = {"type": "ephemeral"}
+
+
+def _with_cache_breakpoint(message: dict) -> dict:
+    """The message with an Anthropic prompt-cache breakpoint at its end.
+
+    Anthropic caches a prefix only at a marked block, and litellm carries the
+    mark from a text block or from a tool message. Gemini and OpenAI cache
+    repeated prefixes on their own.
+    """
+    message = dict(message)
+    if message.get("role") == "tool":
+        message["cache_control"] = CACHE_BREAKPOINT
+    elif isinstance(message.get("content"), str):
+        message["content"] = [
+            {
+                "type": "text",
+                "text": message["content"],
+                "cache_control": CACHE_BREAKPOINT,
+            }
+        ]
+    return message
+
+
+class ChatConversation:
+    """A chat-completions conversation: one growing message list.
+
+    With ``cache_breakpoint`` each request marks its last message, so a turn
+    reads the conversation so far from Anthropic's prompt cache. The stored
+    messages stay unmarked, which keeps one breakpoint per request.
+    """
+
+    budget_key = "max_completion_tokens"
+
+    def __init__(self, prompt: str, cache_breakpoint: bool = False):
+        self.messages: list[dict] = [{"role": "user", "content": prompt}]
+        self.cache_breakpoint = cache_breakpoint
+
+    def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
+        kwargs = dict(base)
+        messages = self.messages
+        if self.cache_breakpoint:
+            messages = [*messages[:-1], _with_cache_breakpoint(messages[-1])]
+        kwargs.update({"messages": messages, "tools": tools})
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
+        if self.budget_key not in kwargs and "max_tokens" in kwargs:
+            self.budget_key = "max_tokens"
+        return kwargs
+
+    def read(self, response, budget) -> Turn:
+        from policybench.eval_no_tools import _response_finish_reason
+
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            raise ProviderEmpty("response has no choices")
+        message = choices[0].message
+        return Turn(
+            response=response,
+            content=getattr(message, "content", None),
+            calls=[
+                Call(_call_id(c), _call_name(c), _call_arguments(c))
+                for c in _tool_calls(message)
+            ],
+            finish_reason=_response_finish_reason(response, responses_api=False),
+            reasoning_content=getattr(message, "reasoning_content", None),
+            has_thought_signature=_has_thought_signature(message),
+        )
+
+    def add_assistant(self, turn: Turn) -> None:
+        self.messages.append(_message_dict(turn.response.choices[0].message))
+
+    def add_tool_result(self, call: Call, result: dict) -> None:
+        self.messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": call.id,
+                "name": call.name or "unknown",
+                "content": json.dumps(result),
+            }
+        )
+
+    def add_user(self, text: str) -> None:
+        self.messages.append({"role": "user", "content": text})
+
+    def transcript(self) -> list:
+        return self.messages
+
+
+class ResponsesConversation:
+    """A Responses API conversation, chained by previous_response_id.
+
+    The provider keeps each response, its reasoning included, so a turn sends
+    only what is new: the function call outputs and any user text.
+    """
+
+    budget_key = "max_output_tokens"
+
+    def __init__(self, prompt: str):
+        self.prompt = prompt
+        self.previous_response_id: str | None = None
+        self.pending: list[dict] = []
+        self.log: list[dict] = []
+
+    def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
+        kwargs = dict(base)
+        kwargs["tools"] = [_responses_tool(t) for t in tools]
+        if tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
+        if self.previous_response_id is None:
+            kwargs["input"] = self.prompt
+        else:
+            kwargs["input"] = list(self.pending)
+            kwargs["previous_response_id"] = self.previous_response_id
+        return kwargs
+
+    def read(self, response, budget) -> Turn:
+        from policybench.eval_no_tools import (
+            _get_response_item_attr,
+            _response_finish_reason,
+            _responses_content_and_tool_calls,
+        )
+
+        content, _ = _responses_content_and_tool_calls(response)
+        calls = []
+        for item in getattr(response, "output", None) or []:
+            if _get_response_item_attr(item, "type") == "function_call":
+                calls.append(
+                    Call(
+                        _get_response_item_attr(item, "call_id")
+                        or _get_response_item_attr(item, "id")
+                        or "",
+                        _get_response_item_attr(item, "name"),
+                        _get_response_item_attr(item, "arguments"),
+                    )
+                )
+        return Turn(
+            response=response,
+            content=content,
+            calls=calls,
+            finish_reason=_response_finish_reason(
+                response, responses_api=True, completion_budget_tokens=budget
+            ),
+        )
+
+    def add_assistant(self, turn: Turn) -> None:
+        self.log.append(
+            {
+                "input": self.prompt
+                if self.previous_response_id is None
+                else self.pending,
+                "response_id": getattr(turn.response, "id", None),
+                "content": turn.content,
+                "calls": [asdict(c) for c in turn.calls],
+            }
+        )
+        self.previous_response_id = getattr(turn.response, "id", None)
+        self.pending = []
+
+    def add_tool_result(self, call: Call, result: dict) -> None:
+        self.pending.append(
+            {
+                "type": "function_call_output",
+                "call_id": call.id,
+                "output": json.dumps(result),
+            }
+        )
+
+    def add_user(self, text: str) -> None:
+        self.pending.append({"role": "user", "content": text})
+
+    def transcript(self) -> list:
+        return self.log + ([{"pending": self.pending}] if self.pending else [])
+
+
+class ProviderEmpty(RuntimeError):
+    pass
+
+
 class Spend:
     def __init__(self, budget_usd: float, spent_usd: float = 0.0):
         self.budget_usd = budget_usd
@@ -856,9 +1147,15 @@ def run_household(
     completion_fn: Callable[..., Any],
     spend: Spend,
     turn_cap: int = TOOL_TURN_CAP,
+    profile: ModelProfile | None = None,
 ) -> dict:
-    """One household's conversation: tool turns, then the board's answer tool."""
-    from policybench.config import MODELS
+    """One household's conversation: tool turns, then the board's answer.
+
+    A tool-contract model answers through ``submit_outputs`` (forced once the
+    cap is reached, as the board forces it). A JSON-contract model answers in
+    the board's JSON reply; its API refuses a forced tool, so the calculate
+    tool is offered under tool_choice auto and the cap is a user message.
+    """
     from policybench.eval_no_tools import (
         _apply_thinking_configuration,
         _build_answer_tool,
@@ -866,80 +1163,171 @@ def run_household(
         _extract_usage_metadata,
         _merge_repair_cells,
         _missing_explanations,
-        _response_finish_reason,
         _serialize_response_payload,
         extract_explanations,
         extract_predictions,
     )
 
-    model_id = MODELS[MODEL_NAME]
-    messages, base = build_initial_request(scenario, variables)
+    profile = profile or model_profile()
+    prompt, base = build_initial_request(scenario, variables, profile)
     board_prompt_sha256 = base.pop("_board_prompt_sha256")
     ceiling = base.pop("_budget_ceiling")
-    calculate_tool = base["tools"][0]
+    answer_tool = base.pop("_answer_tool")
+    calculate_tool = calculate_tool_schema()
+    conversation = (
+        ResponsesConversation(prompt)
+        if profile.api == "responses"
+        else ChatConversation(
+            prompt, cache_breakpoint=profile.model_id.startswith("claude-")
+        )
+    )
+    json_contract = profile.contract == "json"
     record: dict[str, Any] = {
         "scenario_id": scenario.id,
+        "model": profile.name,
+        "api": profile.api,
+        "contract": profile.contract,
         "variables": variables,
         "board_prompt_sha256": board_prompt_sha256,
-        "tool_notice_sha256": hashlib.sha256(TOOL_NOTICE.encode()).hexdigest(),
+        "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
         "turns": [],
         "status": "running",
     }
     predictions: dict[str, float | None] = {v: None for v in variables}
     explanations: dict[str, str | None] = {v: None for v in variables}
-    pending = list(variables)
     tool_turns = 0
     repair_rounds = 0
-    forced = False
     answer_variables = list(variables)
     household_started = time.perf_counter()
 
+    def tools_and_choice(kind: str):
+        if json_contract:
+            return [calculate_tool], "auto"
+        if kind == "repair":
+            return (
+                [
+                    calculate_tool,
+                    _build_answer_tool(answer_variables, country=scenario.country),
+                ],
+                forced_answer_choice(profile),
+            )
+        if kind == "forced_answer":
+            return [calculate_tool, answer_tool], forced_answer_choice(profile)
+        return [calculate_tool, answer_tool], "required"
+
+    def accept_answer(content, calls) -> list[str]:
+        """Merge an answer into the predictions; return the outputs still needed."""
+        nonlocal predictions, explanations
+        got = extract_predictions(content, answer_variables, tool_calls=calls)
+        got_explanations = extract_explanations(
+            content, answer_variables, tool_calls=calls
+        )
+        got, got_explanations = _enforce_explanation_value_contract(
+            got, got_explanations, answer_variables
+        )
+        # The board's merge: a repair fills only cells still missing, and a
+        # valid earlier value or explanation always stands.
+        disagreements = record.setdefault("repair_disagreements", [])
+        predictions = _merge_repair_cells(
+            predictions,
+            {v: got.get(v) for v in answer_variables},
+            field="prediction",
+            disagreements=disagreements,
+        )
+        explanations = _merge_repair_cells(
+            explanations,
+            {v: got_explanations.get(v) for v in answer_variables},
+            field="explanation",
+            disagreements=disagreements,
+        )
+        pending = {v for v in variables if predictions[v] is None}
+        missing_explanation = set(_missing_explanations(explanations, variables))
+        return [v for v in variables if v in pending | missing_explanation]
+
+    def repair_text(still: list[str]) -> str:
+        kept = [
+            f"{v} (keep your value {number}; its explanation must end with "
+            f"`value = {number}`)"
+            for v in still
+            if predictions[v] is not None
+            for number in [plain_number(predictions[v])]
+        ]
+        how = (
+            "Reply with a JSON object holding only these outputs"
+            if json_contract
+            else "Call submit_outputs again with only these outputs"
+        )
+        return (
+            f"Your {'answer' if json_contract else 'submit_outputs call'} omitted "
+            f"or left unusable these outputs: {', '.join(still)}. {how}, each with "
+            "a numeric value and an explanation ending with `value = X`."
+            + (
+                " Explanations only are missing for: " + "; ".join(kept) + "."
+                if kept
+                else ""
+            )
+        )
+
+    def run_calculations(turn_record: dict, calls: list[Call]) -> bool:
+        """Run the turn's calculations; False if the pool had no worker."""
+        for position, call in enumerate(calls):
+            if position >= MAX_CALCULATIONS_PER_TURN:
+                result, tool_latency = (
+                    {
+                        "error": "not_run",
+                        "message": (
+                            f"at most {MAX_CALCULATIONS_PER_TURN} calculations per turn"
+                        ),
+                    },
+                    0.0,
+                )
+            else:
+                result, tool_latency = tool_call(call.arguments)
+            turn_record["calls"].append(
+                {
+                    "name": TOOL_NAME,
+                    "arguments": call.arguments,
+                    "result": result,
+                    "tool_latency_seconds": tool_latency,
+                }
+            )
+            if isinstance(result, dict) and result.get("error") == POOL_UNAVAILABLE:
+                return False
+            conversation.add_tool_result(call, result)
+        return True
+
     try:
+        forced = False
         for turn_index in range(MAX_TOTAL_TURNS):
             if spend.exhausted():
                 record["status"] = "budget_stop"
                 break
             if repair_rounds:
                 kind = "repair"
-                tool_choice = forced_answer_choice()
-                tools = [
-                    calculate_tool,
-                    _build_answer_tool(answer_variables, country=scenario.country),
-                ]
-            elif forced or tool_turns >= turn_cap:
-                kind = "forced_answer"
-                forced = True
-                tool_choice = forced_answer_choice()
-                tools = base["tools"]
+            elif not json_contract and (forced or tool_turns >= turn_cap):
+                kind, forced = "forced_answer", True
             else:
                 kind = "open"
-                tool_choice = "required"
-                tools = base["tools"]
-            kwargs = {
-                k: v for k, v in base.items() if k not in {"tools", "tool_choice"}
-            }
-            kwargs.update(
-                {
-                    "model": model_id,
-                    "messages": messages,
-                    "tools": tools,
-                    "tool_choice": tool_choice,
-                }
+            tools, tool_choice = tools_and_choice(kind)
+            kwargs = conversation.request_kwargs(
+                {k: v for k, v in base.items() if k not in {"tools", "tool_choice"}}
+                | {"model": profile.model_id},
+                tools,
+                tool_choice,
             )
-            _apply_thinking_configuration(kwargs, model_id)
-            budget_key = (
-                "max_completion_tokens"
-                if "max_completion_tokens" in kwargs
-                else "max_tokens"
-            )
+            _apply_thinking_configuration(kwargs, profile.model_id)
+            budget_key = conversation.budget_key
             escalated_from = None
             try:
                 response, started_at, completed_at, latency = _request_with_retries(
                     completion_fn, kwargs
                 )
-                finish_reason = _response_finish_reason(response, responses_api=False)
-                if finish_reason == "length" and kwargs.get(budget_key, 0) < ceiling:
-                    usage = _extract_usage_metadata(response, model_id, messages, "")
+                turn = conversation.read(response, kwargs.get(budget_key))
+                if (
+                    turn.finish_reason == "length"
+                    and kwargs.get(budget_key, 0) < ceiling
+                ):
+                    usage = _extract_usage_metadata(response, profile.model_id, [], "")
                     spend.add(usage.get("total_cost_usd"))
                     record["turns"].append(
                         {
@@ -956,30 +1344,25 @@ def run_household(
                     response, started_at, completed_at, latency = _request_with_retries(
                         completion_fn, kwargs
                     )
-                    finish_reason = _response_finish_reason(
-                        response, responses_api=False
-                    )
+                    turn = conversation.read(response, kwargs.get(budget_key))
             except Exception as error:
                 record["status"] = "provider_error"
                 record["error"] = f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]
                 break
 
-            choices = getattr(response, "choices", None) or []
-            if not choices:
-                record["status"] = "provider_error"
-                record["error"] = "response has no choices"
-                break
-            message = choices[0].message
-            content = getattr(message, "content", None)
-            calls = _tool_calls(message)
             raw = _serialize_response_payload(
-                content=content, tool_calls=calls, function_call=None
+                content=turn.content,
+                tool_calls=[
+                    {"id": c.id, "function": {"name": c.name, "arguments": c.arguments}}
+                    for c in turn.calls
+                ],
+                function_call=None,
             )
             usage = _extract_usage_metadata(
-                response, model_id, messages, raw or content or ""
+                response, profile.model_id, [], raw or turn.content or ""
             )
             spend.add(usage.get("total_cost_usd"))
-            turn = {
+            turn_record = {
                 "index": turn_index,
                 "kind": kind,
                 "tool_choice": tool_choice,
@@ -988,191 +1371,129 @@ def run_household(
                 "request_started_at": started_at,
                 "request_completed_at": completed_at,
                 "latency_seconds": latency,
-                "finish_reason": finish_reason,
-                "content": content,
-                "reasoning_content": getattr(message, "reasoning_content", None),
-                "has_thought_signature": _has_thought_signature(message),
+                "finish_reason": turn.finish_reason,
+                "content": turn.content,
+                "reasoning_content": turn.reasoning_content,
+                "has_thought_signature": turn.has_thought_signature,
+                "response_id": getattr(response, "id", None),
                 "calls": [],
                 **usage,
             }
-            record["turns"].append(turn)
-            messages.append(_message_dict(message))
+            record["turns"].append(turn_record)
+            conversation.add_assistant(turn)
 
-            answer_calls = [c for c in calls if _call_name(c) == "submit_outputs"]
-            calculate_calls = [c for c in calls if _call_name(c) == TOOL_NAME]
+            answer_calls = [c for c in turn.calls if c.name == "submit_outputs"]
+            calculate_calls = [c for c in turn.calls if c.name == TOOL_NAME]
             other_calls = [
-                c for c in calls if c not in answer_calls and c not in calculate_calls
+                c
+                for c in turn.calls
+                if c not in answer_calls and c not in calculate_calls
             ]
 
+            # A tool-contract answer: the submit_outputs call ends the turn.
             if answer_calls:
-                got = extract_predictions(
-                    content, answer_variables, tool_calls=answer_calls
+                still = accept_answer(
+                    turn.content,
+                    [
+                        {"function": {"name": c.name, "arguments": c.arguments}}
+                        for c in answer_calls
+                    ],
                 )
-                got_explanations = extract_explanations(
-                    content, answer_variables, tool_calls=answer_calls
-                )
-                got, got_explanations = _enforce_explanation_value_contract(
-                    got, got_explanations, answer_variables
-                )
-                # The board's merge: a repair fills only cells still missing, and a
-                # valid earlier value or explanation always stands.
-                disagreements = record.setdefault("repair_disagreements", [])
-                predictions = _merge_repair_cells(
-                    predictions,
-                    {v: got.get(v) for v in answer_variables},
-                    field="prediction",
-                    disagreements=disagreements,
-                )
-                explanations = _merge_repair_cells(
-                    explanations,
-                    {v: got_explanations.get(v) for v in answer_variables},
-                    field="explanation",
-                    disagreements=disagreements,
-                )
-                turn["calls"].append(
+                turn_record["calls"].append(
                     {
                         "name": "submit_outputs",
-                        "arguments": _call_arguments(answer_calls[0]),
-                        "ignored_calls": len(calculate_calls)
-                        + len(other_calls)
-                        + len(answer_calls)
-                        - 1,
+                        "arguments": answer_calls[0].arguments,
+                        "ignored_calls": len(turn.calls) - 1,
                     }
                 )
-                pending = [v for v in variables if predictions[v] is None]
-                missing_explanation = _missing_explanations(explanations, variables)
-                still = [
-                    v for v in variables if v in set(pending) | set(missing_explanation)
-                ]
-                for call in calls:
-                    messages.append(
+                for call in turn.calls:
+                    conversation.add_tool_result(
+                        call,
+                        {"accepted": not still, "missing": still}
+                        if call is answer_calls[0]
+                        else {"error": "not run: submit_outputs ended the turn"},
+                    )
+            elif calculate_calls and (
+                tool_turns >= turn_cap or (not json_contract and kind != "open")
+            ):
+                # Past the cap, or in a turn that forced the answer, nothing
+                # runs. tool_choice auto cannot withhold the tool from a
+                # JSON-contract model; a forced turn should never carry a
+                # calculation, but a provider that sends one gets no result.
+                refusal = {
+                    "error": "not_run",
+                    "message": "no calculation turns are left; "
+                    + (
+                        "reply with your final answers as the JSON object "
+                        "described above"
+                        if json_contract
+                        else "call submit_outputs with your final answers"
+                    ),
+                }
+                for call in turn.calls:
+                    turn_record["calls"].append(
                         {
-                            "role": "tool",
-                            "tool_call_id": _call_id(call),
-                            "name": _call_name(call),
-                            "content": json.dumps(
-                                {"accepted": not still, "missing": still}
-                                if call is answer_calls[0]
-                                else {"error": "not run: submit_outputs ended the turn"}
-                            ),
+                            "name": call.name,
+                            "arguments": call.arguments,
+                            "result": refusal,
+                            "tool_latency_seconds": 0.0,
                         }
                     )
-                if not still:
-                    record["status"] = "complete"
-                    break
-                if repair_rounds >= MAX_REPAIR_ROUNDS:
-                    record["status"] = "incomplete"
-                    break
-                repair_rounds += 1
-                answer_variables = still
-                kept = [
-                    f"{v} (keep your value {number}; its explanation must end "
-                    f"with `value = {number}`)"
-                    for v in still
-                    if predictions[v] is not None
-                    for number in [plain_number(predictions[v])]
-                ]
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your submit_outputs call omitted or left unusable these "
-                            f"outputs: {', '.join(still)}. Call submit_outputs again "
-                            "with only these outputs, each with a numeric value and an "
-                            "explanation ending with `value = X`."
-                            + (
-                                " Explanations only are missing for: "
-                                + "; ".join(kept)
-                                + "."
-                                if kept
-                                else ""
-                            )
-                        ),
-                    }
-                )
+                    conversation.add_tool_result(call, refusal)
                 continue
-
-            if calculate_calls:
+            elif calculate_calls:
                 tool_turns += 1
-                pool_down = False
-                for position, call in enumerate(calculate_calls):
-                    if position >= MAX_CALCULATIONS_PER_TURN:
-                        result, tool_latency = (
-                            {
-                                "error": "not_run",
-                                "message": (
-                                    f"at most {MAX_CALCULATIONS_PER_TURN} "
-                                    "calculations per turn"
-                                ),
-                            },
-                            0.0,
-                        )
-                    else:
-                        result, tool_latency = tool_call(_call_arguments(call))
-                    turn["calls"].append(
-                        {
-                            "name": TOOL_NAME,
-                            "arguments": _call_arguments(call),
-                            "result": result,
-                            "tool_latency_seconds": tool_latency,
-                        }
-                    )
-                    if (
-                        isinstance(result, dict)
-                        and result.get("error") == POOL_UNAVAILABLE
-                    ):
-                        pool_down = True
-                        break
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": _call_id(call),
-                            "name": TOOL_NAME,
-                            "content": json.dumps(result),
-                        }
-                    )
-                for call in other_calls:
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": _call_id(call),
-                            "name": _call_name(call) or "unknown",
-                            "content": json.dumps({"error": "unknown function"}),
-                        }
-                    )
-                if pool_down:
+                if not run_calculations(turn_record, calculate_calls):
                     # Infrastructure, not the model: a rerunnable status, so the
                     # household is not scored on an answer the pool prevented.
                     record["status"] = "harness_error"
                     record["error"] = "the tool pool had no worker"
                     break
+                for call in other_calls:
+                    conversation.add_tool_result(call, {"error": "unknown function"})
                 if tool_turns >= turn_cap:
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": (
-                                f"You have used all {turn_cap} calculation turns. Call "
-                                "submit_outputs now with your final answers."
-                            ),
-                        }
+                    conversation.add_user(
+                        f"You have used all {turn_cap} calculation turns. "
+                        + (
+                            "Reply now with your final answers as the JSON object "
+                            "described above."
+                            if json_contract
+                            else "Call submit_outputs now with your final answers."
+                        )
                     )
                 continue
-
-            for call in other_calls:
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": _call_id(call),
-                        "name": _call_name(call) or "unknown",
-                        "content": json.dumps({"error": "unknown function"}),
-                    }
+            elif json_contract and turn.content:
+                # A JSON-contract answer: the reply itself.
+                still = accept_answer(turn.content, None)
+                answered = any(v is not None for v in predictions.values()) or any(
+                    explanations.values()
                 )
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "Call calculate_household or submit_outputs.",
-                }
-            )
+                if not answered:
+                    conversation.add_user(
+                        "Reply with your final answers as the JSON object described "
+                        "above, or call calculate_household."
+                    )
+                    continue
+            else:
+                for call in other_calls:
+                    conversation.add_tool_result(call, {"error": "unknown function"})
+                conversation.add_user(
+                    "Call calculate_household or give your final answers as the "
+                    "JSON object described above."
+                    if json_contract
+                    else "Call calculate_household or submit_outputs."
+                )
+                continue
+
+            if not still:
+                record["status"] = "complete"
+                break
+            if repair_rounds >= MAX_REPAIR_ROUNDS:
+                record["status"] = "incomplete"
+                break
+            repair_rounds += 1
+            answer_variables = still
+            conversation.add_user(repair_text(still))
         else:
             record["status"] = "turn_limit"
     except Exception as error:  # keep the turns, and their spend, so far
@@ -1187,7 +1508,7 @@ def run_household(
     record["cap_hit"] = tool_turns >= turn_cap
     record["repair_rounds"] = repair_rounds
     record["wall_seconds"] = time.perf_counter() - household_started
-    record["messages"] = messages
+    record["messages"] = conversation.transcript()
     record["totals"] = household_totals(record)
     return record
 
@@ -1234,6 +1555,9 @@ def household_totals(record: dict) -> dict:
         "completion_tokens": sum(_num(t.get("completion_tokens")) for t in turns),
         "reasoning_tokens": sum(_num(t.get("reasoning_tokens")) for t in turns),
         "cached_prompt_tokens": sum(_num(t.get("cached_prompt_tokens")) for t in turns),
+        "cache_write_prompt_tokens": sum(
+            _num(t.get("cache_write_prompt_tokens")) for t in turns
+        ),
         "cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
         "model_seconds": sum(_num(t.get("latency_seconds")) for t in turns),
         "tool_seconds": sum(_num(c.get("tool_latency_seconds")) for c in calls),
@@ -1413,12 +1737,31 @@ def resume_state(households_dir: Path) -> tuple[float, set[str], dict[str, dict]
     return spent, done, previous
 
 
+def provider_key(model_id: str) -> str:
+    for prefix, key in PROVIDER_KEYS.items():
+        if model_id.startswith(prefix):
+            return key
+    raise SystemExit(f"no provider key is known for {model_id}")
+
+
+def records_model(records: Mapping[str, dict]) -> str:
+    """The one model a run directory's records belong to; records written
+    before the pilot took --model are Argon's."""
+    models = {r.get("model", MODEL_NAME) for r in records.values()}
+    if len(models) > 1:
+        raise SystemExit(f"records from more than one model: {sorted(models)}")
+    return models.pop() if models else MODEL_NAME
+
+
 def command_run(args) -> None:
     _require_engine()
-    if not os.environ.get("GEMINI_API_KEY"):
-        raise SystemExit("GEMINI_API_KEY is not set")
-    from litellm import completion
+    profile = model_profile(args.model)
+    key = provider_key(profile.model_id)
+    if not os.environ.get(key):
+        raise SystemExit(f"{key} is not set")
+    from litellm import completion, responses
 
+    completion_fn = responses if profile.api == "responses" else completion
     board = load_board()
     out = Path(args.out_dir)
     households_dir = out / "households"
@@ -1430,6 +1773,11 @@ def command_run(args) -> None:
         ids = ids[: args.limit]
 
     spent_before, done, previous = resume_state(households_dir)
+    if previous and records_model(previous) != profile.name:
+        raise SystemExit(
+            f"{households_dir} holds {records_model(previous)} records, "
+            f"not {profile.name}"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -1440,8 +1788,11 @@ def command_run(args) -> None:
         "versions": _versions(),
         "fix_module": str(FIX_MODULE.relative_to(ROOT)),
         "fix_module_sha256": _sha256(FIX_MODULE),
-        "model": MODEL_NAME,
-        "tool_notice": TOOL_NOTICE,
+        "model": profile.name,
+        "model_id": profile.model_id,
+        "api": profile.api,
+        "answer_contract": profile.contract,
+        "tool_notice": profile.notice,
         "calculate_tool": calculate_tool_schema(),
         "turn_cap": TOOL_TURN_CAP,
         "max_calculations_per_turn": MAX_CALCULATIONS_PER_TURN,
@@ -1476,12 +1827,14 @@ def command_run(args) -> None:
                     board["scenarios"][sid],
                     board["variables"][sid],
                     pool.call,
-                    completion,
+                    completion_fn,
                     spend,
+                    profile=profile,
                 )
             except Exception as error:  # one household must not end the run
                 record = {
                     "scenario_id": sid,
+                    "model": profile.name,
                     "variables": board["variables"][sid],
                     "status": "harness_error",
                     "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
@@ -1549,14 +1902,16 @@ def load_records(out_dir: Path) -> dict[str, dict]:
     return records
 
 
-def arm2_predictions(records: Mapping[str, dict]) -> pd.DataFrame:
+def arm2_predictions(
+    records: Mapping[str, dict], label: str = ARM2_LABEL
+) -> pd.DataFrame:
     rows = []
     for sid, record in records.items():
         for variable in record["variables"]:
             value = record["predictions"].get(variable)
             rows.append(
                 {
-                    "model": ARM2_LABEL,
+                    "model": label,
                     "scenario_id": sid,
                     "variable": variable,
                     "prediction": value,
@@ -1567,9 +1922,14 @@ def arm2_predictions(records: Mapping[str, dict]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def arm1_predictions(snapshot: Path = SNAPSHOT) -> pd.DataFrame:
+def arm1_predictions(
+    snapshot: Path = SNAPSHOT, label: str = ARM1_LABEL
+) -> pd.DataFrame:
     frame = pd.read_csv(snapshot / "predictions.csv.gz", low_memory=False)
-    return frame[frame["model"] == ARM1_LABEL].copy()
+    rows = frame[frame["model"] == label].copy()
+    if rows.empty:
+        raise SystemExit(f"the snapshot has no frozen predictions for {label}")
+    return rows
 
 
 def command_score(args) -> None:
@@ -1579,6 +1939,8 @@ def command_score(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
     records = load_records(out)
+    profile = model_profile(records_model(records))
+    arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
     )
@@ -1596,9 +1958,9 @@ def command_score(args) -> None:
             f"failure and score as misses until a resume reruns them: {leftover}"
         )
     scored = board["scored"][board["scored"].scenario_id.isin(households)]
-    arm1 = arm1_predictions()
+    arm1 = arm1_predictions(label=arm1_label)
     arm1 = arm1[arm1.scenario_id.isin(households)]
-    arm2 = arm2_predictions({sid: records[sid] for sid in households})
+    arm2 = arm2_predictions({sid: records[sid] for sid in households}, arm2_label)
     scenarios = board["scenarios_frame"][
         board["scenarios_frame"].scenario_id.isin(households)
     ]
@@ -1656,7 +2018,7 @@ def command_score(args) -> None:
     by_household = household_weighted_exact(scored, both, scenarios)
     means = by_household.groupby("model")["weighted_exact"].mean()
     published = summary.set_index("model")["weighted_exact"]
-    for model in (ARM1_LABEL, ARM2_LABEL):
+    for model in (arm1_label, arm2_label):
         if abs(means[model] - published[model]) > 1e-9:
             raise SystemExit(
                 f"household scores for {model} average {means[model]}, not the "
@@ -1666,7 +2028,7 @@ def command_score(args) -> None:
         index="scenario_id", columns="model", values="weighted_exact"
     )
     wide.to_csv(out / "household_scores.csv")
-    bootstrap = paired_bootstrap(wide[ARM1_LABEL], wide[ARM2_LABEL])
+    bootstrap = paired_bootstrap(wide[arm1_label], wide[arm2_label])
     print(json.dumps(bootstrap, indent=2))
 
     flips = (
@@ -1692,6 +2054,9 @@ def command_score(args) -> None:
     (out / "score.json").write_text(
         json.dumps(
             {
+                "model": profile.name,
+                "arm1_label": arm1_label,
+                "arm2_label": arm2_label,
                 "households": len(households),
                 "incomplete_households": sorted(set(records) - set(complete)),
                 "rerunnable_households": leftover,
@@ -2499,6 +2864,11 @@ def main(argv: list[str] | None = None) -> None:
         p = sub.add_parser(name)
         p.add_argument("--out-dir", required=True)
         if name == "run":
+            p.add_argument(
+                "--model",
+                default=MODEL_NAME,
+                help="a board model name (policybench.config.MODELS)",
+            )
             p.add_argument("--scenarios", nargs="*")
             p.add_argument("--limit", type=int)
             p.add_argument("--workers", type=int, default=4)
