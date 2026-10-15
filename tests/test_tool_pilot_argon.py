@@ -1631,15 +1631,22 @@ def test_every_pilot_model_has_a_provider_key():
 
 STEPS = st.lists(
     st.one_of(
-        st.tuples(st.just("calculate"), st.integers(1, 6)),
-        st.tuples(st.sampled_from(["full", "partial", "prose", "empty"]), st.just(0)),
+        st.tuples(st.sampled_from(["calculate", "calculate_text"]), st.integers(1, 6)),
+        st.tuples(
+            st.sampled_from(["full", "partial", "prose", "empty", "truncated"]),
+            st.just(0),
+        ),
     ),
     max_size=16,
 )
 
 
 class ScriptedModel:
-    """Plays a script of turns in the model's own shape, then answers in full."""
+    """Plays a script of turns in the model's own shape, then answers in full.
+
+    ``calculate_text`` sends text beside its calls; ``truncated`` is a reply
+    cut off at the output budget, which the harness retries at the ceiling.
+    """
 
     def __init__(self, profile, steps):
         self.profile = profile
@@ -1655,9 +1662,10 @@ class ScriptedModel:
         if kind == "partial":
             values = {"snap": 1}
         responses_api = self.profile.api == "responses"
-        if kind == "calculate":
+        if kind in {"calculate", "calculate_text", "truncated"}:
             make = sol_calculate if responses_api else calculate
-            calls, content = [make(f"t{n}c{i}") for i in range(count)], None
+            calls = [make(f"t{n}c{i}") for i in range(max(count, 1))]
+            content = "Checking with the tool." if kind == "calculate_text" else None
         elif kind in {"full", "partial"} and self.profile.contract == "tool":
             make = sol_submit if responses_api else submit
             calls, content = [make(values, f"t{n}s")], None
@@ -1675,8 +1683,14 @@ class ScriptedModel:
                     )
                 )
             result = responses_response(items, f"resp_{n}")
+            if kind == "truncated":
+                result.status = "incomplete"
+                result.incomplete_details = SimpleNamespace(reason="max_output_tokens")
         else:
             result = response(calls, content=content)
+            if kind == "truncated":
+                result.choices[0].finish_reason = "length"
+        result.truncated = kind == "truncated"
         self.responses.append(result)
         return result
 
@@ -1687,21 +1701,24 @@ def _response_call_ids(profile, result) -> list[str]:
     return [c.id for c in result.choices[0].message.tool_calls or []]
 
 
-def _answered_call_ids(profile, request) -> list[str]:
+def _new_items(profile, request) -> list[tuple[str, str | None]]:
+    """What a request adds after the model's last turn, in order:
+    ("result", call id) for a function result, ("user", None) for user text."""
     if profile.api == "responses":
+        items = request["input"]
         return [
-            i["call_id"]
-            for i in request["input"]
-            if isinstance(i, dict) and i.get("type") == "function_call_output"
+            ("result", i["call_id"])
+            if i.get("type") == "function_call_output"
+            else ("user", None)
+            for i in items
         ]
     messages = request["messages"]
     last_assistant = max(
         i for i, m in enumerate(messages) if m.get("role") == "assistant"
     )
     return [
-        m["tool_call_id"]
+        ("result", m["tool_call_id"]) if m.get("role") == "tool" else ("user", None)
         for m in messages[last_assistant + 1 :]
-        if m.get("role") == "tool"
     ]
 
 
@@ -1728,23 +1745,43 @@ def test_any_conversation_keeps_the_protocol_the_cap_and_the_spend(name, steps, 
     )
     assert record["status"] in {"complete", "incomplete", "turn_limit"}
     assert set(record["predictions"]) == set(VARIABLES)
-    assert len(model.requests) <= pilot.MAX_TOTAL_TURNS
+    # At most MAX_TOTAL_TURNS turns reach the conversation; a turn cut off
+    # below the ceiling costs one more request (intended), never more.
+    totals = record["totals"]
+    assert totals["model_turns"] <= pilot.MAX_TOTAL_TURNS
+    assert len(model.requests) == totals["model_turns"] + totals["truncation_retries"]
+    assert totals["truncation_retries"] <= totals["model_turns"]
     # The cap: at most `cap` turns run calculations, each at most 4 of them.
     assert record["tool_turns"] <= cap
     assert len(ran) <= cap * pilot.MAX_CALCULATIONS_PER_TURN
     # Spend: the shared counter saw exactly the household's turns.
     assert spend.spent_usd == pytest.approx(record["totals"]["cost_usd"])
-    # The protocol both APIs enforce: each function call of one response gets
-    # exactly one result in the next request, and a Responses request chains
-    # to the response before it.
-    for before, (result, request) in enumerate(
-        zip(model.responses, model.requests[1:])
-    ):
-        assert sorted(_answered_call_ids(profile, request)) == sorted(
-            _response_call_ids(profile, result)
-        )
+    # The protocol both APIs enforce: each function call of a response that
+    # reached the conversation gets exactly one result in the next request,
+    # before any user text, and a Responses request chains to that response.
+    # A response cut off below the budget ceiling never reaches it: the same
+    # request goes again at the ceiling.
+    from policybench.eval_no_tools import _completion_budget_ceiling
+
+    ceiling = _completion_budget_ceiling(profile.model_id)
+    budget_key = (
+        "max_output_tokens" if profile.api == "responses" else "max_completion_tokens"
+    )
+    for i, (result, request) in enumerate(zip(model.responses, model.requests[1:])):
+        sent = model.requests[i]
+        if result.truncated and sent[budget_key] < ceiling:
+            assert request[budget_key] == ceiling
+            assert {k: v for k, v in request.items() if k != budget_key} == {
+                k: v for k, v in sent.items() if k != budget_key
+            }
+            continue
+        items = _new_items(profile, request)
+        results = [call_id for kind, call_id in items if kind == "result"]
+        assert sorted(results) == sorted(_response_call_ids(profile, result))
+        kinds = [kind for kind, _ in items]
+        assert kinds == sorted(kinds), "user text came before a function result"
         if profile.api == "responses":
-            assert request["previous_response_id"] == f"resp_{before + 1}"
+            assert request["previous_response_id"] == result.id
     for request in model.requests:
         names = [t.get("name") or t["function"]["name"] for t in request["tools"]]
         if profile.contract == "json":
