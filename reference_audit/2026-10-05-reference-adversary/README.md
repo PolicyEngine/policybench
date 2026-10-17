@@ -46,7 +46,25 @@ PolicyBench's diagnosis judge (`docs/audit.md`) explains why models miss. Its pr
 
 Inputs:
 
-- Payload: `data.json.gz` of release dashboard-data-20260930, as committed at `8b4c0ca1` (#187), sha256 `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18`. Release dashboard-data-20261006 (#202) later rewrote the working tree's payload and annotations; the tests and the Reproduce steps read the pass's inputs from `8b4c0ca1`.
+- The frozen run and its annotations, as release dashboard-data-20260930 committed them at `8b4c0ca1` (#187). Release dashboard-data-20261006 (#202) later rewrote the working tree's payload, exclusion record and annotations, so reproducing the pass needs each file below as `8b4c0ca1` holds it, with that sha256. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+
+  | Input at `8b4c0ca1` | sha256 | Read by |
+  |---|---|---|
+  | `<run>/data.json.gz`, the payload | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` | `consensus-flags`, `adversary-prepare`, `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
+  | `<run>/predictions.csv.gz` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` | `leaderboard_impact.py` |
+  | `<run>/reference_outputs.csv` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
+  | `<run>/reference_outputs.csv.meta.json` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` | `definition_conformance.py`, `publication_sources.py`, `leaderboard_impact.py` |
+  | `<run>/reference_exclusions.json` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` | `publication_sources.py`, `engine_probe.py`, `build_proposals.py`, `leaderboard_impact.py` |
+  | `<run>/scenarios.csv` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` | `definition_conformance.py`, `publication_sources.py`, `engine_probe.py`, `leaderboard_impact.py` |
+  | `<run>/scenarios.csv.meta.json` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` | `leaderboard_impact.py` |
+  | `annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_case_reference_explanations.csv` | `6cccc5586815f2ecc4f1b527e79e141f858d0e75cc30b3a867d107909cbb38c4` | `adversary-prepare` |
+
+- `proposed_changes.json` as #200 merged it at `4db91b5f`, sha256 `3a6e5920a2d02e94e1df52c95c1def2739f3eb21b1fb67fc74a7d68219a749bf`, read by `leaderboard_impact.py`.
+- Who checks the pins:
+  - `leaderboard_impact.py` stages every input it reads from git and stops on any sha256 mismatch before scoring.
+  - `definition_conformance.py` and `publication_sources.py` stop when the working tree's payload is not `1e029aaa…`, but read their other inputs from the working tree unchecked.
+  - `engine_probe.py` and `build_proposals.py` check no input's sha256.
+  - `tests/test_consensus.py` and `tests/test_reference_adversary.py` read the payload and the explanations from `8b4c0ca1`. `tests/test_reference_adversary_impact.py` checks the impact script's pins and that it ignores the working tree's run and proposals.
 - Top 5 by the payload's `modelStats` order: gpt-6-sol, claude-opus-5.5, gpt-5.6-sol, gpt-6-luna and claude-sonnet-5.5.
 - `consensus_flags.json` holds the default run, and `consensus_flags_prototype.json` reproduces the 2026-10-05 prototype.
 - `verification/flags_table.md` lists all 61 cells, each with its cluster, its exact-model count and whether the prototype flagged it.
@@ -286,7 +304,7 @@ The root cause is a gap in scenario generation and definition scope, not an engi
 
 ## Leaderboard impact
 
-`scripts/leaderboard_impact.py` copies the frozen run to scratch, applies each alternative in `proposed_changes.json`, and scores every copy with `policybench analyze`, the command the freeze runs. The unchanged copy reproduces the published scoring: every `modelStats` field (except the cost and latency fields the freeze overlays), plus `programStats`, `heatmap`, `globalWeights` and `failureModes` exactly. Full tables are in `verification/leaderboard_impact.json` and `verification/leaderboard_impact_*_{models,programs}.csv`.
+`scripts/leaderboard_impact.py` copies the frozen run to scratch, applies each alternative in `proposed_changes.json`, and scores every copy with `policybench analyze`, the command the freeze runs. It takes the run and the proposals from git at their pinned commits (Inputs above), not from the working tree. The unchanged copy reproduces the published scoring: every `modelStats` field (except the cost and latency fields the freeze overlays), plus `programStats`, `heatmap`, `globalWeights` and `failureModes` exactly. Full tables are in `verification/leaderboard_impact.json` and `verification/leaderboard_impact_*_{models,programs}.csv`.
 
 | Variant | Scored cells | Exact-rate change across models | Leader (gpt-6-sol) exact | Exact-rank changes |
 |---|---:|---|---|---|
@@ -443,11 +461,18 @@ The pass's own expectations are not part of either ruling (`status.not_ruled`). 
 | `proposed_changes.json` | Exclusion and regeneration records per root cause, and the rulings |
 | `scripts/` | The scripts that wrote the files above |
 
-The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
+The code is in `policybench/consensus.py`, `reference_adversary.py`, `definition_conformance.py` and `publication_sources.py`, with CLI commands in `policybench/cli.py`. The runners are `scripts/run_reference_adversary_{claude,codex}.sh`, and `docs/audit.md` has the pipeline. The diagnosis judge's prompt still claims that earlier audits' bugs "were fixed before this run", which the frozen run's 28 unfixed engine-defect exclusions contradict. Removing it changes every judge prompt and breaks byte-identical carry-over of existing verdicts, so it waits for a versioned judge template, which a separate PR adds. Tests are in `tests/test_consensus.py`, `test_reference_adversary.py`, `test_reference_adversary_impact.py`, `test_reference_adversary_runner.py`, `test_definition_conformance.py`, `test_publication_sources.py` and `test_audit.py`.
 
 ## Reproduce
 
-`<run>/data.json.gz` and `annotations/<run>/` must hold the pass's inputs as commit `8b4c0ca1` (release dashboard-data-20260930) committed them, not today's, which release dashboard-data-20261006 (#202) rewrote. A worktree at `8b4c0ca1` has them, or `git show 8b4c0ca1:<path>` each file.
+Every step reads the pass's inputs (the table under [Flag parameters](#flag-parameters)) as commit `8b4c0ca1` (release dashboard-data-20260930) committed them, not today's, which release dashboard-data-20261006 (#202) rewrote. `scripts/leaderboard_impact.py` stages its own inputs from git, so it runs from any checkout that has `8b4c0ca1` and `4db91b5f` in its history. The commands below read the payload and annotations at the paths they are given. `definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `build_proposals.py` read the working tree's `<run>/`. So first restore every file in the table (the run directory and the run's annotations directory) from `8b4c0ca1`, and put today's back when done:
+
+```bash
+run=paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace
+git restore --source 8b4c0ca1 -- "$run" "annotations/${run##*/}"
+# ... the steps below ...
+git restore -- "$run" "annotations/${run##*/}"
+```
 
 ```bash
 uv run policybench consensus-flags --payload <run>/data.json.gz \
@@ -481,3 +506,9 @@ uv run python reference_audit/2026-10-05-reference-adversary/scripts/search_expo
 Preparing `runs/claude` today reproduces its `cases.jsonl` and derivations byte for byte. Each stage-1 prompt then differs from the committed one in one line, because the source rule now asks for `blocked_domains`. The re-judge's preparation reproduces `runs/claude-rejudge`'s inputs byte for byte.
 
 The scripts in `scripts/` regenerate the verification files; each script's docstring gives its command. `definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need the policyengine-us 2.15.17 environment.
+
+`tests/test_reference_adversary_impact.py` regenerates the `verification/leaderboard_impact*` files into a scratch directory and requires the committed ones byte for byte. The test takes about five minutes, so it is marked slow and CI deselects it:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_adversary_impact.py
+```
