@@ -13,6 +13,9 @@ Semantics that differ from sync mode, by design:
   is not model latency. Models evaluated in batch mode show no latency on the
   leaderboard rather than a misleading one. Batch turnaround is recorded in
   the run's ``batches/`` state files.
+- ``live_calls`` is 1 on rows a batch response answered and 0 otherwise, and
+  ``cache_hit_calls`` is always 0: batch requests bypass the LiteLLM disk
+  cache. ``live_elapsed_seconds`` is empty, like ``elapsed_seconds``.
 - Cost columns are reconstructed from token usage at standard synchronous
   rates (litellm's price map plus ``PRICE_OVERRIDES_PER_1M``), matching the
   leaderboard's comparison basis. Actual spend is ~half of the reported
@@ -687,6 +690,12 @@ def rows_from_unit(
                 "provider_resolved_model": (
                     result.provider_resolved_model if result else None
                 ),
+                # A batch request goes to the provider's batch endpoint, never
+                # through the LiteLLM disk cache, so its one response is live.
+                # It is untimed, like elapsed_seconds.
+                "live_calls": 1 if result is not None else 0,
+                "cache_hit_calls": 0,
+                "live_elapsed_seconds": None,
             }
         )
     return rows

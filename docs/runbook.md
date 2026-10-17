@@ -437,3 +437,51 @@ for model_dir in sorted((run / "chunks").glob("*")):
     )
 PY
 ```
+
+## 8. Call provenance
+
+The harness caches provider responses on disk (`policybench/cache.py`). A
+request identical to an earlier one returns the cached response, and the
+timer measures the lookup, a few hundredths of a second, as if it were the
+call. Each prediction row therefore records where its responses came from:
+
+| Column | Meaning |
+| --- | --- |
+| `live_calls` | responses behind the row that the provider answered |
+| `cache_hit_calls` | responses behind the row that the disk cache replayed |
+| `live_elapsed_seconds` | the live calls' share of `elapsed_seconds` |
+
+The counts cover the request group whose time the row's `elapsed_seconds`
+apportions: the whole household for `run_no_tools_eval` (every chunk, repair
+round, budget escalation and explanation repair), the one output for
+single-output runs and row repairs, and the one request for batch rows.
+Every row of a group repeats them, so never sum them across rows.
+`live_elapsed_seconds` is divided among the rows like `elapsed_seconds`, so a
+household's live time is the sum over its rows. A replay adds its lookup time
+to `elapsed_seconds` and nothing to `live_elapsed_seconds`. Failed attempts
+are not counted here; the spend ledger records them.
+
+Batch rows have `cache_hit_calls` 0 (batch requests never read the disk
+cache), `live_calls` 1 when a response answered them, and no live time, like
+their empty `elapsed_seconds`. Rows written before these columns existed,
+including the frozen board's, leave all three empty, and a supervised run
+resumed across the change accepts those scenario files. A row-repair merge
+that applies an older repair, written without the columns, empties them on
+the row it replaces rather than keep the replaced request's values.
+
+The values hold these invariants, which `tests/test_call_provenance.py`
+checks with property-based tests that drive the real request path, failed
+requests included, against the calls actually made and the spend ledger's
+records of them:
+
+- the counts are non-negative integers;
+- `0 <= live_elapsed_seconds <= elapsed_seconds`, and both are empty together;
+- a row whose responses were all replays has `live_calls` 0 and
+  `live_elapsed_seconds` exactly 0;
+- a row with no replays has `live_elapsed_seconds` equal to `elapsed_seconds`.
+
+`call_provenance.household_call_provenance` classifies each household as `live`,
+`partial_replay`, `full_replay`, `no_response` or `unknown` (rows that
+predate the columns), with its summed live time. No published figure uses it:
+`latencySeconds` still takes the median of each household's
+`elapsed_seconds`, replays included.
