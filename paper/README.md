@@ -30,7 +30,11 @@ Notes:
   to the invoking virtualenv (`render_paper.py` sets `QUARTO_PYTHON` and
   `JUPYTER_PREFER_ENV_PATH=1`), so it always executes this checkout's
   `policybench`. No user-level kernelspec needs to be registered. The render
-  environment lives in the `docs` extra (`uv sync --extra docs`).
+  environment lives in the `docs` extra (`uv sync --extra docs`): ipykernel,
+  nbclient and nbformat, the kernel and notebook runner that Quarto's Jupyter
+  engine drives. It does not include jupyter-book, which builds only the
+  separate `docs/` site; see "Paper and documentation site" in the top-level
+  README.
 - The manuscript tables and figures read from the frozen source run exports
   under `paper/snapshot/20260501/runs/`.
 - `app/src/data.json` is the live site export. For this snapshot it must match
