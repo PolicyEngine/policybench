@@ -119,7 +119,7 @@ describe("notes", () => {
     expect(markup).toContain("Six prompts run past the 8,000 characters");
     expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
     expect(markup).toContain(
-      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board refused on that ground, though Kimi K2.6&#x27;s reasoning on two households says it cannot run PolicyEngine.",
+      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board declined a household on that ground, though some models&#x27; recorded reasoning notes that they cannot run PolicyEngine.",
     );
     expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
     expect(markup).toContain("Between October 14 and 18, PolicyBench sent");

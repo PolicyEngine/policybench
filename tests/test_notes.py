@@ -5626,8 +5626,10 @@ def test_america_gov_split_units_partition_the_prompt() -> None:
 
 
 def test_america_gov_note_quotes_are_verbatim() -> None:
-    """The note quotes America.gov's own words: its refusal to the Virginia
-    household (scenario_119) and its pages' self-description."""
+    """The note's quote of America.gov's refusal to the Virginia household
+    (scenario_119) is its first reply, verbatim. (Its quotes of America.gov's
+    pages are checked against the data's metadata in
+    test_america_gov_note_predicates.)"""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     text = " ".join(note["paragraphs"])
@@ -5648,7 +5650,8 @@ def test_america_gov_note_quotes_are_verbatim() -> None:
 def test_america_gov_note_predicates() -> None:
     """The America.gov note's claims beyond its numeric facts: who leads, the
     households it describes, the heaviest output, the over-limit prompts, the
-    repeated refusals, and its quotes of America.gov's own pages."""
+    repeated refusals, and its quotes of America.gov's own pages as the data's
+    metadata records them (fetched 2026-10-19)."""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     if not _recompute_against_frozen_snapshot(note):
@@ -5676,6 +5679,18 @@ def test_america_gov_note_predicates() -> None:
     assert ref[("scenario_072", "snap")] == 0
     for adult in ("head", "spouse"):
         assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
+
+    # "the reference and 49 of the 50 models say $0" / "say neither is": exactly 0.
+    def exact_zeros(sid: str, variable: str) -> int:
+        rows = payload["scenarioPredictions"][sid][variable].values()
+        return sum(r.get("parsed") and r.get("prediction") == 0 for r in rows)
+
+    assert exact_zeros("scenario_072", "snap") == note["facts"]["snap072Models"]
+    for adult in ("head", "spouse"):
+        assert (
+            exact_zeros("scenario_004", f"{adult}_medicaid_eligible")
+            == note["facts"]["medicaid004Models"]
+        )
 
     # "Six prompts run past the 8,000 characters": exactly these six.
     limit = meta["message_limit_characters"]
@@ -5729,22 +5744,31 @@ def test_america_gov_note_predicates() -> None:
             assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
 
 
-def test_no_board_model_refused_over_policyengine() -> None:
-    """The America.gov note says no board model refused on PolicyEngine grounds,
-    though Kimi K2.6's reasoning on two households says it cannot run
-    PolicyEngine."""
+def test_no_board_model_declined_a_household_over_policyengine() -> None:
+    """The America.gov note says no board model declined a household on PolicyEngine
+    grounds, though some models' recorded reasoning notes they cannot run
+    PolicyEngine. No board model left a household fully unanswered with text in its
+    response, so none declined one on any ground; the households some models left
+    fully unanswered hold no response text at all."""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     if not _recompute_against_frozen_snapshot(note):
         return
-    assert agov.board_refusals_citing_policyengine(PREDICTIONS_PATH) == []
-    assert agov.board_cannot_run_policyengine(PREDICTIONS_PATH) == [
-        ("kimi-k2.6", "scenario_117"),
+    declined_in_words, no_text = agov.board_declined_households(PREDICTIONS_PATH)
+    assert declined_in_words == []
+    assert no_text  # the check reaches the fully unanswered households
+    text = " ".join(note["paragraphs"])
+    assert "no model on the board declined a household on that ground" in text
+    # A floor: the pairs whose recorded reasoning says so, from more than one model.
+    cannot = set(agov.board_cannot_run_policyengine(PREDICTIONS_PATH))
+    assert {
+        ("grok-4.6", "scenario_007"),
+        ("kimi-k2.6", "scenario_053"),
         ("kimi-k2.6", "scenario_119"),
-    ]
-    assert "though Kimi K2.6's reasoning on two households" in " ".join(
-        note["paragraphs"]
-    )
+        ("qwen3.8-max", "scenario_121"),
+    } <= cannot
+    assert len({model for model, _ in cannot}) >= 2
+    assert "some models' recorded reasoning notes that they cannot run" in text
 
 
 def test_methodology_quotes_the_policyengine_named_definitions() -> None:
@@ -5760,7 +5784,9 @@ def test_methodology_quotes_the_policyengine_named_definitions() -> None:
     assert len(naming) == 4
     assert sum("under PolicyEngine rules" in p for p in naming) == 2
     assert sum("PolicyEngine returns" in p for p in naming) == 2
-    methodology = (ROOT / "app/src/components/Methodology.tsx").read_text()
+    methodology = " ".join(
+        (ROOT / "app/src/components/Methodology.tsx").read_text().split()
+    )
     assert "Four output definitions in the current US prompts name" in methodology
-    assert "&ldquo;under\n              PolicyEngine rules,&rdquo;" in methodology
+    assert "&ldquo;under PolicyEngine rules,&rdquo;" in methodology
     assert "&ldquo;PolicyEngine returns&rdquo;" in methodology

@@ -485,49 +485,76 @@ def _unanswered(row: dict) -> bool:
     return row["prediction"] in ("", "nan", "None")
 
 
-def board_refusals_citing_policyengine(predictions_path: Path) -> list[tuple]:
-    """(model, household) pairs where a board model answered none of the household's
-    outputs and its response refuses in a sentence that names PolicyEngine."""
-    import re
+def _model_text(raw: str) -> str:
+    """The model's own text in a stored response. A chunked model's response is a
+    wrapper, {"chunked_responses": [{"variables": [...], "raw_response": ...}]}, whose
+    inner responses are the model's text (null where a request returned nothing)."""
+    try:
+        wrapper = json.loads(raw)
+    except (TypeError, ValueError):
+        return raw or ""
+    if isinstance(wrapper, dict) and "chunked_responses" in wrapper:
+        return "\n".join(
+            chunk.get("raw_response") or "" for chunk in wrapper["chunked_responses"]
+        )
+    return raw or ""
 
-    refusal = re.compile(
-        r"\bI (?:can(?:no|')t|am unable|won't|will not)|"
-        r"\bunable to (?:provide|compute|calculate|estimate)|"
-        r"cannot (?:provide|run|compute|calculate|estimate|produce)",
-        re.IGNORECASE,
-    )
-    policyengine = re.compile(r"policy\s*engine", re.IGNORECASE)
-    outputs, unanswered, cites = defaultdict(int), defaultdict(int), set()
+
+def board_declined_households(predictions_path: Path) -> tuple[list, list]:
+    """(model, household) pairs where a board model answered none of the household's
+    outputs: those whose responses hold text (a model declining in words) and those
+    with no response text at all."""
+    outputs, blank, text = defaultdict(int), defaultdict(int), defaultdict(bool)
     for row in _board_rows(predictions_path):
         key = (row["model"], row["scenario_id"])
         outputs[key] += 1
-        if not _unanswered(row):
-            continue
-        unanswered[key] += 1
-        raw = row["raw_response"] or ""
-        for match in refusal.finditer(raw):
-            window = raw[max(0, match.start() - 120) : match.end() + 160]
-            if policyengine.search(window):
-                cites.add(key)
-    return sorted(k for k in cites if unanswered[k] == outputs[k])
+        if _unanswered(row):
+            blank[key] += 1
+            text[key] |= bool(_model_text(row["raw_response"]).strip())
+    none_answered = [k for k in outputs if blank[k] == outputs[k]]
+    return (
+        sorted(k for k in none_answered if text[k]),
+        sorted(k for k in none_answered if not text[k]),
+    )
 
 
 def board_cannot_run_policyengine(predictions_path: Path) -> list[tuple]:
-    """(model, household) pairs whose response or explanations say the model
-    cannot run, access, invoke or use PolicyEngine."""
+    """(model, household) pairs whose recorded response or explanations say the model
+    cannot run, use or access PolicyEngine. A floor: many models record no reasoning,
+    and other wordings exist."""
     import re
 
-    cannot = re.compile(
-        r"(?:can(?:no|')t|cannot|unable to)\s+(?:\w+\s+){0,3}?"
-        r"(?:run|access|invoke|use|call|execute)\s+(?:the\s+)?(?:\w+\s+){0,2}?"
-        r"policy\s*engine",
-        re.IGNORECASE,
-    )
+    pe = r"policy\s*engine"
+    patterns = [
+        re.compile(
+            r"(?:can't|cannot|can not|unable to)\s+(?:\w+\s+){0,2}?"
+            r"(?:run|access|invoke|use|call|execute)\s+(?:the\s+)?(?:\w+\s+){0,2}?"
+            + pe,
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"(?:don't|do not)\s+have\s+(?:access\s+to\s+)?(?:the\s+)?" + pe,
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"without\s+(?:access\s+to\s+|running\s+)(?:the\s+)?(?:\w+\s+){0,2}?" + pe,
+            re.IGNORECASE,
+        ),
+        re.compile(
+            pe + r"[^.\n]{0,40}\.\s*But\s+(?:I\s+)?(?:can't|cannot|can not)\s+run",
+            re.IGNORECASE,
+        ),
+    ]
     found = set()
     for row in _board_rows(predictions_path):
+        key = (row["model"], row["scenario_id"])
+        if key in found:
+            continue
         text = (row["raw_response"] or "") + " " + (row["explanation"] or "")
-        if cannot.search(text):
-            found.add((row["model"], row["scenario_id"]))
+        # Stored responses can carry escaped apostrophes and newlines.
+        text = text.replace("\\u2019", "'").replace("\u2019", "'").replace("\\n", "\n")
+        if any(pattern.search(text) for pattern in patterns):
+            found.add(key)
     return sorted(found)
 
 
