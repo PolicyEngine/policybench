@@ -1,0 +1,71 @@
+{
+  "slug": "2026-10-19-america-gov-scores-level-with-gpt-5-5",
+  "date": "2026-10-19",
+  "title": "America.gov, the government's new assistant, scores level with GPT-5.5",
+  "paragraphs": [
+    "America.gov, the General Services Administration's assistant, live since September 29, gets {agovExact}% of PolicyBench answers within $1, weighted by household impact. On the board it would rank #{agovRank} of {nRanked}, level with GPT-5.5 ({gpt55Exact}%); GPT-6 Sol leads at {solExact}%. It does not join the board, which scores models answering alone, with no tools and no web access. America.gov says it uses \"Super Intelligence (SI) to find and explain information from official government sources.\"",
+    "Between October 15 and 19, PolicyBench sent each of its {households} households to America.gov in a new chat, with the board's own prompt in the JSON answer format, and scored every reply as it scores the board. Six prompts run past the {charLimit} characters America.gov asks a message to stay within, so each went in as two chats asking for half the outputs apiece. Before freezing a run, PolicyBench asks a board model again when its response leaves answers out, and America.gov got the same treatment: each refusal went back word for word in a fresh chat, up to twice. On first attempts alone it gets {agovFirstExact}% (#{agovFirstRank}).",
+    "America.gov's first replies included {firstRefusals:words} refusals. \"I cannot estimate or calculate federal or state tax, credit, payroll, or benefit amounts,\" it told a Virginia single parent of two. Asked again, {answeredOnRetry:words} of the refusals turned into full answers and {refusedThrice:words} came back word for word the same, which leaves {unansweredRate}% of its scored answers blank; {fullModels} of the {nModels} models on the board answer every one.",
+    "America.gov is strongest on taxes. It gets {fedTaxRate}% of federal income tax amounts within $1, against a median of {fedTaxMedianRate}% across the board's models, and {stateTaxRate}% of state income tax amounts, against {stateTaxMedianRate}%. Benefits are weaker. On SNAP it gets {snapRate}%, below the median of {snapMedianRate}%, and it put a Michigan couple's SNAP at ${snap072} a year where the reference and {snap072Models} of the {nModels} models say $0. On Medicaid eligibility, the output that carries the most weight, it gets {medicaidRate}% against a median of {medicaidMedianRate}%, and it called both adults in a New York couple eligible where the reference and {medicaid004Models} models say neither is.",
+    "The current prompts define {peOutputs:words} outputs by PolicyEngine: Medicaid and CHIP eligibility \"under PolicyEngine rules,\" and the two school-meal outputs as whether \"PolicyEngine returns\" support. The next version of the prompts drops the name. Of America.gov's {firstRefusals:words} refusals, {peRefusals:words} cited PolicyEngine; no model on the board refused on that ground. Counting only the answers it gave, America.gov is never more than {peMaxGap} points below the median model on those {peOutputs:words} outputs, and without them it would rank #{noPeRank} of {nRanked}.",
+    "This is one run, from one week in October, and America.gov's terms say its answers \"can be incomplete or wrong.\" The board's last repair step, asking again for each answer still missing, one at a time, would take {rowRepairChats} more chats and could lift America.gov to {rowRepairMaxRate}% at most. The replies, the scores and the method, including how the long prompts were split, are in the data below."
+  ],
+  "facts": {
+    "agovExact": 87.9,
+    "agovRank": 14,
+    "nRanked": 51,
+    "gpt55Exact": 87.9,
+    "solExact": 95.2,
+    "households": 100,
+    "charLimit": 8000,
+    "agovFirstExact": 86.6,
+    "agovFirstRank": 19,
+    "firstRefusals": 5,
+    "answeredOnRetry": 2,
+    "refusedThrice": 3,
+    "unansweredRate": 3.7,
+    "fullModels": 46,
+    "nModels": 50,
+    "fedTaxRate": 72.6,
+    "fedTaxMedianRate": 54.8,
+    "stateTaxRate": 66.7,
+    "stateTaxMedianRate": 60.2,
+    "snapRate": 81.7,
+    "snapMedianRate": 84.9,
+    "snap072": 6432,
+    "snap072Models": 49,
+    "medicaidRate": 92.5,
+    "medicaidMedianRate": 95.4,
+    "medicaid004Models": 49,
+    "rowRepairChats": 73,
+    "rowRepairMaxRate": 89.8,
+    "peRefusals": 2,
+    "peOutputs": 4,
+    "peMaxGap": "0.2",
+    "noPeRank": 13
+  },
+  "data": [
+    {
+      "label": "America.gov's replies, every attempt",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/america_gov_20261019.csv"
+    },
+    {
+      "label": "Script that scores them the board's way",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/scripts/america_gov_note.py"
+    },
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261014"
+    },
+    {
+      "label": "America.gov: how it works",
+      "href": "https://america.gov/how-it-works"
+    },
+    {
+      "label": "America.gov terms of use",
+      "href": "https://america.gov/terms"
+    }
+  ],
+  "boardSnapshot": "2026-10-14",
+  "release": "dashboard-data-20261014"
+}

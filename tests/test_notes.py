@@ -5583,3 +5583,63 @@ def test_release_20261014_note_claims() -> None:
         prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
         if href.startswith(prefix):
             assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+AGOV_NOTE = "2026-10-19-america-gov-scores-level-with-gpt-5-5"
+AGOV_ROWS_PATH = ROOT / "notes/data/america_gov_20261019.csv"
+
+
+def _america_gov():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import america_gov_note
+
+    return america_gov_note
+
+
+def test_america_gov_note_facts() -> None:
+    """The America.gov note's facts recompute from its committed replies and the
+    frozen release: the board's scoring of the first and retried views, the
+    refusals, and the outputs whose v1 definitions name PolicyEngine."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    meta = _load_json(agov.META_PATH)
+    assert meta["release"] == note["release"]
+    assert hashlib.sha256(AGOV_ROWS_PATH.read_bytes()).hexdigest() == meta["sha256"]
+    rows = agov.load_rows()
+    assert len(rows) == meta["rows"]
+    assert agov.facts(_dashboard(), rows, meta) == note["facts"]
+
+
+def test_america_gov_split_units_partition_the_prompt() -> None:
+    """Each over-limit prompt went in as two halves that ask for its requested
+    outputs exactly once, in order."""
+    agov = _america_gov()
+    meta = _load_json(agov.META_PATH)
+    payload = _dashboard()
+    assert len(meta["split_units"]) == 6
+    for sid, halves in meta["split_units"].items():
+        prompt = payload["scenarios"][sid]["prompt"]["json"]
+        assert len(prompt) > meta["message_limit_characters"]
+        assert halves["a"] + halves["b"] == agov.requested(prompt)
+
+
+def test_america_gov_note_quotes_are_verbatim() -> None:
+    """The note quotes America.gov's own words: its refusal to the Virginia
+    household (scenario_119) and its pages' self-description."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    text = " ".join(note["paragraphs"])
+    refusal = (
+        "I cannot estimate or calculate federal or state tax, credit, payroll, "
+        "or benefit amounts"
+    )
+    assert refusal in text
+    first = [
+        r
+        for r in agov.load_rows()
+        if r["unit"] == "scenario_119" and r["attempt"] == "1"
+    ]
+    assert len(first) == 1 and first[0]["outcome"] == "refused"
+    assert first[0]["refusal_text"].startswith(refusal)
