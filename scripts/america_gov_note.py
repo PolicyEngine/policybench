@@ -13,10 +13,15 @@ notes/data/america_gov_20261019.csv holds every reply.
 
 Two views of the replies:
 - first: each unit's first reply.
-- retried: each unit's first reply, replaced whole by the first retry that is finished,
-  has no parse error, and answers exactly the requested outputs with a finite number and
-  a nonempty explanation each (the board's full-response retry rule, docs/runbook.md
-  section 5).
+- retried: a unit whose first reply breaks the answer contract (a refusal, or a reply
+  missing a requested output, a finite number or an explanation) is replaced whole by
+  its first retry that meets it: exactly the requested outputs, each with a finite
+  number and a nonempty explanation (the board's full-response retry rule,
+  docs/runbook.md section 5).
+
+Every attempt in the file is a finished reply. A reply with no parseable answer is
+recorded as refused, with its text; scenario_018's first refusal reached the capture cut
+off at 1,000 of its 1,167 characters (meta: truncated_refusals).
 
 Scoring is the board's: policybench.analysis.row_hit_scores (exact), the release's
 globalWeights.household by output group, renormalised within each household, and an
@@ -74,6 +79,28 @@ POLICYENGINE_GROUPS = (
     "reduced_price_school_meals_eligible",
 )
 ROUNDS = (1, 2)
+# America.gov's own words, as its pages read on 2026-10-19.
+SITE_QUOTES = {
+    "fetched_utc": "2026-10-19",
+    "how_it_works": {
+        "url": "https://america.gov/how-it-works",
+        "quote": (
+            "Super Intelligence (SI) to find and explain information from official "
+            "government sources"
+        ),
+    },
+    "terms": {
+        "url": "https://america.gov/terms",
+        "quote": (
+            "Some answers on America.gov are generated with SI. They can be "
+            "incomplete or wrong"
+        ),
+    },
+    "message_limit": {
+        "url": "https://america.gov/",
+        "quote": "Please keep your message to 8,000 characters or fewer.",
+    },
+}
 
 
 def requested(prompt: str) -> list[str]:
@@ -181,6 +208,17 @@ def build(workspace: Path) -> None:
             "1 = first reply; 2 and 3 = retry rounds 1 and 2 of a refused unit, "
             "same prompt, fresh chat"
         ),
+        "every_attempt_finished": True,
+        "refused_means": "no parseable answer JSON; refusal_text is the reply's text",
+        "truncated_refusals": {
+            "scenario_018": {
+                "attempt": 1,
+                "kept_characters": 1000,
+                "reply_characters": 1167,
+                "note": "cut off by the capture tool's output limit",
+            }
+        },
+        "site_quotes": SITE_QUOTES,
         "rows": len(rows),
         "sha256": hashlib.sha256(ROWS_PATH.read_bytes()).hexdigest(),
         "generated_at_utc": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -232,7 +270,7 @@ def view(rows: list[dict], payload: dict, meta: dict, *, retried: bool) -> dict:
     preds = {}
     for unit, attempts in units(rows).items():
         reply = attempts[1]
-        if retried and not answered(reply):
+        if retried and not meets_contract(reply, unit_requested(unit, payload, meta)):
             wanted = unit_requested(unit, payload, meta)
             for n in ROUNDS:
                 if n + 1 in attempts and meets_contract(attempts[n + 1], wanted):
@@ -362,8 +400,12 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
     }
     w_no_pe = weights(no_pe.keys(), gw)
     no_pe_others = [weighted_exact(p, no_pe, w_no_pe) for p in board.values()]
+    # Answered cells on both sides: America.gov's, and each board model's own.
     pe_gap = max(
-        median_group(g) - group_rate(retried, ref, g, answered_only=True)
+        statistics.median(
+            group_rate(p, ref, g, answered_only=True) for p in board.values()
+        )
+        - group_rate(retried, ref, g, answered_only=True)
         for g in POLICYENGINE_GROUPS
     )
     best = {**retried, **{k: ref[k] for k in unanswered}}
@@ -409,9 +451,15 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "snap072Models": models_right(("scenario_072", "snap")),
         "medicaidRate": one(group_rate(retried, ref, "person_medicaid_eligible")),
         "medicaidMedianRate": one(median_group("person_medicaid_eligible")),
-        "medicaid004Models": min(
-            models_right(("scenario_004", "head_medicaid_eligible")),
-            models_right(("scenario_004", "spouse_medicaid_eligible")),
+        # Models right on both adults.
+        "medicaid004Models": sum(
+            all(
+                row_hit_scores(v, ref[("scenario_004", v)], p.get(("scenario_004", v)))[
+                    "exact"
+                ]
+                for v in ("head_medicaid_eligible", "spouse_medicaid_eligible")
+            )
+            for p in board.values()
         ),
         "peOutputs": len(POLICYENGINE_GROUPS),
         "peRefusals": sum(
@@ -425,6 +473,62 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         ),
         "rowRepairMaxRate": one(weighted_exact(best, ref, w)),
     }
+
+
+def _board_rows(predictions_path: Path):
+    csv.field_size_limit(sys.maxsize)
+    with gzip.open(predictions_path, "rt", encoding="utf-8", newline="") as source:
+        yield from csv.DictReader(source)
+
+
+def _unanswered(row: dict) -> bool:
+    return row["prediction"] in ("", "nan", "None")
+
+
+def board_refusals_citing_policyengine(predictions_path: Path) -> list[tuple]:
+    """(model, household) pairs where a board model answered none of the household's
+    outputs and its response refuses in a sentence that names PolicyEngine."""
+    import re
+
+    refusal = re.compile(
+        r"\bI (?:can(?:no|')t|am unable|won't|will not)|"
+        r"\bunable to (?:provide|compute|calculate|estimate)|"
+        r"cannot (?:provide|run|compute|calculate|estimate|produce)",
+        re.IGNORECASE,
+    )
+    policyengine = re.compile(r"policy\s*engine", re.IGNORECASE)
+    outputs, unanswered, cites = defaultdict(int), defaultdict(int), set()
+    for row in _board_rows(predictions_path):
+        key = (row["model"], row["scenario_id"])
+        outputs[key] += 1
+        if not _unanswered(row):
+            continue
+        unanswered[key] += 1
+        raw = row["raw_response"] or ""
+        for match in refusal.finditer(raw):
+            window = raw[max(0, match.start() - 120) : match.end() + 160]
+            if policyengine.search(window):
+                cites.add(key)
+    return sorted(k for k in cites if unanswered[k] == outputs[k])
+
+
+def board_cannot_run_policyengine(predictions_path: Path) -> list[tuple]:
+    """(model, household) pairs whose response or explanations say the model
+    cannot run, access, invoke or use PolicyEngine."""
+    import re
+
+    cannot = re.compile(
+        r"(?:can(?:no|')t|cannot|unable to)\s+(?:\w+\s+){0,3}?"
+        r"(?:run|access|invoke|use|call|execute)\s+(?:the\s+)?(?:\w+\s+){0,2}?"
+        r"policy\s*engine",
+        re.IGNORECASE,
+    )
+    found = set()
+    for row in _board_rows(predictions_path):
+        text = (row["raw_response"] or "") + " " + (row["explanation"] or "")
+        if cannot.search(text):
+            found.add((row["model"], row["scenario_id"]))
+    return sorted(found)
 
 
 if __name__ == "__main__":

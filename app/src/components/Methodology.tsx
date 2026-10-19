@@ -185,9 +185,9 @@ export default function Methodology({
               PolicyEngine: Medicaid and CHIP eligibility are asked &ldquo;under
               PolicyEngine rules,&rdquo; and the two school-meal outputs ask
               whether &ldquo;PolicyEngine returns&rdquo; support. PolicyBench
-              measures knowledge of tax and benefit law, not of PolicyEngine, so
-              the next version of the prompts defines these outputs by each
-              program&apos;s own rules.{" "}
+              aims to measure knowledge of tax and benefit law, not of
+              PolicyEngine&apos;s implementation, and is revising these
+              definitions.{" "}
             </>
           ) : null}
           The answer instructions follow each row&apos;s transport: a

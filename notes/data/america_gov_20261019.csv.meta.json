@@ -274,8 +274,33 @@
     }
   },
   "attempts": "1 = first reply; 2 and 3 = retry rounds 1 and 2 of a refused unit, same prompt, fresh chat",
+  "every_attempt_finished": true,
+  "refused_means": "no parseable answer JSON; refusal_text is the reply's text",
+  "truncated_refusals": {
+    "scenario_018": {
+      "attempt": 1,
+      "kept_characters": 1000,
+      "reply_characters": 1167,
+      "note": "cut off by the capture tool's output limit"
+    }
+  },
+  "site_quotes": {
+    "fetched_utc": "2026-10-19",
+    "how_it_works": {
+      "url": "https://america.gov/how-it-works",
+      "quote": "Super Intelligence (SI) to find and explain information from official government sources"
+    },
+    "terms": {
+      "url": "https://america.gov/terms",
+      "quote": "Some answers on America.gov are generated with SI. They can be incomplete or wrong"
+    },
+    "message_limit": {
+      "url": "https://america.gov/",
+      "quote": "Please keep your message to 8,000 characters or fewer."
+    }
+  },
   "rows": 1922,
   "sha256": "1bc5c77555d9bbe665e89b7bc95feabb069eac09e2637258124b7d91258f2d32",
-  "generated_at_utc": "2026-10-19T18:51:46.315453+00:00",
+  "generated_at_utc": "2026-10-19T19:10:36.482096+00:00",
   "script": "scripts/america_gov_note.py"
 }

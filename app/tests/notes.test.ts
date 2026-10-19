@@ -119,12 +119,14 @@ describe("notes", () => {
     expect(markup).toContain("Six prompts run past the 8,000 characters");
     expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
     expect(markup).toContain(
-      "Of America.gov&#x27;s five refusals, two cited PolicyEngine; no model on the board refused on that ground.",
+      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board refused on that ground, though Kimi K2.6&#x27;s reasoning on two households says it cannot run PolicyEngine.",
     );
+    expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
+    expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
     expect(markup).toContain(
-      "never more than 0.2 points below the median model on those four outputs, and without them it would rank #13 of 51.",
+      "never more than 0.8 points below the median model on those four outputs, and without them it would rank #13 of 51.",
     );
-    expect(markup).toContain("would take 73 more chats and could lift America.gov to 89.8% at most.");
+    expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/blob/main/notes/data/america_gov_20261019.csv"',
     );
