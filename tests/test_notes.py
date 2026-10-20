@@ -5783,6 +5783,20 @@ def test_tool_pilot_note_predicates() -> None:
     board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
     # "GPT-6 Sol, which leads the board".
     assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    facts = note["facts"]
+    by_model = {r["model"]: r for r in board}
+    for model, short in (
+        ("gpt-6-sol", "sol"),
+        ("claude-opus-5.5", "opus"),
+        ("gemini-4-argon", "argon"),
+    ):
+        # The no-tool scores are the board's published ones.
+        assert facts[f"{short}BoardExact"] == _display_one_decimal(
+            by_model[model]["exact"]
+        )
+        # The title's "above 99%", and "The tool costs more".
+        assert facts[f"{short}ToolExact"] > 99
+        assert float(facts[f"{short}ToolCost"]) > float(facts[f"{short}BoardCost"])
     rows = tool._read(tool.ROWS_PATH)
     misses = tool._read(tool.MISSES_PATH)
     for model in tool.RUNS:

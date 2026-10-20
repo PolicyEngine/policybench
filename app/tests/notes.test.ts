@@ -128,7 +128,9 @@ describe("notes", () => {
     expect(markup).toContain(
       "In five of GPT-6 Sol&#x27;s, it had used all eight calculation turns the pilot allows.",
     );
-    expect(markup).toContain("and the result is circular");
+    expect(markup).toContain(
+      "not board rows, since the board scores models answering alone, and the result is circular",
+    );
     expect(markup).toContain(
       "1,065 of the 1,632 facts the prompts state, not counting ages and wages",
     );
