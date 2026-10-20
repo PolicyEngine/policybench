@@ -1,5 +1,6 @@
-"""Internal pilot: a board model with a PolicyEngine tool on the board's 100 US
-households. Not a board condition, and nothing here is published.
+"""Pilot: a board model with a PolicyEngine tool on the board's 100 US households.
+Not a board condition. Its results for Gemini 4 Argon, GPT-6 Sol and Claude Opus 5.5
+are in the 2026-10-20 note (scripts/tool_pilot_note.py, notes/data/tool_pilot_*).
 
 The model defaults to Gemini 4 Argon, the first one piloted; ``run --model``
 takes any board model whose provider has an entry in PROVIDER_KEYS.

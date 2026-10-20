@@ -1,0 +1,29 @@
+{
+  "release": "dashboard-data-20261014",
+  "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
+  "runner": "scripts/tool_pilot_argon.py",
+  "run_dates": {
+    "gemini-4-argon": "2026-10-14",
+    "gpt-6-sol": "2026-10-15",
+    "claude-opus-5.5": "2026-10-15"
+  },
+  "tool": "calculate_household: policyengine-us 2.41.0 with reference_audit/2026-09-28/fixes/latest_final.py, the reference builder's convention reform, on a household the model writes as JSON",
+  "turn_cap": 8,
+  "no_tool_arm": "each model's frozen board row in the release",
+  "files": {
+    "tool_pilot_20261015.csv": {
+      "rows": 5805,
+      "sha256": "7654b4f83fa39508883bd23d4458a4172100679856ccfae7e5c241f86aa7c52a"
+    },
+    "tool_pilot_20261015_households.csv": {
+      "rows": 300,
+      "sha256": "278f6472f3f99463100c4403f0e47d7130fafe60ddc5290291a12f48c892bc2e"
+    },
+    "tool_pilot_20261015_misses.csv": {
+      "rows": 12,
+      "sha256": "daaaaadbdcafcd9d204d4862fb20d760ece17c664bd0be98097b01181f8a7d2b"
+    }
+  },
+  "generated_at_utc": "2026-10-20T21:51:03.181381+00:00",
+  "script": "scripts/tool_pilot_note.py"
+}

@@ -1,0 +1,73 @@
+{
+  "slug": "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
+  "date": "2026-10-20",
+  "title": "Given a tool that runs PolicyEngine, three models score above 99%",
+  "paragraphs": [
+    "PolicyBench gave three models a tool that runs PolicyEngine on a household the model writes from the prompt's facts, and ran its {households} US households again on October 14 and 15. GPT-6 Sol, which leads the board at {solBoardExact}% of answers within $1, weighted by household impact, gets {solToolExact}% with the tool. Claude Opus 5.5 goes from {opusBoardExact}% to {opusToolExact}%, and Gemini 4 Argon from {argonBoardExact}% to {argonToolExact}%. The runs are a pilot, not board rows: the board scores models answering alone, with no tools.",
+    "Most of the answers the tool fixes are dollar amounts that are not zero. Of the {nonzeroAmounts} nonzero amounts, GPT-6 Sol gets {solNonzeroRate}% within $1 on its own and {solNonzeroToolRate}% with the tool; Claude Opus 5.5, {opusNonzeroRate}% and {opusNonzeroToolRate}%; and Gemini 4 Argon, {argonNonzeroRate}% and {argonNonzeroToolRate}%.",
+    "Across the three runs, {toolMisses} answers stay wrong: {solMisses:words} of GPT-6 Sol's, {opusMisses:words} of Claude Opus 5.5's and {argonMisses:words} of Gemini 4 Argon's. Each traces to the household the model described to the engine, or to the output it read back, rather than to the calculation: {enteredElsewhere:words} times the model entered a stated fact under another variable, {leftOut:words} times it left one out, and {wrongOutput:words} times it read back the wrong output. GPT-6 Sol is the only model that turned right answers wrong, {solFlips:words} of them.",
+    "The tool costs more. For the {households} households, GPT-6 Sol costs ${solToolCost} with it and ${solBoardCost} without, Claude Opus 5.5 ${opusToolCost} and ${opusBoardCost}, and Gemini 4 Argon ${argonToolCost} and ${argonBoardCost}.",
+    "The result is circular, which limits what it shows. The tool runs the same engine, with the same conventions, that computes PolicyBench's references, so these scores show how closely each model's description of a household reproduces the engine's outputs, not whether the engine is right. Describing a household is also easier here than it would be from a filer's documents: {labelMatches} of the {statedFacts} facts the prompts state, not counting ages and wages, carry a label that is the engine's own variable name with spaces.",
+    "Each model's answers with the tool, its calculations and cost per household, the remaining misses, and the script that scores them the board's way are in the data below."
+  ],
+  "facts": {
+    "households": 100,
+    "nonzeroAmounts": 187,
+    "solBoardExact": 95.2,
+    "solToolExact": 99.2,
+    "solNonzeroRate": 67.4,
+    "solNonzeroToolRate": 96.8,
+    "solMisses": 9,
+    "solBoardCost": "2.71",
+    "solToolCost": "5.63",
+    "opusBoardExact": 94.1,
+    "opusToolExact": 99.8,
+    "opusNonzeroRate": 70.1,
+    "opusNonzeroToolRate": 98.9,
+    "opusMisses": 2,
+    "opusBoardCost": "6.75",
+    "opusToolCost": "7.99",
+    "argonBoardExact": 88.7,
+    "argonToolExact": 99.9,
+    "argonNonzeroRate": 46.5,
+    "argonNonzeroToolRate": 99.5,
+    "argonMisses": 1,
+    "argonBoardCost": "2.79",
+    "argonToolCost": "8.01",
+    "toolMisses": 12,
+    "enteredElsewhere": 7,
+    "leftOut": 3,
+    "wrongOutput": 2,
+    "solFlips": 2,
+    "labelMatches": 1065,
+    "statedFacts": 1632
+  },
+  "data": [
+    {
+      "label": "Each model's answers with the tool",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/tool_pilot_20261015.csv"
+    },
+    {
+      "label": "Calculations and cost per household",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/tool_pilot_20261015_households.csv"
+    },
+    {
+      "label": "The remaining misses",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/tool_pilot_20261015_misses.csv"
+    },
+    {
+      "label": "Script that scores them the board's way",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/scripts/tool_pilot_note.py"
+    },
+    {
+      "label": "The pilot runner and its tool",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/scripts/tool_pilot_argon.py"
+    },
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261014"
+    }
+  ],
+  "boardSnapshot": "2026-10-14",
+  "release": "dashboard-data-20261014"
+}
