@@ -62,7 +62,21 @@ RUN_DATES = {
     "gpt-6-sol": "2026-10-15",
     "claude-opus-5.5": "2026-10-15",
 }
-TURN_CAP = 8
+TURN_CAP = 8  # tool_pilot_argon.TOOL_TURN_CAP: calculation turns per household
+# Misses that rest partly on a prompt label hiding a distinction the engine draws,
+# as the pilot's diagnosis recorded them.
+LABEL_NOTES = {
+    ("gemini-4-argon", "scenario_076", "state_income_tax_before_refundable_credits"): (
+        'The label "employer sponsored insurance premiums" never says the employer '
+        "paid them; the engine's variable holds employer-paid premiums, and the "
+        "model entered them as premiums the household paid."
+    ),
+    ("gpt-6-sol", "scenario_121", "snap"): (
+        'The label "disability benefits" never says they are not Social Security; '
+        "the engine's variable holds disability benefits from employment, and the "
+        "model entered them as Social Security disability."
+    ),
+}
 # How a tool-arm answer missed, from diagnose's category and mapping kind.
 MISS_KINDS = {
     ("wrong_input_mapping", "entered_differently"): "fact_under_another_variable",
@@ -113,6 +127,12 @@ def build(results: Path) -> None:
                         "no_tool_hit": r["arm1_hit"],
                         "kind": MISS_KINDS[(r["category"], r["mapping_kind"])],
                         "entered_as": r["entered_as"],
+                        "single_causes": r["single_causes"],
+                        "necessary_inputs": r["necessary_inputs"],
+                        "detail": r["detail"],
+                        "prompt_label_note": LABEL_NOTES.get(
+                            (model, r["scenario_id"], r["variable"]), ""
+                        ),
                     }
                 )
     DATA.mkdir(parents=True, exist_ok=True)
@@ -136,6 +156,7 @@ def build(results: Path) -> None:
             "builder's convention reform, on a household the model writes as JSON"
         ),
         "turn_cap": TURN_CAP,
+        "oracle": json.loads((results / "oracle_summary.json").read_text())["summary"],
         "no_tool_arm": "each model's frozen board row in the release",
         "files": {
             p.name: {"rows": n, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
@@ -317,6 +338,17 @@ def facts(payload: dict) -> dict:
     out["solFlips"] = sum(
         r["model"] == "gpt-6-sol" and r["no_tool_hit"] == "True" for r in misses
     )
+    out["labelMisses"] = sum(bool(r["prompt_label_note"]) for r in misses)
+    capped = {
+        (h["model"], h["scenario_id"])
+        for h in households
+        if h["turn_cap_hit"] == "True"
+    }
+    out["solCapMisses"] = sum(
+        r["model"] == "gpt-6-sol" and (r["model"], r["scenario_id"]) in capped
+        for r in misses
+    )
+    out["turnCap"] = TURN_CAP
     out["labelMatches"], out["statedFacts"] = label_share()
     return out
 

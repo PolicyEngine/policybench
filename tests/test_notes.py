@@ -5737,6 +5737,12 @@ def test_america_gov_note_predicates() -> None:
     assert quotes["terms"]["quote"].endswith("They can be incomplete or wrong")
     assert f"{limit:,} characters" in quotes["message_limit"]["quote"]
 
+    # The data links resolve to files in this repository.
+    prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for link in note["data"]:
+        if link["href"].startswith(prefix):
+            assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
+
 
 TOOL_NOTE = "2026-10-20-given-a-policyengine-tool-three-models-score-above-99"
 
@@ -5797,6 +5803,32 @@ def test_tool_pilot_note_predicates() -> None:
     assert tool.right_to_wrong("gemini-4-argon") == 0
     # Every remaining miss is one of the three kinds the note names.
     assert {r["kind"] for r in misses} <= set(tool.MISS_KINDS.values())
+    # "Prompt labels share the blame for two": each named label is in that
+    # household's prompt.
+    text = " ".join(note["paragraphs"])
+    labelled = [r for r in misses if r["prompt_label_note"]]
+    assert len(labelled) == note["facts"]["labelMisses"]
+    for r, label in zip(
+        sorted(labelled, key=lambda r: r["model"]),
+        ("employer sponsored insurance premiums", "disability benefits"),
+    ):
+        assert f'"{label}"' in text and f'"{label}"' in r["prompt_label_note"]
+        prompt = payload["scenarios"][r["scenario_id"]]["prompt"]["json"]
+        assert f"- {label}:" in prompt
+    # "all eight calculation turns the pilot allows" is the runner's cap.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tool_pilot_argon
+
+    meta = _load_json(tool.META_PATH)
+    assert (
+        tool_pilot_argon.TOOL_TURN_CAP == meta["turn_cap"] == note["facts"]["turnCap"]
+    )
+    # "a model that describes a household exactly as the reference does gets the
+    # reference's answer": the recorded oracle check through the tool path.
+    oracle = {o["engine"]: o for o in meta["oracle"]}["reference_engine"]
+    assert (
+        oracle["reproduced_through_tool_path"] == oracle["scored_outputs"] == len(ref)
+    )
     # The data links resolve to files in this repository.
     prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
     for link in note["data"]:

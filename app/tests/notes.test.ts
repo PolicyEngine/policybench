@@ -122,9 +122,13 @@ describe("notes", () => {
     );
     // Whole numbers under ten are spelled out; costs keep their cents.
     expect(markup).toContain(
-      "12 answers stay wrong: nine of GPT-6 Sol&#x27;s, two of Claude Opus 5.5&#x27;s and one of Gemini 4 Argon&#x27;s.",
+      "With the tool, 12 answers are wrong across the three runs: nine of GPT-6 Sol&#x27;s, two of Claude Opus 5.5&#x27;s and one of Gemini 4 Argon&#x27;s.",
     );
     expect(markup).toContain("GPT-6 Sol costs $5.63 with it and $2.71 without");
+    expect(markup).toContain(
+      "In five of GPT-6 Sol&#x27;s, it had used all eight calculation turns the pilot allows.",
+    );
+    expect(markup).toContain("and the result is circular");
     expect(markup).toContain(
       "1,065 of the 1,632 facts the prompts state, not counting ages and wages",
     );

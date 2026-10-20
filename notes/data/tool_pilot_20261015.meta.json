@@ -9,6 +9,20 @@
   },
   "tool": "calculate_household: policyengine-us 2.41.0 with reference_audit/2026-09-28/fixes/latest_final.py, the reference builder's convention reform, on a household the model writes as JSON",
   "turn_cap": 8,
+  "oracle": [
+    {
+      "engine": "plain_engine",
+      "scored_outputs": 1935,
+      "reproduced": 1913,
+      "reproduced_through_tool_path": 1913
+    },
+    {
+      "engine": "reference_engine",
+      "scored_outputs": 1935,
+      "reproduced": 1935,
+      "reproduced_through_tool_path": 1935
+    }
+  ],
   "no_tool_arm": "each model's frozen board row in the release",
   "files": {
     "tool_pilot_20261015.csv": {
@@ -21,9 +35,9 @@
     },
     "tool_pilot_20261015_misses.csv": {
       "rows": 12,
-      "sha256": "daaaaadbdcafcd9d204d4862fb20d760ece17c664bd0be98097b01181f8a7d2b"
+      "sha256": "06d38ca17ad4862ec32a2ee4b09e08c70903187e8c822417dbd968a0516dc53d"
     }
   },
-  "generated_at_utc": "2026-10-20T21:51:03.181381+00:00",
+  "generated_at_utc": "2026-10-20T22:21:18.169217+00:00",
   "script": "scripts/tool_pilot_note.py"
 }
