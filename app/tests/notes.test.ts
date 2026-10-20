@@ -79,27 +79,64 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 13 one", () => {
-    // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
-    expect(notes[0].release).toBe(artifact.tag);
-    expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
-    expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+  test("the newest notes are the frozen release's, ahead of the October 13 one", () => {
+    // The live pointer names the frozen release (src/data.artifact.json). The
+    // October 19 America.gov note is checked against the same release as the
+    // October 14 release note.
+    expect(notes[0].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
+    expect(notes[1].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
+    for (const note of notes.slice(0, 2)) {
+      expect(note.release).toBe(artifact.tag);
+      expect(note.boardSnapshot).toBe(paperSnapshot.snapshotDate);
+      expect(note.slug.startsWith(note.date)).toBe(true);
+    }
     // The October 13 and October 10 notes keep their own releases and board
     // snapshots.
-    expect(notes[1].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
-    expect(notes[1].release).toBe("dashboard-data-20261013");
-    expect(notes[1].boardSnapshot).toBe("2026-10-13");
-    expect(notes[2].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[2].release).toBe("dashboard-data-20261010");
-    expect(notes[2].boardSnapshot).toBe("2026-10-10");
-    expect(notes[3].slug).toBe(
+    expect(notes[2].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[2].release).toBe("dashboard-data-20261013");
+    expect(notes[2].boardSnapshot).toBe("2026-10-13");
+    expect(notes[3].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[3].release).toBe("dashboard-data-20261010");
+    expect(notes[3].boardSnapshot).toBe("2026-10-10");
+    expect(notes[4].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
   });
 
-  test("the Gemini 4 Argon note renders its figures", () => {
+  test("the America.gov note renders its figures", () => {
     const note = notes[0];
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "gets 87.9% of PolicyBench answers within $1, weighted by household impact.",
+    );
+    expect(markup).toContain(
+      "On the board it would rank #14 of 51, level with GPT-5.5 (87.9%); GPT-6 Sol leads at 95.2%.",
+    );
+    // Whole numbers under ten are spelled out; thousands get separators.
+    expect(markup).toContain("America.gov&#x27;s first replies included five refusals.");
+    expect(markup).toContain("Six prompts run past the 8,000 characters");
+    expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
+    expect(markup).toContain(
+      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board declined a household on that ground, though some models&#x27; recorded reasoning notes that they cannot run PolicyEngine.",
+    );
+    expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
+    expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
+    expect(markup).toContain(
+      "never more than 0.8 points below the median model on those four outputs, and without them it would rank #13 of 51.",
+    );
+    expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/notes/data/america_gov_20261019.csv"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the Gemini 4 Argon note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-14-gemini-4-argon-joins-the-board",
+    )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );

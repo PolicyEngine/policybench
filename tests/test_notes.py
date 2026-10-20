@@ -5583,3 +5583,210 @@ def test_release_20261014_note_claims() -> None:
         prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
         if href.startswith(prefix):
             assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+AGOV_NOTE = "2026-10-19-america-gov-scores-level-with-gpt-5-5"
+AGOV_ROWS_PATH = ROOT / "notes/data/america_gov_20261019.csv"
+
+
+def _america_gov():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import america_gov_note
+
+    return america_gov_note
+
+
+def test_america_gov_note_facts() -> None:
+    """The America.gov note's facts recompute from its committed replies and the
+    frozen release: the board's scoring of the first and retried views, the
+    refusals, and the outputs whose v1 definitions name PolicyEngine."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    meta = _load_json(agov.META_PATH)
+    assert meta["release"] == note["release"]
+    assert hashlib.sha256(AGOV_ROWS_PATH.read_bytes()).hexdigest() == meta["sha256"]
+    rows = agov.load_rows()
+    assert len(rows) == meta["rows"]
+    assert agov.facts(_dashboard(), rows, meta) == note["facts"]
+
+
+def test_america_gov_split_units_partition_the_prompt() -> None:
+    """Each over-limit prompt went in as two halves that ask for its requested
+    outputs exactly once, in order."""
+    agov = _america_gov()
+    meta = _load_json(agov.META_PATH)
+    payload = _dashboard()
+    assert len(meta["split_units"]) == 6
+    for sid, halves in meta["split_units"].items():
+        prompt = payload["scenarios"][sid]["prompt"]["json"]
+        assert len(prompt) > meta["message_limit_characters"]
+        assert halves["a"] + halves["b"] == agov.requested(prompt)
+
+
+def test_america_gov_note_quotes_are_verbatim() -> None:
+    """The note's quote of America.gov's refusal to the Virginia household
+    (scenario_119) is its first reply, verbatim. (Its quotes of America.gov's
+    pages are checked against the data's metadata in
+    test_america_gov_note_predicates.)"""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    text = " ".join(note["paragraphs"])
+    refusal = (
+        "I cannot estimate or calculate federal or state tax, credit, payroll, "
+        "or benefit amounts"
+    )
+    assert refusal in text
+    first = [
+        r
+        for r in agov.load_rows()
+        if r["unit"] == "scenario_119" and r["attempt"] == "1"
+    ]
+    assert len(first) == 1 and first[0]["outcome"] == "refused"
+    assert first[0]["refusal_text"].startswith(refusal)
+
+
+def test_america_gov_note_predicates() -> None:
+    """The America.gov note's claims beyond its numeric facts: who leads, the
+    households it describes, the heaviest output, the over-limit prompts, the
+    repeated refusals, and its quotes of America.gov's own pages as the data's
+    metadata records them (fetched 2026-10-19)."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    text = " ".join(note["paragraphs"])
+    payload = _dashboard()
+    meta = _load_json(agov.META_PATH)
+    ref, _ = agov.references()
+    board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+
+    # "GPT-6 Sol leads".
+    assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    # "the output that carries the most weight".
+    weights = payload["globalWeights"]["household"]
+    assert max(weights, key=weights.get) == "person_medicaid_eligible"
+
+    # The households the note describes.
+    def household(sid: str) -> tuple:
+        s = payload["scenarios"][sid]
+        return s["state"], s["numAdults"], s["numChildren"]
+
+    assert household("scenario_119") == ("VA", 1, 2)  # a single parent of two
+    assert household("scenario_072") == ("MI", 2, 0)  # a couple
+    assert household("scenario_004") == ("NY", 2, 0)  # a couple
+    assert ref[("scenario_072", "snap")] == 0
+    for adult in ("head", "spouse"):
+        assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
+
+    # "the reference and 49 of the 50 models say $0" / "say neither is": exactly 0.
+    def exact_zeros(sid: str, variable: str) -> int:
+        rows = payload["scenarioPredictions"][sid][variable].values()
+        return sum(r.get("parsed") and r.get("prediction") == 0 for r in rows)
+
+    assert exact_zeros("scenario_072", "snap") == note["facts"]["snap072Models"]
+    for adult in ("head", "spouse"):
+        assert (
+            exact_zeros("scenario_004", f"{adult}_medicaid_eligible")
+            == note["facts"]["medicaid004Models"]
+        )
+
+    # "Six prompts run past the 8,000 characters": exactly these six.
+    limit = meta["message_limit_characters"]
+    over = sorted(
+        sid
+        for sid, s in payload["scenarios"].items()
+        if len(s["prompt"]["json"]) > limit
+    )
+    assert over == sorted(meta["split_units"])
+
+    # "came back word for word the same": the three units refused at every attempt.
+    by_unit = agov.units(agov.load_rows())
+    refused_every_time = [
+        u
+        for u, attempts in by_unit.items()
+        if len(attempts) == 3 and all(not agov.answered(attempts[a]) for a in attempts)
+    ]
+    assert len(refused_every_time) == note["facts"]["refusedThrice"]
+    for unit in refused_every_time:
+        texts = {by_unit[unit][a][0]["refusal_text"] for a in (1, 2, 3)}
+        assert len(texts) == 1
+
+    # "At least two ... cited PolicyEngine": two complete refusals do; the one
+    # refusal cut off in capture does not in the text that was kept.
+    truncated = set(meta["truncated_refusals"])
+    first_refusals = [u for u, a in by_unit.items() if not agov.answered(a[1])]
+    citing = [
+        u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
+    ]
+    assert len(citing) == note["facts"]["peRefusals"]
+    assert truncated <= set(first_refusals) and not truncated & set(citing)
+
+    # America.gov's own words, as quoted.
+    quotes = meta["site_quotes"]
+    assert (
+        "Super Intelligence (SI) to find and explain information from official "
+        "government sources" in text
+    )
+    assert quotes["how_it_works"]["quote"] == (
+        "Super Intelligence (SI) to find and explain information from official "
+        "government sources"
+    )
+    assert "can be incomplete or wrong" in text
+    assert quotes["terms"]["quote"].endswith("They can be incomplete or wrong")
+    assert f"{limit:,} characters" in quotes["message_limit"]["quote"]
+
+    # The data links resolve to files in this repository.
+    prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for link in note["data"]:
+        if link["href"].startswith(prefix):
+            assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
+
+
+def test_no_board_model_declined_a_household_over_policyengine() -> None:
+    """The America.gov note says no board model declined a household on PolicyEngine
+    grounds, though some models' recorded reasoning notes they cannot run
+    PolicyEngine. No board model left a household fully unanswered with text in its
+    response, so none declined one on any ground; the households some models left
+    fully unanswered hold no response text at all."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    declined_in_words, no_text = agov.board_declined_households(PREDICTIONS_PATH)
+    assert declined_in_words == []
+    assert no_text  # the check reaches the fully unanswered households
+    text = " ".join(note["paragraphs"])
+    assert "no model on the board declined a household on that ground" in text
+    # A floor: the pairs whose recorded reasoning says so, from more than one model.
+    cannot = set(agov.board_cannot_run_policyengine(PREDICTIONS_PATH))
+    assert {
+        ("grok-4.6", "scenario_007"),
+        ("kimi-k2.6", "scenario_053"),
+        ("kimi-k2.6", "scenario_119"),
+        ("qwen3.8-max", "scenario_121"),
+    } <= cannot
+    assert len({model for model, _ in cannot}) >= 2
+    assert "some models' recorded reasoning notes that they cannot run" in text
+
+
+def test_methodology_quotes_the_policyengine_named_definitions() -> None:
+    """The methodology card quotes the US output definitions that name
+    PolicyEngine; it must change when they do."""
+    specs = _load_json(ROOT / "policybench/benchmark_specs.json")
+    us_prompts = [
+        output["prompt"]
+        for output in specs["specs"]["policybench"]["countries"]["us"]
+        if "prompt" in output
+    ]
+    naming = [p for p in us_prompts if "PolicyEngine" in p]
+    assert len(naming) == 4
+    assert sum("under PolicyEngine rules" in p for p in naming) == 2
+    assert sum("PolicyEngine returns" in p for p in naming) == 2
+    methodology = " ".join(
+        (ROOT / "app/src/components/Methodology.tsx").read_text().split()
+    )
+    assert "Four output definitions in the current US prompts name" in methodology
+    assert "&ldquo;under PolicyEngine rules,&rdquo;" in methodology
+    assert "&ldquo;PolicyEngine returns&rdquo;" in methodology
