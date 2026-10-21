@@ -1,0 +1,43 @@
+{
+  "release": "dashboard-data-20261014",
+  "source_run": "us_full_run_20260612_policyengine_4_16_1_populace",
+  "runner": "scripts/tool_pilot_argon.py",
+  "run_dates": {
+    "gemini-4-argon": "2026-10-14",
+    "gpt-6-sol": "2026-10-15",
+    "claude-opus-5.5": "2026-10-15"
+  },
+  "tool": "calculate_household: policyengine-us 2.41.0 with reference_audit/2026-09-28/fixes/latest_final.py, the reference builder's convention reform, on a household the model writes as JSON",
+  "turn_cap": 8,
+  "oracle": [
+    {
+      "engine": "plain_engine",
+      "scored_outputs": 1935,
+      "reproduced": 1913,
+      "reproduced_through_tool_path": 1913
+    },
+    {
+      "engine": "reference_engine",
+      "scored_outputs": 1935,
+      "reproduced": 1935,
+      "reproduced_through_tool_path": 1935
+    }
+  ],
+  "no_tool_arm": "each model's frozen board row in the release",
+  "files": {
+    "tool_pilot_20261015.csv": {
+      "rows": 5805,
+      "sha256": "7654b4f83fa39508883bd23d4458a4172100679856ccfae7e5c241f86aa7c52a"
+    },
+    "tool_pilot_20261015_households.csv": {
+      "rows": 300,
+      "sha256": "278f6472f3f99463100c4403f0e47d7130fafe60ddc5290291a12f48c892bc2e"
+    },
+    "tool_pilot_20261015_misses.csv": {
+      "rows": 12,
+      "sha256": "06d38ca17ad4862ec32a2ee4b09e08c70903187e8c822417dbd968a0516dc53d"
+    }
+  },
+  "generated_at_utc": "2026-10-20T22:21:18.169217+00:00",
+  "script": "scripts/tool_pilot_note.py"
+}

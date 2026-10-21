@@ -5744,6 +5744,112 @@ def test_america_gov_note_predicates() -> None:
             assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
 
 
+TOOL_NOTE = "2026-10-20-given-a-policyengine-tool-three-models-score-above-99"
+
+
+def _tool_pilot():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tool_pilot_note
+
+    return tool_pilot_note
+
+
+def test_tool_pilot_note_facts() -> None:
+    """The tool-pilot note's facts recompute from its committed rows and the
+    frozen release: both arms scored the board's way, the nonzero amounts, the
+    remaining misses, costs, and the prompt labels that are engine variable names."""
+    tool = _tool_pilot()
+    note = _note(TOOL_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    meta = _load_json(tool.META_PATH)
+    assert meta["release"] == note["release"]
+    for path in (tool.ROWS_PATH, tool.HOUSEHOLDS_PATH, tool.MISSES_PATH):
+        recorded = meta["files"][path.name]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == recorded["sha256"]
+        with path.open(encoding="utf-8", newline="") as source:
+            assert sum(1 for _ in csv.DictReader(source)) == recorded["rows"]
+    assert tool.facts(_dashboard()) == note["facts"]
+
+
+def test_tool_pilot_note_predicates() -> None:
+    """The tool-pilot note's claims beyond its numbers."""
+    tool = _tool_pilot()
+    note = _note(TOOL_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    payload = _dashboard()
+    ref = tool.references()
+    board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+    # "GPT-6 Sol, which leads the board".
+    assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    facts = note["facts"]
+    by_model = {r["model"]: r for r in board}
+    for model, short in (
+        ("gpt-6-sol", "sol"),
+        ("claude-opus-5.5", "opus"),
+        ("gemini-4-argon", "argon"),
+    ):
+        # The no-tool scores are the board's published ones.
+        assert facts[f"{short}BoardExact"] == _display_one_decimal(
+            by_model[model]["exact"]
+        )
+        # The title's "above 99%", and "The tool costs more".
+        assert facts[f"{short}ToolExact"] > 99
+        assert float(facts[f"{short}ToolCost"]) > float(facts[f"{short}BoardCost"])
+    rows = tool._read(tool.ROWS_PATH)
+    misses = tool._read(tool.MISSES_PATH)
+    for model in tool.RUNS:
+        # Every scored output has a tool answer, and the misses file lists exactly
+        # the scored outputs the tool arm got wrong.
+        answers = tool.tool_predictions(rows, model)
+        assert set(answers) <= set(ref) and len(answers) == len(ref)
+        wrong = {k for k in ref if not tool.hit(ref, k, answers.get(k))}
+        assert wrong == {
+            (r["scenario_id"], r["variable"]) for r in misses if r["model"] == model
+        }
+        # "Most of the answers the tool fixes are dollar amounts that are not zero."
+        fixed, fixed_nonzero = tool.fixes(payload, model)
+        assert fixed_nonzero > fixed / 2
+    # "GPT-6 Sol is the only model that turned right answers wrong".
+    assert tool.right_to_wrong("gpt-6-sol") == note["facts"]["solFlips"] > 0
+    assert tool.right_to_wrong("claude-opus-5.5") == 0
+    assert tool.right_to_wrong("gemini-4-argon") == 0
+    # Every remaining miss is one of the three kinds the note names.
+    assert {r["kind"] for r in misses} <= set(tool.MISS_KINDS.values())
+    # "Prompt labels share the blame for two": each named label is in that
+    # household's prompt.
+    text = " ".join(note["paragraphs"])
+    labelled = [r for r in misses if r["prompt_label_note"]]
+    assert len(labelled) == note["facts"]["labelMisses"]
+    for r, label in zip(
+        sorted(labelled, key=lambda r: r["model"]),
+        ("employer sponsored insurance premiums", "disability benefits"),
+    ):
+        assert f'"{label}"' in text and f'"{label}"' in r["prompt_label_note"]
+        prompt = payload["scenarios"][r["scenario_id"]]["prompt"]["json"]
+        assert f"- {label}:" in prompt
+    # "all eight calculation turns the pilot allows" is the runner's cap.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tool_pilot_argon
+
+    meta = _load_json(tool.META_PATH)
+    assert (
+        tool_pilot_argon.TOOL_TURN_CAP == meta["turn_cap"] == note["facts"]["turnCap"]
+    )
+    # "a model that describes a household exactly as the reference does gets the
+    # reference's answer": the recorded oracle check through the tool path.
+    oracle = {o["engine"]: o for o in meta["oracle"]}["reference_engine"]
+    assert (
+        oracle["reproduced_through_tool_path"] == oracle["scored_outputs"] == len(ref)
+    )
+    # The data links resolve to files in this repository.
+    prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for link in note["data"]:
+        if link["href"].startswith(prefix):
+            assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
+
+
 def test_no_board_model_declined_a_household_over_policyengine() -> None:
     """The America.gov note says no board model declined a household on PolicyEngine
     grounds, though some models' recorded reasoning notes they cannot run
