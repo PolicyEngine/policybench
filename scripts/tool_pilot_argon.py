@@ -188,6 +188,8 @@ ANTHROPIC_WEB_SEARCH_TOOL = "web_search_20260209"
 # 3 or later model runs ("$14 per 1,000 requests", after 5,000 free a month
 # shared across those models, which this price ignores).
 SEARCH_USD_PER_1K = {"openai": 10.0, "anthropic": 10.0, "gemini": 14.0}
+# Asks the Responses API for each search's result URLs.
+OPENAI_SEARCH_SOURCES = "web_search_call.action.sources"
 # Times a JSON-contract reply that searched but gave no answer is sent back
 # as it is, Anthropic's continuation for a paused server-tool turn.
 MAX_PAUSE_CONTINUATIONS = 3
@@ -1070,6 +1072,9 @@ class Turn:
     # Calls the provider ran itself (Anthropic's server tools: web search and
     # the code execution its dynamic filtering runs in). They need no result.
     server_calls: list[dict] = field(default_factory=list)
+    # Server calls with no result in the same response: deferred beside a
+    # client call, or left by a paused turn. Only tool results may follow them.
+    unfinished_server_calls: list[str] = field(default_factory=list)
 
 
 CACHE_BREAKPOINT = {"type": "ephemeral"}
@@ -1096,6 +1101,11 @@ def _with_cache_breakpoint(message: dict) -> dict:
     return message
 
 
+# Where litellm keeps Anthropic server tool results on a message: web search
+# and web fetch results, and code execution results.
+SERVER_RESULT_KEYS = ("web_search_results", "tool_results")
+
+
 def is_server_call(call_id) -> bool:
     """An Anthropic server tool's call, which litellm lists among the tool
     calls; the API runs it and returns its result in the same response."""
@@ -1119,7 +1129,10 @@ class ChatConversation:
     def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
         kwargs = dict(base)
         messages = self.messages
-        if self.cache_breakpoint:
+        # A continuation ends on the assistant's own message, which goes back
+        # without a mark: marking turns its content into a list, and litellm
+        # then rebuilds the message in another block order.
+        if self.cache_breakpoint and messages[-1].get("role") != "assistant":
             messages = [*messages[:-1], _with_cache_breakpoint(messages[-1])]
         kwargs.update({"messages": messages, "tools": tools})
         if tool_choice is not None:
@@ -1142,6 +1155,14 @@ class ChatConversation:
                 server_calls.append(asdict(call))
             else:
                 calls.append(call)
+        fields = getattr(message, "provider_specific_fields", None)
+        finished = {
+            _field(block, "tool_use_id")
+            for key in SERVER_RESULT_KEYS
+            for block in (
+                (fields or {}).get(key) or [] if isinstance(fields, dict) else []
+            )
+        }
         return Turn(
             response=response,
             content=getattr(message, "content", None),
@@ -1150,10 +1171,53 @@ class ChatConversation:
             reasoning_content=getattr(message, "reasoning_content", None),
             has_thought_signature=_has_thought_signature(message),
             server_calls=server_calls,
+            unfinished_server_calls=[
+                c["id"] for c in server_calls if c["id"] not in finished
+            ],
         )
 
     def add_assistant(self, turn: Turn) -> None:
-        self.messages.append(_message_dict(turn.response.choices[0].message))
+        message = _message_dict(turn.response.choices[0].message)
+        self._attach_deferred_results(message)
+        self.messages.append(message)
+
+    def _attach_deferred_results(self, message: dict) -> None:
+        """Move a deferred server call's result onto the message that made it.
+
+        When Claude calls a server tool beside a client tool, the API runs the
+        server tool on the next request, and that response begins with its
+        result, without the call. litellm 1.88.1 re-sends a server result only
+        beside its call in the same message, so left in place the result drops
+        out of later requests, and the API refuses the call that lacks it (a
+        live probe got that 400 on the third request). The result joins its
+        call, the only place litellm sends it from.
+        """
+        fields = message.get("provider_specific_fields")
+        if not isinstance(fields, dict):
+            return
+        own = {_call_id(c) for c in message.get("tool_calls") or []}
+        for key in SERVER_RESULT_KEYS:
+            kept = []
+            for block in fields.get(key) or []:
+                call_id = _field(block, "tool_use_id")
+                earlier = (
+                    None if not call_id or call_id in own else self._caller(call_id)
+                )
+                if earlier is None:
+                    kept.append(block)
+                    continue
+                earlier_fields = earlier.setdefault("provider_specific_fields", {})
+                earlier_fields[key] = [*(earlier_fields.get(key) or []), block]
+            if key in fields:
+                fields[key] = kept
+
+    def _caller(self, call_id: str) -> dict | None:
+        for message in reversed(self.messages):
+            if message.get("role") == "assistant" and any(
+                _call_id(c) == call_id for c in message.get("tool_calls") or []
+            ):
+                return message
+        return None
 
     def add_tool_result(self, call: Call, result: dict) -> None:
         self.messages.append(
@@ -1282,15 +1346,20 @@ def turn_searches(
 ) -> tuple[list[dict], int]:
     """The web searches one response ran, and how many its provider bills.
 
-    - OpenAI: every ``web_search_call`` output item is a billed call, whatever
-      its action (search, open_page, find_in_page).
+    - OpenAI: every ``web_search_call`` output item is billed as a call,
+      whatever its action. The pricing page says "$10.00 / 1k calls" without
+      naming the actions billed, so open_page and find_in_page are counted too,
+      an upper bound; ``search_actions`` counts the searches alone. Each
+      search's result URLs (OPENAI_SEARCH_SOURCES) are logged as sources.
     - Anthropic: ``usage.server_tool_use.web_search_requests`` counts every
       search, including those run from code under dynamic filtering. The log
       holds each server call (a direct search's query, or the code that ran
       searches) and each result's URL and title.
     - Gemini: each non-empty query of a GOOGLE_SEARCH_WEB invocation, once per
-      invocation id in the household (``seen``), since earlier invocations
-      ride along in the conversation. Its responses carry no result URLs.
+      invocation id in the household (``seen``). Its responses carry no result
+      URLs: an invocation's response holds only search-suggestion HTML, and
+      litellm's grounding metadata is empty on function-calling turns (live
+      probe, 2026-10-20), so what Gemini read cannot be audited.
     """
     log: list[dict] = []
     billed = 0
@@ -1310,6 +1379,14 @@ def turn_searches(
                     "status": _field(item, "status"),
                 }
             )
+            for source in action.get("sources") or []:
+                log.append(
+                    {
+                        "kind": "source",
+                        "id": _field(item, "id"),
+                        "url": _field(source, "url"),
+                    }
+                )
         return log, billed
     message = (getattr(response, "choices", None) or [None])[0]
     message = getattr(message, "message", None)
@@ -1455,6 +1532,9 @@ def run_household(
     )
     if profile.uses_web and profile.provider == "gemini":
         base["include_server_side_tool_invocations"] = True
+    if profile.uses_web and profile.provider == "openai":
+        # The URLs behind each search's results, for the audit.
+        base["include"] = [*base.get("include", []), OPENAI_SEARCH_SOURCES]
     seen_searches: set[str] = set()
     pause_continuations = 0
     conversation = (
@@ -1481,6 +1561,9 @@ def run_household(
     predictions: dict[str, float | None] = {v: None for v in variables}
     explanations: dict[str, str | None] = {v: None for v in variables}
     tool_turns = 0
+    # Turns that only searched: in the web arms they count toward the cap, so
+    # a model cannot search without end while the cap waits on calculations.
+    search_only_turns = 0
     repair_rounds = 0
     answer_variables = list(variables)
     household_started = time.perf_counter()
@@ -1509,8 +1592,12 @@ def run_household(
         spend.add(cost)
         return {
             "server_calls": turn.server_calls,
+            "unfinished_server_calls": turn.unfinished_server_calls,
             "searches": log,
             "web_searches": billed,
+            "search_actions": billed
+            if profile.provider != "openai"
+            else sum(1 for e in log if e.get("kind") == "search"),
             "search_cost_usd": cost,
         }
 
@@ -1603,7 +1690,9 @@ def run_household(
                 break
             if repair_rounds:
                 kind = "repair"
-            elif not json_contract and (forced or tool_turns >= turn_cap):
+            elif not json_contract and (
+                forced or tool_turns + search_only_turns >= turn_cap
+            ):
                 kind, forced = "forced_answer", True
             else:
                 kind = "open"
@@ -1715,7 +1804,8 @@ def run_household(
                         else {"error": "not run: submit_outputs ended the turn"},
                     )
             elif calculate_calls and (
-                tool_turns >= turn_cap or (not json_contract and kind != "open")
+                tool_turns + search_only_turns >= turn_cap
+                or (not json_contract and kind != "open")
             ):
                 # Past the cap, or in a turn that forced the answer, nothing
                 # runs. tool_choice auto cannot withhold the tool from a
@@ -1752,7 +1842,13 @@ def run_household(
                     break
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
-                if tool_turns >= turn_cap:
+                if tool_turns + search_only_turns >= turn_cap and (
+                    turn.unfinished_server_calls
+                ):
+                    # Only tool results may follow a deferred server call;
+                    # the refusal of any later calculation says the same.
+                    turn_record["cap_notice_withheld"] = True
+                elif tool_turns + search_only_turns >= turn_cap:
                     conversation.add_user(
                         f"You have used all {turn_cap} calculation turns. "
                         + (
@@ -1763,29 +1859,32 @@ def run_household(
                         )
                     )
                 continue
-            elif json_contract and (turn.content or turn.server_calls):
-                # A JSON-contract answer: the reply itself. A reply that
-                # searched and holds no answer is a paused server-tool turn,
-                # which continues when sent back unchanged.
-                answered = False
-                if turn.content:
-                    still = accept_answer(turn.content, None)
-                    answered = any(v is not None for v in predictions.values()) or any(
-                        explanations.values()
-                    )
-                if not answered or not turn.content:
-                    if (
-                        turn.server_calls
-                        and not other_calls
-                        and pause_continuations < MAX_PAUSE_CONTINUATIONS
-                    ):
-                        pause_continuations += 1
-                        turn_record["continued_after_pause"] = True
-                        continue
+            elif json_contract and not turn.calls and turn.unfinished_server_calls:
+                # A paused server-tool turn: a server call with no result and
+                # nothing waiting on us. It continues when sent back as it is.
+                if pause_continuations < MAX_PAUSE_CONTINUATIONS:
+                    pause_continuations += 1
+                    turn_record["continued_after_pause"] = True
+                    continue
+                record["status"] = "incomplete"
+                record["error"] = (
+                    "a paused server-tool turn was still unfinished after "
+                    f"{MAX_PAUSE_CONTINUATIONS} continuations"
+                )
+                break
+            elif json_contract and turn.content:
+                # A JSON-contract answer: the reply itself.
+                still = accept_answer(turn.content, None)
+                answered = any(v is not None for v in predictions.values()) or any(
+                    explanations.values()
+                )
+                if not answered:
                     for call in other_calls:
                         conversation.add_tool_result(
                             call, {"error": "unknown function"}
                         )
+                    if turn.unfinished_server_calls:
+                        continue  # only tool results may follow
                     conversation.add_user(
                         "Reply with your final answers as the JSON object described "
                         "above"
@@ -1799,6 +1898,13 @@ def run_household(
             else:
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
+                if profile.uses_web and (
+                    turn.server_calls or turn_record.get("web_searches")
+                ):
+                    search_only_turns += 1
+                    turn_record["search_only_turn"] = True
+                if turn.unfinished_server_calls:
+                    continue  # only tool results may follow
                 if calculate_offered:
                     nudge = (
                         "Call calculate_household or give your final answers as "
@@ -1835,7 +1941,8 @@ def run_household(
     record["predictions"] = predictions
     record["explanations"] = explanations
     record["tool_turns"] = tool_turns
-    record["cap_hit"] = tool_turns >= turn_cap
+    record["search_only_turns"] = search_only_turns
+    record["cap_hit"] = tool_turns + search_only_turns >= turn_cap
     record["repair_rounds"] = repair_rounds
     record["pause_continuations"] = pause_continuations
     record["wall_seconds"] = time.perf_counter() - household_started
@@ -1893,6 +2000,9 @@ def household_totals(record: dict) -> dict:
         # Tokens at list price, plus each search at its list price.
         "token_cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
         "web_searches": sum(_num(t.get("web_searches")) for t in turns),
+        "web_search_actions": sum(
+            _num(t.get("search_actions", t.get("web_searches"))) for t in turns
+        ),
         "search_cost_usd": sum(_num(t.get("search_cost_usd")) for t in turns),
         "cost_usd": sum(
             _num(t.get("total_cost_usd")) + _num(t.get("search_cost_usd"))
@@ -2416,11 +2526,19 @@ def command_score(args) -> None:
     audit = None
     if profile.uses_web:
         searches.to_csv(out / "searches.csv", index=False)
-        audit = search_audit(searches)
+        audit = search_audit(searches, results_visible=profile.provider != "gemini")
+        clean = [sid for sid in wide.index if sid not in audit["flagged_households"]]
+        audit["weighted_exact_unflagged"] = {
+            "households": len(clean),
+            "arm1": float(wide.loc[clean, arm1_label].mean()) if clean else None,
+            "arm2": float(wide.loc[clean, arm2_label].mean()) if clean else None,
+        }
         print(
             f"searches logged: {audit['logged_entries']}; policybench mentions: "
             f"{len(audit['policybench_mentions'])}; blocked-domain URLs: "
-            f"{len(audit['blocked_domain_urls'])}"
+            f"{len(audit['blocked_domain_urls'])}; flagged households: "
+            f"{audit['flagged_households']}; results visible: "
+            f"{audit['results_visible']}"
         )
     (out / "score.json").write_text(
         json.dumps(
@@ -2513,6 +2631,7 @@ def paired_bootstrap(
     b = second.to_numpy(dtype=float)
     rng = np.random.default_rng(seed)
     index = rng.integers(0, len(a), size=(draws, len(a)))
+    diff = b - a
     mean_a = a[index].mean(axis=1)
     mean_b = b[index].mean(axis=1)
 
@@ -2530,9 +2649,12 @@ def paired_bootstrap(
         "arm1_interval": interval(mean_a),
         "arm2_interval": interval(mean_b),
         "difference_interval": interval(mean_b - mean_a),
-        "households_better": int((b > a + 1e-12).sum()),
-        "households_worse": int((b < a - 1e-12).sum()),
-        "households_same": int((abs(b - a) <= 1e-12).sum()),
+        # One difference for all three, so every household lands in exactly
+        # one: comparing b with a + 1e-12 rounds differently from b - a at the
+        # boundary (a found case: a = 0.125, b = a + 1e-12 landed in none).
+        "households_better": int((diff > 1e-12).sum()),
+        "households_worse": int((diff < -1e-12).sum()),
+        "households_same": int((abs(diff) <= 1e-12).sum()),
     }
 
 
@@ -2620,8 +2742,14 @@ def search_log(records: Mapping[str, dict]) -> pd.DataFrame:
     )
 
 
-def search_audit(log: pd.DataFrame) -> dict:
-    """Searches or results that touch the benchmark itself, or a blocked domain."""
+def search_audit(log: pd.DataFrame, results_visible: bool = True) -> dict:
+    """Searches or results that touch the benchmark itself, or a blocked domain.
+
+    ``flagged_households`` are those with either; their arm-2 scores are not
+    evidence of web access without the benchmark. ``results_visible`` is false
+    when the provider returns no result URLs (Gemini), so the audit sees only
+    queries and cannot show what the model read.
+    """
 
     def touches(text, needles) -> bool:
         text = str(text or "").lower()
@@ -2635,12 +2763,21 @@ def search_audit(log: pd.DataFrame) -> dict:
     blocked = log[
         [isinstance(u, str) and touches(u, BLOCKED_DOMAINS) for u in log["url"]]
     ]
+
+    def records(frame: pd.DataFrame) -> list[dict]:
+        # JSON has no NaN: missing cells become null.
+        return frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+
     return {
+        "results_visible": results_visible,
         "logged_entries": int(len(log)),
         "queries": int(log["query"].notna().sum()),
         "result_urls": int(log["url"].notna().sum()),
-        "policybench_mentions": mentions.to_dict(orient="records"),
-        "blocked_domain_urls": blocked.to_dict(orient="records"),
+        "policybench_mentions": records(mentions),
+        "blocked_domain_urls": records(blocked),
+        "flagged_households": sorted(
+            set(mentions["scenario_id"]) | set(blocked["scenario_id"])
+        ),
     }
 
 

@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -934,6 +934,7 @@ def test_apply_reference_input_sets_removes_and_replaces_units():
     first=st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=40),
     shift=st.floats(min_value=-0.5, max_value=0.5),
 )
+@example(first=[0.0, 0.125], shift=1e-12)  # once landed in no category
 def test_paired_bootstrap_intervals_bracket_the_means(first, shift):
     """Invariant: each interval contains its point estimate, and identical arms
     give a zero difference interval."""
@@ -2439,6 +2440,7 @@ def test_an_anthropic_web_arm_answers_in_json_and_skips_server_calls():
                     "web_search_results": [
                         {
                             "type": "web_search_tool_result",
+                            "tool_use_id": "srvtoolu_1",
                             "content": [
                                 {"url": "https://cdhs.colorado.gov", "title": "SNAP"}
                             ],
@@ -2506,11 +2508,38 @@ def test_a_paused_search_turn_is_sent_back_unchanged():
     assert record["totals"]["web_searches"] == 1
 
 
-def test_pauses_past_the_limit_get_a_nudge_that_offers_no_calculation():
+def test_a_pause_still_unfinished_past_the_limit_ends_the_household():
+    """No text may follow an unfinished server call, so a pause that never
+    finishes ends the household rather than earning a nudge (a 400)."""
     pauses = pilot.MAX_PAUSE_CONTINUATIONS
+    model = FakeModel([server_only(f"srvtoolu_{i}") for i in range(pauses + 1)])
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "incomplete" and record["pause_continuations"] == pauses
+    assert "still unfinished" in record["error"]
+    assert len(model.requests) == pauses + 1
+    for request in model.requests[1:]:
+        assert request["messages"][-1]["role"] == "assistant"
+
+
+def test_a_finished_search_with_no_answer_is_nudged_not_continued():
+    searched = with_fields(
+        response([tool_call("web_search", {"query": "q"}, "srvtoolu_1")]),
+        {
+            "web_search_results": [
+                {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1"}
+            ]
+        },
+        server_tool_use=1,
+    )
     model = FakeModel(
-        [server_only(f"srvtoolu_{i}") for i in range(pauses + 1)]
-        + [response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+        [searched, response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
     )
     record = pilot.run_household(
         make_scenario(),
@@ -2520,8 +2549,10 @@ def test_pauses_past_the_limit_get_a_nudge_that_offers_no_calculation():
         pilot.Spend(50.0),
         profile=pilot.model_profile(OPUS, "web"),
     )
-    assert record["status"] == "complete" and record["pause_continuations"] == pauses
-    nudge = model.requests[pauses + 1]["messages"][-1]["content"][0]["text"]
+    assert record["status"] == "complete" and record["pause_continuations"] == 0
+    assert record["turns"][0]["unfinished_server_calls"] == []
+    assert record["turns"][0]["search_only_turn"] is True
+    nudge = model.requests[1]["messages"][-1]["content"][0]["text"]
     assert "JSON object" in nudge and "calculate_household" not in nudge
 
 
@@ -2743,3 +2774,271 @@ def test_the_gemini_patch_refuses_another_litellm(monkeypatch):
     monkeypatch.setattr(pilot.importlib.metadata, "version", lambda name: "9.9.9")
     with pytest.raises(SystemExit):
         pilot.allow_gemini_search_with_functions()
+
+
+def as_data(value):
+    if isinstance(value, SimpleNamespace):
+        return {k: as_data(v) for k, v in vars(value).items()}
+    if isinstance(value, dict):
+        return {k: as_data(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [as_data(v) for v in value]
+    return value
+
+
+def test_a_deferred_server_result_moves_to_the_message_that_called_it():
+    """Live 2026-10-20: left where it arrives, litellm drops the deferred
+    result from later requests and the API refuses the third with a 400."""
+    from litellm.litellm_core_utils.prompt_templates.factory import (
+        anthropic_messages_pt,
+    )
+
+    deferred = response(
+        [tool_call("code_execution", {"code": "x"}, "srvtoolu_d"), calculate("c1")]
+    )
+    result = {
+        "type": "code_execution_tool_result",
+        "tool_use_id": "srvtoolu_d",
+        "content": {"type": "code_execution_result", "stdout": "ok"},
+    }
+    resumed = with_fields(response([calculate("c2")]), {"tool_results": [result]})
+    model = FakeModel(
+        [
+            deferred,
+            resumed,
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete"
+    assert record["turns"][0]["unfinished_server_calls"] == ["srvtoolu_d"]
+    # The second request carries only the client result after the deferral.
+    assert model.requests[1]["messages"][-1]["role"] == "tool"
+    # litellm's own conversion of the conversation, as plain data (litellm
+    # messages are dicts; the fakes here are namespaces).
+    converted = anthropic_messages_pt(
+        as_data(record["messages"]), model="claude-opus-5-5", llm_provider="anthropic"
+    )
+    first_reply = [m for m in converted if m["role"] == "assistant"][0]["content"]
+    kinds = [(b["type"], b.get("id") or b.get("tool_use_id")) for b in first_reply]
+    assert kinds[:2] == [
+        ("server_tool_use", "srvtoolu_d"),
+        ("code_execution_tool_result", "srvtoolu_d"),
+    ]
+    assert ("tool_use", "c1") in kinds
+
+
+def test_no_text_follows_a_deferred_server_call_at_the_cap():
+    cap = 1
+    model = FakeModel(
+        [
+            response(
+                [tool_call("web_search", {"query": "q"}, "srvtoolu_1"), calculate()]
+            ),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete"
+    assert record["turns"][0]["cap_notice_withheld"] is True
+    assert model.requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_a_continuation_goes_back_without_a_cache_mark():
+    paused = server_only()
+    # A paused turn can carry text before its search; marking it would turn
+    # that text into a block list, which litellm rebuilds in another order.
+    paused.choices[0].message.content = "Let me look up the 2026 figures."
+    model = FakeModel(
+        [paused, response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    last = model.requests[1]["messages"][-1]
+    assert last["role"] == "assistant" and "cache_control" not in json.dumps(last)
+    assert last["content"] == "Let me look up the 2026 figures."
+
+
+def test_search_only_turns_count_toward_the_cap_and_then_force_the_answer():
+    cap = 2
+    searching = [
+        responses_response(
+            [web_search_call(f"ws_{i}", SimpleNamespace(type="search", query="q"))],
+            f"r{i}",
+        )
+        for i in range(cap)
+    ]
+    model = FakeResponses(
+        searching
+        + [responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "z")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(SOL, "web"),
+    )
+    assert record["status"] == "complete" and record["search_only_turns"] == cap
+    assert record["cap_hit"] and record["tool_turns"] == 0
+    assert model.requests[cap]["tool_choice"] == {
+        "type": "function",
+        "name": "submit_outputs",
+    }
+
+
+def test_openai_asks_for_and_logs_each_searchs_sources():
+    action = SimpleNamespace(
+        type="search",
+        query="q",
+        sources=[SimpleNamespace(type="url", url="https://www.irs.gov/a")],
+    )
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call("ws_1", action),
+                    web_search_call(
+                        "ws_2", SimpleNamespace(type="open_page", url="https://x.org")
+                    ),
+                    sol_submit({"snap": 1, VARIABLES[1]: 2}),
+                ],
+                "r",
+            )
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(SOL, "web"),
+    )
+    assert model.requests[0]["include"] == [pilot.OPENAI_SEARCH_SOURCES]
+    log = record["turns"][0]["searches"]
+    assert {e["url"] for e in log if e["kind"] == "source"} == {"https://www.irs.gov/a"}
+    totals = record["totals"]
+    assert totals["web_searches"] == 2 and totals["web_search_actions"] == 1
+
+
+def test_a_json_reply_beside_an_unknown_call_gets_its_result_then_a_nudge():
+    model = FakeModel(
+        [
+            response(
+                [tool_call("lookup", {"q": 1}, "u1")], content="Let me think about it."
+            ),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete"
+    messages = model.requests[1]["messages"]
+    assert messages[-2]["role"] == "tool" and messages[-2]["tool_call_id"] == "u1"
+    assert "unknown function" in messages[-2]["content"]
+    assert messages[-1]["role"] == "user"
+
+
+def test_score_writes_a_strict_json_audit_and_flags_benchmark_searches(tmp_path):
+    import argparse
+
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    households = tmp_path / "households"
+    households.mkdir()
+    for sid, query in (
+        ("scenario_000", "policybench scenario_000"),
+        ("scenario_001", "irs 2026 standard deduction"),
+    ):
+        variables = board["variables"][sid]
+        record = _record(
+            sid, variables, {v: float(reference[(sid, v)]) for v in variables}
+        )
+        record["model"], record["arm"] = SOL, "web"
+        record["turns"][0].update(
+            index=0,
+            searches=[
+                {"kind": "search", "queries": [query]},
+                {"kind": "open_page", "url": "https://github.com/x"}
+                if sid == "scenario_001"
+                else {"kind": "source", "url": "https://www.irs.gov"},
+            ],
+        )
+        (households / f"{sid}.json").write_text(json.dumps(record))
+    pilot.command_score(argparse.Namespace(out_dir=str(tmp_path), complete_only=False))
+    text = (tmp_path / "score.json").read_text()
+    score = json.loads(text, parse_constant=lambda c: pytest.fail(f"bare {c}"))
+    audit = score["search_audit"]
+    assert audit["flagged_households"] == ["scenario_000", "scenario_001"]
+    assert audit["weighted_exact_unflagged"]["households"] == 0
+    assert audit["results_visible"] is True
+    assert (tmp_path / "searches.csv").exists()
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    st.lists(st.integers(0, 6), min_size=1, max_size=3),
+    st.booleans(),
+)
+def test_a_multi_turn_households_cost_is_its_tokens_plus_its_searches(
+    per_turn, truncate_first
+):
+    """Invariant across repair turns and a truncated-and-retried turn: cost is
+    tokens plus every billed search, and the spend counter saw exactly that."""
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web")
+    responses_, n = [], 0
+    for index, searches in enumerate(per_turn):
+        # Every turn but the last answers nothing, so each earns a repair
+        # and the household completes on the last.
+        values = {} if index < len(per_turn) - 1 else {"snap": 1, VARIABLES[1]: 2}
+        invocations = [(f"g{index}_{k}", ["q"]) for k in range(searches)]
+        if index == 0 and truncate_first:
+            cut = with_fields(response([]), gemini_searches(("cut", ["q", "r"])))
+            cut.choices[0].finish_reason = "length"
+            responses_.append(cut)
+            n += 2
+        responses_.append(
+            with_fields(
+                response([submit(values, f"s{index}")]), gemini_searches(*invocations)
+            )
+        )
+        n += searches
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        FakeModel(responses_),
+        spend,
+        profile=profile,
+    )
+    totals = record["totals"]
+    assert totals["web_searches"] == n
+    assert totals["search_cost_usd"] == pytest.approx(n * 14 / 1000)
+    assert totals["cost_usd"] == pytest.approx(
+        totals["token_cost_usd"] + totals["search_cost_usd"]
+    )
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
