@@ -184,7 +184,10 @@ WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
 # - school_meal_tier is free at or under 130% of poverty, with categorical
 #   eligibility, in a universal-free-meals state (CA, CO, MA, ME, MI, MN, NM,
 #   NY and VT in 2026), or where the state pays the reduced-price copay (NC);
-#   reduced price up to 185%.
+#   reduced price up to 185%. Both parameters describe breakfast and lunch
+#   together (state_universal_free_meals: "free breakfast and lunch to all
+#   students"), so the wording says so: a breakfast-only program is not free
+#   meals here.
 # - is_chip_eligible_child excludes anyone Medicaid-eligible, and chip_category
 #   includes CHIP coverage of pregnant women.
 # - is_medicaid_eligible counts medicaid_category's groups (children, adults,
@@ -225,9 +228,10 @@ V2_PILOT_DEFINITIONS = (
         "everyone aged 5 to 17 as attending a public K-12 school that takes part "
         "in the National School Lunch and School Breakfast Programs, and count "
         "meals at no charge to the family, whether through federal free-meal "
-        "eligibility or a state program that makes meals free for all students "
-        "or pays the reduced-price charge (1 if yes, 0 if no; 0 if no one is "
-        "aged 5 to 17; reduced-price meals do not count as 1)",
+        "eligibility or a state program that makes both breakfast and lunch free "
+        "for all students or pays the reduced-price charge for both breakfast and "
+        "lunch (1 if yes, 0 if no; 0 if no one is aged 5 to 17; reduced-price "
+        "meals do not count as 1)",
     ),
     (
         re.compile(
@@ -260,6 +264,25 @@ V2_PILOT_CONVENTIONS = (
         "to the cent, even where the Form 1040 instructions would use the Tax "
         "Table",
     ),
+    (
+        # The refundable CTC depends on the tax liability, so the schedule
+        # choice can move this output too.
+        re.compile(
+            r"(total refundable federal income tax credits, including EITC and "
+            r"refundable portions of credits such as refundable CTC when "
+            r"applicable; exclude the ACA Premium Tax Credit)"
+        ),
+        "{who}. Where a credit depends on income tax liability, compute that "
+        "liability from the section 1 tax rate schedules, not the Tax Table",
+    ),
+)
+
+# What a JSON-contract web arm hears once its search-only and calculation turns
+# reach the cap. Its API takes no forced answer, so this is the only stop short
+# of MAX_TOTAL_TURNS.
+JSON_SEARCH_CAP_TEXT = (
+    "You have used all {cap} tool turns. Reply now with your final answers as "
+    "the JSON object described above."
 )
 
 # Max (2026-10-21): tell the web arms not to look for the answer keys.
@@ -309,6 +332,8 @@ def refuse_policyengine(label: str, value) -> None:
 # for both providers that filter. The Gemini API's search tool takes no domain
 # list (it refuses excludeDomains), so its queries are audited instead.
 BLOCKED_DOMAINS = ("policybench.org", "github.com", "githubusercontent.com")
+# Text that marks a search or result as reaching the reference engine itself.
+REFERENCE_ENGINE_MARKERS = ("policyengine",)
 # Dynamic filtering: Claude filters results in code before they reach its
 # context (platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool).
 ANTHROPIC_WEB_SEARCH_TOOL = "web_search_20260209"
@@ -1552,6 +1577,7 @@ def turn_searches(
                         "kind": "source",
                         "id": _field(item, "id"),
                         "url": _field(source, "url"),
+                        "source": _plain(source),
                     }
                 )
         return log, billed
@@ -1752,6 +1778,19 @@ def run_household(
         if kind == "forced_answer":
             return [*offered, answer_tool], forced_answer_choice(profile)
         return [*offered, answer_tool], "required"
+
+    def cap_reached() -> bool:
+        return tool_turns + search_only_turns >= turn_cap
+
+    def count_search_only(turn_record: dict, turn) -> bool:
+        """Count a web arm's turn that searched and neither answered nor
+        calculated toward the cap, so a model cannot search without end."""
+        nonlocal search_only_turns
+        if profile.uses_web and (turn.server_calls or turn_record.get("web_searches")):
+            search_only_turns += 1
+            turn_record["search_only_turn"] = True
+            return True
+        return False
 
     def bill_searches(response, turn) -> dict:
         """Log the response's searches and add their price to the spend."""
@@ -2048,13 +2087,14 @@ def run_household(
                 answered = any(v is not None for v in predictions.values()) or any(
                     explanations.values()
                 )
+                for call in other_calls:
+                    conversation.add_tool_result(call, {"error": "unknown function"})
                 if not answered:
-                    for call in other_calls:
-                        conversation.add_tool_result(
-                            call, {"error": "unknown function"}
-                        )
                     if turn.unfinished_server_calls:
                         continue  # only tool results may follow
+                    if count_search_only(turn_record, turn) and cap_reached():
+                        conversation.add_user(JSON_SEARCH_CAP_TEXT.format(cap=turn_cap))
+                        continue
                     conversation.add_user(
                         "Reply with your final answers as the JSON object described "
                         "above"
@@ -2068,13 +2108,12 @@ def run_household(
             else:
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
-                if profile.uses_web and (
-                    turn.server_calls or turn_record.get("web_searches")
-                ):
-                    search_only_turns += 1
-                    turn_record["search_only_turn"] = True
+                searched_only = count_search_only(turn_record, turn)
                 if turn.unfinished_server_calls:
                     continue  # only tool results may follow
+                if json_contract and searched_only and cap_reached():
+                    conversation.add_user(JSON_SEARCH_CAP_TEXT.format(cap=turn_cap))
+                    continue
                 if calculate_offered:
                     nudge = (
                         "Call calculate_household or give your final answers as "
@@ -2099,6 +2138,11 @@ def run_household(
                 break
             repair_rounds += 1
             answer_variables = still
+            if turn.unfinished_server_calls:
+                # Only tool results may follow an unfinished server call; the
+                # next reply is still merged for the outputs listed here.
+                turn_record["repair_deferred"] = True
+                continue
             conversation.add_user(repair_text(still))
         else:
             record["status"] = "turn_limit"
@@ -2738,8 +2782,15 @@ def command_score(args) -> None:
             f"{len(audit['policybench_mentions'])}; blocked-domain URLs: "
             f"{len(audit['blocked_domain_urls'])}; flagged households: "
             f"{audit['flagged_households']}; results visible: "
-            f"{audit['results_visible']}"
+            f"{audit['results_visible']}; entries naming the reference engine: "
+            f"{audit['reference_engine_entries']}"
         )
+        if not audit["results_visible"]:
+            print(
+                "CAVEAT: this provider returns no result URLs, so flags and the "
+                "unflagged score rest on queries alone; what the model read "
+                "cannot be audited."
+            )
     (out / "score.json").write_text(
         json.dumps(
             {
@@ -2976,8 +3027,17 @@ def search_audit(log: pd.DataFrame, results_visible: bool = True) -> dict:
         # JSON has no NaN: missing cells become null.
         return frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
 
+    # The reference engine's own sites: not blocked and not a flag, since a
+    # web+PE model may read the tool's docs, but counted for the reader.
+    engine = log.loc[
+        pd.array(
+            [touches(t, REFERENCE_ENGINE_MARKERS) for t in text],
+            dtype="boolean",
+        )
+    ]
     return {
         "results_visible": results_visible,
+        "reference_engine_entries": int(len(engine)),
         "logged_entries": int(len(log)),
         "queries": int(log["query"].notna().sum()),
         "result_urls": int(log["url"].notna().sum()),

@@ -3082,12 +3082,20 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
             old_lines, new_lines = old.splitlines(), new.splitlines()
             assert len(old_lines) == len(new_lines)
             changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
-            federal = "- federal_income_tax_before_refundable_credits:"
+            federal = (
+                "- federal_income_tax_before_refundable_credits:",
+                "- federal_refundable_credits:",
+            )
             assert all("PolicyEngine" in a or a.startswith(federal) for a, _ in changed)
-            assert len(changed) == old.count("PolicyEngine") + (federal in old)
-            # d1263: the v2 prompt states the rate-schedule convention.
-            if federal in old:
-                assert "section 1 tax rate schedules" in new
+            assert len(changed) == old.count("PolicyEngine") + sum(
+                line in old for line in federal
+            )
+            # d1263: the v2 prompt states the rate-schedule convention on both
+            # federal lines whose values the schedule choice can move.
+            for line in federal:
+                for old_line, new_line in zip(old_lines, new_lines):
+                    if old_line.startswith(line):
+                        assert "section 1 tax rate schedules" in new_line
 
 
 def test_v2_pilot_keeps_each_persons_label_in_their_definition():
@@ -3192,3 +3200,207 @@ def test_records_name_one_prompt_setup_and_old_records_are_v1():
     ) == ("v2-pilot", True)
     with pytest.raises(SystemExit):
         pilot.records_prompt({"a": {"prompt_version": "v2-pilot"}, "b": {}})
+
+
+# ---------------------------------------------------------------------------
+# Review r2 follow-ups.
+# ---------------------------------------------------------------------------
+
+
+def finished_search(call_id="srvtoolu_s", content=None):
+    """A Claude turn whose search ran to its result in the same response."""
+    return with_fields(
+        response([tool_call("web_search", {"query": "q"}, call_id)], content=content),
+        {
+            "web_search_results": [
+                {"type": "web_search_tool_result", "tool_use_id": call_id}
+            ]
+        },
+        server_tool_use=1,
+    )
+
+
+def test_a_json_web_arm_hears_the_cap_after_search_only_turns():
+    cap = 2
+    model = FakeModel(
+        [finished_search(f"srvtoolu_{i}", content="Still looking.") for i in range(cap)]
+        + [response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "complete" and record["search_only_turns"] == cap
+    first_nudge = model.requests[1]["messages"][-1]["content"][0]["text"]
+    cap_text = model.requests[cap]["messages"][-1]["content"][0]["text"]
+    assert "used all" not in first_nudge
+    assert cap_text == pilot.JSON_SEARCH_CAP_TEXT.format(cap=cap)
+
+
+def test_an_answer_beside_an_unknown_call_gets_its_result():
+    model = FakeModel(
+        [
+            response(
+                [tool_call("lookup", {"q": 1}, "u1")],
+                content=json_answer({"snap": 1}),
+            ),
+            response([], content=json_answer({VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    messages = model.requests[1]["messages"]
+    assert messages[-2]["role"] == "tool" and messages[-2]["tool_call_id"] == "u1"
+    assert messages[-1]["role"] == "user"
+
+
+def test_a_repair_waits_while_a_server_call_is_unfinished():
+    """A partial answer beside an unknown call and a deferred server call:
+    the unknown call gets its result, and no repair text may follow yet."""
+    deferred = response(
+        [
+            tool_call("web_search", {"query": "q"}, "srvtoolu_d"),
+            tool_call("lookup", {"q": 1}, "u1"),
+        ],
+        content=json_answer({"snap": 1}),
+    )
+    resumed = with_fields(
+        response([], content=json_answer({VARIABLES[1]: 2})),
+        {
+            "web_search_results": [
+                {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_d"}
+            ]
+        },
+    )
+    model = FakeModel([deferred, resumed])
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["turns"][0]["repair_deferred"] is True
+    last = model.requests[1]["messages"][-1]
+    assert last["role"] == "tool" and last["tool_call_id"] == "u1"
+    assert record["predictions"] == {"snap": 1.0, VARIABLES[1]: 2.0}
+
+
+def test_relocation_keeps_litellms_block_order_with_thinking_and_nested_searches():
+    """Real Opus replies carry thinking blocks, so litellm rebuilds them in
+    its interleaved order; the deferred result must land after its call."""
+    from litellm.litellm_core_utils.prompt_templates.factory import (
+        anthropic_messages_pt,
+    )
+
+    thinking = [{"type": "thinking", "thinking": "plan", "signature": "sig1"}]
+    first = response(
+        [tool_call("code_execution", {"code": "x"}, "srvtoolu_a"), calculate("c1")]
+    )
+    first.choices[0].message.thinking_blocks = thinking
+    nested = {"type": "code_execution_20260120", "tool_id": "srvtoolu_a"}
+    second = with_fields(
+        response(
+            [
+                tool_call("web_search", {"query": "q"}, "srvtoolu_b"),
+                calculate("c2"),
+            ]
+        ),
+        {
+            "tool_results": [
+                {
+                    "type": "code_execution_tool_result",
+                    "tool_use_id": "srvtoolu_a",
+                    "content": {"type": "code_execution_result", "stdout": "ok"},
+                }
+            ],
+            "web_search_results": [
+                {
+                    "type": "web_search_tool_result",
+                    "tool_use_id": "srvtoolu_b",
+                    "caller": nested,
+                    "content": [],
+                }
+            ],
+        },
+    )
+    second.choices[0].message.thinking_blocks = [
+        {"type": "thinking", "thinking": "more", "signature": "sig2"}
+    ]
+    model = FakeModel(
+        [first, second, response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete"
+    converted = anthropic_messages_pt(
+        as_data(record["messages"]), model="claude-opus-5-5", llm_provider="anthropic"
+    )
+    replies = [m["content"] for m in converted if m["role"] == "assistant"]
+    first_kinds = [(b["type"], b.get("id") or b.get("tool_use_id")) for b in replies[0]]
+    assert first_kinds[0][0] == "thinking"
+    a_call = first_kinds.index(("server_tool_use", "srvtoolu_a"))
+    assert first_kinds[a_call + 1] == ("code_execution_tool_result", "srvtoolu_a")
+    assert ("tool_use", "c1") in first_kinds
+    second_kinds = [
+        (b["type"], b.get("id") or b.get("tool_use_id")) for b in replies[1]
+    ]
+    assert ("code_execution_tool_result", "srvtoolu_a") not in second_kinds
+    b_call = second_kinds.index(("server_tool_use", "srvtoolu_b"))
+    assert second_kinds[b_call + 1] == ("web_search_tool_result", "srvtoolu_b")
+
+
+def test_the_meal_wording_names_breakfast_and_lunch():
+    text = pilot.v2_pilot_text(
+        "- free_school_meals_eligible: whether PolicyEngine returns positive annual "
+        "free school meal support for the household (1 if yes, 0 if no; "
+        "reduced-price meals do not count as 1)"
+    )
+    assert "both breakfast and lunch free for all students" in text
+    assert "reduced-price charge for both breakfast and lunch" in text
+
+
+def test_the_audit_keeps_source_objects_and_counts_reference_engine_entries():
+    action = SimpleNamespace(
+        type="search",
+        query="q",
+        sources=[SimpleNamespace(type="url", url="https://policyengine.org/us")],
+    )
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call("ws_1", action),
+                    sol_submit({"snap": 1, VARIABLES[1]: 2}),
+                ],
+                "r",
+            )
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(SOL, "web"),
+    )
+    (source,) = [e for e in record["turns"][0]["searches"] if e["kind"] == "source"]
+    assert source["source"] == {"type": "url", "url": "https://policyengine.org/us"}
+    record["turns"][0]["index"] = 0
+    audit = pilot.search_audit(pilot.search_log({"s": record}))
+    assert audit["reference_engine_entries"] == 1
+    assert audit["flagged_households"] == []
