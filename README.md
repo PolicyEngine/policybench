@@ -48,22 +48,37 @@ information.
 
 ## Quick start
 
+PolicyBench is not published on PyPI, so install the command-line tool from
+GitHub. With [uv](https://docs.astral.sh/uv/):
+
 ```bash
-pip install policybench
+uv tool install --python 3.12 git+https://github.com/PolicyEngine/policybench
 policybench --help
 ```
 
-For repository development, clone the full Git repository before running tests:
+Or with pip, in a standard (not free-threaded) Python 3.11 to 3.14 virtual
+environment:
 
 ```bash
-pip install -e ".[dev]"
-pytest
+pip install git+https://github.com/PolicyEngine/policybench
+policybench --help
+```
+
+For repository development, clone the full Git repository and install the
+locked environment before running tests:
+
+```bash
+git clone https://github.com/PolicyEngine/policybench
+cd policybench
+uv sync --locked --extra dev --python 3.12
+uv run pytest
 ```
 
 Verify the dashboard with its bundled data prepared automatically:
 
 ```bash
 cd app
+bun install --frozen-lockfile
 bun run lint
 bun run test
 bun run build
@@ -76,6 +91,12 @@ For paid/public runs, follow the concrete
 The short version is: generate fixed reference-output manifests first, run
 Claude models serially, run non-Claude models in parallel, then do a final merge
 and export pass.
+
+Run these commands from a clone of the repository: they write under
+`results/local/`, and `analyze` also writes the dashboard payload to
+`app/src/data.json`. They call `policybench` as `uv tool install` puts it on
+your `PATH`; in a clone set up with `uv sync`, prefix each with `uv run`, as the
+runbook does.
 
 ```bash
 # Generate reference outputs for 100 sampled households using headline outputs
