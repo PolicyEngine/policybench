@@ -11,7 +11,7 @@ writes only under --out-dir, never touches the run store, the snapshot, the
 cache or the dashboard, and labels its rows ``<model>+pe-tool`` (for example
 ``gemini-4-argon+pe-tool``) so no board export can take them for a board row.
 
-Arms, on the same 100 households:
+Arms, on the same 100 households (``run --arm`` picks arm 2's tools):
   1. No tools: the model's frozen board predictions (release
      dashboard-data-20261014), read from the snapshot and never re-run.
   2. PolicyEngine tool: the board's prompt and request settings for the model,
@@ -24,6 +24,12 @@ Arms, on the same 100 households:
      (reference_audit/2026-10-12-engine-upgrade/scripts/build_references_upgrade.py
      computes every reference on that system). The ``oracle`` subcommand checks
      that the reference situations reproduce every scored reference through it.
+     ``--arm web`` offers the provider's own web search in place of the tool,
+     and ``--arm web+pe`` offers both; rows are labeled ``<model>+web`` and
+     ``<model>+web+pe-tool``. Searches are logged per turn and priced at list
+     (SEARCH_USD_PER_1K) on top of their tokens; policybench.org and GitHub are
+     blocked where the provider allows it (BLOCKED_DOMAINS), and ``score``
+     writes searches.csv with an audit of any that touch the benchmark.
 
 The model writes JSON only. The tool parses it, checks every name against the
 engine's variable registry, and passes plain data to policyengine_us.Simulation
@@ -59,7 +65,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -138,6 +144,56 @@ JSON_TOOL_NOTICE = (
     "above. You may call it in up to 8 turns. Then give your final answers as the "
     "single JSON object described above."
 )
+
+# The arms ``run --arm`` takes. "pe" is arm 2 as run on 2026-10-14 and
+# 2026-10-15. "web" swaps the PolicyEngine tool for the provider's own web
+# search, and "web+pe" offers both.
+ARMS = ("pe", "web", "web+pe")
+ARM_SUFFIX = {"pe": "+pe-tool", "web": "+web", "web+pe": "+web+pe-tool"}
+
+_CALCULATE_OPENING = "You also have a `calculate_household` function."
+WEB_SENTENCE = "You also have web search, which searches the public web."
+WEB_NOTICE = (
+    "\n\n" + WEB_SENTENCE + " Then call `submit_outputs` exactly once with your "
+    "final answers, as instructed above."
+)
+JSON_WEB_NOTICE = (
+    "\n\n" + WEB_SENTENCE + " Then give your final answers as the single JSON "
+    "object described above."
+)
+# The PE notice with web search named in its opening sentence; the rest of it,
+# the tool's description and the turn cap, is unchanged.
+WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
+    notice.replace(
+        _CALCULATE_OPENING,
+        "You also have web search, which searches the public web, and a "
+        "`calculate_household` function.",
+    )
+    for notice in (TOOL_NOTICE, JSON_TOOL_NOTICE)
+)
+
+# Every provider that can block domains blocks these. policybench.org and
+# GitHub host the benchmark's prompts and references, and GitHub also the
+# reference engine's source. OpenAI's filter takes whole domains only (it
+# refuses "github.com/PolicyEngine/policybench"), so all of GitHub is blocked,
+# for both providers that filter. The Gemini API's search tool takes no domain
+# list (it refuses excludeDomains), so its queries are audited instead.
+BLOCKED_DOMAINS = ("policybench.org", "github.com", "githubusercontent.com")
+# Dynamic filtering: Claude filters results in code before they reach its
+# context (platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool).
+ANTHROPIC_WEB_SEARCH_TOOL = "web_search_20260209"
+# List prices per 1,000 searches, from each provider's pricing page on
+# 2026-10-20. OpenAI bills each web_search_call ("$10.00 / 1k calls");
+# Anthropic each search ("$10 per 1,000 searches"); Google each query a Gemini
+# 3 or later model runs ("$14 per 1,000 requests", after 5,000 free a month
+# shared across those models, which this price ignores).
+SEARCH_USD_PER_1K = {"openai": 10.0, "anthropic": 10.0, "gemini": 14.0}
+# Times a JSON-contract reply that searched but gave no answer is sent back
+# as it is, Anthropic's continuation for a paused server-tool turn.
+MAX_PAUSE_CONTINUATIONS = 3
+# The litellm whose Gemini search-tool handling allow_gemini_search_with_functions
+# was written against.
+GEMINI_SEARCH_PATCH_LITELLM = "1.88.1"
 
 CALCULATE_DESCRIPTION = (
     "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
@@ -823,10 +879,28 @@ class ModelProfile:
     model_id: str
     api: str
     contract: str
+    arm: str = "pe"
 
     @property
     def notice(self) -> str:
-        return TOOL_NOTICE if self.contract == "tool" else JSON_TOOL_NOTICE
+        tool = self.contract == "tool"
+        if self.arm == "web":
+            return WEB_NOTICE if tool else JSON_WEB_NOTICE
+        if self.arm == "web+pe":
+            return WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
+
+    @property
+    def uses_calculator(self) -> bool:
+        return self.arm != "web"
+
+    @property
+    def uses_web(self) -> bool:
+        return self.arm != "pe"
+
+    @property
+    def provider(self) -> str:
+        return provider_family(self.model_id)
 
     @property
     def arm1_label(self) -> str:
@@ -834,22 +908,92 @@ class ModelProfile:
 
     @property
     def arm2_label(self) -> str:
-        return f"{self.name}+pe-tool"
+        return f"{self.name}{ARM_SUFFIX[self.arm]}"
 
 
-def model_profile(name: str = MODEL_NAME) -> ModelProfile:
+def provider_family(model_id: str) -> str:
+    for prefix, family in (
+        ("gemini/", "gemini"),
+        ("claude-", "anthropic"),
+        ("gpt-", "openai"),
+    ):
+        if model_id.startswith(prefix):
+            return family
+    raise SystemExit(f"no provider is known for {model_id}")
+
+
+def model_profile(name: str = MODEL_NAME, arm: str = "pe") -> ModelProfile:
     from policybench.config import MODELS
     from policybench.eval_no_tools import (
         _answer_contract_for_model,
         _uses_responses_api,
     )
 
+    if arm not in ARMS:
+        raise SystemExit(f"unknown arm {arm!r}; the arms are {', '.join(ARMS)}")
     model_id = MODELS[name]
     return ModelProfile(
         name=name,
         model_id=model_id,
         api="responses" if _uses_responses_api(model_id) else "chat",
         contract=_answer_contract_for_model(model_id),
+        arm=arm,
+    )
+
+
+def web_search_tool(profile: ModelProfile) -> dict:
+    """The provider's own web search, in the shape its API takes."""
+    if profile.provider == "openai" and profile.api == "responses":
+        return {
+            "type": "web_search",
+            "filters": {"blocked_domains": list(BLOCKED_DOMAINS)},
+        }
+    if profile.provider == "anthropic":
+        return {
+            "type": ANTHROPIC_WEB_SEARCH_TOOL,
+            "name": "web_search",
+            "blocked_domains": list(BLOCKED_DOMAINS),
+        }
+    if profile.provider == "gemini":
+        return {"googleSearch": {}}
+    raise SystemExit(f"no web search tool is wired for {profile.model_id}")
+
+
+def allow_gemini_search_with_functions() -> None:
+    """Keep Gemini's search tool beside function tools in litellm.
+
+    litellm 1.88.1 drops googleSearch from any request that also declares
+    functions unless ``include_server_side_tool_invocations`` is set. It reads
+    that flag only among the mapped OpenAI parameters, and a ``completion``
+    keyword reaches it later, as a provider extra, after the search tool is
+    gone. Gemini 3 and 4 models take both together with the flag
+    (ai.google.dev/gemini-api/docs/tool-combination), and the web arms always
+    send it, so both of litellm's drops are skipped. Refuses any other litellm,
+    whose code this was not checked against.
+    """
+    version = importlib.metadata.version("litellm")
+    if version != GEMINI_SEARCH_PATCH_LITELLM:
+        raise SystemExit(
+            f"litellm {version} is installed; the Gemini search patch was "
+            f"checked against {GEMINI_SEARCH_PATCH_LITELLM} only"
+        )
+    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
+        VertexGeminiConfig,
+    )
+
+    def keep_search_tools(
+        gtool_func_declarations,
+        googleSearch,
+        googleSearchRetrieval,
+        enterpriseWebSearch,
+        urlContext,
+        optional_params,
+    ):
+        return googleSearch, googleSearchRetrieval, enterpriseWebSearch, urlContext
+
+    VertexGeminiConfig._resolve_search_tool_conflict = staticmethod(keep_search_tools)
+    VertexGeminiConfig._drop_search_tools_mixed_with_functions = classmethod(
+        lambda cls, optional_params: None
     )
 
 
@@ -923,6 +1067,9 @@ class Turn:
     finish_reason: str | None
     reasoning_content: str | None = None
     has_thought_signature: bool = False
+    # Calls the provider ran itself (Anthropic's server tools: web search and
+    # the code execution its dynamic filtering runs in). They need no result.
+    server_calls: list[dict] = field(default_factory=list)
 
 
 CACHE_BREAKPOINT = {"type": "ephemeral"}
@@ -947,6 +1094,12 @@ def _with_cache_breakpoint(message: dict) -> dict:
             }
         ]
     return message
+
+
+def is_server_call(call_id) -> bool:
+    """An Anthropic server tool's call, which litellm lists among the tool
+    calls; the API runs it and returns its result in the same response."""
+    return str(call_id or "").startswith("srvtoolu_")
 
 
 class ChatConversation:
@@ -982,16 +1135,21 @@ class ChatConversation:
         if not choices:
             raise ProviderEmpty("response has no choices")
         message = choices[0].message
+        calls, server_calls = [], []
+        for c in _tool_calls(message):
+            call = Call(_call_id(c), _call_name(c), _call_arguments(c))
+            if is_server_call(call.id):
+                server_calls.append(asdict(call))
+            else:
+                calls.append(call)
         return Turn(
             response=response,
             content=getattr(message, "content", None),
-            calls=[
-                Call(_call_id(c), _call_name(c), _call_arguments(c))
-                for c in _tool_calls(message)
-            ],
+            calls=calls,
             finish_reason=_response_finish_reason(response, responses_api=False),
             reasoning_content=getattr(message, "reasoning_content", None),
             has_thought_signature=_has_thought_signature(message),
+            server_calls=server_calls,
         )
 
     def add_assistant(self, turn: Turn) -> None:
@@ -1031,7 +1189,9 @@ class ResponsesConversation:
 
     def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
         kwargs = dict(base)
-        kwargs["tools"] = [_responses_tool(t) for t in tools]
+        kwargs["tools"] = [
+            _responses_tool(t) if t.get("type") == "function" else t for t in tools
+        ]
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
         if self.previous_response_id is None:
@@ -1100,6 +1260,115 @@ class ResponsesConversation:
         return self.log + ([{"pending": self.pending}] if self.pending else [])
 
 
+def _plain(value) -> Any:
+    """A provider object as plain data, for the record."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "__dict__"):
+        return {k: _plain(v) for k, v in vars(value).items()}
+    return value
+
+
+def _field(value, key: str):
+    if isinstance(value, dict):
+        return value.get(key)
+    return getattr(value, key, None)
+
+
+def turn_searches(
+    response, turn: Turn, profile: ModelProfile, seen: set[str]
+) -> tuple[list[dict], int]:
+    """The web searches one response ran, and how many its provider bills.
+
+    - OpenAI: every ``web_search_call`` output item is a billed call, whatever
+      its action (search, open_page, find_in_page).
+    - Anthropic: ``usage.server_tool_use.web_search_requests`` counts every
+      search, including those run from code under dynamic filtering. The log
+      holds each server call (a direct search's query, or the code that ran
+      searches) and each result's URL and title.
+    - Gemini: each non-empty query of a GOOGLE_SEARCH_WEB invocation, once per
+      invocation id in the household (``seen``), since earlier invocations
+      ride along in the conversation. Its responses carry no result URLs.
+    """
+    log: list[dict] = []
+    billed = 0
+    if profile.provider == "openai":
+        for item in getattr(response, "output", None) or []:
+            if _field(item, "type") != "web_search_call":
+                continue
+            billed += 1
+            action = _plain(_field(item, "action")) or {}
+            log.append(
+                {
+                    "kind": action.get("type"),
+                    "id": _field(item, "id"),
+                    "queries": action.get("queries")
+                    or ([action["query"]] if action.get("query") else []),
+                    "url": action.get("url"),
+                    "status": _field(item, "status"),
+                }
+            )
+        return log, billed
+    message = (getattr(response, "choices", None) or [None])[0]
+    message = getattr(message, "message", None)
+    fields = _plain(getattr(message, "provider_specific_fields", None)) or {}
+    if profile.provider == "anthropic":
+        usage = getattr(response, "usage", None)
+        server_use = _field(usage, "server_tool_use")
+        billed = int(_num(_field(server_use, "web_search_requests")))
+        for call in turn.server_calls:
+            arguments = call.get("arguments")
+            try:
+                arguments = json.loads(arguments)
+            except (TypeError, ValueError):
+                pass
+            entry = {"kind": call.get("name"), "id": call.get("id")}
+            if isinstance(arguments, dict) and "query" in arguments:
+                entry["queries"] = [arguments["query"]]
+            elif isinstance(arguments, dict) and "code" in arguments:
+                entry["code"] = str(arguments["code"])[:MAX_MESSAGE_CHARS]
+            log.append(entry)
+        for block in fields.get("web_search_results") or []:
+            content = _field(block, "content")
+            for result in content if isinstance(content, list) else []:
+                log.append(
+                    {
+                        "kind": "result",
+                        "url": _field(result, "url"),
+                        "title": _field(result, "title"),
+                    }
+                )
+        return log, billed
+    if profile.provider == "gemini":
+        for invocation in fields.get("server_side_tool_invocations") or []:
+            if _field(invocation, "tool_type") != "GOOGLE_SEARCH_WEB":
+                continue
+            invocation_id = str(_field(invocation, "id"))
+            queries = [
+                q for q in (_field(_field(invocation, "args"), "queries") or []) if q
+            ]
+            repeat = invocation_id in seen
+            seen.add(invocation_id)
+            if not repeat:
+                billed += len(queries)
+            log.append(
+                {
+                    "kind": "search",
+                    "id": invocation_id,
+                    "queries": queries,
+                    "repeat": repeat,
+                }
+            )
+        return log, billed
+    return log, billed
+
+
+def search_cost_usd(profile: ModelProfile, searches: int) -> float:
+    return searches * SEARCH_USD_PER_1K[profile.provider] / 1000
+
+
 class ProviderEmpty(RuntimeError):
     pass
 
@@ -1156,6 +1425,12 @@ def run_household(
     cap is reached, as the board forces it). A JSON-contract model answers in
     the board's JSON reply; its API refuses a forced tool, so the calculate
     tool is offered under tool_choice auto and the cap is a user message.
+
+    The profile's arm sets the tools: the calculate tool ("pe"), the
+    provider's web search ("web"), or both ("web+pe"). The provider runs a
+    search inside the response that asked for it, so searches use no
+    calculation turn; each response's searches are logged and their list
+    price added to its cost.
     """
     from policybench.eval_no_tools import (
         _apply_thinking_configuration,
@@ -1175,6 +1450,13 @@ def run_household(
     ceiling = base.pop("_budget_ceiling")
     answer_tool = base.pop("_answer_tool")
     calculate_tool = calculate_tool_schema()
+    offered = ([web_search_tool(profile)] if profile.uses_web else []) + (
+        [calculate_tool] if profile.uses_calculator else []
+    )
+    if profile.uses_web and profile.provider == "gemini":
+        base["include_server_side_tool_invocations"] = True
+    seen_searches: set[str] = set()
+    pause_continuations = 0
     conversation = (
         ResponsesConversation(prompt)
         if profile.api == "responses"
@@ -1183,9 +1465,11 @@ def run_household(
         )
     )
     json_contract = profile.contract == "json"
+    calculate_offered = profile.uses_calculator
     record: dict[str, Any] = {
         "scenario_id": scenario.id,
         "model": profile.name,
+        "arm": profile.arm,
         "api": profile.api,
         "contract": profile.contract,
         "variables": variables,
@@ -1203,18 +1487,32 @@ def run_household(
 
     def tools_and_choice(kind: str):
         if json_contract:
-            return [calculate_tool], "auto"
+            return list(offered), "auto"
         if kind == "repair":
             return (
                 [
-                    calculate_tool,
+                    *offered,
                     _build_answer_tool(answer_variables, country=scenario.country),
                 ],
                 forced_answer_choice(profile),
             )
         if kind == "forced_answer":
-            return [calculate_tool, answer_tool], forced_answer_choice(profile)
-        return [calculate_tool, answer_tool], "required"
+            return [*offered, answer_tool], forced_answer_choice(profile)
+        return [*offered, answer_tool], "required"
+
+    def bill_searches(response, turn) -> dict:
+        """Log the response's searches and add their price to the spend."""
+        if not profile.uses_web:
+            return {}
+        log, billed = turn_searches(response, turn, profile, seen_searches)
+        cost = search_cost_usd(profile, billed)
+        spend.add(cost)
+        return {
+            "server_calls": turn.server_calls,
+            "searches": log,
+            "web_searches": billed,
+            "search_cost_usd": cost,
+        }
 
     def accept_answer(content, calls) -> list[str]:
         """Merge an answer into the predictions; return the outputs still needed."""
@@ -1338,6 +1636,7 @@ def run_household(
                             "completion_budget": kwargs.get(budget_key),
                             "latency_seconds": latency,
                             **usage,
+                            **bill_searches(response, turn),
                         }
                     )
                     escalated_from = kwargs.get(budget_key)
@@ -1379,6 +1678,7 @@ def run_household(
                 "response_id": getattr(response, "id", None),
                 "calls": [],
                 **usage,
+                **bill_searches(response, turn),
             }
             record["turns"].append(turn_record)
             conversation.add_assistant(turn)
@@ -1463,27 +1763,56 @@ def run_household(
                         )
                     )
                 continue
-            elif json_contract and turn.content:
-                # A JSON-contract answer: the reply itself.
-                still = accept_answer(turn.content, None)
-                answered = any(v is not None for v in predictions.values()) or any(
-                    explanations.values()
-                )
-                if not answered:
+            elif json_contract and (turn.content or turn.server_calls):
+                # A JSON-contract answer: the reply itself. A reply that
+                # searched and holds no answer is a paused server-tool turn,
+                # which continues when sent back unchanged.
+                answered = False
+                if turn.content:
+                    still = accept_answer(turn.content, None)
+                    answered = any(v is not None for v in predictions.values()) or any(
+                        explanations.values()
+                    )
+                if not answered or not turn.content:
+                    if (
+                        turn.server_calls
+                        and not other_calls
+                        and pause_continuations < MAX_PAUSE_CONTINUATIONS
+                    ):
+                        pause_continuations += 1
+                        turn_record["continued_after_pause"] = True
+                        continue
+                    for call in other_calls:
+                        conversation.add_tool_result(
+                            call, {"error": "unknown function"}
+                        )
                     conversation.add_user(
                         "Reply with your final answers as the JSON object described "
-                        "above, or call calculate_household."
+                        "above"
+                        + (
+                            ", or call calculate_household."
+                            if calculate_offered
+                            else "."
+                        )
                     )
                     continue
             else:
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
-                conversation.add_user(
-                    "Call calculate_household or give your final answers as the "
-                    "JSON object described above."
-                    if json_contract
-                    else "Call calculate_household or submit_outputs."
-                )
+                if calculate_offered:
+                    nudge = (
+                        "Call calculate_household or give your final answers as "
+                        "the JSON object described above."
+                        if json_contract
+                        else "Call calculate_household or submit_outputs."
+                    )
+                else:
+                    nudge = (
+                        "Give your final answers as the JSON object described above."
+                        if json_contract
+                        else "Call submit_outputs with your final answers."
+                    )
+                conversation.add_user(nudge)
                 continue
 
             if not still:
@@ -1508,6 +1837,7 @@ def run_household(
     record["tool_turns"] = tool_turns
     record["cap_hit"] = tool_turns >= turn_cap
     record["repair_rounds"] = repair_rounds
+    record["pause_continuations"] = pause_continuations
     record["wall_seconds"] = time.perf_counter() - household_started
     record["messages"] = conversation.transcript()
     record["totals"] = household_totals(record)
@@ -1540,7 +1870,8 @@ def record_cost_with_prior_attempts(record: dict) -> float:
 
 def household_totals(record: dict) -> dict:
     """Tokens, cost and time over every request, truncated ones included;
-    ``model_turns`` counts the turns that reached the conversation."""
+    ``model_turns`` counts the turns that reached the conversation. A web
+    arm's ``cost_usd`` adds its searches' list price to its tokens'."""
     turns = record.get("turns", [])
     calls = [c for t in turns for c in t.get("calls", []) if c.get("name") == TOOL_NAME]
     errors = [
@@ -1559,7 +1890,14 @@ def household_totals(record: dict) -> dict:
         "cache_write_prompt_tokens": sum(
             _num(t.get("cache_write_prompt_tokens")) for t in turns
         ),
-        "cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
+        # Tokens at list price, plus each search at its list price.
+        "token_cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
+        "web_searches": sum(_num(t.get("web_searches")) for t in turns),
+        "search_cost_usd": sum(_num(t.get("search_cost_usd")) for t in turns),
+        "cost_usd": sum(
+            _num(t.get("total_cost_usd")) + _num(t.get("search_cost_usd"))
+            for t in turns
+        ),
         "model_seconds": sum(_num(t.get("latency_seconds")) for t in turns),
         "tool_seconds": sum(_num(c.get("tool_latency_seconds")) for c in calls),
     }
@@ -1754,12 +2092,25 @@ def records_model(records: Mapping[str, dict]) -> str:
     return models.pop() if models else MODEL_NAME
 
 
+def records_arm(records: Mapping[str, dict]) -> str:
+    """The one arm a run directory's records belong to; records written
+    before the web arms are the PE tool's."""
+    arms = {r.get("arm", "pe") for r in records.values()}
+    if len(arms) > 1:
+        raise SystemExit(f"records from more than one arm: {sorted(arms)}")
+    return arms.pop() if arms else "pe"
+
+
 def command_run(args) -> None:
     _require_engine()
-    profile = model_profile(args.model)
+    profile = model_profile(args.model, args.arm)
     key = provider_key(profile.model_id)
     if not os.environ.get(key):
         raise SystemExit(f"{key} is not set")
+    if profile.uses_web:
+        web_search_tool(profile)  # refuses a provider with no search wired
+    if profile.uses_web and profile.provider == "gemini":
+        allow_gemini_search_with_functions()
     from litellm import completion, responses
 
     completion_fn = responses if profile.api == "responses" else completion
@@ -1779,6 +2130,10 @@ def command_run(args) -> None:
             f"{households_dir} holds {records_model(previous)} records, "
             f"not {profile.name}"
         )
+    if previous and records_arm(previous) != profile.arm:
+        raise SystemExit(
+            f"{households_dir} holds {records_arm(previous)} records, not {profile.arm}"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -1791,10 +2146,15 @@ def command_run(args) -> None:
         "fix_module_sha256": _sha256(FIX_MODULE),
         "model": profile.name,
         "model_id": profile.model_id,
+        "arm": profile.arm,
         "api": profile.api,
         "answer_contract": profile.contract,
         "tool_notice": profile.notice,
-        "calculate_tool": calculate_tool_schema(),
+        "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
+        "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
+        "search_usd_per_1k": (
+            SEARCH_USD_PER_1K[profile.provider] if profile.uses_web else None
+        ),
         "turn_cap": TOOL_TURN_CAP,
         "max_calculations_per_turn": MAX_CALCULATIONS_PER_TURN,
         "tool_timeout_seconds": TOOL_TIMEOUT_SECONDS,
@@ -1940,7 +2300,7 @@ def command_score(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
     records = load_records(out)
-    profile = model_profile(records_model(records))
+    profile = model_profile(records_model(records), records_arm(records))
     arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
@@ -2052,6 +2412,16 @@ def command_score(args) -> None:
     print(json.dumps(usage_summary, indent=2))
     tool_use = tool_use_summary({sid: records[sid] for sid in households})
     print(json.dumps(tool_use, indent=2))
+    searches = search_log({sid: records[sid] for sid in households})
+    audit = None
+    if profile.uses_web:
+        searches.to_csv(out / "searches.csv", index=False)
+        audit = search_audit(searches)
+        print(
+            f"searches logged: {audit['logged_entries']}; policybench mentions: "
+            f"{len(audit['policybench_mentions'])}; blocked-domain URLs: "
+            f"{len(audit['blocked_domain_urls'])}"
+        )
     (out / "score.json").write_text(
         json.dumps(
             {
@@ -2071,7 +2441,9 @@ def command_score(args) -> None:
                     k: int(v) for k, v in flips.sum(axis=0).to_dict().items()
                 },
                 "household_bootstrap": bootstrap,
+                "arm": profile.arm,
                 "tool_use": tool_use,
+                "search_audit": audit,
                 "usage": usage_summary,
             },
             indent=2,
@@ -2199,6 +2571,9 @@ def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
                 "arm2_completion_tokens": totals["completion_tokens"],
                 "arm2_reasoning_tokens": totals["reasoning_tokens"],
                 "arm2_cost_usd": totals["cost_usd"],
+                "arm2_token_cost_usd": totals.get("token_cost_usd", totals["cost_usd"]),
+                "arm2_web_searches": totals.get("web_searches", 0),
+                "arm2_search_cost_usd": totals.get("search_cost_usd", 0.0),
                 "arm2_model_seconds": totals["model_seconds"],
                 "arm2_tool_seconds": totals["tool_seconds"],
                 "arm2_wall_seconds": records[sid].get("wall_seconds"),
@@ -2208,6 +2583,65 @@ def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
         grouped.reset_index(), on="scenario_id", how="left"
     )
     return frame
+
+
+def search_log(records: Mapping[str, dict]) -> pd.DataFrame:
+    """Every logged search, query and result URL, one row each."""
+    rows = []
+    for sid, record in sorted(records.items()):
+        for turn in record.get("turns", []):
+            for entry in turn.get("searches", []):
+                queries = entry.get("queries") or [None]
+                for query in queries:
+                    rows.append(
+                        {
+                            "scenario_id": sid,
+                            "turn": turn.get("index"),
+                            "kind": entry.get("kind"),
+                            "query": query,
+                            "url": entry.get("url"),
+                            "title": entry.get("title"),
+                            "code": entry.get("code"),
+                            "repeat": bool(entry.get("repeat")),
+                        }
+                    )
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "scenario_id",
+            "turn",
+            "kind",
+            "query",
+            "url",
+            "title",
+            "code",
+            "repeat",
+        ],
+    )
+
+
+def search_audit(log: pd.DataFrame) -> dict:
+    """Searches or results that touch the benchmark itself, or a blocked domain."""
+
+    def touches(text, needles) -> bool:
+        text = str(text or "").lower()
+        return any(n in text for n in needles)
+
+    text = [
+        " ".join(v for v in row if isinstance(v, str))
+        for row in log[["query", "url", "title", "code"]].itertuples(index=False)
+    ]
+    mentions = log[[touches(t, ("policybench",)) for t in text]]
+    blocked = log[
+        [isinstance(u, str) and touches(u, BLOCKED_DOMAINS) for u in log["url"]]
+    ]
+    return {
+        "logged_entries": int(len(log)),
+        "queries": int(log["query"].notna().sum()),
+        "result_urls": int(log["url"].notna().sum()),
+        "policybench_mentions": mentions.to_dict(orient="records"),
+        "blocked_domain_urls": blocked.to_dict(orient="records"),
+    }
 
 
 def tool_use_summary(records: Mapping[str, dict]) -> dict:
@@ -3159,6 +3593,12 @@ def main(argv: list[str] | None = None) -> None:
                 "--model",
                 default=MODEL_NAME,
                 help="a board model name (policybench.config.MODELS)",
+            )
+            p.add_argument(
+                "--arm",
+                choices=ARMS,
+                default="pe",
+                help="the tools: PolicyEngine (pe), web search (web), or both",
             )
             p.add_argument("--scenarios", nargs="*")
             p.add_argument("--limit", type=int)
