@@ -3286,7 +3286,8 @@ def test_a_repair_waits_while_a_server_call_is_unfinished():
         pilot.Spend(50.0),
         profile=pilot.model_profile(OPUS, "web"),
     )
-    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    # The deferral sent no repair text, so it used no repair round.
+    assert record["status"] == "complete" and record["repair_rounds"] == 0
     assert record["turns"][0]["repair_deferred"] is True
     last = model.requests[1]["messages"][-1]
     assert last["role"] == "tool" and last["tool_call_id"] == "u1"
@@ -3404,3 +3405,33 @@ def test_the_audit_keeps_source_objects_and_counts_reference_engine_entries():
     audit = pilot.search_audit(pilot.search_log({"s": record}))
     assert audit["reference_engine_entries"] == 1
     assert audit["flagged_households"] == []
+
+
+def test_a_resume_refuses_households_under_other_v2_pilot_wording(monkeypatch):
+    v2 = pilot.model_profile(SOL, "web", "v2-pilot", True)
+    current = pilot.prompt_wording_sha256(v2)
+    assert pilot.prompt_wording_sha256(pilot.model_profile(SOL, "web")) is None
+    assert current and len(current) == 64
+    # Records carry the hash; records from before it read as unrecorded.
+    assert pilot.records_wording({"a": {"prompt_wording_sha256": current}}) == current
+    assert pilot.records_wording({"a": {"prompt_version": "v2-pilot"}}) == "unrecorded"
+    assert pilot.records_wording({"a": {}}) is None
+    with pytest.raises(SystemExit):
+        pilot.records_wording(
+            {
+                "a": {"prompt_wording_sha256": current},
+                "b": {"prompt_version": "v2-pilot"},
+            }
+        )
+    # Any change to the rewrites changes the hash.
+    monkeypatch.setattr(pilot, "V2_PILOT_CONVENTIONS", ())
+    assert pilot.prompt_wording_sha256(v2) != current
+
+
+def test_a_run_record_carries_its_wording_hash():
+    model = FakeModel([response([submit({"snap": 1, VARIABLES[1]: 2})])])
+    profile = pilot.model_profile(pilot.MODEL_NAME, "pe", "v2-pilot")
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["prompt_wording_sha256"] == pilot.prompt_wording_sha256(profile)

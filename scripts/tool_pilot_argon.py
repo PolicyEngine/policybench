@@ -315,6 +315,18 @@ def v2_pilot_strings(value):
     return value
 
 
+def prompt_wording_sha256(profile: "ModelProfile") -> str | None:
+    """A hash of the v2-pilot rewrites a profile sends, so a resume cannot
+    add households under different wording; None for the board's own v1."""
+    if profile.prompt_version == "v1":
+        return None
+    wording = [
+        [pattern.pattern, text]
+        for pattern, text in (*V2_PILOT_DEFINITIONS, *V2_PILOT_CONVENTIONS)
+    ]
+    return hashlib.sha256(json.dumps(wording).encode()).hexdigest()
+
+
 def refuse_policyengine(label: str, value) -> None:
     """A v2-pilot guard: no board text the model sees may name PolicyEngine."""
     text = value if isinstance(value, str) else json.dumps(value)
@@ -1748,6 +1760,7 @@ def run_household(
         "variables": variables,
         "board_prompt_sha256": board_prompt_sha256,
         "prompt_version": profile.prompt_version,
+        "prompt_wording_sha256": prompt_wording_sha256(profile),
         "benchmark_search_rule": profile.benchmark_search_rule,
         "sent_board_prompt_sha256": sent_board_prompt_sha256,
         "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
@@ -2136,13 +2149,14 @@ def run_household(
             if repair_rounds >= MAX_REPAIR_ROUNDS:
                 record["status"] = "incomplete"
                 break
-            repair_rounds += 1
             answer_variables = still
             if turn.unfinished_server_calls:
-                # Only tool results may follow an unfinished server call; the
-                # next reply is still merged for the outputs listed here.
+                # Only tool results may follow an unfinished server call. The
+                # next reply is merged for the outputs listed here; no repair
+                # round is used, since no repair text was sent.
                 turn_record["repair_deferred"] = True
                 continue
+            repair_rounds += 1
             conversation.add_user(repair_text(still))
         else:
             record["status"] = "turn_limit"
@@ -2428,6 +2442,22 @@ def records_prompt(records: Mapping[str, dict]) -> tuple[str, bool]:
     return setups.pop() if setups else ("v1", False)
 
 
+def records_wording(records: Mapping[str, dict]) -> str | None:
+    """The one v2-pilot wording hash a run directory's records share. v2-pilot
+    records written before the hash existed read as "unrecorded", so a resume
+    into them is refused rather than mixed."""
+    hashes = {
+        r.get(
+            "prompt_wording_sha256",
+            "unrecorded" if r.get("prompt_version", "v1") != "v1" else None,
+        )
+        for r in records.values()
+    }
+    if len(hashes) > 1:
+        raise SystemExit(f"records under more than one prompt wording: {hashes}")
+    return hashes.pop() if hashes else None
+
+
 def records_arm(records: Mapping[str, dict]) -> str:
     """The one arm a run directory's records belong to; records written
     before the web arms are the PE tool's."""
@@ -2478,6 +2508,11 @@ def command_run(args) -> None:
             f"{households_dir} holds records with prompt setup "
             f"{records_prompt(previous)}, not {setup}"
         )
+    if previous and records_wording(previous) != prompt_wording_sha256(profile):
+        raise SystemExit(
+            f"{households_dir} holds records sent under other v2-pilot wording "
+            f"({records_wording(previous)}); use a fresh --out-dir"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -2492,6 +2527,7 @@ def command_run(args) -> None:
         "model_id": profile.model_id,
         "arm": profile.arm,
         "prompt_version": profile.prompt_version,
+        "prompt_wording_sha256": prompt_wording_sha256(profile),
         "benchmark_search_rule": profile.benchmark_search_rule,
         "v2_pilot_definitions": [
             {"v1": pattern.pattern, "v2_pilot": text}
@@ -2771,6 +2807,11 @@ def command_score(args) -> None:
     if profile.uses_web:
         searches.to_csv(out / "searches.csv", index=False)
         audit = search_audit(searches, results_visible=profile.provider != "gemini")
+        if not audit["results_visible"]:
+            audit["caveat"] = (
+                "This provider returns no result URLs, so flags and the unflagged "
+                "score rest on queries alone; what the model read cannot be audited."
+            )
         clean = [sid for sid in wide.index if sid not in audit["flagged_households"]]
         audit["weighted_exact_unflagged"] = {
             "households": len(clean),
@@ -2786,11 +2827,7 @@ def command_score(args) -> None:
             f"{audit['reference_engine_entries']}"
         )
         if not audit["results_visible"]:
-            print(
-                "CAVEAT: this provider returns no result URLs, so flags and the "
-                "unflagged score rest on queries alone; what the model read "
-                "cannot be audited."
-            )
+            print(f"CAVEAT: {audit['caveat']}")
     (out / "score.json").write_text(
         json.dumps(
             {
