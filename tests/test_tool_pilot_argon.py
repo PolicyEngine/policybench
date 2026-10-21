@@ -3042,3 +3042,12 @@ def test_a_multi_turn_households_cost_is_its_tokens_plus_its_searches(
         totals["token_cost_usd"] + totals["search_cost_usd"]
     )
     assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+
+
+def test_the_audit_of_an_arm_that_never_searched_is_empty_not_an_error():
+    record = _record("s", ["snap"], {"snap": 1.0})
+    log = pilot.search_log({"s": record})
+    assert log.empty and "scenario_id" in log.columns
+    audit = pilot.search_audit(log)
+    assert audit["flagged_households"] == [] and audit["logged_entries"] == 0
+    json.dumps(audit, allow_nan=False)

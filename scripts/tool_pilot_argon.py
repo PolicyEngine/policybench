@@ -2759,9 +2759,15 @@ def search_audit(log: pd.DataFrame, results_visible: bool = True) -> dict:
         " ".join(v for v in row if isinstance(v, str))
         for row in log[["query", "url", "title", "code"]].itertuples(index=False)
     ]
-    mentions = log[[touches(t, ("policybench",)) for t in text]]
-    blocked = log[
-        [isinstance(u, str) and touches(u, BLOCKED_DOMAINS) for u in log["url"]]
+    # Boolean masks as arrays: an empty list would select no columns, not rows.
+    mentions = log.loc[
+        pd.array([touches(t, ("policybench",)) for t in text], dtype="boolean")
+    ]
+    blocked = log.loc[
+        pd.array(
+            [isinstance(u, str) and touches(u, BLOCKED_DOMAINS) for u in log["url"]],
+            dtype="boolean",
+        )
     ]
 
     def records(frame: pd.DataFrame) -> list[dict]:
