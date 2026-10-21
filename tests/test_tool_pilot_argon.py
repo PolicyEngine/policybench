@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -934,6 +934,7 @@ def test_apply_reference_input_sets_removes_and_replaces_units():
     first=st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=40),
     shift=st.floats(min_value=-0.5, max_value=0.5),
 )
+@example(first=[0.0, 0.125], shift=1e-12)  # once landed in no category
 def test_paired_bootstrap_intervals_bracket_the_means(first, shift):
     """Invariant: each interval contains its point estimate, and identical arms
     give a zero difference interval."""
@@ -2243,3 +2244,951 @@ def test_an_uncomputable_main_situation_is_noted_not_called_a_disagreement():
     )
     assert settled["category"] == "wrong_variable_or_period"
     assert settled["detail"].startswith("the main situation could not be computed")
+
+
+# ---------------------------------------------------------------------------
+# Web arms: the provider's own web search in place of, or beside, the tool.
+# ---------------------------------------------------------------------------
+
+# The notices the published pilot runs recorded (tool_notice_sha256 in every
+# household record of results/run, gpt-6-sol/run and claude-opus-5.5/run).
+PE_NOTICE_SHA256 = {
+    "tool": "27c97c6dfddfefc856aca123f93e22d7aa81ce73ab7250cec3f977d6cf76d78d",
+    "json": "82a32a6f59d64c895241e01bd319d049635030c54ef8240704930898c1e1a9a5",
+}
+
+
+def _sha(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_the_pe_arm_keeps_the_notices_the_published_runs_used():
+    assert _sha(pilot.TOOL_NOTICE) == PE_NOTICE_SHA256["tool"]
+    assert _sha(pilot.JSON_TOOL_NOTICE) == PE_NOTICE_SHA256["json"]
+    for name, contract in ((pilot.MODEL_NAME, "tool"), (SOL, "tool"), (OPUS, "json")):
+        assert _sha(pilot.model_profile(name).notice) == PE_NOTICE_SHA256[contract]
+
+
+def test_web_notices_name_search_and_keep_the_answer_instruction():
+    argon, opus = (
+        pilot.model_profile(pilot.MODEL_NAME, "web"),
+        pilot.model_profile(OPUS, "web"),
+    )
+    assert argon.notice == pilot.WEB_NOTICE and opus.notice == pilot.JSON_WEB_NOTICE
+    assert "calculate_household" not in pilot.WEB_NOTICE + pilot.JSON_WEB_NOTICE
+    assert pilot.WEB_NOTICE.endswith(pilot.TOOL_NOTICE.split("8 turns. ")[1])
+    assert pilot.JSON_WEB_NOTICE.endswith(pilot.JSON_TOOL_NOTICE.split("8 turns. ")[1])
+    # Web+PE: the PE notice with web search named in its opening sentence.
+    for both, pe in (
+        (pilot.WEB_TOOL_NOTICE, pilot.TOOL_NOTICE),
+        (pilot.JSON_WEB_TOOL_NOTICE, pilot.JSON_TOOL_NOTICE),
+    ):
+        assert both != pe and "web search" in both
+        assert both.split("function. ", 1)[1] == pe.split("function. ", 1)[1]
+    labels = {arm: pilot.model_profile(SOL, arm).arm2_label for arm in pilot.ARMS}
+    assert labels == {
+        "pe": "gpt-6-sol+pe-tool",
+        "web": "gpt-6-sol+web",
+        "web+pe": "gpt-6-sol+web+pe-tool",
+    }
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "search")
+
+
+def gemini_searches(*invocations):
+    return {
+        "server_side_tool_invocations": [
+            {"tool_type": "GOOGLE_SEARCH_WEB", "id": i, "args": {"queries": q}}
+            for i, q in invocations
+        ]
+    }
+
+
+def with_fields(resp, fields=None, server_tool_use=None):
+    if fields is not None:
+        resp.choices[0].message.provider_specific_fields = fields
+    if server_tool_use is not None:
+        resp.usage.server_tool_use = SimpleNamespace(
+            web_search_requests=server_tool_use
+        )
+    return resp
+
+
+def test_a_gemini_web_arm_offers_search_and_the_answer_and_bills_each_query():
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web")
+    model = FakeModel(
+        [
+            with_fields(
+                response([submit({"snap": 2553, VARIABLES[1]: 0})]),
+                gemini_searches(("g1", ["co snap 2026", "", "co standard deduction"])),
+            )
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, spend, profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web"
+    (request,) = model.requests
+    assert request["tools"][0] == {"googleSearch": {}}
+    assert [t["function"]["name"] for t in request["tools"][1:]] == ["submit_outputs"]
+    assert request["tool_choice"] == "required"
+    assert request["include_server_side_tool_invocations"] is True
+    assert request["messages"][0]["content"].endswith(pilot.WEB_NOTICE)
+    totals = record["totals"]
+    # Two non-empty queries at $14 per 1,000, on top of the tokens' $0.004.
+    assert totals["web_searches"] == 2
+    assert totals["search_cost_usd"] == pytest.approx(0.028)
+    assert totals["token_cost_usd"] == pytest.approx((1000 * 2 + 200 * 10) / 1e6)
+    assert totals["cost_usd"] == pytest.approx(0.032)
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+    assert totals["tool_calls"] == 0
+    (search,) = record["turns"][0]["searches"]
+    assert search["queries"] == ["co snap 2026", "co standard deduction"]
+
+
+def test_a_gemini_invocation_is_billed_once_however_often_it_comes_back():
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web")
+    model = FakeModel(
+        [
+            with_fields(
+                response([submit({"snap": 10})]), gemini_searches(("g1", ["a"]))
+            ),
+            with_fields(
+                response([submit({VARIABLES[1]: 5}, "s2")]),
+                gemini_searches(("g1", ["a"]), ("g2", ["b", "c"])),
+            ),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["totals"]["web_searches"] == 3
+    repeats = [s["repeat"] for t in record["turns"] for s in t["searches"]]
+    assert repeats == [False, True, False]
+
+
+def web_search_call(call_id, action):
+    return SimpleNamespace(
+        type="web_search_call", id=call_id, status="completed", action=action
+    )
+
+
+def test_a_responses_web_and_tool_arm_sends_native_search_beside_the_functions():
+    profile = pilot.model_profile(SOL, "web+pe")
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call(
+                        "ws_1", SimpleNamespace(type="search", query="co snap")
+                    ),
+                    sol_calculate("call_a"),
+                ],
+                "resp_1",
+            ),
+            responses_response(
+                [
+                    web_search_call(
+                        "ws_2", SimpleNamespace(type="open_page", url="https://x.gov")
+                    ),
+                    sol_submit({"snap": 2553, VARIABLES[1]: 0}),
+                ],
+                "resp_2",
+            ),
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, spend, profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe"
+    first, second = model.requests
+    assert first["tools"][0] == {
+        "type": "web_search",
+        "filters": {"blocked_domains": list(pilot.BLOCKED_DOMAINS)},
+    }
+    assert [t.get("name") for t in first["tools"][1:]] == [
+        pilot.TOOL_NAME,
+        "submit_outputs",
+    ]
+    assert first["input"].endswith(pilot.WEB_TOOL_NOTICE)
+    # Only the calculation gets an output; the provider ran the search.
+    (output,) = second["input"]
+    assert output["type"] == "function_call_output" and output["call_id"] == "call_a"
+    totals = record["totals"]
+    assert totals["web_searches"] == 2 and totals["tool_calls"] == 1
+    assert totals["search_cost_usd"] == pytest.approx(0.02)
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+    kinds = [s["kind"] for t in record["turns"] for s in t["searches"]]
+    assert kinds == ["search", "open_page"]
+
+
+def test_an_anthropic_web_arm_answers_in_json_and_skips_server_calls():
+    profile = pilot.model_profile(OPUS, "web")
+    model = FakeModel(
+        [
+            with_fields(
+                response(
+                    [tool_call("web_search", {"query": "co snap"}, "srvtoolu_1")],
+                    content=json_answer({"snap": 2553, VARIABLES[1]: 0}),
+                ),
+                {
+                    "web_search_results": [
+                        {
+                            "type": "web_search_tool_result",
+                            "tool_use_id": "srvtoolu_1",
+                            "content": [
+                                {"url": "https://cdhs.colorado.gov", "title": "SNAP"}
+                            ],
+                        }
+                    ]
+                },
+                server_tool_use=3,
+            )
+        ]
+    )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, spend, profile=profile
+    )
+    assert record["status"] == "complete"
+    assert record["predictions"] == {"snap": 2553.0, VARIABLES[1]: 0.0}
+    (request,) = model.requests
+    assert request["tools"] == [
+        {
+            "type": pilot.ANTHROPIC_WEB_SEARCH_TOOL,
+            "name": "web_search",
+            "blocked_domains": list(pilot.BLOCKED_DOMAINS),
+        }
+    ]
+    assert request["tool_choice"] == "auto"
+    assert request["messages"][0]["content"][0]["text"].endswith(pilot.JSON_WEB_NOTICE)
+    turn = record["turns"][0]
+    assert turn["calls"] == [] and turn["server_calls"][0]["id"] == "srvtoolu_1"
+    assert {(s["kind"], s.get("url")) for s in turn["searches"]} == {
+        ("web_search", None),
+        ("result", "https://cdhs.colorado.gov"),
+    }
+    # The usage's count bills, $10 per 1,000: three searches.
+    assert record["totals"]["web_searches"] == 3
+    assert record["totals"]["search_cost_usd"] == pytest.approx(0.03)
+    assert spend.spent_usd == pytest.approx(record["totals"]["cost_usd"])
+
+
+def server_only(call_id="srvtoolu_p", searches=1):
+    return with_fields(
+        response(
+            [tool_call("code_execution", {"code": "await web_search()"}, call_id)]
+        ),
+        server_tool_use=searches,
+    )
+
+
+def test_a_paused_search_turn_is_sent_back_unchanged():
+    model = FakeModel(
+        [server_only(), response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "complete" and record["pause_continuations"] == 1
+    assert record["turns"][0]["continued_after_pause"] is True
+    resent = model.requests[1]["messages"]
+    assert resent[-1]["role"] == "assistant"
+    assert not any(m["role"] == "tool" for m in resent)
+    assert record["totals"]["web_searches"] == 1
+
+
+def test_a_pause_still_unfinished_past_the_limit_ends_the_household():
+    """No text may follow an unfinished server call, so a pause that never
+    finishes ends the household rather than earning a nudge (a 400)."""
+    pauses = pilot.MAX_PAUSE_CONTINUATIONS
+    model = FakeModel([server_only(f"srvtoolu_{i}") for i in range(pauses + 1)])
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "incomplete" and record["pause_continuations"] == pauses
+    assert "still unfinished" in record["error"]
+    assert len(model.requests) == pauses + 1
+    for request in model.requests[1:]:
+        assert request["messages"][-1]["role"] == "assistant"
+
+
+def test_a_finished_search_with_no_answer_is_nudged_not_continued():
+    searched = with_fields(
+        response([tool_call("web_search", {"query": "q"}, "srvtoolu_1")]),
+        {
+            "web_search_results": [
+                {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1"}
+            ]
+        },
+        server_tool_use=1,
+    )
+    model = FakeModel(
+        [searched, response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    assert record["status"] == "complete" and record["pause_continuations"] == 0
+    assert record["turns"][0]["unfinished_server_calls"] == []
+    assert record["turns"][0]["search_only_turn"] is True
+    nudge = model.requests[1]["messages"][-1]["content"][0]["text"]
+    assert "JSON object" in nudge and "calculate_household" not in nudge
+
+
+def test_an_anthropic_web_and_tool_turn_runs_only_the_client_call():
+    model = FakeModel(
+        [
+            response(
+                [tool_call("web_search", {"query": "q"}, "srvtoolu_1"), calculate()]
+            ),
+            response([], content=json_answer({"snap": 2553, VARIABLES[1]: 0})),
+        ]
+    )
+    ran = []
+
+    def counting_tool(args):
+        ran.append(args)
+        return fake_tool(args)
+
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        counting_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete" and len(ran) == 1
+    tool_messages = [m for m in model.requests[1]["messages"] if m["role"] == "tool"]
+    assert [m["tool_call_id"] for m in tool_messages] == ["c1"]
+    assert [
+        t.get("name") or t["function"]["name"] for t in model.requests[0]["tools"]
+    ] == [
+        "web_search",
+        pilot.TOOL_NAME,
+    ]
+
+
+def test_a_web_arm_reply_with_no_function_is_nudged_to_answer():
+    model = FakeModel(
+        [
+            response([], content="Let me look this up."),
+            response([submit({"snap": 1, VARIABLES[1]: 2})]),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(pilot.MODEL_NAME, "web"),
+    )
+    assert record["status"] == "complete"
+    nudge = model.requests[1]["messages"][-1]["content"]
+    assert nudge == "Call submit_outputs with your final answers."
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    st.lists(
+        st.lists(
+            st.tuples(
+                st.sampled_from(["g1", "g2", "g3", "g4"]),
+                st.lists(st.sampled_from(["", "q1", "q2"]), max_size=4),
+            ),
+            max_size=3,
+        ),
+        max_size=6,
+    )
+)
+def test_gemini_bills_each_invocation_once_with_its_nonempty_queries(batches):
+    """Invariant: over any sequence of responses, the billed count is the
+    non-empty queries of each invocation id's first appearance."""
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web")
+    seen: set[str] = set()
+    billed = 0
+    first_queries: dict[str, list[str]] = {}
+    for batch in batches:
+        resp = with_fields(response([]), gemini_searches(*batch))
+        turn = pilot.ChatConversation("p").read(resp, None)
+        log, count = pilot.turn_searches(resp, turn, profile, seen)
+        billed += count
+        assert len(log) == len(batch)
+        for invocation_id, queries in batch:
+            first_queries.setdefault(invocation_id, [q for q in queries if q])
+    assert billed == sum(len(q) for q in first_queries.values())
+    assert seen == set(first_queries)
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    st.sampled_from(
+        [(pilot.MODEL_NAME, "gemini"), (SOL, "openai"), (OPUS, "anthropic")]
+    ),
+    st.sampled_from(["web", "web+pe"]),
+    st.integers(0, 40),
+)
+def test_a_households_cost_is_its_tokens_plus_its_searches_at_list(model_arm, arm, n):
+    """Invariant: cost_usd = token_cost_usd + searches x list price / 1,000, and
+    the shared spend counter saw exactly cost_usd."""
+    name, provider = model_arm
+    profile = pilot.model_profile(name, arm)
+    values = {"snap": 1, VARIABLES[1]: 2}
+    if provider == "openai":
+        items = [
+            web_search_call(f"ws_{i}", SimpleNamespace(type="search", query="q"))
+            for i in range(n)
+        ]
+        model = FakeResponses([responses_response([*items, sol_submit(values)], "r")])
+    elif provider == "gemini":
+        model = FakeModel(
+            [
+                with_fields(
+                    response([submit(values)]),
+                    gemini_searches(*[(f"g{i}", ["q"]) for i in range(n)]),
+                )
+            ]
+        )
+    else:
+        model = FakeModel(
+            [with_fields(response([], content=json_answer(values)), server_tool_use=n)]
+        )
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, spend, profile=profile
+    )
+    totals = record["totals"]
+    assert record["status"] == "complete" and totals["web_searches"] == n
+    assert totals["search_cost_usd"] == pytest.approx(
+        n * pilot.SEARCH_USD_PER_1K[provider] / 1000
+    )
+    assert totals["cost_usd"] == pytest.approx(
+        totals["token_cost_usd"] + totals["search_cost_usd"]
+    )
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+
+
+def test_the_pe_arm_bills_no_searches_and_its_cost_is_its_tokens():
+    model = FakeModel([response([submit({"snap": 1, VARIABLES[1]: 2})])])
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0)
+    )
+    totals = record["totals"]
+    assert "searches" not in record["turns"][0]
+    assert totals["web_searches"] == 0 and totals["search_cost_usd"] == 0
+    assert totals["cost_usd"] == totals["token_cost_usd"]
+
+
+def test_the_search_audit_flags_the_benchmark_and_blocked_domains():
+    record = _record("s", ["snap"], {"snap": 1.0})
+    record["turns"][0]["index"] = 0
+    record["turns"][0]["searches"] = [
+        {"kind": "search", "queries": ["policybench scenario_t snap"]},
+        {"kind": "result", "url": "https://github.com/PolicyEngine/x", "title": "x"},
+        {"kind": "result", "url": "https://www.irs.gov/a", "title": "IRS"},
+    ]
+    log = pilot.search_log({"s": record})
+    assert list(log["kind"]) == ["search", "result", "result"]
+    audit = pilot.search_audit(log)
+    assert audit["queries"] == 1 and audit["result_urls"] == 2
+    assert [m["query"] for m in audit["policybench_mentions"]] == [
+        "policybench scenario_t snap"
+    ]
+    assert [b["url"] for b in audit["blocked_domain_urls"]] == [
+        "https://github.com/PolicyEngine/x"
+    ]
+
+
+def test_records_name_one_arm_and_old_records_are_the_pe_tools():
+    assert pilot.records_arm({"a": {}, "b": {"arm": "pe"}}) == "pe"
+    assert pilot.records_arm({"a": {"arm": "web"}}) == "web"
+    with pytest.raises(SystemExit):
+        pilot.records_arm({"a": {"arm": "web"}, "b": {}})
+
+
+def test_every_pilot_model_has_a_web_search_tool():
+    for name in (pilot.MODEL_NAME, SOL, OPUS):
+        assert pilot.web_search_tool(pilot.model_profile(name, "web"))
+
+
+def _keep_litellm_gemini_config(monkeypatch):
+    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
+        VertexGeminiConfig,
+    )
+
+    for name in (
+        "_resolve_search_tool_conflict",
+        "_drop_search_tools_mixed_with_functions",
+    ):
+        monkeypatch.setattr(VertexGeminiConfig, name, VertexGeminiConfig.__dict__[name])
+
+
+def test_the_gemini_patch_keeps_search_beside_functions(monkeypatch):
+    from litellm.utils import get_optional_params
+
+    _keep_litellm_gemini_config(monkeypatch)
+    function = calculate_tool = pilot.calculate_tool_schema()
+
+    def tool_keys():
+        params = get_optional_params(
+            model="gemini-4-argon",
+            custom_llm_provider="gemini",
+            tools=[{"googleSearch": {}}, function],
+            tool_choice="required",
+            include_server_side_tool_invocations=True,
+        )
+        return sorted(k for t in params.get("tools", []) for k in t)
+
+    if importlib.metadata.version("litellm") != pilot.GEMINI_SEARCH_PATCH_LITELLM:
+        pytest.skip("the patch refuses other litellm versions")
+    assert tool_keys() == ["function_declarations"]  # litellm drops search
+    pilot.allow_gemini_search_with_functions()
+    assert tool_keys() == ["function_declarations", "googleSearch"]
+    assert calculate_tool["function"]["name"] == pilot.TOOL_NAME
+
+
+def test_the_gemini_patch_refuses_another_litellm(monkeypatch):
+    _keep_litellm_gemini_config(monkeypatch)
+    monkeypatch.setattr(pilot.importlib.metadata, "version", lambda name: "9.9.9")
+    with pytest.raises(SystemExit):
+        pilot.allow_gemini_search_with_functions()
+
+
+def as_data(value):
+    if isinstance(value, SimpleNamespace):
+        return {k: as_data(v) for k, v in vars(value).items()}
+    if isinstance(value, dict):
+        return {k: as_data(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [as_data(v) for v in value]
+    return value
+
+
+def test_a_deferred_server_result_moves_to_the_message_that_called_it():
+    """Live 2026-10-20: left where it arrives, litellm drops the deferred
+    result from later requests and the API refuses the third with a 400."""
+    from litellm.litellm_core_utils.prompt_templates.factory import (
+        anthropic_messages_pt,
+    )
+
+    deferred = response(
+        [tool_call("code_execution", {"code": "x"}, "srvtoolu_d"), calculate("c1")]
+    )
+    result = {
+        "type": "code_execution_tool_result",
+        "tool_use_id": "srvtoolu_d",
+        "content": {"type": "code_execution_result", "stdout": "ok"},
+    }
+    resumed = with_fields(response([calculate("c2")]), {"tool_results": [result]})
+    model = FakeModel(
+        [
+            deferred,
+            resumed,
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete"
+    assert record["turns"][0]["unfinished_server_calls"] == ["srvtoolu_d"]
+    # The second request carries only the client result after the deferral.
+    assert model.requests[1]["messages"][-1]["role"] == "tool"
+    # litellm's own conversion of the conversation, as plain data (litellm
+    # messages are dicts; the fakes here are namespaces).
+    converted = anthropic_messages_pt(
+        as_data(record["messages"]), model="claude-opus-5-5", llm_provider="anthropic"
+    )
+    first_reply = [m for m in converted if m["role"] == "assistant"][0]["content"]
+    kinds = [(b["type"], b.get("id") or b.get("tool_use_id")) for b in first_reply]
+    assert kinds[:2] == [
+        ("server_tool_use", "srvtoolu_d"),
+        ("code_execution_tool_result", "srvtoolu_d"),
+    ]
+    assert ("tool_use", "c1") in kinds
+
+
+def test_no_text_follows_a_deferred_server_call_at_the_cap():
+    cap = 1
+    model = FakeModel(
+        [
+            response(
+                [tool_call("web_search", {"query": "q"}, "srvtoolu_1"), calculate()]
+            ),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(OPUS, "web+pe"),
+    )
+    assert record["status"] == "complete"
+    assert record["turns"][0]["cap_notice_withheld"] is True
+    assert model.requests[1]["messages"][-1]["role"] == "tool"
+
+
+def test_a_continuation_goes_back_without_a_cache_mark():
+    paused = server_only()
+    # A paused turn can carry text before its search; marking it would turn
+    # that text into a block list, which litellm rebuilds in another order.
+    paused.choices[0].message.content = "Let me look up the 2026 figures."
+    model = FakeModel(
+        [paused, response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))]
+    )
+    pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "web"),
+    )
+    last = model.requests[1]["messages"][-1]
+    assert last["role"] == "assistant" and "cache_control" not in json.dumps(last)
+    assert last["content"] == "Let me look up the 2026 figures."
+
+
+def test_search_only_turns_count_toward_the_cap_and_then_force_the_answer():
+    cap = 2
+    searching = [
+        responses_response(
+            [web_search_call(f"ws_{i}", SimpleNamespace(type="search", query="q"))],
+            f"r{i}",
+        )
+        for i in range(cap)
+    ]
+    model = FakeResponses(
+        searching
+        + [responses_response([sol_submit({"snap": 1, VARIABLES[1]: 2})], "z")]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        turn_cap=cap,
+        profile=pilot.model_profile(SOL, "web"),
+    )
+    assert record["status"] == "complete" and record["search_only_turns"] == cap
+    assert record["cap_hit"] and record["tool_turns"] == 0
+    assert model.requests[cap]["tool_choice"] == {
+        "type": "function",
+        "name": "submit_outputs",
+    }
+
+
+def test_openai_asks_for_and_logs_each_searchs_sources():
+    action = SimpleNamespace(
+        type="search",
+        query="q",
+        sources=[SimpleNamespace(type="url", url="https://www.irs.gov/a")],
+    )
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call("ws_1", action),
+                    web_search_call(
+                        "ws_2", SimpleNamespace(type="open_page", url="https://x.org")
+                    ),
+                    sol_submit({"snap": 1, VARIABLES[1]: 2}),
+                ],
+                "r",
+            )
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(SOL, "web"),
+    )
+    assert model.requests[0]["include"] == [pilot.OPENAI_SEARCH_SOURCES]
+    log = record["turns"][0]["searches"]
+    assert {e["url"] for e in log if e["kind"] == "source"} == {"https://www.irs.gov/a"}
+    totals = record["totals"]
+    assert totals["web_searches"] == 2 and totals["web_search_actions"] == 1
+
+
+def test_a_json_reply_beside_an_unknown_call_gets_its_result_then_a_nudge():
+    model = FakeModel(
+        [
+            response(
+                [tool_call("lookup", {"q": 1}, "u1")], content="Let me think about it."
+            ),
+            response([], content=json_answer({"snap": 1, VARIABLES[1]: 2})),
+        ]
+    )
+    record = run_opus(model)
+    assert record["status"] == "complete"
+    messages = model.requests[1]["messages"]
+    assert messages[-2]["role"] == "tool" and messages[-2]["tool_call_id"] == "u1"
+    assert "unknown function" in messages[-2]["content"]
+    assert messages[-1]["role"] == "user"
+
+
+def test_score_writes_a_strict_json_audit_and_flags_benchmark_searches(tmp_path):
+    import argparse
+
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    households = tmp_path / "households"
+    households.mkdir()
+    for sid, query in (
+        ("scenario_000", "policybench scenario_000"),
+        ("scenario_001", "irs 2026 standard deduction"),
+    ):
+        variables = board["variables"][sid]
+        record = _record(
+            sid, variables, {v: float(reference[(sid, v)]) for v in variables}
+        )
+        record["model"], record["arm"] = SOL, "web"
+        record["turns"][0].update(
+            index=0,
+            searches=[
+                {"kind": "search", "queries": [query]},
+                {"kind": "open_page", "url": "https://github.com/x"}
+                if sid == "scenario_001"
+                else {"kind": "source", "url": "https://www.irs.gov"},
+            ],
+        )
+        (households / f"{sid}.json").write_text(json.dumps(record))
+    pilot.command_score(argparse.Namespace(out_dir=str(tmp_path), complete_only=False))
+    text = (tmp_path / "score.json").read_text()
+    score = json.loads(text, parse_constant=lambda c: pytest.fail(f"bare {c}"))
+    audit = score["search_audit"]
+    assert audit["flagged_households"] == ["scenario_000", "scenario_001"]
+    assert audit["weighted_exact_unflagged"]["households"] == 0
+    assert audit["results_visible"] is True
+    assert (tmp_path / "searches.csv").exists()
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    st.lists(st.integers(0, 6), min_size=1, max_size=3),
+    st.booleans(),
+)
+def test_a_multi_turn_households_cost_is_its_tokens_plus_its_searches(
+    per_turn, truncate_first
+):
+    """Invariant across repair turns and a truncated-and-retried turn: cost is
+    tokens plus every billed search, and the spend counter saw exactly that."""
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web")
+    responses_, n = [], 0
+    for index, searches in enumerate(per_turn):
+        # Every turn but the last answers nothing, so each earns a repair
+        # and the household completes on the last.
+        values = {} if index < len(per_turn) - 1 else {"snap": 1, VARIABLES[1]: 2}
+        invocations = [(f"g{index}_{k}", ["q"]) for k in range(searches)]
+        if index == 0 and truncate_first:
+            cut = with_fields(response([]), gemini_searches(("cut", ["q", "r"])))
+            cut.choices[0].finish_reason = "length"
+            responses_.append(cut)
+            n += 2
+        responses_.append(
+            with_fields(
+                response([submit(values, f"s{index}")]), gemini_searches(*invocations)
+            )
+        )
+        n += searches
+    spend = pilot.Spend(50.0)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        FakeModel(responses_),
+        spend,
+        profile=profile,
+    )
+    totals = record["totals"]
+    assert totals["web_searches"] == n
+    assert totals["search_cost_usd"] == pytest.approx(n * 14 / 1000)
+    assert totals["cost_usd"] == pytest.approx(
+        totals["token_cost_usd"] + totals["search_cost_usd"]
+    )
+    assert spend.spent_usd == pytest.approx(totals["cost_usd"])
+
+
+def test_the_audit_of_an_arm_that_never_searched_is_empty_not_an_error():
+    record = _record("s", ["snap"], {"snap": 1.0})
+    log = pilot.search_log({"s": record})
+    assert log.empty and "scenario_id" in log.columns
+    audit = pilot.search_audit(log)
+    assert audit["flagged_households"] == [] and audit["logged_entries"] == 0
+    json.dumps(audit, allow_nan=False)
+
+
+# ---------------------------------------------------------------------------
+# The v2-pilot prompt and the benchmark-search rule.
+# ---------------------------------------------------------------------------
+
+
+def _board_part(prompt: str, profile) -> str:
+    assert prompt.endswith(profile.notice)
+    return prompt[: len(prompt) - len(profile.notice)]
+
+
+def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
+    board = pilot.load_board()
+    for sid in sorted(board["scenarios"]):
+        for name in (SOL, OPUS):
+            v1 = pilot.model_profile(name, "web")
+            v2 = pilot.model_profile(name, "web", "v2-pilot", True)
+            old, _ = pilot.build_initial_request(
+                board["scenarios"][sid], board["variables"][sid], v1
+            )
+            new, kwargs = pilot.build_initial_request(
+                board["scenarios"][sid], board["variables"][sid], v2
+            )
+            old, new = _board_part(old, v1), _board_part(new, v2)
+            assert "policyengine" not in new.lower()
+            assert "policyengine" not in json.dumps(kwargs["_answer_tool"]).lower()
+            # Only the four definition lines differ.
+            old_lines, new_lines = old.splitlines(), new.splitlines()
+            assert len(old_lines) == len(new_lines)
+            changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
+            federal = "- federal_income_tax_before_refundable_credits:"
+            assert all("PolicyEngine" in a or a.startswith(federal) for a, _ in changed)
+            assert len(changed) == old.count("PolicyEngine") + (federal in old)
+            # d1263: the v2 prompt states the rate-schedule convention.
+            if federal in old:
+                assert "section 1 tax rate schedules" in new
+
+
+def test_v2_pilot_keeps_each_persons_label_in_their_definition():
+    text = (
+        "- spouse_medicaid_eligible: whether Spouse is eligible for Medicaid "
+        "under PolicyEngine rules, not whether they are currently enrolled "
+        "(1 if yes, 0 if no)"
+    )
+    rewritten = pilot.v2_pilot_text(text)
+    assert rewritten.startswith(
+        "- spouse_medicaid_eligible: whether Spouse is eligible"
+    )
+    assert "PolicyEngine" not in rewritten
+    # The Medicare Savings Programs are not Medicaid in the reference engine.
+    assert "Medicare Savings Programs (QMB, SLMB and QI)" in rewritten
+    assert "do not count" in rewritten
+
+
+def test_the_guard_refuses_a_definition_left_unrewritten(monkeypatch):
+    monkeypatch.setattr(pilot, "V2_PILOT_DEFINITIONS", ())
+    board = pilot.load_board()
+    with pytest.raises(ValueError, match="names PolicyEngine"):
+        pilot.build_initial_request(
+            board["scenarios"]["scenario_000"],
+            board["variables"]["scenario_000"],
+            pilot.model_profile(SOL, "web", "v2-pilot"),
+        )
+
+
+def test_the_school_meal_wording_matches_every_reference():
+    """The v2-pilot meal definitions say a household with no one aged 5 to 17
+    gets 0, and a universal-free-meals state's households get free meals."""
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    universal = {"CA", "CO", "MA", "ME", "MI", "MN", "NM", "NY", "VT"}
+    for sid, scenario in board["scenarios"].items():
+        people = [*scenario.adults, *scenario.children]
+        school_age = any(5 <= person.age <= 17 for person in people)
+        free = reference.get((sid, "free_school_meals_eligible"))
+        reduced = reference.get((sid, "reduced_price_school_meals_eligible"))
+        if not school_age:
+            assert free in (0, None) and reduced in (0, None), sid
+        elif scenario.state in universal:
+            assert free == 1 and reduced in (0, None), sid
+
+
+def test_the_benchmark_search_rule_rides_only_on_web_notices():
+    for arm in ("web", "web+pe"):
+        for name in (SOL, OPUS):
+            with_rule = pilot.model_profile(name, arm, "v2-pilot", True)
+            without = pilot.model_profile(name, arm, "v2-pilot")
+            assert with_rule.notice == without.notice + pilot.BENCHMARK_SEARCH_RULE
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "pe", "v2-pilot", True)
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "web", "v3")
+    assert pilot.model_profile(SOL, "pe", "v2-pilot").notice == pilot.TOOL_NOTICE
+    labels = {
+        pilot.model_profile(SOL, "web").arm2_label,
+        pilot.model_profile(SOL, "web", "v2-pilot").arm2_label,
+        pilot.model_profile(SOL, "web", "v2-pilot", True).arm2_label,
+    }
+    assert labels == {
+        "gpt-6-sol+web",
+        "gpt-6-sol+web@v2-pilot",
+        "gpt-6-sol+web@v2-pilot+no-benchmark-search",
+    }
+
+
+def test_a_v2_pilot_repair_tool_names_policyengine_nowhere():
+    board = pilot.load_board()
+    sid = "scenario_001"
+    variables = board["variables"][sid]
+    meals = "free_school_meals_eligible"
+    first = {v: 0 for v in variables if v != meals}
+    model = FakeModel([response([submit(first)]), response([submit({meals: 0}, "s2")])])
+    record = pilot.run_household(
+        board["scenarios"][sid],
+        variables,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(pilot.MODEL_NAME, "pe", "v2-pilot"),
+    )
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["prompt_version"] == "v2-pilot"
+    assert record["sent_board_prompt_sha256"] != record["board_prompt_sha256"]
+    for request in model.requests:
+        answer = [
+            t for t in request["tools"] if t["function"]["name"] == "submit_outputs"
+        ]
+        assert "policyengine" not in json.dumps(answer).lower()
+
+
+def test_records_name_one_prompt_setup_and_old_records_are_v1():
+    assert pilot.records_prompt({"a": {}, "b": {"prompt_version": "v1"}}) == (
+        "v1",
+        False,
+    )
+    assert pilot.records_prompt(
+        {"a": {"prompt_version": "v2-pilot", "benchmark_search_rule": True}}
+    ) == ("v2-pilot", True)
+    with pytest.raises(SystemExit):
+        pilot.records_prompt({"a": {"prompt_version": "v2-pilot"}, "b": {}})

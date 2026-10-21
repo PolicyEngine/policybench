@@ -11,7 +11,7 @@ writes only under --out-dir, never touches the run store, the snapshot, the
 cache or the dashboard, and labels its rows ``<model>+pe-tool`` (for example
 ``gemini-4-argon+pe-tool``) so no board export can take them for a board row.
 
-Arms, on the same 100 households:
+Arms, on the same 100 households (``run --arm`` picks arm 2's tools):
   1. No tools: the model's frozen board predictions (release
      dashboard-data-20261014), read from the snapshot and never re-run.
   2. PolicyEngine tool: the board's prompt and request settings for the model,
@@ -24,6 +24,12 @@ Arms, on the same 100 households:
      (reference_audit/2026-10-12-engine-upgrade/scripts/build_references_upgrade.py
      computes every reference on that system). The ``oracle`` subcommand checks
      that the reference situations reproduce every scored reference through it.
+     ``--arm web`` offers the provider's own web search in place of the tool,
+     and ``--arm web+pe`` offers both; rows are labeled ``<model>+web`` and
+     ``<model>+web+pe-tool``. Searches are logged per turn and priced at list
+     (SEARCH_USD_PER_1K) on top of their tokens; policybench.org and GitHub are
+     blocked where the provider allows it (BLOCKED_DOMAINS), and ``score``
+     writes searches.csv with an audit of any that touch the benchmark.
 
 The model writes JSON only. The tool parses it, checks every name against the
 engine's variable registry, and passes plain data to policyengine_us.Simulation
@@ -59,7 +65,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -138,6 +144,188 @@ JSON_TOOL_NOTICE = (
     "above. You may call it in up to 8 turns. Then give your final answers as the "
     "single JSON object described above."
 )
+
+# The arms ``run --arm`` takes. "pe" is arm 2 as run on 2026-10-14 and
+# 2026-10-15. "web" swaps the PolicyEngine tool for the provider's own web
+# search, and "web+pe" offers both.
+ARMS = ("pe", "web", "web+pe")
+ARM_SUFFIX = {"pe": "+pe-tool", "web": "+web", "web+pe": "+web+pe-tool"}
+
+_CALCULATE_OPENING = "You also have a `calculate_household` function."
+WEB_SENTENCE = "You also have web search, which searches the public web."
+WEB_NOTICE = (
+    "\n\n" + WEB_SENTENCE + " Then call `submit_outputs` exactly once with your "
+    "final answers, as instructed above."
+)
+JSON_WEB_NOTICE = (
+    "\n\n" + WEB_SENTENCE + " Then give your final answers as the single JSON "
+    "object described above."
+)
+# The PE notice with web search named in its opening sentence; the rest of it,
+# the tool's description and the turn cap, is unchanged.
+WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
+    notice.replace(
+        _CALCULATE_OPENING,
+        "You also have web search, which searches the public web, and a "
+        "`calculate_household` function.",
+    )
+    for notice in (TOOL_NOTICE, JSON_TOOL_NOTICE)
+)
+
+# Prompt versions ``run --prompt`` takes. "v1" is the board's prompt. "v2-pilot"
+# is the board's prompt with the four output definitions that name PolicyEngine
+# (Medicaid, CHIP, free and reduced-price school meals; d1705) rewritten in
+# neutral terms. It is a pilot stand-in for the v2 prompts, not the v2 board
+# wording. Each rewrite states the convention the reference follows where the
+# law alone would not settle it, read from policyengine-us 2.41.0, which the
+# convention reform leaves untouched for these outputs:
+# - is_in_k12_school treats everyone aged 5 to 17 as a K-12 student, and
+#   school_meal_net_subsidy is zero without one.
+# - school_meal_tier is free at or under 130% of poverty, with categorical
+#   eligibility, in a universal-free-meals state (CA, CO, MA, ME, MI, MN, NM,
+#   NY and VT in 2026), or where the state pays the reduced-price copay (NC);
+#   reduced price up to 185%.
+# - is_chip_eligible_child excludes anyone Medicaid-eligible, and chip_category
+#   includes CHIP coverage of pregnant women.
+# - is_medicaid_eligible counts medicaid_category's groups (children, adults,
+#   parents, pregnancy, SSI, senior or disabled, medically needy, buy-in and
+#   two waivers), not the Medicare Savings Programs, which are separate
+#   (gov/hhs/medicare/savings_programs). A first wording, "in any eligibility
+#   group", led GPT-6 Sol to count QI as Medicaid in the 2026-10-21 trial.
+PROMPT_VERSIONS = ("v1", "v2-pilot")
+V2_PILOT_DEFINITIONS = (
+    (
+        re.compile(
+            r"whether (.+?) is eligible for Medicaid under PolicyEngine rules, "
+            r"not whether they are currently enrolled \(1 if yes, 0 if no\)"
+        ),
+        "whether {who} is eligible for Medicaid in 2026 under federal and state "
+        "Medicaid rules, not whether they are currently enrolled; the Medicare "
+        "Savings Programs (QMB, SLMB and QI), which help only with Medicare costs, "
+        "do not count (1 if yes, 0 if no)",
+    ),
+    (
+        re.compile(
+            r"whether (.+?) is eligible for CHIP under PolicyEngine rules, "
+            r"not whether they are currently enrolled \(1 if yes, 0 if no\)"
+        ),
+        "whether {who} is eligible for CHIP (the Children's Health Insurance "
+        "Program, including any CHIP coverage the state gives pregnant women) in "
+        "2026 under federal and state rules, not whether they are currently "
+        "enrolled; someone eligible for Medicaid is not CHIP-eligible (1 if yes, "
+        "0 if no)",
+    ),
+    (
+        re.compile(
+            r"whether PolicyEngine returns positive annual free school meal support "
+            r"for the household \(1 if yes, 0 if no; reduced-price meals do not "
+            r"count as 1\)"
+        ),
+        "whether the household's children get free school meals in 2026: treat "
+        "everyone aged 5 to 17 as attending a public K-12 school that takes part "
+        "in the National School Lunch and School Breakfast Programs, and count "
+        "meals at no charge to the family, whether through federal free-meal "
+        "eligibility or a state program that makes meals free for all students "
+        "or pays the reduced-price charge (1 if yes, 0 if no; 0 if no one is "
+        "aged 5 to 17; reduced-price meals do not count as 1)",
+    ),
+    (
+        re.compile(
+            r"whether PolicyEngine returns positive annual reduced-price school meal "
+            r"support for the household \(1 if yes, 0 if no; free meals do not "
+            r"count as 1\)"
+        ),
+        "whether the household's children get reduced-price school meals in 2026: "
+        "treat everyone aged 5 to 17 as attending a public K-12 school that takes "
+        "part in the National School Lunch and School Breakfast Programs, and "
+        "count meals at the federal reduced price that no state program makes "
+        "free (1 if yes, 0 if no; 0 if no one is aged 5 to 17; free meals do not "
+        "count as 1)",
+    ),
+)
+# d1263 (Max, 2026-10-13): keep the section 1 rate schedule for federal income
+# tax, and state that convention in the v2 prompt. A web arm finds the IRS Tax
+# Table: in the 2026-10-21 trial GPT-6 Sol answered scenario_000 from it, $1.45
+# off the schedule reference.
+V2_PILOT_CONVENTIONS = (
+    (
+        re.compile(
+            r"(federal individual income tax after nonrefundable credits and before "
+            r"refundable credits\. This subtracts nonrefundable credits actually "
+            r"used, including CDCC and the nonrefundable portion of CTC or other "
+            r"credits when applicable; it does not subtract EITC or refundable "
+            r"portions of credits such as refundable CTC)"
+        ),
+        "{who}. Compute regular income tax from the section 1 tax rate schedules, "
+        "to the cent, even where the Form 1040 instructions would use the Tax "
+        "Table",
+    ),
+)
+
+# Max (2026-10-21): tell the web arms not to look for the answer keys.
+BENCHMARK_SEARCH_RULE = (
+    " Do not search for PolicyBench, the benchmark these questions come from, or "
+    "for its published answers, and do not use any PolicyBench page, code or "
+    "data you come across."
+)
+
+
+def v2_pilot_text(text: str) -> str:
+    """The text with the four PolicyEngine-naming definitions made neutral and
+    the conventions Max has ruled the v2 prompt states (V2_PILOT_CONVENTIONS)."""
+    for pattern, replacement in (*V2_PILOT_DEFINITIONS, *V2_PILOT_CONVENTIONS):
+        text = pattern.sub(
+            lambda m, r=replacement: r.format(who=m.group(1)) if m.re.groups else r,
+            text,
+        )
+    return text
+
+
+def v2_pilot_strings(value):
+    """Every string in a tool schema, rewritten as v2_pilot_text does."""
+    if isinstance(value, str):
+        return v2_pilot_text(value)
+    if isinstance(value, dict):
+        return {k: v2_pilot_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [v2_pilot_strings(v) for v in value]
+    return value
+
+
+def refuse_policyengine(label: str, value) -> None:
+    """A v2-pilot guard: no board text the model sees may name PolicyEngine."""
+    text = value if isinstance(value, str) else json.dumps(value)
+    if "policyengine" in text.lower():
+        found = re.search(r".{0,60}policyengine.{0,60}", text, re.IGNORECASE)
+        raise ValueError(
+            f"the v2-pilot {label} still names PolicyEngine: {found.group(0)!r}"
+        )
+
+
+# Every provider that can block domains blocks these. policybench.org and
+# GitHub host the benchmark's prompts and references, and GitHub also the
+# reference engine's source. OpenAI's filter takes whole domains only (it
+# refuses "github.com/PolicyEngine/policybench"), so all of GitHub is blocked,
+# for both providers that filter. The Gemini API's search tool takes no domain
+# list (it refuses excludeDomains), so its queries are audited instead.
+BLOCKED_DOMAINS = ("policybench.org", "github.com", "githubusercontent.com")
+# Dynamic filtering: Claude filters results in code before they reach its
+# context (platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool).
+ANTHROPIC_WEB_SEARCH_TOOL = "web_search_20260209"
+# List prices per 1,000 searches, from each provider's pricing page on
+# 2026-10-20. OpenAI bills each web_search_call ("$10.00 / 1k calls");
+# Anthropic each search ("$10 per 1,000 searches"); Google each query a Gemini
+# 3 or later model runs ("$14 per 1,000 requests", after 5,000 free a month
+# shared across those models, which this price ignores).
+SEARCH_USD_PER_1K = {"openai": 10.0, "anthropic": 10.0, "gemini": 14.0}
+# Asks the Responses API for each search's result URLs.
+OPENAI_SEARCH_SOURCES = "web_search_call.action.sources"
+# Times a JSON-contract reply that searched but gave no answer is sent back
+# as it is, Anthropic's continuation for a paused server-tool turn.
+MAX_PAUSE_CONTINUATIONS = 3
+# The litellm whose Gemini search-tool handling allow_gemini_search_with_functions
+# was written against.
+GEMINI_SEARCH_PATCH_LITELLM = "1.88.1"
 
 CALCULATE_DESCRIPTION = (
     "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
@@ -823,10 +1011,32 @@ class ModelProfile:
     model_id: str
     api: str
     contract: str
+    arm: str = "pe"
+    prompt_version: str = "v1"
+    benchmark_search_rule: bool = False
 
     @property
     def notice(self) -> str:
-        return TOOL_NOTICE if self.contract == "tool" else JSON_TOOL_NOTICE
+        tool = self.contract == "tool"
+        if self.arm == "web":
+            notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
+        elif self.arm == "web+pe":
+            notice = WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        else:
+            return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
+        return notice + (BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else "")
+
+    @property
+    def uses_calculator(self) -> bool:
+        return self.arm != "web"
+
+    @property
+    def uses_web(self) -> bool:
+        return self.arm != "pe"
+
+    @property
+    def provider(self) -> str:
+        return provider_family(self.model_id)
 
     @property
     def arm1_label(self) -> str:
@@ -834,22 +1044,108 @@ class ModelProfile:
 
     @property
     def arm2_label(self) -> str:
-        return f"{self.name}+pe-tool"
+        version = "" if self.prompt_version == "v1" else f"@{self.prompt_version}"
+        rule = "+no-benchmark-search" if self.benchmark_search_rule else ""
+        return f"{self.name}{ARM_SUFFIX[self.arm]}{version}{rule}"
 
 
-def model_profile(name: str = MODEL_NAME) -> ModelProfile:
+def provider_family(model_id: str) -> str:
+    for prefix, family in (
+        ("gemini/", "gemini"),
+        ("claude-", "anthropic"),
+        ("gpt-", "openai"),
+    ):
+        if model_id.startswith(prefix):
+            return family
+    raise SystemExit(f"no provider is known for {model_id}")
+
+
+def model_profile(
+    name: str = MODEL_NAME,
+    arm: str = "pe",
+    prompt_version: str = "v1",
+    benchmark_search_rule: bool = False,
+) -> ModelProfile:
     from policybench.config import MODELS
     from policybench.eval_no_tools import (
         _answer_contract_for_model,
         _uses_responses_api,
     )
 
+    if arm not in ARMS:
+        raise SystemExit(f"unknown arm {arm!r}; the arms are {', '.join(ARMS)}")
+    if prompt_version not in PROMPT_VERSIONS:
+        raise SystemExit(
+            f"unknown prompt {prompt_version!r}; the prompts are "
+            f"{', '.join(PROMPT_VERSIONS)}"
+        )
+    if benchmark_search_rule and arm == "pe":
+        raise SystemExit("the benchmark-search rule needs a web arm")
     model_id = MODELS[name]
     return ModelProfile(
         name=name,
         model_id=model_id,
         api="responses" if _uses_responses_api(model_id) else "chat",
         contract=_answer_contract_for_model(model_id),
+        arm=arm,
+        prompt_version=prompt_version,
+        benchmark_search_rule=benchmark_search_rule,
+    )
+
+
+def web_search_tool(profile: ModelProfile) -> dict:
+    """The provider's own web search, in the shape its API takes."""
+    if profile.provider == "openai" and profile.api == "responses":
+        return {
+            "type": "web_search",
+            "filters": {"blocked_domains": list(BLOCKED_DOMAINS)},
+        }
+    if profile.provider == "anthropic":
+        return {
+            "type": ANTHROPIC_WEB_SEARCH_TOOL,
+            "name": "web_search",
+            "blocked_domains": list(BLOCKED_DOMAINS),
+        }
+    if profile.provider == "gemini":
+        return {"googleSearch": {}}
+    raise SystemExit(f"no web search tool is wired for {profile.model_id}")
+
+
+def allow_gemini_search_with_functions() -> None:
+    """Keep Gemini's search tool beside function tools in litellm.
+
+    litellm 1.88.1 drops googleSearch from any request that also declares
+    functions unless ``include_server_side_tool_invocations`` is set. It reads
+    that flag only among the mapped OpenAI parameters, and a ``completion``
+    keyword reaches it later, as a provider extra, after the search tool is
+    gone. Gemini 3 and 4 models take both together with the flag
+    (ai.google.dev/gemini-api/docs/tool-combination), and the web arms always
+    send it, so both of litellm's drops are skipped. Refuses any other litellm,
+    whose code this was not checked against.
+    """
+    version = importlib.metadata.version("litellm")
+    if version != GEMINI_SEARCH_PATCH_LITELLM:
+        raise SystemExit(
+            f"litellm {version} is installed; the Gemini search patch was "
+            f"checked against {GEMINI_SEARCH_PATCH_LITELLM} only"
+        )
+    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
+        VertexGeminiConfig,
+    )
+
+    def keep_search_tools(
+        gtool_func_declarations,
+        googleSearch,
+        googleSearchRetrieval,
+        enterpriseWebSearch,
+        urlContext,
+        optional_params,
+    ):
+        return googleSearch, googleSearchRetrieval, enterpriseWebSearch, urlContext
+
+    VertexGeminiConfig._resolve_search_tool_conflict = staticmethod(keep_search_tools)
+    VertexGeminiConfig._drop_search_tools_mixed_with_functions = classmethod(
+        lambda cls, optional_params: None
     )
 
 
@@ -859,7 +1155,6 @@ def build_initial_request(
     """The board's prompt and request settings for this household, with the
     tool notice appended and the calculate tool added."""
     from policybench.eval_no_tools import (
-        _build_answer_tool,
         _chat_completion_request_kwargs,
         _completion_budget_ceiling,
         _responses_request_kwargs,
@@ -882,11 +1177,29 @@ def build_initial_request(
     kwargs["_board_prompt_sha256"] = hashlib.sha256(board_prompt.encode()).hexdigest()
     kwargs["_budget_ceiling"] = _completion_budget_ceiling(profile.model_id)
     kwargs["_answer_tool"] = (
-        _build_answer_tool(variables, country=scenario.country)
+        answer_tool_for(profile, variables, scenario.country)
         if profile.contract == "tool"
         else None
     )
+    if profile.prompt_version == "v2-pilot":
+        board_prompt = v2_pilot_text(board_prompt)
+        refuse_policyengine("prompt", board_prompt)
+        refuse_policyengine("request", {k: v for k, v in kwargs.items() if k[0] != "_"})
+    kwargs["_sent_board_prompt_sha256"] = hashlib.sha256(
+        board_prompt.encode()
+    ).hexdigest()
     return board_prompt + profile.notice, kwargs
+
+
+def answer_tool_for(profile: ModelProfile, variables: list[str], country: str) -> dict:
+    """The board's submit_outputs tool, in the profile's prompt version."""
+    from policybench.eval_no_tools import _build_answer_tool
+
+    tool = _build_answer_tool(variables, country=country)
+    if profile.prompt_version == "v2-pilot":
+        tool = v2_pilot_strings(tool)
+        refuse_policyengine("answer tool", tool)
+    return tool
 
 
 def forced_answer_choice(profile: ModelProfile | None = None) -> dict:
@@ -923,6 +1236,12 @@ class Turn:
     finish_reason: str | None
     reasoning_content: str | None = None
     has_thought_signature: bool = False
+    # Calls the provider ran itself (Anthropic's server tools: web search and
+    # the code execution its dynamic filtering runs in). They need no result.
+    server_calls: list[dict] = field(default_factory=list)
+    # Server calls with no result in the same response: deferred beside a
+    # client call, or left by a paused turn. Only tool results may follow them.
+    unfinished_server_calls: list[str] = field(default_factory=list)
 
 
 CACHE_BREAKPOINT = {"type": "ephemeral"}
@@ -949,6 +1268,17 @@ def _with_cache_breakpoint(message: dict) -> dict:
     return message
 
 
+# Where litellm keeps Anthropic server tool results on a message: web search
+# and web fetch results, and code execution results.
+SERVER_RESULT_KEYS = ("web_search_results", "tool_results")
+
+
+def is_server_call(call_id) -> bool:
+    """An Anthropic server tool's call, which litellm lists among the tool
+    calls; the API runs it and returns its result in the same response."""
+    return str(call_id or "").startswith("srvtoolu_")
+
+
 class ChatConversation:
     """A chat-completions conversation: one growing message list.
 
@@ -966,7 +1296,10 @@ class ChatConversation:
     def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
         kwargs = dict(base)
         messages = self.messages
-        if self.cache_breakpoint:
+        # A continuation ends on the assistant's own message, which goes back
+        # without a mark: marking turns its content into a list, and litellm
+        # then rebuilds the message in another block order.
+        if self.cache_breakpoint and messages[-1].get("role") != "assistant":
             messages = [*messages[:-1], _with_cache_breakpoint(messages[-1])]
         kwargs.update({"messages": messages, "tools": tools})
         if tool_choice is not None:
@@ -982,20 +1315,76 @@ class ChatConversation:
         if not choices:
             raise ProviderEmpty("response has no choices")
         message = choices[0].message
+        calls, server_calls = [], []
+        for c in _tool_calls(message):
+            call = Call(_call_id(c), _call_name(c), _call_arguments(c))
+            if is_server_call(call.id):
+                server_calls.append(asdict(call))
+            else:
+                calls.append(call)
+        fields = getattr(message, "provider_specific_fields", None)
+        finished = {
+            _field(block, "tool_use_id")
+            for key in SERVER_RESULT_KEYS
+            for block in (
+                (fields or {}).get(key) or [] if isinstance(fields, dict) else []
+            )
+        }
         return Turn(
             response=response,
             content=getattr(message, "content", None),
-            calls=[
-                Call(_call_id(c), _call_name(c), _call_arguments(c))
-                for c in _tool_calls(message)
-            ],
+            calls=calls,
             finish_reason=_response_finish_reason(response, responses_api=False),
             reasoning_content=getattr(message, "reasoning_content", None),
             has_thought_signature=_has_thought_signature(message),
+            server_calls=server_calls,
+            unfinished_server_calls=[
+                c["id"] for c in server_calls if c["id"] not in finished
+            ],
         )
 
     def add_assistant(self, turn: Turn) -> None:
-        self.messages.append(_message_dict(turn.response.choices[0].message))
+        message = _message_dict(turn.response.choices[0].message)
+        self._attach_deferred_results(message)
+        self.messages.append(message)
+
+    def _attach_deferred_results(self, message: dict) -> None:
+        """Move a deferred server call's result onto the message that made it.
+
+        When Claude calls a server tool beside a client tool, the API runs the
+        server tool on the next request, and that response begins with its
+        result, without the call. litellm 1.88.1 re-sends a server result only
+        beside its call in the same message, so left in place the result drops
+        out of later requests, and the API refuses the call that lacks it (a
+        live probe got that 400 on the third request). The result joins its
+        call, the only place litellm sends it from.
+        """
+        fields = message.get("provider_specific_fields")
+        if not isinstance(fields, dict):
+            return
+        own = {_call_id(c) for c in message.get("tool_calls") or []}
+        for key in SERVER_RESULT_KEYS:
+            kept = []
+            for block in fields.get(key) or []:
+                call_id = _field(block, "tool_use_id")
+                earlier = (
+                    None if not call_id or call_id in own else self._caller(call_id)
+                )
+                if earlier is None:
+                    kept.append(block)
+                    continue
+                earlier_fields = earlier.setdefault("provider_specific_fields", {})
+                earlier_fields[key] = [*(earlier_fields.get(key) or []), block]
+            if key in fields:
+                fields[key] = kept
+
+    def _caller(self, call_id: str) -> dict | None:
+        for message in reversed(self.messages):
+            if message.get("role") == "assistant" and any(
+                _call_id(c) == call_id for c in message.get("tool_calls") or []
+            ):
+                return message
+        return None
 
     def add_tool_result(self, call: Call, result: dict) -> None:
         self.messages.append(
@@ -1031,7 +1420,9 @@ class ResponsesConversation:
 
     def request_kwargs(self, base: dict, tools: list[dict], tool_choice) -> dict:
         kwargs = dict(base)
-        kwargs["tools"] = [_responses_tool(t) for t in tools]
+        kwargs["tools"] = [
+            _responses_tool(t) if t.get("type") == "function" else t for t in tools
+        ]
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
         if self.previous_response_id is None:
@@ -1100,6 +1491,128 @@ class ResponsesConversation:
         return self.log + ([{"pending": self.pending}] if self.pending else [])
 
 
+def _plain(value) -> Any:
+    """A provider object as plain data, for the record."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if isinstance(value, dict):
+        return value
+    if hasattr(value, "__dict__"):
+        return {k: _plain(v) for k, v in vars(value).items()}
+    return value
+
+
+def _field(value, key: str):
+    if isinstance(value, dict):
+        return value.get(key)
+    return getattr(value, key, None)
+
+
+def turn_searches(
+    response, turn: Turn, profile: ModelProfile, seen: set[str]
+) -> tuple[list[dict], int]:
+    """The web searches one response ran, and how many its provider bills.
+
+    - OpenAI: every ``web_search_call`` output item is billed as a call,
+      whatever its action. The pricing page says "$10.00 / 1k calls" without
+      naming the actions billed, so open_page and find_in_page are counted too,
+      an upper bound; ``search_actions`` counts the searches alone. Each
+      search's result URLs (OPENAI_SEARCH_SOURCES) are logged as sources.
+    - Anthropic: ``usage.server_tool_use.web_search_requests`` counts every
+      search, including those run from code under dynamic filtering. The log
+      holds each server call (a direct search's query, or the code that ran
+      searches) and each result's URL and title.
+    - Gemini: each non-empty query of a GOOGLE_SEARCH_WEB invocation, once per
+      invocation id in the household (``seen``). Its responses carry no result
+      URLs: an invocation's response holds only search-suggestion HTML, and
+      litellm's grounding metadata is empty on function-calling turns (live
+      probe, 2026-10-20), so what Gemini read cannot be audited.
+    """
+    log: list[dict] = []
+    billed = 0
+    if profile.provider == "openai":
+        for item in getattr(response, "output", None) or []:
+            if _field(item, "type") != "web_search_call":
+                continue
+            billed += 1
+            action = _plain(_field(item, "action")) or {}
+            log.append(
+                {
+                    "kind": action.get("type"),
+                    "id": _field(item, "id"),
+                    "queries": action.get("queries")
+                    or ([action["query"]] if action.get("query") else []),
+                    "url": action.get("url"),
+                    "status": _field(item, "status"),
+                }
+            )
+            for source in action.get("sources") or []:
+                log.append(
+                    {
+                        "kind": "source",
+                        "id": _field(item, "id"),
+                        "url": _field(source, "url"),
+                    }
+                )
+        return log, billed
+    message = (getattr(response, "choices", None) or [None])[0]
+    message = getattr(message, "message", None)
+    fields = _plain(getattr(message, "provider_specific_fields", None)) or {}
+    if profile.provider == "anthropic":
+        usage = getattr(response, "usage", None)
+        server_use = _field(usage, "server_tool_use")
+        billed = int(_num(_field(server_use, "web_search_requests")))
+        for call in turn.server_calls:
+            arguments = call.get("arguments")
+            try:
+                arguments = json.loads(arguments)
+            except (TypeError, ValueError):
+                pass
+            entry = {"kind": call.get("name"), "id": call.get("id")}
+            if isinstance(arguments, dict) and "query" in arguments:
+                entry["queries"] = [arguments["query"]]
+            elif isinstance(arguments, dict) and "code" in arguments:
+                entry["code"] = str(arguments["code"])[:MAX_MESSAGE_CHARS]
+            log.append(entry)
+        for block in fields.get("web_search_results") or []:
+            content = _field(block, "content")
+            for result in content if isinstance(content, list) else []:
+                log.append(
+                    {
+                        "kind": "result",
+                        "url": _field(result, "url"),
+                        "title": _field(result, "title"),
+                    }
+                )
+        return log, billed
+    if profile.provider == "gemini":
+        for invocation in fields.get("server_side_tool_invocations") or []:
+            if _field(invocation, "tool_type") != "GOOGLE_SEARCH_WEB":
+                continue
+            invocation_id = str(_field(invocation, "id"))
+            queries = [
+                q for q in (_field(_field(invocation, "args"), "queries") or []) if q
+            ]
+            repeat = invocation_id in seen
+            seen.add(invocation_id)
+            if not repeat:
+                billed += len(queries)
+            log.append(
+                {
+                    "kind": "search",
+                    "id": invocation_id,
+                    "queries": queries,
+                    "repeat": repeat,
+                }
+            )
+        return log, billed
+    return log, billed
+
+
+def search_cost_usd(profile: ModelProfile, searches: int) -> float:
+    return searches * SEARCH_USD_PER_1K[profile.provider] / 1000
+
+
 class ProviderEmpty(RuntimeError):
     pass
 
@@ -1156,10 +1669,15 @@ def run_household(
     cap is reached, as the board forces it). A JSON-contract model answers in
     the board's JSON reply; its API refuses a forced tool, so the calculate
     tool is offered under tool_choice auto and the cap is a user message.
+
+    The profile's arm sets the tools: the calculate tool ("pe"), the
+    provider's web search ("web"), or both ("web+pe"). The provider runs a
+    search inside the response that asked for it, so searches use no
+    calculation turn; each response's searches are logged and their list
+    price added to its cost.
     """
     from policybench.eval_no_tools import (
         _apply_thinking_configuration,
-        _build_answer_tool,
         _enforce_explanation_value_contract,
         _extract_usage_metadata,
         _merge_repair_cells,
@@ -1172,9 +1690,20 @@ def run_household(
     profile = profile or model_profile()
     prompt, base = build_initial_request(scenario, variables, profile)
     board_prompt_sha256 = base.pop("_board_prompt_sha256")
+    sent_board_prompt_sha256 = base.pop("_sent_board_prompt_sha256")
     ceiling = base.pop("_budget_ceiling")
     answer_tool = base.pop("_answer_tool")
     calculate_tool = calculate_tool_schema()
+    offered = ([web_search_tool(profile)] if profile.uses_web else []) + (
+        [calculate_tool] if profile.uses_calculator else []
+    )
+    if profile.uses_web and profile.provider == "gemini":
+        base["include_server_side_tool_invocations"] = True
+    if profile.uses_web and profile.provider == "openai":
+        # The URLs behind each search's results, for the audit.
+        base["include"] = [*base.get("include", []), OPENAI_SEARCH_SOURCES]
+    seen_searches: set[str] = set()
+    pause_continuations = 0
     conversation = (
         ResponsesConversation(prompt)
         if profile.api == "responses"
@@ -1183,13 +1712,18 @@ def run_household(
         )
     )
     json_contract = profile.contract == "json"
+    calculate_offered = profile.uses_calculator
     record: dict[str, Any] = {
         "scenario_id": scenario.id,
         "model": profile.name,
+        "arm": profile.arm,
         "api": profile.api,
         "contract": profile.contract,
         "variables": variables,
         "board_prompt_sha256": board_prompt_sha256,
+        "prompt_version": profile.prompt_version,
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "sent_board_prompt_sha256": sent_board_prompt_sha256,
         "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
         "turns": [],
         "status": "running",
@@ -1197,24 +1731,45 @@ def run_household(
     predictions: dict[str, float | None] = {v: None for v in variables}
     explanations: dict[str, str | None] = {v: None for v in variables}
     tool_turns = 0
+    # Turns that only searched: in the web arms they count toward the cap, so
+    # a model cannot search without end while the cap waits on calculations.
+    search_only_turns = 0
     repair_rounds = 0
     answer_variables = list(variables)
     household_started = time.perf_counter()
 
     def tools_and_choice(kind: str):
         if json_contract:
-            return [calculate_tool], "auto"
+            return list(offered), "auto"
         if kind == "repair":
             return (
                 [
-                    calculate_tool,
-                    _build_answer_tool(answer_variables, country=scenario.country),
+                    *offered,
+                    answer_tool_for(profile, answer_variables, scenario.country),
                 ],
                 forced_answer_choice(profile),
             )
         if kind == "forced_answer":
-            return [calculate_tool, answer_tool], forced_answer_choice(profile)
-        return [calculate_tool, answer_tool], "required"
+            return [*offered, answer_tool], forced_answer_choice(profile)
+        return [*offered, answer_tool], "required"
+
+    def bill_searches(response, turn) -> dict:
+        """Log the response's searches and add their price to the spend."""
+        if not profile.uses_web:
+            return {}
+        log, billed = turn_searches(response, turn, profile, seen_searches)
+        cost = search_cost_usd(profile, billed)
+        spend.add(cost)
+        return {
+            "server_calls": turn.server_calls,
+            "unfinished_server_calls": turn.unfinished_server_calls,
+            "searches": log,
+            "web_searches": billed,
+            "search_actions": billed
+            if profile.provider != "openai"
+            else sum(1 for e in log if e.get("kind") == "search"),
+            "search_cost_usd": cost,
+        }
 
     def accept_answer(content, calls) -> list[str]:
         """Merge an answer into the predictions; return the outputs still needed."""
@@ -1305,7 +1860,9 @@ def run_household(
                 break
             if repair_rounds:
                 kind = "repair"
-            elif not json_contract and (forced or tool_turns >= turn_cap):
+            elif not json_contract and (
+                forced or tool_turns + search_only_turns >= turn_cap
+            ):
                 kind, forced = "forced_answer", True
             else:
                 kind = "open"
@@ -1338,6 +1895,7 @@ def run_household(
                             "completion_budget": kwargs.get(budget_key),
                             "latency_seconds": latency,
                             **usage,
+                            **bill_searches(response, turn),
                         }
                     )
                     escalated_from = kwargs.get(budget_key)
@@ -1379,6 +1937,7 @@ def run_household(
                 "response_id": getattr(response, "id", None),
                 "calls": [],
                 **usage,
+                **bill_searches(response, turn),
             }
             record["turns"].append(turn_record)
             conversation.add_assistant(turn)
@@ -1415,7 +1974,8 @@ def run_household(
                         else {"error": "not run: submit_outputs ended the turn"},
                     )
             elif calculate_calls and (
-                tool_turns >= turn_cap or (not json_contract and kind != "open")
+                tool_turns + search_only_turns >= turn_cap
+                or (not json_contract and kind != "open")
             ):
                 # Past the cap, or in a turn that forced the answer, nothing
                 # runs. tool_choice auto cannot withhold the tool from a
@@ -1452,7 +2012,13 @@ def run_household(
                     break
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
-                if tool_turns >= turn_cap:
+                if tool_turns + search_only_turns >= turn_cap and (
+                    turn.unfinished_server_calls
+                ):
+                    # Only tool results may follow a deferred server call;
+                    # the refusal of any later calculation says the same.
+                    turn_record["cap_notice_withheld"] = True
+                elif tool_turns + search_only_turns >= turn_cap:
                     conversation.add_user(
                         f"You have used all {turn_cap} calculation turns. "
                         + (
@@ -1463,6 +2029,19 @@ def run_household(
                         )
                     )
                 continue
+            elif json_contract and not turn.calls and turn.unfinished_server_calls:
+                # A paused server-tool turn: a server call with no result and
+                # nothing waiting on us. It continues when sent back as it is.
+                if pause_continuations < MAX_PAUSE_CONTINUATIONS:
+                    pause_continuations += 1
+                    turn_record["continued_after_pause"] = True
+                    continue
+                record["status"] = "incomplete"
+                record["error"] = (
+                    "a paused server-tool turn was still unfinished after "
+                    f"{MAX_PAUSE_CONTINUATIONS} continuations"
+                )
+                break
             elif json_contract and turn.content:
                 # A JSON-contract answer: the reply itself.
                 still = accept_answer(turn.content, None)
@@ -1470,20 +2049,46 @@ def run_household(
                     explanations.values()
                 )
                 if not answered:
+                    for call in other_calls:
+                        conversation.add_tool_result(
+                            call, {"error": "unknown function"}
+                        )
+                    if turn.unfinished_server_calls:
+                        continue  # only tool results may follow
                     conversation.add_user(
                         "Reply with your final answers as the JSON object described "
-                        "above, or call calculate_household."
+                        "above"
+                        + (
+                            ", or call calculate_household."
+                            if calculate_offered
+                            else "."
+                        )
                     )
                     continue
             else:
                 for call in other_calls:
                     conversation.add_tool_result(call, {"error": "unknown function"})
-                conversation.add_user(
-                    "Call calculate_household or give your final answers as the "
-                    "JSON object described above."
-                    if json_contract
-                    else "Call calculate_household or submit_outputs."
-                )
+                if profile.uses_web and (
+                    turn.server_calls or turn_record.get("web_searches")
+                ):
+                    search_only_turns += 1
+                    turn_record["search_only_turn"] = True
+                if turn.unfinished_server_calls:
+                    continue  # only tool results may follow
+                if calculate_offered:
+                    nudge = (
+                        "Call calculate_household or give your final answers as "
+                        "the JSON object described above."
+                        if json_contract
+                        else "Call calculate_household or submit_outputs."
+                    )
+                else:
+                    nudge = (
+                        "Give your final answers as the JSON object described above."
+                        if json_contract
+                        else "Call submit_outputs with your final answers."
+                    )
+                conversation.add_user(nudge)
                 continue
 
             if not still:
@@ -1506,8 +2111,10 @@ def run_household(
     record["predictions"] = predictions
     record["explanations"] = explanations
     record["tool_turns"] = tool_turns
-    record["cap_hit"] = tool_turns >= turn_cap
+    record["search_only_turns"] = search_only_turns
+    record["cap_hit"] = tool_turns + search_only_turns >= turn_cap
     record["repair_rounds"] = repair_rounds
+    record["pause_continuations"] = pause_continuations
     record["wall_seconds"] = time.perf_counter() - household_started
     record["messages"] = conversation.transcript()
     record["totals"] = household_totals(record)
@@ -1540,7 +2147,8 @@ def record_cost_with_prior_attempts(record: dict) -> float:
 
 def household_totals(record: dict) -> dict:
     """Tokens, cost and time over every request, truncated ones included;
-    ``model_turns`` counts the turns that reached the conversation."""
+    ``model_turns`` counts the turns that reached the conversation. A web
+    arm's ``cost_usd`` adds its searches' list price to its tokens'."""
     turns = record.get("turns", [])
     calls = [c for t in turns for c in t.get("calls", []) if c.get("name") == TOOL_NAME]
     errors = [
@@ -1559,7 +2167,17 @@ def household_totals(record: dict) -> dict:
         "cache_write_prompt_tokens": sum(
             _num(t.get("cache_write_prompt_tokens")) for t in turns
         ),
-        "cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
+        # Tokens at list price, plus each search at its list price.
+        "token_cost_usd": sum(_num(t.get("total_cost_usd")) for t in turns),
+        "web_searches": sum(_num(t.get("web_searches")) for t in turns),
+        "web_search_actions": sum(
+            _num(t.get("search_actions", t.get("web_searches"))) for t in turns
+        ),
+        "search_cost_usd": sum(_num(t.get("search_cost_usd")) for t in turns),
+        "cost_usd": sum(
+            _num(t.get("total_cost_usd")) + _num(t.get("search_cost_usd"))
+            for t in turns
+        ),
         "model_seconds": sum(_num(t.get("latency_seconds")) for t in turns),
         "tool_seconds": sum(_num(c.get("tool_latency_seconds")) for c in calls),
     }
@@ -1754,12 +2372,39 @@ def records_model(records: Mapping[str, dict]) -> str:
     return models.pop() if models else MODEL_NAME
 
 
+def records_prompt(records: Mapping[str, dict]) -> tuple[str, bool]:
+    """The one prompt version and search rule a run directory's records
+    share; records written before either existed are v1 without the rule."""
+    setups = {
+        (r.get("prompt_version", "v1"), bool(r.get("benchmark_search_rule")))
+        for r in records.values()
+    }
+    if len(setups) > 1:
+        raise SystemExit(f"records from more than one prompt setup: {sorted(setups)}")
+    return setups.pop() if setups else ("v1", False)
+
+
+def records_arm(records: Mapping[str, dict]) -> str:
+    """The one arm a run directory's records belong to; records written
+    before the web arms are the PE tool's."""
+    arms = {r.get("arm", "pe") for r in records.values()}
+    if len(arms) > 1:
+        raise SystemExit(f"records from more than one arm: {sorted(arms)}")
+    return arms.pop() if arms else "pe"
+
+
 def command_run(args) -> None:
     _require_engine()
-    profile = model_profile(args.model)
+    profile = model_profile(
+        args.model, args.arm, args.prompt, args.forbid_benchmark_search
+    )
     key = provider_key(profile.model_id)
     if not os.environ.get(key):
         raise SystemExit(f"{key} is not set")
+    if profile.uses_web:
+        web_search_tool(profile)  # refuses a provider with no search wired
+    if profile.uses_web and profile.provider == "gemini":
+        allow_gemini_search_with_functions()
     from litellm import completion, responses
 
     completion_fn = responses if profile.api == "responses" else completion
@@ -1779,6 +2424,16 @@ def command_run(args) -> None:
             f"{households_dir} holds {records_model(previous)} records, "
             f"not {profile.name}"
         )
+    if previous and records_arm(previous) != profile.arm:
+        raise SystemExit(
+            f"{households_dir} holds {records_arm(previous)} records, not {profile.arm}"
+        )
+    setup = (profile.prompt_version, profile.benchmark_search_rule)
+    if previous and records_prompt(previous) != setup:
+        raise SystemExit(
+            f"{households_dir} holds records with prompt setup "
+            f"{records_prompt(previous)}, not {setup}"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -1791,10 +2446,23 @@ def command_run(args) -> None:
         "fix_module_sha256": _sha256(FIX_MODULE),
         "model": profile.name,
         "model_id": profile.model_id,
+        "arm": profile.arm,
+        "prompt_version": profile.prompt_version,
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "v2_pilot_definitions": [
+            {"v1": pattern.pattern, "v2_pilot": text}
+            for pattern, text in (*V2_PILOT_DEFINITIONS, *V2_PILOT_CONVENTIONS)
+        ]
+        if profile.prompt_version == "v2-pilot"
+        else None,
         "api": profile.api,
         "answer_contract": profile.contract,
         "tool_notice": profile.notice,
-        "calculate_tool": calculate_tool_schema(),
+        "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
+        "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
+        "search_usd_per_1k": (
+            SEARCH_USD_PER_1K[profile.provider] if profile.uses_web else None
+        ),
         "turn_cap": TOOL_TURN_CAP,
         "max_calculations_per_turn": MAX_CALCULATIONS_PER_TURN,
         "tool_timeout_seconds": TOOL_TIMEOUT_SECONDS,
@@ -1940,7 +2608,9 @@ def command_score(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
     records = load_records(out)
-    profile = model_profile(records_model(records))
+    profile = model_profile(
+        records_model(records), records_arm(records), *records_prompt(records)
+    )
     arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
@@ -2052,6 +2722,24 @@ def command_score(args) -> None:
     print(json.dumps(usage_summary, indent=2))
     tool_use = tool_use_summary({sid: records[sid] for sid in households})
     print(json.dumps(tool_use, indent=2))
+    searches = search_log({sid: records[sid] for sid in households})
+    audit = None
+    if profile.uses_web:
+        searches.to_csv(out / "searches.csv", index=False)
+        audit = search_audit(searches, results_visible=profile.provider != "gemini")
+        clean = [sid for sid in wide.index if sid not in audit["flagged_households"]]
+        audit["weighted_exact_unflagged"] = {
+            "households": len(clean),
+            "arm1": float(wide.loc[clean, arm1_label].mean()) if clean else None,
+            "arm2": float(wide.loc[clean, arm2_label].mean()) if clean else None,
+        }
+        print(
+            f"searches logged: {audit['logged_entries']}; policybench mentions: "
+            f"{len(audit['policybench_mentions'])}; blocked-domain URLs: "
+            f"{len(audit['blocked_domain_urls'])}; flagged households: "
+            f"{audit['flagged_households']}; results visible: "
+            f"{audit['results_visible']}"
+        )
     (out / "score.json").write_text(
         json.dumps(
             {
@@ -2071,7 +2759,11 @@ def command_score(args) -> None:
                     k: int(v) for k, v in flips.sum(axis=0).to_dict().items()
                 },
                 "household_bootstrap": bootstrap,
+                "arm": profile.arm,
+                "prompt_version": profile.prompt_version,
+                "benchmark_search_rule": profile.benchmark_search_rule,
                 "tool_use": tool_use,
+                "search_audit": audit,
                 "usage": usage_summary,
             },
             indent=2,
@@ -2141,6 +2833,7 @@ def paired_bootstrap(
     b = second.to_numpy(dtype=float)
     rng = np.random.default_rng(seed)
     index = rng.integers(0, len(a), size=(draws, len(a)))
+    diff = b - a
     mean_a = a[index].mean(axis=1)
     mean_b = b[index].mean(axis=1)
 
@@ -2158,9 +2851,12 @@ def paired_bootstrap(
         "arm1_interval": interval(mean_a),
         "arm2_interval": interval(mean_b),
         "difference_interval": interval(mean_b - mean_a),
-        "households_better": int((b > a + 1e-12).sum()),
-        "households_worse": int((b < a - 1e-12).sum()),
-        "households_same": int((abs(b - a) <= 1e-12).sum()),
+        # One difference for all three, so every household lands in exactly
+        # one: comparing b with a + 1e-12 rounds differently from b - a at the
+        # boundary (a found case: a = 0.125, b = a + 1e-12 landed in none).
+        "households_better": int((diff > 1e-12).sum()),
+        "households_worse": int((diff < -1e-12).sum()),
+        "households_same": int((abs(diff) <= 1e-12).sum()),
     }
 
 
@@ -2199,6 +2895,9 @@ def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
                 "arm2_completion_tokens": totals["completion_tokens"],
                 "arm2_reasoning_tokens": totals["reasoning_tokens"],
                 "arm2_cost_usd": totals["cost_usd"],
+                "arm2_token_cost_usd": totals.get("token_cost_usd", totals["cost_usd"]),
+                "arm2_web_searches": totals.get("web_searches", 0),
+                "arm2_search_cost_usd": totals.get("search_cost_usd", 0.0),
                 "arm2_model_seconds": totals["model_seconds"],
                 "arm2_tool_seconds": totals["tool_seconds"],
                 "arm2_wall_seconds": records[sid].get("wall_seconds"),
@@ -2208,6 +2907,86 @@ def usage_by_household(records, arm1: pd.DataFrame, households) -> pd.DataFrame:
         grouped.reset_index(), on="scenario_id", how="left"
     )
     return frame
+
+
+def search_log(records: Mapping[str, dict]) -> pd.DataFrame:
+    """Every logged search, query and result URL, one row each."""
+    rows = []
+    for sid, record in sorted(records.items()):
+        for turn in record.get("turns", []):
+            for entry in turn.get("searches", []):
+                queries = entry.get("queries") or [None]
+                for query in queries:
+                    rows.append(
+                        {
+                            "scenario_id": sid,
+                            "turn": turn.get("index"),
+                            "kind": entry.get("kind"),
+                            "query": query,
+                            "url": entry.get("url"),
+                            "title": entry.get("title"),
+                            "code": entry.get("code"),
+                            "repeat": bool(entry.get("repeat")),
+                        }
+                    )
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "scenario_id",
+            "turn",
+            "kind",
+            "query",
+            "url",
+            "title",
+            "code",
+            "repeat",
+        ],
+    )
+
+
+def search_audit(log: pd.DataFrame, results_visible: bool = True) -> dict:
+    """Searches or results that touch the benchmark itself, or a blocked domain.
+
+    ``flagged_households`` are those with either; their arm-2 scores are not
+    evidence of web access without the benchmark. ``results_visible`` is false
+    when the provider returns no result URLs (Gemini), so the audit sees only
+    queries and cannot show what the model read.
+    """
+
+    def touches(text, needles) -> bool:
+        text = str(text or "").lower()
+        return any(n in text for n in needles)
+
+    text = [
+        " ".join(v for v in row if isinstance(v, str))
+        for row in log[["query", "url", "title", "code"]].itertuples(index=False)
+    ]
+    # Boolean masks as arrays: an empty list would select no columns, not rows.
+    mentions = log.loc[
+        pd.array([touches(t, ("policybench",)) for t in text], dtype="boolean")
+    ]
+    blocked = log.loc[
+        pd.array(
+            [isinstance(u, str) and touches(u, BLOCKED_DOMAINS) for u in log["url"]],
+            dtype="boolean",
+        )
+    ]
+
+    def records(frame: pd.DataFrame) -> list[dict]:
+        # JSON has no NaN: missing cells become null.
+        return frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+
+    return {
+        "results_visible": results_visible,
+        "logged_entries": int(len(log)),
+        "queries": int(log["query"].notna().sum()),
+        "result_urls": int(log["url"].notna().sum()),
+        "policybench_mentions": records(mentions),
+        "blocked_domain_urls": records(blocked),
+        "flagged_households": sorted(
+            set(mentions["scenario_id"]) | set(blocked["scenario_id"])
+        ),
+    }
 
 
 def tool_use_summary(records: Mapping[str, dict]) -> dict:
@@ -3159,6 +3938,24 @@ def main(argv: list[str] | None = None) -> None:
                 "--model",
                 default=MODEL_NAME,
                 help="a board model name (policybench.config.MODELS)",
+            )
+            p.add_argument(
+                "--arm",
+                choices=ARMS,
+                default="pe",
+                help="the tools: PolicyEngine (pe), web search (web), or both",
+            )
+            p.add_argument(
+                "--prompt",
+                choices=PROMPT_VERSIONS,
+                default="v1",
+                help="the board's prompt (v1), or v1 with its four "
+                "PolicyEngine-naming definitions made neutral (v2-pilot)",
+            )
+            p.add_argument(
+                "--forbid-benchmark-search",
+                action="store_true",
+                help="tell a web arm not to search for PolicyBench or its answers",
             )
             p.add_argument("--scenarios", nargs="*")
             p.add_argument("--limit", type=int)
