@@ -172,6 +172,110 @@ WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
     for notice in (TOOL_NOTICE, JSON_TOOL_NOTICE)
 )
 
+# Prompt versions ``run --prompt`` takes. "v1" is the board's prompt. "v2-pilot"
+# is the board's prompt with the four output definitions that name PolicyEngine
+# (Medicaid, CHIP, free and reduced-price school meals; d1705) rewritten in
+# neutral terms. It is a pilot stand-in for the v2 prompts, not the v2 board
+# wording. Each rewrite states the convention the reference follows where the
+# law alone would not settle it, read from policyengine-us 2.41.0, which the
+# convention reform leaves untouched for these outputs:
+# - is_in_k12_school treats everyone aged 5 to 17 as a K-12 student, and
+#   school_meal_net_subsidy is zero without one.
+# - school_meal_tier is free at or under 130% of poverty, with categorical
+#   eligibility, in a universal-free-meals state (CA, CO, MA, ME, MI, MN, NM,
+#   NY and VT in 2026), or where the state pays the reduced-price copay (NC);
+#   reduced price up to 185%.
+# - is_chip_eligible_child excludes anyone Medicaid-eligible, and chip_category
+#   includes CHIP coverage of pregnant women.
+PROMPT_VERSIONS = ("v1", "v2-pilot")
+V2_PILOT_DEFINITIONS = (
+    (
+        re.compile(
+            r"whether (.+?) is eligible for Medicaid under PolicyEngine rules, "
+            r"not whether they are currently enrolled \(1 if yes, 0 if no\)"
+        ),
+        "whether {who} is eligible for Medicaid in 2026 under federal and state "
+        "Medicaid rules, in any eligibility group, not whether they are currently "
+        "enrolled (1 if yes, 0 if no)",
+    ),
+    (
+        re.compile(
+            r"whether (.+?) is eligible for CHIP under PolicyEngine rules, "
+            r"not whether they are currently enrolled \(1 if yes, 0 if no\)"
+        ),
+        "whether {who} is eligible for CHIP (the Children's Health Insurance "
+        "Program, including any CHIP coverage the state gives pregnant women) in "
+        "2026 under federal and state rules, not whether they are currently "
+        "enrolled; someone eligible for Medicaid is not CHIP-eligible (1 if yes, "
+        "0 if no)",
+    ),
+    (
+        re.compile(
+            r"whether PolicyEngine returns positive annual free school meal support "
+            r"for the household \(1 if yes, 0 if no; reduced-price meals do not "
+            r"count as 1\)"
+        ),
+        "whether the household's children get free school meals in 2026: treat "
+        "everyone aged 5 to 17 as attending a public K-12 school that takes part "
+        "in the National School Lunch and School Breakfast Programs, and count "
+        "meals at no charge to the family, whether through federal free-meal "
+        "eligibility or a state program that makes meals free for all students "
+        "or pays the reduced-price charge (1 if yes, 0 if no; 0 if no one is "
+        "aged 5 to 17; reduced-price meals do not count as 1)",
+    ),
+    (
+        re.compile(
+            r"whether PolicyEngine returns positive annual reduced-price school meal "
+            r"support for the household \(1 if yes, 0 if no; free meals do not "
+            r"count as 1\)"
+        ),
+        "whether the household's children get reduced-price school meals in 2026: "
+        "treat everyone aged 5 to 17 as attending a public K-12 school that takes "
+        "part in the National School Lunch and School Breakfast Programs, and "
+        "count meals at the federal reduced price that no state program makes "
+        "free (1 if yes, 0 if no; 0 if no one is aged 5 to 17; free meals do not "
+        "count as 1)",
+    ),
+)
+# Max (2026-10-21): tell the web arms not to look for the answer keys.
+BENCHMARK_SEARCH_RULE = (
+    " Do not search for PolicyBench, the benchmark these questions come from, or "
+    "for its published answers, and do not use any PolicyBench page, code or "
+    "data you come across."
+)
+
+
+def v2_pilot_text(text: str) -> str:
+    """The text with the four PolicyEngine-naming definitions made neutral."""
+    for pattern, replacement in V2_PILOT_DEFINITIONS:
+        text = pattern.sub(
+            lambda m, r=replacement: r.format(who=m.group(1)) if m.re.groups else r,
+            text,
+        )
+    return text
+
+
+def v2_pilot_strings(value):
+    """Every string in a tool schema, rewritten as v2_pilot_text does."""
+    if isinstance(value, str):
+        return v2_pilot_text(value)
+    if isinstance(value, dict):
+        return {k: v2_pilot_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [v2_pilot_strings(v) for v in value]
+    return value
+
+
+def refuse_policyengine(label: str, value) -> None:
+    """A v2-pilot guard: no board text the model sees may name PolicyEngine."""
+    text = value if isinstance(value, str) else json.dumps(value)
+    if "policyengine" in text.lower():
+        found = re.search(r".{0,60}policyengine.{0,60}", text, re.IGNORECASE)
+        raise ValueError(
+            f"the v2-pilot {label} still names PolicyEngine: {found.group(0)!r}"
+        )
+
+
 # Every provider that can block domains blocks these. policybench.org and
 # GitHub host the benchmark's prompts and references, and GitHub also the
 # reference engine's source. OpenAI's filter takes whole domains only (it
@@ -882,15 +986,19 @@ class ModelProfile:
     api: str
     contract: str
     arm: str = "pe"
+    prompt_version: str = "v1"
+    benchmark_search_rule: bool = False
 
     @property
     def notice(self) -> str:
         tool = self.contract == "tool"
         if self.arm == "web":
-            return WEB_NOTICE if tool else JSON_WEB_NOTICE
-        if self.arm == "web+pe":
-            return WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
-        return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
+            notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
+        elif self.arm == "web+pe":
+            notice = WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        else:
+            return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
+        return notice + (BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else "")
 
     @property
     def uses_calculator(self) -> bool:
@@ -910,7 +1018,9 @@ class ModelProfile:
 
     @property
     def arm2_label(self) -> str:
-        return f"{self.name}{ARM_SUFFIX[self.arm]}"
+        version = "" if self.prompt_version == "v1" else f"@{self.prompt_version}"
+        rule = "+no-benchmark-search" if self.benchmark_search_rule else ""
+        return f"{self.name}{ARM_SUFFIX[self.arm]}{version}{rule}"
 
 
 def provider_family(model_id: str) -> str:
@@ -924,7 +1034,12 @@ def provider_family(model_id: str) -> str:
     raise SystemExit(f"no provider is known for {model_id}")
 
 
-def model_profile(name: str = MODEL_NAME, arm: str = "pe") -> ModelProfile:
+def model_profile(
+    name: str = MODEL_NAME,
+    arm: str = "pe",
+    prompt_version: str = "v1",
+    benchmark_search_rule: bool = False,
+) -> ModelProfile:
     from policybench.config import MODELS
     from policybench.eval_no_tools import (
         _answer_contract_for_model,
@@ -933,6 +1048,13 @@ def model_profile(name: str = MODEL_NAME, arm: str = "pe") -> ModelProfile:
 
     if arm not in ARMS:
         raise SystemExit(f"unknown arm {arm!r}; the arms are {', '.join(ARMS)}")
+    if prompt_version not in PROMPT_VERSIONS:
+        raise SystemExit(
+            f"unknown prompt {prompt_version!r}; the prompts are "
+            f"{', '.join(PROMPT_VERSIONS)}"
+        )
+    if benchmark_search_rule and arm == "pe":
+        raise SystemExit("the benchmark-search rule needs a web arm")
     model_id = MODELS[name]
     return ModelProfile(
         name=name,
@@ -940,6 +1062,8 @@ def model_profile(name: str = MODEL_NAME, arm: str = "pe") -> ModelProfile:
         api="responses" if _uses_responses_api(model_id) else "chat",
         contract=_answer_contract_for_model(model_id),
         arm=arm,
+        prompt_version=prompt_version,
+        benchmark_search_rule=benchmark_search_rule,
     )
 
 
@@ -1005,7 +1129,6 @@ def build_initial_request(
     """The board's prompt and request settings for this household, with the
     tool notice appended and the calculate tool added."""
     from policybench.eval_no_tools import (
-        _build_answer_tool,
         _chat_completion_request_kwargs,
         _completion_budget_ceiling,
         _responses_request_kwargs,
@@ -1028,11 +1151,29 @@ def build_initial_request(
     kwargs["_board_prompt_sha256"] = hashlib.sha256(board_prompt.encode()).hexdigest()
     kwargs["_budget_ceiling"] = _completion_budget_ceiling(profile.model_id)
     kwargs["_answer_tool"] = (
-        _build_answer_tool(variables, country=scenario.country)
+        answer_tool_for(profile, variables, scenario.country)
         if profile.contract == "tool"
         else None
     )
+    if profile.prompt_version == "v2-pilot":
+        board_prompt = v2_pilot_text(board_prompt)
+        refuse_policyengine("prompt", board_prompt)
+        refuse_policyengine("request", {k: v for k, v in kwargs.items() if k[0] != "_"})
+    kwargs["_sent_board_prompt_sha256"] = hashlib.sha256(
+        board_prompt.encode()
+    ).hexdigest()
     return board_prompt + profile.notice, kwargs
+
+
+def answer_tool_for(profile: ModelProfile, variables: list[str], country: str) -> dict:
+    """The board's submit_outputs tool, in the profile's prompt version."""
+    from policybench.eval_no_tools import _build_answer_tool
+
+    tool = _build_answer_tool(variables, country=country)
+    if profile.prompt_version == "v2-pilot":
+        tool = v2_pilot_strings(tool)
+        refuse_policyengine("answer tool", tool)
+    return tool
 
 
 def forced_answer_choice(profile: ModelProfile | None = None) -> dict:
@@ -1511,7 +1652,6 @@ def run_household(
     """
     from policybench.eval_no_tools import (
         _apply_thinking_configuration,
-        _build_answer_tool,
         _enforce_explanation_value_contract,
         _extract_usage_metadata,
         _merge_repair_cells,
@@ -1524,6 +1664,7 @@ def run_household(
     profile = profile or model_profile()
     prompt, base = build_initial_request(scenario, variables, profile)
     board_prompt_sha256 = base.pop("_board_prompt_sha256")
+    sent_board_prompt_sha256 = base.pop("_sent_board_prompt_sha256")
     ceiling = base.pop("_budget_ceiling")
     answer_tool = base.pop("_answer_tool")
     calculate_tool = calculate_tool_schema()
@@ -1554,6 +1695,9 @@ def run_household(
         "contract": profile.contract,
         "variables": variables,
         "board_prompt_sha256": board_prompt_sha256,
+        "prompt_version": profile.prompt_version,
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "sent_board_prompt_sha256": sent_board_prompt_sha256,
         "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
         "turns": [],
         "status": "running",
@@ -1575,7 +1719,7 @@ def run_household(
             return (
                 [
                     *offered,
-                    _build_answer_tool(answer_variables, country=scenario.country),
+                    answer_tool_for(profile, answer_variables, scenario.country),
                 ],
                 forced_answer_choice(profile),
             )
@@ -2202,6 +2346,18 @@ def records_model(records: Mapping[str, dict]) -> str:
     return models.pop() if models else MODEL_NAME
 
 
+def records_prompt(records: Mapping[str, dict]) -> tuple[str, bool]:
+    """The one prompt version and search rule a run directory's records
+    share; records written before either existed are v1 without the rule."""
+    setups = {
+        (r.get("prompt_version", "v1"), bool(r.get("benchmark_search_rule")))
+        for r in records.values()
+    }
+    if len(setups) > 1:
+        raise SystemExit(f"records from more than one prompt setup: {sorted(setups)}")
+    return setups.pop() if setups else ("v1", False)
+
+
 def records_arm(records: Mapping[str, dict]) -> str:
     """The one arm a run directory's records belong to; records written
     before the web arms are the PE tool's."""
@@ -2213,7 +2369,9 @@ def records_arm(records: Mapping[str, dict]) -> str:
 
 def command_run(args) -> None:
     _require_engine()
-    profile = model_profile(args.model, args.arm)
+    profile = model_profile(
+        args.model, args.arm, args.prompt, args.forbid_benchmark_search
+    )
     key = provider_key(profile.model_id)
     if not os.environ.get(key):
         raise SystemExit(f"{key} is not set")
@@ -2244,6 +2402,12 @@ def command_run(args) -> None:
         raise SystemExit(
             f"{households_dir} holds {records_arm(previous)} records, not {profile.arm}"
         )
+    setup = (profile.prompt_version, profile.benchmark_search_rule)
+    if previous and records_prompt(previous) != setup:
+        raise SystemExit(
+            f"{households_dir} holds records with prompt setup "
+            f"{records_prompt(previous)}, not {setup}"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -2257,6 +2421,14 @@ def command_run(args) -> None:
         "model": profile.name,
         "model_id": profile.model_id,
         "arm": profile.arm,
+        "prompt_version": profile.prompt_version,
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "v2_pilot_definitions": [
+            {"v1": pattern.pattern, "v2_pilot": text}
+            for pattern, text in V2_PILOT_DEFINITIONS
+        ]
+        if profile.prompt_version == "v2-pilot"
+        else None,
         "api": profile.api,
         "answer_contract": profile.contract,
         "tool_notice": profile.notice,
@@ -2410,7 +2582,9 @@ def command_score(args) -> None:
     board = load_board()
     out = Path(args.out_dir)
     records = load_records(out)
-    profile = model_profile(records_model(records), records_arm(records))
+    profile = model_profile(
+        records_model(records), records_arm(records), *records_prompt(records)
+    )
     arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
@@ -2560,6 +2734,8 @@ def command_score(args) -> None:
                 },
                 "household_bootstrap": bootstrap,
                 "arm": profile.arm,
+                "prompt_version": profile.prompt_version,
+                "benchmark_search_rule": profile.benchmark_search_rule,
                 "tool_use": tool_use,
                 "search_audit": audit,
                 "usage": usage_summary,
@@ -3742,6 +3918,18 @@ def main(argv: list[str] | None = None) -> None:
                 choices=ARMS,
                 default="pe",
                 help="the tools: PolicyEngine (pe), web search (web), or both",
+            )
+            p.add_argument(
+                "--prompt",
+                choices=PROMPT_VERSIONS,
+                default="v1",
+                help="the board's prompt (v1), or v1 with its four "
+                "PolicyEngine-naming definitions made neutral (v2-pilot)",
+            )
+            p.add_argument(
+                "--forbid-benchmark-search",
+                action="store_true",
+                help="tell a web arm not to search for PolicyBench or its answers",
             )
             p.add_argument("--scenarios", nargs="*")
             p.add_argument("--limit", type=int)

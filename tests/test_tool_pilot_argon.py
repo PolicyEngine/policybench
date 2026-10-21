@@ -3051,3 +3051,137 @@ def test_the_audit_of_an_arm_that_never_searched_is_empty_not_an_error():
     audit = pilot.search_audit(log)
     assert audit["flagged_households"] == [] and audit["logged_entries"] == 0
     json.dumps(audit, allow_nan=False)
+
+
+# ---------------------------------------------------------------------------
+# The v2-pilot prompt and the benchmark-search rule.
+# ---------------------------------------------------------------------------
+
+
+def _board_part(prompt: str, profile) -> str:
+    assert prompt.endswith(profile.notice)
+    return prompt[: len(prompt) - len(profile.notice)]
+
+
+def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
+    board = pilot.load_board()
+    for sid in sorted(board["scenarios"]):
+        for name in (SOL, OPUS):
+            v1 = pilot.model_profile(name, "web")
+            v2 = pilot.model_profile(name, "web", "v2-pilot", True)
+            old, _ = pilot.build_initial_request(
+                board["scenarios"][sid], board["variables"][sid], v1
+            )
+            new, kwargs = pilot.build_initial_request(
+                board["scenarios"][sid], board["variables"][sid], v2
+            )
+            old, new = _board_part(old, v1), _board_part(new, v2)
+            assert "policyengine" not in new.lower()
+            assert "policyengine" not in json.dumps(kwargs["_answer_tool"]).lower()
+            # Only the four definition lines differ.
+            old_lines, new_lines = old.splitlines(), new.splitlines()
+            assert len(old_lines) == len(new_lines)
+            changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
+            assert all("PolicyEngine" in a for a, _ in changed)
+            assert len(changed) == old.count("PolicyEngine")
+
+
+def test_v2_pilot_keeps_each_persons_label_in_their_definition():
+    text = (
+        "- spouse_medicaid_eligible: whether Spouse is eligible for Medicaid "
+        "under PolicyEngine rules, not whether they are currently enrolled "
+        "(1 if yes, 0 if no)"
+    )
+    rewritten = pilot.v2_pilot_text(text)
+    assert rewritten.startswith(
+        "- spouse_medicaid_eligible: whether Spouse is eligible"
+    )
+    assert "PolicyEngine" not in rewritten and "in any eligibility group" in rewritten
+
+
+def test_the_guard_refuses_a_definition_left_unrewritten(monkeypatch):
+    monkeypatch.setattr(pilot, "V2_PILOT_DEFINITIONS", ())
+    board = pilot.load_board()
+    with pytest.raises(ValueError, match="names PolicyEngine"):
+        pilot.build_initial_request(
+            board["scenarios"]["scenario_000"],
+            board["variables"]["scenario_000"],
+            pilot.model_profile(SOL, "web", "v2-pilot"),
+        )
+
+
+def test_the_school_meal_wording_matches_every_reference():
+    """The v2-pilot meal definitions say a household with no one aged 5 to 17
+    gets 0, and a universal-free-meals state's households get free meals."""
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    universal = {"CA", "CO", "MA", "ME", "MI", "MN", "NM", "NY", "VT"}
+    for sid, scenario in board["scenarios"].items():
+        people = [*scenario.adults, *scenario.children]
+        school_age = any(5 <= person.age <= 17 for person in people)
+        free = reference.get((sid, "free_school_meals_eligible"))
+        reduced = reference.get((sid, "reduced_price_school_meals_eligible"))
+        if not school_age:
+            assert free in (0, None) and reduced in (0, None), sid
+        elif scenario.state in universal:
+            assert free == 1 and reduced in (0, None), sid
+
+
+def test_the_benchmark_search_rule_rides_only_on_web_notices():
+    for arm in ("web", "web+pe"):
+        for name in (SOL, OPUS):
+            with_rule = pilot.model_profile(name, arm, "v2-pilot", True)
+            without = pilot.model_profile(name, arm, "v2-pilot")
+            assert with_rule.notice == without.notice + pilot.BENCHMARK_SEARCH_RULE
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "pe", "v2-pilot", True)
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "web", "v3")
+    assert pilot.model_profile(SOL, "pe", "v2-pilot").notice == pilot.TOOL_NOTICE
+    labels = {
+        pilot.model_profile(SOL, "web").arm2_label,
+        pilot.model_profile(SOL, "web", "v2-pilot").arm2_label,
+        pilot.model_profile(SOL, "web", "v2-pilot", True).arm2_label,
+    }
+    assert labels == {
+        "gpt-6-sol+web",
+        "gpt-6-sol+web@v2-pilot",
+        "gpt-6-sol+web@v2-pilot+no-benchmark-search",
+    }
+
+
+def test_a_v2_pilot_repair_tool_names_policyengine_nowhere():
+    board = pilot.load_board()
+    sid = "scenario_001"
+    variables = board["variables"][sid]
+    meals = "free_school_meals_eligible"
+    first = {v: 0 for v in variables if v != meals}
+    model = FakeModel([response([submit(first)]), response([submit({meals: 0}, "s2")])])
+    record = pilot.run_household(
+        board["scenarios"][sid],
+        variables,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(pilot.MODEL_NAME, "pe", "v2-pilot"),
+    )
+    assert record["status"] == "complete" and record["repair_rounds"] == 1
+    assert record["prompt_version"] == "v2-pilot"
+    assert record["sent_board_prompt_sha256"] != record["board_prompt_sha256"]
+    for request in model.requests:
+        answer = [
+            t for t in request["tools"] if t["function"]["name"] == "submit_outputs"
+        ]
+        assert "policyengine" not in json.dumps(answer).lower()
+
+
+def test_records_name_one_prompt_setup_and_old_records_are_v1():
+    assert pilot.records_prompt({"a": {}, "b": {"prompt_version": "v1"}}) == (
+        "v1",
+        False,
+    )
+    assert pilot.records_prompt(
+        {"a": {"prompt_version": "v2-pilot", "benchmark_search_rule": True}}
+    ) == ("v2-pilot", True)
+    with pytest.raises(SystemExit):
+        pilot.records_prompt({"a": {"prompt_version": "v2-pilot"}, "b": {}})
