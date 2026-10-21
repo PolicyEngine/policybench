@@ -3082,8 +3082,12 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
             old_lines, new_lines = old.splitlines(), new.splitlines()
             assert len(old_lines) == len(new_lines)
             changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
-            assert all("PolicyEngine" in a for a, _ in changed)
-            assert len(changed) == old.count("PolicyEngine")
+            federal = "- federal_income_tax_before_refundable_credits:"
+            assert all("PolicyEngine" in a or a.startswith(federal) for a, _ in changed)
+            assert len(changed) == old.count("PolicyEngine") + (federal in old)
+            # d1263: the v2 prompt states the rate-schedule convention.
+            if federal in old:
+                assert "section 1 tax rate schedules" in new
 
 
 def test_v2_pilot_keeps_each_persons_label_in_their_definition():

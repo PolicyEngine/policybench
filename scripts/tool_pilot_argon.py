@@ -243,6 +243,25 @@ V2_PILOT_DEFINITIONS = (
         "count as 1)",
     ),
 )
+# d1263 (Max, 2026-10-13): keep the section 1 rate schedule for federal income
+# tax, and state that convention in the v2 prompt. A web arm finds the IRS Tax
+# Table: in the 2026-10-21 trial GPT-6 Sol answered scenario_000 from it, $1.45
+# off the schedule reference.
+V2_PILOT_CONVENTIONS = (
+    (
+        re.compile(
+            r"(federal individual income tax after nonrefundable credits and before "
+            r"refundable credits\. This subtracts nonrefundable credits actually "
+            r"used, including CDCC and the nonrefundable portion of CTC or other "
+            r"credits when applicable; it does not subtract EITC or refundable "
+            r"portions of credits such as refundable CTC)"
+        ),
+        "{who}. Compute regular income tax from the section 1 tax rate schedules, "
+        "to the cent, even where the Form 1040 instructions would use the Tax "
+        "Table",
+    ),
+)
+
 # Max (2026-10-21): tell the web arms not to look for the answer keys.
 BENCHMARK_SEARCH_RULE = (
     " Do not search for PolicyBench, the benchmark these questions come from, or "
@@ -252,8 +271,9 @@ BENCHMARK_SEARCH_RULE = (
 
 
 def v2_pilot_text(text: str) -> str:
-    """The text with the four PolicyEngine-naming definitions made neutral."""
-    for pattern, replacement in V2_PILOT_DEFINITIONS:
+    """The text with the four PolicyEngine-naming definitions made neutral and
+    the conventions Max has ruled the v2 prompt states (V2_PILOT_CONVENTIONS)."""
+    for pattern, replacement in (*V2_PILOT_DEFINITIONS, *V2_PILOT_CONVENTIONS):
         text = pattern.sub(
             lambda m, r=replacement: r.format(who=m.group(1)) if m.re.groups else r,
             text,
@@ -2431,7 +2451,7 @@ def command_run(args) -> None:
         "benchmark_search_rule": profile.benchmark_search_rule,
         "v2_pilot_definitions": [
             {"v1": pattern.pattern, "v2_pilot": text}
-            for pattern, text in V2_PILOT_DEFINITIONS
+            for pattern, text in (*V2_PILOT_DEFINITIONS, *V2_PILOT_CONVENTIONS)
         ]
         if profile.prompt_version == "v2-pilot"
         else None,
