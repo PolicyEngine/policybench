@@ -187,6 +187,11 @@ WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
 #   reduced price up to 185%.
 # - is_chip_eligible_child excludes anyone Medicaid-eligible, and chip_category
 #   includes CHIP coverage of pregnant women.
+# - is_medicaid_eligible counts medicaid_category's groups (children, adults,
+#   parents, pregnancy, SSI, senior or disabled, medically needy, buy-in and
+#   two waivers), not the Medicare Savings Programs, which are separate
+#   (gov/hhs/medicare/savings_programs). A first wording, "in any eligibility
+#   group", led GPT-6 Sol to count QI as Medicaid in the 2026-10-21 trial.
 PROMPT_VERSIONS = ("v1", "v2-pilot")
 V2_PILOT_DEFINITIONS = (
     (
@@ -195,8 +200,9 @@ V2_PILOT_DEFINITIONS = (
             r"not whether they are currently enrolled \(1 if yes, 0 if no\)"
         ),
         "whether {who} is eligible for Medicaid in 2026 under federal and state "
-        "Medicaid rules, in any eligibility group, not whether they are currently "
-        "enrolled (1 if yes, 0 if no)",
+        "Medicaid rules, not whether they are currently enrolled; the Medicare "
+        "Savings Programs (QMB, SLMB and QI), which help only with Medicare costs, "
+        "do not count (1 if yes, 0 if no)",
     ),
     (
         re.compile(

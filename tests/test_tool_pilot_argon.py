@@ -3096,7 +3096,10 @@ def test_v2_pilot_keeps_each_persons_label_in_their_definition():
     assert rewritten.startswith(
         "- spouse_medicaid_eligible: whether Spouse is eligible"
     )
-    assert "PolicyEngine" not in rewritten and "in any eligibility group" in rewritten
+    assert "PolicyEngine" not in rewritten
+    # The Medicare Savings Programs are not Medicaid in the reference engine.
+    assert "Medicare Savings Programs (QMB, SLMB and QI)" in rewritten
+    assert "do not count" in rewritten
 
 
 def test_the_guard_refuses_a_definition_left_unrewritten(monkeypatch):
