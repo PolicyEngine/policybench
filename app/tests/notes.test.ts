@@ -40,8 +40,27 @@ describe("notes", () => {
     }
   });
 
-  test("the notes page renders every title without unresolved placeholders", () => {
+  test("the notes index lists every note and links its page", () => {
     const markup = renderToStaticMarkup(createElement(NotesPageContent));
+    for (const note of notes) {
+      expect(markup).toContain(`href="/notes/${note.slug}"`);
+      expect(markup).toContain(`release ${note.release}`);
+    }
+    // Each card's excerpt is the note's first paragraph, as plain text.
+    expect(markup).toContain(
+      "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the notes render every title without unresolved placeholders", () => {
+    const markup = notes
+      .map((note) =>
+        renderToStaticMarkup(
+          createElement(NoteArticle, { note, titleLevel: "h1" }),
+        ),
+      )
+      .join("");
     expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
     expect(markup).toContain("release dashboard-data-20260905c");
     // Whole-number board rates keep one decimal.
