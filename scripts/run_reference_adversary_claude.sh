@@ -58,6 +58,17 @@
 # judge runs. A call the API refuses with 401, 403 or 429 stops the run: no
 # further judge starts, and the run resumes where it stopped.
 #
+# API key (Max, 2026-10-22: "in case youre running any claude api stuff please
+# use the key on my clipboard"): JUDGE_API_KEY_SECRET names an agent-secret
+# entry (account JUDGE_API_KEY_ACCOUNT, default $USER; AUDIT_SECRET_BIN
+# replaces agent-secret) holding an Anthropic API key. The judges then bill
+# that key and nothing else: it cannot be combined with a lane, a lane token
+# or the desktop login; every claude call runs in a fresh empty config
+# directory, removed when the run ends; the key joins only the claude calls'
+# allowlisted environment; and `claude auth status` must report a first-party
+# api_key login in that directory. The sidecars record the mode and the
+# secret's name, never the key.
+#
 # Provenance: beside stage1.json and verdict.json the runner writes
 # stage1.meta.json and verdict.meta.json with the runner, the stage, the model
 # requested and the models the CLI reports, the CLI version, the effort, the
@@ -165,7 +176,34 @@ for base in {home, pwd.getpwuid(os.getuid()).pw_dir}:
 print("other")
 PY
 }
-if [ "$DESKTOP_OPT_IN" = 1 ]; then
+API_SECRET="${JUDGE_API_KEY_SECRET:-}"
+API_KEY=""
+if [ -n "$API_SECRET" ]; then
+  [ "$DESKTOP_OPT_IN" = 0 ] || {
+    echo "JUDGE_API_KEY_SECRET and JUDGE_ALLOW_DESKTOP_LOGIN=1 are exclusive; refusing to start" >&2
+    exit 1
+  }
+  [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || {
+    echo "JUDGE_API_KEY_SECRET takes no lane token: unset CLAUDE_CODE_OAUTH_TOKEN; refusing to start" >&2
+    exit 1
+  }
+  [ -z "${AUDIT_ACCOUNT:-}" ] || {
+    echo "JUDGE_API_KEY_SECRET bills a key, not an account: unset AUDIT_ACCOUNT; refusing to start" >&2
+    exit 1
+  }
+  [ -z "${CLAUDE_CONFIG_DIR:-}" ] || {
+    echo "JUDGE_API_KEY_SECRET runs in its own empty config directory: unset CLAUDE_CONFIG_DIR; refusing to start" >&2
+    exit 1
+  }
+  API_KEY=$("${AUDIT_SECRET_BIN:-agent-secret}" get "$API_SECRET" "${JUDGE_API_KEY_ACCOUNT:-$USER}" 2>/dev/null)
+  [ -n "$API_KEY" ] || {
+    echo "could not read the API key $API_SECRET; refusing to start" >&2
+    exit 1
+  }
+  CONFIG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pb-adversary-config.XXXXXX") || exit 1
+  CONFIG_DIR="$(cd "$CONFIG_DIR" && pwd -P)"
+  trap 'rm -rf "$CONFIG_DIR"' EXIT
+elif [ "$DESKTOP_OPT_IN" = 1 ]; then
   [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || {
     echo "JUDGE_ALLOW_DESKTOP_LOGIN=1 takes no lane token: unset CLAUDE_CODE_OAUTH_TOKEN; refusing to start" >&2
     exit 1
@@ -218,6 +256,7 @@ while IFS= read -r line; do [ -n "$line" ] && CHILD_ENV+=("$line"); done <<EOF
 $(allowlist PATH HOME USER LOGNAME TMPDIR LANG LC_ALL LC_CTYPE CLAUDE_CODE_OAUTH_TOKEN)
 EOF
 CHILD_ENV+=("CLAUDE_CODE_EFFORT_LEVEL=$EFFORT")
+[ -n "$API_KEY" ] && CHILD_ENV+=("ANTHROPIC_API_KEY=$API_KEY")
 [ "$DESKTOP_OPT_IN" = 1 ] || CHILD_ENV+=("CLAUDE_CONFIG_DIR=$CONFIG_DIR")
 CHILD_ENV+=("CLAUDE_CODE_SAFE_MODE=1" "CLAUDE_CODE_DISABLE_CLAUDE_MDS=1")
 DESKTOP_ENV=()
@@ -234,12 +273,13 @@ TOKEN_SET=0
 [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && TOKEN_SET=1
 AUTH=$(adversary check-login --status "$AUTH_JSON" --desktop-status "$DESKTOP_JSON" \
   --token-set "$TOKEN_SET" --declared "${AUDIT_ACCOUNT:-}" --config-dir "$CONFIG_DIR" \
-  --desktop-opt-in "$DESKTOP_OPT_IN") || {
-  echo "refusing to start: the judges must bill the lane's own subscription login" >&2
+  --desktop-opt-in "$DESKTOP_OPT_IN" --api-key-secret "$API_SECRET") || {
+  echo "refusing to start: the judges must bill a lane's subscription login, the opted-in desktop login or the declared API key" >&2
   exit 1
 }
 DECLARED="${AUDIT_ACCOUNT:-}"
 [ "$DESKTOP_OPT_IN" = 1 ] && DECLARED="$DESKTOP_DECLARED"
+[ -n "$API_SECRET" ] && DECLARED="API key $API_SECRET (JUDGE_API_KEY_SECRET, Max 2026-10-22)"
 CLI_VERSION=$(cd / && claude_child --version </dev/null 2>/dev/null | head -n 1)
 
 valid() { [ -s "$2" ] && adversary validate --schema "$1" --file "$2" >/dev/null 2>&1; }

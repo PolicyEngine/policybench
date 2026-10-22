@@ -109,6 +109,13 @@ if args[:1] == ["--version"]:
     print("9.9.9 (Claude Code fake)")
     sys.exit(0)
 if args[:1] == ["auth"]:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        print(json.dumps({
+            "loggedIn": True, "authMethod": "api_key", "apiProvider": "firstParty",
+            "apiKeySource": "ANTHROPIC_API_KEY",
+            "configDirectory": os.environ.get("CLAUDE_CONFIG_DIR"),
+        }))
+        sys.exit(0)
     print(json.dumps(
         {"loggedIn": True, "authMethod": "oauth_token", "apiProvider": "firstParty"}
     ))
@@ -535,6 +542,74 @@ def test_claude_runner_refuses_without_a_lane_login(tmp_path: Path):
     result = _run("claude", adversary, env, tmp_path)
     assert result.returncode == 1
     assert "AUDIT_ACCOUNT" in result.stderr
+    assert _calls(bin_dir) == []
+
+
+def _api_key_env(tmp_path: Path, env: dict, key: str = "sk-ant-judge") -> dict:
+    """The runner's environment for an API key judge, with a fake secret store."""
+    store = tmp_path / "bin" / "secret"
+    store.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        f"print({key!r}) if sys.argv[1:3] == ['get', 'JUDGE_KEY'] else sys.exit(1)\n"
+    )
+    store.chmod(0o755)
+    env = {**env, "JUDGE_API_KEY_SECRET": "JUDGE_KEY", "AUDIT_SECRET_BIN": str(store)}
+    for name in ("CLAUDE_CONFIG_DIR", "AUDIT_ACCOUNT", "CLAUDE_CODE_OAUTH_TOKEN"):
+        env.pop(name, None)
+    return env
+
+
+def test_claude_runner_judges_on_a_declared_api_key_in_its_own_config(tmp_path: Path):
+    adversary, bin_dir, env = _setup(tmp_path, "claude")
+    env = _api_key_env(tmp_path, env)
+    env["TMPDIR"] = str(tmp_path / "tmp")
+    (tmp_path / "tmp").mkdir()
+    result = _run("claude", adversary, env, tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout
+    calls = _calls(bin_dir)
+    assert calls
+    configs = {call["env"]["CLAUDE_CONFIG_DIR"] for call in calls}
+    assert len(configs) == 1
+    config = configs.pop()
+    assert Path(config).parent == (tmp_path / "tmp").resolve()
+    assert not Path(config).exists()  # removed when the run ended
+    for call in calls:
+        # The declared key, never the parent's ANTHROPIC_API_KEY.
+        assert call["env"]["ANTHROPIC_API_KEY"] == "sk-ant-judge"
+        assert "CLAUDE_CODE_OAUTH_TOKEN" not in call["env"]
+    for case in CASES:
+        meta = json.loads(
+            (adversary / "cases" / case.case_id / "verdict.meta.json").read_text()
+        )
+        assert meta["judge_auth"] == {
+            "method": "api_key",
+            "account": None,
+            "org": None,
+            "secret": "JUDGE_KEY",
+        }
+        assert "JUDGE_KEY" in meta["judge_account_declared"]
+        assert "sk-ant-judge" not in json.dumps(meta)
+
+
+def test_claude_runner_refuses_an_api_key_mixed_with_a_login(tmp_path: Path):
+    adversary, bin_dir, env = _setup(tmp_path, "claude")
+    base = _api_key_env(tmp_path, env)
+    mixes = {
+        "CLAUDE_CONFIG_DIR": (str(tmp_path / "lane-config"), "own empty config"),
+        "AUDIT_ACCOUNT": ("claude:lane@example.org", "unset AUDIT_ACCOUNT"),
+        "CLAUDE_CODE_OAUTH_TOKEN": ("token", "takes no lane token"),
+        "JUDGE_ALLOW_DESKTOP_LOGIN": ("1", "are exclusive"),
+    }
+    for name, (value, message) in mixes.items():
+        result = _run("claude", adversary, {**base, name: value}, tmp_path)
+        assert result.returncode == 1
+        assert message in result.stderr, (name, result.stderr)
+    result = _run(
+        "claude", adversary, {**base, "JUDGE_API_KEY_SECRET": "MISSING"}, tmp_path
+    )
+    assert result.returncode == 1
+    assert "could not read the API key MISSING" in result.stderr
     assert _calls(bin_dir) == []
 
 

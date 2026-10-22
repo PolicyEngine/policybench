@@ -1551,6 +1551,57 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
     assert check_login(lane, desktop, token=True, declared="claude:lane@x", **common)
 
 
+def test_check_login_takes_an_api_key_only_as_declared_in_the_runs_own_directory(
+    tmp_path: Path,
+):
+    own = tmp_path / "own"
+    own.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+
+    def status(**fields):
+        return json.dumps(
+            {
+                "loggedIn": True,
+                "authMethod": "api_key",
+                "apiProvider": "firstParty",
+                "apiKeySource": "ANTHROPIC_API_KEY",
+                "configDirectory": str(own),
+                **fields,
+            }
+        )
+
+    common = {"token": False, "declared": "", "config_dir": str(own)}
+    assert check_login(
+        status(), "", desktop_opt_in=False, api_key_secret="KEY", **common
+    ) == {"method": "api_key", "account": None, "org": None, "secret": "KEY"}
+    # Without the declaration an API key is still refused.
+    with pytest.raises(ValueError, match="not a subscription"):
+        check_login(status(), "", desktop_opt_in=False, **common)
+    refusals = [
+        (status(authMethod="claude.ai"), "logs in by 'claude.ai'"),
+        (status(apiKeySource="/login managed key"), "not ANTHROPIC_API_KEY"),
+        (status(configDirectory=str(other)), "not the run's own"),
+        (status(apiProvider="bedrock"), "not a first-party"),
+        (status(loggedIn=False), "no login"),
+    ]
+    for text, message in refusals:
+        with pytest.raises(ValueError, match=message):
+            check_login(text, "", desktop_opt_in=False, api_key_secret="KEY", **common)
+    with pytest.raises(ValueError, match="no lane token and no desktop opt-in"):
+        check_login(status(), "", desktop_opt_in=True, api_key_secret="KEY", **common)
+    with pytest.raises(ValueError, match="no lane token and no desktop opt-in"):
+        check_login(
+            status(),
+            "",
+            token=True,
+            declared="",
+            config_dir=str(own),
+            desktop_opt_in=False,
+            api_key_secret="KEY",
+        )
+
+
 # --- Command line ----------------------------------------------------------------
 
 

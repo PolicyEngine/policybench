@@ -2102,6 +2102,7 @@ def check_login(
     declared: str,
     config_dir: str,
     desktop_opt_in: bool,
+    api_key_secret: str = "",
 ) -> dict:
     """The Claude login a runner may judge with, or ``ValueError`` saying why not.
 
@@ -2111,6 +2112,12 @@ def check_login(
     in which case it must be exactly the desktop's own claude.ai login. Unlike
     that script, it also refuses a token lane whose declared account
     (AUDIT_ACCOUNT) is the desktop login's.
+
+    With ``api_key_secret`` (the runner's JUDGE_API_KEY_SECRET, Max
+    2026-10-22) the judges bill that API key instead: the CLI must report a
+    first-party ``api_key`` login from ``ANTHROPIC_API_KEY`` in exactly
+    ``config_dir`` (the runner's fresh, empty one), with no lane token and no
+    desktop opt-in.
     """
 
     def parse(text: str) -> dict:
@@ -2130,6 +2137,31 @@ def check_login(
             f"the login is through {status.get('apiProvider')!r}, not a "
             "first-party subscription"
         )
+    if api_key_secret:
+        if token or desktop_opt_in:
+            raise ValueError(
+                "an API key judge takes no lane token and no desktop opt-in"
+            )
+        if method != "api_key" or status.get("apiKeySource") != "ANTHROPIC_API_KEY":
+            raise ValueError(
+                f"JUDGE_API_KEY_SECRET is set but the CLI logs in by {method!r} "
+                f"from {status.get('apiKeySource')!r}, not ANTHROPIC_API_KEY"
+            )
+        if not (
+            isinstance(reported, str)
+            and os.path.isdir(reported)
+            and os.path.samefile(reported, config_dir)
+        ):
+            raise ValueError(
+                f"the CLI reports config directory {reported!r}, not the run's "
+                f"own {config_dir}"
+            )
+        return {
+            "method": "api_key",
+            "account": None,
+            "org": None,
+            "secret": api_key_secret,
+        }
     if method not in ("oauth_token", "claude.ai"):
         raise ValueError(f"the login method {method!r} is not a subscription login")
     same_account = bool(
@@ -2226,6 +2258,7 @@ def main(argv: list[str] | None = None) -> int:
     login.add_argument("--declared", default="")
     login.add_argument("--config-dir", required=True)
     login.add_argument("--desktop-opt-in", choices=["0", "1"], default="0")
+    login.add_argument("--api-key-secret", default="")
     args = parser.parse_args(argv)
 
     if args.command == "render-stage2":
@@ -2264,6 +2297,7 @@ def main(argv: list[str] | None = None) -> int:
             declared=args.declared,
             config_dir=args.config_dir,
             desktop_opt_in=args.desktop_opt_in == "1",
+            api_key_secret=args.api_key_secret,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
