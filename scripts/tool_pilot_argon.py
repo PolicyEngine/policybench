@@ -826,44 +826,67 @@ def execute_request(system, registry, request: dict, simulation_cls=None) -> dic
     return {"results": results}
 
 
-def pinned_fix_modules(snapshot: Path = SNAPSHOT) -> list[dict]:
-    """The fix modules the 2.41.0 references were built with, as the sidecar's
-    engine_upgrade revision pins them (path and sha256)."""
+def _board_upgrade(snapshot: Path) -> dict:
+    """A board's last engine_upgrade revision: the engine its references are
+    on and the fix modules it pins. The frozen board's is 2.41.0's; a household
+    set (scripts/household_set.py) records one."""
     meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
-    revisions = [
-        r
-        for r in meta["revisions"]
-        if r.get("kind") == "engine_upgrade"
-        and r.get("engine_version") == f"policyengine-us {REFERENCE_ENGINE}"
-    ]
-    if len(revisions) != 1:
-        raise SystemExit(f"expected one {REFERENCE_ENGINE} engine_upgrade revision")
-    return revisions[0]["fix_modules"]
+    revisions = [r for r in meta["revisions"] if r.get("kind") == "engine_upgrade"]
+    if not revisions:
+        raise SystemExit(f"{snapshot} records no engine_upgrade revision")
+    return revisions[-1]
 
 
-def verify_fix_pins(fixes_dir: Path = FIX_MODULE.parent) -> None:
+def board_engine(snapshot: Path = SNAPSHOT) -> str:
+    """The policyengine-us version a board's references were computed on."""
+    return _board_upgrade(snapshot)["engine_version"].removeprefix("policyengine-us ")
+
+
+def is_household_set(snapshot: Path) -> bool:
+    meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
+    return meta.get("board_kind") == "household_set"
+
+
+def pinned_fix_modules(snapshot: Path = SNAPSHOT) -> list[dict]:
+    """The fix modules a board's references were built with, as its sidecar's
+    engine_upgrade revision pins them (path and sha256)."""
+    return _board_upgrade(snapshot)["fix_modules"]
+
+
+def board_fix_module_sha256(snapshot: Path = SNAPSHOT) -> str:
+    """The pinned latest_final.py: the constant for the frozen board, the
+    sidecar's record for a household set."""
+    if not is_household_set(snapshot):
+        return FIX_MODULE_SHA256
+    return _board_upgrade(snapshot)["fix_module"]["sha256"]
+
+
+def verify_fix_pins(
+    fixes_dir: Path = FIX_MODULE.parent, snapshot: Path = SNAPSHOT
+) -> None:
     """Every module latest_final.py composes must be the pinned bytes.
 
     Each pin is checked at its recorded path; a module the reform reads from
     its own directory (the sales tax tables) is also checked there.
     """
     problems = []
-    for pin in pinned_fix_modules():
+    for pin in pinned_fix_modules(snapshot):
         candidates = {ROOT / pin["path"], fixes_dir / pin["module"]}
         for path in sorted(candidates):
             if path.exists() and _sha256(path) != pin["sha256"]:
                 problems.append(f"{path} does not match the pinned {pin['sha256']}")
         if not any(path.exists() for path in candidates):
             problems.append(f"{pin['module']} is missing")
-    if _sha256(FIX_MODULE) != FIX_MODULE_SHA256:
-        problems.append(f"{FIX_MODULE} does not match {FIX_MODULE_SHA256}")
+    pinned = board_fix_module_sha256(snapshot)
+    if _sha256(FIX_MODULE) != pinned:
+        problems.append(f"{FIX_MODULE} does not match {pinned}")
     if problems:
         raise SystemExit("; ".join(problems))
 
 
-def load_fix_reform(path: Path = FIX_MODULE):
+def load_fix_reform(path: Path = FIX_MODULE, snapshot: Path = SNAPSHOT):
     if path == FIX_MODULE:
-        verify_fix_pins()
+        verify_fix_pins(snapshot=snapshot)
     spec = importlib.util.spec_from_file_location("tool_pilot_latest_final", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -871,18 +894,21 @@ def load_fix_reform(path: Path = FIX_MODULE):
     return module.reform
 
 
-def build_tool_system(reform: bool = True, path: Path = FIX_MODULE):
+def build_tool_system(
+    reform: bool = True, path: Path = FIX_MODULE, snapshot: Path = SNAPSHOT
+):
     from policyengine_us import CountryTaxBenefitSystem
 
     if not reform:
         return CountryTaxBenefitSystem()
-    return CountryTaxBenefitSystem(reform=load_fix_reform(path))
+    return CountryTaxBenefitSystem(reform=load_fix_reform(path, snapshot))
 
 
-def _worker_main(conn, fix_path: str, reform: bool) -> None:
+def _worker_main(conn, fix_path: str, reform: bool, board: str | None = None) -> None:
     for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[name] = "1"
-    system = build_tool_system(reform=reform, path=Path(fix_path))
+    snapshot = Path(board) if board else SNAPSHOT
+    system = build_tool_system(reform=reform, path=Path(fix_path), snapshot=snapshot)
     registry = build_registry(system)
     conn.send(("ready", None))
     while True:
@@ -910,9 +936,13 @@ class ToolPool:
         reform: bool = True,
         worker_target: Callable | None = None,
         acquire_timeout: float | None = None,
+        board: Path | None = None,
     ):
         self._ctx = mp.get_context("spawn")
         self._fix_path = str(fix_path)
+        # A worker gets the board only when it is not the frozen one, so a
+        # three-argument worker target still starts on the default.
+        self._board = None if board is None or board == SNAPSHOT else str(board)
         self._reform = reform
         self._target = worker_target or _worker_main
         self.timeout = timeout
@@ -932,11 +962,10 @@ class ToolPool:
 
     def _start(self):
         parent, child = self._ctx.Pipe()
-        process = self._ctx.Process(
-            target=self._target,
-            args=(child, self._fix_path, self._reform),
-            daemon=True,
-        )
+        args = (child, self._fix_path, self._reform)
+        if self._board is not None:
+            args += (self._board,)
+        process = self._ctx.Process(target=self._target, args=args, daemon=True)
         process.start()
         return process, parent
 
@@ -2366,28 +2395,38 @@ def _versions() -> dict:
     return out
 
 
-def _require_engine() -> None:
+def board_path(args) -> Path:
+    """The board a command reads: --board, or the frozen snapshot."""
+    return Path(getattr(args, "board", None) or SNAPSHOT)
+
+
+def _require_engine(board: Path = SNAPSHOT) -> None:
     version = _versions()["policyengine-us"]
-    if version != REFERENCE_ENGINE:
+    pinned = board_engine(board)
+    if version != pinned:
+        where = (
+            f"the reference engine of household set {board}"
+            if is_household_set(board)
+            else "the reference engine of release dashboard-data-20261014"
+        )
         raise SystemExit(
-            f"policyengine-us {version} is installed; the pilot pins "
-            f"{REFERENCE_ENGINE}, the reference engine of release "
-            "dashboard-data-20261014."
+            f"policyengine-us {version} is installed; the pilot pins {pinned}, {where}."
         )
 
 
 def command_oracle(args) -> None:
     """Reference situations through the tool engine: every scored reference must
     come back within the board's tolerance."""
-    _require_engine()
+    snapshot = board_path(args)
+    _require_engine(snapshot)
     from policybench.ground_truth import _extract_person_value, _pe_variable_for_output
 
-    board = load_board()
+    board = load_board(snapshot)
     scored_keys = set(zip(board["scored"].scenario_id, board["scored"].variable))
     values = board["reference"].set_index(["scenario_id", "variable"])["value"]
     rows = []
     for label, reform in (("reference_engine", True), ("plain_engine", False)):
-        system = build_tool_system(reform=reform)
+        system = build_tool_system(reform=reform, snapshot=snapshot)
         registry = build_registry(system)
         for sid, scenario in board["scenarios"].items():
             situation = scenario.to_pe_household()
@@ -2565,7 +2604,8 @@ def records_arm(records: Mapping[str, dict]) -> str:
 
 
 def command_run(args) -> None:
-    _require_engine()
+    snapshot = board_path(args)
+    _require_engine(snapshot)
     profile = model_profile(
         args.model, args.arm, args.prompt, args.forbid_benchmark_search
     )
@@ -2579,7 +2619,7 @@ def command_run(args) -> None:
     from litellm import completion, responses
 
     completion_fn = responses if profile.api == "responses" else completion
-    board = load_board()
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     households_dir = out / "households"
     households_dir.mkdir(parents=True, exist_ok=True)
@@ -2620,6 +2660,9 @@ def command_run(args) -> None:
         "versions": _versions(),
         "fix_module": str(FIX_MODULE.relative_to(ROOT)),
         "fix_module_sha256": _sha256(FIX_MODULE),
+        "board": str(snapshot),
+        "board_engine": f"policyengine-us {board_engine(snapshot)}",
+        "board_reference_sha256": board["meta"].get("reference_csv_sha256"),
         "model": profile.name,
         "model_id": profile.model_id,
         "arm": profile.arm,
@@ -2662,7 +2705,9 @@ def command_run(args) -> None:
     if not todo:
         return
     # Arms without the calculator start no engine workers.
-    pool = ToolPool(size=args.workers) if profile.uses_calculator else None
+    pool = (
+        ToolPool(size=args.workers, board=snapshot) if profile.uses_calculator else None
+    )
 
     def no_calculator(arguments) -> tuple[dict, float]:
         return {"error": "not_run", "message": "no calculator in this arm"}, 0.0
@@ -2797,11 +2842,36 @@ def arm1_predictions(
     return rows
 
 
+def baseline_predictions(
+    records: Mapping[str, dict], label: str = ARM1_LABEL
+) -> pd.DataFrame:
+    """A no-tools run's records as the board's prediction frame, with each
+    household's usage on its first row so per-household sums are its totals."""
+    frame = arm2_predictions(records, label)
+    usage = {
+        "prompt_tokens": "prompt_tokens",
+        "completion_tokens": "completion_tokens",
+        "reasoning_tokens": "reasoning_tokens",
+        "total_cost_usd": "cost_usd",
+        "elapsed_seconds": "model_seconds",
+        "cached_prompt_tokens": "cached_prompt_tokens",
+    }
+    first = ~frame.duplicated("scenario_id")
+    for column, total in usage.items():
+        frame[column] = [
+            float(records[sid]["totals"].get(total) or 0.0) if is_first else 0.0
+            for sid, is_first in zip(frame.scenario_id, first)
+        ]
+    frame["call_id"] = frame.scenario_id
+    return frame
+
+
 def command_score(args) -> None:
     from policybench.analysis import analyze_no_tools
     from policybench.spec import output_group_id
 
-    board = load_board()
+    snapshot = board_path(args)
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     records = load_records(out)
     profile = model_profile(
@@ -2825,7 +2895,28 @@ def command_score(args) -> None:
             f"failure and score as misses until a resume reruns them: {leftover}"
         )
     scored = board["scored"][board["scored"].scenario_id.isin(households)]
-    arm1 = arm1_predictions(label=arm1_label)
+    if is_household_set(snapshot):
+        # No board run exists for a fresh household set: the baseline is the
+        # same model's no-tools arm on it, run with the same prompt setup.
+        baseline_dir = getattr(args, "baseline_dir", None)
+        if not baseline_dir:
+            raise SystemExit("a household set is scored against --baseline-dir")
+        baseline = load_records(Path(baseline_dir))
+        if records_model(baseline) != profile.name or records_arm(baseline) != "none":
+            raise SystemExit(
+                f"--baseline-dir holds {records_model(baseline)} "
+                f"{records_arm(baseline)} records, not {profile.name} none"
+            )
+        if records_prompt(baseline)[0] != profile.prompt_version:
+            raise SystemExit("--baseline-dir was run on another prompt version")
+        missing = sorted(set(households) - set(baseline))
+        if missing:
+            raise SystemExit(f"--baseline-dir lacks households {missing}")
+        arm1 = baseline_predictions(
+            {sid: baseline[sid] for sid in households}, arm1_label
+        )
+    else:
+        arm1 = arm1_predictions(label=arm1_label)
     arm1 = arm1[arm1.scenario_id.isin(households)]
     arm2 = arm2_predictions({sid: records[sid] for sid in households}, arm2_label)
     scenarios = board["scenarios_frame"][
@@ -4003,7 +4094,8 @@ def situation_fidelity(records, board, system, registry, defaults, out: Path) ->
 def command_diagnose(args) -> None:
     from policybench.spec import metric_type_for_output
 
-    board = load_board()
+    snapshot = board_path(args)
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     records = load_records(out)
     rows_path = out / "scored_rows.csv"
@@ -4014,8 +4106,8 @@ def command_diagnose(args) -> None:
     registry = None
     defaults = {}
     if not args.no_engine_defaults:
-        _require_engine()
-        system = build_tool_system(reform=True)
+        _require_engine(snapshot)
+        system = build_tool_system(reform=True, snapshot=snapshot)
         registry = build_registry(system)
         defaults = {
             name: system.variables[name].default_value for name in system.variables
@@ -4146,6 +4238,12 @@ def main(argv: list[str] | None = None) -> None:
     for name in ("oracle", "run", "score", "diagnose"):
         p = sub.add_parser(name)
         p.add_argument("--out-dir", required=True)
+        p.add_argument(
+            "--board",
+            default=str(SNAPSHOT),
+            help="the frozen board (default) or a household set from "
+            "scripts/household_set.py",
+        )
         if name == "run":
             p.add_argument(
                 "--model",
@@ -4185,6 +4283,11 @@ def main(argv: list[str] | None = None) -> None:
                 "--complete-only",
                 action="store_true",
                 help="score only households whose conversation completed",
+            )
+            p.add_argument(
+                "--baseline-dir",
+                help="on a household set, the same model's no-tools run: the "
+                "baseline each arm is compared with",
             )
         if name == "diagnose":
             p.add_argument("--no-engine-defaults", action="store_true")
