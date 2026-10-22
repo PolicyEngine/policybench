@@ -147,9 +147,21 @@ JSON_TOOL_NOTICE = (
 
 # The arms ``run --arm`` takes. "pe" is arm 2 as run on 2026-10-14 and
 # 2026-10-15. "web" swaps the PolicyEngine tool for the provider's own web
-# search, and "web+pe" offers both.
-ARMS = ("pe", "web", "web+pe")
-ARM_SUFFIX = {"pe": "+pe-tool", "web": "+web", "web+pe": "+web+pe-tool"}
+# search, and "web+pe" offers both. "none" offers neither: the board's own
+# no-tools request (the forced answer function, or the JSON reply with no tools),
+# so a prompt version other than the board's has its own no-tools baseline.
+ARMS = ("none", "pe", "web", "web+pe")
+ARM_SUFFIX = {
+    "none": "+no-tools",
+    "pe": "+pe-tool",
+    "web": "+web",
+    "web+pe": "+web+pe-tool",
+}
+# A web arm's request timeout. A search-heavy turn can outlast the board's
+# (Gemini 4 Argon's model card gives 300 s, and its web-only arm never finished
+# scenario_005 within it in six attempts on 2026-10-21), so the web arms allow
+# this much and the manifest records it.
+WEB_REQUEST_TIMEOUT_SECONDS = 900
 
 _CALCULATE_OPENING = "You also have a `calculate_household` function."
 WEB_SENTENCE = "You also have web search, which searches the public web."
@@ -274,6 +286,48 @@ V2_PILOT_CONVENTIONS = (
         ),
         "{who}. Where a credit depends on income tax liability, compute that "
         "liability from the section 1 tax rate schedules, not the Tax Table",
+    ),
+    (
+        # policyengine-us 2.41.0's state_income_tax_before_refundable_credits
+        # list adds id_pbf for Idaho ("Form 40 permanent building fund tax,
+        # added before refundable credits"); no other state adds such a tax.
+        # GPT-6 Sol's tool answers for scenario_007 were $10 short without it.
+        re.compile(
+            r"(state individual income tax after nonrefundable credits and before "
+            r"refundable credits, excluding local income and payroll taxes)"
+        ),
+        "{who}; include Idaho's $10 permanent building fund tax where it applies",
+    ),
+    (
+        # The reference rule (reference_audit sidecar, quoted in
+        # fixes/latest_c_snap_hold_fy2026.py): "A scored reference follows from
+        # the stated facts and from law published before the 2026-07-03
+        # reference freeze", and SNAP holds the FY2026 schedule for October to
+        # December 2026. Web arms otherwise apply FY2027 values, published in
+        # August 2026 (GPT-6 Sol, scenarios 008 and 012).
+        re.compile(
+            r"(Do not infer unlisted income, expenses, assets, benefit receipt, "
+            r"rent, or health coverage\.)"
+        ),
+        "{who} Apply the law and program parameters published before July 3, "
+        "2026; for SNAP, use the fiscal year 2026 values for all of 2026.",
+    ),
+    (
+        # policyengine-us documents employer_sponsored_insurance_premiums as
+        # "Annual employer-paid health insurance premiums". Three web arms read
+        # the bare label as premiums the household paid (scenario_000).
+        re.compile(r"employer sponsored insurance premiums: "),
+        "employer-paid health insurance premiums (paid by the employer, not by "
+        "the household): ",
+    ),
+    (
+        # spm_unit_energy_subsidy, the SPM's home energy assistance. In 2026
+        # policyengine-us deems a SNAP utility allowance from energy assistance
+        # only for elderly or disabled households
+        # (heat_and_eat_requires_elderly_disabled, P.L. 119-21 section 10103).
+        # The engine label hid what the amount is.
+        re.compile(r"spm unit energy subsidy: "),
+        "home energy assistance received: ",
     ),
 )
 
@@ -1055,6 +1109,8 @@ class ModelProfile:
     @property
     def notice(self) -> str:
         tool = self.contract == "tool"
+        if self.arm == "none":
+            return ""
         if self.arm == "web":
             notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
         elif self.arm == "web+pe":
@@ -1065,11 +1121,11 @@ class ModelProfile:
 
     @property
     def uses_calculator(self) -> bool:
-        return self.arm != "web"
+        return self.arm in ("pe", "web+pe")
 
     @property
     def uses_web(self) -> bool:
-        return self.arm != "pe"
+        return self.arm in ("web", "web+pe")
 
     @property
     def provider(self) -> str:
@@ -1116,7 +1172,7 @@ def model_profile(
             f"unknown prompt {prompt_version!r}; the prompts are "
             f"{', '.join(PROMPT_VERSIONS)}"
         )
-    if benchmark_search_rule and arm == "pe":
+    if benchmark_search_rule and arm not in ("web", "web+pe"):
         raise SystemExit("the benchmark-search rule needs a web arm")
     model_id = MODELS[name]
     return ModelProfile(
@@ -1338,7 +1394,11 @@ class ChatConversation:
         # then rebuilds the message in another block order.
         if self.cache_breakpoint and messages[-1].get("role") != "assistant":
             messages = [*messages[:-1], _with_cache_breakpoint(messages[-1])]
-        kwargs.update({"messages": messages, "tools": tools})
+        kwargs["messages"] = messages
+        # A request with no tools sends no tools key at all, as the board's
+        # JSON-contract request does.
+        if tools:
+            kwargs["tools"] = tools
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
         if self.budget_key not in kwargs and "max_tokens" in kwargs:
@@ -1735,6 +1795,10 @@ def run_household(
     offered = ([web_search_tool(profile)] if profile.uses_web else []) + (
         [calculate_tool] if profile.uses_calculator else []
     )
+    if profile.uses_web:
+        base["timeout"] = max(
+            float(base.get("timeout") or 0), WEB_REQUEST_TIMEOUT_SECONDS
+        )
     if profile.uses_web and profile.provider == "gemini":
         base["include_server_side_tool_invocations"] = True
     if profile.uses_web and profile.provider == "openai":
@@ -1779,7 +1843,9 @@ def run_household(
 
     def tools_and_choice(kind: str):
         if json_contract:
-            return list(offered), "auto"
+            # The board's JSON contract sends no tools, so the no-tools arm
+            # sends none and no tool_choice either.
+            return list(offered), ("auto" if offered else None)
         if kind == "repair":
             return (
                 [
@@ -1788,7 +1854,9 @@ def run_household(
                 ],
                 forced_answer_choice(profile),
             )
-        if kind == "forced_answer":
+        if kind == "forced_answer" or not offered:
+            # With no tools offered, the board forces its answer function from
+            # the first turn; so does the no-tools arm.
             return [*offered, answer_tool], forced_answer_choice(profile)
         return [*offered, answer_tool], "required"
 
@@ -2540,6 +2608,9 @@ def command_run(args) -> None:
         "tool_notice": profile.notice,
         "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
         "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
+        "request_timeout_seconds": WEB_REQUEST_TIMEOUT_SECONDS
+        if profile.uses_web
+        else None,
         "search_usd_per_1k": (
             SEARCH_USD_PER_1K[profile.provider] if profile.uses_web else None
         ),
@@ -2557,13 +2628,18 @@ def command_run(args) -> None:
     print(f"{len(todo)} households to run; ${spent_before:.4f} already spent")
     if not todo:
         return
-    pool = ToolPool(size=args.workers)
+    # Arms without the calculator start no engine workers.
+    pool = ToolPool(size=args.workers) if profile.uses_calculator else None
+
+    def no_calculator(arguments) -> tuple[dict, float]:
+        return {"error": "not_run", "message": "no calculator in this arm"}, 0.0
+
     try:
 
         def one(sid: str) -> dict:
             if spend.exhausted(args.reserve_usd):
                 return {"scenario_id": sid, "status": "budget_stop"}
-            if pool.counters()["lost"] >= args.workers:
+            if pool is not None and pool.counters()["lost"] >= args.workers:
                 # Every worker is gone: start nothing more. The household keeps
                 # no record, so a resume runs it.
                 return {
@@ -2575,7 +2651,7 @@ def command_run(args) -> None:
                 record = run_household(
                     board["scenarios"][sid],
                     board["variables"][sid],
-                    pool.call,
+                    pool.call if pool is not None else no_calculator,
                     completion_fn,
                     spend,
                     profile=profile,
@@ -2614,8 +2690,9 @@ def command_run(args) -> None:
         ) as executor:
             results = list(executor.map(one, todo))
     finally:
-        counters = pool.counters()
-        pool.close()
+        counters = pool.counters() if pool is not None else {}
+        if pool is not None:
+            pool.close()
     stopped = [r["scenario_id"] for r in results if r.get("status") == "budget_stop"]
     rerunnable = sorted(
         r["scenario_id"] for r in results if r.get("status") in RERUNNABLE_STATUSES
@@ -4040,7 +4117,7 @@ def main(argv: list[str] | None = None) -> None:
                 "--arm",
                 choices=ARMS,
                 default="pe",
-                help="the tools: PolicyEngine (pe), web search (web), or both",
+                help="the tools: none, PolicyEngine (pe), web search (web), or both",
             )
             p.add_argument(
                 "--prompt",
