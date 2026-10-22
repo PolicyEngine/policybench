@@ -99,6 +99,11 @@ def publish_dashboard(
 
     if not dry_run:
         if not _release_exists(repo, tag):
+            # The release must exist before its PR merges, because CI and
+            # Vercel download the asset the PR's pointer names. GitHub puts the
+            # new tag on main as it stands now; the Seal release workflow moves
+            # it to the release PR's merge commit and marks the release Latest
+            # (docs/runbook.md, section 8). Until then it is not Latest.
             _run_gh(
                 [
                     "release",
@@ -108,6 +113,7 @@ def publish_dashboard(
                     repo,
                     "--title",
                     tag,
+                    "--latest=false",
                     "--notes",
                     f"Dashboard data artifact.\n\nsha256: {digest}",
                 ]
