@@ -3475,16 +3475,17 @@ def _first_request(name: str, scenario, variables, prompt_version="v1"):
 
 
 def test_the_no_tools_arm_sends_the_boards_own_request():
-    """Differential: for each contract, the arm's first request matches what
-    policybench.eval_no_tools builds for the board, in prompt, tools, tool
-    choice and response format."""
+    """Differential: for every household and contract, the arm's first request
+    is the request policybench.eval_no_tools builds for the board, key for key
+    (budget, timeout, tools and their schemas, tool choice, response format),
+    except the board's disk-cache flag, which a live run does not use."""
     from policybench.eval_no_tools import (
         _chat_completion_request_kwargs,
         _responses_request_kwargs,
     )
 
     board = pilot.load_board()
-    for sid in ("scenario_000", "scenario_012"):
+    for sid in sorted(board["scenarios"]):
         scenario, variables = board["scenarios"][sid], board["variables"][sid]
         for name in (pilot.MODEL_NAME, SOL, OPUS):
             profile, record, sent = _first_request(name, scenario, variables)
@@ -3493,24 +3494,15 @@ def test_the_no_tools_arm_sends_the_boards_own_request():
                 _, ref = _responses_request_kwargs(
                     scenario, variables, profile.model_id
                 )
-                assert sent["input"] == ref["input"]
-                assert [t["name"] for t in sent["tools"]] == [
-                    t["name"] for t in ref["tools"]
-                ]
             else:
                 messages, ref = _chat_completion_request_kwargs(
                     scenario, variables, profile.model_id
                 )
-                text = sent["messages"][0]["content"]
-                text = text if isinstance(text, str) else text[0]["text"]
-                assert text == messages[0]["content"]
-                assert [t["function"]["name"] for t in sent.get("tools") or []] == [
-                    t["function"]["name"] for t in ref.get("tools") or []
-                ]
-                assert sent.get("response_format") == ref.get("response_format")
-            assert sent.get("tool_choice") == ref.get("tool_choice")
-            if profile.contract == "json":
-                assert "tools" not in sent and "tool_choice" not in sent
+                ref = {**ref, "messages": messages}
+            ref = {k: v for k, v in ref.items() if k != "caching"}
+            sent = json.loads(json.dumps(sent, default=str))
+            ref = json.loads(json.dumps(ref, default=str))
+            assert sent == ref, (sid, name, sorted(set(sent) ^ set(ref)))
 
 
 def test_the_no_tools_arm_on_v2_pilot_sends_the_rewritten_prompt():
@@ -3549,3 +3541,58 @@ def test_only_web_arms_get_the_longer_timeout():
         timeouts[arm] = model.requests[0]["timeout"]
     assert timeouts["web"] == timeouts["web+pe"] == pilot.WEB_REQUEST_TIMEOUT_SECONDS
     assert timeouts["none"] == timeouts["pe"] < pilot.WEB_REQUEST_TIMEOUT_SECONDS
+
+
+def test_a_web_arm_does_not_retry_a_timed_out_request(monkeypatch):
+    """Three 900 s attempts would hold a worker for 45 minutes: a web arm's
+    timed-out request ends the household as provider_error, which a resume
+    reruns. Other arms keep the board's retries."""
+    import litellm
+
+    monkeypatch.setattr(pilot.time, "sleep", lambda seconds: None)
+    for arm, attempts in (("web", 1), ("pe", pilot.MAX_PROVIDER_ATTEMPTS)):
+        calls = []
+
+        def timing_out(**kwargs):
+            calls.append(kwargs)
+            raise litellm.Timeout("timed out", model="m", llm_provider="openai")
+
+        record = pilot.run_household(
+            make_scenario(),
+            VARIABLES,
+            fake_tool,
+            timing_out,
+            pilot.Spend(50.0),
+            profile=pilot.model_profile(pilot.MODEL_NAME, arm),
+        )
+        assert record["status"] == "provider_error"
+        assert len(calls) == attempts, arm
+    assert pilot.is_timeout(litellm.Timeout("t", model="m", llm_provider="openai"))
+    assert not pilot.is_timeout(ValueError("x"))
+
+
+def test_the_no_tools_arm_marks_no_prompt_cache_breakpoint():
+    model = FakeModel([response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))])
+    pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "none"),
+    )
+    assert "cache_control" not in json.dumps(model.requests[0])
+
+
+def test_the_law_date_sentence_states_the_fallback_and_the_snap_split():
+    board = pilot.load_board()
+    prompt, _ = pilot.build_initial_request(
+        board["scenarios"]["scenario_000"],
+        board["variables"]["scenario_000"],
+        pilot.model_profile(SOL, "pe", "v2-pilot"),
+    )
+    assert "use the latest amount published before that date" in prompt
+    assert "2025 optional sales tax tables" in prompt
+    assert "asset limits through December 2026" in prompt
+    assert "2026 HHS poverty guidelines from October 2026" in prompt
+    assert "fiscal year 2026 values for all of 2026" not in prompt

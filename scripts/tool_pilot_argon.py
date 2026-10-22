@@ -147,9 +147,11 @@ JSON_TOOL_NOTICE = (
 
 # The arms ``run --arm`` takes. "pe" is arm 2 as run on 2026-10-14 and
 # 2026-10-15. "web" swaps the PolicyEngine tool for the provider's own web
-# search, and "web+pe" offers both. "none" offers neither: the board's own
-# no-tools request (the forced answer function, or the JSON reply with no tools),
-# so a prompt version other than the board's has its own no-tools baseline.
+# search, and "web+pe" offers both. "none" offers neither: its first request is
+# the board's own no-tools request (the forced answer function, or the JSON reply
+# with no tools), so a prompt version other than the board's has its own
+# no-tools baseline. Repairs, retries and truncation then follow this pilot's
+# loop, not the board's; they matter only when a first answer does not parse.
 ARMS = ("none", "pe", "web", "web+pe")
 ARM_SUFFIX = {
     "none": "+no-tools",
@@ -158,9 +160,11 @@ ARM_SUFFIX = {
     "web+pe": "+web+pe-tool",
 }
 # A web arm's request timeout. A search-heavy turn can outlast the board's
-# (Gemini 4 Argon's model card gives 300 s, and its web-only arm never finished
-# scenario_005 within it in six attempts on 2026-10-21), so the web arms allow
-# this much and the manifest records it.
+# (300 s for Gemini 4 Argon, the harness default for its card; its web-only arm
+# never finished scenario_005 within it in six attempts on 2026-10-21), so the
+# web arms allow this much. A timed-out web request is not retried: three
+# 900 s attempts would hold a worker for 45 minutes, so the household ends as
+# provider_error and a resume pass reruns it.
 WEB_REQUEST_TIMEOUT_SECONDS = 900
 
 _CALCULATE_OPENING = "You also have a `calculate_household` function."
@@ -299,18 +303,29 @@ V2_PILOT_CONVENTIONS = (
         "{who}; include Idaho's $10 permanent building fund tax where it applies",
     ),
     (
-        # The reference rule (reference_audit sidecar, quoted in
-        # fixes/latest_c_snap_hold_fy2026.py): "A scored reference follows from
-        # the stated facts and from law published before the 2026-07-03
-        # reference freeze", and SNAP holds the FY2026 schedule for October to
-        # December 2026. Web arms otherwise apply FY2027 values, published in
+        # The reference rule (reference sidecar, quoted in each
+        # reference_audit/2026-09-28/fixes/latest_c_* module): "a scored
+        # reference follows from the stated facts and from law published before
+        # the 2026-07-03 reference freeze". Where no 2026 amount was published by
+        # then, the reference holds the last one published before it: California's
+        # 2025 indexed amounts, Idaho's zero-rate thresholds, the IRS 2025
+        # optional sales tax tables, and some Maryland, Michigan and Minnesota
+        # amounts. SNAP holds the FY2026 schedule (allotments, deductions,
+        # utility allowances, asset limits) for October to December; "Not held:
+        # the poverty guideline", so income limits move to the 2026 guideline in
+        # October. Web arms had applied SNAP's FY2027 schedule, published in
         # August 2026 (GPT-6 Sol, scenarios 008 and 012).
         re.compile(
             r"(Do not infer unlisted income, expenses, assets, benefit receipt, "
             r"rent, or health coverage\.)"
         ),
         "{who} Apply the law and program parameters published before July 3, "
-        "2026; for SNAP, use the fiscal year 2026 values for all of 2026.",
+        "2026. Where a 2026 amount had not been published by then, use the latest "
+        "amount published before that date (for example, a state's 2025 "
+        "inflation-adjusted amounts, or the IRS's 2025 optional sales tax "
+        "tables). For SNAP, keep the fiscal year 2026 allotments, deductions, "
+        "utility allowances and asset limits through December 2026; the income "
+        "limits use the 2026 HHS poverty guidelines from October 2026.",
     ),
     (
         # policyengine-us documents employer_sponsored_insurance_premiums as
@@ -321,9 +336,10 @@ V2_PILOT_CONVENTIONS = (
         "the household): ",
     ),
     (
-        # spm_unit_energy_subsidy, the SPM's home energy assistance. In 2026
-        # policyengine-us deems a SNAP utility allowance from energy assistance
-        # only for elderly or disabled households
+        # spm_unit_energy_subsidy, the SPM's energy subsidy (home energy
+        # assistance). No scored output reads it. policyengine-us never reads the
+        # amount for SNAP: it deems a utility allowance from the state's
+        # always-SUA flag, and in 2026 only for elderly or disabled households
         # (heat_and_eat_requires_elderly_disabled, P.L. 119-21 section 10103).
         # The engine label hid what the amount is.
         re.compile(r"spm unit energy subsidy: "),
@@ -1734,8 +1750,13 @@ class BudgetStop(RuntimeError):
     pass
 
 
+def is_timeout(error: Exception) -> bool:
+    """A provider or wall-clock timeout (litellm.Timeout and its kin)."""
+    return any("Timeout" in cls.__name__ for cls in type(error).__mro__)
+
+
 def _request_with_retries(
-    completion_fn, kwargs: dict
+    completion_fn, kwargs: dict, retry_timeouts: bool = True
 ) -> tuple[Any, float, float, float]:
     from policybench.eval_no_tools import _run_request_with_wall_timeout, _should_retry
 
@@ -1746,7 +1767,11 @@ def _request_with_retries(
             response = _run_request_with_wall_timeout(completion_fn, kwargs)
             return response, started_at, time.time(), time.perf_counter() - started
         except Exception as error:
-            if attempt == MAX_PROVIDER_ATTEMPTS - 1 or not _should_retry(error):
+            if (
+                attempt == MAX_PROVIDER_ATTEMPTS - 1
+                or not _should_retry(error)
+                or (not retry_timeouts and is_timeout(error))
+            ):
                 raise
             time.sleep(2 * (2**attempt))
     raise RuntimeError("unreachable")
@@ -1810,7 +1835,11 @@ def run_household(
         ResponsesConversation(prompt)
         if profile.api == "responses"
         else ChatConversation(
-            prompt, cache_breakpoint=profile.model_id.startswith("claude-")
+            # The board's own request marks no prompt-cache breakpoint, so the
+            # no-tools arm, its stand-in, marks none either.
+            prompt,
+            cache_breakpoint=profile.model_id.startswith("claude-")
+            and profile.arm != "none",
         )
     )
     json_contract = profile.contract == "json"
@@ -1981,7 +2010,7 @@ def run_household(
             if repair_rounds:
                 kind = "repair"
             elif not json_contract and (
-                forced or tool_turns + search_only_turns >= turn_cap
+                forced or tool_turns + search_only_turns >= turn_cap or not offered
             ):
                 kind, forced = "forced_answer", True
             else:
@@ -1998,7 +2027,7 @@ def run_household(
             escalated_from = None
             try:
                 response, started_at, completed_at, latency = _request_with_retries(
-                    completion_fn, kwargs
+                    completion_fn, kwargs, retry_timeouts=not profile.uses_web
                 )
                 turn = conversation.read(response, kwargs.get(budget_key))
                 if (
@@ -2021,7 +2050,7 @@ def run_household(
                     escalated_from = kwargs.get(budget_key)
                     kwargs[budget_key] = ceiling
                     response, started_at, completed_at, latency = _request_with_retries(
-                        completion_fn, kwargs
+                        completion_fn, kwargs, retry_timeouts=not profile.uses_web
                     )
                     turn = conversation.read(response, kwargs.get(budget_key))
             except Exception as error:
@@ -2608,9 +2637,13 @@ def command_run(args) -> None:
         "tool_notice": profile.notice,
         "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
         "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
-        "request_timeout_seconds": WEB_REQUEST_TIMEOUT_SECONDS
-        if profile.uses_web
-        else None,
+        # The timeout actually sent: the board's for the model, or the web arms'.
+        "request_timeout_seconds": build_initial_request(
+            board["scenarios"][ids[0]], board["variables"][ids[0]], profile
+        )[1].get("timeout")
+        if ids and not profile.uses_web
+        else (WEB_REQUEST_TIMEOUT_SECONDS if profile.uses_web else None),
+        "web_timeouts_retried": not profile.uses_web,
         "search_usd_per_1k": (
             SEARCH_USD_PER_1K[profile.provider] if profile.uses_web else None
         ),
@@ -2660,6 +2693,12 @@ def command_run(args) -> None:
                 record = {
                     "scenario_id": sid,
                     "model": profile.name,
+                    # The setup keys a resume and score check, so a folder with
+                    # this record still resumes and scores.
+                    "arm": profile.arm,
+                    "prompt_version": profile.prompt_version,
+                    "prompt_wording_sha256": prompt_wording_sha256(profile),
+                    "benchmark_search_rule": profile.benchmark_search_rule,
                     "variables": board["variables"][sid],
                     "status": "harness_error",
                     "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
