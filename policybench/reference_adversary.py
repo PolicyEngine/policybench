@@ -73,6 +73,11 @@ REFERENCE_FREEZE = "2026-07-03"
 REFERENCE_FREEZES = {"us": REFERENCE_FREEZE, "uk": "2026-10-10"}
 UK_FISCAL_YEAR = f"{TAX_YEAR}-{str(TAX_YEAR + 1)[-2:]}"
 
+# How the stage headers say the consensus models answered. A payload's
+# ``answerCondition`` replaces it, for clusters of tool-using arms (the tool
+# pilot's web arms); the default renders the headers byte for byte as before.
+DEFAULT_ANSWER_CONDITION = "answering from memory, without tools"
+
 VERDICTS = (
     "reference_holds",
     "reference_wrong",
@@ -457,6 +462,7 @@ class AdversaryCase:
     metric_type: str = "amount"
     state: str = ""
     trigger: tuple[str, ...] = ()
+    answer_condition: str = DEFAULT_ANSWER_CONDITION
 
     def to_manifest_row(self) -> dict:
         """The case as a ``cases.jsonl`` row, without the derivation."""
@@ -465,6 +471,8 @@ class AdversaryCase:
         row["consensus"] = [dict(cluster) for cluster in self.consensus]
         row["trigger"] = list(self.trigger)
         row["derivation_sha256"] = sha256_text(derivation) if derivation else None
+        if self.answer_condition == DEFAULT_ANSWER_CONDITION:
+            row.pop("answer_condition")
         return row
 
     @classmethod
@@ -486,6 +494,9 @@ class AdversaryCase:
             metric_type=str(row.get("metric_type", "amount")),
             state=str(row.get("state", "") or ""),
             trigger=tuple(row.get("trigger", ())),
+            answer_condition=str(
+                row.get("answer_condition") or DEFAULT_ANSWER_CONDITION
+            ),
         )
 
 
@@ -600,6 +611,10 @@ def build_adversary_cases(
     country = str(payload.get("country") or "us")
     scenarios = payload.get("scenarios") or {}
     predictions = payload.get("scenarioPredictions") or {}
+    # A payload may state the definitions its models saw (the tool pilot's
+    # v2-pilot wording) and the condition they answered under.
+    definitions = payload.get("outputDefinitions") or {}
+    condition = answer_condition_of(payload)
     cases: list[AdversaryCase] = []
     seen: set[tuple[str, str]] = set()
     for flag in flags:
@@ -673,7 +688,8 @@ def build_adversary_cases(
                 country=country,
                 scenario_id=scenario_id,
                 variable=variable,
-                definition=get_variable_description(variable, country=country),
+                definition=_clean(definitions.get(variable))
+                or get_variable_description(variable, country=country),
                 household_prompt=household_prompt,
                 reference_value=reference,
                 consensus=tuple(clusters),
@@ -684,9 +700,31 @@ def build_adversary_cases(
                 metric_type=metric_type_for_output(variable),
                 state=_clean(flag.get("state") or scenario.get("state")),
                 trigger=tuple(str(t) for t in flag.get("trigger", ())),
+                answer_condition=condition,
             )
         )
     return cases
+
+
+def answer_condition_of(payload: dict) -> str:
+    """The payload's ``answerCondition``, checked, or the default."""
+    condition = payload.get("answerCondition")
+    if condition is None:
+        return DEFAULT_ANSWER_CONDITION
+    if not isinstance(condition, str) or not condition.startswith("answering "):
+        raise ValueError(
+            f"answerCondition must be a phrase starting 'answering ': {condition!r}"
+        )
+    return condition
+
+
+def _with_condition(header: str, case: AdversaryCase) -> str:
+    """A stage header stating the case's answer condition."""
+    if case.answer_condition == DEFAULT_ANSWER_CONDITION:
+        return header
+    if header.count(DEFAULT_ANSWER_CONDITION) != 1:
+        raise ValueError(f"{case.country} header does not state the answer condition")
+    return header.replace(DEFAULT_ANSWER_CONDITION, case.answer_condition)
 
 
 # --- Prompts -------------------------------------------------------------------
@@ -1022,7 +1060,7 @@ def _case_sections(case: AdversaryCase) -> list[str]:
 
 def render_stage1_prompt(case: AdversaryCase) -> str:
     """The law-first prompt: everything about the case except the derivation."""
-    header = _country_template(_STAGE1_HEADERS, case.country)
+    header = _with_condition(_country_template(_STAGE1_HEADERS, case.country), case)
     return "\n".join([header, "", *_case_sections(case)])
 
 
@@ -1036,7 +1074,7 @@ def render_stage2_prompt(case: AdversaryCase, stage1: dict, stage1_sha256: str) 
     derivation = case.derivation or "(no derivation was recorded for this case)"
     return "\n".join(
         [
-            _country_template(_STAGE2_HEADERS, case.country),
+            _with_condition(_country_template(_STAGE2_HEADERS, case.country), case),
             "",
             *_case_sections(case),
             "",

@@ -83,45 +83,6 @@ def test_the_frozen_board_reads_as_before():
     assert pilot.board_path(argparse.Namespace()) == pilot.SNAPSHOT
 
 
-@pytest.fixture(scope="module")
-def household_board(tmp_path_factory):
-    """A three-household set built from the frozen board's first households."""
-    if not ON_FROZEN_ENGINE:
-        pytest.skip("the build test reproduces the 2.41.0 references")
-    import policybench.policyengine_runtime as runtime
-    import policybench.scenarios as scenarios_module
-
-    root = tmp_path_factory.mktemp("set")
-    dataset = root / "populace_us_2024.h5"
-    dataset.write_bytes(b"not a real dataset")
-    digest = hs.sha256_file(dataset)
-    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:3]
-    patch = pytest.MonkeyPatch()
-    patch.setattr(
-        scenarios_module, "generate_scenarios", lambda n, seed, country: sampled[:n]
-    )
-    patch.setattr(runtime, "materialize_certified_us_dataset", lambda: str(dataset))
-    patch.setattr(
-        runtime,
-        "policyengine_bundles_for_countries",
-        lambda countries: {
-            "us": {
-                "bundle_id": "us-test",
-                "certified_data_artifact_sha256": digest,
-                "default_dataset_uri": "hf://policyengine/populace-us/x.h5@test",
-            }
-        },
-    )
-    out = root / "board"
-    try:
-        hs.main(
-            ["build", "--n", "3", "--seed", "7", "--batch-size", "2", "--out", str(out)]
-        )
-    finally:
-        patch.undo()
-    return out, sampled
-
-
 @pytest.mark.slow
 def test_build_writes_the_frozen_references_for_frozen_households(household_board):
     out, sampled = household_board
