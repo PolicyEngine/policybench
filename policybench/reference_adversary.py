@@ -1684,6 +1684,24 @@ def _markers_in(text: str) -> list[str]:
     return [marker for marker in DERIVATION_MARKERS if marker in lowered]
 
 
+# An exclusion of a blocked domain in a search query ("-site:policyengine.org"):
+# how a judge whose search tool takes no blocked_domains (Codex) follows the
+# prompt's rule to exclude those domains on every search. It keeps a domain
+# out; it does not search for it.
+_EXCLUDED_DOMAIN = re.compile(
+    r"(?<!\S)-site:[\"']?("
+    + "|".join(re.escape(d) for d in BLOCKED_DOMAINS)
+    + r")[\"']?(?!\S)",
+    re.IGNORECASE,
+)
+
+
+def searched_for(query: str) -> str:
+    """A search query without its exclusions of blocked domains: what the
+    judge searched for, for the contamination check."""
+    return _EXCLUDED_DOMAIN.sub(" ", str(query or ""))
+
+
 def codex_events_audit(events_text: str) -> tuple[list[str], dict]:
     """Audit a ``codex exec --json`` event log for contamination.
 
@@ -1752,7 +1770,7 @@ def codex_events_audit(events_text: str) -> tuple[list[str], dict]:
             ]
             url = str(action.get("url") or "")
             for text in [str(item.get("query") or ""), *searched]:
-                for marker in _markers_in(text):
+                for marker in _markers_in(searched_for(text)):
                     problems.append(f"line {number}: a web search names {marker!r}")
             for marker in _markers_in(str(action.get("pattern") or "")):
                 problems.append(f"line {number}: an in-page search names {marker!r}")
@@ -1857,7 +1875,7 @@ def claude_transcript_audit(
                 query = str(payload.get("query") or "")
                 activity["searches"].append(query)
                 searches.append((str(part.get("id")), query))
-                if any(n in query.lower() for n in BLOCKED_NAMES):
+                if any(n in searched_for(query).lower() for n in BLOCKED_NAMES):
                     problems.append(f"the judge searched for the engine: {query}")
             else:
                 problems.append(f"the judge called a tool it was not given: {name}")
