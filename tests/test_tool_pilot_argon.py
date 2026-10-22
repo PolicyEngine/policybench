@@ -2289,6 +2289,7 @@ def test_web_notices_name_search_and_keep_the_answer_instruction():
         assert both.split("function. ", 1)[1] == pe.split("function. ", 1)[1]
     labels = {arm: pilot.model_profile(SOL, arm).arm2_label for arm in pilot.ARMS}
     assert labels == {
+        "none": "gpt-6-sol+no-tools",
         "pe": "gpt-6-sol+pe-tool",
         "web": "gpt-6-sol+web",
         "web+pe": "gpt-6-sol+web+pe-tool",
@@ -3078,7 +3079,10 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
             old, new = _board_part(old, v1), _board_part(new, v2)
             assert "policyengine" not in new.lower()
             assert "policyengine" not in json.dumps(kwargs["_answer_tool"]).lower()
-            # Only the four definition lines differ.
+            # Only the rewritten lines differ: the four PolicyEngine-naming
+            # definitions, the two federal lines and the state tax line (rate
+            # schedule, Idaho's fund tax), the intro (law date), and the two
+            # relabeled facts.
             old_lines, new_lines = old.splitlines(), new.splitlines()
             assert len(old_lines) == len(new_lines)
             changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
@@ -3086,10 +3090,22 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
                 "- federal_income_tax_before_refundable_credits:",
                 "- federal_refundable_credits:",
             )
-            assert all("PolicyEngine" in a or a.startswith(federal) for a, _ in changed)
-            assert len(changed) == old.count("PolicyEngine") + sum(
-                line in old for line in federal
+            other = (
+                "- state_income_tax_before_refundable_credits:",
+                "Estimate the requested tax and benefit outputs",
+                "- employer sponsored insurance premiums: ",
+                "- spm unit energy subsidy: ",
             )
+            assert all(
+                "PolicyEngine" in a or a.startswith(federal + other) for a, _ in changed
+            )
+            assert len(changed) == old.count("PolicyEngine") + sum(
+                1 for line in old_lines if line.startswith(federal + other)
+            )
+            # The law date, the payer and the plain energy label are stated.
+            assert "published before July 3, 2026" in new
+            assert "employer sponsored insurance premiums" not in new
+            assert "spm unit energy subsidy" not in new
             # d1263: the v2 prompt states the rate-schedule convention on both
             # federal lines whose values the schedule choice can move.
             for line in federal:
@@ -3435,3 +3451,148 @@ def test_a_run_record_carries_its_wording_hash():
         make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
     )
     assert record["prompt_wording_sha256"] == pilot.prompt_wording_sha256(profile)
+
+
+# ---------------------------------------------------------------------------
+# The no-tools arm: the board's own request, for prompt versions the board
+# has no rows for.
+# ---------------------------------------------------------------------------
+
+
+def _first_request(name: str, scenario, variables, prompt_version="v1"):
+    profile = pilot.model_profile(name, "none", prompt_version)
+    values = {v: 0 for v in variables}
+    if profile.api == "responses":
+        model = FakeResponses([responses_response([sol_submit(values)], "r")])
+    elif profile.contract == "json":
+        model = FakeModel([response([], content=json_answer(values))])
+    else:
+        model = FakeModel([response([submit(values)])])
+    record = pilot.run_household(
+        scenario, variables, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    return profile, record, model.requests[0]
+
+
+def test_the_no_tools_arm_sends_the_boards_own_request():
+    """Differential: for every household and contract, the arm's first request
+    is the request policybench.eval_no_tools builds for the board, key for key
+    (budget, timeout, tools and their schemas, tool choice, response format),
+    except the board's disk-cache flag, which a live run does not use."""
+    from policybench.eval_no_tools import (
+        _chat_completion_request_kwargs,
+        _responses_request_kwargs,
+    )
+
+    board = pilot.load_board()
+    for sid in sorted(board["scenarios"]):
+        scenario, variables = board["scenarios"][sid], board["variables"][sid]
+        for name in (pilot.MODEL_NAME, SOL, OPUS):
+            profile, record, sent = _first_request(name, scenario, variables)
+            assert record["status"] == "complete" and profile.notice == ""
+            if profile.api == "responses":
+                _, ref = _responses_request_kwargs(
+                    scenario, variables, profile.model_id
+                )
+            else:
+                messages, ref = _chat_completion_request_kwargs(
+                    scenario, variables, profile.model_id
+                )
+                ref = {**ref, "messages": messages}
+            ref = {k: v for k, v in ref.items() if k != "caching"}
+            sent = json.loads(json.dumps(sent, default=str))
+            ref = json.loads(json.dumps(ref, default=str))
+            assert sent == ref, (sid, name, sorted(set(sent) ^ set(ref)))
+
+
+def test_the_no_tools_arm_on_v2_pilot_sends_the_rewritten_prompt():
+    board = pilot.load_board()
+    sid = "scenario_000"
+    profile, record, sent = _first_request(
+        SOL, board["scenarios"][sid], board["variables"][sid], "v2-pilot"
+    )
+    assert "published before July 3, 2026" in sent["input"]
+    assert "policyengine" not in sent["input"].lower()
+    assert record["arm"] == "none" and profile.arm2_label == (
+        "gpt-6-sol+no-tools@v2-pilot"
+    )
+    with pytest.raises(SystemExit):
+        pilot.model_profile(SOL, "none", "v2-pilot", True)
+
+
+def test_only_web_arms_get_the_longer_timeout():
+    board = pilot.load_board()
+    scenario, variables = (
+        board["scenarios"]["scenario_000"],
+        board["variables"]["scenario_000"],
+    )
+    values = {v: 0 for v in variables}
+    timeouts = {}
+    for arm in pilot.ARMS:
+        model = FakeModel([response([submit(values)])])
+        pilot.run_household(
+            scenario,
+            variables,
+            fake_tool,
+            model,
+            pilot.Spend(50.0),
+            profile=pilot.model_profile(pilot.MODEL_NAME, arm),
+        )
+        timeouts[arm] = model.requests[0]["timeout"]
+    assert timeouts["web"] == timeouts["web+pe"] == pilot.WEB_REQUEST_TIMEOUT_SECONDS
+    assert timeouts["none"] == timeouts["pe"] < pilot.WEB_REQUEST_TIMEOUT_SECONDS
+
+
+def test_a_web_arm_does_not_retry_a_timed_out_request(monkeypatch):
+    """Three 900 s attempts would hold a worker for 45 minutes: a web arm's
+    timed-out request ends the household as provider_error, which a resume
+    reruns. Other arms keep the board's retries."""
+    import litellm
+
+    monkeypatch.setattr(pilot.time, "sleep", lambda seconds: None)
+    for arm, attempts in (("web", 1), ("pe", pilot.MAX_PROVIDER_ATTEMPTS)):
+        calls = []
+
+        def timing_out(**kwargs):
+            calls.append(kwargs)
+            raise litellm.Timeout("timed out", model="m", llm_provider="openai")
+
+        record = pilot.run_household(
+            make_scenario(),
+            VARIABLES,
+            fake_tool,
+            timing_out,
+            pilot.Spend(50.0),
+            profile=pilot.model_profile(pilot.MODEL_NAME, arm),
+        )
+        assert record["status"] == "provider_error"
+        assert len(calls) == attempts, arm
+    assert pilot.is_timeout(litellm.Timeout("t", model="m", llm_provider="openai"))
+    assert not pilot.is_timeout(ValueError("x"))
+
+
+def test_the_no_tools_arm_marks_no_prompt_cache_breakpoint():
+    model = FakeModel([response([], content=json_answer({"snap": 1, VARIABLES[1]: 2}))])
+    pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        fake_tool,
+        model,
+        pilot.Spend(50.0),
+        profile=pilot.model_profile(OPUS, "none"),
+    )
+    assert "cache_control" not in json.dumps(model.requests[0])
+
+
+def test_the_law_date_sentence_states_the_fallback_and_the_snap_split():
+    board = pilot.load_board()
+    prompt, _ = pilot.build_initial_request(
+        board["scenarios"]["scenario_000"],
+        board["variables"]["scenario_000"],
+        pilot.model_profile(SOL, "pe", "v2-pilot"),
+    )
+    assert "use the latest amount published before that date" in prompt
+    assert "2025 optional sales tax tables" in prompt
+    assert "asset limits through December 2026" in prompt
+    assert "2026 HHS poverty guidelines from October 2026" in prompt
+    assert "fiscal year 2026 values for all of 2026" not in prompt
