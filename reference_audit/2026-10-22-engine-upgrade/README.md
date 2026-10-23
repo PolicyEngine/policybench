@@ -34,6 +34,10 @@ All four come from law in force before the 2026-07-03 reference freeze. Californ
 dates from CDSS's 2011-2015 letters. Pennsylvania codified its breakfast program on 2023-12-13,
 and Arkansas's applies from the 2025-26 school year. Both are standing statutes.
 
+Neither breakfast statute is unconditional. Pennsylvania reimburses participating schools to the
+extent funds are available, and Arkansas gives the breakfast on request. #10238 assumes a student
+at a covered school and models neither condition; the bases and narratives say so.
+
 The school-meal output asks "whether PolicyEngine returns positive annual free school meal
 support". Each of these households is in the paid tier for lunch, but its K-12 children now
 get a free breakfast. `final_actions.json` gives each change's basis, with the figures from
@@ -118,7 +122,7 @@ with `--check-venv` if a newer release is out.
      --hand-corrected hand_corrected_narratives.json --out <csv>
    ```
 
-   On release 20261014's explanations this gives sha256 `a1691832…`.
+   On release 20261014's explanations this gives sha256 `47c33db0…`.
 3. Re-score and re-freeze the board, then rerun the publication check. Judges' prompts render a
    case's reference value and narrative, so the cases on the four changed outputs are judged
    again.
@@ -128,7 +132,7 @@ files or this build's.
 
 ## Files
 
-- `final_actions.json`: the reviewed actions the build ran on. Its sha256, `a6a4e07b…`, is the
+- `final_actions.json`: the reviewed actions the build ran on. Its sha256, `93fc088f…`, is the
   sidecar's `provenance.actions_sha256`. It is `actions_from_cells.py`'s draft with figures and
   upstream pull requests added to four bases and five reasons; no placement changed.
 - `actions_from_cells.py`: drafts the actions from a first pass. Its rules recognize the two

@@ -6,6 +6,10 @@
 not called. The 2026-10-12 upgrade's writer misstated the change behind six of its nine outputs.
 
 Each text states figures from the 2.60.0 build's traces (`reference-build/reference_traces.json`).
+scenario_031's states both halves of the year's poverty guideline ($1,304.17 through September,
+$1,330 from October) and the MCE limit on each. The school-meal texts state each breakfast
+statute's condition (Pennsylvania's funding, Arkansas's request) and that PolicyEngine assumes
+it is met.
 `tests/test_build_references_upgrade_1022.py` checks each figure against the trace and
 recomputes every sum the texts state. Each rule a text names is the one the upstream pull
 request encodes, with its law: #10036 for California's MCE, and #10238 for the Pennsylvania and

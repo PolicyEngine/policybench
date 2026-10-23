@@ -2967,7 +2967,7 @@
         "builder_sha256": "d4b00204390c6ada97bdf91358dc3d60ae3307d101062b8982fa62923cc9c645",
         "harness": "reference_audit/2026-09-28/scripts/sweep.py",
         "harness_sha256": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69",
-        "actions_sha256": "a6a4e07b91eb9376f655fd43434fbbd7de9f0ea3b16939d41fb934c9ccdc10b4",
+        "actions_sha256": "93fc088f0d2617e9e6d5bf5f0b65e4e8709d46bdd64da12e5cb9d92c06c8fd21",
         "base_commit": "bf845cbe4e92de495150c8660c35ea357d996a8c",
         "policyengine_core": "3.32.29"
       },
@@ -3096,7 +3096,7 @@
           "previous": 0.0,
           "regenerated": 1.0,
           "cause": "state_universal_free_breakfast_10238",
-          "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its three K-12 children, at 186% of the poverty guideline, get $1,112.40 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+          "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) provides a free breakfast to students at participating schools regardless of household income, reimbursed to the extent funds are available. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it for a student enrolled at a covered school, without the funding condition: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its three K-12 children, at 186% of the poverty guideline, get $1,112.40 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
         },
         {
           "scenario_id": "scenario_031",
@@ -3105,7 +3105,7 @@
           "previous": 0.0,
           "regenerated": 288.0,
           "cause": "ca_snap_mce_no_net_income_test_10036",
-          "basis": "California's Modified Categorical Eligibility (MCE) makes a household with gross income within 200% of the poverty guideline categorically eligible for CalFresh without the net income test, elderly or disabled households included (CDSS ACL 12-62, 13-32, 14-56 and 15-42; 7 CFR 273.2(j)(2)), and gives an eligible one- or two-person household the minimum allotment (CDSS MCE letter, June 30, 2014; 7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)). policyengine-us 2.41.0 applied the net income test to MCE households with an elderly or disabled member, so this one-person household, an elderly member with $1,987.79 of monthly gross income (within the $2,608.33 MCE limit) and $1,611 of net income (above the $1,304.17 guideline), was ineligible and its SNAP was $0. PolicyEngine/policyengine-us#10036 (Remove the BBCE net income test from California's Modified Categorical Eligibility) drops that test; on policyengine-us 2.60.0 the household is categorically eligible and its calculated allotment, the $298 maximum less 30% of net income ($484), is below the $24 minimum, so it receives $24 a month (snap_min_allotment): $288.00 for 2026."
+          "basis": "California's Modified Categorical Eligibility (MCE) makes a household with gross income within 200% of the poverty guideline categorically eligible for CalFresh without the net income test, elderly or disabled households included (CDSS ACL 12-62, 13-32, 14-56 and 15-42; 7 CFR 273.2(j)(2)), and gives an eligible one- or two-person household the minimum allotment (CDSS MCE letter, June 30, 2014; 7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)). policyengine-us 2.41.0 applied the net income test to MCE households with an elderly or disabled member, so this one-person household, an elderly member with $1,987.79 of monthly gross income (within the MCE limit, $2,608.33 a month through September and $2,660 from October) and $1,611 of net income (above the $1,304.17 and $1,330 monthly guidelines), was ineligible and its SNAP was $0. PolicyEngine/policyengine-us#10036 (Remove the BBCE net income test from California's Modified Categorical Eligibility) drops that test; on policyengine-us 2.60.0 the household is categorically eligible and its calculated allotment, the $298 maximum less 30% of net income ($484), is below the $24 minimum, so it receives $24 a month (snap_min_allotment): $288.00 for 2026."
         },
         {
           "scenario_id": "scenario_117",
@@ -3114,7 +3114,7 @@
           "previous": 0.0,
           "regenerated": 1.0,
           "cause": "state_universal_free_breakfast_10238",
-          "basis": "Arkansas Act 123 of 2025 (SB 59; A.C.A. \u00a7 6-18-722(f)), from the 2025-26 school year, gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for AR, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its two K-12 children, at 643% of the poverty guideline, get $741.60 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+          "basis": "Arkansas Act 123 of 2025 (SB 59; A.C.A. \u00a7 6-18-722(f)) gives each public school student who does not otherwise receive a free breakfast one breakfast a day at no cost, upon request, from the 2025-26 school year. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it for a student enrolled at a covered school, without the request condition: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for AR, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its two K-12 children, at 643% of the poverty guideline, get $741.60 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
         },
         {
           "scenario_id": "scenario_123",
@@ -3123,10 +3123,10 @@
           "previous": 0.0,
           "regenerated": 1.0,
           "cause": "state_universal_free_breakfast_10238",
-          "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its one K-12 child, at 531% of the poverty guideline, gets $370.80 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+          "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) provides a free breakfast to students at participating schools regardless of household income, reimbursed to the extent funds are available. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it for a student enrolled at a covered school, without the funding condition: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its one K-12 child, at 531% of the poverty guideline, gets $370.80 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
         }
       ]
     }
   ],
-  "regenerated_at_utc": "2026-10-23T02:16:15.575879+00:00"
+  "regenerated_at_utc": "2026-10-23T02:31:08.391848+00:00"
 }

@@ -2045,7 +2045,7 @@ R24 = {
 }
 # narratives_upgrade.py with hand_corrected_narratives.json on this build and
 # release 20261014's explanations (no writer call).
-EXPLANATIONS_SHA256 = "a1691832890b9f6b9140ff1df199421cb7d8179b971cbb8cee19bc0333b682a4"
+EXPLANATIONS_SHA256 = "47c33db094072c97ca18bb763526767c9fc23ecc50d153951be54b43182bc5e4"
 EXPLANATIONS_PATH = (
     "annotations/us_full_run_20260612_policyengine_4_16_1_populace/"
     "us_case_reference_explanations.csv"
@@ -2274,12 +2274,26 @@ def test_the_hand_corrected_narratives_rebuild_the_explanations(committed):
     assert {(r[0], r[1]) for r in results} == set(APPROVED)
     figures = {
         "scenario_031|snap": (
-            ["$288", "$24", "$1,987.79", "$2,608.33", "$1,611", "$298", "$484"],
+            [
+                "$288",
+                "$24",
+                "$1,987.79",
+                "$2,608.33",
+                "$1,304.17",
+                "$2,660",
+                "$1,330",
+                "$1,611",
+                "$298",
+                "$484",
+            ],
             [
                 "snap = 288",
                 "snap_min_allotment = 24",
                 "snap_net_income = 1611",
                 "tanf_non_cash_gross_income_limit = 2608.33",
+                "tanf_non_cash_gross_income_limit = 2660",
+                "snap_fpg = 1304.17",
+                "snap_fpg = 1330",
                 "snap_expected_contribution = 484",
                 "snap_max_allotment = 298",
             ],

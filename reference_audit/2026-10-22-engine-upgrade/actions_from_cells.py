@@ -106,14 +106,25 @@ BREAKFAST_PR = "PolicyEngine/policyengine-us#10238"
 # 2017(a)), as policyengine-us carries it for every month of 2026 under the
 # pre-freeze conventions.
 SNAP_MIN_ALLOTMENT_2026 = 24.0
-# States whose free breakfast for every public school student #10238 models,
+# States whose free breakfast regardless of household income #10238 models,
 # by standing statute in force for all of 2026, enacted before the
-# 2026-07-03 reference freeze.
+# 2026-07-03 reference freeze: what the statute provides, and the condition
+# #10238 notes it does not model (it also assumes a student at a covered
+# school).
 UNIVERSAL_BREAKFAST = {
-    "PA": "Pennsylvania Act 33 of 2023 (24 P.S. § 13-1337.1(c.2), codified "
-    "December 13, 2023)",
-    "AR": "Arkansas Act 123 of 2025 (SB 59; A.C.A. § 6-18-722(f)), from the "
-    "2025-26 school year,",
+    "PA": (
+        "Pennsylvania Act 33 of 2023 (24 P.S. § 13-1337.1(c.2), codified December "
+        "13, 2023) provides a free breakfast to students at participating schools "
+        "regardless of household income, reimbursed to the extent funds are "
+        "available",
+        "the funding condition",
+    ),
+    "AR": (
+        "Arkansas Act 123 of 2025 (SB 59; A.C.A. § 6-18-722(f)) gives each public "
+        "school student who does not otherwise receive a free breakfast one "
+        "breakfast a day at no cost, upon request, from the 2025-26 school year",
+        "the request condition",
+    ),
 }
 
 
@@ -155,7 +166,7 @@ def _ca_mce_minimum_allotment(cell: Cell, engine: str, date: str) -> dict:
 
 
 def _state_universal_breakfast(cell: Cell, engine: str, date: str) -> dict:
-    law = UNIVERSAL_BREAKFAST[cell.state]
+    law, unmodeled = UNIVERSAL_BREAKFAST[cell.state]
     return {
         "action": "approved",
         "rule": "state_universal_free_breakfast",
@@ -165,9 +176,9 @@ def _state_universal_breakfast(cell: Cell, engine: str, date: str) -> dict:
             "value": cell.new,
             "cause": "state_universal_free_breakfast_10238",
             "basis": (
-                f"{law} gives every public school student a free breakfast "
-                f"regardless of household income. {BREAKFAST_PR} (Model state "
-                "school meal coverage beyond universal meals) models it: on "
+                f"{law}. {BREAKFAST_PR} (Model state school meal coverage beyond "
+                "universal meals) models it for a student enrolled at a covered "
+                f"school, without {unmodeled}: on "
                 f"{engine} state_has_universal_free_school_breakfast is true for "
                 f"{cell.state}, so the household's K-12 children take the free "
                 "breakfast tier (school_meal_breakfast_tier) whatever their "
