@@ -42,7 +42,7 @@ from hypothesis import strategies as st
 
 ROOT = Path(__file__).resolve().parents[1]
 UPGRADE = ROOT / "reference_audit" / "2026-10-22-engine-upgrade"
-BUILD = UPGRADE / "build"
+BUILD = UPGRADE / "reference-build"
 RUN_DIR = (
     ROOT
     / "paper/snapshot/20260501/runs"

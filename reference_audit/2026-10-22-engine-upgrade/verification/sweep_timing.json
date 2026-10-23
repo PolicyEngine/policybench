@@ -2,7 +2,7 @@
   "note": "When PolicyBench began sweeping the references for the 2026-10-22 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
   "pypi": {
     "source": "https://pypi.org/pypi/policyengine-us/json",
-    "read_at_utc": "2026-10-23T02:11:36Z",
+    "read_at_utc": "2026-10-23T02:16:18Z",
     "newest_at_read": "2.60.0",
     "wheel_uploaded_at_utc": {
       "2.60.0": "2026-10-22T22:47:49.733557Z"
@@ -28,13 +28,13 @@
   "publication_check": {
     "engine": "2.60.0",
     "result": "policyengine-us 2.60.0, the reference engine, was still the newest release when PolicyBench read PyPI",
-    "build": "reference_audit/2026-10-22-engine-upgrade/build",
+    "build": "reference_audit/2026-10-22-engine-upgrade/reference-build",
     "build_sha256": {
       "computed.csv": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008",
       "reference_outputs.csv": "eab09a0c184c14b0c33679d9ac132d6f1de720c439ac30685a67ca38655184cb",
-      "reference_outputs.csv.meta.json": "a222c2de9b5c1fabe2c77e4acd27ca36b8961a9879f5aeaf529be5a5cabbadb4",
+      "reference_outputs.csv.meta.json": "3e0e42ecef728e97f8b46ed49cbd9f46cf2e570890e384042b7abd5c0b4dd3c1",
       "reference_exclusions.json": "91408c0f3d49e1984b436164a047f8cedc3e501feb2099ba0e7d2782ee8ac73d",
-      "builder": "2aa0a6b1e41fd067278303afeeea45de2ffe1bf4c2af797f532777bab587d89b"
+      "builder": "d4b00204390c6ada97bdf91358dc3d60ae3307d101062b8982fa62923cc9c645"
     },
     "scored_outputs": 1935
   }

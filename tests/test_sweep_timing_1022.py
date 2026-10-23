@@ -2,7 +2,7 @@
 2026-10-22 engine move's timing record and publication check, on MOCK PyPI
 data. A copy of tests/test_sweep_timing_1012.py, which tests the 2026-10-12
 audit's script, pointed at this audit's; the check also takes --snapshot, the
-committed copy of the build it must equal (this audit's build/ while it is
+committed copy of the build it must equal (this audit's reference-build/ while it is
 staged)."""
 
 import importlib.util
@@ -353,16 +353,17 @@ def test_the_check_records_a_still_newest_engine(tmp_path, monkeypatch):
 
 
 def test_the_cli_check_takes_the_committed_copy_of_the_build(tmp_path, monkeypatch):
-    """MOCK: ``check --snapshot DIR`` holds the build to DIR (this audit's build/
-    while the build is staged for the next board release); without it, the
-    build is held to the paper snapshot, which here it is not."""
+    """MOCK: ``check --snapshot DIR`` holds the build to DIR (this audit's
+    reference-build/ while the build is staged for the next board release);
+    without it, the build is held to the paper snapshot, which here it is
+    not."""
     build, snapshot = _check_setup(tmp_path, monkeypatch, ONLY_ENGINE)
     timing.main(["check", "--build", str(build), "--snapshot", str(snapshot)])
     record = json.loads(timing.TIMING.read_text())
     assert record["publication_check"]["engine"] == "2.38.4"
     with pytest.raises(timing.Refusal, match="is not the committed snapshot's"):
         timing.main(["check", "--build", str(build)])
-    assert timing.STAGED_BUILD == timing.AUDIT / "build"
+    assert timing.STAGED_BUILD == timing.AUDIT / "reference-build"
     assert timing.BASE_ENGINE == "policyengine-us 2.41.0"
 
 

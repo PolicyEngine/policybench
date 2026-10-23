@@ -7,7 +7,7 @@ uploaded at 22:47:49 UTC on 2026-10-22 and installed at 01:44:20 UTC on 2026-10-
 sweep wrote its first output at 01:45:50. The directory is named for the day the audit began
 (2026-10-22); the records date the upgrade by its UTC day, 2026-10-23.
 
-The build is staged, not installed. `build/` holds the reference CSV, sidecar and exclusion
+The build is staged, not installed. `reference-build/` holds the reference CSV, sidecar and exclusion
 record that the next board release installs into
 `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/`. Until then
 the published board, release 20261014, stays on 2.41.0.
@@ -37,7 +37,7 @@ and Arkansas's applies from the 2025-26 school year. Both are standing statutes.
 The school-meal output asks "whether PolicyEngine returns positive annual free school meal
 support". Each of these households is in the paid tier for lunch, but its K-12 children now
 get a free breakfast. `final_actions.json` gives each change's basis, with the figures from
-`build/reference_traces.json`.
+`reference-build/reference_traces.json`.
 
 Each named pull request (#10036, #10158, #10185 and #10238) is an ancestor of 2.60.0's release
 commit, 2bc4ccc970. #10238 is not in 2.59.0's, 05813807e1.
@@ -99,20 +99,20 @@ At 02:11 UTC on 2026-10-23, PolicyBench read PyPI again, and 2.60.0 was still th
 before it publishes. After installing the build, it runs:
 
 ```
-scripts/sweep_timing.py check --build build --snapshot <the run directory>
+scripts/sweep_timing.py check --build reference-build --snapshot <the run directory>
 ```
 
 with `--check-venv` if a newer release is out.
 
 ## Installing the build (the next board release)
 
-1. Copy `build/reference_outputs.csv`, `reference_outputs.csv.meta.json` and
+1. Copy `reference-build/reference_outputs.csv`, `reference_outputs.csv.meta.json` and
    `reference_exclusions.json` into the run directory, and move pyproject's policyengine-us pin
    (and `uv.lock`) to 2.60.0.
 2. Rebuild the reference narratives of the four changed outputs. No writer call is needed:
 
    ```
-   scripts/narratives_upgrade.py --references build \
+   scripts/narratives_upgrade.py --references reference-build \
      --explanations annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_case_reference_explanations.csv \
      --hand-corrected hand_corrected_narratives.json --out <csv>
    ```
@@ -132,13 +132,13 @@ files or this build's.
   upstream pull requests added to four bases and five reasons; no placement changed.
 - `actions_from_cells.py`: drafts the actions from a first pass. Its rules recognize the two
   kinds of scored move this upgrade makes.
-- `scripts/build_references_upgrade.py`: the builder (sha256 `2aa0a6b1…`, which the sidecar
+- `scripts/build_references_upgrade.py`: the builder (sha256 `d4b00204…`, which the sidecar
   pins). It is the 2026-10-12 builder on release 20261014's references, without a release spec.
 - `scripts/sweep_timing.py`: the timing record and the publication check. The check takes
   `--snapshot`, the committed copy the build must equal.
 - `scripts/narratives_upgrade.py`: the reference narratives. A run whose narratives are all
   hand-corrected needs no API key.
-- `build/`: the build. `computed.csv` is every output on 2.60.0, byte-identical to the sweep's
+- `reference-build/`: the build. `computed.csv` is every output on 2.60.0, byte-identical to the sweep's
   first output.
 - `hand_corrected_narratives.json` and `.md`: the four changed outputs' reference narratives.
 - `verification/sweep_timing.json` and `verification/superseded_2_59_0.json`.

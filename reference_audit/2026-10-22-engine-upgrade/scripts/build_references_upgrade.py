@@ -19,7 +19,7 @@ last installed): release 20261014 at BASE_COMMIT, i.e. the 2.41.0 references
 and the 49-record exclusion record, each file pinned by sha256. No release is
 being frozen with this build, so no release spec rules an exclusion: the
 record this script edits is the base's own. The next board release installs
-the build (reference_audit/2026-10-22-engine-upgrade/build/); a release that
+the build (reference_audit/2026-10-22-engine-upgrade/reference-build/); a release that
 rules exclusions of its own applies them after installing it. The original
 v1.1 frozen values (each change's "frozen") come from FROZEN_COMMIT.
 

@@ -30,7 +30,7 @@ Two steps, each writing into this audit's verification/ directory:
       Reads PyPI again. The build must be the committed one: its sidecar names
       the sweep's engine, pins its CSV and names the committed builder, its
       reference CSV, sidecar and exclusion record are the committed copy's byte
-      for byte (--snapshot: this audit's build/ directory while the build is
+      for byte (--snapshot: this audit's reference-build/ while the build is
       staged for the next board release, the snapshot once a release installs
       it; the default is the snapshot), and its computed.csv gives every scored
       reference, every value finite. When a newer release is out, check runs the check sweep
@@ -81,7 +81,7 @@ RUN = "us_full_run_20260612_policyengine_4_16_1_populace"
 SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN
 BUILDER = AUDIT / "scripts" / "build_references_upgrade.py"
 # The staged copy of the build the next board release installs.
-STAGED_BUILD = AUDIT / "build"
+STAGED_BUILD = AUDIT / "reference-build"
 # The builder's arguments that name files or directories, and its flag.
 BUILDER_PATH_FLAGS = (
     "--actions",

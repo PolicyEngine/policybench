@@ -5,7 +5,7 @@
 `scripts/narratives_upgrade.py --hand-corrected`, so the narrative writer (claude-haiku-4-5) is
 not called. The 2026-10-12 upgrade's writer misstated the change behind six of its nine outputs.
 
-Each text states figures from the 2.60.0 build's traces (`build/reference_traces.json`).
+Each text states figures from the 2.60.0 build's traces (`reference-build/reference_traces.json`).
 `tests/test_build_references_upgrade_1022.py` checks each figure against the trace and
 recomputes every sum the texts state. Each rule a text names is the one the upstream pull
 request encodes, with its law: #10036 for California's MCE, and #10238 for the Pennsylvania and
