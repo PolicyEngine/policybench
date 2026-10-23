@@ -152,13 +152,54 @@ JSON_TOOL_NOTICE = (
 # with no tools), so a prompt version other than the board's has its own
 # no-tools baseline. Repairs, retries and truncation then follow this pilot's
 # loop, not the board's; they matter only when a first answer does not parse.
-ARMS = ("none", "pe", "web", "web+pe")
+ARMS = ("none", "pe", "web", "web+pe", "pe2")
 ARM_SUFFIX = {
     "none": "+no-tools",
     "pe": "+pe-tool",
     "web": "+web",
     "web+pe": "+web+pe-tool",
+    "pe2": "+pe-tool-v2",
 }
+# "pe2" is the calculator, tool version 2 (Max, 2026-10-23: "yes go"), alone:
+# it reads the names the prompt uses, places inputs set on the wrong entity,
+# flags inputs that replace a formula, and explains a value on request.
+TOOL_VERSION_BY_ARM = {"pe": 1, "web+pe": 1, "pe2": 2}
+
+TOOL_NOTICE_V2 = (
+    "\n\nYou also have a `calculate_household` function. It runs PolicyEngine US "
+    "(policyengine-us 2.41.0), an open-source rules engine for US federal and "
+    "state taxes and benefits, on a household situation you build from the facts "
+    "above. The facts above are labeled with its variable names, written with "
+    "spaces; it accepts them as written, and it accepts the output keys you are "
+    "asked for. Set every listed fact. Its result says which names it read, which "
+    "inputs it moved to the entity they belong to, and which inputs replace a "
+    "formula; ask it to `explain` up to three variables to see how it computed "
+    "them, with the parameters and laws it used. You may call it in up to 8 "
+    "turns. Then call `submit_outputs` exactly once with your final answers, as "
+    "instructed above."
+)
+JSON_TOOL_NOTICE_V2 = TOOL_NOTICE_V2.replace(
+    "Then call `submit_outputs` exactly once with your final answers, as "
+    "instructed above.",
+    "Then give your final answers as the single JSON object described above.",
+)
+# The engine version the notices and the tool description state: the board's
+# (set by command_run), so a household set on a newer engine says so. The
+# frozen board's 2.41.0 leaves every text byte for byte as before.
+_STATED_ENGINE = {"version": REFERENCE_ENGINE}
+
+
+def set_stated_engine(version: str) -> None:
+    _STATED_ENGINE["version"] = version
+
+
+def engine_text(text: str) -> str:
+    return text.replace(
+        f"policyengine-us {REFERENCE_ENGINE}",
+        f"policyengine-us {_STATED_ENGINE['version']}",
+    )
+
+
 # A web arm's request timeout. A search-heavy turn can outlast the board's
 # (300 s for Gemini 4 Argon, the harness default for its card; its web-only arm
 # never finished scenario_005 within it in six attempts on 2026-10-21), so the
@@ -452,12 +493,43 @@ CALCULATE_DESCRIPTION = (
 )
 
 
-def calculate_tool_schema() -> dict:
+CALCULATE_DESCRIPTION_V2 = CALCULATE_DESCRIPTION.replace(
+    "An unknown name, a variable set on the wrong entity, or a malformed "
+    "situation returns an error with suggestions instead of results.",
+    "A name may also be written with spaces (as the facts are labeled) or be one "
+    "of the output keys you are asked for; the result's `notes` say how each was "
+    "read. An input set on the wrong entity is moved to the one unit it belongs "
+    "to, and the notes say so; where there is no single such unit, or a name is "
+    "unknown, or the situation is malformed, it returns an error with "
+    "suggestions instead of results. Setting a variable the engine computes "
+    "replaces its formula, and the notes say so; a contribution set as the "
+    "amount contributed is read as the amount asked for before limits "
+    "(`..._desired`). `explain` lists up to 3 variables to trace: each comes "
+    "back with the steps that produced it and the parameters, with their "
+    "values and sources, that it used.",
+)
+MAX_EXPLAIN = 3
+
+
+def calculate_tool_schema(version: int = 1) -> dict:
+    if version == 2:
+        schema = calculate_tool_schema(1)
+        function = schema["function"]
+        function["description"] = engine_text(CALCULATE_DESCRIPTION_V2)
+        function["parameters"]["properties"]["explain"] = {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                f"Up to {MAX_EXPLAIN} variables to explain: how the engine "
+                "computed them."
+            ),
+        }
+        return schema
     return {
         "type": "function",
         "function": {
             "name": TOOL_NAME,
-            "description": CALCULATE_DESCRIPTION,
+            "description": engine_text(CALCULATE_DESCRIPTION),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -499,9 +571,53 @@ class VariableInfo:
     label: str | None = None
     definition_period: str | None = None
     possible_values: tuple[str, ...] | None = None
+    # Whether the engine computes the variable (a formula or a sum of other
+    # variables) and no household fact the benchmark states sets it: setting
+    # it replaces what the engine would compute.
+    computed: bool = False
 
 
-def build_registry(system) -> dict[str, VariableInfo]:
+# Inputs the benchmark's reference situations set besides its promptable
+# facts (policybench.scenarios.Scenario.to_pe_household), and the convention
+# switches (take-up, filing) any household may set.
+BASE_STATED_INPUTS = frozenset(
+    {
+        "age",
+        "employment_income",
+        "self_employment_income",
+        "long_term_capital_gains",
+        "partnership_s_corp_income",
+        "is_tax_unit_head",
+        "is_tax_unit_spouse",
+        "state_code",
+        "weekly_hours_worked_before_lsr",
+    }
+)
+CONVENTION_PREFIXES = ("takes_up_", "would_")
+
+
+def stated_inputs() -> frozenset[str]:
+    """Every variable a household fact the benchmark states can set."""
+    from policybench.scenarios import (
+        PE_INPUT_ALIASES,
+        PE_INPUT_RENAMES,
+        get_promptable_input_specs,
+    )
+
+    names = {spec.source_name for spec in get_promptable_input_specs()}
+    names |= BASE_STATED_INPUTS
+    names |= set(PE_INPUT_ALIASES.values()) | set(PE_INPUT_RENAMES.values())
+    return frozenset(names)
+
+
+def build_registry(
+    system, stated: frozenset[str] | None = None
+) -> dict[str, VariableInfo]:
+    """The engine's variables. ``stated`` (default :func:`stated_inputs`) marks
+    which ones a stated fact sets; the rest that the engine computes are
+    ``computed``."""
+    if stated is None:
+        stated = stated_inputs()
     registry = {}
     for name, variable in system.variables.items():
         value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
@@ -514,6 +630,13 @@ def build_registry(system) -> dict[str, VariableInfo]:
             label=variable.label,
             definition_period=str(variable.definition_period),
             possible_values=possible,
+            computed=bool(
+                getattr(variable, "formulas", None)
+                or getattr(variable, "adds", None)
+                or getattr(variable, "subtracts", None)
+            )
+            and name not in stated
+            and not name.startswith(CONVENTION_PREFIXES),
         )
     return registry
 
@@ -555,6 +678,44 @@ def _type_problem(value, info: VariableInfo) -> str | None:
     return None
 
 
+def _normalize_value(
+    where: str,
+    name: str,
+    value,
+    info: VariableInfo,
+    period: str,
+    problems: list[str],
+) -> dict | None:
+    """One input's {period: value}, or None after recording why not."""
+    if isinstance(value, dict):
+        if not value:
+            problems.append(
+                f"{where}: {name} has no values; set it as {{period: value}}."
+            )
+            return None
+        periods = value
+    else:
+        periods = {period: value}
+    normalized = {}
+    for key, item in periods.items():
+        if not isinstance(key, str) or not PERIOD_RE.match(key):
+            problems.append(
+                f"{where}: {name} has period {key!r}; use a year such as "
+                '"2026" or a month such as "2026-01".'
+            )
+            continue
+        scalar = _scalar_problem(item)
+        if scalar is not None:
+            problems.append(f"{where}: {name} for {key} {scalar}.")
+            continue
+        typed = _type_problem(item, info)
+        if typed is not None:
+            problems.append(f"{where}: {name} {typed}.")
+            continue
+        normalized[key] = item
+    return normalized
+
+
 def _normalize_inputs(
     where: str,
     entity: str,
@@ -563,11 +724,20 @@ def _normalize_inputs(
     period: str,
     problems: list[str],
     allow_members: bool,
+    v2: dict | None = None,
 ) -> dict:
+    """Each input under its engine name. ``v2`` (tool version 2) collects the
+    names it read, the inputs it redirected or flagged, and the inputs set on
+    another entity, which normalize_request then places."""
     out: dict[str, Any] = {}
     for name, value in data.items():
         if allow_members and name == "members":
             continue
+        if v2 is not None and isinstance(name, str) and name not in registry:
+            resolved, note = resolve_name(name, registry, output_names=False)
+            if resolved is not None:
+                v2["notes"].append(f"{where}: {note}")
+                name = resolved
         if not isinstance(name, str) or name not in registry:
             problems.append(
                 f"{where}: unknown variable {name!r}."
@@ -575,52 +745,57 @@ def _normalize_inputs(
             )
             continue
         info = registry[name]
+        if v2 is not None:
+            desired = f"{name}{DESIRED_SUFFIX}"
+            if (
+                info.computed
+                and desired in registry
+                and registry[desired].entity == info.entity
+            ):
+                v2["notes"].append(
+                    f"{where}: set {desired} (the amount asked for, before "
+                    f"limits) for {name}, which the engine computes from it"
+                )
+                name, info = desired, registry[desired]
+            elif info.computed:
+                v2["notes"].append(
+                    f"{where}: {name} is computed by the engine; the value set "
+                    "replaces its formula"
+                )
         if info.entity != entity:
+            if v2 is not None:
+                v2["misplaced"].append((where, entity, name, value))
+                continue
             problems.append(
                 f"{where}: {name} is a {info.entity} variable; set it under "
                 f"{ENTITY_GROUP.get(info.entity, info.entity)}."
             )
             continue
-        if isinstance(value, dict):
-            if not value:
-                problems.append(
-                    f"{where}: {name} has no values; set it as {{period: value}}."
-                )
-                continue
-            periods = value
-        else:
-            periods = {period: value}
-        normalized = {}
-        for key, item in periods.items():
-            if not isinstance(key, str) or not PERIOD_RE.match(key):
-                problems.append(
-                    f"{where}: {name} has period {key!r}; use a year such as "
-                    '"2026" or a month such as "2026-01".'
-                )
-                continue
-            scalar = _scalar_problem(item)
-            if scalar is not None:
-                problems.append(f"{where}: {name} for {key} {scalar}.")
-                continue
-            typed = _type_problem(item, info)
-            if typed is not None:
-                problems.append(f"{where}: {name} {typed}.")
-                continue
-            normalized[key] = item
+        normalized = _normalize_value(where, name, value, info, period, problems)
+        if normalized is None:
+            continue
+        if v2 is not None and name in out and out[name] != normalized:
+            problems.append(f"{where}: {name} is set twice with different values")
+            continue
         out[name] = normalized
     return out
 
 
 def normalize_request(
-    args, registry: Mapping[str, VariableInfo]
+    args, registry: Mapping[str, VariableInfo], version: int = 1
 ) -> tuple[dict | None, dict | None]:
     """Check a calculate_household call; return (request, None) or (None, error).
 
     Accepts only plain JSON data. Every input and output name must be a
     variable of the engine, on its own entity; nothing else in the situation
-    (axes, reforms, parameters) is accepted.
+    (axes, reforms, parameters) is accepted. Tool version 2 also reads a name
+    written with spaces or a benchmark output key, redirects a contribution to
+    its ``_desired`` input, flags an input that replaces a formula, places an
+    input set on another entity where exactly one unit holds it, and takes
+    ``explain``; the request's ``notes`` say what it did.
     """
     problems: list[str] = []
+    v2 = {"notes": [], "misplaced": []} if version == 2 else None
 
     def fail() -> tuple[None, dict]:
         return None, {
@@ -643,7 +818,10 @@ def normalize_request(
     if not isinstance(args, dict):
         problems.append("arguments must be an object")
         return fail()
-    unknown = sorted(set(args) - {"situation", "variables", "period"})
+    allowed = {"situation", "variables", "period"} | (
+        {"explain"} if version == 2 else set()
+    )
+    unknown = sorted(set(args) - allowed)
     if unknown:
         problems.append(f"unknown arguments: {', '.join(map(str, unknown))}")
 
@@ -702,7 +880,7 @@ def normalize_request(
             problems.append(f"people.{name} must be an object of inputs")
             continue
         normalized_people[name] = _normalize_inputs(
-            f"people.{name}", "person", data, registry, period, problems, False
+            f"people.{name}", "person", data, registry, period, problems, False, v2
         )
     normalized["people"] = normalized_people
 
@@ -746,7 +924,9 @@ def normalize_request(
                     seen[member] = unit_name
             normalized_unit = {"members": list(members)}
             normalized_unit.update(
-                _normalize_inputs(where, entity, unit, registry, period, problems, True)
+                _normalize_inputs(
+                    where, entity, unit, registry, period, problems, True, v2
+                )
             )
             normalized_units[unit_name] = normalized_unit
         normalized[group] = normalized_units
@@ -763,18 +943,162 @@ def normalize_request(
         variables = []
     elif len(variables) > MAX_VARIABLES:
         problems.append(f"at most {MAX_VARIABLES} variables per call")
+    if v2 is not None:
+        _place_misplaced(v2, normalized, situation, registry, period, problems)
     requested = []
     for name in variables:
+        if v2 is not None and isinstance(name, str) and name not in registry:
+            resolved, note = resolve_name(name, registry, output_names=True)
+            if resolved is not None:
+                v2["notes"].append(f"variables: {note}")
+                name = resolved
         if name not in registry:
             problems.append(
                 f"variables: unknown variable {name!r}." + _suggest(name, registry)
             )
         elif name not in requested:
             requested.append(name)
+    explain = []
+    if v2 is not None and args.get("explain") is not None:
+        names = args["explain"]
+        if isinstance(names, str):
+            names = [names]
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            problems.append("explain must be a list of variable names")
+            names = []
+        elif len(names) > MAX_EXPLAIN:
+            problems.append(f"explain at most {MAX_EXPLAIN} variables per call")
+        for name in names:
+            if name not in registry:
+                resolved, note = resolve_name(name, registry, output_names=True)
+                if resolved is not None:
+                    v2["notes"].append(f"explain: {note}")
+                    name = resolved
+            if name not in registry:
+                problems.append(
+                    f"explain: unknown variable {name!r}." + _suggest(name, registry)
+                )
+            elif name not in explain:
+                explain.append(name)
 
     if problems:
         return fail()
-    return {"situation": normalized, "variables": requested, "period": period}, None
+    request = {"situation": normalized, "variables": requested, "period": period}
+    if v2 is not None:
+        request["explain"] = explain
+        request["notes"] = v2["notes"]
+    return request, None
+
+
+DESIRED_SUFFIX = "_desired"
+_LABEL_SEPARATORS = re.compile(r"[\s\-]+")
+
+
+def output_reading(name: str) -> tuple[str, str] | None:
+    """A benchmark output key's engine variable and how the output reads it,
+    or None when the name is not an output key."""
+    from policybench.ground_truth import (
+        _aggregation_for_output,
+        _pe_variable_for_output,
+    )
+    from policybench.spec import find_output_spec, parse_person_output
+
+    person = parse_person_output(name)
+    if person is None and find_output_spec(name, country="us") is None:
+        return None
+    engine = _pe_variable_for_output(name, "us")
+    if engine == name:
+        return None
+    aggregation = _aggregation_for_output(name, "us")
+    if person is not None:
+        how = f"{engine} for the person the key names ({person[0]})"
+    elif aggregation == "any_positive":
+        how = f"1 when {engine} is above 0, else 0"
+    else:
+        how = f"{engine}, summed over the household's units"
+    return engine, how
+
+
+def resolve_name(
+    name: str, registry: Mapping[str, VariableInfo], output_names: bool
+) -> tuple[str | None, str | None]:
+    """Tool version 2's reading of a name the engine does not know: the name
+    with spaces or hyphens as underscores, or (for outputs) a benchmark output
+    key. Returns (engine name, note) or (None, None)."""
+    if name in registry:
+        return name, None
+    written = _LABEL_SEPARATORS.sub("_", name.strip().lower())
+    if written in registry:
+        return written, f"read {name!r} as {written}"
+    if output_names:
+        reading = output_reading(name)
+        if reading is not None and reading[0] in registry:
+            return reading[0], f"{name} is {reading[1]}; computed {reading[0]}"
+    return None, None
+
+
+def _place_misplaced(
+    v2: dict,
+    normalized: dict,
+    situation: dict,
+    registry: Mapping[str, VariableInfo],
+    period: str,
+    problems: list[str],
+) -> None:
+    """Move each input set on another entity to the one unit that holds the
+    people it was set for: a group variable set on a person goes to that
+    person's unit (a group left out of the situation becomes one unit of
+    everyone, as the engine reads it), a person variable set on a one-person
+    unit goes to that person, and a group variable set on another group goes
+    to the unit holding all of its members. Anything else stays an error."""
+    for where, source_entity, name, value in v2["misplaced"]:
+        info = registry[name]
+        if source_entity == "person":
+            persons = [where.split(".", 1)[1]]
+        else:
+            group, unit = where.split(".", 1)
+            persons = list(normalized.get(group, {}).get(unit, {}).get("members", []))
+        target_group = ENTITY_GROUP.get(info.entity, info.entity)
+        if info.entity == "person":
+            if len(persons) != 1:
+                problems.append(
+                    f"{where}: {name} is a person variable; set it on one person "
+                    "under people."
+                )
+                continue
+            destination = normalized["people"].get(persons[0])
+            to = f"people.{persons[0]}"
+        else:
+            if target_group not in situation and target_group not in normalized:
+                normalized[target_group] = {
+                    "all": {"members": list(normalized["people"])}
+                }
+            units = normalized.get(target_group, {})
+            holding = [
+                unit
+                for unit, data in units.items()
+                if set(persons) <= set(data.get("members", []))
+            ]
+            if len(holding) != 1:
+                problems.append(
+                    f"{where}: {name} is a {info.entity} variable; set it under "
+                    f"{target_group} (no single unit there holds "
+                    f"{', '.join(persons) or 'its members'})."
+                )
+                continue
+            destination = units[holding[0]]
+            to = f"{target_group}.{holding[0]}"
+        if destination is None:
+            problems.append(f"{where}: {name} has no place to go")
+            continue
+        normalized_value = _normalize_value(to, name, value, info, period, problems)
+        if normalized_value is None:
+            continue
+        if name in destination and destination[name] != normalized_value:
+            problems.append(f"{to}: {name} is set twice with different values")
+            continue
+        destination[name] = normalized_value
+        v2["notes"].append(f"moved {name} from {where} to {to}")
 
 
 def _jsonable(value):
@@ -823,7 +1147,121 @@ def execute_request(system, registry, request: dict, simulation_cls=None) -> dic
             "period": request["period"],
             "values": {i: _jsonable(v) for i, v in zip(ids, list(array))},
         }
-    return {"results": results}
+    out = {"results": results}
+    if "notes" in request:
+        out["notes"] = list(request["notes"])
+    if request.get("explain"):
+        out["explanations"] = {
+            name: explain_variable(system, request, name, simulation_cls)
+            for name in request["explain"]
+        }
+    return out
+
+
+EXPLAIN_MAX_LINES = 60
+EXPLAIN_MAX_DEPTH = 6
+EXPLAIN_MAX_PARAMETERS = 15
+# Switches every variable has; never part of a reason.
+_QUIET_PARAMETERS = ("gov.abolitions.",)
+
+
+def _trace_value(value) -> Any:
+    if hasattr(value, "decode_to_str"):
+        value = value.decode_to_str()
+    try:
+        items = list(value)
+    except TypeError:
+        return _jsonable(value)
+    items = [_jsonable(v) for v in items]
+    return items[0] if len(items) == 1 else items
+
+
+def _all_zero(value) -> bool:
+    try:
+        return all((not v) if not isinstance(v, str) else False for v in list(value))
+    except TypeError:
+        return not value
+
+
+def parameter_sources(system, name: str, limit: int = 2) -> list[dict]:
+    """A parameter's cited sources: its own ``reference`` metadata, or the
+    nearest ancestor's."""
+    node = system.parameters
+    chain = [node]
+    for part in name.split("."):
+        children = getattr(node, "children", None)
+        if not isinstance(children, dict) or part not in children:
+            break
+        node = children[part]
+        chain.append(node)
+    for node in reversed(chain):
+        refs = (getattr(node, "metadata", None) or {}).get("reference")
+        if refs:
+            refs = refs if isinstance(refs, list) else [refs]
+            out = []
+            for ref in refs[:limit]:
+                if isinstance(ref, dict):
+                    out.append({k: ref[k] for k in ("title", "href") if ref.get(k)})
+                else:
+                    out.append({"href": str(ref)})
+            return out
+    return []
+
+
+def explain_variable(system, request: dict, name: str, simulation_cls=None) -> dict:
+    """How the engine computed ``name`` for the request's household: the
+    computation steps (each variable, its period and value, with its inputs
+    indented beneath it; zero-valued branches below the first level left out),
+    then the parameters it read, each with its value and cited sources."""
+    if simulation_cls is None:
+        from policyengine_us import Simulation as simulation_cls
+    try:
+        simulation = simulation_cls(
+            tax_benefit_system=system, situation=copy.deepcopy(request["situation"])
+        )
+        simulation.trace = True
+        simulation.calculate(name, request["period"])
+    except Exception as error:
+        return {"error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]}
+
+    def find(nodes):
+        for node in nodes:
+            if node.name == name:
+                return node
+            hit = find(node.children)
+            if hit is not None:
+                return hit
+        return None
+
+    root = find(simulation.tracer.trees)
+    if root is None:
+        return {"error": f"no trace for {name}"}
+    steps: list[str] = []
+    parameters: dict[str, Any] = {}
+
+    def walk(node, depth):
+        if len(steps) >= EXPLAIN_MAX_LINES or depth > EXPLAIN_MAX_DEPTH:
+            return
+        if depth > 1 and _all_zero(node.value):
+            return
+        steps.append(
+            "  " * depth + f"{node.name} ({node.period}) = {_trace_value(node.value)}"
+        )
+        for parameter in node.parameters:
+            if parameter.name.startswith(_QUIET_PARAMETERS):
+                continue
+            parameters.setdefault(parameter.name, _trace_value(parameter.value))
+        for child in node.children:
+            walk(child, depth + 1)
+
+    walk(root, 0)
+    return {
+        "steps": steps,
+        "parameters": [
+            {"name": key, "value": value, "sources": parameter_sources(system, key)}
+            for key, value in list(parameters.items())[:EXPLAIN_MAX_PARAMETERS]
+        ],
+    }
 
 
 def _board_upgrade(snapshot: Path) -> dict:
@@ -918,7 +1356,10 @@ def _worker_main(conn, fix_path: str, reform: bool, board: str | None = None) ->
             return
         if args is None:
             return
-        request, error = normalize_request(args, registry)
+        version = 1
+        if isinstance(args, dict) and args.get("__tool_version__") == 2:
+            version, args = 2, args.get("arguments")
+        request, error = normalize_request(args, registry, version)
         if error is not None:
             conn.send(("ok", error))
             continue
@@ -937,8 +1378,10 @@ class ToolPool:
         worker_target: Callable | None = None,
         acquire_timeout: float | None = None,
         board: Path | None = None,
+        tool_version: int = 1,
     ):
         self._ctx = mp.get_context("spawn")
+        self._tool_version = tool_version
         self._fix_path = str(fix_path)
         # A worker gets the board only when it is not the frozen one, so a
         # three-argument worker target still starts on the default.
@@ -1005,6 +1448,8 @@ class ToolPool:
                 time.perf_counter() - started,
             )
         process, conn = worker
+        if self._tool_version == 2:
+            args = {"__tool_version__": 2, "arguments": args}
         try:
             conn.send(args)
             if conn.poll(self.timeout):
@@ -1160,13 +1605,21 @@ class ModelProfile:
             notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
         elif self.arm == "web+pe":
             notice = WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        elif self.arm == "pe2":
+            return engine_text(TOOL_NOTICE_V2 if tool else JSON_TOOL_NOTICE_V2)
         else:
-            return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
-        return notice + (BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else "")
+            return engine_text(TOOL_NOTICE if tool else JSON_TOOL_NOTICE)
+        return engine_text(notice) + (
+            BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else ""
+        )
 
     @property
     def uses_calculator(self) -> bool:
-        return self.arm in ("pe", "web+pe")
+        return self.arm in TOOL_VERSION_BY_ARM
+
+    @property
+    def tool_version(self) -> int:
+        return TOOL_VERSION_BY_ARM.get(self.arm, 1)
 
     @property
     def uses_web(self) -> bool:
@@ -1845,7 +2298,7 @@ def run_household(
     sent_board_prompt_sha256 = base.pop("_sent_board_prompt_sha256")
     ceiling = base.pop("_budget_ceiling")
     answer_tool = base.pop("_answer_tool")
-    calculate_tool = calculate_tool_schema()
+    calculate_tool = calculate_tool_schema(profile.tool_version)
     offered = ([web_search_tool(profile)] if profile.uses_web else []) + (
         [calculate_tool] if profile.uses_calculator else []
     )
@@ -2606,6 +3059,8 @@ def records_arm(records: Mapping[str, dict]) -> str:
 def command_run(args) -> None:
     snapshot = board_path(args)
     _require_engine(snapshot)
+    # The notices and the tool description state the board's engine.
+    set_stated_engine(board_engine(snapshot))
     profile = model_profile(
         args.model, args.arm, args.prompt, args.forbid_benchmark_search
     )
@@ -2678,7 +3133,10 @@ def command_run(args) -> None:
         "api": profile.api,
         "answer_contract": profile.contract,
         "tool_notice": profile.notice,
-        "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
+        "calculate_tool": calculate_tool_schema(profile.tool_version)
+        if profile.uses_calculator
+        else None,
+        "tool_version": profile.tool_version if profile.uses_calculator else None,
         "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
         # The timeout actually sent: the board's for the model, or the web arms'.
         "request_timeout_seconds": build_initial_request(
@@ -2706,7 +3164,9 @@ def command_run(args) -> None:
         return
     # Arms without the calculator start no engine workers.
     pool = (
-        ToolPool(size=args.workers, board=snapshot) if profile.uses_calculator else None
+        ToolPool(size=args.workers, board=snapshot, tool_version=profile.tool_version)
+        if profile.uses_calculator
+        else None
     )
 
     def no_calculator(arguments) -> tuple[dict, float]:
@@ -4025,7 +4485,9 @@ def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
     return main_call_and_count(record, scenario, outputs)[0]
 
 
-def situation_fidelity(records, board, system, registry, defaults, out: Path) -> None:
+def situation_fidelity(
+    records, board, system, registry, defaults, out: Path, version: int = 1
+) -> None:
     """How each household's main situation differs from the reference's.
 
     The main situation is ``main_call``'s: the successful call that computed
@@ -4046,7 +4508,7 @@ def situation_fidelity(records, board, system, registry, defaults, out: Path) ->
         if call is None:
             rows.append({"scenario_id": sid, "differences": None})
             continue
-        request, _ = normalize_request(call["arguments"], registry)
+        request, _ = normalize_request(call["arguments"], registry, version)
         if request is None:
             rows.append({"scenario_id": sid, "differences": None})
             continue
@@ -4098,6 +4560,8 @@ def command_diagnose(args) -> None:
     board = load_board(snapshot)
     out = Path(args.out_dir)
     records = load_records(out)
+    # A run's calls are read as its own tool version read them.
+    version = TOOL_VERSION_BY_ARM.get(records_arm(records), 1)
     rows_path = out / "scored_rows.csv"
     if not rows_path.exists():
         raise SystemExit("run score first")
@@ -4113,7 +4577,7 @@ def command_diagnose(args) -> None:
             name: system.variables[name].default_value for name in system.variables
         }
     if registry is not None:
-        situation_fidelity(records, board, system, registry, defaults, out)
+        situation_fidelity(records, board, system, registry, defaults, out, version)
     out_rows = []
     if misses.empty:
         print("no arm-2 misses")
@@ -4131,7 +4595,7 @@ def command_diagnose(args) -> None:
         if registry is not None:
 
             def board_value_for(arguments, scenario=scenario, output=row.variable):
-                request, _ = normalize_request(arguments, registry)
+                request, _ = normalize_request(arguments, registry, version)
                 if request is None:
                     return None
                 return output_value(system, request["situation"], scenario, output)
@@ -4155,7 +4619,7 @@ def command_diagnose(args) -> None:
         attribution = {}
         arguments = verdict.get("call_arguments")
         if arguments is not None and registry is not None:
-            request, _ = normalize_request(arguments, registry)
+            request, _ = normalize_request(arguments, registry, version)
             if request is not None:
                 reference_situation = scenario.to_pe_household()
                 diff = situation_diff(
