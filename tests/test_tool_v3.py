@@ -179,7 +179,7 @@ def test_concise_takes_a_detail_and_defaults_to_brief():
         {"situation": _situation(), "variables": ["snap"], "explain": ["snap"]},
         F.EXPLAIN,
     )
-    assert "detail" not in request  # every step, as tool version 2 explains
+    assert "detail" not in request  # the trace, as tool version 2 explains
 
 
 def test_a_brief_explanation_keeps_the_value_its_direct_inputs_and_main_parameters():
@@ -268,24 +268,75 @@ def test_only_pe2_says_the_facts_carry_variable_names():
             assert ("names it read" in notice) == bool(features & {F.NAMES, F.LABELS})
 
 
-def test_every_prompt_label_reads_back_to_its_engine_name():
-    from policybench.prompts import INPUT_LABEL_OVERRIDES
-    from policybench.scenarios import PE_INPUT_RENAMES
+def test_every_label_a_prompt_shows_reads_back_to_its_engine_name():
+    from policybench.prompts import _format_input_line
+    from policybench.scenarios import PE_DROPPED_INPUTS, PE_INPUT_RENAMES
 
     labels = F.prompt_labels()
-    for field, label in INPUT_LABEL_OVERRIDES.items():
-        assert labels[F._label_key(label)] == PE_INPUT_RENAMES.get(field, field)
-    # The v2-pilot prompt's own relabelings, as that prompt writes them.
-    relabeled = F.v2_pilot_labels()
-    assert set(relabeled) == {
-        "employer_sponsored_insurance_premiums",
-        "spm_unit_energy_subsidy",
+    fields = {spec.output_name: spec.value_type for spec in F._promptable_specs()}
+    fields |= {"age": "int", "employment_income": "float"}
+    dropped = {f for names in PE_DROPPED_INPUTS.values() for f in names}
+    for field, value_type in {**fields, **dict.fromkeys(dropped, "float")}.items():
+        for label in F.rendered_labels(field, value_type):
+            want = (PE_INPUT_RENAMES.get(field, field), field in dropped)
+            assert want in labels[F._label_key(label)], (field, label)
+    # Fallback labels (the name with spaces) are the prompt's too.
+    assert ("first_home_mortgage_balance", False) in labels[
+        F._label_key("first home mortgage balance")
+    ]
+    # Special renderers: the Marketplace plan line is labeled on its own.
+    line = _format_input_line("selected_marketplace_plan_benchmark_ratio", 0.8)
+    assert line.startswith("- selected Marketplace plan: ")
+    assert ("selected_marketplace_plan_benchmark_ratio", False) in labels[
+        F._label_key("selected Marketplace plan")
+    ]
+    # The v2-pilot prompt's relabelings, as that prompt writes them.
+    for field, label in (
+        ("spm_unit_energy_subsidy", "home energy assistance received"),
+        (
+            "employer_sponsored_insurance_premiums",
+            "employer-paid health insurance premiums (paid by the employer, "
+            "not by the household)",
+        ),
+    ):
+        assert label in F.rendered_labels(field)
+        assert (field, False) in labels[F._label_key(label)]
+    assert ("state_code", False) in labels[F._label_key("state")]
+    assert ("first_home_mortgage_interest", True) in labels[
+        F._label_key("first home mortgage interest")
+    ]
+    assert ("roth_401k_contributions_desired", False) in labels[
+        F._label_key("Roth 401k contributions desired")
+    ]
+    assert ("partnership_s_corp_income", False) in labels[
+        F._label_key("partnership or S-corp income")
+    ]
+
+
+def test_labels_reads_no_label_that_names_two_of_the_engines_inputs(monkeypatch):
+    two = frozenset({("has_esi", False), ("age", False)})
+    monkeypatch.setattr(F, "prompt_labels", lambda: {F._label_key("covered"): two})
+    situation = _situation()
+    situation["people"]["head"]["covered"] = True
+    request, error = _norm({"situation": situation, "variables": ["snap"]}, F.LABELS)
+    assert request is None and "unknown variable 'covered'" in str(error)
+    one = frozenset({("has_esi", False), ("uk_only_input", False)})
+    monkeypatch.setattr(F, "prompt_labels", lambda: {F._label_key("covered"): one})
+    request, error = _norm({"situation": situation, "variables": ["snap"]}, F.LABELS)
+    assert error is None and request["situation"]["people"]["head"]["has_esi"]
+
+
+def test_labels_ignores_a_fact_the_reference_leaves_out():
+    situation = _situation()
+    situation["tax_units"] = {
+        "t": {"members": ["head", "kid"], "first home mortgage interest": 900}
     }
-    for field, label in relabeled.items():
-        written = F.v2_pilot_text(f"- {field.replace('_', ' ')}: $5")
-        assert written == f"- {label}: $5"
-        assert labels[F._label_key(label)] == field
-    assert labels[F._label_key("roth 401k contributions")] == "roth_401k_contributions"
+    request, error = _norm({"situation": situation, "variables": ["snap"]}, F.LABELS)
+    assert error is None, error
+    assert request["situation"]["tax_units"]["t"] == {"members": ["head", "kid"]}
+    assert any("leaves it out too" in n for n in request["notes"])
+    request, error = _norm({"situation": situation, "variables": ["snap"]}, F.NAMES)
+    assert request is None and "first home mortgage interest" in str(error)
 
 
 def _flat(**overrides):
@@ -385,6 +436,74 @@ def test_flat_placement_gives_a_household_of_ones_person_fact_to_that_person():
     assert any("whose facts list it" in p for p in error["problems"])
 
 
+def test_flat_refuses_facts_given_beside_the_person():
+    people = [{"role": "head", "age": 40, "employment_income": 30000}]
+    request, error = _norm(_flat(people=people), F.FLAT)
+    assert request is None
+    assert any(
+        "takes only name, role and facts; give age, employment_income under facts" in p
+        for p in error["problems"]
+    )
+
+
+def test_flat_reads_a_fact_written_two_ways_once_whatever_the_order():
+    for facts in (
+        {"spm_unit_energy_subsidy": 900, "spm unit energy subsidy": 800},
+        {"spm unit energy subsidy": 800, "spm_unit_energy_subsidy": 900},
+    ):
+        request, error = _norm(_flat(household_facts=facts), F.FLAT, F.NAMES)
+        assert request is None
+        assert any("set twice with different values" in p for p in error["problems"])
+    same = {"spm_unit_energy_subsidy": 900, "spm unit energy subsidy": {"2026": 900}}
+    request, error = _norm(_flat(household_facts=same), F.FLAT, F.NAMES)
+    assert error is None, error
+
+
+def test_flat_roles_set_the_relationship_inputs_and_refuse_a_contradiction():
+    for written in ("is_tax_unit_head", "is tax unit head"):
+        people = [{"name": "A", "role": "head", "facts": {written: False}}]
+        request, error = _norm(_flat(people=people), F.FLAT, F.NAMES)
+        assert request is None, written
+        assert any("contradicts the role head" in p for p in error["problems"])
+        people = [{"name": "A", "role": "head", "facts": {written: True}}]
+        request, error = _norm(_flat(people=people), F.FLAT, F.NAMES)
+        assert error is None, (written, error)
+        head = request["situation"]["people"]["A"]
+        assert head["is_tax_unit_head"] == {"2026": True}
+        assert head["is_tax_unit_spouse"] == {"2026": False}
+
+
+def test_flat_placement_compares_values_once_normalized():
+    one = [
+        {"name": "Solo", "role": "head", "facts": {"pre_subsidy_rent": {"2026": 9000}}}
+    ]
+    args = _flat(people=one, household_facts={"pre_subsidy_rent": 9000})
+    request, error = _norm(args, F.FLAT, F.PLACEMENT)
+    assert error is None, error
+    assert request["situation"]["people"]["Solo"]["pre_subsidy_rent"] == {"2026": 9000}
+
+
+def test_the_descriptions_promise_only_what_the_features_do():
+    flat = F.calculate_tool_schema(features=frozenset({F.FLAT}))["function"]
+    assert '"employment_income": 30000' in flat["description"]
+    example = [
+        {"role": "head", "facts": {"age": 40, "employment_income": 30000}},
+    ]
+    request, error = _norm(_flat(people=example), F.FLAT)
+    assert error is None, error
+    entity_error = "a variable set on the wrong entity"
+    placed = F.calculate_tool_schema(features=frozenset({F.PLACEMENT}))["function"]
+    assert entity_error not in placed["description"]
+    assert "moved to the one unit holding its people" in placed["description"]
+    named = F.calculate_tool_schema(features=frozenset({F.NAMES}))["function"]
+    assert entity_error in named["description"]
+    concise = F.calculate_tool_schema(features=frozenset({F.EXPLAIN, F.CONCISE}))
+    detail = concise["function"]["parameters"]["properties"]["detail"]["description"]
+    assert f"up to {F.EXPLAIN_MAX_LINES} steps" in detail
+    for features in (frozenset({F.EXPLAIN, F.CONCISE}), frozenset(F.TOOL_FEATURES)):
+        assert "every step" not in F.compose_tool_notice(features, True)
+
+
 def test_flat_refuses_what_it_cannot_place():
     people = [
         {"name": "A", "role": "head", "facts": {}},
@@ -434,7 +553,7 @@ def _echo_worker(conn, fix_path, reform):
         conn.send(("ok", {"received": args}))
 
 
-def test_the_pool_tells_its_workers_the_features():
+def test_the_pool_tells_its_workers_the_features_in_a_frame():
     pool = F.ToolPool(
         size=1,
         timeout=5.0,
@@ -443,11 +562,89 @@ def test_the_pool_tells_its_workers_the_features():
     )
     try:
         result, _ = pool.call({"x": 1})
-        assert result == {
-            "received": {"__tool_features__": ["flat", "names"], "arguments": {"x": 1}}
-        }
+        assert result == {"received": ("calculate", ("flat", "names"), {"x": 1})}
     finally:
         pool.close()
+
+
+def test_a_model_cannot_turn_on_a_feature_its_arm_does_not_offer():
+    forged = {
+        "__tool_features__": ["names"],
+        "arguments": {
+            "situation": {"people": {"head": {"Employment income": 12345}}},
+            "variables": ["age"],
+        },
+    }
+    for message in (forged, {"__tool_version__": 2, "arguments": forged["arguments"]}):
+        request, error = F.worker_request(message, REGISTRY)
+        assert request is None
+        assert "unknown arguments: " in error["problems"][0]
+    request, error = F.worker_request(
+        F.tool_call_frame(frozenset({F.NAMES}), forged["arguments"]), REGISTRY
+    )
+    assert error is None
+    assert request["situation"]["people"]["head"]["employment_income"] == {
+        "2026": 12345
+    }
+    for names in (("telepathy",), ("concise",), ({},), ["names"]):
+        request, error = F.worker_request(("calculate", names, {}), REGISTRY)
+        assert request is None and error["error"] == "configuration", names
+
+
+def _profile(arm):
+    return F.ModelProfile("m", "gpt-x", "chat", "tool", arm=arm)
+
+
+def _record(profile, **changes):
+    record = {
+        "scenario_id": "mt_000",
+        "tool_notice_sha256": __import__("hashlib")
+        .sha256(profile.notice.encode())
+        .hexdigest(),
+        **F.profile_treatment(profile),
+    }
+    record.update(changes)
+    return record
+
+
+def test_a_resume_refuses_households_run_under_another_treatment():
+    pe3 = _profile("pe3")
+    assert F.record_treatment_problem(_record(pe3), pe3) is None
+    six = sorted(set(F.TOOL_FEATURES) - {F.LABELS})
+    assert "tool features" in F.record_treatment_problem(
+        _record(pe3, tool_features=six), pe3
+    )
+    assert "another tool notice" in F.record_treatment_problem(
+        _record(pe3, tool_notice_sha256="0" * 64), pe3
+    )
+    assert "calculator schema" in F.record_treatment_problem(
+        _record(pe3, calculate_tool_sha256="0" * 64), pe3
+    )
+    old = _record(pe3)
+    del old["tool_features"]
+    assert "no recorded tool features" in F.record_treatment_problem(old, pe3)
+    # Arms whose treatment never changed accept records from before the fields.
+    for arm in ("pe", "pe2", "web+pe", "none", "web"):
+        profile = _profile(arm)
+        legacy = _record(profile)
+        for key in ("tool_features", "calculate_tool_sha256", "tool_notice_sha256"):
+            legacy.pop(key)
+        assert F.record_treatment_problem(legacy, profile) is None, arm
+    pe2 = _profile("pe2")
+    assert "tool features" in F.record_treatment_problem(_record(_profile("pe")), pe2)
+
+
+def test_diagnostics_read_flat_people_by_their_default_names():
+    household = {
+        "people": [
+            {"role": "head", "facts": {}},
+            {"role": "spouse", "facts": {}},
+            {"name": "Kid", "role": "dependent", "facts": {}},
+            {"role": "dependent", "facts": {}},
+        ]
+    }
+    names = F._person_names({"household": json.dumps(household)})
+    assert names == ["head", "spouse", "Kid", "dependent_2"]
 
 
 @pytest.mark.slow
@@ -520,73 +717,72 @@ def test_a_household_described_flat_computes_what_the_benchmarks_own_does():
 
 
 @pytest.mark.slow
-def test_a_household_described_under_the_prompts_labels_computes_the_same():
-    """Differential: each frozen-board household described flat with every
-    fact as its v2-pilot prompt writes it (a label in words, or the name with
-    spaces),
-    and stated hours only where the prompt states them, computes every board
-    output as the benchmark does. Take-up conventions, which the prompt does
-    not list, keep their engine names."""
+def test_a_household_described_from_its_prompt_computes_the_same():
+    """Differential, with the labels feature alone: each of 30 frozen-board
+    households described flat from the facts its v2-pilot prompt shows, each
+    under the label the prompt shows it under (dropped facts included), with
+    the state and roles the prompt gives, computes every board output as the
+    benchmark's own situation does. The take-up conventions, which the prompt
+    states in words, are set under their engine names."""
     import household_set as hs
     import pandas as pd
     from policyengine_us import Simulation
 
     from policybench.ground_truth import _extract_person_value, _pe_variable_for_output
-    from policybench.prompts import _humanize_input_label
-    from policybench.scenarios import PE_INPUT_ALIASES, PE_INPUT_RENAMES
+    from policybench.scenarios import (
+        DEFAULT_TAKEUP_INPUTS,
+        is_excluded_prompt_input_name,
+    )
 
     system = F.build_tool_system(reform=True)
     registry = F.build_registry(system)
     reference = pd.read_csv(hs.FROZEN_BOARD / "reference_outputs.csv")
     variables = reference.groupby("scenario_id").variable.agg(list)
-    field_of = {name: field for field, name in PE_INPUT_RENAMES.items()}
-    dropped = {"is_tax_unit_head", "is_tax_unit_spouse", *PE_INPUT_ALIASES.values()}
+    shown = set()
 
-    worded = []
+    def label(field, value):
+        value_type = (
+            "bool"
+            if isinstance(value, bool)
+            else ("str" if isinstance(value, str) else "float")
+        )
+        written = F.rendered_labels(field, value_type)[-1]
+        shown.add((field, written))
+        return written
 
-    def labeled(facts):
-        out = {}
-        for k, v in facts.items():
-            if k in dropped:
-                continue
-            if k.startswith(F.CONVENTION_PREFIXES):
-                out[k] = v
-                continue
-            label = F.v2_pilot_text(f"- {_humanize_input_label(field_of.get(k, k))}: ")[
-                2:-2
-            ]
-            if label != k.replace("_", " "):
-                worded.append(label)
-            out[label] = v
-        return out
+    def prompt_facts(inputs):
+        return {
+            label(k, v): v
+            for k, v in inputs.items()
+            if not is_excluded_prompt_input_name(k)
+        }
 
     checked = 0
-    for scenario in hs.load_scenarios(hs.FROZEN_BOARD)[:12]:
-        situation = hs.situation_for(scenario)
+    for scenario in hs.load_scenarios(hs.FROZEN_BOARD)[:30]:
         couple = scenario.marital_couple() or ()
         head = couple[0] if couple else scenario.adults[0].name
-        people = [
-            {
-                "name": name,
-                "role": "head"
-                if name == head
-                else ("spouse" if name in couple else "dependent"),
-                "facts": labeled(facts),
-            }
-            for name, facts in situation["people"].items()
-        ]
+        people = []
+        for person in scenario.all_people:
+            facts = {"age": person.age}
+            if person.name.startswith("adult") or abs(person.employment_income) > 1e-6:
+                facts[label("employment_income", 1.0)] = person.employment_income
+            facts |= prompt_facts(person.inputs)
+            facts |= DEFAULT_TAKEUP_INPUTS["person"]
+            role = (
+                "head"
+                if person.name == head
+                else ("spouse" if person.name in couple else "dependent")
+            )
+            people.append({"name": person.name, "role": role, "facts": facts})
         household_facts = {}
-        for group in ("tax_units", "spm_units", "families", "households"):
-            for unit in situation[group].values():
-                household_facts.update(
-                    labeled(
-                        {
-                            k: v
-                            for k, v in unit.items()
-                            if k not in ("members", "state_code")
-                        }
-                    )
-                )
+        for inputs in (
+            scenario.tax_unit_inputs,
+            scenario.spm_unit_inputs,
+            scenario.household_inputs,
+        ):
+            household_facts |= prompt_facts(inputs)
+        for entity in ("tax_unit", "spm_unit", "household"):
+            household_facts |= DEFAULT_TAKEUP_INPUTS[entity]
         household = {
             "state": scenario.state,
             "people": people,
@@ -595,10 +791,12 @@ def test_a_household_described_under_the_prompts_labels_computes_the_same():
         request, error = F.normalize_request(
             {"household": json.dumps(household), "variables": ["snap"]},
             registry,
-            features=frozenset({F.FLAT, F.LABELS, F.NAMES}),
+            features=frozenset({F.FLAT, F.LABELS}),
         )
         assert error is None, (scenario.id, error)
-        own = Simulation(tax_benefit_system=system, situation=situation)
+        own = Simulation(
+            tax_benefit_system=system, situation=hs.situation_for(scenario)
+        )
         flat = Simulation(tax_benefit_system=system, situation=request["situation"])
         for variable in variables[scenario.id]:
             name = _pe_variable_for_output(variable, "us")
@@ -612,4 +810,12 @@ def test_a_household_described_under_the_prompts_labels_computes_the_same():
             ]
             assert values[0] == values[1], (scenario.id, variable, values)
             checked += 1
-    assert checked > 120 and len(worded) > 10, (checked, worded)
+    worded = {w for f, w in shown if w != f.replace("_", " ")}
+    assert checked > 300 and len(worded) > 10, (checked, sorted(worded))
+    # No label a US prompt can show names two of this engine's inputs.
+    ambiguous = {
+        key: targets
+        for key, targets in F.prompt_labels().items()
+        if len({e for e, dropped in targets if not dropped and e in registry}) > 1
+    }
+    assert not ambiguous, ambiguous

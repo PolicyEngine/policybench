@@ -261,8 +261,13 @@ def test_the_pool_tells_its_workers_the_tool_version():
     )
     try:
         result, _ = pool.call({"situation": "{}"})
+        # A frame no model's JSON arguments can be (tool v3 review r1).
         assert result == {
-            "received": {"__tool_version__": 2, "arguments": {"situation": "{}"}}
+            "received": (
+                "calculate",
+                ("explain", "names", "overrides", "placement"),
+                {"situation": "{}"},
+            )
         }
     finally:
         pool.close()
