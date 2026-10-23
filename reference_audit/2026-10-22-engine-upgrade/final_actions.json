@@ -1,0 +1,363 @@
+{
+  "engine": "policyengine-us 2.60.0",
+  "previous_engine": "policyengine-us 2.41.0",
+  "date": "2026-10-23",
+  "draft": false,
+  "approved": [
+    {
+      "scenario_id": "scenario_028",
+      "variable": "free_school_meals_eligible",
+      "value": 1.0,
+      "cause": "state_universal_free_breakfast_10238",
+      "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its three K-12 children, at 186% of the poverty guideline, get $1,112.40 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+    },
+    {
+      "scenario_id": "scenario_031",
+      "variable": "snap",
+      "value": 288.0,
+      "cause": "ca_snap_mce_no_net_income_test_10036",
+      "basis": "California's Modified Categorical Eligibility (MCE) makes a household with gross income within 200% of the poverty guideline categorically eligible for CalFresh without the net income test, elderly or disabled households included (CDSS ACL 12-62, 13-32, 14-56 and 15-42; 7 CFR 273.2(j)(2)), and gives an eligible one- or two-person household the minimum allotment (CDSS MCE letter, June 30, 2014; 7 U.S.C. 2017(a); 7 CFR 273.10(e)(2)(ii)(C)). policyengine-us 2.41.0 applied the net income test to MCE households with an elderly or disabled member, so this one-person household, an elderly member with $1,987.79 of monthly gross income (within the $2,608.33 MCE limit) and $1,611 of net income (above the $1,304.17 guideline), was ineligible and its SNAP was $0. PolicyEngine/policyengine-us#10036 (Remove the BBCE net income test from California's Modified Categorical Eligibility) drops that test; on policyengine-us 2.60.0 the household is categorically eligible and its calculated allotment, the $298 maximum less 30% of net income ($484), is below the $24 minimum, so it receives $24 a month (snap_min_allotment): $288.00 for 2026."
+    },
+    {
+      "scenario_id": "scenario_117",
+      "variable": "free_school_meals_eligible",
+      "value": 1.0,
+      "cause": "state_universal_free_breakfast_10238",
+      "basis": "Arkansas Act 123 of 2025 (SB 59; A.C.A. \u00a7 6-18-722(f)), from the 2025-26 school year, gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for AR, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its two K-12 children, at 643% of the poverty guideline, get $741.60 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+    },
+    {
+      "scenario_id": "scenario_123",
+      "variable": "free_school_meals_eligible",
+      "value": 1.0,
+      "cause": "state_universal_free_breakfast_10238",
+      "basis": "Pennsylvania Act 33 of 2023 (24 P.S. \u00a7 13-1337.1(c.2), codified December 13, 2023) gives every public school student a free breakfast regardless of household income. PolicyEngine/policyengine-us#10238 (Model state school meal coverage beyond universal meals) models it: on policyengine-us 2.60.0 state_has_universal_free_school_breakfast is true for PA, so the household's K-12 children take the free breakfast tier (school_meal_breakfast_tier) whatever their income while lunch stays in the paid tier (school_meal_lunch_tier), and free_school_meals is positive. Here its one K-12 child, at 531% of the poverty guideline, gets $370.80 of free breakfast support for 2026. The output asks whether PolicyEngine returns positive annual free school meal support, so it is 1; on policyengine-us 2.41.0 the household's income put both meals in the paid tier and it was 0."
+    }
+  ],
+  "regenerated_exclusions": [],
+  "new_exclusions": [],
+  "excluded_rechecked": [
+    {
+      "scenario_id": "scenario_002",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $1,890.30, the record's alternative value, since it takes that reading by default, but the reference depends on an input the prompt does not state (who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; reference_depends_on_unlisted_input), and an engine default does not settle it; the record keeps $0.00. policyengine-us#10185 (Count taxable employment disability benefits in federal gross income (IRC 105(a)), released in 2.50.0) counts disability_benefits less tax_exempt_disability_benefits, the part from coverage the recipient paid for with after-tax money (IRC 104(a)(3)), in gross income, and that input defaults to zero: the engine treats the benefits as coming from an employer-paid plan. The prompt lists only the benefits, so who paid for the coverage is still unstated."
+    },
+    {
+      "scenario_id": "scenario_005",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $108,525.58, the value policyengine-us 2.41.0 gave when the 2026-10-13 recheck found it on its corrected value, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input).); the record keeps $106,505.90. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_020",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $68,056.71, and policyengine-us 2.60.0 gives $68,334.73. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_023",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $461.34, and policyengine-us 2.60.0 gives $408.00. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_052",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $104,225.26, on the record's corrected value $104,225.26, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input).); the record keeps $104,211.41. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_056",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on weekly_hours_worked_before_lsr and whether the listed home mortgage interest is on the home the SNAP household occupies (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $1,140.00, and policyengine-us 2.60.0 gives $95.00. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_057",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,669.22, and policyengine-us 2.60.0 gives $2,628.00. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_080",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $3,240.00, on the record's corrected value $3,240.00, so its defect (r30_snap_heat_and_eat_sua) is fixed there, but the 2026-09-29 recheck found the output indeterminate on the stated facts, a second reason that a new engine does not settle; the record keeps $3,596.04. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "state_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $8,232.90, on the record's corrected value $8,232.90, but the record names a second reason that a new engine does not settle (Corrected value applies ma_part_a_loss_offset with every publication convention and upstream fix. The output also moves under r23_ma_interest_source (unlisted input).); the record keeps $8,238.41. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_100",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on meets_ssi_disability_criteria (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $8,625.89, and policyengine-us 2.60.0 gives $6,924.00. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_107",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $211.23, the record's alternative value, since it takes that reading by default, but the reference depends on an input the prompt does not state (who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; reference_depends_on_unlisted_input), and an engine default does not settle it; the record keeps $0.00. policyengine-us#10185 (Count taxable employment disability benefits in federal gross income (IRC 105(a)), released in 2.50.0) counts disability_benefits less tax_exempt_disability_benefits, the part from coverage the recipient paid for with after-tax money (IRC 104(a)(3)), in gross income, and that input defaults to zero: the engine treats the benefits as coming from an employer-paid plan. The prompt lists only the benefits, so who paid for the coverage is still unstated."
+    },
+    {
+      "scenario_id": "scenario_112",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $0.00, the record's alternative value, since it takes that reading by default, but the reference depends on an input the prompt does not state (weekly_hours_worked_before_lsr; reference_depends_on_unlisted_input), and an engine default does not settle it; the record keeps $287.68. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_118",
+      "variable": "snap",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the reference depends on whether the listed home mortgage interest is on the home the SNAP household occupies (reference_depends_on_unlisted_input), which an engine release does not settle; the record keeps $2,903.94, and policyengine-us 2.60.0 gives $2,400.00. policyengine-us 2.41.0 gave $2,868.00 when it was rechecked on 2026-10-13. It moves because policyengine-us#10158 (Add New York state supplementation for 2026) models New York's state supplement to SSI, $87 a month for this person living alone (ny_ssp), which counts as SNAP unearned income: gross income rises from $1,014 to $1,101 a month, net income from $194 to $325, and the allotment from $239 to $200 a month."
+    },
+    {
+      "scenario_id": "scenario_120",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $40,423.18, the value policyengine-us 2.41.0 gave when the 2026-10-13 recheck found it on its corrected value, but the record names a second reason that a new engine does not settle (Corrected value applies r02_ira_219g_v2 with every publication convention and upstream fix. The output also moves under r25_niit_in_federal_output (unlisted input). The output also moves under the state income tax withheld reading (unlisted input): the reference's SALT uses the Connecticut withholding estimate ($12,010.05); with the engine's own liability ($11,917.18) the 2.15.17 value is $40,438.95, and with no state income tax paid it is $43,619.93. With r02's IRA fix on 2.15.17 the value is $40,423.18 under the withholding estimate, $40,445.46 under the liability and $43,629.21 with no state income tax paid. policyengine-us 2.15.17 also leaves the household's Connecticut paid leave contributions ($827.98) out of SALT (Rev. Rul. 2025-4); with them the 2.15.17 value is $40,217.95.); the record keeps $40,021.82. The value is 2.41.0's, rechecked on 2026-10-13 (the 2026-10-13 engine_upgrade revision's excluded_outputs_rechecked)."
+    },
+    {
+      "scenario_id": "scenario_121",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $875.34, the record's alternative value, since it takes that reading by default, but the reference depends on an input the prompt does not state (who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; reference_depends_on_unlisted_input), and an engine default does not settle it; the record keeps $0.00. policyengine-us#10185 (Count taxable employment disability benefits in federal gross income (IRC 105(a)), released in 2.50.0) counts disability_benefits less tax_exempt_disability_benefits, the part from coverage the recipient paid for with after-tax money (IRC 104(a)(3)), in gross income, and that input defaults to zero: the engine treats the benefits as coming from an employer-paid plan. The prompt lists only the benefits, so who paid for the coverage is still unstated."
+    },
+    {
+      "scenario_id": "scenario_121",
+      "variable": "state_income_tax_before_refundable_credits",
+      "reason": "Stays excluded on policyengine-us 2.60.0: the engine gives $212.23, the record's alternative value, since it takes that reading by default, but the reference depends on an input the prompt does not state (who paid for the coverage behind listed employment disability benefits, which decides whether they are taxable; reference_depends_on_unlisted_input), and an engine default does not settle it; the record keeps $0.00. policyengine-us#10185 (Count taxable employment disability benefits in federal gross income (IRC 105(a)), released in 2.50.0) counts disability_benefits less tax_exempt_disability_benefits, the part from coverage the recipient paid for with after-tax money (IRC 104(a)(3)), in gross income, and that input defaults to zero: the engine treats the benefits as coming from an employer-paid plan. The prompt lists only the benefits, so who paid for the coverage is still unstated."
+    }
+  ],
+  "review": [
+    {
+      "scenario_id": "scenario_002",
+      "state": "WA",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 0.0,
+      "new": 1890.300048828125,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input; the engine lands on the alternative reading): regenerate only if a reviewer rules that the stated facts decide it - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_005",
+      "state": "CA",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 106505.8984375,
+      "new": 108525.578125,
+      "status": "excluded 20261014: r02_ira_219g",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 engine defect r02_ira_219g, on the corrected value the 2026-10-13 recheck found, with a second reason) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_020",
+      "state": "TX",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 68056.7109375,
+      "new": 68334.734375,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_023",
+      "state": "CA",
+      "variable": "snap",
+      "previous": 461.3397216796875,
+      "new": 408.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_028",
+      "state": "PA",
+      "variable": "free_school_meals_eligible",
+      "previous": 0.0,
+      "new": 1.0,
+      "status": "scored",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "approved",
+      "call": "APPROVE (PA universal free breakfast, #10238) - confirm the breakfast tier, the paid lunch tier and the enactment date"
+    },
+    {
+      "scenario_id": "scenario_031",
+      "state": "CA",
+      "variable": "snap",
+      "previous": 0.0,
+      "new": 288.0,
+      "status": "scored",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "approved",
+      "call": "APPROVE (CalFresh MCE net income test removed, #10036; minimum allotment) - confirm the gross and net income, the 200% gross limit and the minimum in the build trace"
+    },
+    {
+      "scenario_id": "scenario_052",
+      "state": "TX",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 104211.40625,
+      "new": 104225.2578125,
+      "status": "excluded 20261014: r02_ira_219g",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 engine defect r02_ira_219g lands on target, but the record's note names an unlisted input too): regenerate only if a reviewer rules that reason out - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_056",
+      "state": "NJ",
+      "variable": "snap",
+      "previous": 1140.0,
+      "new": 95.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_057",
+      "state": "LA",
+      "variable": "snap",
+      "previous": 2669.217041015625,
+      "new": 2628.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_080",
+      "state": "PA",
+      "variable": "snap",
+      "previous": 3596.039794921875,
+      "new": 3240.0,
+      "status": "excluded 20261014: r30_snap_heat_and_eat_sua",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 engine defect r30_snap_heat_and_eat_sua lands on target, but the 2026-09-29 recheck found it indeterminate on the stated facts): regenerate only if a reviewer rules that reason out - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "state": "MA",
+      "variable": "state_income_tax_before_refundable_credits",
+      "previous": 8238.40625,
+      "new": 8232.900390625,
+      "status": "excluded 20261014: r22_ma_part_a_loss_offset",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 engine defect r22_ma_part_a_loss_offset lands on target, but the record's note names an unlisted input too): regenerate only if a reviewer rules that reason out - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_100",
+      "state": "MT",
+      "variable": "snap",
+      "previous": 8625.8896484375,
+      "new": 6924.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_107",
+      "state": "OH",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 0.0,
+      "new": 211.232421875,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input; the engine lands on the alternative reading): regenerate only if a reviewer rules that the stated facts decide it - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_112",
+      "state": "TX",
+      "variable": "snap",
+      "previous": 287.68316650390625,
+      "new": 0.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input; the engine lands on the alternative reading): regenerate only if a reviewer rules that the stated facts decide it - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_117",
+      "state": "AR",
+      "variable": "free_school_meals_eligible",
+      "previous": 0.0,
+      "new": 1.0,
+      "status": "scored",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "approved",
+      "call": "APPROVE (AR universal free breakfast, #10238) - confirm the breakfast tier, the paid lunch tier and the enactment date"
+    },
+    {
+      "scenario_id": "scenario_118",
+      "state": "NY",
+      "variable": "snap",
+      "previous": 2903.9404296875,
+      "new": 2400.0,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_120",
+      "state": "CT",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 40021.81640625,
+      "new": 40423.17578125,
+      "status": "excluded 20261014: r02_ira_219g",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 engine defect r02_ira_219g, on the corrected value the 2026-10-13 recheck found, with a second reason) - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_121",
+      "state": "SC",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "previous": 0.0,
+      "new": 875.3375244140625,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input; the engine lands on the alternative reading): regenerate only if a reviewer rules that the stated facts decide it - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_121",
+      "state": "SC",
+      "variable": "state_income_tax_before_refundable_credits",
+      "previous": 0.0,
+      "new": 212.23350524902344,
+      "status": "excluded 20261014: reference_depends_on_unlisted_input",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "excluded_rechecked",
+      "call": "RECHECK (20261014 reference_depends_on_unlisted_input; the engine lands on the alternative reading): regenerate only if a reviewer rules that the stated facts decide it - check the drafted reason"
+    },
+    {
+      "scenario_id": "scenario_123",
+      "state": "PA",
+      "variable": "free_school_meals_eligible",
+      "previous": 0.0,
+      "new": 1.0,
+      "status": "scored",
+      "hub_audited_target": "",
+      "decision": "PROPOSED",
+      "placed_in": "approved",
+      "call": "APPROVE (PA universal free breakfast, #10238) - confirm the breakfast tier, the paid lunch tier and the enactment date"
+    }
+  ],
+  "note": "Reviewed 2026-10-23 on policyengine-us 2.60.0, the newest PyPI release when the sweep began (verification/sweep_timing.json). A first sweep on 2.59.0 (2026-10-22 19:49 UTC) was cut off by a host restart; when it resumed, 2.60.0 was out and moved three scored outputs 2.59.0 does not (verification/superseded_2_59_0.json), so the references are built on 2.60.0. Each named pull request is an ancestor of 2.60.0's release commit 2bc4ccc970. Four scored outputs move, each approved: scenario_031 SNAP (#10036, California MCE) and the free school meals flag of scenario_028, 117 and 123 (#10238, Pennsylvania and Arkansas universal free breakfast, standing statutes enacted before the 2026-07-03 freeze). No exclusion is regenerated: the four outputs that land on their records' alternative values (scenario_002, 107 and 121 federal income tax, scenario_121 state income tax; #10185) are reference_depends_on_unlisted_input records (r24 is classed unlisted_input in reference_audit/2026-09-22/root_causes.json), and the engine reaches the alternative through a default for the unstated input, so they stay excluded with the other rechecks. Of the 16 rechecks, only scenario_118 SNAP (#10158) and the four r24 outputs change value from 2.41.0; the other eleven keep 2.41.0's values and are rechecked because their decided values differ from the engine's. No new exclusion."
+}
