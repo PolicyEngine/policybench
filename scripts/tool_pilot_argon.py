@@ -51,6 +51,7 @@ import concurrent.futures
 import copy
 import decimal
 import difflib
+import functools
 import hashlib
 import importlib.metadata
 import importlib.util
@@ -166,6 +167,12 @@ ARM_SUFFIX = {
 # publishable"; "do all these tests with a cheap model"):
 # - names: a name written with spaces, or a benchmark output key, is read as
 #   its engine variable;
+# - labels: a fact written under the label the prompt gives it (a prompt
+#   labels some facts in words, e.g. employment_income as "gross wages and
+#   salaries"; policybench.prompts.INPUT_LABEL_OVERRIDES) is read as its
+#   variable, and a fact the reference also sets under another name
+#   (policybench.scenarios.PE_INPUT_ALIASES: usual weekly hours) is set there
+#   too;
 # - placement: an input set on another entity moves to the one unit holding
 #   its people;
 # - overrides: a realized contribution is read as its _desired input, and an
@@ -174,18 +181,20 @@ ARM_SUFFIX = {
 # - concise: an explanation is brief unless `detail` is "full";
 # - flat: the household is described as people with roles and facts
 #   (`household`), and the tool builds its units as the benchmark does.
-# "pe2" is tool version 2 (the first four); "pe3" is all six. Any other set
+# "pe2" is tool version 2 (names, placement, overrides and explain); "pe3" is
+# all seven. Any other set
 # runs as an arm named "pe:" plus its features joined by "+", e.g.
 # "pe:names+flat".
-NAMES, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT = (
+NAMES, LABELS, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT = (
     "names",
+    "labels",
     "placement",
     "overrides",
     "explain",
     "concise",
     "flat",
 )
-TOOL_FEATURES = (NAMES, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT)
+TOOL_FEATURES = (NAMES, LABELS, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT)
 V2_FEATURES = frozenset({NAMES, PLACEMENT, OVERRIDES, EXPLAIN})
 FEATURES_BY_ARM = {
     "pe": frozenset(),
@@ -251,10 +260,14 @@ def _listing(items: list[str]) -> str:
 def compose_tool_notice(features: frozenset, tool_contract: bool) -> str:
     """The calculator notice for a set of features: the opening, a sentence
     per feature, then the turn limit and the answer instruction. No feature
-    gives TOOL_NOTICE and the version 2 features give TOOL_NOTICE_V2, byte for
-    byte."""
+    gives TOOL_NOTICE and the version 2 features TOOL_NOTICE_V2, as those arms
+    ran. TOOL_NOTICE_V2 says the facts are labeled with the engine's variable
+    names, which holds for most facts but not those the prompt labels in words
+    ("gross wages and salaries"); every other set says only what it reads."""
     if not features:
         return TOOL_NOTICE if tool_contract else JSON_TOOL_NOTICE
+    if features == V2_FEATURES:
+        return TOOL_NOTICE_V2 if tool_contract else JSON_TOOL_NOTICE_V2
     what = (
         "household you describe"
         if FLAT in features
@@ -271,14 +284,24 @@ def compose_tool_notice(features: frozenset, tool_contract: bool) -> str:
             "or dependent) and facts, and the facts about the household as a "
             "whole; it builds the household's units as the facts imply."
         )
-    if NAMES in features:
+    if LABELS in features and NAMES in features:
         text += (
-            " The facts above are labeled with its variable names, written with "
-            "spaces; it accepts them as written, and it accepts the output keys you "
-            "are asked for. Set every listed fact."
+            " It accepts the facts above under the labels they have there, its "
+            "variable names written with spaces, and the output keys you are asked "
+            "for. Set every listed fact."
+        )
+    elif LABELS in features:
+        text += (
+            " It accepts the facts above under the labels they have there. Set "
+            "every listed fact."
+        )
+    elif NAMES in features:
+        text += (
+            " It accepts its variable names written with spaces, and the output "
+            "keys you are asked for. Set every listed fact."
         )
     notes = []
-    if NAMES in features:
+    if NAMES in features or LABELS in features:
         notes.append("which names it read")
     if PLACEMENT in features:
         notes.append("which inputs it moved to the entity they belong to")
@@ -670,10 +693,15 @@ def calculate_tool_schema(version: int = 1, features: frozenset | None = None) -
                 FLAT_DESCRIPTION if FLAT in features else CALCULATE_DESCRIPTION
             )
             notes = []
+            if LABELS in features:
+                notes.append(
+                    "A fact may be written under the label it has in the facts "
+                    "you were given."
+                )
             if NAMES in features:
                 notes.append(
-                    "A name may also be written with spaces (as the facts are "
-                    "labeled) or be one of the output keys you are asked for."
+                    "A name may also be written with spaces or be one of the "
+                    "output keys you are asked for."
                 )
             if PLACEMENT in features and FLAT not in features:
                 notes.append(
@@ -927,13 +955,8 @@ def _normalize_inputs(
     for name, value in data.items():
         if allow_members and name == "members":
             continue
-        if (
-            v2 is not None
-            and NAMES in v2["features"]
-            and isinstance(name, str)
-            and name not in registry
-        ):
-            resolved, note = resolve_name(name, registry, output_names=False)
+        if v2 is not None and isinstance(name, str) and name not in registry:
+            resolved, note = read_fact_name(name, registry, v2["features"])
             if resolved is not None:
                 v2["notes"].append(f"{where}: {note}")
                 name = resolved
@@ -1157,6 +1180,8 @@ def normalize_request(
         problems.append(f"at most {MAX_VARIABLES} variables per call")
     if v2 is not None and PLACEMENT in features:
         _place_misplaced(v2, normalized, situation, registry, period, problems)
+    if v2 is not None and LABELS in features:
+        _set_aliases(v2, normalized["people"], registry)
     requested = []
     for name in variables:
         if (
@@ -1320,13 +1345,8 @@ def flat_situation(household, registry, problems: list[str], v2: dict | None):
         return None
     for name, value in facts.items():
         resolved = name
-        if (
-            isinstance(name, str)
-            and name not in registry
-            and v2 is not None
-            and NAMES in v2["features"]
-        ):
-            resolved, note = resolve_name(name, registry, output_names=False)
+        if isinstance(name, str) and name not in registry and v2 is not None:
+            resolved, note = read_fact_name(name, registry, v2["features"])
             if resolved is not None:
                 v2["notes"].append(f"household_facts: {note}")
         if not isinstance(resolved, str) or resolved not in registry:
@@ -1373,6 +1393,64 @@ def output_reading(name: str) -> tuple[str, str] | None:
     else:
         how = f"{engine}, summed over the household's units"
     return engine, how
+
+
+def _label_key(text: str) -> str:
+    """A label as compared: lower case, letters and digits only, so "Roth
+    401(k) contributions" and "roth 401k contributions" read alike."""
+    return re.sub(r"[^0-9a-z]", "", text.casefold())
+
+
+@functools.lru_cache(maxsize=1)
+def prompt_labels() -> dict[str, str]:
+    """The labels the prompts give facts in words, keyed by _label_key, as the
+    engine names the facts (policybench.scenarios.PE_INPUT_RENAMES applied). A
+    label two facts share is left out."""
+    from policybench.prompts import INPUT_LABEL_OVERRIDES
+    from policybench.scenarios import PE_INPUT_RENAMES
+
+    labels: dict[str, str] = {}
+    shared = set()
+    for source, label in INPUT_LABEL_OVERRIDES.items():
+        key = _label_key(label)
+        name = PE_INPUT_RENAMES.get(source, source)
+        if key in labels and labels[key] != name:
+            shared.add(key)
+        labels[key] = name
+    for source, name in PE_INPUT_RENAMES.items():
+        labels.setdefault(_label_key(source), name)
+    return {key: name for key, name in labels.items() if key not in shared}
+
+
+def read_fact_name(
+    name: str, registry: Mapping[str, VariableInfo], features: frozenset
+) -> tuple[str | None, str | None]:
+    """A fact's engine variable under the labels feature (the label the prompt
+    gives it) and then the names feature (spaces for underscores). Returns
+    (engine name, note) or (None, None)."""
+    if LABELS in features:
+        labeled = prompt_labels().get(_label_key(name))
+        if labeled is not None and labeled in registry:
+            return labeled, f"read {name!r} as {labeled}"
+    if NAMES in features:
+        return resolve_name(name, registry, output_names=False)
+    return None, None
+
+
+def _set_aliases(v2: dict, people: dict, registry: Mapping[str, VariableInfo]):
+    """Set each fact the reference also sets under another name there too
+    (policybench.scenarios.PE_INPUT_ALIASES: the SNAP work rules read stated
+    usual weekly hours as weekly_hours_worked_before_lsr), unless it is set."""
+    from policybench.scenarios import PE_INPUT_ALIASES
+
+    for person, inputs in people.items():
+        for source, target in PE_INPUT_ALIASES.items():
+            if source in inputs and target in registry and target not in inputs:
+                inputs[target] = dict(inputs[source])
+                v2["notes"].append(
+                    f"people.{person}: also set {target} from {source}, as the "
+                    "benchmark's reference does"
+                )
 
 
 def resolve_name(

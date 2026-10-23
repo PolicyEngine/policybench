@@ -9,6 +9,7 @@ situations have.
 
 from __future__ import annotations
 
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -37,6 +38,10 @@ REGISTRY = {
     "state_code": V("household", "Enum", "state", "year", ("CA", "LA")),
     "tax_unit_childcare_expenses": V("tax_unit", "float", "childcare", "year"),
     "marital_unit_flag": V("marital_unit", "bool", "flag", "year"),
+    "has_esi": V("person", "bool", "ESI", "year"),
+    "hours_worked_last_week": V("person", "float", "hours", "year"),
+    "weekly_hours_worked_before_lsr": V("person", "float", "hours", "year"),
+    "partnership_self_employment_net_earnings": V("person", "float", "p", "year"),
 }
 F = pilot
 
@@ -76,6 +81,7 @@ def test_arms_name_their_features():
     assert F.arm_features("pe") == frozenset()
     assert F.arm_features("pe2") == F.V2_FEATURES
     assert F.arm_features("pe3") == frozenset(F.TOOL_FEATURES)
+    assert len(F.TOOL_FEATURES) == 7 and F.LABELS in F.arm_features("pe3")
     assert F.arm_features("pe:flat+names") == frozenset({"flat", "names"})
     assert F.arm_features("none") is None and F.arm_features("web") is None
     assert F.arm_suffix("pe:flat+names") == "+pe-tool[names+flat]"
@@ -193,6 +199,82 @@ def test_a_brief_explanation_keeps_the_value_its_direct_inputs_and_main_paramete
     ]
     assert [p["name"] for p in brief["parameters"]] == ["p0", "p1", "p2", "p3", "p4"]
     assert F.brief_explanation({"error": "x"}) == {"error": "x"}
+
+
+def test_labels_reads_the_facts_as_the_prompt_labels_them():
+    situation = _situation()
+    situation["people"]["head"].update(
+        {
+            "gross wages and salaries": 30000,
+            "Has Employer-Sponsored Insurance": True,
+            "usual weekly hours worked": 40,
+            "self-employment partnership income": 5,
+        }
+    )
+    request, error = _norm({"situation": situation, "variables": ["snap"]}, F.LABELS)
+    assert error is None, error
+    head = request["situation"]["people"]["head"]
+    assert head["employment_income"] == {"2026": 30000}
+    assert head["has_esi"] == {"2026": True}
+    assert head["hours_worked_last_week"] == {"2026": 40}
+    assert head["partnership_self_employment_net_earnings"] == {"2026": 5}
+    # The reference also sets stated hours where the SNAP work rules read them.
+    assert head["weekly_hours_worked_before_lsr"] == {"2026": 40}
+    assert any("also set weekly_hours_worked_before_lsr" in n for n in request["notes"])
+    # A name written with spaces is the names feature's, not this one's.
+    spaced = _situation()
+    spaced["people"]["head"]["employment income"] = 1
+    request, error = _norm({"situation": spaced, "variables": ["snap"]}, F.LABELS)
+    assert request is None and "unknown variable 'employment income'" in str(error)
+
+
+def test_labels_leaves_hours_already_set_where_the_rules_read_them():
+    situation = _situation()
+    situation["people"]["head"].update(
+        {"hours_worked_last_week": 40, "weekly_hours_worked_before_lsr": 20}
+    )
+    request, _ = _norm({"situation": situation, "variables": ["snap"]}, F.LABELS)
+    head = request["situation"]["people"]["head"]
+    assert head["weekly_hours_worked_before_lsr"] == {"2026": 20}
+
+
+def test_pe2_reads_no_labels_and_sets_no_alias_as_it_ran():
+    situation = _situation()
+    situation["people"]["head"]["gross wages and salaries"] = 30000
+    request, error = _norm(
+        {"situation": situation, "variables": ["snap"]}, *F.V2_FEATURES
+    )
+    assert request is None and "gross wages and salaries" in str(error)
+    situation = _situation()
+    situation["people"]["head"]["hours_worked_last_week"] = 40
+    request, _ = _norm({"situation": situation, "variables": ["snap"]}, *F.V2_FEATURES)
+    assert (
+        "weekly_hours_worked_before_lsr" not in request["situation"]["people"]["head"]
+    )
+
+
+def test_only_pe2_says_the_facts_carry_variable_names():
+    claim = "labeled with its variable names"
+    assert claim in F.TOOL_NOTICE_V2
+    for size in range(1, len(F.TOOL_FEATURES) + 1):
+        for features in itertools.combinations(F.TOOL_FEATURES, size):
+            features = frozenset(features)
+            if F.CONCISE in features and F.EXPLAIN not in features:
+                continue
+            notice = F.compose_tool_notice(features, True)
+            assert (claim in notice) == (features == F.V2_FEATURES), features
+            assert notice.endswith("as instructed above.")
+            assert ("names it read" in notice) == bool(features & {F.NAMES, F.LABELS})
+
+
+def test_every_prompt_label_reads_back_to_its_engine_name():
+    from policybench.prompts import INPUT_LABEL_OVERRIDES
+    from policybench.scenarios import PE_INPUT_RENAMES
+
+    labels = F.prompt_labels()
+    for field, label in INPUT_LABEL_OVERRIDES.items():
+        assert labels[F._label_key(label)] == PE_INPUT_RENAMES.get(field, field)
+    assert labels[F._label_key("roth 401k contributions")] == "roth_401k_contributions"
 
 
 def _flat(**overrides):
@@ -375,3 +457,96 @@ def test_a_household_described_flat_computes_what_the_benchmarks_own_does():
             assert values[0] == values[1], (scenario.id, variable, values)
             checked += 1
     assert checked > 80
+
+
+@pytest.mark.slow
+def test_a_household_described_under_the_prompts_labels_computes_the_same():
+    """Differential: each frozen-board household described flat with every
+    fact as its prompt writes it (a label in words, or the name with spaces),
+    and stated hours only where the prompt states them, computes every board
+    output as the benchmark does. Take-up conventions, which the prompt does
+    not list, keep their engine names."""
+    import household_set as hs
+    import pandas as pd
+    from policyengine_us import Simulation
+
+    from policybench.ground_truth import _extract_person_value, _pe_variable_for_output
+    from policybench.prompts import _humanize_input_label
+    from policybench.scenarios import PE_INPUT_ALIASES, PE_INPUT_RENAMES
+
+    system = F.build_tool_system(reform=True)
+    registry = F.build_registry(system)
+    reference = pd.read_csv(hs.FROZEN_BOARD / "reference_outputs.csv")
+    variables = reference.groupby("scenario_id").variable.agg(list)
+    field_of = {name: field for field, name in PE_INPUT_RENAMES.items()}
+    dropped = {"is_tax_unit_head", "is_tax_unit_spouse", *PE_INPUT_ALIASES.values()}
+
+    worded = []
+
+    def labeled(facts):
+        out = {}
+        for k, v in facts.items():
+            if k in dropped:
+                continue
+            if k.startswith(F.CONVENTION_PREFIXES):
+                out[k] = v
+                continue
+            label = _humanize_input_label(field_of.get(k, k))
+            if label != k.replace("_", " "):
+                worded.append(label)
+            out[label] = v
+        return out
+
+    checked = 0
+    for scenario in hs.load_scenarios(hs.FROZEN_BOARD)[:12]:
+        situation = hs.situation_for(scenario)
+        couple = scenario.marital_couple() or ()
+        head = couple[0] if couple else scenario.adults[0].name
+        people = [
+            {
+                "name": name,
+                "role": "head"
+                if name == head
+                else ("spouse" if name in couple else "dependent"),
+                "facts": labeled(facts),
+            }
+            for name, facts in situation["people"].items()
+        ]
+        household_facts = {}
+        for group in ("tax_units", "spm_units", "families", "households"):
+            for unit in situation[group].values():
+                household_facts.update(
+                    labeled(
+                        {
+                            k: v
+                            for k, v in unit.items()
+                            if k not in ("members", "state_code")
+                        }
+                    )
+                )
+        household = {
+            "state": scenario.state,
+            "people": people,
+            "household_facts": household_facts,
+        }
+        request, error = F.normalize_request(
+            {"household": json.dumps(household), "variables": ["snap"]},
+            registry,
+            features=frozenset({F.FLAT, F.LABELS, F.NAMES}),
+        )
+        assert error is None, (scenario.id, error)
+        own = Simulation(tax_benefit_system=system, situation=situation)
+        flat = Simulation(tax_benefit_system=system, situation=request["situation"])
+        for variable in variables[scenario.id]:
+            name = _pe_variable_for_output(variable, "us")
+            values = [
+                float(
+                    _extract_person_value(
+                        simulation.calculate(name, 2026), scenario, variable
+                    )
+                )
+                for simulation in (own, flat)
+            ]
+            assert values[0] == values[1], (scenario.id, variable, values)
+            checked += 1
+    assert checked > 120 and len(worded) > 10, (checked, worded)
