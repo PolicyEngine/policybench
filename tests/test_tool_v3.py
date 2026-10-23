@@ -179,7 +179,7 @@ def test_concise_takes_a_detail_and_defaults_to_brief():
         {"situation": _situation(), "variables": ["snap"], "explain": ["snap"]},
         F.EXPLAIN,
     )
-    assert request["detail"] == "full"
+    assert "detail" not in request  # every step, as tool version 2 explains
 
 
 def test_a_brief_explanation_keeps_the_value_its_direct_inputs_and_main_parameters():

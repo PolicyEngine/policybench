@@ -1224,7 +1224,7 @@ def normalize_request(
             elif name not in explain:
                 explain.append(name)
 
-    detail = "full"
+    detail = None
     if CONCISE in features:
         detail = args.get("detail") or "brief"
         if detail not in ("brief", "full"):
@@ -1236,6 +1236,7 @@ def normalize_request(
     if v2 is not None:
         request["explain"] = explain
         request["notes"] = v2["notes"]
+    if detail is not None:
         request["detail"] = detail
     return request, None
 
