@@ -664,9 +664,10 @@ MAX_EXPLAIN = 3
 FLAT_DESCRIPTION = (
     "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
     "the requested variables. `household` is a JSON object: `state` (the "
-    "two-letter state code), `people` (a list, each with `name`, `role` -- "
-    'head, spouse or dependent -- and `facts`, for example {"age": 40, '
-    '"employment income": 30000}), and `household_facts` (facts about the '
+    "two-letter state code), `people` (a list, each with `role` -- head, "
+    'spouse or dependent --, `facts`, for example {"age": 40, "employment '
+    'income": 30000}, and optionally `name`, by default the role, numbered for '
+    "dependents), and `household_facts` (facts about the "
     "household as a whole: its tax unit, family, SPM unit or home). The head "
     "and spouse are one couple and everyone else is on their own; everyone "
     "shares one tax unit, family, SPM unit and household. A fact is a value "
@@ -1248,7 +1249,8 @@ def flat_situation(household, registry, problems: list[str], v2: dict | None):
     reference situations have (policybench.scenarios.Scenario.to_pe_household):
     the head and spouse one marital unit and everyone else alone, and one tax
     unit, SPM unit, family and household holding everyone. A household fact
-    goes to the unit of its variable's entity. Returns None after recording
+    goes to the unit of its variable's entity. A person given no name is named
+    by role (head, spouse, dependent_1, ...). Returns None after recording
     problems."""
     if isinstance(household, str):
         if len(household) > MAX_SITUATION_CHARS:
@@ -1279,6 +1281,7 @@ def flat_situation(household, registry, problems: list[str], v2: dict | None):
         return None
     situation: dict[str, Any] = {"people": {}}
     roles: dict[str, str] = {}
+    dependents = 0
     for index, person in enumerate(people):
         if not isinstance(person, dict):
             problems.append(
@@ -1290,16 +1293,22 @@ def flat_situation(household, registry, problems: list[str], v2: dict | None):
             person.get("role"),
             person.get("facts", {}),
         )
+        if role not in FLAT_ROLES:
+            problems.append(
+                f"people[{index}].role must be one of {', '.join(FLAT_ROLES)}"
+            )
+            continue
+        if role == "dependent":
+            dependents += 1
+        if name is None:
+            name = role if role != "dependent" else f"dependent_{dependents}"
+            if v2 is not None:
+                v2["notes"].append(f"people[{index}]: named {name}")
         if not isinstance(name, str) or not name or len(name) > 64:
             problems.append(f"people[{index}].name must be a short string")
             continue
         if name in roles:
             problems.append(f"people[{index}]: {name!r} is listed twice")
-            continue
-        if role not in FLAT_ROLES:
-            problems.append(
-                f"people[{index}].role must be one of {', '.join(FLAT_ROLES)}"
-            )
             continue
         if not isinstance(facts, dict):
             problems.append(f"people[{index}].facts must be an object")
@@ -1404,14 +1413,15 @@ def _label_key(text: str) -> str:
 @functools.lru_cache(maxsize=1)
 def prompt_labels() -> dict[str, str]:
     """The labels the prompts give facts in words, keyed by _label_key, as the
-    engine names the facts (policybench.scenarios.PE_INPUT_RENAMES applied). A
-    label two facts share is left out."""
+    engine names the facts (policybench.scenarios.PE_INPUT_RENAMES applied):
+    the board's labels and the v2-pilot prompt's relabelings. A label two facts
+    share is left out."""
     from policybench.prompts import INPUT_LABEL_OVERRIDES
     from policybench.scenarios import PE_INPUT_RENAMES
 
     labels: dict[str, str] = {}
     shared = set()
-    for source, label in INPUT_LABEL_OVERRIDES.items():
+    for source, label in {**INPUT_LABEL_OVERRIDES, **v2_pilot_labels()}.items():
         key = _label_key(label)
         name = PE_INPUT_RENAMES.get(source, source)
         if key in labels and labels[key] != name:
@@ -1420,6 +1430,18 @@ def prompt_labels() -> dict[str, str]:
     for source, name in PE_INPUT_RENAMES.items():
         labels.setdefault(_label_key(source), name)
     return {key: name for key, name in labels.items() if key not in shared}
+
+
+def v2_pilot_labels() -> dict[str, str]:
+    """The facts the v2-pilot prompt relabels (a V2_PILOT_CONVENTIONS rewrite
+    of "<name with spaces>: " to "<new label>: "), by input name."""
+    relabeled = {}
+    for pattern, replacement in V2_PILOT_CONVENTIONS:
+        old = pattern.pattern
+        if pattern.groups or not old.endswith(": ") or not replacement.endswith(": "):
+            continue
+        relabeled[old[:-2].replace(" ", "_")] = replacement[:-2]
+    return relabeled
 
 
 def read_fact_name(

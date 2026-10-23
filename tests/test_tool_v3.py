@@ -274,6 +274,16 @@ def test_every_prompt_label_reads_back_to_its_engine_name():
     labels = F.prompt_labels()
     for field, label in INPUT_LABEL_OVERRIDES.items():
         assert labels[F._label_key(label)] == PE_INPUT_RENAMES.get(field, field)
+    # The v2-pilot prompt's own relabelings, as that prompt writes them.
+    relabeled = F.v2_pilot_labels()
+    assert set(relabeled) == {
+        "employer_sponsored_insurance_premiums",
+        "spm_unit_energy_subsidy",
+    }
+    for field, label in relabeled.items():
+        written = F.v2_pilot_text(f"- {field.replace('_', ' ')}: $5")
+        assert written == f"- {label}: $5"
+        assert labels[F._label_key(label)] == field
     assert labels[F._label_key("roth 401k contributions")] == "roth_401k_contributions"
 
 
@@ -322,6 +332,33 @@ def test_flat_builds_the_benchmarks_units():
     assert s["people"]["Head"]["is_tax_unit_head"] == {"2026": True}
     assert s["people"]["Spouse"]["is_tax_unit_spouse"] == {"2026": True}
     assert s["people"]["Kid"]["is_tax_unit_head"] == {"2026": False}
+
+
+def test_flat_names_a_person_by_role_when_no_name_is_given():
+    people = [
+        {"role": "head", "facts": {"age": 40}},
+        {"role": "dependent", "facts": {"age": 6}},
+        {"name": "Kid", "role": "dependent", "facts": {"age": 4}},
+        {"role": "dependent", "facts": {"age": 2}},
+    ]
+    request, error = _norm(_flat(people=people), F.FLAT)
+    assert error is None, error
+    assert list(request["situation"]["people"]) == [
+        "head",
+        "dependent_1",
+        "Kid",
+        "dependent_3",
+    ]
+    assert "people[0]: named head" in request["notes"]
+    people = [
+        {"role": "head", "facts": {}},
+        {"name": "head", "role": "dependent", "facts": {}},
+    ]
+    request, error = _norm(_flat(people=people), F.FLAT)
+    assert any("listed twice" in p for p in error["problems"])
+    people = [{"name": "", "role": "head", "facts": {}}]
+    request, error = _norm(_flat(people=people), F.FLAT)
+    assert any("name must be a short string" in p for p in error["problems"])
 
 
 def test_flat_refuses_what_it_cannot_place():
@@ -462,7 +499,8 @@ def test_a_household_described_flat_computes_what_the_benchmarks_own_does():
 @pytest.mark.slow
 def test_a_household_described_under_the_prompts_labels_computes_the_same():
     """Differential: each frozen-board household described flat with every
-    fact as its prompt writes it (a label in words, or the name with spaces),
+    fact as its v2-pilot prompt writes it (a label in words, or the name with
+    spaces),
     and stated hours only where the prompt states them, computes every board
     output as the benchmark does. Take-up conventions, which the prompt does
     not list, keep their engine names."""
@@ -491,7 +529,9 @@ def test_a_household_described_under_the_prompts_labels_computes_the_same():
             if k.startswith(F.CONVENTION_PREFIXES):
                 out[k] = v
                 continue
-            label = _humanize_input_label(field_of.get(k, k))
+            label = F.v2_pilot_text(f"- {_humanize_input_label(field_of.get(k, k))}: ")[
+                2:-2
+            ]
             if label != k.replace("_", " "):
                 worded.append(label)
             out[label] = v
