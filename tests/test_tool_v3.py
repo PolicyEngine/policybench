@@ -31,7 +31,8 @@ REGISTRY = {
     ),
     "traditional_401k_contributions_desired": V("person", "float", "asked", "year"),
     "snap": V("spm_unit", "float", "SNAP", "month", computed=True),
-    "pre_subsidy_rent": V("spm_unit", "float", "rent", "year"),
+    "pre_subsidy_rent": V("person", "float", "rent", "year"),
+    "spm_unit_energy_subsidy": V("spm_unit", "float", "energy", "year"),
     "qualified_passenger_vehicle_loan_interest": V(
         "household", "float", "car loan", "year"
     ),
@@ -300,7 +301,7 @@ def _flat(**overrides):
             {"name": "Kid", "role": "dependent", "facts": {"age": 6}},
         ],
         "household_facts": {
-            "pre_subsidy_rent": 9000,
+            "spm_unit_energy_subsidy": 900,
             "tax_unit_childcare_expenses": 1200,
             "qualified_passenger_vehicle_loan_interest": 300,
         },
@@ -324,7 +325,7 @@ def test_flat_builds_the_benchmarks_units():
     ):
         assert s[group][unit]["members"] == ["Head", "Spouse", "Kid"]
     assert s["households"]["household"]["state_code"] == {"2026": "LA"}
-    assert s["spm_units"]["spm_unit"]["pre_subsidy_rent"] == {"2026": 9000}
+    assert s["spm_units"]["spm_unit"]["spm_unit_energy_subsidy"] == {"2026": 900}
     assert s["tax_units"]["tax_unit"]["tax_unit_childcare_expenses"] == {"2026": 1200}
     assert s["households"]["household"][
         "qualified_passenger_vehicle_loan_interest"
@@ -361,6 +362,29 @@ def test_flat_names_a_person_by_role_when_no_name_is_given():
     assert any("name must be a short string" in p for p in error["problems"])
 
 
+def test_flat_placement_gives_a_household_of_ones_person_fact_to_that_person():
+    one = [{"name": "Solo", "role": "head", "facts": {"age": 70}}]
+    args = _flat(people=one, household_facts={"pre_subsidy_rent": 9000})
+    request, error = _norm(args, F.FLAT, F.PLACEMENT)
+    assert error is None, error
+    solo = request["situation"]["people"]["Solo"]
+    assert solo["pre_subsidy_rent"] == {"2026": 9000}
+    assert "pre_subsidy_rent" not in request["situation"]["spm_units"]["spm_unit"]
+    assert any("moved pre_subsidy_rent" in n for n in request["notes"])
+    one[0]["facts"]["pre_subsidy_rent"] = 100
+    conflict = _flat(people=one, household_facts={"pre_subsidy_rent": 9000})
+    request, error = _norm(conflict, F.FLAT, F.PLACEMENT)
+    assert any("different value" in p for p in error["problems"])
+    # Two people: whose rent it is is not said, so it is refused.
+    request, error = _norm(
+        _flat(household_facts={"pre_subsidy_rent": 9000}), F.FLAT, F.PLACEMENT
+    )
+    assert any("whose facts list it" in p for p in error["problems"])
+    # Without placement, even a household of one is refused.
+    request, error = _norm(args, F.FLAT)
+    assert any("whose facts list it" in p for p in error["problems"])
+
+
 def test_flat_refuses_what_it_cannot_place():
     people = [
         {"name": "A", "role": "head", "facts": {}},
@@ -381,13 +405,12 @@ def test_flat_refuses_what_it_cannot_place():
 
 def test_flat_with_names_reads_labeled_household_facts():
     request, error = _norm(
-        _flat(household_facts={"pre subsidy rent": 9000}), F.FLAT, F.NAMES
+        _flat(household_facts={"spm unit energy subsidy": 900}), F.FLAT, F.NAMES
     )
     assert error is None
-    assert request["situation"]["spm_units"]["spm_unit"]["pre_subsidy_rent"] == {
-        "2026": 9000
-    }
-    assert any("as pre_subsidy_rent" in n for n in request["notes"])
+    spm_unit = request["situation"]["spm_units"]["spm_unit"]
+    assert spm_unit["spm_unit_energy_subsidy"] == {"2026": 900}
+    assert any("as spm_unit_energy_subsidy" in n for n in request["notes"])
 
 
 def test_the_schema_offers_each_features_arguments():

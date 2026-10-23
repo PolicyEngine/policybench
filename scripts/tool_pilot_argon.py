@@ -1366,9 +1366,25 @@ def flat_situation(household, registry, problems: list[str], v2: dict | None):
             continue
         entity = registry[resolved].entity
         if entity == "person":
+            # As placement moves a person variable off a one-person unit: only
+            # a household of one says whose fact it is.
+            if v2 is not None and PLACEMENT in v2["features"] and len(everyone) == 1:
+                facts_of = situation["people"][everyone[0]]
+                if resolved in facts_of and facts_of[resolved] != value:
+                    problems.append(
+                        f"household_facts: {resolved} is also set for "
+                        f"{everyone[0]} with a different value"
+                    )
+                    continue
+                facts_of[resolved] = value
+                v2["notes"].append(
+                    f"household_facts: moved {resolved}, a person's fact, to "
+                    f"{everyone[0]}"
+                )
+                continue
             problems.append(
                 f"household_facts: {resolved} is a person's fact; give it under "
-                "that person"
+                "the person whose facts list it"
             )
             continue
         unit_of[entity][resolved] = value
