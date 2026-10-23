@@ -40,7 +40,8 @@ get a free breakfast. `final_actions.json` gives each change's basis, with the f
 `reference-build/reference_traces.json`.
 
 Each named pull request (#10036, #10158, #10185 and #10238) is an ancestor of 2.60.0's release
-commit, 2bc4ccc970. #10238 is not in 2.59.0's, 05813807e1.
+commit, 2bc4ccc970. #10238 is not in 2.59.0's, 05813807e1. Built from source, that commit's
+1,984 outputs are identical to the published wheel's (`verification/release_commit_check.json`).
 
 ## The r24 outputs stay excluded
 
@@ -141,7 +142,8 @@ files or this build's.
 - `reference-build/`: the build. `computed.csv` is every output on 2.60.0, byte-identical to the sweep's
   first output.
 - `hand_corrected_narratives.json` and `.md`: the four changed outputs' reference narratives.
-- `verification/sweep_timing.json` and `verification/superseded_2_59_0.json`.
+- `verification/sweep_timing.json`, `verification/superseded_2_59_0.json` and
+  `verification/release_commit_check.json`.
 
 There is no `evidence/` or `fixes/` directory, because no regeneration here needs a
 `fix_modules` target. If a later one does, the 2026-10-12 audit's `check_against_evidence.py`

@@ -2371,3 +2371,18 @@ def test_the_superseded_sweep_differs_only_on_the_approved_school_meals():
         (d["scenario_id"], d["variable"]) for d in doc["differ_2_59_0_vs_2_60_0"]
     } == {k for k in APPROVED if k[1] == "free_school_meals_eligible"}
     assert all(d["scored"] for d in doc["differ_2_59_0_vs_2_60_0"])
+
+
+def test_the_release_commit_gives_the_wheels_outputs():
+    """Built from source, 2.60.0's release commit gives the published wheel's
+    computed.csv byte for byte."""
+    doc = json.loads(
+        (UPGRADE / "verification" / "release_commit_check.json").read_text()
+    )
+    assert doc["release_commit"].startswith("2bc4ccc970")
+    assert doc["engine_install"]["version"] == "2.60.0"
+    assert (
+        doc["computed_sha256"]
+        == doc["wheel_computed_sha256"]
+        == build.sha256(BUILD / "computed.csv")
+    )
