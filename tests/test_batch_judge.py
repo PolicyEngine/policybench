@@ -150,7 +150,7 @@ def _write_arm(runs, board, model, arm, stage, wrong=None):
     folder.mkdir(parents=True)
     for sid in sorted(board["scenarios"]):
         scenario, variables = board["scenarios"][sid], board["variables"][sid]
-        prompt = bj.household_prompt(scenario, variables, "v2-pilot")
+        prompt = bj.household_prompt(scenario, variables, "v2-pilot", model)
         predictions = {v: float(reference[(sid, v)]) for v in variables}
         if wrong and sid == wrong[0]:
             predictions[wrong[1]] = wrong[2]
@@ -249,3 +249,36 @@ def test_a_payload_refuses_an_unfinished_batch_a_calculator_arm_and_another_prom
         bj.build_payload(out, runs, "b0", "none", batch=2)
     with pytest.raises(SystemExit, match="not both"):
         bj.build_payload(out, runs, "b0", "none", batch=0, scenarios=["mc_000"])
+
+
+CHEAP = ("claude-haiku-5.5", "gpt-6-luna", "gemini-3.1-flash-lite-preview")
+
+
+def test_the_prompt_model_is_the_first_on_the_tool_contract():
+    assert bj.prompt_model_for(bj.MODELS) == "gpt-6-sol"
+    assert bj.prompt_model_for(CHEAP) == "claude-haiku-5.5"
+    assert bj.prompt_model_for(("gemini-3.1-flash-lite-preview", "gpt-6-luna")) == (
+        "gpt-6-luna"
+    )
+
+
+@pytest.mark.slow
+def test_a_payload_judges_any_model_set(household_board, tmp_path):
+    out, _ = household_board
+    board = pilot.load_board(out)
+    runs = tmp_path / "runs"
+    variable = "federal_income_tax_before_refundable_credits"
+    for model in CHEAP:
+        wrong = ("mc_000", variable, 999.0) if model != "gpt-6-luna" else None
+        _write_arm(runs, board, model, "none", "b0", wrong=wrong)
+    payload = bj.build_payload(out, runs, "b0", "none", batch=0, models=CHEAP)
+    assert payload["models"] == list(CHEAP)
+    assert [m["model"] for m in payload["modelStats"]] == [f"{m}+none" for m in CHEAP]
+    flags = consensus_flags(payload, THREE)
+    assert [(f["scenario_id"], f["variable"]) for f in flags] == [("mc_000", variable)]
+    assert flags[0]["clusters"][0]["models"] == [
+        "claude-haiku-5.5+none",
+        "gemini-3.1-flash-lite-preview+none",
+    ]
+    with pytest.raises(SystemExit, match="at least two models"):
+        bj.build_payload(out, runs, "b0", "none", batch=0, models=CHEAP[:1])

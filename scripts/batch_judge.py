@@ -78,10 +78,21 @@ def load_batch(board: Path, batch: int) -> list[str]:
     return list(batches[batch])
 
 
-def household_prompt(scenario, variables: list[str], prompt_version: str) -> str:
-    """The household prompt the tool-contract models saw, without the arm's
-    notice: the board's prompt in the run's prompt version."""
-    profile = pilot.model_profile(PROMPT_MODEL, "none", prompt_version, False)
+def prompt_model_for(models) -> str:
+    """The model whose household prompt a payload shows: the first on the tool
+    contract (the dashboard's ``prompt.tool``), else the first model."""
+    for model in models:
+        if pilot.model_profile(model, "none").contract == "tool":
+            return model
+    return models[0]
+
+
+def household_prompt(
+    scenario, variables: list[str], prompt_version: str, model: str = PROMPT_MODEL
+) -> str:
+    """The household prompt ``model`` saw, without the arm's notice: the
+    board's prompt in the run's prompt version."""
+    profile = pilot.model_profile(model, "none", prompt_version, False)
     prompt, kwargs = pilot.build_initial_request(scenario, variables, profile)
     return prompt[: len(prompt) - len(profile.notice)] if profile.notice else prompt
 
@@ -105,9 +116,15 @@ def build_payload(
     arm: str,
     batch: int | None = None,
     scenarios: list[str] | None = None,
+    models: tuple[str, ...] = MODELS,
 ) -> dict:
     """One arm's answers on one batch (or on named households), as a
-    dashboard payload."""
+    dashboard payload, from ``models`` (the frontier three by default; cheap
+    models for development, Max 2026-10-23)."""
+    models = tuple(models)
+    if len(models) < 2:
+        raise SystemExit("a payload needs at least two models")
+    prompt_model = prompt_model_for(models)
     if arm not in JUDGED_ARMS:
         raise SystemExit(f"only {sorted(JUDGED_ARMS)} are judged, not {arm}")
     if (batch is None) == (not scenarios):
@@ -120,7 +137,7 @@ def build_payload(
     scored = set(zip(board["scored"].scenario_id, board["scored"].variable))
     reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
     records = {}
-    for model in MODELS:
+    for model in models:
         folder = runs / model / arm_folder(arm) / stage / "households"
         found = {}
         for sid in ids:
@@ -136,16 +153,16 @@ def build_payload(
         raise SystemExit(f"the models ran different prompt versions: {versions}")
     prompt_version = versions.pop()
 
-    labels = {model: f"{model}+{arm}" for model in MODELS}
+    labels = {model: f"{model}+{arm}" for model in models}
     scenarios, predictions, variables_seen = {}, {}, set()
     for sid in ids:
         scenario = board["scenarios"][sid]
         variables = board["variables"][sid]
-        prompt = household_prompt(scenario, variables, prompt_version)
-        sent = records[PROMPT_MODEL][sid].get("sent_board_prompt_sha256")
+        prompt = household_prompt(scenario, variables, prompt_version, prompt_model)
+        sent = records[prompt_model][sid].get("sent_board_prompt_sha256")
         if sent != hashlib.sha256(prompt.encode()).hexdigest():
             raise SystemExit(
-                f"{sid}: the rebuilt prompt is not the one {PROMPT_MODEL} saw"
+                f"{sid}: the rebuilt prompt is not the one {prompt_model} saw"
             )
         scenarios[sid] = {"prompt": {"tool": prompt}, "state": scenario.state}
         cells = {}
@@ -175,8 +192,9 @@ def build_payload(
             "prompt_version": prompt_version,
         },
         "answerCondition": JUDGED_ARMS[arm],
+        "models": list(models),
         "outputDefinitions": output_definitions(variables_seen, prompt_version),
-        "modelStats": [{"model": labels[model]} for model in MODELS],
+        "modelStats": [{"model": labels[model]} for model in models],
         "scenarios": scenarios,
         "scenarioPredictions": predictions,
     }
@@ -230,6 +248,7 @@ def command_payload(args) -> None:
         args.arm,
         batch=args.batch,
         scenarios=args.scenarios,
+        models=tuple(args.models),
     )
     Path(args.out).write_text(json.dumps(payload, indent=1) + "\n")
     cells = sum(len(v) for v in payload["scenarioPredictions"].values())
@@ -291,6 +310,9 @@ def main(argv: list[str] | None = None) -> None:
         "--scenarios", nargs="*", help="households, for a board without batches"
     )
     payload.add_argument("--out", required=True)
+    payload.add_argument(
+        "--models", nargs="+", default=list(MODELS), help="the models to judge"
+    )
     payload.set_defaults(func=command_payload)
     derivations = sub.add_parser("derivations", help="traces of flagged references")
     derivations.add_argument("--board", required=True)
