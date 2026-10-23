@@ -918,19 +918,29 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
     )
 
 
-def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
+def load_certified_us_person_frame(
+    dataset: str | None = None, dataset_label: str | None = None
+) -> tuple[pd.DataFrame, int, str]:
     """Load a person-level frame from the certified US microsimulation dataset.
 
     Returns ``(person_df, dataset_year, dataset_label)``. The label is read
     from the live simulation's PolicyEngine bundle (``default_dataset``), so it
     reflects the dataset the run actually materialized -- the certified
     populace build (``populace_us_2024``) -- rather than a hardcoded name.
+
+    ``dataset`` (a local H5 path) replaces the certified dataset, for test
+    household sets only; ``dataset_label`` then names it.
     """
     from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = make_us_microsimulation()
+    if dataset is None:
+        sim = make_us_microsimulation()
+        dataset_label = str(sim.policyengine_bundle["default_dataset"])
+    else:
+        if not dataset_label:
+            raise ValueError("an explicit dataset needs a dataset_label")
+        sim = make_us_microsimulation(dataset=dataset)
     dataset_year = sim.default_input_period
-    dataset_label = str(sim.policyengine_bundle["default_dataset"])
     input_specs = get_promptable_input_specs()
 
     values = {}
@@ -1822,10 +1832,22 @@ def generate_scenarios(
     seed: int = SEED,
     excluded_household_ids: set[int] | None = None,
     country: str = DEFAULT_COUNTRY,
+    dataset: str | None = None,
+    dataset_label: str | None = None,
 ) -> list[Scenario]:
-    """Generate benchmark scenarios for a country."""
+    """Generate benchmark scenarios for a country.
+
+    ``dataset`` and ``dataset_label`` replace the certified US dataset (see
+    :func:`load_certified_us_person_frame`); test household sets only.
+    """
+    if dataset is not None and country != "us":
+        raise ValueError("an explicit dataset is supported for the US only")
     if country == "us":
-        person_df, dataset_year, dataset_label = load_certified_us_person_frame()
+        person_df, dataset_year, dataset_label = (
+            load_certified_us_person_frame()
+            if dataset is None
+            else load_certified_us_person_frame(dataset, dataset_label)
+        )
         return scenarios_from_cps_frame(
             person_df,
             n=n,

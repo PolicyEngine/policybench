@@ -85,7 +85,9 @@ def household_board(tmp_path_factory):
     sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:3]
     patch = pytest.MonkeyPatch()
     patch.setattr(
-        scenarios_module, "generate_scenarios", lambda n, seed, country: sampled[:n]
+        scenarios_module,
+        "generate_scenarios",
+        lambda n, seed, country, **kwargs: sampled[:n],
     )
     patch.setattr(runtime, "materialize_certified_us_dataset", lambda: str(dataset))
     patch.setattr(
@@ -96,6 +98,9 @@ def household_board(tmp_path_factory):
                 "bundle_id": "us-test",
                 "certified_data_artifact_sha256": digest,
                 "default_dataset_uri": "hf://policyengine/populace-us/x.h5@test",
+                # The bundle certifies its data for the installed engine.
+                "bundled_model_version": "2.41.0",
+                "model_version": "2.41.0",
             }
         },
     )

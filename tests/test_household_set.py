@@ -241,3 +241,95 @@ def test_a_household_set_scores_each_arm_against_its_no_tools_run(
                 baseline_dir=str(v1_dir),
             )
         )
+
+
+def _scenario(sid, filing_status, tax_unit):
+    from policybench.scenarios import Person, Scenario
+
+    return Scenario(
+        id=sid,
+        state="CA",
+        filing_status=filing_status,
+        adults=[Person(name="head", age=40, employment_income=0.0)],
+        metadata={"household_id": 1, "tax_unit_id": tax_unit},
+    )
+
+
+def test_stated_filing_status_is_read_from_the_tax_unit_table(tmp_path):
+    import h5py
+    import numpy as np
+
+    path = tmp_path / "set.h5"
+    rows = np.array(
+        [(0, 11, b"JOINT"), (1, 12, b"SEPARATE"), (2, 13, b"SURVIVING_SPOUSE")],
+        dtype=[
+            ("index", "<i8"),
+            ("tax_unit_id", "<i8"),
+            ("filing_status_input", "S20"),
+        ],
+    )
+    with h5py.File(path, "w") as handle:
+        handle.create_group("tax_unit").create_dataset("table", data=rows)
+    stated = hs.stated_filing_status(path)
+    assert stated == {11: "JOINT", 12: "SEPARATE", 13: "SURVIVING_SPOUSE"}
+    scenarios = [
+        _scenario("mc_000", "joint", 11),
+        _scenario("mc_001", "joint", 12),
+        _scenario("mc_002", "surviving_spouse", 13),
+        _scenario("mc_003", "single", 99),
+    ]
+    assert hs.filing_status_mismatches(scenarios, stated) == [
+        {
+            "scenario_id": "mc_001",
+            "tax_unit_id": 12,
+            "stated": "SEPARATE",
+            "engine": "joint",
+        }
+    ]
+    assert hs.filing_status_mismatches(scenarios, None) == []
+    not_h5 = tmp_path / "x.h5"
+    not_h5.write_bytes(b"placeholder")
+    assert hs.stated_filing_status(not_h5) is None
+
+
+def test_a_dataset_is_named_by_repo_file_and_tag_together(tmp_path):
+    with pytest.raises(SystemExit, match="--dataset-repo, --dataset-file and"):
+        hs.main(
+            [
+                "build",
+                "--n",
+                "1",
+                "--seed",
+                "1",
+                "--out",
+                str(tmp_path / "x"),
+                "--dataset-repo",
+                "policyengine/populace-us",
+                "--purpose",
+                "test",
+            ]
+        )
+
+
+@pytest.mark.slow
+def test_v2_needs_a_bundle_that_certifies_the_installed_engine(tmp_path, monkeypatch):
+    import policybench.policyengine_runtime as runtime
+
+    dataset = tmp_path / "d.h5"
+    dataset.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        runtime, "materialize_certified_us_dataset", lambda: str(dataset)
+    )
+    monkeypatch.setattr(
+        runtime,
+        "policyengine_bundles_for_countries",
+        lambda countries: {
+            "us": {
+                "certified_data_artifact_sha256": hs.sha256_file(dataset),
+                "bundled_model_version": "2.2.1",
+                "model_version": "2.60.4",
+            }
+        },
+    )
+    with pytest.raises(SystemExit, match="not a certified pair"):
+        hs.main(["build", "--n", "1", "--seed", "1", "--out", str(tmp_path / "v2")])

@@ -217,6 +217,95 @@ def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
+def explicit_dataset(repo: str, filename: str, revision: str) -> tuple[Path, dict]:
+    """A published dataset named by repo, file and tag (not the bundle's), and
+    what its release manifest says about the engine it was built for."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+
+    path = Path(hf_hub_download(repo, filename, revision=revision, repo_type="dataset"))
+    record = {
+        "uri": f"hf://datasets/{repo}/{filename}@{revision}",
+        "release_manifest": None,
+    }
+    try:
+        manifest_path = hf_hub_download(
+            repo,
+            f"releases/{revision}/release_manifest.json",
+            revision=revision,
+            repo_type="dataset",
+        )
+    except EntryNotFoundError:
+        return path, record
+    manifest = json.loads(Path(manifest_path).read_text())
+    build = manifest.get("build") or {}
+    record["release_manifest"] = {
+        "sha256": sha256_file(Path(manifest_path)),
+        "built_with_model_package": build.get("built_with_model_package"),
+        "built_with_core_package": build.get("built_with_core_package"),
+        "compatible_model_packages": manifest.get("compatible_model_packages"),
+    }
+    return path, record
+
+
+# How a dataset's stated filing status reads as a scenario's.
+STATED_FILING_STATUS = {
+    "SINGLE": "single",
+    "JOINT": "joint",
+    "HEAD_OF_HOUSEHOLD": "head_of_household",
+    "SEPARATE": "separate",
+    "SURVIVING_SPOUSE": "surviving_spouse",
+}
+
+
+def stated_filing_status(path: Path) -> dict[int, str] | None:
+    """Each tax unit's filing_status_input from a Populace H5 (pandas table
+    format), or None when the file states none. Engines after 2.2.1 no longer
+    read the column; they derive filing status from the household."""
+    import h5py
+
+    if not h5py.is_hdf5(path):
+        return None
+    with h5py.File(path, "r") as handle:
+        if "tax_unit" not in handle or "table" not in handle["tax_unit"]:
+            return None
+        table = handle["tax_unit"]["table"][:]
+    columns = {}
+    for field in table.dtype.names:
+        sub = table.dtype[field]
+        for name in sub.names or (field,):
+            columns[name] = table[field][name] if sub.names else table[field]
+    if "filing_status_input" not in columns or "tax_unit_id" not in columns:
+        return None
+    return {
+        int(unit): (value.decode() if isinstance(value, bytes) else str(value))
+        for unit, value in zip(columns["tax_unit_id"], columns["filing_status_input"])
+    }
+
+
+def filing_status_mismatches(scenarios, stated: dict[int, str] | None) -> list[dict]:
+    """Households whose scenario filing status (the engine's) is not the one
+    the dataset states."""
+    if stated is None:
+        return []
+    found = []
+    for scenario in scenarios:
+        unit = scenario.metadata.get("tax_unit_id")
+        said = stated.get(int(unit)) if unit is not None else None
+        if said is None:
+            continue
+        if STATED_FILING_STATUS.get(said, said.lower()) != scenario.filing_status:
+            found.append(
+                {
+                    "scenario_id": scenario.id,
+                    "tax_unit_id": int(unit),
+                    "stated": said,
+                    "engine": scenario.filing_status,
+                }
+            )
+    return found
+
+
 def command_build(args) -> None:
     from policybench.policyengine_runtime import (
         materialize_certified_us_dataset,
@@ -227,20 +316,53 @@ def command_build(args) -> None:
     out = Path(args.out)
     if out.exists() and any(out.iterdir()):
         raise SystemExit(f"{out} is not empty; a household set is written once")
+    named = [args.dataset_repo, args.dataset_file, args.dataset_revision]
+    if any(named) and not all(named):
+        raise SystemExit(
+            "name a dataset by --dataset-repo, --dataset-file and --dataset-revision"
+        )
     engine = installed_engine()
     pins = fix_module_pins(Path(args.fix_module))
     programs = frozen_programs()
     bundles = policyengine_bundles_for_countries(["us"])
-    dataset_path = Path(materialize_certified_us_dataset())
-    dataset_sha256 = sha256_file(dataset_path)
-    certified = bundles["us"].get("certified_data_artifact_sha256")
-    if certified and certified != dataset_sha256:
-        raise SystemExit(
-            f"{dataset_path} hashes to {dataset_sha256}, not the bundle's {certified}"
+    bundle = bundles["us"]
+    if all(named):
+        # Max, 2026-10-22: "we can still test before that but i'd like v2 to be
+        # clean". A dataset other than the bundle's makes a test set only.
+        dataset_path, dataset_record = explicit_dataset(*named)
+        dataset_label = f"{Path(args.dataset_file).stem}@{args.dataset_revision}"
+        certified_pair = False
+    else:
+        dataset_path = Path(materialize_certified_us_dataset())
+        dataset_record = {"uri": bundle.get("default_dataset_uri")}
+        dataset_label = None
+        certified = bundle.get("certified_data_artifact_sha256")
+        if certified and certified != sha256_file(dataset_path):
+            raise SystemExit(
+                f"{dataset_path} hashes to {sha256_file(dataset_path)}, not the "
+                f"bundle's {certified}"
+            )
+        # The bundle certifies its data for its own model pin; the pair is
+        # certified only when that pin is the installed engine.
+        certified_pair = bundle.get("bundled_model_version") == bundle.get(
+            "model_version"
         )
+    if not certified_pair and args.purpose != "test":
+        raise SystemExit(
+            "this dataset and engine are not a certified pair: build it with "
+            "--purpose test, or install a bundle that certifies the engine"
+        )
+    dataset_sha256 = sha256_file(dataset_path)
 
-    sampled = generate_scenarios(n=args.n, seed=args.seed, country="us")
+    sampled = generate_scenarios(
+        n=args.n,
+        seed=args.seed,
+        country="us",
+        dataset=str(dataset_path) if all(named) else None,
+        dataset_label=dataset_label,
+    )
     scenarios = rename_scenarios(sampled, args.id_prefix)
+    mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
     references = compute_references(
         scenarios, programs, reference_system(Path(args.fix_module))
     )
@@ -270,6 +392,8 @@ def command_build(args) -> None:
         "country": "us",
         "metadata_version": 1,
         "board_kind": "household_set",
+        "purpose": args.purpose,
+        "certified_pair": certified_pair,
         "generated_at_utc": generated,
         "num_scenarios": len(scenarios),
         "requested_num_scenarios": args.n,
@@ -279,10 +403,14 @@ def command_build(args) -> None:
         "programs": programs,
         "policyengine_bundles": bundles,
         "dataset": {
+            **dataset_record,
             "path_name": dataset_path.name,
             "sha256": dataset_sha256,
-            "bundle_default_dataset_uri": bundles["us"].get("default_dataset_uri"),
+            "bundle_default_dataset_uri": bundle.get("default_dataset_uri"),
         },
+        # The dataset states a filing status the engine no longer reads; these
+        # households' scenarios carry the engine's, as their references do.
+        "filing_status_mismatches": mismatches,
         "source_households": [
             {"scenario_id": s.id, **{k: s.metadata[k] for k in sorted(s.metadata)}}
             for s in scenarios
@@ -329,7 +457,9 @@ def command_build(args) -> None:
     )
     print(
         f"{len(scenarios)} households, {len(references)} outputs on {engine}; "
-        f"{len(batches)} batches of up to {args.batch_size} in {out}"
+        f"{len(batches)} batches of up to {args.batch_size} in {out}; purpose "
+        f"{args.purpose}, certified pair {certified_pair}; "
+        f"{len(mismatches)} filing status mismatches"
     )
 
 
@@ -402,6 +532,15 @@ def main(argv: list[str] | None = None) -> None:
     build.add_argument("--id-prefix", default="mc")
     build.add_argument("--fix-module", default=str(FIX_MODULE))
     build.add_argument("--out", required=True)
+    build.add_argument(
+        "--purpose",
+        choices=["v2", "test"],
+        default="v2",
+        help="v2 needs a certified dataset-engine pair; test takes any",
+    )
+    build.add_argument("--dataset-repo", help="a published dataset, for a test set")
+    build.add_argument("--dataset-file")
+    build.add_argument("--dataset-revision")
     build.set_defaults(func=command_build)
     refs = sub.add_parser("references", help="recompute a board's references")
     refs.add_argument("--board", required=True)
