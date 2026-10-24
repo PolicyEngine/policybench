@@ -1477,7 +1477,12 @@ def flat_situation(
         if name in target:
             # The repeat is dropped, so only one validated as equal is kept quiet.
             same = _same_value(
-                registry, resolved, target[name], value, period, problems,
+                registry,
+                resolved,
+                target[name],
+                value,
+                period,
+                problems,
                 "household_facts",
             )
             if same is False:
