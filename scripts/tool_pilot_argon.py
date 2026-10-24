@@ -48,9 +48,11 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import copy
 import decimal
 import difflib
+import functools
 import hashlib
 import importlib.metadata
 import importlib.util
@@ -152,13 +154,215 @@ JSON_TOOL_NOTICE = (
 # with no tools), so a prompt version other than the board's has its own
 # no-tools baseline. Repairs, retries and truncation then follow this pilot's
 # loop, not the board's; they matter only when a first answer does not parse.
-ARMS = ("none", "pe", "web", "web+pe")
+ARMS = ("none", "pe", "web", "web+pe", "pe2", "pe3")
 ARM_SUFFIX = {
     "none": "+no-tools",
     "pe": "+pe-tool",
     "web": "+web",
     "web+pe": "+web+pe-tool",
+    "pe2": "+pe-tool-v2",
+    "pe3": "+pe-tool-v3",
 }
+# The calculator's features, each on or off, so a study can change one at a
+# time (Max, 2026-10-23: "measuring this as an experiment could be
+# publishable"; "do all these tests with a cheap model"):
+# - names: a name written with spaces, or a benchmark output key, is read as
+#   its engine variable;
+# - labels: a fact written under the label the prompt gives it (a prompt
+#   labels some facts in words, e.g. employment_income as "gross wages and
+#   salaries"; policybench.prompts.INPUT_LABEL_OVERRIDES) is read as its
+#   variable, and a fact the reference also sets under another name
+#   (policybench.scenarios.PE_INPUT_ALIASES: usual weekly hours) is set there
+#   too;
+# - placement: an input set on another entity moves to the one unit holding
+#   its people;
+# - overrides: a realized contribution is read as its _desired input, and an
+#   input that replaces a formula is flagged;
+# - explain: `explain` traces up to three variables;
+# - concise: an explanation is brief unless `detail` is "full";
+# - flat: the household is described as people with roles and facts
+#   (`household`), and the tool builds its units as the benchmark does.
+# "pe2" is tool version 2 (names, placement, overrides and explain); "pe3" is
+# all seven. Any other set
+# runs as an arm named "pe:" plus its features joined by "+", e.g.
+# "pe:names+flat".
+NAMES, LABELS, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT = (
+    "names",
+    "labels",
+    "placement",
+    "overrides",
+    "explain",
+    "concise",
+    "flat",
+)
+TOOL_FEATURES = (NAMES, LABELS, PLACEMENT, OVERRIDES, EXPLAIN, CONCISE, FLAT)
+V2_FEATURES = frozenset({NAMES, PLACEMENT, OVERRIDES, EXPLAIN})
+FEATURES_BY_ARM = {
+    "pe": frozenset(),
+    "web+pe": frozenset(),
+    "pe2": V2_FEATURES,
+    "pe3": frozenset(TOOL_FEATURES),
+}
+_FEATURE_ARM = re.compile(r"^pe:([a-z]+(?:\+[a-z]+)*)$")
+
+
+def arm_features(arm: str) -> frozenset | None:
+    """The calculator features an arm offers, or None for an arm without the
+    calculator. Refuses an unknown feature, or concise without explain."""
+    if arm in FEATURES_BY_ARM:
+        return FEATURES_BY_ARM[arm]
+    match = _FEATURE_ARM.match(arm or "")
+    if match is None:
+        return None
+    features = frozenset(match.group(1).split("+"))
+    unknown = sorted(features - set(TOOL_FEATURES))
+    if unknown:
+        raise SystemExit(
+            f"unknown tool features {unknown}; the features are {TOOL_FEATURES}"
+        )
+    if CONCISE in features and EXPLAIN not in features:
+        raise SystemExit("the concise feature needs explain")
+    return features
+
+
+def arm_suffix(arm: str) -> str:
+    if arm in ARM_SUFFIX:
+        return ARM_SUFFIX[arm]
+    features = arm_features(arm)
+    return f"+pe-tool[{'+'.join(f for f in TOOL_FEATURES if f in features)}]"
+
+
+TOOL_NOTICE_V2 = (
+    "\n\nYou also have a `calculate_household` function. It runs PolicyEngine US "
+    "(policyengine-us 2.41.0), an open-source rules engine for US federal and "
+    "state taxes and benefits, on a household situation you build from the facts "
+    "above. The facts above are labeled with its variable names, written with "
+    "spaces; it accepts them as written, and it accepts the output keys you are "
+    "asked for. Set every listed fact. Its result says which names it read, which "
+    "inputs it moved to the entity they belong to, and which inputs replace a "
+    "formula; ask it to `explain` up to three variables to see how it computed "
+    "them, with the parameters and laws it used. You may call it in up to 8 "
+    "turns. Then call `submit_outputs` exactly once with your final answers, as "
+    "instructed above."
+)
+JSON_TOOL_NOTICE_V2 = TOOL_NOTICE_V2.replace(
+    "Then call `submit_outputs` exactly once with your final answers, as "
+    "instructed above.",
+    "Then give your final answers as the single JSON object described above.",
+)
+
+
+def _listing(items: list[str]) -> str:
+    if len(items) <= 2:
+        return " and ".join(items)
+    return ", ".join(items[:-1]) + ", and " + items[-1]
+
+
+def compose_tool_notice(features: frozenset, tool_contract: bool) -> str:
+    """The calculator notice for a set of features: the opening, a sentence
+    per feature, then the turn limit and the answer instruction. No feature
+    gives TOOL_NOTICE and the version 2 features TOOL_NOTICE_V2, as those arms
+    ran. TOOL_NOTICE_V2 says the facts are labeled with the engine's variable
+    names, which holds for most facts but not those the prompt labels in words
+    ("gross wages and salaries"); every other set says only what it reads."""
+    if not features:
+        return TOOL_NOTICE if tool_contract else JSON_TOOL_NOTICE
+    if features == V2_FEATURES:
+        return TOOL_NOTICE_V2 if tool_contract else JSON_TOOL_NOTICE_V2
+    what = (
+        "household you describe"
+        if FLAT in features
+        else "household situation you build"
+    )
+    text = (
+        "\n\nYou also have a `calculate_household` function. It runs PolicyEngine US "
+        "(policyengine-us 2.41.0), an open-source rules engine for US federal and "
+        f"state taxes and benefits, on a {what} from the facts above."
+    )
+    if FLAT in features:
+        text += (
+            " Describe it as `household`: each person with their role (head, spouse "
+            "or dependent) and facts, and the facts about the household as a "
+            "whole; it builds the household's units as the facts imply."
+        )
+    if LABELS in features and NAMES in features:
+        text += (
+            " It accepts the facts above under the labels they have there, its "
+            "variable names written with spaces, and the output keys you are asked "
+            "for. Set every listed fact."
+        )
+    elif LABELS in features:
+        text += (
+            " It accepts the facts above under the labels they have there. Set "
+            "every listed fact."
+        )
+    elif NAMES in features:
+        text += (
+            " It accepts its variable names written with spaces, and the output "
+            "keys you are asked for. Set every listed fact."
+        )
+    notes = []
+    if NAMES in features or LABELS in features:
+        notes.append("which names it read")
+    if PLACEMENT in features:
+        notes.append("which inputs it moved to the entity they belong to")
+    if OVERRIDES in features:
+        notes.append("which inputs replace a formula")
+    explain = ""
+    if EXPLAIN in features:
+        explain = (
+            "ask it to `explain` up to three variables to see in brief how it "
+            "computed them, with the parameters and laws it used, or the fuller "
+            'trace with `detail` set to "full"'
+            if CONCISE in features
+            else "ask it to `explain` up to three variables to see how it computed "
+            "them, with the parameters and laws it used"
+        )
+    if notes and explain:
+        text += f" Its result says {_listing(notes)}; {explain}."
+    elif notes:
+        text += f" Its result says {_listing(notes)}."
+    elif explain:
+        text += f" You may {explain}."
+    text += " You may call it in up to 8 turns. "
+    text += (
+        "Then call `submit_outputs` exactly once with your final answers, as "
+        "instructed above."
+        if tool_contract
+        else "Then give your final answers as the single JSON object described above."
+    )
+    return text
+
+
+# The engine version the notices and the tool description state: the board's
+# (set by command_run), so a household set on a newer engine says so. The
+# frozen board's 2.41.0 leaves every text byte for byte as before.
+_STATED_ENGINE = {"version": REFERENCE_ENGINE}
+
+
+def set_stated_engine(version: str) -> None:
+    _STATED_ENGINE["version"] = version
+
+
+@contextlib.contextmanager
+def stating_engine(version: str):
+    """The texts as a run on `version` sent them, for a check that rebuilds a
+    notice; the stated engine is restored afterwards."""
+    before = _STATED_ENGINE["version"]
+    set_stated_engine(version)
+    try:
+        yield
+    finally:
+        set_stated_engine(before)
+
+
+def engine_text(text: str) -> str:
+    return text.replace(
+        f"policyengine-us {REFERENCE_ENGINE}",
+        f"policyengine-us {_STATED_ENGINE['version']}",
+    )
+
+
 # A web arm's request timeout. A search-heavy turn can outlast the board's
 # (300 s for Gemini 4 Argon, the harness default for its card; its web-only arm
 # never finished scenario_005 within it in six attempts on 2026-10-21), so the
@@ -452,12 +656,130 @@ CALCULATE_DESCRIPTION = (
 )
 
 
-def calculate_tool_schema() -> dict:
+CALCULATE_DESCRIPTION_V2 = CALCULATE_DESCRIPTION.replace(
+    "An unknown name, a variable set on the wrong entity, or a malformed "
+    "situation returns an error with suggestions instead of results.",
+    "A name may also be written with spaces (as the facts are labeled) or be one "
+    "of the output keys you are asked for; the result's `notes` say how each was "
+    "read. An input set on the wrong entity is moved to the one unit it belongs "
+    "to, and the notes say so; where there is no single such unit, or a name is "
+    "unknown, or the situation is malformed, it returns an error with "
+    "suggestions instead of results. Setting a variable the engine computes "
+    "replaces its formula, and the notes say so; a contribution set as the "
+    "amount contributed is read as the amount asked for before limits "
+    "(`..._desired`). `explain` lists up to 3 variables to trace: each comes "
+    "back with the steps that produced it and the parameters, with their "
+    "values and sources, that it used.",
+)
+MAX_EXPLAIN = 3
+
+
+FLAT_DESCRIPTION = (
+    "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
+    "the requested variables. `household` is a JSON object: `state` (the "
+    "two-letter state code), `people` (a list, each with `role` -- head, "
+    'spouse or dependent --, `facts`, for example {"age": 40, '
+    '"employment_income": 30000}, and optionally `name`, by default the role, '
+    "numbered for dependents), and `household_facts` (facts about the "
+    "household as a whole: its tax unit, family, SPM unit or home). The head "
+    "and spouse are one couple and everyone else is on their own; everyone "
+    "shares one tax unit, family, SPM unit and household. A fact is a value "
+    'for `period`, or {period: value} with a period such as "2026" or '
+    '"2026-01". Facts you do not give take the engine\'s defaults. `variables` '
+    'lists the variables to compute for `period` (default "2026"). Each '
+    "result gives the variable's entity, label and value for each member of "
+    "that entity; a monthly variable computed for a year is summed over its "
+    "months. An unknown name or a malformed household returns an error with "
+    "suggestions instead of results."
+)
+# The version 1 description's last sentence, which placement amends.
+_ENTITY_ERROR_SENTENCE = (
+    "An unknown name, a variable set on the wrong entity, or a malformed "
+    "situation returns an error with suggestions instead of results."
+)
+
+
+def calculate_tool_schema(version: int = 1, features: frozenset | None = None) -> dict:
+    if features is None:
+        features = V2_FEATURES if version == 2 else frozenset()
+    if features:
+        schema = calculate_tool_schema(1)
+        function = schema["function"]
+        properties = function["parameters"]["properties"]
+        if features == V2_FEATURES:
+            function["description"] = engine_text(CALCULATE_DESCRIPTION_V2)
+        else:
+            description = (
+                FLAT_DESCRIPTION if FLAT in features else CALCULATE_DESCRIPTION
+            )
+            if PLACEMENT in features and FLAT not in features:
+                description = description.replace(
+                    _ENTITY_ERROR_SENTENCE,
+                    "An unknown name or a malformed situation returns an error "
+                    "with suggestions instead of results.",
+                )
+            notes = []
+            if LABELS in features:
+                notes.append(
+                    "A fact may be written under the label it has in the facts "
+                    "you were given."
+                )
+            if NAMES in features:
+                notes.append(
+                    "A name may also be written with spaces or be one of the "
+                    "output keys you are asked for."
+                )
+            if PLACEMENT in features and FLAT not in features:
+                notes.append(
+                    "An input set on the wrong entity is moved to the one unit "
+                    "holding its people; where no single unit holds them, it "
+                    "returns an error."
+                )
+            if OVERRIDES in features:
+                notes.append(
+                    "Setting a variable the engine computes replaces its formula; a "
+                    "contribution set as the amount contributed is read as the "
+                    "amount asked for before limits (`..._desired`)."
+                )
+            if notes:
+                notes.append("The result's `notes` say what it did.")
+            function["description"] = engine_text(" ".join([description, *notes]))
+        if FLAT in features:
+            del properties["situation"]
+            properties["household"] = {
+                "type": "string",
+                "description": (
+                    "The household as a JSON object (state, people with role and "
+                    "facts, household_facts), written as a JSON string."
+                ),
+            }
+            function["parameters"]["required"] = ["household", "variables"]
+        if EXPLAIN in features:
+            properties["explain"] = {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    f"Up to {MAX_EXPLAIN} variables to explain: how the engine "
+                    "computed them."
+                ),
+            }
+        if CONCISE in features:
+            properties["detail"] = {
+                "type": "string",
+                "enum": ["brief", "full"],
+                "description": (
+                    'How much an explanation shows: "brief" (the default: the '
+                    'value, what it came from, and the main parameters) or "full" '
+                    f"(the trace, up to {EXPLAIN_MAX_LINES} steps and "
+                    f"{EXPLAIN_MAX_PARAMETERS} parameters)."
+                ),
+            }
+        return schema
     return {
         "type": "function",
         "function": {
             "name": TOOL_NAME,
-            "description": CALCULATE_DESCRIPTION,
+            "description": engine_text(CALCULATE_DESCRIPTION),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -499,9 +821,49 @@ class VariableInfo:
     label: str | None = None
     definition_period: str | None = None
     possible_values: tuple[str, ...] | None = None
+    # Whether the engine computes the variable (a formula or a sum of other
+    # variables) and no household fact the benchmark states sets it: setting
+    # it replaces what the engine would compute.
+    computed: bool = False
 
 
-def build_registry(system) -> dict[str, VariableInfo]:
+# Inputs the benchmark's reference situations set besides its promptable
+# facts (policybench.scenarios.Scenario.to_pe_household), and the convention
+# switches (take-up, filing) any household may set.
+BASE_STATED_INPUTS = frozenset(
+    {
+        "age",
+        "employment_income",
+        "self_employment_income",
+        "long_term_capital_gains",
+        "partnership_s_corp_income",
+        "is_tax_unit_head",
+        "is_tax_unit_spouse",
+        "state_code",
+        "weekly_hours_worked_before_lsr",
+    }
+)
+CONVENTION_PREFIXES = ("takes_up_", "would_")
+
+
+def stated_inputs() -> frozenset[str]:
+    """Every variable a household fact the benchmark states can set."""
+    from policybench.scenarios import PE_INPUT_ALIASES, PE_INPUT_RENAMES
+
+    names = {spec.source_name for spec in _promptable_specs()}
+    names |= BASE_STATED_INPUTS
+    names |= set(PE_INPUT_ALIASES.values()) | set(PE_INPUT_RENAMES.values())
+    return frozenset(names)
+
+
+def build_registry(
+    system, stated: frozenset[str] | None = None
+) -> dict[str, VariableInfo]:
+    """The engine's variables. ``stated`` (default :func:`stated_inputs`) marks
+    which ones a stated fact sets; the rest that the engine computes are
+    ``computed``."""
+    if stated is None:
+        stated = stated_inputs()
     registry = {}
     for name, variable in system.variables.items():
         value_type = getattr(variable.value_type, "__name__", str(variable.value_type))
@@ -514,6 +876,13 @@ def build_registry(system) -> dict[str, VariableInfo]:
             label=variable.label,
             definition_period=str(variable.definition_period),
             possible_values=possible,
+            computed=bool(
+                getattr(variable, "formulas", None)
+                or getattr(variable, "adds", None)
+                or getattr(variable, "subtracts", None)
+            )
+            and name not in stated
+            and not name.startswith(CONVENTION_PREFIXES),
         )
     return registry
 
@@ -555,6 +924,44 @@ def _type_problem(value, info: VariableInfo) -> str | None:
     return None
 
 
+def _normalize_value(
+    where: str,
+    name: str,
+    value,
+    info: VariableInfo,
+    period: str,
+    problems: list[str],
+) -> dict | None:
+    """One input's {period: value}, or None after recording why not."""
+    if isinstance(value, dict):
+        if not value:
+            problems.append(
+                f"{where}: {name} has no values; set it as {{period: value}}."
+            )
+            return None
+        periods = value
+    else:
+        periods = {period: value}
+    normalized = {}
+    for key, item in periods.items():
+        if not isinstance(key, str) or not PERIOD_RE.match(key):
+            problems.append(
+                f"{where}: {name} has period {key!r}; use a year such as "
+                '"2026" or a month such as "2026-01".'
+            )
+            continue
+        scalar = _scalar_problem(item)
+        if scalar is not None:
+            problems.append(f"{where}: {name} for {key} {scalar}.")
+            continue
+        typed = _type_problem(item, info)
+        if typed is not None:
+            problems.append(f"{where}: {name} {typed}.")
+            continue
+        normalized[key] = item
+    return normalized
+
+
 def _normalize_inputs(
     where: str,
     entity: str,
@@ -563,11 +970,23 @@ def _normalize_inputs(
     period: str,
     problems: list[str],
     allow_members: bool,
+    v2: dict | None = None,
 ) -> dict:
+    """Each input under its engine name. ``v2`` (tool version 2) collects the
+    names it read, the inputs it redirected or flagged, and the inputs set on
+    another entity, which normalize_request then places."""
     out: dict[str, Any] = {}
     for name, value in data.items():
         if allow_members and name == "members":
             continue
+        if v2 is not None and isinstance(name, str) and name not in registry:
+            resolved, note = read_fact_name(name, registry, v2["features"])
+            if resolved is not None:
+                v2["notes"].append(f"{where}: {note}")
+                name = resolved
+            elif (field := dropped_fact(name, registry, v2["features"])) is not None:
+                v2["notes"].append(_dropped_note(where, name, field))
+                continue
         if not isinstance(name, str) or name not in registry:
             problems.append(
                 f"{where}: unknown variable {name!r}."
@@ -575,52 +994,62 @@ def _normalize_inputs(
             )
             continue
         info = registry[name]
+        if v2 is not None and OVERRIDES in v2["features"]:
+            desired = f"{name}{DESIRED_SUFFIX}"
+            if (
+                info.computed
+                and desired in registry
+                and registry[desired].entity == info.entity
+            ):
+                v2["notes"].append(
+                    f"{where}: set {desired} (the amount asked for, before "
+                    f"limits) for {name}, which the engine computes from it"
+                )
+                name, info = desired, registry[desired]
+            elif info.computed:
+                v2["notes"].append(
+                    f"{where}: {name} is computed by the engine; the value set "
+                    "replaces its formula"
+                )
         if info.entity != entity:
+            if v2 is not None and PLACEMENT in v2["features"]:
+                v2["misplaced"].append((where, entity, name, value))
+                continue
             problems.append(
                 f"{where}: {name} is a {info.entity} variable; set it under "
                 f"{ENTITY_GROUP.get(info.entity, info.entity)}."
             )
             continue
-        if isinstance(value, dict):
-            if not value:
-                problems.append(
-                    f"{where}: {name} has no values; set it as {{period: value}}."
-                )
-                continue
-            periods = value
-        else:
-            periods = {period: value}
-        normalized = {}
-        for key, item in periods.items():
-            if not isinstance(key, str) or not PERIOD_RE.match(key):
-                problems.append(
-                    f"{where}: {name} has period {key!r}; use a year such as "
-                    '"2026" or a month such as "2026-01".'
-                )
-                continue
-            scalar = _scalar_problem(item)
-            if scalar is not None:
-                problems.append(f"{where}: {name} for {key} {scalar}.")
-                continue
-            typed = _type_problem(item, info)
-            if typed is not None:
-                problems.append(f"{where}: {name} {typed}.")
-                continue
-            normalized[key] = item
+        normalized = _normalize_value(where, name, value, info, period, problems)
+        if normalized is None:
+            continue
+        if v2 is not None and name in out and out[name] != normalized:
+            problems.append(f"{where}: {name} is set twice with different values")
+            continue
         out[name] = normalized
     return out
 
 
 def normalize_request(
-    args, registry: Mapping[str, VariableInfo]
+    args,
+    registry: Mapping[str, VariableInfo],
+    version: int = 1,
+    features: frozenset | None = None,
 ) -> tuple[dict | None, dict | None]:
     """Check a calculate_household call; return (request, None) or (None, error).
 
     Accepts only plain JSON data. Every input and output name must be a
     variable of the engine, on its own entity; nothing else in the situation
-    (axes, reforms, parameters) is accepted.
+    (axes, reforms, parameters) is accepted. Tool version 2 also reads a name
+    written with spaces or a benchmark output key, redirects a contribution to
+    its ``_desired`` input, flags an input that replaces a formula, places an
+    input set on another entity where exactly one unit holds it, and takes
+    ``explain``; the request's ``notes`` say what it did.
     """
     problems: list[str] = []
+    if features is None:
+        features = V2_FEATURES if version == 2 else frozenset()
+    v2 = {"notes": [], "misplaced": [], "features": features} if features else None
 
     def fail() -> tuple[None, dict]:
         return None, {
@@ -643,7 +1072,11 @@ def normalize_request(
     if not isinstance(args, dict):
         problems.append("arguments must be an object")
         return fail()
-    unknown = sorted(set(args) - {"situation", "variables", "period"})
+    allowed = {"variables", "period"}
+    allowed |= {"household"} if FLAT in features else {"situation"}
+    allowed |= {"explain"} if EXPLAIN in features else set()
+    allowed |= {"detail"} if CONCISE in features else set()
+    unknown = sorted(set(args) - allowed)
     if unknown:
         problems.append(f"unknown arguments: {', '.join(map(str, unknown))}")
 
@@ -658,6 +1091,13 @@ def normalize_request(
         )
         period = str(YEAR)
 
+    if FLAT in features:
+        args = dict(args)
+        args["situation"] = flat_situation(
+            args.get("household"), registry, problems, v2, period
+        )
+        if args["situation"] is None:
+            return fail()
     situation = args.get("situation")
     if isinstance(situation, str):
         if len(situation) > MAX_SITUATION_CHARS:
@@ -702,7 +1142,7 @@ def normalize_request(
             problems.append(f"people.{name} must be an object of inputs")
             continue
         normalized_people[name] = _normalize_inputs(
-            f"people.{name}", "person", data, registry, period, problems, False
+            f"people.{name}", "person", data, registry, period, problems, False, v2
         )
     normalized["people"] = normalized_people
 
@@ -746,7 +1186,9 @@ def normalize_request(
                     seen[member] = unit_name
             normalized_unit = {"members": list(members)}
             normalized_unit.update(
-                _normalize_inputs(where, entity, unit, registry, period, problems, True)
+                _normalize_inputs(
+                    where, entity, unit, registry, period, problems, True, v2
+                )
             )
             normalized_units[unit_name] = normalized_unit
         normalized[group] = normalized_units
@@ -763,18 +1205,556 @@ def normalize_request(
         variables = []
     elif len(variables) > MAX_VARIABLES:
         problems.append(f"at most {MAX_VARIABLES} variables per call")
+    if v2 is not None and PLACEMENT in features:
+        _place_misplaced(v2, normalized, situation, registry, period, problems)
+    if v2 is not None and LABELS in features:
+        _set_aliases(v2, normalized["people"], registry)
     requested = []
     for name in variables:
+        if (
+            v2 is not None
+            and NAMES in features
+            and isinstance(name, str)
+            and name not in registry
+        ):
+            resolved, note = resolve_name(name, registry, output_names=True)
+            if resolved is not None:
+                v2["notes"].append(f"variables: {note}")
+                name = resolved
         if name not in registry:
             problems.append(
                 f"variables: unknown variable {name!r}." + _suggest(name, registry)
             )
         elif name not in requested:
             requested.append(name)
+    explain = []
+    if EXPLAIN in features and args.get("explain") is not None:
+        names = args["explain"]
+        if isinstance(names, str):
+            names = [names]
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            problems.append("explain must be a list of variable names")
+            names = []
+        elif len(names) > MAX_EXPLAIN:
+            problems.append(f"explain at most {MAX_EXPLAIN} variables per call")
+        for name in names:
+            if NAMES in features and name not in registry:
+                resolved, note = resolve_name(name, registry, output_names=True)
+                if resolved is not None:
+                    v2["notes"].append(f"explain: {note}")
+                    name = resolved
+            if name not in registry:
+                problems.append(
+                    f"explain: unknown variable {name!r}." + _suggest(name, registry)
+                )
+            elif name not in explain:
+                explain.append(name)
+
+    detail = None
+    if CONCISE in features:
+        detail = args.get("detail") or "brief"
+        if detail not in ("brief", "full"):
+            problems.append('detail must be "brief" or "full"')
 
     if problems:
         return fail()
-    return {"situation": normalized, "variables": requested, "period": period}, None
+    request = {"situation": normalized, "variables": requested, "period": period}
+    if v2 is not None:
+        request["explain"] = explain
+        request["notes"] = v2["notes"]
+    if detail is not None:
+        request["detail"] = detail
+    return request, None
+
+
+FLAT_ROLES = ("head", "spouse", "dependent")
+FLAT_PERSON_KEYS = ("name", "role", "facts")
+# The relationship inputs a role sets (as Scenario.to_pe_household's people
+# carry them).
+FLAT_RELATIONS = {"is_tax_unit_head": "head", "is_tax_unit_spouse": "spouse"}
+
+
+def flat_names(people) -> list:
+    """The name each listed person goes by: the one given, or, for a person
+    given none, the role (head, spouse, dependent_1, ...: dependents are
+    numbered by their place among the dependents listed)."""
+    names, dependents = [], 0
+    for person in people if isinstance(people, list) else []:
+        if not isinstance(person, dict):
+            names.append(None)
+            continue
+        role = person.get("role")
+        if role == "dependent":
+            dependents += 1
+        name = person.get("name")
+        if name is None and role in FLAT_ROLES:
+            name = role if role != "dependent" else f"dependent_{dependents}"
+        names.append(name)
+    return names
+
+
+def _same_value(
+    registry,
+    name: str,
+    a,
+    b,
+    period: str,
+    problems: list[str] | None = None,
+    where: str = "",
+) -> bool | None:
+    """Whether two values of an input are the same once normalized, or None
+    when either is malformed. ``a`` stays in the situation, so normalization
+    reports it later; a caller that drops ``b`` passes ``problems`` so a
+    malformed ``b`` is reported, not lost."""
+    info = registry[name]
+    first_problems: list[str] = []
+    second_problems: list[str] = []
+    first = _normalize_value(where, name, a, info, period, first_problems)
+    second = _normalize_value(where, name, b, info, period, second_problems)
+    if problems is not None:
+        problems.extend(second_problems)
+    if first_problems or second_problems:
+        return None
+    return first == second
+
+
+def flat_situation(
+    household,
+    registry,
+    problems: list[str],
+    v2: dict | None,
+    period: str = str(YEAR),
+):
+    """The flat feature's household -- state, people with role and facts, and
+    household facts -- as a situation, with the units the benchmark's own
+    reference situations have (policybench.scenarios.Scenario.to_pe_household):
+    the head and spouse one marital unit and everyone else alone, and one tax
+    unit, SPM unit, family and household holding everyone. Roles set the
+    relationship inputs; a stated one that contradicts its role is refused.
+    A household fact goes to the unit of its variable's entity, under the
+    name it was written with, so normalization reads and compares it as any
+    other input. A person given no name is named by role (flat_names).
+    Returns None after recording problems."""
+    features = v2["features"] if v2 is not None else frozenset()
+
+    def engine_name(name):
+        if isinstance(name, str) and name in registry:
+            return name
+        if isinstance(name, str):
+            return read_fact_name(name, registry, features)[0]
+        return None
+
+    if isinstance(household, str):
+        if len(household) > MAX_SITUATION_CHARS:
+            problems.append("household is too large")
+            return None
+        try:
+            household = json.loads(household)
+        except (ValueError, RecursionError) as error:
+            problems.append(f"household is not valid JSON: {error}"[:MAX_MESSAGE_CHARS])
+            return None
+    if not isinstance(household, dict):
+        problems.append(
+            "household must be a JSON object with state, people and household_facts"
+        )
+        return None
+    extra = sorted(set(household) - {"state", "people", "household_facts"})
+    if extra:
+        problems.append(
+            "household accepts state, people and household_facts; remove "
+            + ", ".join(map(str, extra))
+        )
+    people = household.get("people")
+    if not isinstance(people, list) or not people:
+        problems.append("household.people must be a non-empty list of people")
+        return None
+    if len(people) > MAX_PEOPLE:
+        problems.append(f"at most {MAX_PEOPLE} people")
+        return None
+    situation: dict[str, Any] = {"people": {}}
+    roles: dict[str, str] = {}
+    for index, (person, name) in enumerate(zip(people, flat_names(people))):
+        if not isinstance(person, dict):
+            problems.append(
+                f"people[{index}] must be an object with name, role and facts"
+            )
+            continue
+        stray = sorted(map(str, set(person) - set(FLAT_PERSON_KEYS)))
+        if stray:
+            problems.append(
+                f"people[{index}] takes only name, role and facts; give "
+                f"{', '.join(stray)} under facts"
+            )
+            continue
+        role, facts = person.get("role"), person.get("facts", {})
+        if role not in FLAT_ROLES:
+            problems.append(
+                f"people[{index}].role must be one of {', '.join(FLAT_ROLES)}"
+            )
+            continue
+        if person.get("name") is None and v2 is not None:
+            v2["notes"].append(f"people[{index}]: named {name}")
+        if not isinstance(name, str) or not name or len(name) > 64:
+            problems.append(f"people[{index}].name must be a short string")
+            continue
+        if name in roles:
+            problems.append(f"people[{index}]: {name!r} is listed twice")
+            continue
+        if not isinstance(facts, dict):
+            problems.append(f"people[{index}].facts must be an object")
+            continue
+        roles[name] = role
+        situation["people"][name] = dict(facts)
+    heads = [n for n, r in roles.items() if r == "head"]
+    spouses = [n for n, r in roles.items() if r == "spouse"]
+    if len(heads) != 1:
+        problems.append("the household needs exactly one head")
+    if len(spouses) > 1:
+        problems.append("the household has at most one spouse")
+    if problems:
+        return None
+    for name, role in roles.items():
+        facts = situation["people"][name]
+        for relation, relation_role in FLAT_RELATIONS.items():
+            if relation not in registry:
+                continue
+            implied = role == relation_role
+            stated = [k for k in facts if engine_name(k) == relation]
+            if not stated:
+                facts[relation] = implied
+            elif any(
+                _same_value(registry, relation, facts[k], implied, period) is False
+                for k in stated
+            ):
+                problems.append(
+                    f"people.{name}: {relation} contradicts the role {role}; the "
+                    "role sets it"
+                )
+    everyone = list(situation["people"])
+    couple = heads + spouses
+    groups = [couple] + [[n] for n in everyone if n not in couple]
+    situation["marital_units"] = {
+        f"marital_unit_{i}": {"members": members}
+        for i, members in enumerate(groups, start=1)
+    }
+    situation["tax_units"] = {"tax_unit": {"members": list(everyone)}}
+    situation["spm_units"] = {"spm_unit": {"members": list(everyone)}}
+    situation["families"] = {"family": {"members": list(everyone)}}
+    situation["households"] = {"household": {"members": list(everyone)}}
+    state = household.get("state")
+    if state is not None:
+        situation["households"]["household"]["state_code"] = state
+    unit_of = {
+        "tax_unit": situation["tax_units"]["tax_unit"],
+        "spm_unit": situation["spm_units"]["spm_unit"],
+        "family": situation["families"]["family"],
+        "household": situation["households"]["household"],
+        "marital_unit": situation["marital_units"]["marital_unit_1"],
+    }
+    facts = household.get("household_facts") or {}
+    if not isinstance(facts, dict):
+        problems.append("household_facts must be an object")
+        return None
+    for name, value in facts.items():
+        resolved = engine_name(name)
+        if resolved is None:
+            field = (
+                dropped_fact(name, registry, features)
+                if isinstance(name, str)
+                else None
+            )
+            if field is not None:
+                v2["notes"].append(_dropped_note("household_facts", name, field))
+                continue
+            problems.append(
+                f"household_facts: unknown variable {name!r}."
+                + (_suggest(name, registry) if isinstance(name, str) else "")
+            )
+            continue
+        entity = registry[resolved].entity
+        if entity == "person":
+            # As placement moves a person variable off a one-person unit: only
+            # a household of one says whose fact it is.
+            if v2 is None or PLACEMENT not in features or len(everyone) != 1:
+                problems.append(
+                    f"household_facts: {resolved} is a person's fact; give it "
+                    "under the person whose facts list it"
+                )
+                continue
+            target = situation["people"][everyone[0]]
+            v2["notes"].append(
+                f"household_facts: moved {resolved}, a person's fact, to {everyone[0]}"
+            )
+        else:
+            target = unit_of[entity]
+        if name in target:
+            # The repeat is dropped, so only one validated as equal is kept quiet.
+            same = _same_value(
+                registry,
+                resolved,
+                target[name],
+                value,
+                period,
+                problems,
+                "household_facts",
+            )
+            if same is False:
+                problems.append(
+                    f"household_facts: {resolved} is set twice with different values"
+                )
+            continue
+        target[name] = value
+    return None if problems else situation
+
+
+DESIRED_SUFFIX = "_desired"
+_LABEL_SEPARATORS = re.compile(r"[\s\-]+")
+
+
+def output_reading(name: str) -> tuple[str, str] | None:
+    """A benchmark output key's engine variable and how the output reads it,
+    or None when the name is not an output key."""
+    from policybench.ground_truth import (
+        _aggregation_for_output,
+        _pe_variable_for_output,
+    )
+    from policybench.spec import find_output_spec, parse_person_output
+
+    person = parse_person_output(name)
+    if person is None and find_output_spec(name, country="us") is None:
+        return None
+    engine = _pe_variable_for_output(name, "us")
+    if engine == name:
+        return None
+    aggregation = _aggregation_for_output(name, "us")
+    if person is not None:
+        how = f"{engine} for the person the key names ({person[0]})"
+    elif aggregation == "any_positive":
+        how = f"1 when {engine} is above 0, else 0"
+    else:
+        how = f"{engine}, summed over the household's units"
+    return engine, how
+
+
+def _label_key(text: str) -> str:
+    """A label as compared: lower case, letters and digits only, so "Roth
+    401(k) contributions" and "roth 401k contributions" read alike."""
+    return re.sub(r"[^0-9a-z]", "", text.casefold())
+
+
+# The prompt's household block gives the state as "state: CT".
+PROMPT_EXTRA_LABELS = {"state": "state_code"}
+
+
+@functools.lru_cache(maxsize=1)
+def _promptable_specs():
+    from policybench.scenarios import get_promptable_input_specs
+
+    return get_promptable_input_specs()
+
+
+def _sample_value(value_type: str):
+    if value_type == "bool":
+        return True
+    if value_type in ("str", "Enum"):
+        return "x"
+    return 1.0
+
+
+def rendered_labels(field: str, value_type: str = "float") -> tuple[str, ...]:
+    """The labels a fact is shown under: in the board's prompt
+    (policybench.prompts._format_input_line, special renderers included) and
+    in the v2-pilot prompt (v2_pilot_text applied to that line)."""
+    from policybench.prompts import _format_input_line, _humanize_input_label
+
+    line = _format_input_line(field, _sample_value(value_type))
+    label = _humanize_input_label(field)
+    if not (line == f"- {label}" or line.startswith(f"- {label}: ")):
+        label = line[2:].split(": ", 1)[0]
+    labels = [label]
+    suffix = line[2 + len(label) :]
+    rewritten = v2_pilot_text(line)
+    if rewritten != line and rewritten.startswith("- ") and rewritten.endswith(suffix):
+        labels.append(rewritten[2 : len(rewritten) - len(suffix)])
+    return tuple(labels)
+
+
+@functools.lru_cache(maxsize=1)
+def prompt_labels() -> dict[str, frozenset[tuple[str, bool]]]:
+    """Every label the prompts show a fact under, keyed by _label_key, each
+    with the facts it may name as (engine name, dropped): the promptable
+    inputs, every labeled input (policybench.prompts.INPUT_LABEL_OVERRIDES),
+    the inputs the reference sets besides them (BASE_STATED_INPUTS), inputs
+    the engine has renamed and inputs the reference leaves out
+    (policybench.scenarios.PE_INPUT_RENAMES, PE_DROPPED_INPUTS), each in the
+    board's and the v2-pilot prompt's wording. Dropped facts are shown but are
+    not engine inputs. A label may name facts of another country; a lookup
+    reads only the one its engine has."""
+    from policybench.prompts import INPUT_LABEL_OVERRIDES
+    from policybench.scenarios import PE_DROPPED_INPUTS, PE_INPUT_RENAMES
+
+    fields = {spec.output_name: spec.value_type for spec in _promptable_specs()}
+    dropped = {f for names in PE_DROPPED_INPUTS.values() for f in names}
+    for source in (
+        "age",
+        *BASE_STATED_INPUTS,
+        *INPUT_LABEL_OVERRIDES,
+        *PE_INPUT_RENAMES,
+        *dropped,
+    ):
+        fields.setdefault(source, "int" if source == "age" else "float")
+    labels: dict[str, set[tuple[str, bool]]] = {}
+    for source, value_type in fields.items():
+        target = (PE_INPUT_RENAMES.get(source, source), source in dropped)
+        keys = {_label_key(label) for label in rendered_labels(source, value_type)}
+        if source in PE_INPUT_RENAMES or source in dropped:
+            keys.add(_label_key(source))
+        for key in keys:
+            labels.setdefault(key, set()).add(target)
+    for label, name in PROMPT_EXTRA_LABELS.items():
+        labels.setdefault(_label_key(label), set()).add((name, False))
+    return {key: frozenset(targets) for key, targets in labels.items()}
+
+
+def read_fact_name(
+    name: str, registry: Mapping[str, VariableInfo], features: frozenset
+) -> tuple[str | None, str | None]:
+    """A fact's engine variable under the labels feature (any label the
+    prompt shows it under, when exactly one fact it may name is the engine's)
+    and then the names feature (spaces for underscores). Returns (engine
+    name, note) or (None, None)."""
+    if LABELS in features:
+        found = [
+            engine
+            for engine, dropped in prompt_labels().get(_label_key(name), ())
+            if not dropped and engine in registry
+        ]
+        if len(found) == 1:
+            return found[0], f"read {name!r} as {found[0]}"
+    if NAMES in features:
+        return resolve_name(name, registry, output_names=False)
+    return None, None
+
+
+def dropped_fact(
+    name: str, registry: Mapping[str, VariableInfo], features: frozenset
+) -> str | None:
+    """Under the labels feature, the input a fact names when the prompt shows
+    it but the reference leaves it out (policybench.scenarios.PE_DROPPED_INPUTS:
+    no longer an engine input); otherwise None."""
+    if LABELS not in features:
+        return None
+    found = [
+        engine
+        for engine, dropped in prompt_labels().get(_label_key(name), ())
+        if dropped
+    ]
+    return found[0] if len(found) == 1 else None
+
+
+def _dropped_note(where: str, name: str, field: str) -> str:
+    return (
+        f"{where}: {name!r} ({field}) is not an input of this engine; the "
+        "benchmark's reference leaves it out too, so it was ignored"
+    )
+
+
+def _set_aliases(v2: dict, people: dict, registry: Mapping[str, VariableInfo]):
+    """Set each fact the reference also sets under another name there too
+    (policybench.scenarios.PE_INPUT_ALIASES: the SNAP work rules read stated
+    usual weekly hours as weekly_hours_worked_before_lsr), unless it is set."""
+    from policybench.scenarios import PE_INPUT_ALIASES
+
+    for person, inputs in people.items():
+        for source, target in PE_INPUT_ALIASES.items():
+            if source in inputs and target in registry and target not in inputs:
+                inputs[target] = dict(inputs[source])
+                v2["notes"].append(
+                    f"people.{person}: also set {target} from {source}, as the "
+                    "benchmark's reference does"
+                )
+
+
+def resolve_name(
+    name: str, registry: Mapping[str, VariableInfo], output_names: bool
+) -> tuple[str | None, str | None]:
+    """Tool version 2's reading of a name the engine does not know: the name
+    with spaces or hyphens as underscores, or (for outputs) a benchmark output
+    key. Returns (engine name, note) or (None, None)."""
+    if name in registry:
+        return name, None
+    written = _LABEL_SEPARATORS.sub("_", name.strip().lower())
+    if written in registry:
+        return written, f"read {name!r} as {written}"
+    if output_names:
+        reading = output_reading(name)
+        if reading is not None and reading[0] in registry:
+            return reading[0], f"{name} is {reading[1]}; computed {reading[0]}"
+    return None, None
+
+
+def _place_misplaced(
+    v2: dict,
+    normalized: dict,
+    situation: dict,
+    registry: Mapping[str, VariableInfo],
+    period: str,
+    problems: list[str],
+) -> None:
+    """Move each input set on another entity to the one unit that holds the
+    people it was set for: a group variable set on a person goes to that
+    person's unit (a group left out of the situation becomes one unit of
+    everyone, as the engine reads it), a person variable set on a one-person
+    unit goes to that person, and a group variable set on another group goes
+    to the unit holding all of its members. Anything else stays an error."""
+    for where, source_entity, name, value in v2["misplaced"]:
+        info = registry[name]
+        if source_entity == "person":
+            persons = [where.split(".", 1)[1]]
+        else:
+            group, unit = where.split(".", 1)
+            persons = list(normalized.get(group, {}).get(unit, {}).get("members", []))
+        target_group = ENTITY_GROUP.get(info.entity, info.entity)
+        if info.entity == "person":
+            if len(persons) != 1:
+                problems.append(
+                    f"{where}: {name} is a person variable; set it on one person "
+                    "under people."
+                )
+                continue
+            destination = normalized["people"].get(persons[0])
+            to = f"people.{persons[0]}"
+        else:
+            if target_group not in situation and target_group not in normalized:
+                normalized[target_group] = {
+                    "all": {"members": list(normalized["people"])}
+                }
+            units = normalized.get(target_group, {})
+            holding = [
+                unit
+                for unit, data in units.items()
+                if set(persons) <= set(data.get("members", []))
+            ]
+            if len(holding) != 1:
+                problems.append(
+                    f"{where}: {name} is a {info.entity} variable; set it under "
+                    f"{target_group} (no single unit there holds "
+                    f"{', '.join(persons) or 'its members'})."
+                )
+                continue
+            destination = units[holding[0]]
+            to = f"{target_group}.{holding[0]}"
+        if destination is None:
+            problems.append(f"{where}: {name} has no place to go")
+            continue
+        normalized_value = _normalize_value(to, name, value, info, period, problems)
+        if normalized_value is None:
+            continue
+        if name in destination and destination[name] != normalized_value:
+            problems.append(f"{to}: {name} is set twice with different values")
+            continue
+        destination[name] = normalized_value
+        v2["notes"].append(f"moved {name} from {where} to {to}")
 
 
 def _jsonable(value):
@@ -823,47 +1803,212 @@ def execute_request(system, registry, request: dict, simulation_cls=None) -> dic
             "period": request["period"],
             "values": {i: _jsonable(v) for i, v in zip(ids, list(array))},
         }
-    return {"results": results}
+    out = {"results": results}
+    if "notes" in request:
+        out["notes"] = list(request["notes"])
+    if request.get("explain"):
+        out["explanations"] = {
+            name: (
+                brief_explanation(
+                    explain_variable(system, request, name, simulation_cls)
+                )
+                if request.get("detail") == "brief"
+                else explain_variable(system, request, name, simulation_cls)
+            )
+            for name in request["explain"]
+        }
+    return out
+
+
+BRIEF_INPUTS = 8
+BRIEF_PARAMETERS = 5
+
+
+def brief_explanation(full: dict) -> dict:
+    """The concise feature's explanation: the value, the variables it came
+    from directly (one level down, the first BRIEF_INPUTS), and the first
+    parameters it read with their sources."""
+    if "error" in full:
+        return full
+    steps = full["steps"]
+    direct = [
+        s.strip() for s in steps[1:] if s.startswith("  ") and not s.startswith("    ")
+    ]
+    return {
+        "value": steps[0].strip() if steps else "",
+        "from": direct[:BRIEF_INPUTS],
+        "parameters": full["parameters"][:BRIEF_PARAMETERS],
+        "more": 'set detail to "full" for the trace',
+    }
+
+
+EXPLAIN_MAX_LINES = 60
+EXPLAIN_MAX_DEPTH = 6
+EXPLAIN_MAX_PARAMETERS = 15
+# Switches every variable has; never part of a reason.
+_QUIET_PARAMETERS = ("gov.abolitions.",)
+
+
+def _trace_value(value) -> Any:
+    if hasattr(value, "decode_to_str"):
+        value = value.decode_to_str()
+    try:
+        items = list(value)
+    except TypeError:
+        return _jsonable(value)
+    items = [_jsonable(v) for v in items]
+    return items[0] if len(items) == 1 else items
+
+
+def _all_zero(value) -> bool:
+    try:
+        return all((not v) if not isinstance(v, str) else False for v in list(value))
+    except TypeError:
+        return not value
+
+
+def parameter_sources(system, name: str, limit: int = 2) -> list[dict]:
+    """A parameter's cited sources: its own ``reference`` metadata, or the
+    nearest ancestor's."""
+    node = system.parameters
+    chain = [node]
+    for part in name.split("."):
+        children = getattr(node, "children", None)
+        if not isinstance(children, dict) or part not in children:
+            break
+        node = children[part]
+        chain.append(node)
+    for node in reversed(chain):
+        refs = (getattr(node, "metadata", None) or {}).get("reference")
+        if refs:
+            refs = refs if isinstance(refs, list) else [refs]
+            out = []
+            for ref in refs[:limit]:
+                if isinstance(ref, dict):
+                    out.append({k: ref[k] for k in ("title", "href") if ref.get(k)})
+                else:
+                    out.append({"href": str(ref)})
+            return out
+    return []
+
+
+def explain_variable(system, request: dict, name: str, simulation_cls=None) -> dict:
+    """How the engine computed ``name`` for the request's household: the
+    computation steps (each variable, its period and value, with its inputs
+    indented beneath it; zero-valued branches below the first level left out),
+    then the parameters it read, each with its value and cited sources."""
+    if simulation_cls is None:
+        from policyengine_us import Simulation as simulation_cls
+    try:
+        simulation = simulation_cls(
+            tax_benefit_system=system, situation=copy.deepcopy(request["situation"])
+        )
+        simulation.trace = True
+        simulation.calculate(name, request["period"])
+    except Exception as error:
+        return {"error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS]}
+
+    def find(nodes):
+        for node in nodes:
+            if node.name == name:
+                return node
+            hit = find(node.children)
+            if hit is not None:
+                return hit
+        return None
+
+    root = find(simulation.tracer.trees)
+    if root is None:
+        return {"error": f"no trace for {name}"}
+    steps: list[str] = []
+    parameters: dict[str, Any] = {}
+
+    def walk(node, depth):
+        if len(steps) >= EXPLAIN_MAX_LINES or depth > EXPLAIN_MAX_DEPTH:
+            return
+        if depth > 1 and _all_zero(node.value):
+            return
+        steps.append(
+            "  " * depth + f"{node.name} ({node.period}) = {_trace_value(node.value)}"
+        )
+        for parameter in node.parameters:
+            if parameter.name.startswith(_QUIET_PARAMETERS):
+                continue
+            parameters.setdefault(parameter.name, _trace_value(parameter.value))
+        for child in node.children:
+            walk(child, depth + 1)
+
+    walk(root, 0)
+    return {
+        "steps": steps,
+        "parameters": [
+            {"name": key, "value": value, "sources": parameter_sources(system, key)}
+            for key, value in list(parameters.items())[:EXPLAIN_MAX_PARAMETERS]
+        ],
+    }
+
+
+def _board_upgrade(snapshot: Path) -> dict:
+    """A board's last engine_upgrade revision: the engine its references are
+    on and the fix modules it pins. The frozen board's is 2.41.0's; a household
+    set (scripts/household_set.py) records one."""
+    meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
+    revisions = [r for r in meta["revisions"] if r.get("kind") == "engine_upgrade"]
+    if not revisions:
+        raise SystemExit(f"{snapshot} records no engine_upgrade revision")
+    return revisions[-1]
+
+
+def board_engine(snapshot: Path = SNAPSHOT) -> str:
+    """The policyengine-us version a board's references were computed on."""
+    return _board_upgrade(snapshot)["engine_version"].removeprefix("policyengine-us ")
+
+
+def is_household_set(snapshot: Path) -> bool:
+    meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
+    return meta.get("board_kind") == "household_set"
 
 
 def pinned_fix_modules(snapshot: Path = SNAPSHOT) -> list[dict]:
-    """The fix modules the 2.41.0 references were built with, as the sidecar's
+    """The fix modules a board's references were built with, as its sidecar's
     engine_upgrade revision pins them (path and sha256)."""
-    meta = json.loads((snapshot / "reference_outputs.csv.meta.json").read_text())
-    revisions = [
-        r
-        for r in meta["revisions"]
-        if r.get("kind") == "engine_upgrade"
-        and r.get("engine_version") == f"policyengine-us {REFERENCE_ENGINE}"
-    ]
-    if len(revisions) != 1:
-        raise SystemExit(f"expected one {REFERENCE_ENGINE} engine_upgrade revision")
-    return revisions[0]["fix_modules"]
+    return _board_upgrade(snapshot)["fix_modules"]
 
 
-def verify_fix_pins(fixes_dir: Path = FIX_MODULE.parent) -> None:
+def board_fix_module_sha256(snapshot: Path = SNAPSHOT) -> str:
+    """The pinned latest_final.py: the constant for the frozen board, the
+    sidecar's record for a household set."""
+    if not is_household_set(snapshot):
+        return FIX_MODULE_SHA256
+    return _board_upgrade(snapshot)["fix_module"]["sha256"]
+
+
+def verify_fix_pins(
+    fixes_dir: Path = FIX_MODULE.parent, snapshot: Path = SNAPSHOT
+) -> None:
     """Every module latest_final.py composes must be the pinned bytes.
 
     Each pin is checked at its recorded path; a module the reform reads from
     its own directory (the sales tax tables) is also checked there.
     """
     problems = []
-    for pin in pinned_fix_modules():
+    for pin in pinned_fix_modules(snapshot):
         candidates = {ROOT / pin["path"], fixes_dir / pin["module"]}
         for path in sorted(candidates):
             if path.exists() and _sha256(path) != pin["sha256"]:
                 problems.append(f"{path} does not match the pinned {pin['sha256']}")
         if not any(path.exists() for path in candidates):
             problems.append(f"{pin['module']} is missing")
-    if _sha256(FIX_MODULE) != FIX_MODULE_SHA256:
-        problems.append(f"{FIX_MODULE} does not match {FIX_MODULE_SHA256}")
+    pinned = board_fix_module_sha256(snapshot)
+    if _sha256(FIX_MODULE) != pinned:
+        problems.append(f"{FIX_MODULE} does not match {pinned}")
     if problems:
         raise SystemExit("; ".join(problems))
 
 
-def load_fix_reform(path: Path = FIX_MODULE):
+def load_fix_reform(path: Path = FIX_MODULE, snapshot: Path = SNAPSHOT):
     if path == FIX_MODULE:
-        verify_fix_pins()
+        verify_fix_pins(snapshot=snapshot)
     spec = importlib.util.spec_from_file_location("tool_pilot_latest_final", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -871,18 +2016,61 @@ def load_fix_reform(path: Path = FIX_MODULE):
     return module.reform
 
 
-def build_tool_system(reform: bool = True, path: Path = FIX_MODULE):
+def build_tool_system(
+    reform: bool = True, path: Path = FIX_MODULE, snapshot: Path = SNAPSHOT
+):
     from policyengine_us import CountryTaxBenefitSystem
 
     if not reform:
         return CountryTaxBenefitSystem()
-    return CountryTaxBenefitSystem(reform=load_fix_reform(path))
+    return CountryTaxBenefitSystem(reform=load_fix_reform(path, snapshot))
 
 
-def _worker_main(conn, fix_path: str, reform: bool) -> None:
+# How a pool tells its worker the calculator's features: a tuple, which a
+# model's JSON arguments can never be, so a model cannot turn on a feature its
+# arm does not offer. A pool without features sends the arguments as they are.
+CALL_FRAME = "calculate"
+
+
+def tool_call_frame(features: frozenset, arguments) -> tuple:
+    return (CALL_FRAME, tuple(sorted(features)), arguments)
+
+
+def frame_features(names) -> frozenset:
+    """A frame's features, refused (ValueError) unless they are a tuple of
+    known feature names with concise only beside explain."""
+    if not isinstance(names, tuple) or not all(isinstance(n, str) for n in names):
+        raise ValueError("the features must be a tuple of names")
+    features = frozenset(names)
+    if features - set(TOOL_FEATURES):
+        raise ValueError(
+            f"unknown tool features {sorted(features - set(TOOL_FEATURES))}"
+        )
+    if CONCISE in features and EXPLAIN not in features:
+        raise ValueError("the concise feature needs explain")
+    return features
+
+
+def worker_request(message, registry) -> tuple[dict | None, dict | None]:
+    """A worker's reading of one pool message: a call frame's arguments under
+    its features, or anything else as a model's arguments with no features
+    (keys such as "__tool_features__" or "__tool_version__" in them are the
+    model's, and refused as unknown arguments)."""
+    features = frozenset()
+    if isinstance(message, tuple) and len(message) == 3 and message[0] == CALL_FRAME:
+        try:
+            features = frame_features(message[1])
+        except ValueError as error:
+            return None, {"error": "configuration", "message": str(error)}
+        message = message[2]
+    return normalize_request(message, registry, features=features)
+
+
+def _worker_main(conn, fix_path: str, reform: bool, board: str | None = None) -> None:
     for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[name] = "1"
-    system = build_tool_system(reform=reform, path=Path(fix_path))
+    snapshot = Path(board) if board else SNAPSHOT
+    system = build_tool_system(reform=reform, path=Path(fix_path), snapshot=snapshot)
     registry = build_registry(system)
     conn.send(("ready", None))
     while True:
@@ -892,7 +2080,7 @@ def _worker_main(conn, fix_path: str, reform: bool) -> None:
             return
         if args is None:
             return
-        request, error = normalize_request(args, registry)
+        request, error = worker_request(args, registry)
         if error is not None:
             conn.send(("ok", error))
             continue
@@ -910,9 +2098,21 @@ class ToolPool:
         reform: bool = True,
         worker_target: Callable | None = None,
         acquire_timeout: float | None = None,
+        board: Path | None = None,
+        tool_version: int = 1,
+        tool_features: frozenset | None = None,
     ):
         self._ctx = mp.get_context("spawn")
+        self._tool_version = tool_version
+        self._tool_features = (
+            tool_features
+            if tool_features is not None
+            else (V2_FEATURES if tool_version == 2 else frozenset())
+        )
         self._fix_path = str(fix_path)
+        # A worker gets the board only when it is not the frozen one, so a
+        # three-argument worker target still starts on the default.
+        self._board = None if board is None or board == SNAPSHOT else str(board)
         self._reform = reform
         self._target = worker_target or _worker_main
         self.timeout = timeout
@@ -932,11 +2132,10 @@ class ToolPool:
 
     def _start(self):
         parent, child = self._ctx.Pipe()
-        process = self._ctx.Process(
-            target=self._target,
-            args=(child, self._fix_path, self._reform),
-            daemon=True,
-        )
+        args = (child, self._fix_path, self._reform)
+        if self._board is not None:
+            args += (self._board,)
+        process = self._ctx.Process(target=self._target, args=args, daemon=True)
         process.start()
         return process, parent
 
@@ -976,6 +2175,8 @@ class ToolPool:
                 time.perf_counter() - started,
             )
         process, conn = worker
+        if self._tool_features:
+            args = tool_call_frame(self._tool_features, args)
         try:
             conn.send(args)
             if conn.poll(self.timeout):
@@ -1131,13 +2332,27 @@ class ModelProfile:
             notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
         elif self.arm == "web+pe":
             notice = WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        elif self.arm == "pe2":
+            return engine_text(TOOL_NOTICE_V2 if tool else JSON_TOOL_NOTICE_V2)
+        elif self.arm != "pe" and arm_features(self.arm) is not None:
+            return engine_text(compose_tool_notice(arm_features(self.arm), tool))
         else:
-            return TOOL_NOTICE if tool else JSON_TOOL_NOTICE
-        return notice + (BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else "")
+            return engine_text(TOOL_NOTICE if tool else JSON_TOOL_NOTICE)
+        return engine_text(notice) + (
+            BENCHMARK_SEARCH_RULE if self.benchmark_search_rule else ""
+        )
 
     @property
     def uses_calculator(self) -> bool:
-        return self.arm in ("pe", "web+pe")
+        return arm_features(self.arm) is not None
+
+    @property
+    def tool_features(self) -> frozenset:
+        return arm_features(self.arm) or frozenset()
+
+    @property
+    def tool_version(self) -> int:
+        return 2 if self.tool_features == V2_FEATURES else 1
 
     @property
     def uses_web(self) -> bool:
@@ -1155,7 +2370,7 @@ class ModelProfile:
     def arm2_label(self) -> str:
         version = "" if self.prompt_version == "v1" else f"@{self.prompt_version}"
         rule = "+no-benchmark-search" if self.benchmark_search_rule else ""
-        return f"{self.name}{ARM_SUFFIX[self.arm]}{version}{rule}"
+        return f"{self.name}{arm_suffix(self.arm)}{version}{rule}"
 
 
 def provider_family(model_id: str) -> str:
@@ -1181,8 +2396,11 @@ def model_profile(
         _uses_responses_api,
     )
 
-    if arm not in ARMS:
-        raise SystemExit(f"unknown arm {arm!r}; the arms are {', '.join(ARMS)}")
+    if arm not in ARMS and arm_features(arm) is None:
+        raise SystemExit(
+            f"unknown arm {arm!r}; the arms are {', '.join(ARMS)}, or pe: plus "
+            f"calculator features joined by + ({', '.join(TOOL_FEATURES)})"
+        )
     if prompt_version not in PROMPT_VERSIONS:
         raise SystemExit(
             f"unknown prompt {prompt_version!r}; the prompts are "
@@ -1816,7 +3034,7 @@ def run_household(
     sent_board_prompt_sha256 = base.pop("_sent_board_prompt_sha256")
     ceiling = base.pop("_budget_ceiling")
     answer_tool = base.pop("_answer_tool")
-    calculate_tool = calculate_tool_schema()
+    calculate_tool = calculate_tool_schema(features=profile.tool_features)
     offered = ([web_search_tool(profile)] if profile.uses_web else []) + (
         [calculate_tool] if profile.uses_calculator else []
     )
@@ -1857,6 +3075,7 @@ def run_household(
         "benchmark_search_rule": profile.benchmark_search_rule,
         "sent_board_prompt_sha256": sent_board_prompt_sha256,
         "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
+        **profile_treatment(profile),
         "turns": [],
         "status": "running",
     }
@@ -2366,28 +3585,38 @@ def _versions() -> dict:
     return out
 
 
-def _require_engine() -> None:
+def board_path(args) -> Path:
+    """The board a command reads: --board, or the frozen snapshot."""
+    return Path(getattr(args, "board", None) or SNAPSHOT)
+
+
+def _require_engine(board: Path = SNAPSHOT) -> None:
     version = _versions()["policyengine-us"]
-    if version != REFERENCE_ENGINE:
+    pinned = board_engine(board)
+    if version != pinned:
+        where = (
+            f"the reference engine of household set {board}"
+            if is_household_set(board)
+            else "the reference engine of release dashboard-data-20261014"
+        )
         raise SystemExit(
-            f"policyengine-us {version} is installed; the pilot pins "
-            f"{REFERENCE_ENGINE}, the reference engine of release "
-            "dashboard-data-20261014."
+            f"policyengine-us {version} is installed; the pilot pins {pinned}, {where}."
         )
 
 
 def command_oracle(args) -> None:
     """Reference situations through the tool engine: every scored reference must
     come back within the board's tolerance."""
-    _require_engine()
+    snapshot = board_path(args)
+    _require_engine(snapshot)
     from policybench.ground_truth import _extract_person_value, _pe_variable_for_output
 
-    board = load_board()
+    board = load_board(snapshot)
     scored_keys = set(zip(board["scored"].scenario_id, board["scored"].variable))
     values = board["reference"].set_index(["scenario_id", "variable"])["value"]
     rows = []
     for label, reform in (("reference_engine", True), ("plain_engine", False)):
-        system = build_tool_system(reform=reform)
+        system = build_tool_system(reform=reform, snapshot=snapshot)
         registry = build_registry(system)
         for sid, scenario in board["scenarios"].items():
             situation = scenario.to_pe_household()
@@ -2555,6 +3784,115 @@ def records_wording(records: Mapping[str, dict]) -> str | None:
     return hashes.pop() if hashes else None
 
 
+# Arms whose calculator features never changed, so a record written before
+# households recorded their features has these.
+LEGACY_TOOL_ARMS = {"pe": frozenset(), "web+pe": frozenset(), "pe2": V2_FEATURES}
+
+
+def profile_treatment(profile: "ModelProfile") -> dict:
+    """What a household record keeps of the treatment it ran under, beyond
+    the notice hash: the calculator's features and its schema's hash."""
+    if not profile.uses_calculator:
+        return {"tool_features": None, "calculate_tool_sha256": None}
+    schema = calculate_tool_schema(features=profile.tool_features)
+    return {
+        "tool_features": sorted(profile.tool_features),
+        "calculate_tool_sha256": hashlib.sha256(
+            json.dumps(schema, sort_keys=True).encode()
+        ).hexdigest(),
+    }
+
+
+def record_treatment_problem(record: dict, profile: "ModelProfile") -> str | None:
+    """Why a household record ran under another treatment than the profile's
+    (features, notice or calculator schema), or None. A record written before
+    a field existed counts as matching only for an arm whose treatment never
+    changed (none, web, and LEGACY_TOOL_ARMS); otherwise it is unrecorded."""
+    sid = record.get("scenario_id")
+    want = profile_treatment(profile)
+    legacy = profile.arm in ("none", "web") or profile.arm in LEGACY_TOOL_ARMS
+    if "tool_features" in record:
+        if record["tool_features"] != want["tool_features"]:
+            return f"{sid} ran with tool features {record['tool_features']}"
+    elif not legacy:
+        return f"{sid} has no recorded tool features"
+    notice = record.get("tool_notice_sha256")
+    if notice is None and not legacy:
+        return f"{sid} has no recorded tool notice"
+    if (
+        notice is not None
+        and notice != hashlib.sha256(profile.notice.encode()).hexdigest()
+    ):
+        return f"{sid} ran under another tool notice"
+    schema = record.get("calculate_tool_sha256")
+    if schema is not None and schema != want["calculate_tool_sha256"]:
+        return f"{sid} ran with another calculator schema"
+    return None
+
+
+def treatment_problems(
+    records: Mapping[str, dict], profile: "ModelProfile"
+) -> list[str]:
+    """record_treatment_problem for every record in a run directory, a
+    rerunnable one (RERUNNABLE_STATUSES) too. A rerun is not sure to replace
+    it: a budget stop, lost workers or a narrower --scenarios leave it in
+    place, and scoring reads whatever is there (review r3). So a resume and
+    a score both refuse a directory holding any record from another treatment."""
+    return [
+        problem
+        for record in records.values()
+        if (problem := record_treatment_problem(record, profile)) is not None
+    ]
+
+
+def scored_treatment_problems(
+    records: Mapping[str, dict], profile: "ModelProfile", engine: str
+) -> tuple[list[str], str | None]:
+    """treatment_problems as score applies it, with the note score prints.
+    The records' notices state the board's engine, as command_run set it.
+    Runs before the texts stated the board's engine (6e1578fc) named the
+    reference engine whatever the board's: a directory written wholly so is
+    one treatment and scores as it ran. A mix of the two texts does not. A
+    resume stays strict, since its new records would state the board's."""
+    with stating_engine(engine):
+        problems = treatment_problems(records, profile)
+    if not problems or engine == REFERENCE_ENGINE:
+        return problems, None
+    with stating_engine(REFERENCE_ENGINE):
+        if treatment_problems(records, profile):
+            return problems, None
+    return [], (
+        f"NOTE: these records' notices name policyengine-us {REFERENCE_ENGINE}, "
+        f"as runs before 6e1578fc stated it; the board's engine is {engine}"
+    )
+
+
+def harness_error_record(
+    sid: str, variables: list[str], profile: "ModelProfile", error: Exception
+) -> dict:
+    """The record of a household the harness itself failed on: rerunnable,
+    with every setup and treatment key a resume and score check, so a folder
+    holding it still resumes and scores."""
+    record = {
+        "scenario_id": sid,
+        "model": profile.name,
+        "arm": profile.arm,
+        "prompt_version": profile.prompt_version,
+        "prompt_wording_sha256": prompt_wording_sha256(profile),
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
+        **profile_treatment(profile),
+        "variables": variables,
+        "status": "harness_error",
+        "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
+        "turns": [],
+        "predictions": {v: None for v in variables},
+        "explanations": {v: None for v in variables},
+    }
+    record["totals"] = household_totals(record)
+    return record
+
+
 def records_arm(records: Mapping[str, dict]) -> str:
     """The one arm a run directory's records belong to; records written
     before the web arms are the PE tool's."""
@@ -2565,7 +3903,10 @@ def records_arm(records: Mapping[str, dict]) -> str:
 
 
 def command_run(args) -> None:
-    _require_engine()
+    snapshot = board_path(args)
+    _require_engine(snapshot)
+    # The notices and the tool description state the board's engine.
+    set_stated_engine(board_engine(snapshot))
     profile = model_profile(
         args.model, args.arm, args.prompt, args.forbid_benchmark_search
     )
@@ -2579,7 +3920,7 @@ def command_run(args) -> None:
     from litellm import completion, responses
 
     completion_fn = responses if profile.api == "responses" else completion
-    board = load_board()
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     households_dir = out / "households"
     households_dir.mkdir(parents=True, exist_ok=True)
@@ -2610,6 +3951,13 @@ def command_run(args) -> None:
             f"{households_dir} holds records sent under other v2-pilot wording "
             f"({records_wording(previous)}); use a fresh --out-dir"
         )
+    mixed = treatment_problems(previous, profile)
+    if mixed:
+        raise SystemExit(
+            f"{households_dir} holds records from another treatment ("
+            + "; ".join(mixed[:3])
+            + "); use a fresh --out-dir"
+        )
     spend = Spend(args.budget_usd, spent_before)
     todo = [sid for sid in ids if sid not in done]
     manifest = {
@@ -2620,6 +3968,9 @@ def command_run(args) -> None:
         "versions": _versions(),
         "fix_module": str(FIX_MODULE.relative_to(ROOT)),
         "fix_module_sha256": _sha256(FIX_MODULE),
+        "board": str(snapshot),
+        "board_engine": f"policyengine-us {board_engine(snapshot)}",
+        "board_reference_sha256": board["meta"].get("reference_csv_sha256"),
         "model": profile.name,
         "model_id": profile.model_id,
         "arm": profile.arm,
@@ -2635,7 +3986,13 @@ def command_run(args) -> None:
         "api": profile.api,
         "answer_contract": profile.contract,
         "tool_notice": profile.notice,
-        "calculate_tool": calculate_tool_schema() if profile.uses_calculator else None,
+        "calculate_tool": calculate_tool_schema(features=profile.tool_features)
+        if profile.uses_calculator
+        else None,
+        "tool_features": sorted(profile.tool_features)
+        if profile.uses_calculator
+        else None,
+        "tool_version": profile.tool_version if profile.uses_calculator else None,
         "web_search_tool": web_search_tool(profile) if profile.uses_web else None,
         # The timeout actually sent: the board's for the model, or the web arms'.
         "request_timeout_seconds": build_initial_request(
@@ -2662,7 +4019,16 @@ def command_run(args) -> None:
     if not todo:
         return
     # Arms without the calculator start no engine workers.
-    pool = ToolPool(size=args.workers) if profile.uses_calculator else None
+    pool = (
+        ToolPool(
+            size=args.workers,
+            board=snapshot,
+            tool_version=profile.tool_version,
+            tool_features=profile.tool_features,
+        )
+        if profile.uses_calculator
+        else None
+    )
 
     def no_calculator(arguments) -> tuple[dict, float]:
         return {"error": "not_run", "message": "no calculator in this arm"}, 0.0
@@ -2690,23 +4056,9 @@ def command_run(args) -> None:
                     profile=profile,
                 )
             except Exception as error:  # one household must not end the run
-                record = {
-                    "scenario_id": sid,
-                    "model": profile.name,
-                    # The setup keys a resume and score check, so a folder with
-                    # this record still resumes and scores.
-                    "arm": profile.arm,
-                    "prompt_version": profile.prompt_version,
-                    "prompt_wording_sha256": prompt_wording_sha256(profile),
-                    "benchmark_search_rule": profile.benchmark_search_rule,
-                    "variables": board["variables"][sid],
-                    "status": "harness_error",
-                    "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
-                    "turns": [],
-                    "predictions": {v: None for v in board["variables"][sid]},
-                    "explanations": {v: None for v in board["variables"][sid]},
-                }
-                record["totals"] = household_totals(record)
+                record = harness_error_record(
+                    sid, board["variables"][sid], profile, error
+                )
             if sid in previous:
                 prior = previous[sid]
                 record["prior_attempts"] = prior.get("prior_attempts", []) + [
@@ -2797,16 +4149,50 @@ def arm1_predictions(
     return rows
 
 
+def baseline_predictions(
+    records: Mapping[str, dict], label: str = ARM1_LABEL
+) -> pd.DataFrame:
+    """A no-tools run's records as the board's prediction frame, with each
+    household's usage on its first row so per-household sums are its totals."""
+    frame = arm2_predictions(records, label)
+    usage = {
+        "prompt_tokens": "prompt_tokens",
+        "completion_tokens": "completion_tokens",
+        "reasoning_tokens": "reasoning_tokens",
+        "total_cost_usd": "cost_usd",
+        "elapsed_seconds": "model_seconds",
+        "cached_prompt_tokens": "cached_prompt_tokens",
+    }
+    first = ~frame.duplicated("scenario_id")
+    for column, total in usage.items():
+        frame[column] = [
+            float(records[sid]["totals"].get(total) or 0.0) if is_first else 0.0
+            for sid, is_first in zip(frame.scenario_id, first)
+        ]
+    frame["call_id"] = frame.scenario_id
+    return frame
+
+
 def command_score(args) -> None:
     from policybench.analysis import analyze_no_tools
     from policybench.spec import output_group_id
 
-    board = load_board()
+    snapshot = board_path(args)
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     records = load_records(out)
     profile = model_profile(
         records_model(records), records_arm(records), *records_prompt(records)
     )
+    mixed, note = scored_treatment_problems(records, profile, board_engine(snapshot))
+    if note:
+        print(note)
+    if mixed:
+        raise SystemExit(
+            f"{out / 'households'} holds records from another treatment ("
+            + "; ".join(mixed[:3])
+            + "); scoring would mix them"
+        )
     arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"
@@ -2825,7 +4211,28 @@ def command_score(args) -> None:
             f"failure and score as misses until a resume reruns them: {leftover}"
         )
     scored = board["scored"][board["scored"].scenario_id.isin(households)]
-    arm1 = arm1_predictions(label=arm1_label)
+    if is_household_set(snapshot):
+        # No board run exists for a fresh household set: the baseline is the
+        # same model's no-tools arm on it, run with the same prompt setup.
+        baseline_dir = getattr(args, "baseline_dir", None)
+        if not baseline_dir:
+            raise SystemExit("a household set is scored against --baseline-dir")
+        baseline = load_records(Path(baseline_dir))
+        if records_model(baseline) != profile.name or records_arm(baseline) != "none":
+            raise SystemExit(
+                f"--baseline-dir holds {records_model(baseline)} "
+                f"{records_arm(baseline)} records, not {profile.name} none"
+            )
+        if records_prompt(baseline)[0] != profile.prompt_version:
+            raise SystemExit("--baseline-dir was run on another prompt version")
+        missing = sorted(set(households) - set(baseline))
+        if missing:
+            raise SystemExit(f"--baseline-dir lacks households {missing}")
+        arm1 = baseline_predictions(
+            {sid: baseline[sid] for sid in households}, arm1_label
+        )
+    else:
+        arm1 = arm1_predictions(label=arm1_label)
     arm1 = arm1[arm1.scenario_id.isin(households)]
     arm2 = arm2_predictions({sid: records[sid] for sid in households}, arm2_label)
     scenarios = board["scenarios_frame"][
@@ -3328,6 +4735,12 @@ def _successful_calls(record: dict) -> list[dict]:
 def _person_names(arguments) -> list[str]:
     try:
         args = json.loads(arguments) if isinstance(arguments, str) else arguments
+        if "household" in args:  # the flat feature's people list
+            household = args["household"]
+            household = (
+                json.loads(household) if isinstance(household, str) else household
+            )
+            return [name or "" for name in flat_names(household["people"])]
         situation = args["situation"]
         situation = json.loads(situation) if isinstance(situation, str) else situation
         return list(situation["people"])
@@ -3934,7 +5347,9 @@ def main_call(record: dict, scenario, outputs: list[str]) -> dict | None:
     return main_call_and_count(record, scenario, outputs)[0]
 
 
-def situation_fidelity(records, board, system, registry, defaults, out: Path) -> None:
+def situation_fidelity(
+    records, board, system, registry, defaults, out: Path, features=frozenset()
+) -> None:
     """How each household's main situation differs from the reference's.
 
     The main situation is ``main_call``'s: the successful call that computed
@@ -3955,7 +5370,7 @@ def situation_fidelity(records, board, system, registry, defaults, out: Path) ->
         if call is None:
             rows.append({"scenario_id": sid, "differences": None})
             continue
-        request, _ = normalize_request(call["arguments"], registry)
+        request, _ = normalize_request(call["arguments"], registry, features=features)
         if request is None:
             rows.append({"scenario_id": sid, "differences": None})
             continue
@@ -4003,9 +5418,12 @@ def situation_fidelity(records, board, system, registry, defaults, out: Path) ->
 def command_diagnose(args) -> None:
     from policybench.spec import metric_type_for_output
 
-    board = load_board()
+    snapshot = board_path(args)
+    board = load_board(snapshot)
     out = Path(args.out_dir)
     records = load_records(out)
+    # A run's calls are read as its own tool version read them.
+    features = arm_features(records_arm(records)) or frozenset()
     rows_path = out / "scored_rows.csv"
     if not rows_path.exists():
         raise SystemExit("run score first")
@@ -4014,14 +5432,14 @@ def command_diagnose(args) -> None:
     registry = None
     defaults = {}
     if not args.no_engine_defaults:
-        _require_engine()
-        system = build_tool_system(reform=True)
+        _require_engine(snapshot)
+        system = build_tool_system(reform=True, snapshot=snapshot)
         registry = build_registry(system)
         defaults = {
             name: system.variables[name].default_value for name in system.variables
         }
     if registry is not None:
-        situation_fidelity(records, board, system, registry, defaults, out)
+        situation_fidelity(records, board, system, registry, defaults, out, features)
     out_rows = []
     if misses.empty:
         print("no arm-2 misses")
@@ -4039,7 +5457,7 @@ def command_diagnose(args) -> None:
         if registry is not None:
 
             def board_value_for(arguments, scenario=scenario, output=row.variable):
-                request, _ = normalize_request(arguments, registry)
+                request, _ = normalize_request(arguments, registry, features=features)
                 if request is None:
                     return None
                 return output_value(system, request["situation"], scenario, output)
@@ -4063,7 +5481,7 @@ def command_diagnose(args) -> None:
         attribution = {}
         arguments = verdict.get("call_arguments")
         if arguments is not None and registry is not None:
-            request, _ = normalize_request(arguments, registry)
+            request, _ = normalize_request(arguments, registry, features=features)
             if request is not None:
                 reference_situation = scenario.to_pe_household()
                 diff = situation_diff(
@@ -4146,6 +5564,12 @@ def main(argv: list[str] | None = None) -> None:
     for name in ("oracle", "run", "score", "diagnose"):
         p = sub.add_parser(name)
         p.add_argument("--out-dir", required=True)
+        p.add_argument(
+            "--board",
+            default=str(SNAPSHOT),
+            help="the frozen board (default) or a household set from "
+            "scripts/household_set.py",
+        )
         if name == "run":
             p.add_argument(
                 "--model",
@@ -4154,9 +5578,10 @@ def main(argv: list[str] | None = None) -> None:
             )
             p.add_argument(
                 "--arm",
-                choices=ARMS,
                 default="pe",
-                help="the tools: none, PolicyEngine (pe), web search (web), or both",
+                help="the tools: none, PolicyEngine (pe, pe2, pe3, or pe: plus "
+                "calculator features joined by +), web search (web), or both "
+                "(web+pe)",
             )
             p.add_argument(
                 "--prompt",
@@ -4185,6 +5610,11 @@ def main(argv: list[str] | None = None) -> None:
                 "--complete-only",
                 action="store_true",
                 help="score only households whose conversation completed",
+            )
+            p.add_argument(
+                "--baseline-dir",
+                help="on a household set, the same model's no-tools run: the "
+                "baseline each arm is compared with",
             )
         if name == "diagnose":
             p.add_argument("--no-engine-defaults", action="store_true")
