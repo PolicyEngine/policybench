@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import contextlib
 import copy
 import decimal
 import difflib
@@ -341,6 +342,18 @@ _STATED_ENGINE = {"version": REFERENCE_ENGINE}
 
 def set_stated_engine(version: str) -> None:
     _STATED_ENGINE["version"] = version
+
+
+@contextlib.contextmanager
+def stating_engine(version: str):
+    """The texts as a run on `version` sent them, for a check that rebuilds a
+    notice; the stated engine is restored afterwards."""
+    before = _STATED_ENGINE["version"]
+    set_stated_engine(version)
+    try:
+        yield
+    finally:
+        set_stated_engine(before)
 
 
 def engine_text(text: str) -> str:
@@ -3817,18 +3830,41 @@ def record_treatment_problem(record: dict, profile: "ModelProfile") -> str | Non
     return None
 
 
-def resume_treatment_problems(
-    previous: Mapping[str, dict], done: set[str], profile: "ModelProfile"
+def treatment_problems(
+    records: Mapping[str, dict], profile: "ModelProfile"
 ) -> list[str]:
-    """record_treatment_problem for each record a resume keeps. A rerunnable
-    record (RERUNNABLE_STATUSES) is replaced under this profile, so it cannot
-    mix treatments and does not block the resume."""
+    """record_treatment_problem for every record in a run directory, a
+    rerunnable one (RERUNNABLE_STATUSES) too. A rerun is not sure to replace
+    it: a budget stop, lost workers or a narrower --scenarios leave it in
+    place, and scoring reads whatever is there (review r3). So a resume and
+    a score both refuse a directory holding any record from another treatment."""
     return [
         problem
-        for sid, record in previous.items()
-        if sid in done
-        and (problem := record_treatment_problem(record, profile)) is not None
+        for record in records.values()
+        if (problem := record_treatment_problem(record, profile)) is not None
     ]
+
+
+def scored_treatment_problems(
+    records: Mapping[str, dict], profile: "ModelProfile", engine: str
+) -> tuple[list[str], str | None]:
+    """treatment_problems as score applies it, with the note score prints.
+    The records' notices state the board's engine, as command_run set it.
+    Runs before the texts stated the board's engine (6e1578fc) named the
+    reference engine whatever the board's: a directory written wholly so is
+    one treatment and scores as it ran. A mix of the two texts does not. A
+    resume stays strict, since its new records would state the board's."""
+    with stating_engine(engine):
+        problems = treatment_problems(records, profile)
+    if not problems or engine == REFERENCE_ENGINE:
+        return problems, None
+    with stating_engine(REFERENCE_ENGINE):
+        if treatment_problems(records, profile):
+            return problems, None
+    return [], (
+        f"NOTE: these records' notices name policyengine-us {REFERENCE_ENGINE}, "
+        f"as runs before 6e1578fc stated it; the board's engine is {engine}"
+    )
 
 
 def harness_error_record(
@@ -3915,7 +3951,7 @@ def command_run(args) -> None:
             f"{households_dir} holds records sent under other v2-pilot wording "
             f"({records_wording(previous)}); use a fresh --out-dir"
         )
-    mixed = resume_treatment_problems(previous, done, profile)
+    mixed = treatment_problems(previous, profile)
     if mixed:
         raise SystemExit(
             f"{households_dir} holds records from another treatment ("
@@ -4148,6 +4184,15 @@ def command_score(args) -> None:
     profile = model_profile(
         records_model(records), records_arm(records), *records_prompt(records)
     )
+    mixed, note = scored_treatment_problems(records, profile, board_engine(snapshot))
+    if note:
+        print(note)
+    if mixed:
+        raise SystemExit(
+            f"{out / 'households'} holds records from another treatment ("
+            + "; ".join(mixed[:3])
+            + "); scoring would mix them"
+        )
     arm1_label, arm2_label = profile.arm1_label, profile.arm2_label
     complete = sorted(
         sid for sid, r in records.items() if r.get("status") == "complete"

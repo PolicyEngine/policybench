@@ -853,17 +853,157 @@ def test_a_harness_error_record_resumes_under_its_own_arm():
         assert record["totals"]["cost_usd"] == 0
 
 
-def test_a_resume_checks_the_treatment_only_of_records_it_keeps():
+def test_a_rerunnable_record_from_another_treatment_is_refused_too():
+    # Review r3: a rerun is not sure to replace a rerunnable record (a budget
+    # stop, lost workers, a narrower --scenarios), so every record is checked.
     pe3 = _profile("pe3")
     stale = _record(pe3, tool_features=["names"])
-    previous = {
+    records = {
         "mt_000": dict(stale, status="complete"),
-        "mt_001": dict(stale, scenario_id="mt_001", status="harness_error"),
+        "mt_001": dict(stale, scenario_id="mt_001", status="provider_error"),
+        "mt_002": F.harness_error_record("mt_002", ["snap"], pe3, RuntimeError("x")),
     }
-    # Kept, so refused.
-    assert len(F.resume_treatment_problems(previous, {"mt_000"}, pe3)) == 1
-    # Rerun under this profile, so no mixing and no block.
-    assert F.resume_treatment_problems(previous, set(), pe3) == []
+    problems = F.treatment_problems(records, pe3)
+    assert [p.split()[0] for p in problems] == ["mt_000", "mt_001"]
+
+
+SIX = ("concise", "explain", "flat", "names", "overrides", "placement")
+
+
+def _scored_record(sid, profile, treatment_of=None, status="complete", **changes):
+    """A household record as command_run writes it, with the treatment of
+    `treatment_of` (another arm's profile) when given."""
+    import hashlib
+
+    board = pilot.load_board()
+    reference = board["reference"].set_index(["scenario_id", "variable"])["value"]
+    variables = board["variables"][sid]
+    source = treatment_of or profile
+    record = {
+        "scenario_id": sid,
+        "model": profile.name,
+        "arm": profile.arm,
+        "prompt_version": profile.prompt_version,
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "tool_notice_sha256": hashlib.sha256(source.notice.encode()).hexdigest(),
+        **F.profile_treatment(source),
+        "variables": variables,
+        "predictions": {v: float(reference[(sid, v)]) for v in variables},
+        "explanations": {v: "x" for v in variables},
+        "status": status,
+        "turns": [{"total_cost_usd": 1.25, "calls": []}],
+        "cap_hit": False,
+        "wall_seconds": 1.0,
+    }
+    record.update(changes)
+    record["totals"] = F.household_totals(record)
+    return record
+
+
+def _write(directory, *records):
+    (directory / "households").mkdir(parents=True, exist_ok=True)
+    for record in records:
+        path = directory / "households" / f"{record['scenario_id']}.json"
+        path.write_text(json.dumps(record))
+
+
+def test_a_resume_refuses_an_old_treatments_provider_error_before_running(
+    tmp_path, monkeypatch
+):
+    # The review's case: a pe3 folder holding a provider_error written under
+    # six features, with the budget already spent. Before the fix the resume
+    # passed, `one` stopped on the budget without replacing it, and scoring
+    # read its predictions as pe3's.
+    import argparse
+
+    pe3 = F.model_profile(F.MODEL_NAME, "pe3")
+    six = F.model_profile(F.MODEL_NAME, "pe:" + "+".join(SIX))
+    _write(tmp_path, _scored_record("scenario_000", pe3, six, status="provider_error"))
+    monkeypatch.setattr(F, "_require_engine", lambda board: None)
+    monkeypatch.setenv(F.provider_key(pe3.model_id), "test-key")
+
+    def no_pool(**kwargs):
+        raise AssertionError("the run got as far as starting the calculator")
+
+    monkeypatch.setattr(F, "ToolPool", no_pool)
+    args = argparse.Namespace(
+        out_dir=str(tmp_path),
+        board=None,
+        model=F.MODEL_NAME,
+        arm="pe3",
+        prompt="v1",
+        forbid_benchmark_search=False,
+        scenarios=None,
+        limit=None,
+        workers=1,
+        budget_usd=1.0,
+        reserve_usd=0.0,
+    )
+    with pytest.raises(SystemExit, match="another treatment"):
+        F.command_run(args)
+    assert not list(tmp_path.glob("manifest-*.json"))
+
+
+def test_score_refuses_a_folder_mixing_treatments(tmp_path):
+    import argparse
+
+    pe3 = F.model_profile(F.MODEL_NAME, "pe3")
+    six = F.model_profile(F.MODEL_NAME, "pe:" + "+".join(SIX))
+    _write(
+        tmp_path,
+        _scored_record("scenario_000", pe3),
+        _scored_record("scenario_001", pe3, six, status="provider_error"),
+    )
+    args = argparse.Namespace(out_dir=str(tmp_path), complete_only=False)
+    with pytest.raises(SystemExit, match="another treatment"):
+        F.command_score(args)
+    assert not (tmp_path / "score.json").exists()
+    # The same folder without the stray record scores.
+    (tmp_path / "households" / "scenario_001.json").unlink()
+    F.command_score(args)
+    assert json.loads((tmp_path / "score.json").read_text())["households"] == 1
+
+
+def test_score_rebuilds_notices_on_the_boards_engine_and_restores_it(
+    tmp_path, monkeypatch
+):
+    # A household set's records state its engine (2.60.4) in their notices and
+    # schema, so a check on the reference engine's text would refuse them all.
+    import argparse
+
+    monkeypatch.setattr(F, "board_engine", lambda snapshot=None: "2.60.4")
+    pe3 = F.model_profile(F.MODEL_NAME, "pe3")
+    with F.stating_engine("2.60.4"):
+        current = _scored_record("scenario_000", pe3)
+    _write(tmp_path, current)
+    args = argparse.Namespace(out_dir=str(tmp_path), complete_only=False)
+    F.command_score(args)
+    assert F._STATED_ENGINE["version"] == F.REFERENCE_ENGINE
+    # Beside it, a record sent under the reference engine's text mixes two.
+    _write(tmp_path, _scored_record("scenario_001", pe3))
+    with pytest.raises(SystemExit, match="another tool notice"):
+        F.command_score(args)
+    assert F._STATED_ENGINE["version"] == F.REFERENCE_ENGINE
+
+
+def test_score_takes_a_folder_written_wholly_before_the_texts_stated_the_engine(
+    tmp_path, monkeypatch, capsys
+):
+    # Test batch 0's frontier calculator arms (b6d835a8) were told 2.41.0 while
+    # the board and calculator ran 2.60.4: one treatment, scored as it ran. A
+    # resume into it is still refused, since new records would say 2.60.4.
+    import argparse
+
+    monkeypatch.setattr(F, "board_engine", lambda snapshot=None: "2.60.4")
+    pe = F.model_profile(F.MODEL_NAME, "pe")
+    _write(
+        tmp_path, _scored_record("scenario_000", pe), _scored_record("scenario_001", pe)
+    )
+    F.command_score(argparse.Namespace(out_dir=str(tmp_path), complete_only=False))
+    assert "name policyengine-us 2.41.0" in capsys.readouterr().out
+    assert json.loads((tmp_path / "score.json").read_text())["households"] == 2
+    with F.stating_engine("2.60.4"):
+        assert len(F.treatment_problems(F.load_records(tmp_path), pe)) == 2
 
 
 def test_flat_reports_a_malformed_first_value_once_and_not_as_a_conflict():
