@@ -1280,14 +1280,29 @@ def flat_names(people) -> list:
     return names
 
 
-def _same_value(registry, name: str, a, b, period: str) -> bool | None:
-    """Whether two values of an input are the same once normalized (None when
-    either is malformed; normalization reports it)."""
-    scratch: list[str] = []
+def _same_value(
+    registry,
+    name: str,
+    a,
+    b,
+    period: str,
+    problems: list[str] | None = None,
+    where: str = "",
+) -> bool | None:
+    """Whether two values of an input are the same once normalized, or None
+    when either is malformed. ``a`` stays in the situation, so normalization
+    reports it later; a caller that drops ``b`` passes ``problems`` so a
+    malformed ``b`` is reported, not lost."""
     info = registry[name]
-    first = _normalize_value("", name, a, info, period, scratch)
-    second = _normalize_value("", name, b, info, period, scratch)
-    return None if scratch else first == second
+    first_problems: list[str] = []
+    second_problems: list[str] = []
+    first = _normalize_value(where, name, a, info, period, first_problems)
+    second = _normalize_value(where, name, b, info, period, second_problems)
+    if problems is not None:
+        problems.extend(second_problems)
+    if first_problems or second_problems:
+        return None
+    return first == second
 
 
 def flat_situation(
@@ -1460,7 +1475,12 @@ def flat_situation(
         else:
             target = unit_of[entity]
         if name in target:
-            if _same_value(registry, resolved, target[name], value, period) is False:
+            # The repeat is dropped, so only one validated as equal is kept quiet.
+            same = _same_value(
+                registry, resolved, target[name], value, period, problems,
+                "household_facts",
+            )
+            if same is False:
                 problems.append(
                     f"household_facts: {resolved} is set twice with different values"
                 )
@@ -3792,6 +3812,46 @@ def record_treatment_problem(record: dict, profile: "ModelProfile") -> str | Non
     return None
 
 
+def resume_treatment_problems(
+    previous: Mapping[str, dict], done: set[str], profile: "ModelProfile"
+) -> list[str]:
+    """record_treatment_problem for each record a resume keeps. A rerunnable
+    record (RERUNNABLE_STATUSES) is replaced under this profile, so it cannot
+    mix treatments and does not block the resume."""
+    return [
+        problem
+        for sid, record in previous.items()
+        if sid in done
+        and (problem := record_treatment_problem(record, profile)) is not None
+    ]
+
+
+def harness_error_record(
+    sid: str, variables: list[str], profile: "ModelProfile", error: Exception
+) -> dict:
+    """The record of a household the harness itself failed on: rerunnable,
+    with every setup and treatment key a resume and score check, so a folder
+    holding it still resumes and scores."""
+    record = {
+        "scenario_id": sid,
+        "model": profile.name,
+        "arm": profile.arm,
+        "prompt_version": profile.prompt_version,
+        "prompt_wording_sha256": prompt_wording_sha256(profile),
+        "benchmark_search_rule": profile.benchmark_search_rule,
+        "tool_notice_sha256": hashlib.sha256(profile.notice.encode()).hexdigest(),
+        **profile_treatment(profile),
+        "variables": variables,
+        "status": "harness_error",
+        "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
+        "turns": [],
+        "predictions": {v: None for v in variables},
+        "explanations": {v: None for v in variables},
+    }
+    record["totals"] = household_totals(record)
+    return record
+
+
 def records_arm(records: Mapping[str, dict]) -> str:
     """The one arm a run directory's records belong to; records written
     before the web arms are the PE tool's."""
@@ -3850,11 +3910,7 @@ def command_run(args) -> None:
             f"{households_dir} holds records sent under other v2-pilot wording "
             f"({records_wording(previous)}); use a fresh --out-dir"
         )
-    mixed = [
-        problem
-        for record in previous.values()
-        if (problem := record_treatment_problem(record, profile)) is not None
-    ]
+    mixed = resume_treatment_problems(previous, done, profile)
     if mixed:
         raise SystemExit(
             f"{households_dir} holds records from another treatment ("
@@ -3959,23 +4015,9 @@ def command_run(args) -> None:
                     profile=profile,
                 )
             except Exception as error:  # one household must not end the run
-                record = {
-                    "scenario_id": sid,
-                    "model": profile.name,
-                    # The setup keys a resume and score check, so a folder with
-                    # this record still resumes and scores.
-                    "arm": profile.arm,
-                    "prompt_version": profile.prompt_version,
-                    "prompt_wording_sha256": prompt_wording_sha256(profile),
-                    "benchmark_search_rule": profile.benchmark_search_rule,
-                    "variables": board["variables"][sid],
-                    "status": "harness_error",
-                    "error": f"{type(error).__name__}: {error}"[:MAX_MESSAGE_CHARS],
-                    "turns": [],
-                    "predictions": {v: None for v in board["variables"][sid]},
-                    "explanations": {v: None for v in board["variables"][sid]},
-                }
-                record["totals"] = household_totals(record)
+                record = harness_error_record(
+                    sid, board["variables"][sid], profile, error
+                )
             if sid in previous:
                 prior = previous[sid]
                 record["prior_attempts"] = prior.get("prior_attempts", []) + [

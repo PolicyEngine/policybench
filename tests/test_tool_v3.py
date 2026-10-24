@@ -819,3 +819,57 @@ def test_a_household_described_from_its_prompt_computes_the_same():
         if len({e for e, dropped in targets if not dropped and e in registry}) > 1
     }
     assert not ambiguous, ambiguous
+
+
+def test_flat_reports_a_malformed_repeat_of_a_fact_it_drops():
+    # Review r2: a repeat that fails validation was dropped without a word.
+    one = [{"name": "Solo", "role": "head", "facts": {"employment_income": 30000}}]
+    for bad in ("40000", [40000], {"26": 40000}, {}):
+        args = _flat(people=one, household_facts={"employment_income": bad})
+        request, error = _norm(args, F.FLAT, F.PLACEMENT)
+        assert request is None, bad
+        assert any("employment_income" in m for m in error["problems"]), (bad, error)
+    # An equal repeat, scalar or by period, still merges quietly; a different
+    # one is still refused.
+    for same in (30000, {"2026": 30000}):
+        args = _flat(people=one, household_facts={"employment_income": same})
+        request, error = _norm(args, F.FLAT, F.PLACEMENT)
+        assert error is None, (same, error)
+    args = _flat(people=one, household_facts={"employment_income": 40000})
+    request, error = _norm(args, F.FLAT, F.PLACEMENT)
+    assert request is None
+    assert any("set twice with different values" in m for m in error["problems"])
+
+
+def test_a_harness_error_record_resumes_under_its_own_arm():
+    # Review r2: the fallback record carried no treatment, so one harness
+    # failure blocked every custom-arm resume.
+    for arm in ("pe3", "pe:labels+flat", "pe", "pe2", "web+pe", "none", "web"):
+        profile = _profile(arm)
+        record = F.harness_error_record("mt_000", ["snap"], profile, RuntimeError("x"))
+        assert record["status"] in F.RERUNNABLE_STATUSES
+        assert F.record_treatment_problem(record, profile) is None, arm
+        assert record["predictions"] == {"snap": None}
+        assert record["totals"]["cost_usd"] == 0
+
+
+def test_a_resume_checks_the_treatment_only_of_records_it_keeps():
+    pe3 = _profile("pe3")
+    stale = _record(pe3, tool_features=["names"])
+    previous = {
+        "mt_000": dict(stale, status="complete"),
+        "mt_001": dict(stale, scenario_id="mt_001", status="harness_error"),
+    }
+    # Kept, so refused.
+    assert len(F.resume_treatment_problems(previous, {"mt_000"}, pe3)) == 1
+    # Rerun under this profile, so no mixing and no block.
+    assert F.resume_treatment_problems(previous, set(), pe3) == []
+
+
+def test_flat_reports_a_malformed_first_value_once_and_not_as_a_conflict():
+    one = [{"name": "Solo", "role": "head", "facts": {"employment_income": "30000"}}]
+    args = _flat(people=one, household_facts={"employment_income": 40000})
+    request, error = _norm(args, F.FLAT, F.PLACEMENT)
+    assert request is None
+    assert not any("set twice" in m for m in error["problems"]), error
+    assert sum("employment_income" in m for m in error["problems"]) == 1, error
