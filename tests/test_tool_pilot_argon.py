@@ -2294,6 +2294,7 @@ def test_web_notices_name_search_and_keep_the_answer_instruction():
         "web": "gpt-6-sol+web",
         "web+pe": "gpt-6-sol+web+pe-tool",
         "pe2": "gpt-6-sol+pe-tool-v2",
+        "pe3": "gpt-6-sol+pe-tool-v3",
     }
     with pytest.raises(SystemExit):
         pilot.model_profile(SOL, "search")
