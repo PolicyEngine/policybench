@@ -42,6 +42,10 @@ COST = 0.01
 TZ = "America/New_York"
 PREREG = "A frozen pre-registration for a test.\n"
 ENGINE = "2.60.4"
+# The harness times requests with the raw wall clock, which steps back by
+# about 0.1 ms on this host, even within a thread; the report allows a second, as
+# here, which also covers a small correction of the clock.
+CLOCK_SLACK = 1.0
 
 
 # ---------------------------------------------------------------- streams
@@ -283,9 +287,11 @@ class Readers:
 
 @pytest.fixture
 def fast(monkeypatch):
-    """Windows scaled down a thousandfold, so a fake run takes a second."""
+    """Windows scaled down a thousandfold, so a fake run takes a second; the
+    host-log gap less, so a sampler a busy host stalls past 90 ms (seen at a
+    load of 12) is not a gap."""
     monkeypatch.setattr(cr, "PRESSURE_WINDOW", 0.06)
-    monkeypatch.setattr(cr, "HOST_LOG_GAP", 0.09)
+    monkeypatch.setattr(cr, "HOST_LOG_GAP", 0.5)
     monkeypatch.setattr(cr, "WAIT_SECONDS", 0.005)
     monkeypatch.setattr(cr, "HOUSEHOLDS", N_DRAW)
 
@@ -328,8 +334,8 @@ def test_a_stalled_host_log_is_a_gap(tmp_path, fast):
     host = readers.host(tmp_path)
     time.sleep(0.03)
     start = time.time()
-    readers.stall = 0.2
-    time.sleep(0.25)
+    readers.stall = 0.8
+    time.sleep(0.85)
     end = time.time()
     host.wait_settled(end)
     host.refresh(after=end)
@@ -356,6 +362,34 @@ def test_guard_pauses_and_sleeps_reach_an_attempt_after_a_refresh(tmp_path, fast
 
 
 # ---------------------------------------------------------------- the ceiling
+
+
+def test_the_clock_never_goes_back(monkeypatch):
+    monkeypatch.setattr(cr, "_clock_last", cr._clock_last)  # restored after
+    base = time.time() + 1000.0
+    readings = iter([base, base - 1e-4, base + 2e-4, base - 5.0, base + 3e-4])
+    monkeypatch.setattr(time, "time", lambda: next(readings))
+    assert [cr.clock() for _ in range(5)] == [
+        base,
+        base,
+        base + 2e-4,
+        base + 2e-4,
+        base + 3e-4,
+    ]
+
+
+def test_a_wall_clock_that_steps_back_keeps_the_run_procedure(world, monkeypatch):
+    """Every reading of the wall clock up to 0.2 ms early (steps back of up to
+    0.1 ms seen on this host): the run's times still order its attempts,
+    stops and decisions."""
+    import random
+
+    jitter, real = random.Random(7), time.time
+    monkeypatch.setattr(time, "time", lambda: real() - jitter.uniform(0.0, 2e-4))
+    w = world().execute()
+    assert run_problems(w) == []
+    for model in w.models:
+        assert len(w.attempts(model)) == N_DRAW * len(labels_of(model))
 
 
 def test_the_ceiling_crosses_at_its_amount_and_stays_crossed():
@@ -648,6 +682,7 @@ def run_problems(world: World) -> list[str]:
         cost: dict[str, float] = {}
         span: dict[str, list[float]] = {}
         by_run: dict = {}
+        cut_short: set[str] = set()  # an arm or a rerun the stop kept from running
         for x in lines:
             by_run.setdefault((x["household"], x["arm"]), []).append(x)
         # Records and hashes.
@@ -699,17 +734,25 @@ def run_problems(world: World) -> list[str]:
                     problems.append(f"{at}#{k}: status or lane")
                 if k < len(xs) and rule not in ("rerun", "pause-rerun"):
                     problems.append(f"{at}#{k}: rerun after {cls}")
-                if k == len(xs) and rule in ("rerun", "pause-rerun") and not stops:
-                    problems.append(
-                        f"{at}#{k}: a rerun due and never run, with no stop"
-                    )
+                if k == len(xs) and rule in ("rerun", "pause-rerun"):
+                    cut_short.add(sid)
+                    if not stops:
+                        problems.append(
+                            f"{at}#{k}: a rerun due and never run, with no stop"
+                        )
                 times = [
                     t[key]
                     for t in rec.get("turns") or []
                     for key in ("request_started_at", "request_completed_at")
                 ]
-                if times and (min(times) < x["start"] or max(times) > x["end"]):
-                    problems.append(f"{at}#{k}: requests outside its start and end")
+                if times and (
+                    min(times) < x["start"] - CLOCK_SLACK
+                    or max(times) > x["end"] + CLOCK_SLACK
+                ):
+                    problems.append(
+                        f"{at}#{k}: requests {min(times)!r}-{max(times)!r} outside "
+                        f"its start and end {x['start']!r}-{x['end']!r}"
+                    )
                 if x["start"] > stopped_at:
                     problems.append(f"{at}#{k}: started after a stop")
                 cost[sid] = cost.get(sid, 0.0) + cr.attempt_cost(rec)
@@ -743,6 +786,8 @@ def run_problems(world: World) -> list[str]:
                     again = {x["arm"] for x in block if x["attempt"] == n}
                     want += [(n, a) for a in drawn[sid] if a in again]
                 cut = firsts != drawn[sid]
+                if cut:
+                    cut_short.add(sid)
                 if got != want or firsts != drawn[sid][: len(firsts)]:
                     problems.append(f"{model}/{sid}: ran {got}, drawn {drawn[sid]}")
                 if cut and not (stops and i == len(blocks) - 1):
@@ -755,13 +800,17 @@ def run_problems(world: World) -> list[str]:
         reserve = world.design["reserves"][model]
         admitted: dict[str, float] = {}
         refused = False
+        # A household a stop cut short is under way until the stop.
+        ended = {
+            h: max(e, stopped_at) if h in cut_short else e for h, (_, e) in span.items()
+        }
         for x in decisions:
             sid, t = x["household"], x["time"]
             if sid in world.no_output:
                 problems.append(
                     f"{model}/{sid}: a household with no scored output decided"
                 )
-            finished = [h for h in admitted if h in span and span[h][1] <= t]
+            finished = [h for h in admitted if h in ended and ended[h] <= t]
             spend = sum(cost[h] for h in finished)
             under = sum(1 for h in admitted if h not in finished) + 1
             ok = not refused and spend + under * reserve <= cap + cr.ADMISSION_SLACK
@@ -970,7 +1019,7 @@ def test_host_trouble_during_an_attempt_reruns_it(world):
     pressured, stalled = w.draw_order[0], w.draw_order[2]  # both lane 1
     w.provider.specs = {
         (model, "loo-flat", pressured, 1): {"pressure": True, "sleep": 0.05},
-        (model, "pe", stalled, 1): {"stall": 0.15},
+        (model, "pe", stalled, 1): {"stall": 0.8},
     }
     w.execute()
 
@@ -1240,6 +1289,46 @@ def test_a_pool_that_cannot_start_again_stops_the_model(world, monkeypatch):
     w.execute()
     stops = w.events(model, "stop")
     assert stops and "engine pool" in stops[0]["reason"]
+    assert run_problems(w) == []
+
+
+def test_a_household_a_stop_cuts_short_is_under_way_until_the_stop(world):
+    """Lane 1's first household loses the pool in its first arm, and the
+    restart fails 0.6 s later. In between, lane 2 finishes its household and
+    decides its next: the household lane 1 cut short has ended its last
+    attempt, but it is still under way, so its spend is not counted."""
+    model = "gpt-6-sol"
+    made = []
+
+    class Losing(FakePool):
+        def call(self, message):
+            self.lost = 2
+            return super().call(message)
+
+    def pool(lanes):
+        made.append(1)
+        if len(made) > 1:
+            time.sleep(0.6)
+            raise RuntimeError("tool worker failed to start: a test")
+        return Losing(lanes)
+
+    w = world(models=(model,), pool=pool)
+    cut, other, after = w.draw_order[0], w.draw_order[1], w.draw_order[3]
+    orders = w.run.lanes[model].orders
+    w.provider.specs = {
+        (model, orders[cut][0], cut, 1): {"sleep": 0.1, "calls": [{"situation": "{}"}]},
+        (model, orders[other][0], other, 1): {"sleep": 0.02},
+        (model, orders[other][1], other, 1): {"sleep": 0.3},
+    }
+    w.execute()
+    stop = w.events(model, "stop")[0]["time"]
+    decided = {x["household"]: x for x in w.lines(model, "admission-log.jsonl")}
+    assert decided[after]["time"] < stop  # decided while the cut household waited
+    assert decided[after]["finished_spend"] == pytest.approx(2 * COST)  # `other` only
+    assert decided[after]["under_way"] == 2  # `cut` and `after`
+    assert [x["arm"] for x in w.attempts(model) if x["household"] == cut] == [
+        orders[cut][0]
+    ]
     assert run_problems(w) == []
 
 

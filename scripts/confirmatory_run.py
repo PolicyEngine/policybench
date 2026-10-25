@@ -331,6 +331,21 @@ def attempt_cost(record: dict) -> float:
     return float((record.get("totals") or {}).get("cost_usd") or 0.0)
 
 
+_clock_lock = threading.Lock()
+_clock_last = 0.0
+
+
+def clock() -> float:
+    """`time.time()`, never earlier than a time it gave before. The wall clock
+    can step back by about 0.1 ms, even within a thread, and the run records order
+    attempts, stops, admission decisions and the ceiling's crossing by the
+    times this gives; each is taken under the lock that orders it."""
+    global _clock_last
+    with _clock_lock:
+        _clock_last = max(time.time(), _clock_last)
+        return _clock_last
+
+
 # ---------------------------------------------------------------- host evidence
 
 
@@ -613,7 +628,7 @@ class Ceiling(pilot.Spend):
         with self._lock:
             self.spent_usd += float(usd or 0.0)
             if self.crossed_at is None and self.spent_usd >= self.budget_usd:
-                self.crossed_at = time.time()
+                self.crossed_at = clock()
 
     def exhausted(self, reserve_usd: float = 0.0) -> bool:
         with self._lock:
@@ -716,7 +731,7 @@ class Lanes:
 
     def event(self, kind: str, reason: str, at: float | None = None) -> None:
         self.write_line(
-            {"event": kind, "time": time.time() if at is None else at, "reason": reason}
+            {"event": kind, "time": clock() if at is None else at, "reason": reason}
         )
         self.run.say(f"{self.model}: {kind} ({reason})")
 
@@ -765,7 +780,7 @@ class Lanes:
                 self.cond.wait(timeout=WAIT_SECONDS)
             if self.halted():
                 return False
-            now = time.time()
+            now = clock()
             finished = [h for h, s in self.state.items() if s == "finished"]
             spend = sum(self.spent[h] for h in finished)
             under_way = len(self.state) - len(finished) + 1
@@ -803,7 +818,7 @@ class Lanes:
             with self.run.ceiling.lock:
                 if self.stopped or self.run.ceiling.crossed_at is not None:
                     return None
-                return time.time()
+                return clock()
 
     def end_attempt(
         self, sid: str, label: str, n: int, start: float, record: dict, last: bool
@@ -812,7 +827,7 @@ class Lanes:
         once: an operator failure pauses the lanes, a harness failure stops
         them, before any other attempt can start."""
         with self.cond:
-            end = time.time()
+            end = clock()
             self.spent[sid] += attempt_cost(record)
             attempt = Attempt(label, n, start, end, record)
             cls, detail = classify(record, start, end, None)
