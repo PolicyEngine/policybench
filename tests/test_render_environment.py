@@ -71,8 +71,9 @@ def test_docs_site_stack_is_not_locked():
 #     applies to the whole file;
 #   - includes: -r FILE, --requirement FILE or --requirement=FILE, where FILE
 #     is a relative path, resolved against the including file's directory,
-#     that names no symlink, has no .. after a symlinked directory, doesn't
-#     end in / or /. and closes no cycle;
+#     that names no symlink (read either with .. collapsed, as pip opens it,
+#     or as the OS resolves it), has no .. after a symlinked directory,
+#     doesn't end in / or /. and closes no cycle;
 #   - requirements: a name, optional extras and version specifiers with no
 #     empty parentheses or trailing comma; no URL, path, marker, archive name
 #     or per-requirement option.
@@ -126,7 +127,9 @@ def _requirement_names(path: Path, _including: tuple[str, ...] = ()) -> set[str]
                 f"an include path ending in / or /.: {where}"
             )
             target = path.parent / include.group(1)
-            assert not os.path.islink(target), f"an include of a symlink: {where}"
+            assert not (
+                os.path.islink(target) or os.path.islink(os.path.normpath(target))
+            ), f"an include of a symlink: {where}"
             # pip collapses .. before opening the file (os.path.abspath),
             # while opening it follows a symlink before applying the ..
             lexical = os.path.realpath(os.path.normpath(target))
@@ -135,6 +138,9 @@ def _requirement_names(path: Path, _including: tuple[str, ...] = ()) -> set[str]
             )
             names |= _requirement_names(target, (*_including, real))
             continue
+        assert not re.match(r"(?:-r\s+|--requirement(?:\s+|=))/", line), (
+            f"an absolute include path: {where}"
+        )
         assert not line.startswith("-"), f"an option: {where}"
         assert not re.search(r"\s-", line), f"a per-requirement option: {where}"
         assert not re.search(r"[@:/\\]", line), f"a URL or path: {where}"
@@ -207,7 +213,8 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         ("-r requirements.txt\n", "an include cycle"),
         ("foo\n-r requirements.txt\n", "an include cycle"),
         ("-r base.txt/\n", "an include path ending in /"),
-        ("-r /abs/base.txt\n", "an option"),
+        ("-r /abs/base.txt\n", "an absolute include path"),
+        ("--requirement=/abs/base.txt\n", "an absolute include path"),
         ("--requirement=base.txt/.\n", "an include path ending in /"),
         ("-r=base.txt\n", "an option"),  # pip opens "=base.txt"; uv, base.txt
         ("-rbase.txt\n", "an option"),
@@ -283,6 +290,15 @@ def test_requirement_names_refuse_an_include_whose_dotdot_crosses_a_symlink(
         _requirement_names(requirements)
 
 
+def test_requirement_names_refuse_an_absolute_include(tmp_path):
+    """Refused whatever characters the machine's temp path holds."""
+    (tmp_path / "base.txt").write_text("jupyter-book\n")
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(f"-r {tmp_path / 'base.txt'}\n")
+    with pytest.raises(AssertionError, match="an absolute include path"):
+        _requirement_names(requirements)
+
+
 def test_requirement_names_refuse_an_include_of_a_symlink(tmp_path):
     """A symlinked file's own includes resolve against the link's directory."""
     (tmp_path / "a").mkdir()
@@ -295,6 +311,15 @@ def test_requirement_names_refuse_an_include_of_a_symlink(tmp_path):
     requirements.write_text("-r ../a/real.txt\n")
     assert _requirement_names(requirements) == {"foo"}
     requirements.write_text("-r link.txt\n")
+    with pytest.raises(AssertionError, match="an include of a symlink"):
+        _requirement_names(requirements)
+    # pip opens docs/x.txt, a symlink; the OS follows sub to e/inner first
+    # and opens e/x.txt, a regular file, so both read the same file.
+    (tmp_path / "e" / "inner").mkdir(parents=True)
+    (tmp_path / "e" / "x.txt").write_text("jupyter-book\n")
+    (tmp_path / "docs" / "x.txt").symlink_to("../e/x.txt")
+    (tmp_path / "docs" / "sub").symlink_to("../e/inner")
+    requirements.write_text("-r sub/../x.txt\n")
     with pytest.raises(AssertionError, match="an include of a symlink"):
         _requirement_names(requirements)
 
