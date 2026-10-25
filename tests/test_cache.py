@@ -1982,16 +1982,47 @@ def test_an_entry_whose_filesystem_cant_be_read_is_a_cache_dir_error(
     )
 
 
+def test_a_parent_that_cant_be_statted_is_named(monkeypatch, tmp_path):
+    """Review r7 nit 3: when fstat fails on a parent directory, the error names
+    that parent, not the cache."""
+    cache_dir = make_cache(tmp_path)
+    parent = os.stat(tmp_path)
+    real = os.fstat
+
+    def fstat(fd):
+        opened = real(fd)
+        if (opened.st_dev, opened.st_ino) == (parent.st_dev, parent.st_ino):
+            raise OSError(errno.EIO, os.strerror(errno.EIO))
+        return opened
+
+    monkeypatch.setattr(cache_module.os, "fstat", fstat)
+    with pytest.raises(CacheDirError) as refused:
+        secure_cache_dir(str(cache_dir))
+    assert not isinstance(refused.value, UnsafeCacheDirError)
+    assert str(refused.value) == (
+        f"Can't check {os.path.realpath(tmp_path)}, a parent directory of the "
+        f"LiteLLM disk cache {os.path.realpath(cache_dir)}: "
+        f"{os.strerror(errno.EIO)}."
+    )
+
+
 @pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
 def test_filesystem_of_agrees_with_the_platforms_own_tools(tmp_path):
     """filesystem_of's reading of struct statfs, for a directory opened for
     reading and for search only, is what coreutils' stat (Linux) or mount
     (macOS) reports for it."""
     answers = set()
+    mounts = set()
     for flags in (os.O_RDONLY, cache_module._SEARCH_FLAGS or os.O_RDONLY):
         fd = os.open(tmp_path, flags | os.O_DIRECTORY)
         try:
             answers.add(filesystem_of(fd))
+            if sys.platform == "darwin":
+                # f_mntonname[MAXPATHLEN] follows f_fstypename in the same
+                # struct, so each descriptor's mount is read too.
+                buffer = ctypes.create_string_buffer(4096)
+                assert cache_module._fstatfs()(fd, buffer) == 0
+                mounts.add(os.fsdecode(buffer.raw[88:].split(b"\0")[0]))
         finally:
             os.close(fd)
     if sys.platform.startswith("linux"):
@@ -2024,15 +2055,9 @@ def test_filesystem_of_agrees_with_the_platforms_own_tools(tmp_path):
     ]
     assert len(kinds) == 1
     assert answers == set(kinds)
-    # Both / and /System/Volumes/Data are apfs, so check the mount too:
-    # f_mntonname[MAXPATHLEN] follows f_fstypename in the same struct.
-    buffer = ctypes.create_string_buffer(4096)
-    fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        assert cache_module._fstatfs()(fd, buffer) == 0
-    finally:
-        os.close(fd)
-    assert os.fsdecode(buffer.raw[88:].split(b"\0")[0]) == point
+    # Both / and /System/Volumes/Data are apfs, so the type alone could match
+    # the wrong mount; each descriptor must name this one (review r7 nit 3).
+    assert mounts == {point}
 
 
 @pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")

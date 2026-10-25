@@ -458,10 +458,13 @@ def _unchecked_acl(target: int | str) -> str | None:
 # file when its directory's ACL lets it, whatever the group and other mode
 # bits say (fs/afs/security.c), and OpenAFS shows no ACL at all: its Linux
 # client has no xattr handlers (src/afs/LINUX/osi_vnodeops.c). fstatfs names
-# the filesystem an open descriptor is on, so each entry, file or directory,
-# is judged where it really is, a file mounted over another included. On
-# Linux that is the superblock's magic: the kernel's AFS client reports
-# AFS_FS_MAGIC (fs/afs/super.c), and OpenAFS hardcodes 0x5346414F
+# the filesystem the opened entry belongs to, so each entry, file or
+# directory, is judged by its own, a bind mount or a file mounted over another
+# included. A layer stacked on top, such as FUSE, overlayfs or eCryptfs,
+# reports its own type instead (fs/fuse/inode.c, fs/overlayfs/super.c,
+# fs/ecryptfs/super.c). On Linux fstatfs gives f_type, which each
+# filesystem's statfs sets: the kernel's AFS client reports AFS_FS_MAGIC
+# (fs/afs/super.c), and OpenAFS hardcodes 0x5346414F
 # (src/afs/LINUX/osi_vfsops.c), which include/uapi/linux/magic.h names
 # AFS_SUPER_MAGIC. On macOS it is the type name, which OpenAFS registers as
 # "afs" (src/afs/DARWIN/osi_module.c).
@@ -470,10 +473,11 @@ def _unchecked_acl(target: int | str) -> str | None:
 # - SMB. The server decides who may write, by its own ACLs, while the client
 #   may show owners and modes it makes up from mount options such as uid= and
 #   file_mode= (Documentation/admin-guide/cifs/usage.rst). The server's ACL
-#   shows as system.cifs_acl, which the guard can't judge, but a dialect
-#   that can't fetch it gives EOPNOTSUPP (fs/smb/client/xattr.c), which reads
-#   as no ACL. Its statfs reports CIFS_SUPER_MAGIC over SMB1 and
-#   SMB2_SUPER_MAGIC over SMB2 and 3 (fs/smb/client/smb1ops.c, smb2ops.c).
+#   shows as system.cifs_acl, which the guard can't judge, but the probe can
+#   come back empty: the client turns an EINVAL from the fetch into
+#   EOPNOTSUPP (fs/smb/client/xattr.c), which reads as no ACL. Its statfs
+#   reports CIFS_SUPER_MAGIC over SMB1 and SMB2_SUPER_MAGIC over SMB2 and 3
+#   (fs/smb/client/smb1ops.c, smb2ops.c).
 # - Coda. Its servers enforce protection by ACLs
 #   (Documentation/filesystems/coda.rst), and the client asks its cache
 #   manager, Venus, whether each access is allowed rather than reading the
@@ -518,7 +522,7 @@ def filesystem_of(fd: int) -> int | str | None:
     f_type magic, macOS's type name, or None elsewhere."""
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         return None
-    buffer = ctypes.create_string_buffer(4096)  # struct statfs is smaller
+    buffer = ctypes.create_string_buffer(4096)  # each struct is smaller
     if _fstatfs()(fd, buffer) != 0:
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error))
@@ -532,7 +536,7 @@ def filesystem_of(fd: int) -> int | str | None:
 
 
 def statfs_f_type(raw: bytes, byteorder: str, machine: str, long_size: int) -> int:
-    """The low 32 bits of a Linux struct statfs's f_type.
+    """The low 32 bits of f_type in a Linux struct statfs or statfs64.
 
     f_type comes first: a long, but 64 bits on x32, whose long has 32
     (glibc's x86 bits/typesizes.h), and an unsigned int on s390x (glibc's and
@@ -742,8 +746,8 @@ def _open_checked_cache_dir(
     fd, readable = _open_directory(current, None, current, search_ok=bool(names))
     try:
         for index, name in enumerate(names):
-            st = os.fstat(fd)
             try:
+                st = os.fstat(fd)
                 problem = parent_problem(st, uid, private_gid) or _acl_problem(
                     fd, readable, st, uid, private_gid, inherited_too=False
                 )
