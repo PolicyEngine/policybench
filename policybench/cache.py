@@ -5,6 +5,7 @@ import ctypes.util
 import errno
 import functools
 import os
+import platform
 import stat
 import struct
 import sys
@@ -409,18 +410,14 @@ def nfs4_acl_problem(
 
 
 # ACL attributes Linux shows for filesystems whose ACLs the guard can't judge:
-# OpenZFS's NFSv4 ACLs, SMB's security descriptors, and the ACLs of the
-# kernel's AFS client, which it doesn't list (fs/afs/xattr.c). Any other
-# system, security or afs attribute with "acl" or "ntsd" in its name is
-# refused the same way.
+# OpenZFS's NFSv4 ACLs and SMB's security descriptors. Any other system or
+# security attribute with "acl" or "ntsd" in its name is refused the same way.
+# AFS is refused by filesystem type instead (_unchecked_filesystem).
 _UNCHECKED_ACLS = (
     "system.nfs4_acl_xdr",
     "security.nfs4acl_xdr",
     "system.cifs_acl",
     "system.smb3_acl",
-    "afs.acl",
-    "afs.yfs.acl",
-    "afs.yfs.vol_acl",
 )
 # Read and judged: POSIX ACLs and NFSv4's. The SACL holds only audit and
 # alarm entries, which grant nothing (RFC 5661 section 6.2.3).
@@ -446,7 +443,7 @@ def _unchecked_acl(target: int | str) -> str | None:
     for name in names:
         lowered = name.lower()
         if (
-            lowered.startswith(("system.", "security.", "afs."))
+            lowered.startswith(("system.", "security."))
             and ("acl" in lowered or "ntsd" in lowered)
             and name not in _CHECKED_ACLS
         ):
@@ -458,35 +455,66 @@ def _unchecked_acl(target: int | str) -> str | None:
 
 # Filesystems whose grants the guard can't read. AFS lets an account write a
 # file when its directory's ACL lets it, whatever the group and other mode
-# bits say (fs/afs/security.c), and OpenAFS's client shows no ACL attribute at
-# all (its src/afs/LINUX/osi_vnodeops.c has no xattr handlers). Both clients
-# register the type "afs".
-_UNCHECKED_FILESYSTEMS = frozenset({"afs"})
+# bits say (fs/afs/security.c), and OpenAFS shows no ACL at all: its Linux
+# client has no xattr handlers (src/afs/LINUX/osi_vnodeops.c). fstatfs names
+# the filesystem an open descriptor is on, so each entry, file or directory,
+# is judged where it really is, a file mounted over another included. On
+# Linux that is the superblock's magic: the kernel's AFS client reports
+# AFS_FS_MAGIC (fs/afs/super.c), and OpenAFS hardcodes 0x5346414F
+# (src/afs/LINUX/osi_vfsops.c), which include/uapi/linux/magic.h names
+# AFS_SUPER_MAGIC. On macOS it is the type name, which OpenAFS registers as
+# "afs" (src/afs/DARWIN/osi_module.c).
+_UNCHECKED_FILESYSTEMS = {0x6B414653: "AFS", 0x5346414F: "AFS", "afs": "AFS"}
 
 
-def mountinfo_filesystem_type(mountinfo: str, dev: int) -> str | None:
-    """The type /proc/self/mountinfo gives the filesystem on device ``dev``.
-
-    Each line has the device's st_dev, as major:minor, in its third field,
-    and the type right after the "-" that ends its optional fields
-    (proc_pid_mountinfo(5)).
-    """
-    device = f"{os.major(dev)}:{os.minor(dev)}"
-    for line in mountinfo.splitlines():
-        fields = line.split()
-        if len(fields) > 2 and fields[2] == device and "-" in fields[6:]:
-            separator = fields.index("-", 6)
-            if separator + 1 < len(fields):
-                return fields[separator + 1]
-    return None
+@functools.cache
+def _fstatfs():
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        try:  # the 64-bit-inode struct on Intel; arm64 has only that one
+            fstatfs = libc["fstatfs$INODE64"]
+        except AttributeError:
+            fstatfs = libc.fstatfs
+    else:
+        fstatfs = ctypes.CDLL(None, use_errno=True).fstatfs
+    fstatfs.restype = ctypes.c_int
+    fstatfs.argtypes = [ctypes.c_int, ctypes.c_char_p]
+    return fstatfs
 
 
-def _filesystem_type(dev: int) -> str | None:
-    try:
-        with open("/proc/self/mountinfo") as mountinfo:
-            return mountinfo_filesystem_type(mountinfo.read(), dev)
-    except OSError:
+def filesystem_of(fd: int) -> int | str | None:
+    """The filesystem an open descriptor is on, as fstatfs gives it: Linux's
+    f_type magic, macOS's type name, or None elsewhere."""
+    if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         return None
+    buffer = ctypes.create_string_buffer(4096)  # struct statfs is smaller
+    if _fstatfs()(fd, buffer) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    if sys.platform == "darwin":
+        # f_fstypename[16] follows twelve fixed fields (sys/mount.h).
+        return buffer.raw[72:88].split(b"\0")[0].decode()
+    return statfs_f_type(
+        buffer.raw, sys.byteorder, platform.machine(), ctypes.sizeof(ctypes.c_long)
+    )
+
+
+def statfs_f_type(raw: bytes, byteorder: str, machine: str, long_size: int) -> int:
+    """The low 32 bits of a Linux struct statfs's f_type.
+
+    f_type comes first: a long, but an unsigned int on s390x (glibc's and
+    musl's bits/statfs.h). The magics fit in 32 bits, so the field's low four
+    bytes hold them: its first four on a little-endian machine, whatever its
+    width, and its last four on a big-endian one.
+    """
+    width = 4
+    if byteorder == "big" and machine != "s390x":
+        width = long_size
+    return int.from_bytes(raw[width - 4 : width], byteorder)
+
+
+def _unchecked_filesystem(fd: int) -> str | None:
+    return _UNCHECKED_FILESYSTEMS.get(filesystem_of(fd))
 
 
 def _xattr(target: int | str, name: str) -> bytes | None:
@@ -521,8 +549,15 @@ def _acl_problem(
     *,
     inherited_too: bool,
 ) -> str | None:
-    """Why an ACL on this entry lets another account write it or, with
-    ``inherited_too``, entries made in it later. Checked on macOS and Linux."""
+    """Why an ACL on this entry, or the filesystem it is on, lets another
+    account write it or, with ``inherited_too``, entries made in it later.
+    Checked on macOS and Linux."""
+    filesystem = _unchecked_filesystem(fd)
+    if filesystem:
+        return (
+            f"is on {filesystem}, whose ACLs PolicyBench can't check, so the cache "
+            "must be on another filesystem, such as a local disk"
+        )
     if sys.platform == "darwin":
         text = _darwin_acl_text(fd)
         if text is None:
@@ -545,14 +580,6 @@ def _linux_acl_problem(
     *,
     inherited_too: bool,
 ) -> str | None:
-    # Directories only: a file is on its directory's filesystem unless
-    # something is mounted on it, which takes root.
-    if stat.S_ISDIR(st.st_mode):
-        filesystem = _filesystem_type(st.st_dev)
-        if filesystem in _UNCHECKED_FILESYSTEMS:
-            return (
-                f"is on an {filesystem} filesystem, whose ACLs PolicyBench can't check"
-            )
     unchecked = _unchecked_acl(target)
     if unchecked:
         return f"has an ACL PolicyBench can't check ({unchecked})"

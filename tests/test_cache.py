@@ -3,18 +3,20 @@
 import errno
 import glob
 import os
+import re
 import stat
 import struct
 import subprocess
 import sys
 import threading
+import time
 from itertools import chain, combinations
 from unittest.mock import patch
 
 import diskcache
 import litellm
 import pytest
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from policybench import cache as cache_module
@@ -24,14 +26,15 @@ from policybench.cache import (
     cache_problem,
     darwin_acl_problem,
     enable_cache,
+    filesystem_of,
     linux_acl_problem,
-    mountinfo_filesystem_type,
     nfs4_acl_entries,
     nfs4_acl_problem,
     parent_problem,
     posix_acl_entries,
     process_umask,
     secure_cache_dir,
+    statfs_f_type,
     umask_problem,
 )
 from policybench.model_cards import PROMPT_CONTRACT_VERSION
@@ -1447,6 +1450,16 @@ def test_an_access_acl_is_refused_when_acl5_lets_another_account_write(entries, 
     entries=posix_acls(),
     new_gids=st.sampled_from([{GID}, {OTHER_GID}, {GID, OTHER_GID}]),
 )
+# The owning-group entry writes, and new entries may get a shared group even
+# though the directory's own group is private.
+@example(
+    entries=[
+        (USER_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (GROUP_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (OTHER, 0o5, ACL_UNDEFINED_ID),
+    ],
+    new_gids={GID, OTHER_GID},
+)
 def test_a_default_acl_is_refused_exactly_when_new_entries_would_be_writable(
     entries, new_gids
 ):
@@ -1781,19 +1794,41 @@ def fake_linux_xattrs(monkeypatch, attributes: dict[str, bytes]) -> None:
     monkeypatch.setattr(cache_module, "_xattr", xattr)
 
 
-def linux_verdict(
-    monkeypatch, attributes, *, inherited_too=True, filesystem="ext4", mode=None
-):
+def linux_verdict(monkeypatch, attributes, *, inherited_too=True):
     monkeypatch.setattr(cache_module, "_BSD_GROUPS", False)
     monkeypatch.setattr(os, "getegid", lambda: GID)
-    monkeypatch.setattr(cache_module, "_filesystem_type", lambda dev: filesystem)
     fake_linux_xattrs(monkeypatch, attributes)
-    entry = stat_with(0o755, ME)
-    if mode is not None:
-        entry = os.stat_result((mode, *entry[1:]))
     return cache_module._linux_acl_problem(
-        "entry", entry, ME, private_to_me, inherited_too=inherited_too
+        "entry", stat_with(0o755, ME), ME, private_to_me, inherited_too=inherited_too
     )
+
+
+def test_linux_reads_only_attributes_a_search_only_entry_allows(monkeypatch):
+    """Review r5 finding 4: without read permission on an entry, as through a
+    search-only parent's /proc/self/fd link, Linux refuses any attribute name
+    outside system. and security. with EACCES (xattr_permission in
+    fs/xattr.c), so the guard asks for none."""
+
+    def getxattr(target, name):
+        if not name.startswith(("system.", "security.")):
+            raise PermissionError(errno.EACCES, os.strerror(errno.EACCES))
+        raise OSError(errno.ENODATA, os.strerror(errno.ENODATA))
+
+    monkeypatch.setattr(cache_module, "_BSD_GROUPS", False)
+    monkeypatch.setattr(os, "getegid", lambda: GID)
+    monkeypatch.setattr(os, "listxattr", lambda target: [], raising=False)
+    monkeypatch.setattr(os, "getxattr", getxattr, raising=False)
+    for inherited_too in (True, False):
+        assert (
+            cache_module._linux_acl_problem(
+                "entry",
+                stat_with(0o755, ME),
+                ME,
+                private_to_me,
+                inherited_too=inherited_too,
+            )
+            is None
+        )
 
 
 def test_linux_reads_nfs4_acls_then_posix_acls(monkeypatch):
@@ -1847,13 +1882,6 @@ def test_linux_reads_an_nfs4_dacl(monkeypatch, name):
         "hidden:security.nfs4acl_xdr",
         "hidden:system.cifs_acl",
         "hidden:system.smb3_acl",
-        # Review r4 finding 1: the kernel's AFS client lists none of these.
-        # A listed one, from a client that lists them, is refused too.
-        "afs.yfs.acl_inherited",
-        "afs.acl",
-        "hidden:afs.acl",
-        "hidden:afs.yfs.acl",
-        "hidden:afs.yfs.vol_acl",
     ],
 )
 def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
@@ -1866,67 +1894,137 @@ def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
         )
 
 
-def test_linux_refuses_directories_on_afs(monkeypatch):
-    """Review r4 finding 1: AFS grants writes by its directories' ACLs, which
-    OpenAFS doesn't show as attributes, so any directory on AFS is refused,
-    with or without them."""
-    for attributes in ({}, {"hidden:afs.acl": b""}):
-        for inherited_too in (True, False):
-            assert linux_verdict(
-                monkeypatch, attributes, inherited_too=inherited_too, filesystem="afs"
-            ) == ("is on an afs filesystem, whose ACLs PolicyBench can't check")
-    # A file shares its directory's filesystem, which is judged with it.
-    regular = stat.S_IFREG | 0o644
-    assert linux_verdict(monkeypatch, {}, filesystem="afs", mode=regular) is None
-    assert linux_verdict(monkeypatch, {}, filesystem=None) is None
+# How fstatfs names AFS: the kernel client's and OpenAFS's magics on Linux,
+# and OpenAFS's type name on macOS. The guard refuses each wherever it
+# appears, so the fakes below try all three on either platform.
+AFS = [0x6B414653, 0x5346414F, "afs"]
+FSTATFS_PLATFORM = sys.platform.startswith("linux") or sys.platform == "darwin"
+AFS_TARGETS = {
+    "parent": lambda cache_dir: cache_dir.parent,
+    "cache": lambda cache_dir: cache_dir,
+    "value subdirectory": lambda cache_dir: cache_dir / "ab",
+    "value file": lambda cache_dir: cache_dir / VALUE_FILE,
+}
 
 
-def dev(major, minor):
-    return os.makedev(major, minor)
+def fake_filesystem(monkeypatch, path, answer):
+    """Make filesystem_of give ``answer`` for ``path``'s inode, however it is
+    opened; a callable answer is called instead."""
+    target = os.lstat(path)
+    inode = (target.st_dev, target.st_ino)
+    real = cache_module.filesystem_of
+
+    def filesystem_of(fd):
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino) != inode:
+            return real(fd)
+        return answer() if callable(answer) else answer
+
+    monkeypatch.setattr(cache_module, "filesystem_of", filesystem_of)
 
 
-MOUNTINFO = """\
-22 1 253:2 / / rw,relatime shared:1 - ext4 /dev/mapper/root rw
-36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
-41 22 0:52 / /afs rw,relatime shared:30 - afs AFS rw
-42 41 0:53 / /afs/example.com/user\\040name rw,relatime - afs %example.com:user rw
-43 22 0:54 / /run/doc rw,nosuid shared:31 propagate_from:2 - fuse.portal portal rw
-44 22 0:55 / /broken rw shared:32
-"""
+@pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
+@pytest.mark.parametrize("where", AFS_TARGETS)
+@pytest.mark.parametrize("afs", AFS)
+def test_entries_on_afs_are_refused(monkeypatch, tmp_path, where, afs):
+    """Reviews r4 and r5: AFS grants writes by ACLs the guard can't read, so
+    any entry on it, a parent, the cache, or a file or directory in it, is
+    refused, whatever its attributes. The value file stands for one mounted
+    from AFS into a local cache (review r5 finding 3)."""
+    cache_dir = make_cache(tmp_path)
+    fake_filesystem(monkeypatch, AFS_TARGETS[where](cache_dir), afs)
+    with pytest.raises(
+        UnsafeCacheDirError,
+        match="is on AFS, whose ACLs PolicyBench can't check, so the cache must be "
+        "on another filesystem",
+    ):
+        secure_cache_dir(str(cache_dir))
 
 
-@pytest.mark.parametrize(
-    ("major", "minor", "expected"),
-    [
-        (253, 2, "ext4"),
-        (98, 0, "ext3"),  # proc_pid_mountinfo(5)'s example
-        (0, 52, "afs"),  # OpenAFS's single /afs mount
-        (0, 53, "afs"),  # a volume the kernel's client mounts
-        (0, 54, "fuse.portal"),  # two optional fields
-        (0, 55, None),  # no separator
-        (8, 1, None),  # not mounted
-    ],
-)
-def test_mountinfo_gives_each_devices_filesystem_type(major, minor, expected):
-    assert mountinfo_filesystem_type(MOUNTINFO, dev(major, minor)) == expected
+@pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
+@pytest.mark.parametrize("where", AFS_TARGETS)
+def test_an_entry_whose_filesystem_cant_be_read_is_a_cache_dir_error(
+    monkeypatch, tmp_path, where
+):
+    """Review r5 finding 1: when fstatfs fails, the entry isn't accepted."""
+    cache_dir = make_cache(tmp_path)
+
+    def fail():
+        raise OSError(errno.EIO, os.strerror(errno.EIO))
+
+    fake_filesystem(monkeypatch, AFS_TARGETS[where](cache_dir), fail)
+    with pytest.raises(CacheDirError) as refused:
+        secure_cache_dir(str(cache_dir))
+    assert not isinstance(refused.value, UnsafeCacheDirError)
 
 
-@pytest.mark.skipif(
-    not sys.platform.startswith("linux"), reason="reads /proc/self/mountinfo"
-)
-def test_filesystem_type_agrees_with_findmnt(tmp_path):
-    """The type read from /proc for tmp_path's device is the one util-linux's
-    findmnt gives for the mount holding it."""
-    try:
-        found = subprocess.run(
-            ["findmnt", "--noheadings", "--output", "FSTYPE", "--target", tmp_path],
+@pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
+def test_filesystem_of_agrees_with_the_platforms_own_tools(tmp_path):
+    """filesystem_of's reading of struct statfs, for a directory opened for
+    reading and for search only, is what coreutils' stat (Linux) or mount
+    (macOS) reports for it."""
+    answers = set()
+    for flags in (os.O_RDONLY, cache_module._SEARCH_FLAGS or os.O_RDONLY):
+        fd = os.open(tmp_path, flags | os.O_DIRECTORY)
+        try:
+            answers.add(filesystem_of(fd))
+        finally:
+            os.close(fd)
+    if sys.platform.startswith("linux"):
+        shown = subprocess.run(
+            ["stat", "--file-system", "--format=%t", tmp_path],
             capture_output=True,
             text=True,
             check=True,
-        ).stdout.split()
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        pytest.skip("findmnt is unavailable")
-    assert cache_module._filesystem_type(os.stat(tmp_path).st_dev) == found[0]
+        ).stdout
+        assert answers == {int(shown, 16)}
+        return
+    # mount lists each mount as "<device> on <mount point> (<type>, ...)".
+    listed = subprocess.run(
+        ["/sbin/mount"], capture_output=True, text=True, check=True
+    ).stdout
+    mounts = [
+        re.match(r".* on (.*) \(([^,]+)", line).groups() for line in listed.splitlines()
+    ]
+    here = os.path.realpath(tmp_path)
+    _, kind = max(
+        (
+            (point, kind)
+            for point, kind in mounts
+            if here == point or here.startswith(point.rstrip("/") + "/")
+        ),
+        key=lambda mount: len(mount[0]),
+    )
+    assert answers == {kind}
+
+
+@pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
+def test_filesystem_of_reports_fstatfs_failures():
+    with pytest.raises(OSError) as failed:
+        filesystem_of(-1)
+    assert failed.value.errno == errno.EBADF
+
+
+@pytest.mark.parametrize(
+    ("byteorder", "machine", "long_size", "width"),
+    [
+        ("little", "x86_64", 8, 8),
+        ("little", "x86_64", 4, 8),  # x32: f_type is a 64-bit syscall long
+        ("little", "aarch64", 8, 8),
+        ("little", "i686", 4, 4),
+        ("big", "ppc64", 8, 8),
+        ("big", "s390x", 8, 4),  # an unsigned int there
+        ("big", "ppc", 4, 4),
+    ],
+)
+@given(magic=st.integers(0, 2**32 - 1), rest=st.binary(max_size=64))
+def test_statfs_f_type_reads_each_layout(
+    byteorder, machine, long_size, width, magic, rest
+):
+    """f_type comes first, ``width`` bytes in the machine's byte order (glibc's
+    and musl's bits/statfs.h); whatever follows it doesn't matter."""
+    raw = magic.to_bytes(width, byteorder) + rest
+    assert statfs_f_type(raw, byteorder, machine, long_size) == magic
 
 
 def test_linux_without_attribute_support_has_no_acl_problem(monkeypatch):
@@ -1976,11 +2074,14 @@ def run_umask_readers(monkeypatch, proc_reads):
         value = next(reads)
         return current["umask"] if value == "umask" else value
 
+    timed_out = threading.Event()
+
     def fake_umask(mask):
         previous, current["umask"] = current["umask"], mask
         if mask == 0o077 and not stand_in_set.is_set():
             stand_in_set.set()
-            release.wait(10)
+            if not release.wait(10):
+                timed_out.set()
         return previous
 
     lock = WatchedLock()
@@ -1991,14 +2092,22 @@ def run_umask_readers(monkeypatch, proc_reads):
     first = threading.Thread(target=lambda: results.update(first=process_umask()))
     second = threading.Thread(target=lambda: results.update(second=process_umask()))
     first.start()
-    assert stand_in_set.wait(10)
-    second.start()
-    # Without the lock the second read finishes; with it, it waits.
-    while second.is_alive() and not lock.waited.wait(0.01):
-        pass
-    release.set()
-    first.join(10)
-    second.join(10)
+    try:
+        assert stand_in_set.wait(10)
+        second.start()
+        # Without the lock the second read finishes; with it, it waits.
+        deadline = time.monotonic() + 10
+        while second.is_alive() and not lock.waited.wait(0.01):
+            assert time.monotonic() < deadline, (
+                "the second reader neither ran nor waited"
+            )
+    finally:
+        release.set()
+        first.join(10)
+        if second.ident is not None:
+            second.join(10)
+    assert not first.is_alive() and not second.is_alive()
+    assert not timed_out.is_set(), "the first reader's stand-in outlived its wait"
     assert current["umask"] == 0o000
     return results
 
