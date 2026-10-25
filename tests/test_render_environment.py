@@ -52,94 +52,141 @@ def test_docs_site_stack_is_not_locked():
     assert not locked & DOCS_SITE_STACK
 
 
-# What pip's requirements-file reader (pip/_internal/req/req_file.py) does to
-# each line before parsing it: a line ending in a backslash continues on the
-# next, unless it is a comment; a # at a line's start or after whitespace
-# starts a comment; and a token starting with - begins the line's options.
+# The line forms _requirement_names reads, chosen because pip (req_file.py and
+# req/constructors.py) and uv, which builds the docs site, read each the same
+# way. Any other form fails the test: the two readers differ on continuation
+# lines, -r spellings, markers and archive-like versions, and a false marker
+# makes both install nothing, so guessing could hide jupyter-book from one.
+#   - blank lines and comments: a # at a line's start or after whitespace;
+#   - includes: -r FILE, --requirement FILE or --requirement=FILE, resolved
+#     relative to the including file;
+#   - requirements: a name, optional extras and version specifiers; no URL,
+#     path, marker, archive name or per-requirement option.
 _COMMENT = re.compile(r"(^|\s+)#.*$")
-_ARCHIVE = (".whl", ".zip", ".tar.gz", ".tgz", ".tar.bz2", ".tbz", ".tar.xz", ".tar")
-
-
-def _logical_lines(text: str) -> list[str]:
-    lines, pending = [], []
-    for line in text.splitlines():
-        if line.endswith("\\") and not _COMMENT.match(line):
-            pending.append(line.strip("\\"))
-            continue
-        lines.append("".join([*pending, " " + line if _COMMENT.match(line) else line]))
-        pending = []
-    if pending:
-        lines.append("".join(pending))
-    return [stripped for line in lines if (stripped := _COMMENT.sub("", line).strip())]
+_INCLUDE = re.compile(
+    r"(?:-r\s+|--requirement(?:\s+|=))([A-Za-z0-9._/][A-Za-z0-9._/-]*)"
+)
+# pip's archive extensions (pip/_internal/utils/filetypes.py), which it
+# compares case-insensitively, after stripping extras, to decide that a line
+# names a file rather than a project.
+_ARCHIVE = (".zip", ".whl", ".tar.bz2", ".tbz", ".tar.gz", ".tgz", ".tar")
+_ARCHIVE += (".tar.xz", ".txz", ".tlz", ".tar.lz", ".tar.lzma")
 
 
 def _requirement_names(path: Path) -> set[str]:
-    """Names of the packages a requirements file asks pip to install.
-
-    It follows -r includes, relative to the including file as pip resolves
-    them, and skips -c constraints and other options, which install nothing.
-    A requirement it can't name without fetching it (a bare URL or path, or an
-    -e editable install) fails the test rather than being guessed at.
-    """
+    """Names of the packages a requirements file asks pip and uv to install,
+    following its includes. A line outside the forms above fails the test."""
     names = set()
-    for line in _logical_lines(path.read_text()):
-        include = re.match(r"(?:-r|--requirement)(?:\s+|=)?(\S+)$", line)
+    # Bytes, so a lone carriage return isn't read as a line break.
+    text = path.read_bytes().decode()
+    for number, raw in enumerate(text.split("\n"), 1):
+        raw = raw.removesuffix("\r")
+        where = f"{path.name}:{number}: {raw!r}"
+        assert all(c in " \t" for c in raw if c.isspace()), (
+            f"whitespace other than spaces and tabs: {where}"
+        )
+        assert not raw.endswith("\\"), f"a continuation line: {where}"
+        line = _COMMENT.sub("", raw).strip()
+        if not line:
+            continue
+        include = _INCLUDE.fullmatch(line)
         if include:
             names |= _requirement_names(path.parent / include.group(1))
             continue
-        if line.startswith("-"):
-            assert not line.startswith(("-e", "--editable")), f"unnamed: {line}"
-            continue
-        arguments = []
-        for token in line.split(" "):
-            if token.startswith("-"):
-                break
-            arguments.append(token)
-        requirement = Requirement(" ".join(arguments))
-        assert not requirement.name.endswith(_ARCHIVE), f"a path, unnamed: {line}"
+        assert not line.startswith("-"), f"an option: {where}"
+        assert not re.search(r"\s-", line), f"a per-requirement option: {where}"
+        assert not re.search(r"[@:/\\]", line), f"a URL or path: {where}"
+        assert ";" not in line, f"a marker: {where}"
+        assert "===" not in line, f"arbitrary equality: {where}"
+        stem = re.sub(r"\[[^\]]+\]$", "", line).lower()
+        assert not stem.endswith(_ARCHIVE), f"an archive name: {where}"
+        requirement = Requirement(line)
+        assert requirement.url is None and requirement.marker is None, where
         names.add(_name(requirement.name))
     return names
 
 
-def test_requirement_names_read_requirements_files_as_pip_does(tmp_path):
-    (tmp_path / "base.txt").write_text("Included_Pkg\n-c constraints.txt\n")
+def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "base.txt").write_text("Included_Pkg\n")
+    (tmp_path / "sub" / "more.txt").write_text("-r ../deep.txt\n")
+    (tmp_path / "deep.txt").write_text("deep\n")
+    (tmp_path / "other.txt").write_text("other\r\n")
     (tmp_path / "requirements.txt").write_text(
         "# top\n"
         "  # indented\n"
         "\n"
-        "--index-url https://example.com/simple\n"
         "foo>=1  # why\n"
-        "Bar_Baz[extra] ; python_version >= '3.12'\n"
-        "named @ https://example.com/named-1.0.tar.gz#sha256=00\n"
-        "hashed==1.0 --hash=sha256:00\n"
-        "continued \\\n"
-        "    >=2\n"
+        "Bar_Baz[extra]\n"
+        "spaced >= 1.0, < 3\n"
+        "\tTabbed==1.0\t# a tab before the comment\n"
         "-r base.txt\n"
+        "--requirement sub/more.txt\n"
+        "--requirement=other.txt\n"
     )
     assert _requirement_names(tmp_path / "requirements.txt") == {
         "foo",
         "bar-baz",
-        "named",
-        "hashed",
-        "continued",
+        "spaced",
+        "tabbed",
         "included-pkg",
+        "deep",
+        "other",
     }
 
 
 @pytest.mark.parametrize(
-    "line",
+    ("text", "reason"),
     [
-        "https://example.com/pkg-1.0-py3-none-any.whl",
-        "./vendor/pkg-1.0.tar.gz",
-        "pkg-1.0-py3-none-any.whl",
-        "-e ./local",
-        "git+https://example.com/pkg.git",
+        ("jupyter-book>=2.0 \\\n    --hash=sha256:00\n", "a continuation line"),
+        # pip joins the next line onto a comment that doesn't start the line.
+        ("foo  # see below \\\njupyter-book\n", "a continuation line"),
+        ("jupyter-book\x0c>=2.0\n", "whitespace other than"),
+        ("jupyter-book>=2.0\xa0# note\n", "whitespace other than"),
+        ("jupyter-book>=2.0\rfoo\n", "whitespace other than"),
+        ("-r=base.txt\n", "an option"),  # pip opens "=base.txt"; uv, base.txt
+        ("-rbase.txt\n", "an option"),
+        ("--requirementbase.txt\n", "an option"),
+        ("--requirem base.txt\n", "an option"),
+        ('-r "base.txt"\n', "an option"),
+        ("-r base.txt --pre\n", "an option"),
+        ("-r ${DIR}/base.txt\n", "an option"),
+        ("-r https://example.com/base.txt\n", "an option"),
+        ("-c base.txt\n", "an option"),
+        ("-e ./local\n", "an option"),
+        ("--editable=./local\n", "an option"),
+        ("--index-url https://example.com/simple\n", "an option"),
+        ("https://example.com/pkg-1.0-py3-none-any.whl\n", "a URL or path"),
+        ("git+https://example.com/pkg.git\n", "a URL or path"),
+        ("./vendor/pkg-1.0.tar.gz\n", "a URL or path"),
+        ("named @ https://example.com/named-1.0.tar.gz\n", "a URL or path"),
+        (
+            "jupyter-book @ https://h.example/p;v=1/jupyter_book-2.1.7-py3-none-any.whl\n",
+            "a URL",
+        ),
+        ('jupyter-book>=2.0 ; python_version < "3"\n', "a marker"),
+        ("jupyter-book>=2.0; extra == 'docs'\n", "a marker"),
+        ("jupyter-book===2.0\n", "arbitrary equality"),
+        ("jupyter-book>=2.0 --hash=sha256:00\n", "a per-requirement option"),
+        ("pkg-1.0-py3-none-any.whl\n", "an archive name"),
+        ("PKG-1.0-py3-none-any.WHL\n", "an archive name"),
+        ("jupyter-book.txz\n", "an archive name"),
+        ("jupyter-book==2.0+local.zip\n", "an archive name"),
+        ("jupyter-book.zip[docs]\n", "an archive name"),
+        # A naive comment rule would read this as "foo".
+        ("foo#bar\n", None),
+        ("${PKG}>=2.0\n", None),
     ],
 )
-def test_requirement_names_refuse_requirements_they_cant_name(tmp_path, line):
-    (tmp_path / "requirements.txt").write_text(line + "\n")
-    with pytest.raises((AssertionError, InvalidRequirement)):
-        _requirement_names(tmp_path / "requirements.txt")
+def test_requirement_names_refuse_every_other_form(tmp_path, text, reason):
+    (tmp_path / "base.txt").write_text("jupyter-book>=2.0\n")
+    (tmp_path / "requirements.txt").write_text(text)
+    if reason is None:
+        with pytest.raises(InvalidRequirement):
+            _requirement_names(tmp_path / "requirements.txt")
+    else:
+        with pytest.raises(AssertionError, match=re.escape(reason)):
+            _requirement_names(tmp_path / "requirements.txt")
 
 
 def test_docs_site_requirements_declare_jupyter_book():
