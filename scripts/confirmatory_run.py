@@ -55,7 +55,7 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
 - **The host log.** Every 30 seconds: the time, the monotonic clock, the
   load average and the kernel's memory-pressure level (None when it could not
   be read, which is no sample). At the end, the guard's and the power log's
-  lines from a day before the booking to its end. A read of those logs is
+  lines from a day before the run's start to its end. A read of those logs is
   tried five times; one that still fails during the run is a runner error,
   and at the end leaves ``host-error.txt`` in place of the excerpts. An
   attempt's class waits for its host evidence to
@@ -157,7 +157,7 @@ HOST_LOG_GAP = 90.0  # seconds
 SAMPLE_SECONDS = 30.0
 CEILING_MARGIN = 25.0  # dollars above the overall cap
 ADMISSION_SLACK = 1e-9  # dollars
-EXCERPT_LEAD = 86_400.0  # host logs are kept from a day before the booking
+EXCERPT_LEAD = 86_400.0  # host logs are kept from a day before the run's start
 WAIT_SECONDS = 1.0  # how often a waiting lane looks again
 ATTEMPT_DEADLINE = 3600.0  # seconds; the longest development attempt took 714
 SAMPLER_SILENCE = 300.0  # seconds without a host-log sample that stop the run
