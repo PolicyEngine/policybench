@@ -965,8 +965,9 @@ def _without_carried_usage(board: dict) -> dict:
         for row in board["countries"]["us"]["modelStats"]
         if row["model"] == "claude-fable-5"
     )
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     return board
 
 
