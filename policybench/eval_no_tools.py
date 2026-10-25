@@ -54,6 +54,21 @@ from policybench.spend_ledger import (
 
 logger = logging.getLogger(__name__)
 
+# Where the responses behind a row came from. ``live_calls`` counts the
+# responses the provider answered and ``cache_hit_calls`` the ones the LiteLLM
+# disk cache (policybench/cache.py) replayed, over the request group whose time
+# the row's ``elapsed_seconds`` apportions. Every row of one group repeats the
+# counts, so they are never summed across rows. ``live_elapsed_seconds`` is the
+# live calls' share of ``elapsed_seconds``, apportioned the same way; a replay
+# contributes its cache lookup to ``elapsed_seconds`` and nothing here. Failed
+# attempts appear only in the spend ledger. Rows written before these columns
+# existed leave all three empty (docs/runbook.md, "Call provenance").
+NO_TOOLS_CALL_PROVENANCE_COLUMNS = (
+    "live_calls",
+    "cache_hit_calls",
+    "live_elapsed_seconds",
+)
+
 # Canonical columns emitted by both no-tools result writers. ``run_id`` is
 # added only by repeated runs. Keep the worker-schema parity test in sync.
 NO_TOOLS_RESULT_COLUMNS = (
@@ -83,6 +98,7 @@ NO_TOOLS_RESULT_COLUMNS = (
     "provider_response_id",
     "provider_system_fingerprint",
     "provider_resolved_model",
+    *NO_TOOLS_CALL_PROVENANCE_COLUMNS,
 )
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
@@ -513,6 +529,37 @@ def _response_cache_hit(response) -> bool:
         else getattr(response, "_hidden_params", None)
     )
     return isinstance(hidden, dict) and hidden.get("cache_hit") is True
+
+
+def _request_call_provenance(elapsed_seconds: float, cache_hit: bool) -> dict:
+    """Provenance of one answered request: a provider call or a cache replay."""
+    return {
+        "live_calls": 0 if cache_hit else 1,
+        "cache_hit_calls": 1 if cache_hit else 0,
+        "live_elapsed_seconds": 0.0 if cache_hit else elapsed_seconds,
+    }
+
+
+def _aggregate_call_provenance(results: list[dict]) -> dict:
+    """Sum request provenance over the responses a row's time is summed from.
+
+    No responses means zero calls of either kind and no live time, matching
+    ``elapsed_seconds``, which is then empty too. A result without provenance
+    (one built before the fields existed) makes the whole aggregate unknown
+    rather than undercounting it.
+    """
+    if any(
+        result.get("live_calls") is None or result.get("cache_hit_calls") is None
+        for result in results
+    ):
+        return dict.fromkeys(NO_TOOLS_CALL_PROVENANCE_COLUMNS)
+    return {
+        "live_calls": sum(int(result["live_calls"]) for result in results),
+        "cache_hit_calls": sum(int(result["cache_hit_calls"]) for result in results),
+        "live_elapsed_seconds": _sum_optional_numbers(
+            result.get("live_elapsed_seconds") for result in results
+        ),
+    }
 
 
 def _extract_usage_metadata(
@@ -1382,6 +1429,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
             "provider_response_id": None,
             "provider_system_fingerprint": None,
             "provider_resolved_model": None,
+            **_aggregate_call_provenance([]),
         }
 
     return {
@@ -1437,6 +1485,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         "provider_resolved_model": _first_non_null(
             result.get("provider_resolved_model") for result in results
         ),
+        **_aggregate_call_provenance(results),
     }
 
 
@@ -2140,6 +2189,7 @@ def _request_explanations_once(
             if not _numeric_values_match(explanation_value, float(answer)):
                 explanations[variable] = None
         usage = _extract_usage_metadata(response, model_id, messages, content or "")
+        cache_hit = _response_cache_hit(response)
         spend_record = _spend_ledger_record(
             call_key=call_key,
             phase="explanation_repair",
@@ -2156,7 +2206,7 @@ def _request_explanations_once(
             request_completed_at=request_completed_at,
             elapsed_seconds=elapsed_seconds,
             usage=usage,
-            cache_hit=_response_cache_hit(response),
+            cache_hit=cache_hit,
             completion_budget_tokens=request_completion_budget,
             escalated_from_budget_tokens=escalated_from_budget_tokens,
         )
@@ -2170,6 +2220,7 @@ def _request_explanations_once(
             "finish_reason": finish_reason,
             "completion_budget": request_completion_budget,
             **usage,
+            **_request_call_provenance(elapsed_seconds, cache_hit),
             "spend_ledger": [spend_record],
         }
     except SensitivityKnobError:
@@ -2386,6 +2437,7 @@ def _request_predictions_once(
                 messages,
                 raw_response or content,
             )
+            cache_hit = _response_cache_hit(response)
             has_parse_error = any(
                 predictions.get(variable) is None for variable in variables
             ) or (
@@ -2408,7 +2460,7 @@ def _request_predictions_once(
                     request_completed_at=request_completed_at,
                     elapsed_seconds=elapsed_seconds,
                     usage=usage,
-                    cache_hit=_response_cache_hit(response),
+                    cache_hit=cache_hit,
                     completion_budget_tokens=request_completion_budget,
                     escalated_from_budget_tokens=(
                         escalated_from_budget_tokens if attempt == 0 else None
@@ -2429,6 +2481,7 @@ def _request_predictions_once(
                     escalated_from_budget_tokens is not None
                 ),
                 **usage,
+                **_request_call_provenance(elapsed_seconds, cache_hit),
                 "spend_ledger": spend_records,
             }
         except SensitivityKnobError:
@@ -2704,6 +2757,7 @@ def run_single_no_tools(
             "provider_resolved_model": _first_non_null(
                 result.get("provider_resolved_model") for result in chunk_results
             ),
+            **_aggregate_call_provenance(chunk_results),
             "repair_disagreements": [
                 disagreement
                 for result in chunk_results
@@ -3471,6 +3525,7 @@ def run_no_tools_eval(
                     "total_cost_usd": None,
                     "cost_is_estimated": None,
                     "estimated_cost_usd": None,
+                    **_aggregate_call_provenance([]),
                     "failure_sources": {},
                     "budget_escalation_count": 0,
                 }
@@ -3491,6 +3546,7 @@ def run_no_tools_eval(
             total_cost_usd = result.get("total_cost_usd")
             cost_is_estimated = result.get("cost_is_estimated")
             estimated_cost_usd = result.get("estimated_cost_usd")
+            live_elapsed_seconds = result.get("live_elapsed_seconds")
             for variable in scenario_programs:
                 prediction = result["predictions"].get(variable)
                 explanation = result.get("explanations", {}).get(variable)
@@ -3575,6 +3631,16 @@ def run_no_tools_eval(
                         ),
                         "provider_resolved_model": result.get(
                             "provider_resolved_model"
+                        ),
+                        # Counts cover the household's whole request group,
+                        # so every row repeats them; live time splits like
+                        # elapsed_seconds.
+                        "live_calls": result.get("live_calls"),
+                        "cache_hit_calls": result.get("cache_hit_calls"),
+                        "live_elapsed_seconds": (
+                            live_elapsed_seconds / batch_size
+                            if live_elapsed_seconds is not None
+                            else None
                         ),
                     }
                 )
@@ -3723,6 +3789,7 @@ def run_no_tools_single_output_eval(
                         "provider_response_id": None,
                         "provider_system_fingerprint": None,
                         "provider_resolved_model": None,
+                        **_aggregate_call_provenance([]),
                         "failure_sources": {},
                         "budget_escalation_count": 0,
                     }
@@ -3773,6 +3840,9 @@ def run_no_tools_single_output_eval(
                         "provider_resolved_model": result.get(
                             "provider_resolved_model"
                         ),
+                        "live_calls": result.get("live_calls"),
+                        "cache_hit_calls": result.get("cache_hit_calls"),
+                        "live_elapsed_seconds": result.get("live_elapsed_seconds"),
                     }
                 )
 

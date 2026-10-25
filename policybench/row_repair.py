@@ -8,11 +8,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from policybench.chunked_eval import model_requires_serial_execution
 from policybench.config import MODELS
-from policybench.eval_no_tools import is_infrastructure_error_text, run_single_no_tools
+from policybench.eval_no_tools import (
+    NO_TOOLS_CALL_PROVENANCE_COLUMNS,
+    is_infrastructure_error_text,
+    run_single_no_tools,
+)
 from policybench.reparse_predictions import reparse_predictions_frame
 from policybench.scenarios import load_scenarios_from_manifest
 
@@ -209,6 +214,9 @@ def _empty_repair_row(
         "provider_response_id": None,
         "provider_system_fingerprint": None,
         "provider_resolved_model": None,
+        "live_calls": 0,
+        "cache_hit_calls": 0,
+        "live_elapsed_seconds": None,
     }
 
 
@@ -267,6 +275,9 @@ def repair_prediction_row(
                     "provider_system_fingerprint"
                 ),
                 "provider_resolved_model": result.get("provider_resolved_model"),
+                "live_calls": result.get("live_calls"),
+                "cache_hit_calls": result.get("cache_hit_calls"),
+                "live_elapsed_seconds": result.get("live_elapsed_seconds"),
             }
         except Exception as exc:
             row = _empty_repair_row(
@@ -288,10 +299,31 @@ def repair_prediction_row(
 
 
 def _append_rows(path: Path, rows: list[dict]) -> None:
+    """Append rows under the file's header, widening it first if needed.
+
+    A repair round resumed by a newer harness can carry columns the file's
+    header lacks (the call-provenance columns, for one). Appended under the old
+    header they would shift every later cell, so the file is first rewritten
+    with the new columns at the end, each existing cell kept as its exact text.
+    """
     if not rows:
         return
     frame = pd.DataFrame(rows)
-    frame.to_csv(path, mode="a", index=False, header=not path.exists())
+    header: list[str] = []
+    if path.exists():
+        try:
+            header = list(pd.read_csv(path, nrows=0).columns)
+        except pd.errors.EmptyDataError:
+            header = []
+    if not header:
+        frame.to_csv(path, index=False)
+        return
+    added = [column for column in frame.columns if column not in header]
+    if added:
+        existing = pd.read_csv(path, dtype=str, keep_default_na=False, na_filter=False)
+        header = [*header, *added]
+        existing.reindex(columns=header, fill_value="").to_csv(path, index=False)
+    frame.reindex(columns=header).to_csv(path, mode="a", index=False, header=False)
 
 
 def _completed_repair_keys(
@@ -435,7 +467,21 @@ def merge_row_repair_predictions(
         valid = pd.DataFrame(columns=repair.columns)
 
     merged = source.copy()
+    # A repair written before the call-provenance columns existed says nothing
+    # about its request, so the row it replaces loses the source's values:
+    # they described the replaced request, and kept beside the repair's time
+    # they could exceed it.
+    unknown_provenance = [
+        column
+        for column in NO_TOOLS_CALL_PROVENANCE_COLUMNS
+        if column in merged.columns and column not in valid.columns
+    ]
     if not valid.empty:
+        # Counts read back as int64 unless a cell is empty; a replacement's
+        # empty cell or a cleared one needs room for NaN.
+        for column in NO_TOOLS_CALL_PROVENANCE_COLUMNS:
+            if column in merged.columns:
+                merged[column] = merged[column].astype("float64")
         valid_by_key = valid.set_index(KEY_COLUMNS, drop=False)
         for index, row in merged.iterrows():
             key = tuple(str(row[column]) for column in KEY_COLUMNS)
@@ -452,6 +498,8 @@ def merge_row_repair_predictions(
                 if isinstance(replacement[column], str):
                     merged[column] = merged[column].astype("object")
                 merged.at[index, column] = replacement[column]
+            for column in unknown_provenance:
+                merged.at[index, column] = np.nan
 
     accepted_keys = valid[KEY_COLUMNS].drop_duplicates() if not valid.empty else valid
     target_rows = row_repair_targets(
