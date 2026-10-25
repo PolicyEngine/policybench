@@ -1639,8 +1639,18 @@ def test_a_household_a_stop_cuts_short_is_under_way_until_the_stop(world):
 def test_an_interrupt_stops_every_model_and_lets_attempts_end(world):
     w = world(models=("gpt-6-luna", "gpt-6-sol"))
     sid = w.draw_order[0]
-    w.provider.specs = {("gpt-6-luna", lbl, sid, 1): {"sleep": 0.1} for lbl in cr.ARMS}
-    threading.Timer(0.15, lambda: w.run.interrupt(2, None)).start()
+    first = w.run.lanes["gpt-6-luna"].orders[sid][0]
+
+    def interrupt_inside(lanes):
+        # The signal arrives during the household's first attempt, which
+        # finishes only once the main loop has stopped the lanes, so no
+        # timing on a loaded host lets the household's later arms start first.
+        w.run.interrupt(2, None)
+        until = time.time() + 30
+        while not lanes.stopped and time.time() < until:
+            time.sleep(0.01)
+
+    w.provider.specs = {("gpt-6-luna", first, sid, 1): {"check": interrupt_inside}}
     w.execute()
     for m in w.models:
         stops = w.events(m, "stop")
