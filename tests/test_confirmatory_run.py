@@ -1134,6 +1134,31 @@ def test_the_hard_ceiling_stops_every_model(world):
     assert run_problems(w) == []
 
 
+def test_a_model_that_decides_nothing_still_has_both_logs(world):
+    """haiku's first attempt crosses the ceiling before gpt-6-sol's lanes,
+    held back, decide: gpt-6-sol's run log holds only the ceiling event and
+    its admission log is empty."""
+    w = world(
+        models=("claude-haiku-5.5", "gpt-6-sol"), overall_cap=0.0, spent_before=24.5
+    )
+    sid = w.draw_order[0]
+    first = w.run.lanes["claude-haiku-5.5"].orders[sid][0]
+    w.provider.specs = {("claude-haiku-5.5", first, sid, 1): {"cost": 1.0}}
+    held = w.run.lanes["gpt-6-sol"]
+    admit = held.admit
+
+    def late(sid, lane):
+        time.sleep(0.3)
+        return admit(sid, lane)
+
+    held.admit = late
+    w.execute()
+    admission = w.runs() / "gpt-6-sol" / "admission-log.jsonl"
+    assert admission.exists() and admission.read_text() == ""
+    assert [x["event"] for x in w.lines("gpt-6-sol")] == ["ceiling"]
+    assert run_problems(w) == []
+
+
 def test_a_conversation_under_way_at_the_ceiling_ends_budget_stop(world):
     model = "gpt-6-luna"
     w = world(models=(model,), overall_cap=0.0, spent_before=24.9)

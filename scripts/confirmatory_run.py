@@ -1179,6 +1179,9 @@ class Run:
                 write_json(
                     lanes.folder / f"manifest-{stamp}.json", lanes.manifest(), indent=2
                 )
+                # A model whose lanes never decide still has both logs.
+                for name in ("run-log.jsonl", "admission-log.jsonl"):
+                    (lanes.folder / name).touch()
                 starting[model] = threading.Thread(
                     target=lanes.ensure_pool, daemon=True
                 )
