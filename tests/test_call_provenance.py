@@ -23,10 +23,12 @@ The invariants these tests execute, for every row a writer emits:
 8. Adding the columns changes no published number.
 """
 
+import bisect
 import json
 import math
 import tempfile
 import time
+from collections import Counter
 from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
@@ -36,7 +38,7 @@ from unittest.mock import patch
 import litellm
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, Phase, event, given, settings
+from hypothesis import HealthCheck, Phase, event, example, given, reject, settings
 from hypothesis import strategies as st
 
 import policybench.eval_no_tools as eval_no_tools
@@ -289,6 +291,71 @@ def _assert_row_invariants(rows: pd.DataFrame) -> None:
     assert (live[no_hits & timed] == elapsed[no_hits & timed]).all()
 
 
+# Past this many (count, sum) states in either half of the subset search, an
+# example is discarded (hypothesis.reject), never passed unchecked.
+SUBSET_STATE_LIMIT = 1 << 20
+
+
+def _tolerance(expected: float) -> float:
+    """The widest gap ``pytest.approx(expected, **SECONDS)`` accepts."""
+    return max(SECONDS["rel"] * abs(expected), SECONDS["abs"])
+
+
+def _half_states(groups: list[tuple[float, int]], most: int) -> set[tuple[int, float]]:
+    """Every (count, sum) reachable by taking 0..multiplicity of each distinct
+    duration in ``groups``, with count at most ``most``."""
+    states = {(0, 0.0)}
+    for value, multiplicity in groups:
+        states = {
+            (count + taken, total + taken * value)
+            for count, total in states
+            for taken in range(min(multiplicity, most - count) + 1)
+        }
+        if len(states) > SUBSET_STATE_LIMIT:
+            event("subset search rejected: too many states")
+            reject()
+    return states
+
+
+def _subset_sums_near(
+    durations: list[float], count: int, low: float, high: float
+) -> list[float]:
+    """The distinct sums in [low, high] of the ``count``-element sub-multisets
+    of ``durations``.
+
+    Meet in the middle over the distinct durations: equal durations are
+    interchangeable, so each half enumerates how many of each to take. This is
+    exact, and replaces a search over ``combinations`` that had to give up
+    (and pass) above 200,000 combinations."""
+    if count > len(durations):
+        return []
+    groups = sorted(Counter(durations).items())
+    # Split where the halves' enumeration sizes (products of multiplicity + 1)
+    # are closest.
+    sizes = [multiplicity + 1 for _, multiplicity in groups]
+    best, split, left_size = math.inf, 0, 1
+    total_size = math.prod(sizes)
+    for index in range(len(groups) + 1):
+        if index:
+            left_size *= sizes[index - 1]
+        balance = max(left_size, total_size // left_size)
+        if balance < best:
+            best, split = balance, index
+    left = _half_states(groups[:split], count)
+    right_by_count: dict[int, list[float]] = {}
+    for taken, total in _half_states(groups[split:], count):
+        right_by_count.setdefault(taken, []).append(total)
+    for sums in right_by_count.values():
+        sums.sort()
+    found = set()
+    for taken, total in left:
+        sums = right_by_count.get(count - taken, [])
+        start = bisect.bisect_left(sums, low - total)
+        for other in sums[start : bisect.bisect_right(sums, high - total)]:
+            found.add(total + other)
+    return sorted(found)
+
+
 def _row_matches_a_subset(
     returned: list[MockCall],
     hits: int,
@@ -298,16 +365,49 @@ def _row_matches_a_subset(
 ) -> bool:
     """Whether some subset of the returned responses has the row's counts and
     times: ``live`` live responses whose seconds sum to ``live_seconds`` and
-    ``hits`` replays that bring the total to ``seconds``."""
+    ``hits`` replays that bring the total to ``seconds``.
+
+    The two choices are independent once the live sum is fixed, so this asks
+    which live sums near ``live_seconds`` exist, then whether the replays can
+    close the gap to ``seconds`` from any of them."""
+    hit_seconds = [call.seconds for call in returned if call.cache_hit]
+    live_durations = [call.seconds for call in returned if not call.cache_hit]
+    if hits > len(hit_seconds) or live > len(live_durations):
+        return False
+    if hits + live == 0:
+        return math.isnan(seconds) and math.isnan(live_seconds)
+    if math.isnan(seconds) or math.isnan(live_seconds):
+        return False
+    live_gap = _tolerance(live_seconds)
+    total_gap = _tolerance(seconds)
+    for live_sum in _subset_sums_near(
+        live_durations, live, live_seconds - live_gap, live_seconds + live_gap
+    ):
+        if _subset_sums_near(
+            hit_seconds,
+            hits,
+            seconds - live_sum - total_gap,
+            seconds - live_sum + total_gap,
+        ):
+            return True
+    return False
+
+
+def _row_matches_a_subset_by_combinations(
+    returned: list[MockCall],
+    hits: int,
+    live: int,
+    live_seconds: float,
+    seconds: float,
+) -> bool:
+    """The definition, by brute force over ``combinations``: the reference the
+    meet-in-the-middle search is checked against on small inputs."""
     hit_calls = [call for call in returned if call.cache_hit]
     live_calls = [call for call in returned if not call.cache_hit]
     if hits > len(hit_calls) or live > len(live_calls):
         return False
     if hits + live == 0:
         return math.isnan(seconds) and math.isnan(live_seconds)
-    if math.comb(len(live_calls), live) * math.comb(len(hit_calls), hits) > 200_000:
-        event("subset check skipped: too many combinations")
-        return True
     for chosen_live in combinations(live_calls, live):
         live_sum = sum(call.seconds for call in chosen_live)
         if live_sum != pytest.approx(live_seconds, **SECONDS):
@@ -317,6 +417,100 @@ def _row_matches_a_subset(
             if total == pytest.approx(seconds, **SECONDS):
                 return True
     return False
+
+
+def _mock_call(cache_hit: bool, seconds: float) -> MockCall:
+    return MockCall(
+        group=("scenario_000",),
+        cache_hit=cache_hit,
+        seconds=seconds,
+        raised=False,
+        explanation_request=False,
+    )
+
+
+# Durations from a small pool, so equal values and exact subset sums are
+# common, plus arbitrary floats.
+subset_seconds = st.one_of(
+    st.sampled_from([0.0, 0.5, 1.0, 2.0, 3.0, 1e-7, 899.9]),
+    st.floats(min_value=0, max_value=900, allow_nan=False),
+)
+
+
+@settings(max_examples=400, deadline=None)
+@given(
+    calls=st.lists(st.tuples(st.booleans(), subset_seconds), max_size=9),
+    data=st.data(),
+)
+def test_the_subset_search_agrees_with_brute_force(calls, data):
+    """Differential: the meet-in-the-middle oracle and the combinations
+    definition agree on every input small enough to enumerate. The targets
+    are a real subset's sums (so a match exists), the same with one of the
+    two times moved (the total right but the live time wrong, or the
+    reverse), or drawn freely."""
+    returned = [_mock_call(cache_hit, seconds) for cache_hit, seconds in calls]
+    hit_seconds = [call.seconds for call in returned if call.cache_hit]
+    live_durations = [call.seconds for call in returned if not call.cache_hit]
+    target = data.draw(st.sampled_from(["real", "moved", "free"]), label="target")
+    if target != "free":
+        live_picked = data.draw(
+            st.sets(st.sampled_from(range(len(live_durations))))
+            if live_durations
+            else st.just(set()),
+            label="live picked",
+        )
+        hits_picked = data.draw(
+            st.sets(st.sampled_from(range(len(hit_seconds))))
+            if hit_seconds
+            else st.just(set()),
+            label="hits picked",
+        )
+        live, hits = len(live_picked), len(hits_picked)
+        live_seconds = sum(live_durations[index] for index in live_picked)
+        seconds = live_seconds + sum(hit_seconds[index] for index in hits_picked)
+        if target == "moved":
+            shift = data.draw(st.sampled_from([-1.0, -0.5, 0.5, 1.0]), label="shift")
+            if data.draw(st.booleans(), label="move the live time"):
+                live_seconds += shift
+            else:
+                seconds += shift
+        elif live + hits == 0:
+            live_seconds = seconds = math.nan
+    else:
+        live = data.draw(st.integers(0, 10), label="live")
+        hits = data.draw(st.integers(0, 10), label="hits")
+        live_seconds = data.draw(st.one_of(st.just(math.nan), subset_seconds))
+        seconds = data.draw(st.one_of(st.just(math.nan), subset_seconds))
+    arguments = (returned, hits, live, live_seconds, seconds)
+    assert _row_matches_a_subset(*arguments) == (
+        _row_matches_a_subset_by_combinations(*arguments)
+    )
+
+
+def test_the_subset_search_checks_what_combinations_could_not():
+    """The case review r2 named: four Sonnet chunks return 28 one-second live
+    responses and the row keeps 20 (C(28, 20) is over three million). Twenty
+    calls and 20 seconds match; twenty calls and 19 seconds must not."""
+    returned = [_mock_call(False, 1.0) for _ in range(28)]
+    assert math.comb(28, 20) > 200_000
+    assert _row_matches_a_subset(returned, 0, 20, 20.0, 20.0)
+    assert not _row_matches_a_subset(returned, 0, 20, 19.0, 19.0)
+    assert not _row_matches_a_subset(returned, 0, 20, 20.0, 21.0)
+    # The total alone is not enough: the live time must match too.
+    assert not _row_matches_a_subset(returned, 0, 20, 19.0, 20.0)
+    mixed = [_mock_call(False, 1.0), _mock_call(False, 2.0), _mock_call(True, 3.0)]
+    assert _row_matches_a_subset(mixed, 1, 1, 1.0, 4.0)
+    assert not _row_matches_a_subset(mixed, 1, 1, 2.0, 4.0)
+    distinct = [_mock_call(index % 3 == 0, 1.0 + index / 64) for index in range(36)]
+    kept = distinct[:5] + distinct[9:20]
+    assert _row_matches_a_subset(
+        distinct,
+        sum(call.cache_hit for call in kept),
+        sum(not call.cache_hit for call in kept),
+        sum(call.seconds for call in kept if not call.cache_hit),
+        sum(call.seconds for call in kept),
+    )
+    assert not _row_matches_a_subset(distinct, 0, 20, 0.5, 0.5)
 
 
 def _expected_status(returned: list[MockCall]) -> str:
@@ -536,6 +730,14 @@ def test_rows_record_each_responses_provenance_and_agree_with_the_ledger(
             expected_rows = frame[frame["scenario_id"] == row["scenario_id"]]
             assert usage["cache_hit_calls"] in set(expected_rows["cache_hit_calls"])
             assert usage["live_calls"] in set(expected_rows["live_calls"])
+            live_times = expected_rows["live_elapsed_seconds"].dropna()
+            if live_times.empty:
+                assert "live_elapsed_seconds" not in usage
+            else:
+                assert any(
+                    usage["live_elapsed_seconds"] == pytest.approx(value, rel=1e-15)
+                    for value in live_times
+                )
 
 
 @pytest.mark.parametrize("repair_replayed", [True, False])
@@ -1024,6 +1226,8 @@ optional_seconds = st.one_of(
         max_size=6,
     )
 )
+@example([(2, 1, 3.25, 3.5), (0, 3, 0.0, 0.015), (None, None, None, 0.1)])
+@example([(1, 0, 0.1 + 0.2, 0.1 + 0.2)])
 def test_run_store_round_trips_provenance_byte_for_byte(households):
     frame = pd.DataFrame(
         [
@@ -1064,10 +1268,30 @@ def test_run_store_round_trips_provenance_byte_for_byte(households):
                     "SELECT scenario_id, usage_json FROM responses"
                 ).fetchall()
             }
-        for index, (live_calls, cache_hit_calls, _, _) in enumerate(households):
-            stored = usage[f"scenario_{index:03d}"]
+        # The typed fields are what the repo's own reader (pd.read_csv with
+        # default options) makes of the CSV; that parser may land an ulp from
+        # the float that was written, so compare exactly against it and
+        # closely against the drawn value.
+        imported = pd.read_csv(csv_path).groupby("scenario_id").first()
+        for index, (live_calls, cache_hit_calls, live_elapsed, _) in enumerate(
+            households
+        ):
+            scenario_id = f"scenario_{index:03d}"
+            stored = usage[scenario_id]
             assert stored.get("live_calls") == live_calls
             assert stored.get("cache_hit_calls") == cache_hit_calls
+            if live_elapsed is None:
+                assert "live_elapsed_seconds" not in stored
+            else:
+                assert isinstance(stored["live_elapsed_seconds"], float)
+                assert (
+                    stored["live_elapsed_seconds"]
+                    == (imported.loc[scenario_id, "live_elapsed_seconds"])
+                )
+                assert stored["live_elapsed_seconds"] == pytest.approx(
+                    live_elapsed, rel=1e-15, abs=1e-12
+                )
+                event("typed live time stored")
 
 
 def test_run_store_round_trips_a_csv_that_predates_the_columns(tmp_path):
