@@ -30,6 +30,7 @@ import tempfile
 import time
 from collections import Counter
 from dataclasses import dataclass
+from fractions import Fraction
 from itertools import combinations
 from pathlib import Path
 from types import SimpleNamespace
@@ -324,9 +325,11 @@ def _subset_sums_near(
     of ``durations``.
 
     Meet in the middle over the distinct durations: equal durations are
-    interchangeable, so each half enumerates how many of each to take. This is
-    exact, and replaces a search over ``combinations`` that had to give up
-    (and pass) above 200,000 combinations."""
+    interchangeable, so each half enumerates how many of each to take. It
+    finds every such sum, each added up by group, so a sum can differ in its
+    last bits from the same responses added in another order. It replaces a
+    search over ``combinations`` that had to give up (and pass) above 200,000
+    combinations."""
     if count > len(durations):
         return []
     groups = sorted(Counter(durations).items())
@@ -369,7 +372,10 @@ def _row_matches_a_subset(
 
     The two choices are independent once the live sum is fixed, so this asks
     which live sums near ``live_seconds`` exist, then whether the replays can
-    close the gap to ``seconds`` from any of them."""
+    close the gap to ``seconds`` from any of them. The search windows are
+    twice the tolerance, so rounding at their edges can't drop a sum the
+    comparisons accept; the same ``pytest.approx`` comparisons as the
+    definition's then decide (review r3)."""
     hit_seconds = [call.seconds for call in returned if call.cache_hit]
     live_durations = [call.seconds for call in returned if not call.cache_hit]
     if hits > len(hit_seconds) or live > len(live_durations):
@@ -378,18 +384,21 @@ def _row_matches_a_subset(
         return math.isnan(seconds) and math.isnan(live_seconds)
     if math.isnan(seconds) or math.isnan(live_seconds):
         return False
-    live_gap = _tolerance(live_seconds)
-    total_gap = _tolerance(seconds)
+    live_gap = 2 * _tolerance(live_seconds)
+    total_gap = 2 * _tolerance(seconds)
     for live_sum in _subset_sums_near(
         live_durations, live, live_seconds - live_gap, live_seconds + live_gap
     ):
-        if _subset_sums_near(
+        if live_sum != pytest.approx(live_seconds, **SECONDS):
+            continue
+        for hit_sum in _subset_sums_near(
             hit_seconds,
             hits,
             seconds - live_sum - total_gap,
             seconds - live_sum + total_gap,
         ):
-            return True
+            if live_sum + hit_sum == pytest.approx(seconds, **SECONDS):
+                return True
     return False
 
 
@@ -419,6 +428,36 @@ def _row_matches_a_subset_by_combinations(
     return False
 
 
+def _near_a_tolerance_edge(
+    returned: list[MockCall],
+    hits: int,
+    live: int,
+    live_seconds: float,
+    seconds: float,
+) -> bool:
+    """Whether some choice of responses has an exact live or total sum within
+    rounding of a tolerance's edge. There the order the seconds are added in
+    can decide a ``pytest.approx`` comparison, and the two searches add them
+    in different orders."""
+    if hits + live == 0 or math.isnan(seconds) or math.isnan(live_seconds):
+        return False
+
+    def near_edge(total: Fraction, target: float) -> bool:
+        gap = abs(float(total - Fraction(target)))
+        return abs(gap - _tolerance(target)) <= 1e-12 * max(1.0, abs(target))
+
+    hit_seconds = [Fraction(call.seconds) for call in returned if call.cache_hit]
+    live_durations = [Fraction(call.seconds) for call in returned if not call.cache_hit]
+    for chosen_live in combinations(live_durations, live):
+        live_sum = sum(chosen_live, Fraction(0))
+        if near_edge(live_sum, live_seconds):
+            return True
+        for chosen_hits in combinations(hit_seconds, hits):
+            if near_edge(live_sum + sum(chosen_hits, Fraction(0)), seconds):
+                return True
+    return False
+
+
 def _mock_call(cache_hit: bool, seconds: float) -> MockCall:
     return MockCall(
         group=("scenario_000",),
@@ -444,9 +483,11 @@ subset_seconds = st.one_of(
 )
 def test_the_subset_search_agrees_with_brute_force(calls, data):
     """Differential: the meet-in-the-middle oracle and the combinations
-    definition agree on every input small enough to enumerate. The targets
-    are a real subset's sums (so a match exists), the same with one of the
-    two times moved (the total right but the live time wrong, or the
+    definition agree on every input small enough to enumerate, except where
+    some choice's exact sum is within rounding of a tolerance's edge; those
+    are discarded, and the edge is pinned by the test after this one. The
+    targets are a real subset's sums (so a match exists), the same with one
+    of the two times moved (the total right but the live time wrong, or the
     reverse), or drawn freely."""
     returned = [_mock_call(cache_hit, seconds) for cache_hit, seconds in calls]
     hit_seconds = [call.seconds for call in returned if call.cache_hit]
@@ -482,9 +523,77 @@ def test_the_subset_search_agrees_with_brute_force(calls, data):
         live_seconds = data.draw(st.one_of(st.just(math.nan), subset_seconds))
         seconds = data.draw(st.one_of(st.just(math.nan), subset_seconds))
     arguments = (returned, hits, live, live_seconds, seconds)
+    if _near_a_tolerance_edge(*arguments):
+        event("discarded: a sum within rounding of a tolerance's edge")
+        reject()
     assert _row_matches_a_subset(*arguments) == (
         _row_matches_a_subset_by_combinations(*arguments)
     )
+
+
+EDGE = 2.000001  # 2.0 + 1e-6, which is 1.0000000000139778e-6 above 2.0 in binary
+
+
+@pytest.mark.parametrize(
+    "seconds",
+    [
+        2.0 + 9e-7,
+        math.nextafter(EDGE, 0),
+        EDGE,
+        math.nextafter(EDGE, 3),
+        2.0 + 1.1e-6,
+        2.0 - 9e-7,
+        2.0 - 1e-6,
+        2.0 - 1.1e-6,
+    ],
+)
+@pytest.mark.parametrize("moved", ["live", "replay"])
+def test_the_subset_search_decides_the_tolerance_edge_as_approx_does(seconds, moved):
+    """Review r3's case: a 2.000001-second live response against a row's
+    2.0 is further than 1e-6 in binary, so it must not match, though it lies
+    in the window 2.0 ± 1e-6 as floats compute it. One sum per choice, so the
+    order of addition can't matter: both searches must agree with
+    pytest.approx on each side of the edge, for the live time and for the
+    total."""
+    if moved == "live":
+        returned = [_mock_call(False, seconds), _mock_call(True, 1.0)]
+        arguments = (returned, 1, 1, 2.0, 1.0 + seconds)
+        expected = seconds == pytest.approx(2.0, **SECONDS)
+    else:
+        returned = [_mock_call(False, 1.0), _mock_call(True, seconds)]
+        arguments = (returned, 1, 1, 1.0, 3.0)
+        expected = 1.0 + seconds == pytest.approx(3.0, **SECONDS)
+    assert _row_matches_a_subset(*arguments) == expected
+    assert _row_matches_a_subset_by_combinations(*arguments) == expected
+
+
+def test_review_r3s_edge_case_matches_no_subset():
+    returned = [_mock_call(False, EDGE), _mock_call(True, 1.0)]
+    arguments = (returned, 1, 1, 2.0, 3.000001)
+    assert not _row_matches_a_subset(*arguments)
+    assert not _row_matches_a_subset_by_combinations(*arguments)
+
+
+@pytest.mark.parametrize(
+    ("smaller", "larger", "target"),
+    [
+        (6.337826004111188, 7.62040783979671, 13.958234843907897),
+        (348.0545180644693, 482.75813555377965, 830.812654618249),
+    ],
+)
+def test_the_subset_search_window_keeps_sums_rounding_puts_past_its_edge(
+    smaller, larger, target
+):
+    """Two live responses whose sum approx accepts, found by a search for
+    inputs where windows of one tolerance disagree: the bound for the second
+    duration, computed as the window's edge less the first, rounds below it,
+    though the two still add up to within tolerance. Windows of twice the
+    tolerance keep it."""
+    returned = [_mock_call(False, smaller), _mock_call(False, larger)]
+    assert smaller + larger == pytest.approx(target, **SECONDS)
+    arguments = (returned, 0, 2, target, target)
+    assert _row_matches_a_subset_by_combinations(*arguments)
+    assert _row_matches_a_subset(*arguments)
 
 
 def test_the_subset_search_checks_what_combinations_could_not():
@@ -720,27 +829,33 @@ def test_rows_record_each_responses_provenance_and_agree_with_the_ledger(
         run_id = import_run_csv(db_path, output_path)
         exported = export_predictions_csv(db_path, run_id, Path(tmp) / "out.csv")
         assert exported.read_bytes() == output_path.read_bytes()
+        # Each prediction's own response, joined on its attempt, holds that
+        # output's counts and live time exactly as the store's CSV reader
+        # (pandas' default parser) reads them; an empty live time is left out
+        # (review r3).
         with RunStore(db_path) as store:
-            stored = store.connection.execute(
-                "SELECT scenario_id, usage_json FROM responses WHERE run_id = ?",
+            linked = store.connection.execute(
+                """
+                SELECT p.scenario_id, p.output_id, r.usage_json
+                FROM predictions AS p
+                JOIN responses AS r
+                  ON r.run_id = p.run_id AND r.model = p.model
+                 AND r.scenario_id = p.scenario_id AND r.attempt = p.source_attempt
+                WHERE p.run_id = ?
+                """,
                 (run_id,),
             ).fetchall()
-        for row in stored:
-            usage = json.loads(row["usage_json"])
-            expected_rows = frame[frame["scenario_id"] == row["scenario_id"]]
-            assert usage["cache_hit_calls"] in set(expected_rows["cache_hit_calls"])
-            assert usage["live_calls"] in set(expected_rows["live_calls"])
-            # One scenario can hold several responses (one per output for the
-            # single-output writer), so, like the counts, the stored live time
-            # must be one of its rows' values; an empty one is left out.
-            live_times = expected_rows["live_elapsed_seconds"]
-            if "live_elapsed_seconds" in usage:
-                assert any(
-                    usage["live_elapsed_seconds"] == pytest.approx(value, rel=1e-15)
-                    for value in live_times.dropna()
-                )
-            else:
-                assert live_times.isna().any()
+        read = pd.read_csv(output_path).set_index(["scenario_id", "variable"])
+        assert read.index.is_unique
+        assert len(linked) == len(read)
+        for row in linked:
+            usage = json.loads(row["usage_json"] or "{}")
+            expected = read.loc[(row["scenario_id"], row["output_id"])]
+            for column in PROVENANCE:
+                if pd.isna(expected[column]):
+                    assert column not in usage
+                else:
+                    assert usage[column] == expected[column]
 
 
 @pytest.mark.parametrize("repair_replayed", [True, False])
