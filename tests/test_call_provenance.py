@@ -531,7 +531,7 @@ def test_the_subset_search_agrees_with_brute_force(calls, data):
     )
 
 
-EDGE = 2.000001  # 2.0 + 1e-6, which is 1.0000000000139778e-6 above 2.0 in binary
+EDGE = 2.000001  # 2.0 + 1e-6, which is 1.000000000139778e-6 above 2.0 in binary
 
 
 @pytest.mark.parametrize(
@@ -585,10 +585,10 @@ def test_the_subset_search_window_keeps_sums_rounding_puts_past_its_edge(
     smaller, larger, target
 ):
     """Two live responses whose sum approx accepts, found by a search for
-    inputs where windows of one tolerance disagree: the bound for the second
-    duration, computed as the window's edge less the first, rounds below it,
-    though the two still add up to within tolerance. Windows of twice the
-    tolerance keep it."""
+    inputs where windows of one tolerance disagree: the lower bound for the
+    second duration, computed as the window's lower edge less the first, rounds
+    above it, though the two still add up to within tolerance. Windows of twice
+    the tolerance keep it (review r4)."""
     returned = [_mock_call(False, smaller), _mock_call(False, larger)]
     assert smaller + larger == pytest.approx(target, **SECONDS)
     arguments = (returned, 0, 2, target, target)
