@@ -66,6 +66,19 @@ FALSE_CLAIMS = (
 )
 
 PAPER_FALSE_CLAIM_PATTERNS = (
+    # No board model logged submission times: GPT-5.5's batch rows log none,
+    # and the sub-second medians are cache replays of synchronous calls.
+    # Claude Fable 5 ran synchronously, and its usage was recorded per call
+    # (docs/latency_replay_audit.md).
+    r"batch\s+or\s+asynchronous\s+dispatch",
+    r"reflect\s+submission\s+rather\s+than\s+generation",
+    r"recorded\s+at\s+the\s+run\s+level",
+    r"Anthropic\s+batch\s+adapter",
+    r"not\s+measured\s+per\s+call",
+    # The harness restarts its timer on each retry and times only the attempt
+    # that succeeded; a replayed row's cost is recomputed when it is written.
+    r"spans\s+any\s+provider-side\s+retry",
+    r"keeps\s+the\s+cost\s+recorded\s+when\s+it\s+was\s+generated",
     # Exclusion covers what the audits found, not every defect or unstated
     # input: an output a fix or reading not run on the reference engine would
     # move can still be scored (the paper's limitations say so).
@@ -1165,65 +1178,54 @@ def test_json_transport_rows_are_attributed_as_their_cards_record():
     assert sorted(m for m in serving if names(m, note_choice)) == sorted(card_choice)
 
 
-# The benchmark card's cache-replay examples ("Cost basis"): household
-# latency is the sum of its rows' elapsed_seconds, since each row records its
-# call's latency divided among the call's outputs.
-REPLAYED_SMOKE_HOUSEHOLDS = {
-    ("muse-spark-1.3", "scenario_000"),
-    ("muse-spark-1.3", "scenario_001"),
-    ("muse-spark-1.3", "scenario_099"),
-    ("muse-spark-1.3", "scenario_119"),
-}
-NEAR_ZERO_EXAMPLES = {
-    ("muse-wonder", "scenario_000"),
-    ("muse-wonder", "scenario_001"),
-    ("claude-opus-5.5", "scenario_000"),
-    ("claude-opus-5.5", "scenario_001"),
-    ("claude-haiku-5.5", "scenario_000"),
-}
+# The benchmark card's cache-replay accounting ("Latency basis"), checked
+# against the frozen predictions; tests/test_latency_replay_audit.py checks the
+# audit's household list itself.
+def test_card_latency_basis_matches_the_frozen_households():
+    """Every count the card states is the frozen data's: the sub-second
+    households, the traced and untraced ones, the per-model replays, and the
+    largest median shift."""
+    from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
 
-
-def _household_latency() -> dict[tuple[str, str], tuple[float, int]]:
-    """(model, scenario_id) -> (summed row latency in seconds, row count),
-    from the frozen predictions."""
-    import pandas as pd
-
-    manifest = json.loads(SNAPSHOT_MANIFEST.read_text())
-    run_dir = (
-        ROOT
-        / manifest["source_run_artifacts"][manifest["source_run_labels"]["us"]]["path"]
-    )
-    predictions = pd.read_csv(
-        run_dir / "predictions.csv.gz",
-        usecols=["model", "scenario_id", "elapsed_seconds"],
-    )
-    grouped = predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
-    sums, counts = grouped.sum(min_count=1), grouped.size()
-    return {key: (float(sums[key]), int(counts[key])) for key in sums.index}
-
-
-def test_cache_replay_examples_match_the_frozen_household_latencies():
-    """The card's replayed smoke households take 0.03 seconds or less, and
-    each other example it names sums to under 0.05 seconds; every example is
-    a household the card names, with recorded (not missing) latency."""
     text = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    latency = r.household_latencies
+    subsecond = latency[latency < REPLAYED_HOUSEHOLD_SECONDS]
+    audit = r.latency_replay_audit
+    full = audit[audit["replay"] == "full"].groupby("model").size()
+    partial = audit[audit["replay"] == "partial"].groupby("model").size()
+
     assert "a household's latency is the sum over its rows" in text
+    assert f"{len(subsecond)} households sum to under a second" in text
+    assert f"traces {int(full.sum())} of them" in text
+    assert f"Another {int(partial.sum())} households replay their first" in text
+    untraced = audit[audit["replay"] == "untraced"]
+    assert sorted(zip(untraced["model"], untraced["scenario_id"])) == [
+        ("claude-haiku-4.5", "scenario_009"),
+        ("grok-4.3", "scenario_000"),
+    ]
+    assert "(Grok 4.3's scenario_000 and Claude Haiku 4.5's scenario_009)" in text
+    for model, label in (
+        ("qwen-3.7-max", "Qwen3.7-max"),
+        ("glm-5.2", "GLM-5.2"),
+        ("kimi-k2.6", "Kimi K2.6"),
+        ("minimax-m3", "MiniMax M3"),
+        ("claude-sonnet-5", "Claude Sonnet 5"),
+        ("muse-spark-1.3", "Muse Spark 1.3"),
+    ):
+        assert f"{label} ({int(full[model])}" in text, model
+    for model in ("muse-wonder", "claude-opus-5.5", "claude-haiku-5.5"):
+        assert int(full[model]) == 2, model
+    for model in ("deepseek-v4-pro", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"):
+        assert int(full[model]) == 2, model
+    for model, label in (
+        ("glm-5.3", "GLM-5.3"),
+        ("ox-alpha", "GLM-5.3-Flash (preview)"),
+    ):
+        assert f"{label} ({int(partial[model])})" in text, model
     assert (
-        "The Muse Spark 1.3 row replays its four smoke households (scenario_000, "
-        "scenario_001, scenario_099 and scenario_119)"
-    ) in text
-    assert "a household latency of 0.03 seconds or less" in text
-    assert (
-        "among them scenario_000 and scenario_001 for Muse Wonder and Claude "
-        "Opus 5.5 and scenario_000 for Claude Haiku 5.5."
-    ) in text
-    latency = _household_latency()
-    for key in REPLAYED_SMOKE_HOUSEHOLDS:
-        seconds, rows = latency[key]
-        assert rows > 1 and 0 < seconds <= 0.03, (key, seconds)
-    for key in NEAR_ZERO_EXAMPLES:
-        seconds, rows = latency[key]
-        assert rows > 1 and 0 < seconds < 0.05, (key, seconds)
-    # Round 1's wrong example: the household is slower once its rows are
-    # summed, so the card must not name it.
-    assert latency[("claude-haiku-5.5", "scenario_001")][0] >= 0.05
+        f"no published median by more than {r.subsecond_median_shift_fmt} seconds"
+        in text
+    )
+    published = {row["model"]: row.get("latencySeconds") for row in r.model_stats}
+    replayed = [published[m] for m in r.replayed_latency_models]
+    assert f"{min(replayed):.3f} to {max(replayed):.3f} seconds" in text

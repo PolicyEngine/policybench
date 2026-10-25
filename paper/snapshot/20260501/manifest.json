@@ -164,12 +164,12 @@
   "rendered_paper_artifacts": {
     "pdf": {
       "path": "app/public/paper/policybench.pdf",
-      "sha256": "d0b236367fb3f30340e4a9ba3d0d25d253b33096a8a789f3d3b00ccd8b4c34ae"
+      "sha256": "41443b877bdb89223806796f57df68f9c74b7a85c4f1289b4c7d1ebf49a65f84"
     },
     "web": {
       "files": {
         "figures/positive_zero_scatter.png": "47a28fba15b58e86aa00cb52c991a09c5f393c40b9311c24001c201741610062",
-        "index.html": "533a0cb79b6a54353d73ace8e3ac2d2bf0ef41eff5001b4422876ad8f9a864a0",
+        "index.html": "bf2ec3dedccaa93c3b449bc2cee22387248e7d0e0e91b37103e73b140ab3e4ba",
         "pe-tokens.css": "8f24d8da26f583c8ffddffcdcd172b6d52cbecfec20eda55bd39d7aa829f41d8",
         "policybench-theme.css": "0e12c5fd615558259e5bce0167a38424e54f9ceb280666c4afd660d759cd1cb9",
         "site_libs/clipboard/clipboard.min.js": "e17a1d816e13c0826e0ed7febfabc3277f45571234bde0bf9120829a7169edc9",
@@ -193,7 +193,7 @@
     "The top-level scenario, reference-output, and impact-summary CSVs are byte-identical to the corresponding compact source-run artifacts copied under paper/snapshot/20260501/runs/.",
     "Model responses were collected in waves between June 12 and October 13, 2026, as models were added to the board; each model's full 100-household run is a single consistent wave. PolicyBench computes each scored reference output with policyengine_us.Simulation from policyengine-us 2.41.0, using the household's own listed inputs, the nine publication conventions, the Maryland output-scope adapter and the scenario builder's stated-hours alias, as the reference sidecar's engine_upgrade revision pins them (fix_modules, builder); policyengine.py 6.1.2 is recorded for provenance only. The households were drawn from the certified PolicyEngine US populace dataset (populace-us-2024-5da5a95-20260611, populace_us_2024), as scenarios.csv.meta.json records (household_dataset); the reference_output_refresh dataset fields name the reference runtime's default dataset, which reference computation does not read.",
     "Canonical prediction files include parser recovery. Later waves ran under the resumable supervised runner, which retries failed or timed-out scenarios in bounded rounds; every model's canonical file covers all 100 households.",
-    "Raw provider responses are retained in the compressed source-run predictions.csv.gz file wherever the transport exposed them; rows served through the Anthropic batch adapter (Claude Fable 5) and 64 Kimi K3 parse failures carry no raw payload. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
+    "Raw provider responses are retained in the compressed source-run predictions.csv.gz file wherever the transport exposed them; Claude Fable 5's rows, rebuilt from release dashboard-data-20260701 without their raw payloads (that release's claude-fable-5-predictions.csv.gz asset keeps them), and 64 Kimi K3 parse failures carry none. The separate LiteLLM cache remains local-only because it is a generated request cache, not the canonical snapshot artifact.",
     "The frozen scenarios.csv source_dataset column carries a stale enhanced_cps_2024 label from the pre-#77 scenario generator; the run metadata (scenarios.csv.meta.json) records the populace_us_2024 build actually loaded.",
     "Model APIs and upstream model aliases may change after the recorded 2026-06-12 to 2026-10-13 response window, so exact reruns can diverge even with the committed household inputs, reference outputs, parsed dashboard export, and analysis summaries."
   ],

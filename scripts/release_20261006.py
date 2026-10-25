@@ -86,8 +86,8 @@ VERSIONS = Path("app/src/data.versions.json")
 STAGE_ROOT = Path("results/local")
 BOARD_MODELS = 46
 TOTAL_OUTPUTS = 1984
-# Fable 5 ran through the Anthropic batch adapter, whose rows carry no cost,
-# token or latency fields; release 20260930 carried its released values, and
+# Fable 5's board rows were rebuilt from release 20260701 without their cost,
+# token and latency fields; release 20260930 carried its released values, and
 # so does this release (scripts/finish_gpt61sol.py, CARRIED_USAGE).
 CARRIED_USAGE = {
     "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")

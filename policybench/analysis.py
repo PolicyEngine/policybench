@@ -1411,6 +1411,32 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+# A household whose recorded request time sums to under this is a disk-cache
+# replay, not a provider call: in the frozen US run every replayed household
+# sums to under 0.12 s, and the fastest live one takes 1.75 s
+# (docs/latency_replay_audit.md).
+REPLAYED_HOUSEHOLD_SECONDS = 1.0
+
+
+def household_latency_seconds(predictions: pd.DataFrame) -> pd.Series:
+    """Each household's recorded request time, indexed by (model, scenario_id).
+
+    A row's ``elapsed_seconds`` is its household's request time divided among
+    the household's rows, so the household's time is the sum over its rows,
+    not the max. A household whose rows carry no time is NaN rather than zero.
+    A response the disk cache replays records the lookup's time, a few
+    hundredths of a second, as if it were a provider call.
+    """
+    if predictions.empty or "elapsed_seconds" not in predictions.columns:
+        return pd.Series(
+            dtype=float,
+            index=pd.MultiIndex.from_tuples([], names=["model", "scenario_id"]),
+        )
+    return predictions.groupby(["model", "scenario_id"])["elapsed_seconds"].sum(
+        min_count=1
+    )
+
+
 def model_cost_latency(
     predictions: pd.DataFrame,
     price_overrides: dict[str, dict[str, float]] | None = None,
@@ -1435,10 +1461,7 @@ def model_cost_latency(
     latency_median = pd.Series(dtype=float)
     if "elapsed_seconds" in predictions.columns:
         latency_median = (
-            predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
-            .sum(min_count=1)
-            .groupby("model")
-            .median()
+            household_latency_seconds(predictions).groupby("model").median()
         )
     overrides = price_overrides or {}
     token_columns = ["prompt_tokens", "completion_tokens"]
