@@ -188,26 +188,26 @@ publishes it.
   15 s rather than 14 s.
 - **`costUsd`.** A replayed row's cost is computed when the row is written,
   from the replayed response itself (`_extract_usage_metadata`). Where a token
-  reconstruction exists, its token counts are priced at the list prices then
-  in effect (PolicyBench's own price for the model where it sets one, otherwise
-  litellm's price table, marked estimated); otherwise it is the provider's charge embedded in the
-  response. Spend ledgers record each cache hit's spend as $0 and that computed
-  cost as `cached_response_cost_usd`, and on all ten ledger-era full replays
-  (Muse Spark 1.3, Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5) the board
-  household's cost equals it. That shows the row carries the computed value,
-  not that it matches what the original call was billed. For OpenRouter models
-  priced by the provider's charge, the cached response carries the original
-  charge: on 43 of MiniMax M3's full replays the row cost equals the cost
-  embedded in the cached response. A household's published cost
-  therefore counts each of its responses once, whether or not the board run
-  paid for it, and leaves out spend on attempts that did not make the board,
-  such as the open-weight models' failed passes. That matches the paper's
-  description ("each call's recorded total"), so no cost figure misleads
-  because of replays. Fable 5's `costUsd` is computed from its original rows,
-  so its NaN board rows do not reach it. `model_cost_latency` returned $0 for a
-  model whose rows carry no tokens when a price override exists, as Fable 5's
-  do, until #230; it now reports no cost, and the release drivers carry the
-  published value.
+  reconstruction exists, its token counts are priced at the list prices then in
+  effect (PolicyBench's own price for the model where it sets one, otherwise
+  litellm's price table, marked estimated); otherwise it is the provider's
+  charge embedded in the response. Spend ledgers record each cache hit's spend
+  as $0 and that computed cost as `cached_response_cost_usd`, and on all ten
+  ledger-era full replays (Muse Spark 1.3, Muse Wonder, Claude Opus 5.5 and
+  Claude Haiku 5.5) the board household's cost equals it. That shows the row
+  carries the computed value, not that it matches what the original call was
+  billed. For OpenRouter models priced by the provider's charge, the cached
+  response carries the original charge: on 43 of MiniMax M3's full replays the
+  row cost equals the cost embedded in the cached response. A household's
+  published cost therefore counts each of its responses once, whether or not
+  the board run paid for it, and leaves out spend on attempts that did not make
+  the board, such as the open-weight models' failed passes. That matches the
+  paper's description ("each call's recorded total"), so no cost figure
+  misleads because of replays. Fable 5's `costUsd` is computed from its
+  original rows, so its NaN board rows do not reach it. `model_cost_latency`
+  returned $0 for a model whose rows carry no tokens when a price override
+  exists, as Fable 5's do, until #230; it now reports no cost, and the release
+  drivers carry the published value.
 - **GLM-5.3-Flash (preview)** (artifact key `ox-alpha`) records a
   provider-reported charge of $0.00 on all 1,984 rows. The leaderboard prints
   $0.000 per household and the paper prints a dash, which the caption now
