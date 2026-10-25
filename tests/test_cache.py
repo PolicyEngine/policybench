@@ -1,8 +1,10 @@
 """Tests for versioned LiteLLM cache setup and the cache-directory guard."""
 
+import ctypes
 import errno
 import glob
 import os
+import platform
 import re
 import stat
 import struct
@@ -11,6 +13,7 @@ import sys
 import threading
 import time
 from itertools import chain, combinations
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import diskcache
@@ -1894,10 +1897,19 @@ def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
         )
 
 
-# How fstatfs names AFS: the kernel client's and OpenAFS's magics on Linux,
-# and OpenAFS's type name on macOS. The guard refuses each wherever it
-# appears, so the fakes below try all three on either platform.
-AFS = [0x6B414653, 0x5346414F, "afs"]
+# How fstatfs names the filesystems whose grants the guard can't read: AFS by
+# the kernel client's and OpenAFS's magics on Linux and OpenAFS's type name
+# on macOS, and SMB (SMB1, then SMB2 and 3) and Coda by their Linux magics.
+# The guard refuses each wherever it appears, so the fakes below try them all
+# on either platform.
+UNCHECKED_FILESYSTEMS = [
+    (0x6B414653, "AFS"),
+    (0x5346414F, "AFS"),
+    ("afs", "AFS"),
+    (0xFF534D42, "SMB"),
+    (0xFE534D42, "SMB"),
+    (0x73757245, "Coda"),
+]
 FSTATFS_PLATFORM = sys.platform.startswith("linux") or sys.platform == "darwin"
 AFS_TARGETS = {
     "parent": lambda cache_dir: cache_dir.parent,
@@ -1925,18 +1937,21 @@ def fake_filesystem(monkeypatch, path, answer):
 
 @pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
 @pytest.mark.parametrize("where", AFS_TARGETS)
-@pytest.mark.parametrize("afs", AFS)
-def test_entries_on_afs_are_refused(monkeypatch, tmp_path, where, afs):
-    """Reviews r4 and r5: AFS grants writes by ACLs the guard can't read, so
-    any entry on it, a parent, the cache, or a file or directory in it, is
-    refused, whatever its attributes. The value file stands for one mounted
-    from AFS into a local cache (review r5 finding 3)."""
+@pytest.mark.parametrize(("identifier", "name"), UNCHECKED_FILESYSTEMS)
+def test_entries_on_unchecked_filesystems_are_refused(
+    monkeypatch, tmp_path, where, identifier, name
+):
+    """Reviews r4 to r6: AFS, SMB and Coda grant writes by ACLs the guard
+    can't read, so any entry on one, a parent, the cache, or a file or
+    directory in it, is refused, whatever its attributes. The value file
+    stands for one mounted from such a filesystem into a local cache (review
+    r5 finding 3)."""
     cache_dir = make_cache(tmp_path)
-    fake_filesystem(monkeypatch, AFS_TARGETS[where](cache_dir), afs)
+    fake_filesystem(monkeypatch, AFS_TARGETS[where](cache_dir), identifier)
     with pytest.raises(
         UnsafeCacheDirError,
-        match="is on AFS, whose ACLs PolicyBench can't check, so the cache must be "
-        "on another filesystem",
+        match=f"is on {name}, whose ACLs PolicyBench can't check, so the cache "
+        "must be on another filesystem",
     ):
         secure_cache_dir(str(cache_dir))
 
@@ -1946,16 +1961,25 @@ def test_entries_on_afs_are_refused(monkeypatch, tmp_path, where, afs):
 def test_an_entry_whose_filesystem_cant_be_read_is_a_cache_dir_error(
     monkeypatch, tmp_path, where
 ):
-    """Review r5 finding 1: when fstatfs fails, the entry isn't accepted."""
+    """Review r5 finding 1: when fstatfs fails, the entry isn't accepted. The
+    error names that entry and says what failed (review r6 nit 3)."""
     cache_dir = make_cache(tmp_path)
+    target = AFS_TARGETS[where](cache_dir)
 
     def fail():
         raise OSError(errno.EIO, os.strerror(errno.EIO))
 
-    fake_filesystem(monkeypatch, AFS_TARGETS[where](cache_dir), fail)
+    fake_filesystem(monkeypatch, target, fail)
     with pytest.raises(CacheDirError) as refused:
         secure_cache_dir(str(cache_dir))
     assert not isinstance(refused.value, UnsafeCacheDirError)
+    message = str(refused.value)
+    # The path ends at a comma or a space, so the cache's own path, which
+    # starts with its parent's, doesn't pass for the parent's.
+    assert re.match(rf"Can't check {re.escape(os.path.realpath(target))}[, ]", message)
+    assert f"can't tell which filesystem it is on ({os.strerror(errno.EIO)})" in (
+        message
+    )
 
 
 @pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
@@ -1979,23 +2003,36 @@ def test_filesystem_of_agrees_with_the_platforms_own_tools(tmp_path):
         ).stdout
         assert answers == {int(shown, 16)}
         return
+    # df -P names the mount tmp_path is on, after its capacity column, and
     # mount lists each mount as "<device> on <mount point> (<type>, ...)".
+    # Matching a path prefix instead would miss firmlinks: /private/var is on
+    # /System/Volumes/Data, though its path is under / (review r6 nit 4).
+    shown = subprocess.run(
+        ["/bin/df", "-P", tmp_path], capture_output=True, text=True, check=True
+    ).stdout
+    point = re.search(r"\d+%\s+(.*)$", shown.splitlines()[1]).group(1)
     listed = subprocess.run(
         ["/sbin/mount"], capture_output=True, text=True, check=True
     ).stdout
-    mounts = [
-        re.match(r".* on (.*) \(([^,]+)", line).groups() for line in listed.splitlines()
+    kinds = [
+        kind
+        for listed_point, kind in (
+            re.match(r".* on (.*) \(([^,]+)", line).groups()
+            for line in listed.splitlines()
+        )
+        if listed_point == point
     ]
-    here = os.path.realpath(tmp_path)
-    _, kind = max(
-        (
-            (point, kind)
-            for point, kind in mounts
-            if here == point or here.startswith(point.rstrip("/") + "/")
-        ),
-        key=lambda mount: len(mount[0]),
-    )
-    assert answers == {kind}
+    assert len(kinds) == 1
+    assert answers == set(kinds)
+    # Both / and /System/Volumes/Data are apfs, so check the mount too:
+    # f_mntonname[MAXPATHLEN] follows f_fstypename in the same struct.
+    buffer = ctypes.create_string_buffer(4096)
+    fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        assert cache_module._fstatfs()(fd, buffer) == 0
+    finally:
+        os.close(fd)
+    assert os.fsdecode(buffer.raw[88:].split(b"\0")[0]) == point
 
 
 @pytest.mark.skipif(not FSTATFS_PLATFORM, reason="fstatfs is read on Linux and macOS")
@@ -2003,6 +2040,64 @@ def test_filesystem_of_reports_fstatfs_failures():
     with pytest.raises(OSError) as failed:
         filesystem_of(-1)
     assert failed.value.errno == errno.EBADF
+
+
+def fake_fstatfs(monkeypatch, platform_name, written):
+    """Make filesystem_of run as on ``platform_name``, with an fstatfs that
+    fills the struct with ``written``."""
+
+    def fstatfs(fd, buffer):
+        ctypes.memmove(buffer, written, len(written))
+        return 0
+
+    monkeypatch.setattr(
+        cache_module,
+        "sys",
+        SimpleNamespace(platform=platform_name, byteorder=sys.byteorder),
+    )
+    monkeypatch.setattr(cache_module, "_fstatfs", lambda: fstatfs)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [(b"afs", "afs"), (b"apfs", "apfs"), (b"\xffafs", "\udcffafs")],
+)
+def test_filesystem_of_reads_macos_type_names(monkeypatch, name, expected):
+    """f_fstypename sits at byte 72 (sys/mount.h). A name that isn't UTF-8
+    is decoded with surrogate escapes, so it is no name the guard refuses
+    rather than an error that escapes it (review r6 nit 3)."""
+    fake_fstatfs(monkeypatch, "darwin", bytes(72) + name + bytes(16 - len(name)))
+    assert filesystem_of(0) == expected
+    assert cache_module._unchecked_filesystem(0) == (
+        "AFS" if expected == "afs" else None
+    )
+
+
+@pytest.mark.parametrize(
+    ("libc", "expected"),
+    [({"fstatfs64", "fstatfs"}, "fstatfs64"), ({"fstatfs"}, "fstatfs")],
+)
+def test_linux_prefers_fstatfs64(monkeypatch, libc, expected):
+    """Review r6 nit 2: on 32-bit glibc, fstatfs fails with EOVERFLOW once a
+    count passes 32 bits, and fstatfs64 doesn't, so the guard takes
+    fstatfs64 where the C library has it, and fstatfs where it doesn't."""
+    functions = {name: SimpleNamespace(__name__=name) for name in libc}
+    monkeypatch.setattr(cache_module, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(
+        cache_module.ctypes,
+        "CDLL",
+        lambda name, use_errno: SimpleNamespace(**functions),
+    )
+    cache_module._fstatfs.cache_clear()
+    try:
+        assert cache_module._fstatfs().__name__ == expected
+    finally:
+        cache_module._fstatfs.cache_clear()
+
+
+@pytest.mark.skipif(platform.libc_ver()[0] != "glibc", reason="glibc's symbol")
+def test_linux_uses_glibcs_fstatfs64():
+    assert cache_module._fstatfs().__name__ == "fstatfs64"
 
 
 @pytest.mark.parametrize(

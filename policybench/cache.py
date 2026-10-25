@@ -412,7 +412,8 @@ def nfs4_acl_problem(
 # ACL attributes Linux shows for filesystems whose ACLs the guard can't judge:
 # OpenZFS's NFSv4 ACLs and SMB's security descriptors. Any other system or
 # security attribute with "acl" or "ntsd" in its name is refused the same way.
-# AFS is refused by filesystem type instead (_unchecked_filesystem).
+# AFS, Coda and SMB are refused by filesystem type too (_unchecked_filesystem),
+# since they may show no attribute at all.
 _UNCHECKED_ACLS = (
     "system.nfs4_acl_xdr",
     "security.nfs4acl_xdr",
@@ -464,7 +465,28 @@ def _unchecked_acl(target: int | str) -> str | None:
 # (src/afs/LINUX/osi_vfsops.c), which include/uapi/linux/magic.h names
 # AFS_SUPER_MAGIC. On macOS it is the type name, which OpenAFS registers as
 # "afs" (src/afs/DARWIN/osi_module.c).
-_UNCHECKED_FILESYSTEMS = {0x6B414653: "AFS", 0x5346414F: "AFS", "afs": "AFS"}
+#
+# Two more on Linux:
+# - SMB. The server decides who may write, by its own ACLs, while the client
+#   may show owners and modes it makes up from mount options such as uid= and
+#   file_mode= (Documentation/admin-guide/cifs/usage.rst). The server's ACL
+#   shows as system.cifs_acl, which the guard can't judge, but a dialect
+#   that can't fetch it gives EOPNOTSUPP (fs/smb/client/xattr.c), which reads
+#   as no ACL. Its statfs reports CIFS_SUPER_MAGIC over SMB1 and
+#   SMB2_SUPER_MAGIC over SMB2 and 3 (fs/smb/client/smb1ops.c, smb2ops.c).
+# - Coda. Its servers enforce protection by ACLs
+#   (Documentation/filesystems/coda.rst), and the client asks its cache
+#   manager, Venus, whether each access is allowed rather than reading the
+#   mode bits (coda_permission in fs/coda/dir.c). Its statfs reports
+#   CODA_SUPER_MAGIC (fs/coda/inode.c).
+_UNCHECKED_FILESYSTEMS = {
+    0x6B414653: "AFS",
+    0x5346414F: "AFS",
+    "afs": "AFS",
+    0xFF534D42: "SMB",
+    0xFE534D42: "SMB",
+    0x73757245: "Coda",
+}
 
 
 @functools.cache
@@ -476,7 +498,16 @@ def _fstatfs():
         except AttributeError:
             fstatfs = libc.fstatfs
     else:
-        fstatfs = ctypes.CDLL(None, use_errno=True).fstatfs
+        libc = ctypes.CDLL(None, use_errno=True)
+        # On 32-bit glibc, fstatfs fails with EOVERFLOW when a count doesn't
+        # fit in 32 bits (sysdeps/unix/sysv/linux/fstatfs.c), and fstatfs64
+        # doesn't. Its struct puts f_type first at the same width (glibc's
+        # bits/statfs.h, generic and s390), and elsewhere the two are one
+        # function (glibc's fstatfs64.c; musl's sys/statfs.h).
+        try:
+            fstatfs = libc.fstatfs64
+        except AttributeError:
+            fstatfs = libc.fstatfs
     fstatfs.restype = ctypes.c_int
     fstatfs.argtypes = [ctypes.c_int, ctypes.c_char_p]
     return fstatfs
@@ -492,8 +523,9 @@ def filesystem_of(fd: int) -> int | str | None:
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error))
     if sys.platform == "darwin":
-        # f_fstypename[16] follows twelve fixed fields (sys/mount.h).
-        return buffer.raw[72:88].split(b"\0")[0].decode()
+        # f_fstypename[16] follows twelve fixed fields (sys/mount.h). fsdecode
+        # can't fail, so an odd name is just not one of the names above.
+        return os.fsdecode(buffer.raw[72:88].split(b"\0")[0])
     return statfs_f_type(
         buffer.raw, sys.byteorder, platform.machine(), ctypes.sizeof(ctypes.c_long)
     )
@@ -502,7 +534,8 @@ def filesystem_of(fd: int) -> int | str | None:
 def statfs_f_type(raw: bytes, byteorder: str, machine: str, long_size: int) -> int:
     """The low 32 bits of a Linux struct statfs's f_type.
 
-    f_type comes first: a long, but an unsigned int on s390x (glibc's and
+    f_type comes first: a long, but 64 bits on x32, whose long has 32
+    (glibc's x86 bits/typesizes.h), and an unsigned int on s390x (glibc's and
     musl's bits/statfs.h). The magics fit in 32 bits, so the field's low four
     bytes hold them: its first four on a little-endian machine, whatever its
     width, and its last four on a big-endian one.
@@ -514,7 +547,13 @@ def statfs_f_type(raw: bytes, byteorder: str, machine: str, long_size: int) -> i
 
 
 def _unchecked_filesystem(fd: int) -> str | None:
-    return _UNCHECKED_FILESYSTEMS.get(filesystem_of(fd))
+    try:
+        filesystem = filesystem_of(fd)
+    except OSError as error:
+        raise OSError(
+            error.errno, f"can't tell which filesystem it is on ({error.strerror})"
+        ) from error
+    return _UNCHECKED_FILESYSTEMS.get(filesystem)
 
 
 def _xattr(target: int | str, name: str) -> bytes | None:
@@ -704,9 +743,15 @@ def _open_checked_cache_dir(
     try:
         for index, name in enumerate(names):
             st = os.fstat(fd)
-            problem = parent_problem(st, uid, private_gid) or _acl_problem(
-                fd, readable, st, uid, private_gid, inherited_too=False
-            )
+            try:
+                problem = parent_problem(st, uid, private_gid) or _acl_problem(
+                    fd, readable, st, uid, private_gid, inherited_too=False
+                )
+            except OSError as error:
+                raise CacheDirError(
+                    f"Can't check {current}, a parent directory of the LiteLLM "
+                    f"disk cache {path}: {error.strerror}."
+                ) from error
             if problem:
                 raise _unsafe(path, f"its parent directory {current} {problem}")
             current = os.path.join(current, name)
