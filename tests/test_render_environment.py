@@ -15,6 +15,9 @@ import re
 import tomllib
 from pathlib import Path
 
+import pytest
+from packaging.requirements import InvalidRequirement, Requirement
+
 ROOT = Path(__file__).resolve().parents[1]
 RENDER_KERNEL = {"ipykernel", "nbclient", "nbformat"}
 DOCS_SITE_STACK = {"jupyter-book", "jupyter-server", "nbconvert"}
@@ -49,19 +52,95 @@ def test_docs_site_stack_is_not_locked():
     assert not locked & DOCS_SITE_STACK
 
 
-def _requirement_names(text: str) -> set[str]:
-    """Package names in a requirements file, read the way pip reads it: a #
-    at a line's start or after whitespace starts a comment, and a line
-    starting with - is an option."""
-    lines = (re.sub(r"(^|\s)#.*$", "", line).strip() for line in text.splitlines())
-    return {_name(line) for line in lines if line and not line.startswith("-")}
+# What pip's requirements-file reader (pip/_internal/req/req_file.py) does to
+# each line before parsing it: a line ending in a backslash continues on the
+# next, unless it is a comment; a # at a line's start or after whitespace
+# starts a comment; and a token starting with - begins the line's options.
+_COMMENT = re.compile(r"(^|\s+)#.*$")
+_ARCHIVE = (".whl", ".zip", ".tar.gz", ".tgz", ".tar.bz2", ".tbz", ".tar.xz", ".tar")
 
 
-def test_requirement_names_skip_comments_and_options():
-    text = "# top\n  # indented\n\n--index-url https://x\nfoo>=1  # why\nBar_Baz\n"
-    assert _requirement_names(text) == {"foo", "bar-baz"}
+def _logical_lines(text: str) -> list[str]:
+    lines, pending = [], []
+    for line in text.splitlines():
+        if line.endswith("\\") and not _COMMENT.match(line):
+            pending.append(line.strip("\\"))
+            continue
+        lines.append("".join([*pending, " " + line if _COMMENT.match(line) else line]))
+        pending = []
+    if pending:
+        lines.append("".join(pending))
+    return [stripped for line in lines if (stripped := _COMMENT.sub("", line).strip())]
+
+
+def _requirement_names(path: Path) -> set[str]:
+    """Names of the packages a requirements file asks pip to install.
+
+    It follows -r includes, relative to the including file as pip resolves
+    them, and skips -c constraints and other options, which install nothing.
+    A requirement it can't name without fetching it (a bare URL or path, or an
+    -e editable install) fails the test rather than being guessed at.
+    """
+    names = set()
+    for line in _logical_lines(path.read_text()):
+        include = re.match(r"(?:-r|--requirement)(?:\s+|=)?(\S+)$", line)
+        if include:
+            names |= _requirement_names(path.parent / include.group(1))
+            continue
+        if line.startswith("-"):
+            assert not line.startswith(("-e", "--editable")), f"unnamed: {line}"
+            continue
+        arguments = []
+        for token in line.split(" "):
+            if token.startswith("-"):
+                break
+            arguments.append(token)
+        requirement = Requirement(" ".join(arguments))
+        assert not requirement.name.endswith(_ARCHIVE), f"a path, unnamed: {line}"
+        names.add(_name(requirement.name))
+    return names
+
+
+def test_requirement_names_read_requirements_files_as_pip_does(tmp_path):
+    (tmp_path / "base.txt").write_text("Included_Pkg\n-c constraints.txt\n")
+    (tmp_path / "requirements.txt").write_text(
+        "# top\n"
+        "  # indented\n"
+        "\n"
+        "--index-url https://example.com/simple\n"
+        "foo>=1  # why\n"
+        "Bar_Baz[extra] ; python_version >= '3.12'\n"
+        "named @ https://example.com/named-1.0.tar.gz#sha256=00\n"
+        "hashed==1.0 --hash=sha256:00\n"
+        "continued \\\n"
+        "    >=2\n"
+        "-r base.txt\n"
+    )
+    assert _requirement_names(tmp_path / "requirements.txt") == {
+        "foo",
+        "bar-baz",
+        "named",
+        "hashed",
+        "continued",
+        "included-pkg",
+    }
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "https://example.com/pkg-1.0-py3-none-any.whl",
+        "./vendor/pkg-1.0.tar.gz",
+        "pkg-1.0-py3-none-any.whl",
+        "-e ./local",
+        "git+https://example.com/pkg.git",
+    ],
+)
+def test_requirement_names_refuse_requirements_they_cant_name(tmp_path, line):
+    (tmp_path / "requirements.txt").write_text(line + "\n")
+    with pytest.raises((AssertionError, InvalidRequirement)):
+        _requirement_names(tmp_path / "requirements.txt")
 
 
 def test_docs_site_requirements_declare_jupyter_book():
-    text = (ROOT / "docs" / "requirements.txt").read_text()
-    assert "jupyter-book" in _requirement_names(text)
+    assert "jupyter-book" in _requirement_names(ROOT / "docs" / "requirements.txt")
