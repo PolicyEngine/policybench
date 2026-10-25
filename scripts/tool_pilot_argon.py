@@ -430,9 +430,10 @@ OPENAI_SEARCH_SOURCES = "web_search_call.action.sources"
 # Times a JSON-contract reply that searched but gave no answer is sent back
 # as it is, Anthropic's continuation for a paused server-tool turn.
 MAX_PAUSE_CONTINUATIONS = 3
-# The litellm whose Gemini search-tool handling allow_gemini_search_with_functions
-# was written against.
-GEMINI_SEARCH_PATCH_LITELLM = "1.88.1"
+# The litellm releases whose Gemini search-tool handling
+# allow_gemini_search_with_functions was checked against. It was written against
+# 1.88.1; 1.88.6's litellm/llms/vertex_ai/gemini/ is byte-identical to 1.88.1's.
+GEMINI_SEARCH_PATCH_LITELLM = frozenset({"1.88.1", "1.88.6"})
 
 CALCULATE_DESCRIPTION = (
     "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
@@ -1223,20 +1224,20 @@ def web_search_tool(profile: ModelProfile) -> dict:
 def allow_gemini_search_with_functions() -> None:
     """Keep Gemini's search tool beside function tools in litellm.
 
-    litellm 1.88.1 drops googleSearch from any request that also declares
-    functions unless ``include_server_side_tool_invocations`` is set. It reads
-    that flag only among the mapped OpenAI parameters, and a ``completion``
-    keyword reaches it later, as a provider extra, after the search tool is
-    gone. Gemini 3 and 4 models take both together with the flag
+    litellm 1.88.1 and 1.88.6 drop googleSearch from any request that also
+    declares functions unless ``include_server_side_tool_invocations`` is set.
+    They read that flag only among the mapped OpenAI parameters, and a
+    ``completion`` keyword reaches it later, as a provider extra, after the
+    search tool is gone. Gemini 3 and 4 models take both together with the flag
     (ai.google.dev/gemini-api/docs/tool-combination), and the web arms always
     send it, so both of litellm's drops are skipped. Refuses any other litellm,
     whose code this was not checked against.
     """
     version = importlib.metadata.version("litellm")
-    if version != GEMINI_SEARCH_PATCH_LITELLM:
+    if version not in GEMINI_SEARCH_PATCH_LITELLM:
         raise SystemExit(
             f"litellm {version} is installed; the Gemini search patch was "
-            f"checked against {GEMINI_SEARCH_PATCH_LITELLM} only"
+            f"checked against {', '.join(sorted(GEMINI_SEARCH_PATCH_LITELLM))} only"
         )
     from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
         VertexGeminiConfig,
@@ -1466,7 +1467,7 @@ class ChatConversation:
 
         When Claude calls a server tool beside a client tool, the API runs the
         server tool on the next request, and that response begins with its
-        result, without the call. litellm 1.88.1 re-sends a server result only
+        result, without the call. litellm 1.88.x re-sends a server result only
         beside its call in the same message, so left in place the result drops
         out of later requests, and the API refuses the call that lacks it (a
         live probe got that 400 on the third request). The result joins its

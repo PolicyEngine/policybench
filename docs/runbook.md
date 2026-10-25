@@ -208,7 +208,7 @@ Google deprecated `gemini-3.5-flash` and `gemini-3.7-flash` on 2026-10-08
 ([changelog](https://ai.google.dev/gemini-api/docs/changelog)). Requests under
 those names now route to `gemini-3.6-flash` and `gemini-3.8-flash`, which are
 rows of their own, so neither row can be re-run under its name. A synchronous
-re-run or row repair would not show the re-route: litellm 1.88.1 sets the
+re-run or row repair would not show the re-route: litellm 1.88.x sets the
 response model to the requested name, which PolicyBench records as
 `provider_resolved_model`, and ignores Gemini's `modelVersion`. The Gemini
 batch path, which calls google-genai directly, does record `modelVersion`.
