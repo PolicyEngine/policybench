@@ -313,7 +313,7 @@ def test_an_excerpt_keeps_the_lines_stamped_in_its_window():
     t = 1_800_000_000.0
     text = "\n".join(guard_line(t + k, "paused") for k in (-5, 0, 5, 10)) + "\nx"
     zone = ZoneInfo(TZ)
-    kept = cr.excerpt(text, lambda x: cr.guard_time(x, zone), t, t + 5)
+    kept = cr.excerpt(text, lambda x: cr.guard_times(x, zone), t, t + 5)
     assert kept.splitlines() == [guard_line(t, "paused"), guard_line(t + 5, "paused")]
 
 

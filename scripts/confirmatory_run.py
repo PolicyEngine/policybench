@@ -164,7 +164,9 @@ SAMPLER_SILENCE = 300.0  # seconds without a host-log sample that stop the run
 READ_TRIES = 5  # reads of the guard's and the power log before a runner error
 READ_WAIT = 10.0  # seconds between them
 ANCHOR_SECONDS = 900.0  # how often the logs' chain heads are anchored
-LATE_JOIN = 60.0  # seconds the run's end waits for an abandoned attempt
+ANCHOR_RETRY = 60.0  # seconds to the next anchor after a failed push
+ANCHOR_PUSH_TIMEOUT = 300.0  # seconds; then the command's process group is killed
+LATE_JOIN = 60.0  # seconds the run's end waits, in all, for abandoned attempts
 # What a stop event names as its cause.
 STOP_CAUSES = frozenset(
     {
@@ -438,34 +440,42 @@ POWER_LINE = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d [+-]\d{4}) ([^\t]*?)\
 GUARD_LOG = Path.home() / "Library/Logs/clamshell-guard.log"
 
 
-def guard_time(line: str, zone: ZoneInfo) -> float | None:
+def guard_times(line: str, zone: ZoneInfo) -> tuple[float, float] | None:
+    """The earliest and latest instants a guard line's local time can be. They
+    differ only within an hour that a change of offset repeats or skips: on
+    2026-11-01, New York's 01:00-02:00 comes twice, and the guard's lines
+    carry no offset."""
     match = GUARD_LINE.match(line)
     if not match:
         return None
     stamp = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
-    return stamp.replace(tzinfo=zone).timestamp()
+    both = [stamp.replace(tzinfo=zone, fold=fold).timestamp() for fold in (0, 1)]
+    return min(both), max(both)
 
 
-def power_time(line: str) -> float | None:
+def power_times(line: str) -> tuple[float, float] | None:
+    """A power-log line's instant, twice (its time carries its offset)."""
     match = POWER_LINE.match(line)
     if not match:
         return None
-    return datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S %z").timestamp()
+    t = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S %z").timestamp()
+    return t, t
 
 
 def guard_spans(text: str, timezone: str, end: float) -> list:
     """Pauses: from a 'paused pids:' line to the next 'resumed pids:' line (or
-    `end`)."""
+    `end`), each from the earliest reading of its pause to the latest of its
+    resume."""
     zone, spans, opened = ZoneInfo(timezone), [], None
     for line in text.splitlines():
-        t = guard_time(line, zone)
-        if t is None:
+        times = guard_times(line, zone)
+        if times is None:
             continue
         what = GUARD_LINE.match(line).group(2)
         if "paused pids:" in what and opened is None:
-            opened = t
+            opened = times[0]
         elif "resumed pids:" in what and opened is not None:
-            spans.append((opened, t, "guard pause"))
+            spans.append((opened, times[1], "guard pause"))
             opened = None
     if opened is not None:
         spans.append((opened, end, "guard pause"))
@@ -476,9 +486,10 @@ def power_spans(text: str, end: float) -> list:
     """Sleeps: from a Sleep line to the next Wake or DarkWake line (or `end`)."""
     spans, opened = [], None
     for line in text.splitlines():
-        t = power_time(line)
-        if t is None:
+        times = power_times(line)
+        if times is None:
             continue
+        t = times[0]
         kind = POWER_LINE.match(line).group(2).strip()
         if kind == "Sleep" and opened is None:
             opened = t
@@ -490,12 +501,18 @@ def power_spans(text: str, end: float) -> list:
     return spans
 
 
-def excerpt(text: str, when: Callable[[str], float | None], since: float, until: float):
-    """The lines of a log stamped within [since, until]."""
+def excerpt(
+    text: str,
+    when: Callable[[str], tuple[float, float] | None],
+    since: float,
+    until: float,
+):
+    """The lines of a log that one reading of its time puts within [since,
+    until]."""
     keep = []
     for line in text.splitlines():
-        t = when(line)
-        if t is not None and since <= t <= until:
+        times = when(line)
+        if times is not None and times[0] <= until and times[1] >= since:
             keep.append(line + "\n")
     return "".join(keep)
 
@@ -656,6 +673,7 @@ class HostLog:
                 self.sample()
             except Exception as error:  # the sampler runs on; watch() sees the silence
                 self.failure = f"{type(error).__name__}: {error}"
+                self.failing_since = self.failing_since or time.time()
             # After a stall, the next sample is the next tick, with no burst.
             k = max(k + 1, math.ceil((time.time() - self.start) / self.interval))
 
@@ -699,8 +717,8 @@ class HostLog:
             since = self.start - EXCERPT_LEAD
             zone = ZoneInfo(self.timezone)
             guard_text, power_text = self._read_logs()
-            guard = excerpt(guard_text, lambda x: guard_time(x, zone), since, now)
-            power = excerpt(power_text, power_time, since, now)
+            guard = excerpt(guard_text, lambda x: guard_times(x, zone), since, now)
+            power = excerpt(power_text, power_times, since, now)
             spans = guard_spans(guard, self.timezone, now) + power_spans(power, now)
             with self._cond:
                 self._spans, self._read_at = spans, now
@@ -767,9 +785,9 @@ class HostLog:
         except HostEvidenceError as error:
             (self.folder / "host-error.txt").write_text(f"{error}\n")
             return
-        guard = excerpt(guard_text, lambda x: guard_time(x, zone), since, self.end)
+        guard = excerpt(guard_text, lambda x: guard_times(x, zone), since, self.end)
         (self.folder / "clamshell-guard.log").write_text(guard)
-        power = excerpt(power_text, power_time, since, self.end)
+        power = excerpt(power_text, power_times, since, self.end)
         (self.folder / "pmset.log").write_text(power)
 
 
@@ -784,16 +802,33 @@ class Ceiling(pilot.Spend):
     def __init__(self, ceiling_usd: float, spent_before: float):
         super().__init__(ceiling_usd, spent_before)
         self.crossed_at: float | None = None
+        self.closed = False  # the records are final: spend is no longer counted
+        self.unrecorded_usd = 0.0  # spend after that, in no record
 
     @property
     def lock(self) -> threading.Lock:
         return self._lock
 
+    def charge(self, usd: float) -> bool:
+        """Count `usd`, with the lock held; False, and the spend unrecorded,
+        once the ledger has closed."""
+        if self.closed:
+            self.unrecorded_usd += usd
+            return False
+        self.spent_usd += usd
+        if self.crossed_at is None and self.spent_usd >= self.budget_usd:
+            self.crossed_at = clock()
+        return True
+
     def add(self, usd: float | None) -> None:
         with self._lock:
-            self.spent_usd += float(usd or 0.0)
-            if self.crossed_at is None and self.spent_usd >= self.budget_usd:
-                self.crossed_at = clock()
+            self.charge(float(usd or 0.0))
+
+    def close(self) -> None:
+        """Close the ledger at the run's end: what the ceiling has counted is
+        then what the records hold."""
+        with self._lock:
+            self.closed = True
 
     def exhausted(self, reserve_usd: float = 0.0) -> bool:
         with self._lock:
@@ -805,29 +840,32 @@ class AttemptSpend:
     to the ceiling, and the attempt keeps its own total, so an attempt that
     raises still records what it spent. Once the attempt is abandoned at its
     deadline, the conversation ends `budget_stop` at its next turn, and what
-    it spends after is kept apart as late spend."""
+    it spends after is kept apart as late spend. The attempt's totals and the
+    ceiling's change under the ceiling's lock, so they always agree; once
+    the ledger has closed, neither counts more."""
 
     def __init__(self, ceiling: Ceiling):
         self.ceiling = ceiling
-        self._lock = threading.Lock()
         self.spent_usd = 0.0
         self.late_usd = 0.0
         self.abandoned = False
 
     def add(self, usd: float | None) -> None:
-        with self._lock:
+        usd = float(usd or 0.0)
+        with self.ceiling.lock:
+            if not self.ceiling.charge(usd):
+                return
             if self.abandoned:
-                self.late_usd += float(usd or 0.0)
+                self.late_usd += usd
             else:
-                self.spent_usd += float(usd or 0.0)
-        self.ceiling.add(usd)
+                self.spent_usd += usd
 
     def exhausted(self, reserve_usd: float = 0.0) -> bool:
         return self.abandoned or self.ceiling.exhausted()
 
     def abandon(self) -> float:
         """Abandon the attempt; what it had spent."""
-        with self._lock:
+        with self.ceiling.lock:
             self.abandoned = True
             return self.spent_usd
 
