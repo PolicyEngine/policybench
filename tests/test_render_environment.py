@@ -49,7 +49,19 @@ def test_docs_site_stack_is_not_locked():
     assert not locked & DOCS_SITE_STACK
 
 
+def _requirement_names(text: str) -> set[str]:
+    """Package names in a requirements file, read the way pip reads it: a #
+    at a line's start or after whitespace starts a comment, and a line
+    starting with - is an option."""
+    lines = (re.sub(r"(^|\s)#.*$", "", line).strip() for line in text.splitlines())
+    return {_name(line) for line in lines if line and not line.startswith("-")}
+
+
+def test_requirement_names_skip_comments_and_options():
+    text = "# top\n  # indented\n\n--index-url https://x\nfoo>=1  # why\nBar_Baz\n"
+    assert _requirement_names(text) == {"foo", "bar-baz"}
+
+
 def test_docs_site_requirements_declare_jupyter_book():
-    lines = (ROOT / "docs" / "requirements.txt").read_text().splitlines()
-    names = {_name(line) for line in lines if line.strip() and not line.startswith("#")}
-    assert "jupyter-book" in names
+    text = (ROOT / "docs" / "requirements.txt").read_text()
+    assert "jupyter-book" in _requirement_names(text)
