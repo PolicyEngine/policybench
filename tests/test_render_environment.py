@@ -58,19 +58,20 @@ def test_docs_site_stack_is_not_locked():
 # req/constructors.py) and uv, which builds the docs site, read each of them
 # the same way; any other line fails the test rather than being guessed at.
 # Elsewhere they differ: on continuation lines, -r spellings, archive-like
-# versions, encoding declarations, include cycles and includes through a
-# symlinked directory, and uv 0.11 rejects a trailing comma that pip and
-# later uv accept. A false marker makes both quietly install nothing. So a
-# guess could hide jupyter-book from one or both.
+# versions, encoding declarations, include cycles, a .. after a symlinked
+# directory and include paths ending in /, and uv rejects empty parentheses
+# and (in 0.11) a trailing comma that pip accepts. A false marker makes both
+# quietly install nothing. So a guess could hide jupyter-book from one or
+# both.
 #   - blank lines and comments: a # at a line's start or after whitespace,
 #     except a PEP 263 encoding line among a file's first two, which pip
 #     applies to the whole file;
 #   - includes: -r FILE, --requirement FILE or --requirement=FILE, resolved
-#     relative to the including file, with no cycle and no .. after a
-#     symlinked directory;
+#     relative to the including file, with no cycle, no .. after a symlinked
+#     directory and no trailing / or /.;
 #   - requirements: a name, optional extras and version specifiers with no
-#     trailing comma; no URL, path, marker, archive name or per-requirement
-#     option.
+#     empty parentheses or trailing comma; no URL, path, marker, archive name
+#     or per-requirement option.
 # Every file is UTF-8 with no byte-order mark.
 _COMMENT = re.compile(r"(^|\s+)#.*$")
 _INCLUDE = re.compile(
@@ -116,6 +117,10 @@ def _requirement_names(path: Path, _including: tuple[str, ...] = ()) -> set[str]
             continue
         include = _INCLUDE.fullmatch(line)
         if include:
+            # pathlib drops a trailing / or /., which uv keeps.
+            assert not re.search(r"/\.?$", include.group(1)), (
+                f"an include path ending in / or /.: {where}"
+            )
             target = path.parent / include.group(1)
             # pip collapses .. before opening the file (os.path.abspath),
             # while opening it follows a symlink before applying the ..
@@ -131,6 +136,7 @@ def _requirement_names(path: Path, _including: tuple[str, ...] = ()) -> set[str]
         assert ";" not in line, f"a marker: {where}"
         assert "===" not in line, f"arbitrary equality: {where}"
         assert not re.search(r",\s*\)?$", line), f"a trailing comma: {where}"
+        assert not re.search(r"\(\s*\)", line), f"empty parentheses: {where}"
         stem = re.sub(r"\s*\[[^\]]+\]$", "", line).lower()
         assert not stem.endswith(_ARCHIVE), f"an archive name: {where}"
         requirement = Requirement(line)
@@ -145,6 +151,8 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
     (tmp_path / "sub" / "more.txt").write_text("-r ../deep.txt\n")
     (tmp_path / "deep.txt").write_text("deep\n")
     (tmp_path / "other.txt").write_text("other\r\n")
+    (tmp_path / "tabbed.txt").write_text("after-tab\n")
+    (tmp_path / "absolute.txt").write_text("absolute\n")
     (tmp_path / "requirements.txt").write_text(
         "# top\n"
         "  # indented\n"
@@ -156,6 +164,8 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         "-r base.txt\n"
         "--requirement sub/more.txt\n"
         "--requirement=other.txt\n"
+        "--requirement\t./tabbed.txt\n"
+        f"-r {tmp_path}/absolute.txt\n"
     )
     assert _requirement_names(tmp_path / "requirements.txt") == {
         "foo",
@@ -165,6 +175,8 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         "included-pkg",
         "deep",
         "other",
+        "after-tab",
+        "absolute",
     }
 
 
@@ -191,6 +203,9 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         ("jupyter-book\n".encode("utf-16"), "not UTF-8"),
         ("jupyter-book\n".encode("utf-32"), "not UTF-8"),
         ("-r requirements.txt\n", "an include cycle"),
+        ("foo\n-r requirements.txt\n", "an include cycle"),
+        ("-r base.txt/\n", "an include path ending in /"),
+        ("--requirement=base.txt/.\n", "an include path ending in /"),
         ("-r=base.txt\n", "an option"),  # pip opens "=base.txt"; uv, base.txt
         ("-rbase.txt\n", "an option"),
         ("--requirementbase.txt\n", "an option"),
@@ -221,6 +236,8 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         ("jupyter-book===2.0.zip\n", "arbitrary equality"),
         ("jupyter-book>=2.0,\n", "a trailing comma"),
         ("jupyter-book (>=1, <3 , )  # x\n", "a trailing comma"),
+        ("jupyter-book ()\n", "empty parentheses"),
+        ("jupyter-book[docs] ( )  # x\n", "empty parentheses"),
         ("jupyter-book>=2.0 --hash=sha256:00\n", "a per-requirement option"),
         ("pkg-1.0-py3-none-any.whl\n", "an archive name"),
         ("PKG-1.0-py3-none-any.WHL\n", "an archive name"),
