@@ -420,23 +420,66 @@ the site's types and leaderboard already filter on `condition`.
 
 Each frozen row uses its recorded per-call cost: reconstructed from token counts
 at the list price configured at request time, or the provider-reported charge
-where no reconstruction was available. List-price overrides apply at request time, not retroactively to
-recorded costs. Models without per-call costs use the frozen release-metadata
-cost. Published model costs retain these recorded totals rather than repricing
-past calls at today's rates.
+where no reconstruction was available. List-price overrides apply at request
+time, not retroactively to recorded costs. Published model costs retain these
+recorded totals rather than repricing past calls at today's rates. GPT-5.5 ran
+through OpenAI's batch API, and its costs are reconstructed at standard
+synchronous rates. Claude Fable 5's board rows carry no usage fields: they were
+rebuilt from release dashboard-data-20260701 without them. Its published cost,
+tokens and latency come from the per-call rows of its original run, which that
+release publishes as `claude-fable-5-predictions.csv.gz`.
 
 The harness caches provider responses on disk, keyed on the request and the
-prompt contract version (`policybench/cache.py`). A board request identical to
-one sent earlier, such as an onboarding smoke on the same household, returns
-the cached response: the row records that response's answers, tokens and cost,
-and a latency of about zero. Each prediction row records its call's latency
-divided among the call's outputs, so a household's latency is the sum over its
-rows. The Muse Spark 1.3 row replays its four smoke households (scenario_000,
-scenario_001, scenario_099 and scenario_119), each with the smoke's provider
-response id and a household latency of 0.03 seconds or less. In the frozen
-predictions other rows also have households under 0.05 seconds by that sum,
-among them scenario_000 and scenario_001 for Muse Wonder and Claude Opus 5.5
-and scenario_000 for Claude Haiku 5.5.
+prompt contract version (`policybench/cache.py`). A request identical to an
+earlier one returns the cached response, and its row records that response's
+answers and tokens. Its cost is computed from the replayed response when the
+row is written: its token counts at the list prices then in effect
+(PolicyBench's own price for the model where it sets one, otherwise litellm's
+price table), or the provider's charge embedded in it where no reconstruction
+exists. Each
+household's cost counts its responses once, whether or not the board run paid
+for them, and leaves out spend on attempts that did not reach the board.
+
+## Latency basis
+
+Each prediction row records its household's request time divided among the
+household's rows, so a household's latency is the sum over its rows
+(`analysis.household_latency_seconds`). A household that needs several calls
+(one or three outputs per request, a repair, or a re-request with a larger
+completion budget) makes them one after another and records their sum. A
+request the harness retries after a provider error is timed only on the
+attempt that succeeded. Published `latencySeconds` is the median
+across households. A household with no recorded time is left out rather than
+counted as zero, so GPT-5.5, whose batch rows record none, has no latency.
+
+A cached response is answered in hundredths of a second, and its row records
+that lookup as the call's latency. In the frozen predictions, 330 households
+sum to under a second, all under 0.12 s; the fastest live household takes
+1.75 s. The audit (`docs/latency_replay_audit.md`, with every household in
+`docs/latency_replay_audit/households.csv`) traces 328 of them to an earlier
+request on the same household. The other two (Grok 4.3's scenario_000 and
+Claude Haiku 4.5's scenario_009) come from runs that predate per-call
+timestamps and left no cache or ledger. Another 33 households replay their
+first recorded call and then reach the provider, so their times leave out that
+call.
+
+- Qwen3.7-max (93 households), GLM-5.2 (80), Kimi K2.6 (75) and MiniMax M3
+  (53) were finished over several passes, each of which replayed the earlier
+  passes' successes. Their published medians, 0.003 to 0.033 seconds, are
+  cache lookups, not latency, and the paper shows them as a dash.
+- Claude Sonnet 5 (9 households) replays its smoke and two restarted chunks.
+  Muse Spark 1.3 (4) and Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5
+  (2 each) replay their onboarding smokes. DeepSeek V4 Pro and GPT-5.6 Sol,
+  Luna and Terra (2 each) replay requests sent minutes to an hour before
+  their runs. Replays can only lower a median. Dropping these households would
+  raise no published median by more than 2.5 seconds (DeepSeek V4 Pro, 169.9
+  to 172.4 s).
+- The 33 partial replays are in GLM-5.3 (18), GLM-5.3-Flash (preview) (4),
+  Kimi K2.6 (4), Claude Sonnet 5 (2), Kimi K3 (2), and GLM-5.2, MiniMax M3 and
+  Qwen3.7-max (1 each).
+
+The leaderboard does not display latency. Whether published medians should
+leave out replayed households is an open methodology decision.
 
 ## Country data paths
 
