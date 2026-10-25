@@ -14,9 +14,10 @@ script runs only on the machine that holds them:
   script searches their bytes for response ids and never unpickles them.
 - the supervised runner's spend ledgers (``*.spend.jsonl`` under
   ``--ledger-root``, repeatable), which record ``cache_hit`` per call. A ledger
-  under a path containing ``smoke`` belongs to an onboarding smoke.
-- smoke prediction files (CSV under a path containing ``smoke``) below the
-  ledger roots, which keep each smoke response's id and request times.
+  whose path below its root contains ``smoke`` belongs to an onboarding smoke;
+  the root's own path does not count.
+- smoke prediction files (CSVs whose path below a ledger root contains
+  ``smoke``), which keep each smoke response's id and request times.
 
 Each kind of evidence is tied to the frozen request it explains, the
 household's first call (the one whose id its rows keep):

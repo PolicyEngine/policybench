@@ -433,8 +433,10 @@ The harness caches provider responses on disk, keyed on the request and the
 prompt contract version (`policybench/cache.py`). A request identical to an
 earlier one returns the cached response, and its row records that response's
 answers and tokens. Its cost is computed from the replayed response when the
-row is written: its token counts at the configured list price, or the
-provider's charge embedded in it where no reconstruction exists. Each
+row is written: its token counts at the list prices then in effect
+(PolicyBench's own price for the model where it sets one, otherwise litellm's
+price table), or the provider's charge embedded in it where no reconstruction
+exists. Each
 household's cost counts its responses once, whether or not the board run paid
 for them, and leaves out spend on attempts that did not reach the board.
 

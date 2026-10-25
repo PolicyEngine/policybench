@@ -420,9 +420,11 @@ def test_id_times_need_the_margin_and_live_households_are_not_listed():
 def test_smoke_file_times_read_columns_by_name(tmp_path):
     """Smoke CSVs order their columns differently; a row without a completion
     time cannot show order and is skipped, and files outside a smoke path are
-    not read."""
+    not read. The root's own name mentions a smoke, as a real ledger root's
+    can, and must not make every file below it a smoke's."""
     from scripts.audit_latency_replays import smoke_file_times
 
+    tmp_path = tmp_path / "smoke_root"
     smoke = tmp_path / "x_smoke" / "run"
     smoke.mkdir(parents=True)
     pd.DataFrame(
@@ -437,3 +439,18 @@ def test_smoke_file_times_read_columns_by_name(tmp_path):
         {"provider_response_id": ["gen-c"], "request_completed_at": [5.0]}
     ).to_csv(board / "predictions.csv", index=False)
     assert smoke_file_times([tmp_path]) == {"gen-a": 10.0}
+
+
+def test_a_ledger_is_a_smokes_only_below_its_root(tmp_path):
+    """A ledger counts as an onboarding smoke's when its path below the root
+    mentions a smoke; a root whose own path does is not enough."""
+    from scripts.audit_latency_replays import ledger_records
+
+    root = tmp_path / "smoke_root"
+    for folder in ("board", "onboard_smoke"):
+        (root / folder).mkdir(parents=True)
+        (root / folder / "run.spend.jsonl").write_text(
+            json.dumps({"provider_response_id": folder, "cache_hit": True}) + "\n"
+        )
+    records = ledger_records([root]).set_index("provider_response_id")
+    assert records["_smoke"].to_dict() == {"board": False, "onboard_smoke": True}

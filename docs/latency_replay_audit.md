@@ -66,20 +66,25 @@ was "recorded at the run level". Neither was true, and both are corrected.
 A household counts as replayed when its first recorded response existed
 before the household's request began. The evidence is any of the following:
 
-- **Disk cache.** The response's id sits in a litellm cache entry stored more
-  than a minute before the request (`.policybench_cache` in the main checkout,
-  121,648 entries).
+- **Disk cache.** The response's id sits in a litellm cache entry stored
+  before the request began (`.policybench_cache` in the main checkout, 121,648
+  entries). The store time and the request time both come from this machine's
+  clock, so no margin is needed: a live call is stored only after its request
+  starts.
 - **OpenRouter id.** OpenRouter ids are `gen-<unix seconds>-…`, and the time
-  is more than a minute before the request. On all 962 live households that
+  is more than a minute before the request. The id's time is on the
+  provider's clock, hence the minute's margin. On all 962 live households that
   carry one, it falls within 23 seconds of `request_started_at`, and within 10
   seconds on 99% of them.
 - **OpenAI id.** An OpenAI Responses id embeds its creation time in hex, after
   litellm's base64 wrapper is removed. On all 694 live households that carry
   one, it falls within 4 seconds.
-- **Spend ledger.** The board run's spend ledger records `cache_hit: true` for
-  the call.
+- **Spend ledger.** A spend ledger outside the onboarding smokes records
+  `cache_hit: true` for the call: the same response id, model and household,
+  starting within half a second of the frozen request.
 - **Smoke.** The same response id was served live in the model's onboarding
-  smoke.
+  smoke, and that smoke finished before the request began (its ledger or its
+  prediction file).
 
 A full replay sums to under a second: every call in the household came from
 the cache. Every full replay in the run sums to under 0.12 s, while the fastest
@@ -183,8 +188,9 @@ publishes it.
   15 s rather than 14 s.
 - **`costUsd`.** A replayed row's cost is computed when the row is written,
   from the replayed response itself (`_extract_usage_metadata`). Where a token
-  reconstruction exists, its token counts are priced at the list prices
-  configured then; otherwise it is the provider's charge embedded in the
+  reconstruction exists, its token counts are priced at the list prices then
+  in effect (PolicyBench's own price for the model where it sets one, otherwise
+  litellm's price table, marked estimated); otherwise it is the provider's charge embedded in the
   response. Spend ledgers record each cache hit's spend as $0 and that computed
   cost as `cached_response_cost_usd`, and on all ten ledger-era full replays
   (Muse Spark 1.3, Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5) the board
@@ -198,10 +204,10 @@ publishes it.
   such as the open-weight models' failed passes. That matches the paper's
   description ("each call's recorded total"), so no cost figure misleads
   because of replays. Fable 5's `costUsd` is computed from its original rows,
-  so its NaN board rows do not reach it. `model_cost_latency` itself returns
-  $0 for a model whose rows carry no tokens when a price override exists, as
-  Fable 5's do. The release drivers overwrite that with the carried value, so
-  nothing published shows it.
+  so its NaN board rows do not reach it. `model_cost_latency` returned $0 for a
+  model whose rows carry no tokens when a price override exists, as Fable 5's
+  do, until #230; it now reports no cost, and the release drivers carry the
+  published value.
 - **GLM-5.3-Flash (preview)** (artifact key `ox-alpha`) records a
   provider-reported charge of $0.00 on all 1,984 rows. The leaderboard prints
   $0.000 per household and the paper prints a dash, which the caption now
@@ -229,8 +235,10 @@ comments, and the tests that tie them to the data. The options:
   response-id times or the caches, not just household times.
 - **C. Reconstruct the replayed calls' durations** from cache store time minus
   OpenRouter creation time. That gives about 133, 117, 294 and 10 s for the four
-  models, but it times only the call that succeeded, not the retries the
-  harness timer includes.
+  models, but it times only each household's first call, the one whose id the
+  rows keep. It misses the household's later calls (other chunks, repairs, and
+  re-requests with a larger completion budget), so it falls short wherever a
+  household made several calls.
 - **D. Re-time the four models.** Re-send their replayed households live with
   the cache off, for latency only, leaving their predictions alone. The full
   replays' recorded cost suggests about $47 (Kimi K2.6 $28.38, Qwen3.7-max
