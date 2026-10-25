@@ -458,13 +458,13 @@ def _unchecked_acl(target: int | str) -> str | None:
 # file when its directory's ACL lets it, whatever the group and other mode
 # bits say (fs/afs/security.c), and OpenAFS shows no ACL at all: its Linux
 # client has no xattr handlers (src/afs/LINUX/osi_vnodeops.c). fstatfs names
-# the filesystem the opened entry belongs to, so each entry, file or
-# directory, is judged by its own, a bind mount or a file mounted over another
-# included. A layer stacked on top, such as FUSE, overlayfs or eCryptfs,
-# reports its own type instead (fs/fuse/inode.c, fs/overlayfs/super.c,
-# fs/ecryptfs/super.c). On Linux fstatfs gives f_type, which each
-# filesystem's statfs sets: the kernel's AFS client reports AFS_FS_MAGIC
-# (fs/afs/super.c), and OpenAFS hardcodes 0x5346414F
+# the filesystem the opened entry belongs to (fs/statfs.c), so each entry,
+# file or directory, is judged by its own, a bind mount or a file mounted over
+# another included. A layer stacked on top, such as FUSE, overlayfs or
+# eCryptfs, reports its own type instead (fs/fuse/inode.c,
+# fs/overlayfs/super.c, fs/ecryptfs/super.c). On Linux fstatfs gives f_type,
+# which each filesystem's statfs sets (fs/statfs.c): the kernel's AFS client
+# reports AFS_FS_MAGIC (fs/afs/super.c), and OpenAFS hardcodes 0x5346414F
 # (src/afs/LINUX/osi_vfsops.c), which include/uapi/linux/magic.h names
 # AFS_SUPER_MAGIC. On macOS it is the type name, which OpenAFS registers as
 # "afs" (src/afs/DARWIN/osi_module.c).
