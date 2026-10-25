@@ -2762,12 +2762,23 @@ def test_the_gemini_patch_keeps_search_beside_functions(monkeypatch):
         )
         return sorted(k for t in params.get("tools", []) for k in t)
 
-    if importlib.metadata.version("litellm") != pilot.GEMINI_SEARCH_PATCH_LITELLM:
-        pytest.skip("the patch refuses other litellm versions")
+    # Installed from the lock, litellm is a release the patch was checked
+    # against (the lock test below), so this runs rather than skips.
+    assert importlib.metadata.version("litellm") in pilot.GEMINI_SEARCH_PATCH_LITELLM
     assert tool_keys() == ["function_declarations"]  # litellm drops search
     pilot.allow_gemini_search_with_functions()
     assert tool_keys() == ["function_declarations", "googleSearch"]
     assert calculate_tool["function"]["name"] == pilot.TOOL_NAME
+
+
+def test_the_locked_litellm_is_one_the_gemini_patch_was_checked_against():
+    """A lock bump past the checked releases fails here, before a live web arm
+    refuses to start."""
+    import tomllib
+
+    lock = tomllib.loads((Path(__file__).resolve().parents[1] / "uv.lock").read_text())
+    (version,) = {p["version"] for p in lock["package"] if p["name"] == "litellm"}
+    assert version in pilot.GEMINI_SEARCH_PATCH_LITELLM
 
 
 def test_the_gemini_patch_refuses_another_litellm(monkeypatch):
