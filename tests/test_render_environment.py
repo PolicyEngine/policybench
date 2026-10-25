@@ -62,20 +62,24 @@ def test_docs_site_stack_is_not_locked():
 # directory and include paths ending in /, and uv rejects empty parentheses
 # and (in 0.11) a trailing comma that pip accepts. A false marker makes both
 # quietly install nothing. So a guess could hide jupyter-book from one or
-# both.
+# both. Absolute include paths and included symlinks are refused too, though
+# pip and uv read the cases run so far alike: no file here needs them, and
+# refusing them keeps the test independent of the machine's paths and of how
+# uv recognizes a file it has already read.
 #   - blank lines and comments: a # at a line's start or after whitespace,
 #     except a PEP 263 encoding line among a file's first two, which pip
 #     applies to the whole file;
-#   - includes: -r FILE, --requirement FILE or --requirement=FILE, resolved
-#     relative to the including file, with no cycle, no .. after a symlinked
-#     directory and no trailing / or /.;
+#   - includes: -r FILE, --requirement FILE or --requirement=FILE, where FILE
+#     is a relative path, resolved against the including file's directory,
+#     that names no symlink, has no .. after a symlinked directory, doesn't
+#     end in / or /. and closes no cycle;
 #   - requirements: a name, optional extras and version specifiers with no
 #     empty parentheses or trailing comma; no URL, path, marker, archive name
 #     or per-requirement option.
 # Every file is UTF-8 with no byte-order mark.
 _COMMENT = re.compile(r"(^|\s+)#.*$")
 _INCLUDE = re.compile(
-    r"(?:-r\s+|--requirement(?:\s+|=))([A-Za-z0-9._/][A-Za-z0-9._/-]*)"
+    r"(?:-r\s+|--requirement(?:\s+|=))([A-Za-z0-9._][A-Za-z0-9._/-]*)"
 )
 # pip decodes a file by its byte-order mark, or else by a PEP 263 line among
 # its first two that starts with # (_decode_req_file in req_file.py). The
@@ -117,11 +121,12 @@ def _requirement_names(path: Path, _including: tuple[str, ...] = ()) -> set[str]
             continue
         include = _INCLUDE.fullmatch(line)
         if include:
-            # pathlib drops a trailing / or /., which uv keeps.
+            # pathlib drops a trailing / or /., and uv rejects the path.
             assert not re.search(r"/\.?$", include.group(1)), (
                 f"an include path ending in / or /.: {where}"
             )
             target = path.parent / include.group(1)
+            assert not os.path.islink(target), f"an include of a symlink: {where}"
             # pip collapses .. before opening the file (os.path.abspath),
             # while opening it follows a symlink before applying the ..
             lexical = os.path.realpath(os.path.normpath(target))
@@ -152,7 +157,6 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
     (tmp_path / "deep.txt").write_text("deep\n")
     (tmp_path / "other.txt").write_text("other\r\n")
     (tmp_path / "tabbed.txt").write_text("after-tab\n")
-    (tmp_path / "absolute.txt").write_text("absolute\n")
     (tmp_path / "requirements.txt").write_text(
         "# top\n"
         "  # indented\n"
@@ -165,7 +169,6 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         "--requirement sub/more.txt\n"
         "--requirement=other.txt\n"
         "--requirement\t./tabbed.txt\n"
-        f"-r {tmp_path}/absolute.txt\n"
     )
     assert _requirement_names(tmp_path / "requirements.txt") == {
         "foo",
@@ -176,7 +179,6 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         "deep",
         "other",
         "after-tab",
-        "absolute",
     }
 
 
@@ -205,6 +207,7 @@ def test_requirement_names_read_the_forms_pip_and_uv_agree_on(tmp_path):
         ("-r requirements.txt\n", "an include cycle"),
         ("foo\n-r requirements.txt\n", "an include cycle"),
         ("-r base.txt/\n", "an include path ending in /"),
+        ("-r /abs/base.txt\n", "an option"),
         ("--requirement=base.txt/.\n", "an include path ending in /"),
         ("-r=base.txt\n", "an option"),  # pip opens "=base.txt"; uv, base.txt
         ("-rbase.txt\n", "an option"),
@@ -277,6 +280,22 @@ def test_requirement_names_refuse_an_include_whose_dotdot_crosses_a_symlink(
     assert _requirement_names(requirements) == {"more"}
     requirements.write_text("-r sub/../base.txt\n")
     with pytest.raises(AssertionError, match="an include whose .. crosses a symlink"):
+        _requirement_names(requirements)
+
+
+def test_requirement_names_refuse_an_include_of_a_symlink(tmp_path):
+    """A symlinked file's own includes resolve against the link's directory."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "real.txt").write_text("-r base.txt\n")
+    (tmp_path / "a" / "base.txt").write_text("foo\n")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "link.txt").symlink_to("../a/real.txt")
+    (tmp_path / "docs" / "base.txt").write_text("jupyter-book\n")
+    requirements = tmp_path / "docs" / "requirements.txt"
+    requirements.write_text("-r ../a/real.txt\n")
+    assert _requirement_names(requirements) == {"foo"}
+    requirements.write_text("-r link.txt\n")
+    with pytest.raises(AssertionError, match="an include of a symlink"):
         _requirement_names(requirements)
 
 
