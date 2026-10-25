@@ -30,19 +30,48 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   stage and every model's spend since. At the crossing, no attempt starts,
   the conversations under way end ``budget_stop`` at their next turn, and
   every model's run log gets a ``ceiling`` event at the crossing's time.
+  The decision to admit a household and the crossing share one lock, so no
+  household is decided after the crossing.
+- **The attempt deadline.** A conversation still running an hour after it
+  started is abandoned: its attempt gets a harness-error record
+  (``AttemptDeadline``) holding the spend so far, the model's lanes stop,
+  and the conversation ends ``budget_stop`` at its next turn. Its spend after
+  the deadline still counts toward the ceiling, and goes to the run log as
+  ``late-cost`` events.
 - **Failures.** Each attempt's class follows the pre-registration's table, in
   the precedence the report's ``classify`` uses, from its record and the host
   evidence for its start and end; its action follows from its class and its
   attempt number. An operator failure pauses the model's lanes until
-  ``resume``. A harness failure stops them, and so does one inconclusive
-  error that ends runs in more than five of the model's households. A
-  replaced attempt is saved, before its rerun, as
-  ``households/attempts/<household>-<n>.json``.
-- **The host log.** Every 30 seconds: the time, the load average and the
-  kernel's memory-pressure level. At the end, the guard's and the power log's
-  lines from a day before the booking to its end. An attempt's class waits
-  for its host evidence to be complete: a sample more than 60 seconds after
-  the pass's last end, or no sample for more than 90 seconds.
+  ``resume``, which is accepted only if written after the pause began. A
+  harness failure stops them, and so does one inconclusive error that ends
+  runs in more than five of the model's households. A replaced attempt is
+  saved, before its rerun, as ``households/attempts/<household>-<n>.json``.
+- **Stops.** Every ``stop`` event names its cause: ``harness``,
+  ``inconclusive``, ``deadline``, ``pool`` (the engine pool could not be
+  started again), ``runner-error`` (an exception in the runner itself, which
+  stops every model's lanes after writing what had ended), ``interrupt`` or
+  ``sampler``. The ceiling's events are ``ceiling`` events of cause
+  ``ceiling``.
+- **The host log.** Every 30 seconds: the time, the monotonic clock, the
+  load average and the kernel's memory-pressure level (None when it could not
+  be read, which is no sample). At the end, the guard's and the power log's
+  lines from a day before the booking to its end. A read of those logs is
+  tried five times; one that still fails during the run is a runner error,
+  and at the end leaves ``host-error.txt`` in place of the excerpts. An
+  attempt's class waits for its host evidence to
+  be complete: a good sample more than 60 seconds after the pass's last end,
+  or no good sample for more than 90 seconds. A sampler whose samples have
+  failed for five minutes, or whose thread has ended, stops every model.
+- **Chains and anchors.** Every line of the run logs, the admission logs and
+  the host log carries ``prev``, the sha256 of the line before it. The first
+  line's is a seed: for a model's logs, the sha256 of the frozen hash, the
+  model and the file's name; for the host log, of its name. Every 15
+  minutes, and at the end, ``anchors.jsonl`` gets a line with every log's
+  line count and head and every manifest's sha256, itself chained, and the
+  design's ``anchor_command`` is run on it in the background; each run's
+  result goes to ``anchor-pushes.jsonl``. ``confirmatory_anchor.py`` is that
+  command: it commits the file to a clone and pushes it, so the remote holds
+  each anchor's time from outside the run.
 
 The records' format is the confirmatory report's (its module docstring). The
 report recomputes every class, action, order and admission decision from the
@@ -53,9 +82,11 @@ The runner runs the treatment harness's code. It refuses to start unless its
 ``tool_pilot_argon.py``, ``policybench`` package and fix module are the
 treatment commit's (6b00a6f0), its tree is clean at the design's run commit,
 the machine is on AC power with the lid open, and the runs folder holds no
-records: a run is never resumed. An interrupt (SIGINT or SIGTERM) stops every
-model's lanes with a stop event and lets the conversations under way end; a
-second interrupt exits at once.
+records: a run is never resumed. ``--workers`` must equal the design's
+engine workers per model. An interrupt (SIGINT or SIGTERM) only notes the
+signal; the main loop then stops every model's lanes with cause
+``interrupt`` and lets the conversations under way end. A second interrupt
+exits at once.
 """
 
 from __future__ import annotations
@@ -128,8 +159,29 @@ CEILING_MARGIN = 25.0  # dollars above the overall cap
 ADMISSION_SLACK = 1e-9  # dollars
 EXCERPT_LEAD = 86_400.0  # host logs are kept from a day before the booking
 WAIT_SECONDS = 1.0  # how often a waiting lane looks again
+ATTEMPT_DEADLINE = 3600.0  # seconds; the longest development attempt took 714
+SAMPLER_SILENCE = 300.0  # seconds without a host-log sample that stop the run
+READ_TRIES = 5  # reads of the guard's and the power log before a runner error
+READ_WAIT = 10.0  # seconds between them
+ANCHOR_SECONDS = 900.0  # how often the logs' chain heads are anchored
+LATE_JOIN = 60.0  # seconds the run's end waits for an abandoned attempt
+# What a stop event names as its cause.
+STOP_CAUSES = frozenset(
+    {
+        "harness",
+        "inconclusive",
+        "pool",
+        "deadline",
+        "runner-error",
+        "interrupt",
+        "sampler",
+    }
+)
 
-# The pre-registration's error classes (its "Failures" table).
+# The pre-registration's error classes (its "Failures" table): the names of
+# litellm's exception classes under the harness's retryable classes (transport)
+# and under its model-fatal ones (request and account). A record keeps only
+# the raised class's name.
 TRANSPORT = frozenset(
     {
         "APIConnectionError",
@@ -137,6 +189,8 @@ TRANSPORT = frozenset(
         "APIResponseValidationError",
         "BadGatewayError",
         "InternalServerError",
+        "JSONSchemaValidationError",
+        "MidStreamFallbackError",
         "RateLimitError",
         "ServiceUnavailableError",
         "Timeout",
@@ -146,13 +200,20 @@ TRANSPORT = frozenset(
 REQUEST = frozenset(
     {
         "BadRequestError",
+        "ContentPolicyViolationError",
         "ContextWindowExceededError",
+        "ImageFetchError",
         "InvalidRequestError",
+        "LiteLLMUnknownProvider",
+        "RejectedRequestError",
         "UnprocessableEntityError",
         "UnsupportedParamsError",
     }
 )
 ACCOUNT = frozenset({"AuthenticationError", "PermissionDeniedError", "NotFoundError"})
+# A timeout on the escalated request, the one asking for the escalation
+# ceiling after a truncated turn, is the model's long generation timing out.
+TIMEOUTS = frozenset({"Timeout", "RequestWallTimeoutError"})
 HOST_ENGINE = frozenset({"MemoryError", "OSError"})
 RERUN = frozenset({"provider", "host", "none", "operator"})
 FINISHED = frozenset({"complete", "incomplete", "turn_limit"})
@@ -176,6 +237,8 @@ REQUIRED = (
     "reserves",
     "overall_cap",
     "spent_before",
+    "workers",
+    "anchor_command",
 )
 
 
@@ -254,7 +317,8 @@ def completed_turns(record: dict) -> list:
 
 def call_failures(record: dict) -> tuple[list[str], list[str]]:
     """(the inconclusive tool failures, the model's engine exceptions) in its
-    calls."""
+    calls: a call's own error, and the errors in its results and in its
+    explanations (the explain feature's trace of a variable)."""
     host, model = [], []
     for turn in record.get("turns") or []:
         for call in turn.get("calls") or []:
@@ -269,39 +333,59 @@ def call_failures(record: dict) -> tuple[list[str], list[str]]:
                 host.append("tool worker failure")
             elif error == "engine":
                 (host if name in HOST_ENGINE else model).append(name)
-            for value in (result.get("results") or {}).values():
-                if isinstance(value, dict) and value.get("error"):
-                    name = str(value["error"]).split(":", 1)[0]
-                    (host if name in HOST_ENGINE else model).append(name)
+            for group in ("results", "explanations"):
+                values = result.get(group)
+                for value in values.values() if isinstance(values, dict) else ():
+                    if isinstance(value, dict) and value.get("error"):
+                        name = str(value["error"]).split(":", 1)[0]
+                        (host if name in HOST_ENGINE else model).append(name)
     return host, model
+
+
+def escalation_timed_out(record: dict) -> bool:
+    """Whether the attempt ended on a timeout of its escalated request: the
+    harness records a truncated turn, then asks again at the escalation
+    ceiling, and an error there leaves the truncated turn last."""
+    turns = record.get("turns") or []
+    return (
+        record.get("status") == "provider_error"
+        and error_class(record) in TIMEOUTS
+        and bool(turns)
+        and bool(turns[-1].get("truncated_and_retried"))
+    )
 
 
 def classify(record: dict, start: float, end: float, host) -> tuple[str, str]:
     """(class, detail) of one attempt. In order of precedence: operator (an
     account class or insufficient_quota); harness (a request class with no
-    model request yet returned); ceiling (budget_stop); none (no model request
-    returned); host (host trouble during the attempt); provider (a transport
-    class); model (a request class); inconclusive (any other provider error,
-    any harness error, a tool timeout, a worker failure, MemoryError or
-    OSError); otherwise ok, or model when the engine raised on a household the
-    model built. `host` is None to decide only the classes before host."""
+    completed model turn yet); ceiling (budget_stop); none (no turn recorded:
+    no model request returned, truncated or not); host (host trouble during
+    the attempt); model (a timeout of the escalated request); provider (a
+    transport class); model (a request class); inconclusive (any other
+    provider error, any harness error, a tool timeout, a worker failure,
+    MemoryError or OSError); otherwise ok, or model when the engine raised on
+    a household the model built. `host` is None to decide only the classes
+    before host."""
     status, error = record.get("status"), str(record.get("error") or "")
     name = error_class(record)
-    reached = bool(completed_turns(record))
+    returned = bool(record.get("turns"))
+    completed = bool(completed_turns(record))
     if status == "provider_error" and (
         name in ACCOUNT or "insufficient_quota" in error
     ):
         return "operator", name
-    if status == "provider_error" and name in REQUEST and not reached:
+    if status == "provider_error" and name in REQUEST and not completed:
         return "harness", name
     if status == "budget_stop":
         return "ceiling", status
-    if not reached:
+    if not returned:
         return "none", f"{status}: {name}" if name else str(status)
     trouble = host.trouble(start, end) if host is not None else None
     if trouble:
         return "host", trouble
     if status == "provider_error":
+        if escalation_timed_out(record):
+            return "model", f"{name} on the escalated request"
         if name in TRANSPORT:
             return "provider", name
         if name in REQUEST:
@@ -432,9 +516,11 @@ def memory_pressure() -> int | None:
 
 
 def read_guard_log() -> str:
+    """The guard's log; empty when there is none (the guard never paused
+    anything). Any other error is raised, for the reader to try again."""
     try:
         return GUARD_LOG.read_text(errors="replace")
-    except OSError:
+    except FileNotFoundError:
         return ""
 
 
@@ -453,10 +539,19 @@ def local_timezone() -> str:
     return target.split("zoneinfo/", 1)[1]
 
 
+# The `prev` of the host log's first line.
+HOST_SEED = hashlib.sha256(b"host-log.jsonl").hexdigest()
+
+
+class HostEvidenceError(RuntimeError):
+    """The guard's or the power log could not be read: a runner error."""
+
+
 class HostLog:
     """The host log, written every `interval` seconds, and the host evidence an
     attempt's class reads: the guard's pauses, the power log's sleeps, the
-    host log's gaps and its memory-pressure samples."""
+    host log's gaps and its memory-pressure samples. A sample whose pressure
+    could not be read is no sample: the silence around it is a gap."""
 
     def __init__(
         self,
@@ -481,7 +576,11 @@ class HostLog:
         self._read_at = -math.inf
         self._refresh_lock = threading.Lock()
         self._stop = threading.Event()
+        self.failure: str | None = None  # the sampler's last error
+        self.failing_since: float | None = None  # failed samples since then
+        self._head, self._lines = HOST_SEED, 0  # the log's hash chain
         self.start = time.time()
+        self.written = self.start  # the last sample written
         self.end: float | None = None
         self._write_meta()
         self.sample()
@@ -495,37 +594,82 @@ class HostLog:
         write_json(self.folder / "host.json", meta)
 
     def sample(self) -> None:
-        load1, load5, load15 = self._read_load()
+        """One sample. A load or pressure the host would not give is written
+        as null; a sample that cannot be written is the sampler's failure,
+        and the silence it leaves is a gap."""
+        try:
+            load1, load5, load15 = self._read_load()
+        except OSError:
+            load1 = load5 = load15 = None
         pressure = self._read_pressure()
         with self._cond:
             t = time.time()
             line = {
                 "time": t,
+                "monotonic": time.monotonic(),
                 "load1": load1,
                 "load5": load5,
                 "load15": load15,
                 "pressure": pressure,
             }
-            with (self.folder / "host-log.jsonl").open("a") as handle:
-                handle.write(json.dumps(line) + "\n")
+            text = json.dumps({**line, "prev": self._head})
+            try:
+                with (self.folder / "host-log.jsonl").open("a") as handle:
+                    handle.write(text + "\n")
+            except OSError as error:
+                self.failure = f"{type(error).__name__}: {error}"
+                self.failing_since = self.failing_since or t
+                return
+            self._head, self._lines = line_sha(text), self._lines + 1
+            self.written = t
+            if pressure is None:
+                self.failure = "no memory-pressure reading"
+                self.failing_since = self.failing_since or t
+            else:
+                self.failing_since = None
             self._samples.append((t, pressure))
             self._cond.notify_all()
+
+    def heads(self) -> dict:
+        """The host log's line count and last line's sha256, for an anchor."""
+        with self._cond:
+            return {"lines": self._lines, "sha256": self._head}
+
+    def dead(self) -> str | None:
+        """Why the sampler is taken for dead: no good sample for
+        SAMPLER_SILENCE seconds while its samples fail, or its thread gone.
+        A host that slept or was paused is not this: its sampler failed
+        nothing."""
+        if self.end is None and not self._thread.is_alive():
+            return "the sampler's thread ended"
+        since = self.failing_since
+        if since is not None and time.time() - since > SAMPLER_SILENCE:
+            return f"samples failing since {since:.1f} ({self.failure})"
+        return None
 
     def _loop(self) -> None:
         k = 1
         while not self._stop.wait(
             max(0.0, self.start + k * self.interval - time.time())
         ):
-            self.sample()
+            try:
+                self.sample()
+            except Exception as error:  # the sampler runs on; watch() sees the silence
+                self.failure = f"{type(error).__name__}: {error}"
             # After a stall, the next sample is the next tick, with no burst.
             k = max(k + 1, math.ceil((time.time() - self.start) / self.interval))
+
+    def _good(self) -> list[float]:
+        """The times of the samples with a pressure reading."""
+        return [t for t, p in self._samples if p is not None]
 
     def settled(self, end: float) -> bool:
         """Whether every sample that could bear on an attempt ending at `end` is
         in: one later than the pressure window, or a silence longer than a
         gap (which is itself host trouble when it covers the attempt)."""
         with self._cond:
-            latest = self._samples[-1][0]
+            good = self._good()
+            latest = good[-1] if good else self.start
             return latest > end + PRESSURE_WINDOW or time.time() - latest > HOST_LOG_GAP
 
     def wait_settled(self, end: float) -> None:
@@ -533,18 +677,30 @@ class HostLog:
             while not self.settled(end):
                 self._cond.wait(timeout=min(self.interval, 5.0))
 
+    def _read_logs(self) -> tuple[str, str]:
+        """The guard's and the power log, read up to READ_TRIES times."""
+        for attempt in range(READ_TRIES):
+            try:
+                return self._read_guard(), self._read_power()
+            except (OSError, subprocess.SubprocessError) as error:
+                failure = f"{type(error).__name__}: {error}"
+                if attempt < READ_TRIES - 1:
+                    time.sleep(READ_WAIT)
+        raise HostEvidenceError(f"the guard's or the power log: {failure}")
+
     def refresh(self, after: float) -> None:
-        """Read the guard's and the power log again unless read since `after`."""
+        """Read the guard's and the power log again unless read since `after`.
+        A failed read keeps the last spans and tries again; HostEvidenceError
+        after READ_TRIES."""
         with self._refresh_lock:
             if self._read_at > after:
                 return
             now = time.time()
             since = self.start - EXCERPT_LEAD
             zone = ZoneInfo(self.timezone)
-            guard = excerpt(
-                self._read_guard(), lambda x: guard_time(x, zone), since, now
-            )
-            power = excerpt(self._read_power(), power_time, since, now)
+            guard_text, power_text = self._read_logs()
+            guard = excerpt(guard_text, lambda x: guard_time(x, zone), since, now)
+            power = excerpt(power_text, power_time, since, now)
             spans = guard_spans(guard, self.timezone, now) + power_spans(power, now)
             with self._cond:
                 self._spans, self._read_at = spans, now
@@ -554,14 +710,15 @@ class HostLog:
         from the archived logs, with a silence so far as an open gap."""
         with self._cond:
             spans = list(self._spans)
-            times = [t for t, _ in self._samples]
-            pressure = [t for t, p in self._samples if int(p or 0) > 1]
+            times = self._good()
+            pressure = [t for t, p in self._samples if p is not None and int(p) > 1]
         for a, b in zip([self.start] + times, times):
             if b - a > HOST_LOG_GAP:
                 spans.append((a, b, "host log gap"))
         now = time.time() if self.end is None else self.end
-        if now - times[-1] > HOST_LOG_GAP:
-            spans.append((times[-1], now, "host log gap"))
+        last = times[-1] if times else self.start
+        if now - last > HOST_LOG_GAP:
+            spans.append((last, now, "host log gap"))
         return spans, pressure
 
     def trouble(self, start: float, end: float) -> str | None:
@@ -591,20 +748,28 @@ class HostLog:
         return "; ".join(parts)
 
     def close(self) -> None:
-        """A last sample, the booking's end, and the guard's and power log's
-        lines for the booking."""
+        """A last sample, the run's end, and the guard's and power log's lines
+        from a day before the run's start to its end. If the logs cannot be
+        read, `host-error.txt` says why and the excerpts are not written: the
+        report then has no host evidence to check against."""
         self._stop.set()
         self._thread.join(timeout=self.interval + 10)
-        self.sample()
+        try:
+            self.sample()
+        except Exception as error:
+            self.failure = f"{type(error).__name__}: {error}"
         with self._cond:
             self.end = time.time()
         self._write_meta()
         since, zone = self.start - EXCERPT_LEAD, ZoneInfo(self.timezone)
-        guard = excerpt(
-            self._read_guard(), lambda x: guard_time(x, zone), since, self.end
-        )
+        try:
+            guard_text, power_text = self._read_logs()
+        except HostEvidenceError as error:
+            (self.folder / "host-error.txt").write_text(f"{error}\n")
+            return
+        guard = excerpt(guard_text, lambda x: guard_time(x, zone), since, self.end)
         (self.folder / "clamshell-guard.log").write_text(guard)
-        power = excerpt(self._read_power(), power_time, since, self.end)
+        power = excerpt(power_text, power_time, since, self.end)
         (self.folder / "pmset.log").write_text(power)
 
 
@@ -635,6 +800,38 @@ class Ceiling(pilot.Spend):
             return self.crossed_at is not None
 
 
+class AttemptSpend:
+    """The hard ceiling as one attempt's conversation sees it. Every cost goes
+    to the ceiling, and the attempt keeps its own total, so an attempt that
+    raises still records what it spent. Once the attempt is abandoned at its
+    deadline, the conversation ends `budget_stop` at its next turn, and what
+    it spends after is kept apart as late spend."""
+
+    def __init__(self, ceiling: Ceiling):
+        self.ceiling = ceiling
+        self._lock = threading.Lock()
+        self.spent_usd = 0.0
+        self.late_usd = 0.0
+        self.abandoned = False
+
+    def add(self, usd: float | None) -> None:
+        with self._lock:
+            if self.abandoned:
+                self.late_usd += float(usd or 0.0)
+            else:
+                self.spent_usd += float(usd or 0.0)
+        self.ceiling.add(usd)
+
+    def exhausted(self, reserve_usd: float = 0.0) -> bool:
+        return self.abandoned or self.ceiling.exhausted()
+
+    def abandon(self) -> float:
+        """Abandon the attempt; what it had spent."""
+        with self._lock:
+            self.abandoned = True
+            return self.spent_usd
+
+
 # ---------------------------------------------------------------- files
 
 
@@ -647,13 +844,27 @@ def sha256_file(path: Path) -> str:
 
 
 def write_json(path: Path, payload, indent: int | None = 1) -> str:
-    """Write a file whole (to a temporary name, then renamed); its sha256."""
+    """Write a file whole (to a temporary name, synced, then renamed); its
+    sha256."""
     data = json.dumps(payload, indent=indent, default=str).encode()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_bytes(data)
+    with tmp.open("wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, path)
     return sha256_bytes(data)
+
+
+def chain_seed(frozen_sha256: str, model: str, name: str) -> str:
+    """The `prev` of a log's first line: the log's place in the design."""
+    return sha256_bytes(f"{frozen_sha256}/{model}/{name}".encode())
+
+
+def line_sha(text: str) -> str:
+    """A log line's hash, the next line's `prev`: its JSON, no newline."""
+    return sha256_bytes(text.encode())
 
 
 # ---------------------------------------------------------------- one model
@@ -669,9 +880,17 @@ class Attempt:
     cls: str = ""
     detail: str = ""
     reason: str = ""
+    settled: bool = False  # classed with its pass's host evidence
+    logged: bool = False  # its run-log line written
 
 
-def converse_with_harness(lanes: "Lanes", sid: str, label: str, tool_call) -> dict:
+class AttemptDeadline(RuntimeError):
+    """An attempt ran past ATTEMPT_DEADLINE and was abandoned."""
+
+
+def converse_with_harness(
+    lanes: "Lanes", sid: str, label: str, tool_call, spend: AttemptSpend
+) -> dict:
     """One attempt: the treatment harness's conversation for the arm, under the
     hard ceiling."""
     board = lanes.run.board
@@ -680,7 +899,7 @@ def converse_with_harness(lanes: "Lanes", sid: str, label: str, tool_call) -> di
         board["variables"][sid],
         tool_call,
         lanes.completion,
-        lanes.run.ceiling,
+        spend,
         profile=lanes.profiles[label],
     )
 
@@ -706,11 +925,21 @@ class Lanes:
         self.spent: dict[str, float] = {}  # household -> its attempts' cost so far
         self.refused = False
         self.paused = False
+        self.paused_at: float | None = None
         self.stopped = False
         self.inconclusive: dict[str, list[str]] = {}
         self.pool = None
         self._pool_lock = threading.Lock()
         self.completion = None
+        self.manifest_sha256: str | None = None
+        # Each log is a hash chain: a line's `prev` is the line before's sha256.
+        self._heads = {
+            name: chain_seed(design["frozen_sha256"], model, name)
+            for name in ("run-log.jsonl", "admission-log.jsonl")
+        }
+        self._counts = {name: 0 for name in self._heads}
+        # Attempts abandoned at their deadline, whose spend after it is logged.
+        self.abandoned: list[dict] = []
 
     # The records.
 
@@ -723,16 +952,30 @@ class Lanes:
 
     def write_line(self, line: dict, name: str = "run-log.jsonl") -> None:
         with self._log_lock:
+            text = json.dumps({**line, "prev": self._heads[name]})
             self.folder.mkdir(parents=True, exist_ok=True)
             with (self.folder / name).open("a") as handle:
-                handle.write(json.dumps(line) + "\n")
+                handle.write(text + "\n")
                 handle.flush()
                 os.fsync(handle.fileno())
+            self._heads[name] = line_sha(text)
+            self._counts[name] += 1
 
-    def event(self, kind: str, reason: str, at: float | None = None) -> None:
-        self.write_line(
-            {"event": kind, "time": clock() if at is None else at, "reason": reason}
-        )
+    def heads(self) -> dict:
+        """Each log's line count and last line's sha256, for an anchor."""
+        with self._log_lock:
+            return {
+                name: {"lines": self._counts[name], "sha256": self._heads[name]}
+                for name in self._heads
+            }
+
+    def event(
+        self, kind: str, reason: str, at: float | None = None, cause=None, **extra
+    ) -> None:
+        line = {"event": kind, "time": clock() if at is None else at, "reason": reason}
+        if cause is not None:
+            line["cause"] = cause
+        self.write_line({**line, **extra})
         self.run.say(f"{self.model}: {kind} ({reason})")
 
     def attempt_line(self, sid: str, lane: int, a: Attempt, sha: str) -> None:
@@ -750,17 +993,23 @@ class Lanes:
                 "sha256": sha,
             }
         )
+        a.logged = True
 
     # Stops and pauses.
 
     def halted(self) -> bool:
         return self.stopped or self.run.ceiling.exhausted()
 
-    def stop(self, reason: str, kind: str = "stop", at: float | None = None) -> None:
-        """Stop the lanes. Every rule that stops them writes its own event."""
+    def stop(
+        self, reason: str, cause: str, kind: str = "stop", at: float | None = None
+    ) -> None:
+        """Stop the lanes. Every rule that stops them writes its own event,
+        naming its cause."""
+        if (kind, cause) != ("ceiling", "ceiling") and cause not in STOP_CAUSES:
+            raise ValueError(f"no stop has the cause {cause!r}")
         with self.cond:
             self.stopped = True
-            self.event(kind, reason, at)
+            self.event(kind, reason, at, cause=cause)
             self.cond.notify_all()
 
     def resume(self, note: str) -> None:
@@ -778,9 +1027,11 @@ class Lanes:
                 self.paused or "settling" in self.state.values()
             ):
                 self.cond.wait(timeout=WAIT_SECONDS)
-            if self.halted():
-                return False
-            now = clock()
+            # Taken under the ceiling's lock, so no decision follows the crossing.
+            with self.run.ceiling.lock:
+                if self.stopped or self.run.ceiling.crossed_at is not None:
+                    return False
+                now = clock()
             finished = [h for h, s in self.state.items() if s == "finished"]
             spend = sum(self.spent[h] for h in finished)
             under_way = len(self.state) - len(finished) + 1
@@ -821,11 +1072,19 @@ class Lanes:
                 return clock()
 
     def end_attempt(
-        self, sid: str, label: str, n: int, start: float, record: dict, last: bool
+        self,
+        sid: str,
+        label: str,
+        n: int,
+        start: float,
+        record: dict,
+        last: bool,
+        deadline: bool = False,
     ) -> Attempt:
         """The attempt's end. A class decided without the host evidence acts at
         once: an operator failure pauses the lanes, a harness failure stops
-        them, before any other attempt can start."""
+        them, before any other attempt can start; so does an attempt
+        abandoned at its deadline."""
         with self.cond:
             end = clock()
             self.spent[sid] += attempt_cost(record)
@@ -834,13 +1093,24 @@ class Lanes:
             if cls in EARLY:
                 attempt.cls, attempt.detail = cls, detail
             if cls == "operator":
-                self.paused = True
-                self.event("pause", f"{label}/{sid} attempt {n}: {detail}")
+                self.paused, self.paused_at = True, clock()
+                self.event(
+                    "pause", f"{label}/{sid} attempt {n}: {detail}", at=self.paused_at
+                )
             if cls == "harness":
                 self.stopped = True
                 self.event(
                     "stop",
                     f"{label}/{sid}: a request class on the first request ({detail})",
+                    cause="harness",
+                )
+            if deadline:
+                self.stopped = True
+                self.event(
+                    "stop",
+                    f"{label}/{sid} attempt {n} ran past the attempt deadline "
+                    f"of {ATTEMPT_DEADLINE:.0f} s",
+                    cause="deadline",
                 )
             if last:
                 self.state[sid] = "settling"
@@ -858,7 +1128,7 @@ class Lanes:
             cls, detail = classify(a.record, a.start, a.end, host)
             if a.cls and a.cls != cls:
                 raise RuntimeError(f"{a.label}/{sid}: class {a.cls} became {cls}")
-            a.cls, a.detail = cls, detail
+            a.cls, a.detail, a.settled = cls, detail, True
             a.reason = (
                 f"{detail}: {host.describe(a.start, a.end)}"
                 if cls == "host"
@@ -874,12 +1144,19 @@ class Lanes:
                     if len(seen) > INCONCLUSIVE_STOP and stop is None:
                         stop = f"{key} ended runs in {len(seen)} households"
         if stop:
-            self.stop(stop)
+            self.stop(stop, cause="inconclusive")
 
-    def converse(self, sid: str, label: str) -> dict:
+    def converse(self, sid: str, label: str, n: int) -> tuple[dict, bool]:
+        """(the attempt's record, whether it was abandoned). The conversation
+        runs in a thread of its own. One that raises leaves a harness-error
+        record with the spend it counted; one still running at
+        ATTEMPT_DEADLINE is abandoned with a harness-error record holding
+        the spend so far, ends `budget_stop` at its next turn, and writes
+        nothing."""
         profile = self.profiles[label]
-        board = self.run.board
+        variables = self.run.board["variables"][sid]
         features = frozenset(profile.tool_features)
+        spend = AttemptSpend(self.run.ceiling)
 
         def tool_call(arguments):
             message = (
@@ -887,12 +1164,67 @@ class Lanes:
             )
             return self.pool.call(message)
 
-        try:
-            return self.run.converse(self, sid, label, tool_call)
-        except Exception as error:  # an attempt that left no record of its own
-            return pilot.harness_error_record(
-                sid, board["variables"][sid], profile, error
+        box: dict = {}
+
+        def work():
+            try:
+                box["record"] = self.run.converse(self, sid, label, tool_call, spend)
+            except Exception as error:  # an attempt that left no record of its own
+                box["error"] = error
+
+        thread = threading.Thread(
+            target=work, name=f"{self.model}-{sid}-{label}-{n}", daemon=True
+        )
+        thread.start()
+        thread.join(timeout=ATTEMPT_DEADLINE)
+        if thread.is_alive():
+            spent = spend.abandon()
+            with self.cond:
+                self.abandoned.append(
+                    {
+                        "household": sid,
+                        "arm": label,
+                        "attempt": n,
+                        "spend": spend,
+                        "thread": thread,
+                        "logged": 0.0,
+                    }
+                )
+            error = AttemptDeadline(
+                f"past the attempt deadline of {ATTEMPT_DEADLINE:.0f} s"
             )
+            record = pilot.harness_error_record(sid, variables, profile, error)
+            record["totals"]["cost_usd"] = spent
+            return record, True
+        if "error" in box:
+            record = pilot.harness_error_record(sid, variables, profile, box["error"])
+            record["totals"]["cost_usd"] = spend.spent_usd
+            return record, False
+        return box["record"], False
+
+    def log_late(self, final: bool = False) -> None:
+        """A `late-cost` event for each abandoned attempt that has ended (or,
+        at the end of the run, for each one still running) with spend after
+        its deadline not yet logged."""
+        with self.cond:
+            pending = list(self.abandoned)
+        for item in pending:
+            ended = not item["thread"].is_alive()
+            late = item["spend"].late_usd
+            if (ended or final) and late > item["logged"]:
+                self.event(
+                    "late-cost",
+                    f"{item['arm']}/{item['household']} attempt {item['attempt']}: "
+                    "spend after its deadline",
+                    household=item["household"],
+                    arm=item["arm"],
+                    attempt=item["attempt"],
+                    cost_usd=late - item["logged"],
+                )
+                item["logged"] = late
+            if ended:
+                with self.cond:
+                    self.abandoned.remove(item)
 
     def ensure_pool(self) -> bool:
         """The model's pool, started again if it has lost every worker; False
@@ -933,30 +1265,30 @@ class Lanes:
         )
         self.attempt_line(sid, lane, previous, sha)
 
-    def run_household(self, sid: str, lane: int) -> None:
-        order = self.orders[sid]
-        attempts: dict[str, list[Attempt]] = {label: [] for label in order}
-        entries: dict[str, list[dict]] = {label: [] for label in order}
-        in_flight = self.folder / "in-flight" / sid
-        todo = [(1, label) for label in order]
+    def passes(
+        self, sid: str, lane: int, attempts: dict, entries: dict, in_flight: Path
+    ) -> None:
+        """The household's arms in its drawn order, then its reruns in passes,
+        each pass classed once its host evidence is in."""
+        todo = [(1, label) for label in self.orders[sid]]
         while todo:
             done: list[Attempt] = []
             for i, (n, label) in enumerate(todo):
                 if not self.ensure_pool():
-                    self.stop("the engine pool could not be started again")
+                    self.stop("the engine pool could not be started again", "pool")
                     break
                 start = self.start_attempt()
                 if start is None:
                     break
                 if n > 1:
                     self.replace(sid, lane, attempts[label][-1], entries[label])
-                record = self.converse(sid, label)
+                record, abandoned = self.converse(sid, label, n)
                 a = self.end_attempt(
-                    sid, label, n, start, record, last=i == len(todo) - 1
+                    sid, label, n, start, record, i == len(todo) - 1, abandoned
                 )
-                write_json(in_flight / f"{label}-{n}.json", record)
                 attempts[label].append(a)
                 done.append(a)
+                write_json(in_flight / f"{label}-{n}.json", record)
                 self.run.say(
                     f"{self.model} lane {lane} {sid} {label} #{n}: "
                     f"{record.get('status')} ${attempt_cost(record):.4f} "
@@ -978,8 +1310,39 @@ class Lanes:
             with self.cond:
                 self.state[sid] = "running" if todo else "finished"
                 self.cond.notify_all()
+
+    def run_household(self, sid: str, lane: int) -> bool:
+        """One household; False when the runner failed part way. Then every
+        model stops, and the attempts that ended are classed (as `unsettled`
+        when their host evidence cannot be read) and written before the lane
+        ends."""
+        attempts: dict[str, list[Attempt]] = {label: [] for label in self.orders[sid]}
+        entries: dict[str, list[dict]] = {label: [] for label in self.orders[sid]}
+        in_flight = self.folder / "in-flight" / sid
+        failed = False
+        try:
+            self.passes(sid, lane, attempts, entries, in_flight)
+        except Exception as error:
+            failed = True
+            self.run.say(traceback.format_exc())
+            self.run.stop_all(
+                f"runner error on {self.model} lane {lane} ({sid}): "
+                f"{type(error).__name__}: {error}",
+                cause="runner-error",
+            )
+            pending = [a for mine in attempts.values() for a in mine if not a.settled]
+            if pending:
+                try:
+                    self.settle(sid, pending)
+                except Exception as again:
+                    self.run.say(traceback.format_exc())
+                    for a in pending:
+                        a.cls, a.settled = "unsettled", True
+                        a.detail = a.reason = (
+                            f"unsettled: {type(again).__name__}: {again}"
+                        )
         for label, mine in attempts.items():
-            if mine:
+            if mine and not mine[-1].logged:
                 final = mine[-1]
                 sha = write_json(
                     self.households_dir[label] / f"{sid}.json",
@@ -989,17 +1352,22 @@ class Lanes:
         with self.cond:
             self.state[sid] = "finished"
             self.cond.notify_all()
-        shutil.rmtree(in_flight, ignore_errors=True)
+        if not failed:
+            shutil.rmtree(in_flight, ignore_errors=True)
+        return not failed
 
     def lane(self, lane: int) -> None:
         try:
             for sid in self.households(lane):
-                if not self.admit(sid, lane):
+                if not self.admit(sid, lane) or not self.run_household(sid, lane):
                     return
-                self.run_household(sid, lane)
-        except Exception as error:  # a runner defect: this model stops, the rest run on
+        except Exception as error:  # a runner defect: every model stops
             self.run.say(traceback.format_exc())
-            self.stop(f"runner error on lane {lane}: {type(error).__name__}: {error}")
+            self.run.stop_all(
+                f"runner error on {self.model} lane {lane}: "
+                f"{type(error).__name__}: {error}",
+                cause="runner-error",
+            )
 
     def manifest(self) -> dict:
         board, design = self.run.board, self.run.design
@@ -1065,6 +1433,9 @@ class Lanes:
             "lanes": {lane: self.households(lane) for lane in (1, 2)},
             "no_scored_output": sorted(self.run.no_output),
             "workers": self.run.workers,
+            "attempt_deadline_seconds": ATTEMPT_DEADLINE,
+            "anchor_seconds": ANCHOR_SECONDS,
+            "anchor_command": list(design["anchor_command"]),
         }
 
     def summary(self) -> dict:
@@ -1094,6 +1465,7 @@ class Lanes:
             "classes": dict(sorted(count.items())),
             "events": [x for x in lines if "event" in x],
             "tool_pool": self.pool.counters() if self.pool is not None else None,
+            "abandoned_running": len(self.abandoned),
         }
 
 
@@ -1120,7 +1492,7 @@ class Run:
     def __init__(
         self,
         design: dict,
-        workers: int = 2,
+        workers: int | None = None,
         models: tuple[str, ...] | None = None,
         converse: Callable = converse_with_harness,
         pool_factory: Callable = default_pool,
@@ -1128,7 +1500,8 @@ class Run:
         host_factory: Callable | None = None,
         out=sys.stdout,
     ):
-        self.design, self.workers, self.out = design, workers, out
+        self.design, self.out = design, out
+        self.workers = int(design["workers"]) if workers is None else workers
         self.converse, self.pool_factory = converse, pool_factory
         self.completion_for = completion_for
         self.host_factory = host_factory or (lambda folder: HostLog(folder))
@@ -1156,17 +1529,83 @@ class Run:
         self.host: HostLog | None = None
         self._ceiling_written = False
         self.interrupts = 0
+        self.signalled: int | None = None  # set by the signal handler alone
+        self._interrupted = False
+        self._sampler_stopped = False
+        self._anchor_head = chain_seed(design["frozen_sha256"], "", "anchors.jsonl")
+        self._anchored = -math.inf
+        self._pushing = threading.Lock()
+        self._push: threading.Thread | None = None
 
     def say(self, text: str) -> None:
         with self._say_lock:
             print(text, file=self.out, flush=True)
 
-    def stop_all(self, reason: str) -> None:
+    def stop_all(self, reason: str, cause: str) -> None:
         for lanes in self.lanes.values():
-            lanes.stop(reason)
+            lanes.stop(reason, cause)
+
+    # Anchors: the logs' chain heads, written and pushed outside the run.
+
+    def anchor(self, wait: bool = False) -> None:
+        """Every log's chain head to `anchors.jsonl`, itself a chain, then the
+        design's anchor command on that file, in the background (one at a
+        time; an anchor whose push would wait is written but not pushed until
+        the next). Each push's result goes to `anchor-pushes.jsonl`."""
+        runs = Path(self.design["runs"])
+        line = {
+            "time": clock(),
+            "models": {
+                model: {**lanes.heads(), "manifest": lanes.manifest_sha256}
+                for model, lanes in self.lanes.items()
+            },
+            "host-log.jsonl": self.host.heads() if self.host is not None else None,
+            "prev": self._anchor_head,
+        }
+        text = json.dumps(line)
+        with (runs / "anchors.jsonl").open("a") as handle:
+            handle.write(text + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        self._anchor_head, self._anchored = line_sha(text), time.time()
+        if self._push is not None and self._push.is_alive():
+            if not wait:
+                return
+            self._push.join()
+        self._push = threading.Thread(
+            target=self._push_anchor, args=(self._anchor_head,), daemon=True
+        )
+        self._push.start()
+        if wait:
+            self._push.join()
+
+    def _push_anchor(self, head: str) -> None:
+        runs = Path(self.design["runs"])
+        command = [str(x) for x in self.design["anchor_command"]]
+        command.append(str(runs / "anchors.jsonl"))
+        started = time.time()
+        try:
+            out = subprocess.run(command, capture_output=True, text=True, timeout=300)
+            code, text = out.returncode, (out.stdout + out.stderr)[-2000:]
+        except (OSError, subprocess.SubprocessError) as error:
+            code, text = None, f"{type(error).__name__}: {error}"
+        line = {
+            "anchor": head,
+            "started": started,
+            "ended": time.time(),
+            "returncode": code,
+            "output": text,
+        }
+        with (runs / "anchor-pushes.jsonl").open("a") as handle:
+            handle.write(json.dumps(line) + "\n")
+        if code != 0:
+            self.say(f"the anchor push failed ({code}): {text}")
+
+    # The main loop's work.
 
     def watch(self) -> None:
-        """The ceiling's events, and resumes after operator pauses."""
+        """The ceiling's events, an interrupt, a dead sampler, resumes after
+        operator pauses, late spend and the anchors."""
         crossed = self.ceiling.crossed_at
         if crossed is not None and not self._ceiling_written:
             self._ceiling_written = True
@@ -1175,13 +1614,40 @@ class Run:
                 f"${self.ceiling.budget_usd:.2f}"
             )
             for lanes in self.lanes.values():
-                lanes.stop(reason, kind="ceiling", at=crossed)
+                lanes.stop(reason, "ceiling", kind="ceiling", at=crossed)
+        if self.signalled is not None and not self._interrupted:
+            self._interrupted = True
+            self.say(
+                f"signal {self.signalled}: stopping every model's lanes; "
+                "the conversations under way finish"
+            )
+            self.stop_all(f"operator stop (signal {self.signalled})", "interrupt")
+        dead = self.host.dead() if self.host is not None else None
+        if dead and not self._sampler_stopped:
+            self._sampler_stopped = True
+            self.stop_all(f"the host log stopped: {dead}", "sampler")
         for lanes in self.lanes.values():
             path = lanes.folder / "RESUME.json"
-            if lanes.paused and path.exists():
-                note = json.loads(path.read_text()).get("note") or "resumed"
-                path.rename(lanes.folder / f"resume-{time.time():.0f}.json")
-                lanes.resume(note)
+            if not path.exists():
+                continue
+            try:
+                note = json.loads(path.read_text())
+            except (OSError, ValueError):
+                continue  # still being written
+            with lanes.cond:
+                paused, since = lanes.paused, lanes.paused_at
+            stamp = f"{time.time():.3f}"
+            if paused and float(note.get("time") or 0.0) >= since:
+                path.rename(lanes.folder / f"resume-{stamp}.json")
+                lanes.resume(note.get("note") or "resumed")
+            else:
+                # Written before the pause it would end, or with no pause.
+                path.rename(lanes.folder / f"resume-ignored-{stamp}.json")
+                self.say(f"{lanes.model}: a resume written before any pause, ignored")
+        for lanes in self.lanes.values():
+            lanes.log_late()
+        if time.time() - self._anchored >= ANCHOR_SECONDS:
+            self.anchor()
 
     def execute(self) -> None:
         runs = Path(self.design["runs"])
@@ -1191,7 +1657,7 @@ class Run:
             for model, lanes in self.lanes.items():
                 lanes.completion = self.completion_for(lanes.profiles["pe3"])
                 stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
-                write_json(
+                lanes.manifest_sha256 = write_json(
                     lanes.folder / f"manifest-{stamp}.json", lanes.manifest(), indent=2
                 )
                 # A model whose lanes never decide still has both logs.
@@ -1219,6 +1685,9 @@ class Run:
             self.watch()
         finally:
             for model, lanes in self.lanes.items():
+                for item in list(lanes.abandoned):
+                    item["thread"].join(timeout=LATE_JOIN)
+                lanes.log_late(final=True)
                 stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
                 write_json(
                     lanes.folder / f"run-summary-{stamp}.json",
@@ -1228,16 +1697,15 @@ class Run:
                 if lanes.pool is not None:
                     lanes.pool.close()
             self.host.close()
+            self.anchor(wait=True)
 
     def interrupt(self, signum, frame) -> None:
+        """The signal handler. It only notes the signal; the main loop stops
+        every model's lanes. A second signal exits at once."""
         self.interrupts += 1
         if self.interrupts > 1:
-            raise KeyboardInterrupt
-        self.say(
-            f"signal {signum}: stopping every model's lanes; "
-            "the conversations under way end"
-        )
-        self.stop_all(f"operator stop (signal {signum})")
+            os._exit(130)
+        self.signalled = signum
 
 
 # ---------------------------------------------------------------- before a run
@@ -1262,6 +1730,13 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     if missing:
         return [f"the design has no {', '.join(missing)}"]
     problems = []
+    command = design["anchor_command"]
+    if (
+        not isinstance(command, list)
+        or not command
+        or shutil.which(str(command[0])) is None
+    ):
+        problems.append(f"the anchor command {command!r} is not a command here")
     if design.get("stated_engine_overrides"):
         problems.append("the confirmatory run states the board's engine: no overrides")
     if sha256_file(Path(design["preregistration"])) != design["frozen_sha256"]:
@@ -1362,7 +1837,9 @@ def main(argv=None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     run = sub.add_parser("run", help="run the confirmatory stage")
     run.add_argument("design", type=Path)
-    run.add_argument("--workers", type=int, default=2, help="engine workers per model")
+    run.add_argument(
+        "--workers", type=int, help="engine workers per model: the design's alone"
+    )
     run.add_argument("--dry-run", action="store_true", help="check and print the plan")
     resume = sub.add_parser("resume", help="end an operator pause")
     resume.add_argument("design", type=Path)
@@ -1375,13 +1852,19 @@ def main(argv=None) -> int:
         write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
         print(f"{args.model}: resume requested; the runner resumes within a second")
         return 0
+    if args.workers is not None and args.workers != design.get("workers"):
+        print(
+            f"The run cannot start: --workers {args.workers}, and the design "
+            f"runs {design.get('workers')} engine workers per model."
+        )
+        return 1
     models = CHEAP + FRONTIER
     problems = preflight(design, models)
     pilot._require_engine(Path(design["board"]))
     if problems:
         print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
         return 1
-    plan = Run(design, workers=args.workers)
+    plan = Run(design)
     if args.dry_run:
         for model, lanes in plan.lanes.items():
             sizes = [len(lanes.households(lane)) for lane in (1, 2)]

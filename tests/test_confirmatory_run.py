@@ -15,6 +15,8 @@ import hashlib
 import io
 import json
 import math
+import os
+import subprocess
 import sys
 import threading
 import time
@@ -46,6 +48,12 @@ ENGINE = "2.60.4"
 # about 0.1 ms on this host, even within a thread; the report allows a second, as
 # here, which also covers a small correction of the clock.
 CLOCK_SLACK = 1.0
+# The anchor command in a test: a copy of the anchors to the test's folder.
+ANCHOR_SCRIPT = Path(__file__).resolve().parent / "fake_anchor.py"
+# How far apart anchors and their triggers' stops may be in a test, on a
+# loaded host.
+ANCHOR_SLACK = 5.0
+TRIGGER_BOUND = 5.0
 
 
 # ---------------------------------------------------------------- streams
@@ -117,23 +125,50 @@ def test_an_arm_whose_features_are_not_registered_is_refused(monkeypatch):
         cr.arm_profile("gpt-6-luna", "loo-flat")
 
 
+def litellm_names(groups) -> set[str]:
+    """The names of litellm's exception classes under any of `groups`."""
+    import inspect
+
+    import litellm
+
+    found = set()
+    for module in (litellm, litellm.exceptions):
+        for obj in vars(module).values():
+            if inspect.isclass(obj) and issubclass(obj, BaseException):
+                if issubclass(obj, groups):
+                    found.add(obj.__name__)
+    return found
+
+
 def test_the_error_classes_are_policybench_s():
+    """A record keeps the raised class's name, and the harness groups classes
+    by inheritance: so each list holds every litellm class under the
+    harness's group."""
     from policybench import eval_no_tools as e
 
-    assert cr.TRANSPORT == {c.__name__ for c in e.RETRYABLE_PROVIDER_ERRORS}
-    assert cr.REQUEST | cr.ACCOUNT == {c.__name__ for c in e.MODEL_FATAL_ERRORS}
+    fatal = litellm_names(e.MODEL_FATAL_ERRORS)
+    retryable = litellm_names(e.RETRYABLE_PROVIDER_ERRORS) - fatal
+    assert cr.REQUEST | cr.ACCOUNT == fatal
+    assert cr.TRANSPORT - {"RequestWallTimeoutError"} == retryable
+    assert "RequestWallTimeoutError" in {
+        c.__name__ for c in e.RETRYABLE_PROVIDER_ERRORS
+    }
+    assert {"ContentPolicyViolationError", "RejectedRequestError"} <= cr.REQUEST
     assert not cr.REQUEST & cr.ACCOUNT
     assert not cr.TRANSPORT & (cr.REQUEST | cr.ACCOUNT)
+    assert cr.TIMEOUTS <= cr.TRANSPORT
 
 
 # ---------------------------------------------------------------- classes
 
 
 def record(status="complete", error=None, turns=1, calls=(), truncated=False):
+    """`truncated`: the record's last turn is a truncated one, its escalated
+    request then failing (with `turns` - 1 completed turns before it)."""
     turn = {"calls": [{"result": r} for r in calls]}
     out = [dict(turn) for _ in range(turns)]
     if truncated:
-        out = [{"truncated_and_retried": True}]
+        out = out[: max(turns - 1, 0)] + [{"truncated_and_retried": True}]
     return {"status": status, "error": error, "turns": out}
 
 
@@ -150,6 +185,22 @@ CASES = [
     (record("provider_error", "BadRequestError: too long"), "model"),
     (record("provider_error", "BadRequestError: bad", turns=0), "harness"),
     (record("provider_error", "BadRequestError: x", truncated=True), "harness"),
+    (record("provider_error", "BadRequestError: x", 2, truncated=True), "model"),
+    (record("provider_error", "ContentPolicyViolationError: x", turns=0), "harness"),
+    (record("provider_error", "ContentPolicyViolationError: x"), "model"),
+    (record("provider_error", "RejectedRequestError: x", turns=0), "harness"),
+    # The escalated request's timeout is the model's long generation.
+    (record("provider_error", "Timeout: 300 s", truncated=True), "model"),
+    (record("provider_error", "Timeout: 300 s", 3, truncated=True), "model"),
+    (record("provider_error", "Timeout: 300 s"), "provider"),
+    # A truncated return is a return: no longer `none`.
+    (record("provider_error", "RateLimitError: x", truncated=True), "provider"),
+    (
+        record("provider_error", "ProviderEmpty: no choices", truncated=True),
+        "inconclusive",
+    ),
+    (record("provider_error", "ProviderEmpty: no choices", turns=0), "none"),
+    (record("provider_error", "JSONSchemaValidationError: x"), "provider"),
     (record("provider_error", "AuthenticationError: key", turns=0), "operator"),
     (record("provider_error", "RateLimitError: insufficient_quota"), "operator"),
     (record("provider_error", "ProviderEmpty: no choices"), "inconclusive"),
@@ -170,6 +221,17 @@ CASES = [
     (record(calls=[{"error": "engine", "message": "ValueError: no person"}]), "model"),
     (record(calls=[{"results": {"snap": {"error": "OSError: disk"}}}]), "inconclusive"),
     (record(calls=[{"results": {"snap": {"error": "KeyError: x"}}}]), "model"),
+    # The explain feature's trace of a variable, which catches its own errors.
+    (
+        record(calls=[{"explanations": {"snap": {"error": "MemoryError: x"}}}]),
+        "inconclusive",
+    ),
+    (
+        record(calls=[{"explanations": {"snap": {"error": "OSError: disk"}}}]),
+        "inconclusive",
+    ),
+    (record(calls=[{"explanations": {"snap": {"error": "KeyError: x"}}}]), "model"),
+    (record(calls=[{"explanations": {"snap": {"value": 1.0}}}]), "ok"),
     (record("running"), "inconclusive"),
 ]
 
@@ -294,6 +356,9 @@ def fast(monkeypatch):
     monkeypatch.setattr(cr, "HOST_LOG_GAP", 0.5)
     monkeypatch.setattr(cr, "WAIT_SECONDS", 0.005)
     monkeypatch.setattr(cr, "HOUSEHOLDS", N_DRAW)
+    monkeypatch.setattr(cr, "SAMPLER_SILENCE", 1.0)
+    monkeypatch.setattr(cr, "READ_WAIT", 0.01)
+    monkeypatch.setattr(cr, "ANCHOR_SECONDS", 0.3)
 
 
 def test_the_host_log_samples_and_closes(tmp_path, fast):
@@ -359,6 +424,100 @@ def test_guard_pauses_and_sleeps_reach_an_attempt_after_a_refresh(tmp_path, fast
     assert host.trouble(start, end) == "sleep"
     host.close()
     assert "Sleep" in (tmp_path / "pmset.log").read_text()
+
+
+def test_a_failed_pressure_reading_is_no_sample(tmp_path, fast):
+    """A sample with no pressure reading is written, but it is no sample: a
+    failing reading under pressure would hide the evidence the rule reads,
+    so the silence it leaves is a gap."""
+    readers = Readers()
+    host = readers.host(tmp_path)
+    time.sleep(0.03)
+    start = time.time()
+    readers.pressure = None
+    time.sleep(0.7)
+    readers.pressure = 1
+    end = time.time()
+    host.wait_settled(end)
+    host.refresh(after=end)
+    assert host.trouble(start, end) == "host log gap"
+    host.close()
+    samples = [
+        json.loads(x) for x in (tmp_path / "host-log.jsonl").read_text().splitlines()
+    ]
+    assert any(x["pressure"] is None for x in samples)
+    folder_host = host_from_files(tmp_path)
+    assert folder_host.trouble(start, end) == "host log gap"  # the report's reading
+
+
+def test_the_host_log_is_a_hash_chain_with_a_monotonic_time(tmp_path, fast):
+    readers = Readers()
+    host = readers.host(tmp_path)
+    time.sleep(0.1)
+    host.close()
+    path = tmp_path / "host-log.jsonl"
+    assert chain_problems(path, cr.HOST_SEED) == []
+    lines = path.read_text().splitlines()
+    assert host.heads() == {"lines": len(lines), "sha256": cr.line_sha(lines[-1])}
+    ticks = [json.loads(x)["monotonic"] for x in lines]
+    assert ticks == sorted(ticks)
+
+
+def test_a_failed_log_read_is_tried_again(tmp_path, fast):
+    calls = []
+
+    def power():
+        calls.append(1)
+        if len(calls) <= 2:
+            raise subprocess.CalledProcessError(1, ["pmset"])
+        return ""
+
+    host = cr.HostLog(
+        tmp_path,
+        timezone=TZ,
+        interval=0.02,
+        read_load=lambda: (1.0, 2.0, 3.0),
+        read_pressure=lambda: 1,
+        read_guard=lambda: "",
+        read_power=power,
+    )
+    host.refresh(after=time.time())
+    assert len(calls) == 3  # two failures, then a read
+    host.close()
+    assert (tmp_path / "pmset.log").exists()
+
+
+def test_logs_that_cannot_be_read_are_a_runner_error(tmp_path, fast):
+    def power():
+        raise subprocess.TimeoutExpired(["pmset"], 120)
+
+    host = cr.HostLog(
+        tmp_path,
+        timezone=TZ,
+        interval=0.02,
+        read_load=lambda: (1.0, 2.0, 3.0),
+        read_pressure=lambda: 1,
+        read_guard=lambda: "",
+        read_power=power,
+    )
+    with pytest.raises(cr.HostEvidenceError):
+        host.refresh(after=time.time())
+    host.close()
+    assert "TimeoutExpired" in (tmp_path / "host-error.txt").read_text()
+    assert not (tmp_path / "pmset.log").exists()
+
+
+def test_a_sampler_whose_samples_fail_is_dead_after_its_silence(tmp_path, fast):
+    readers = Readers()
+    host = readers.host(tmp_path)
+    assert host.dead() is None
+    readers.pressure = None
+    time.sleep(cr.SAMPLER_SILENCE + 0.2)
+    assert "samples failing since" in host.dead()
+    readers.pressure = 1
+    time.sleep(0.1)
+    assert host.dead() is None  # a good sample: alive again
+    host.close()
 
 
 # ---------------------------------------------------------------- the ceiling
@@ -449,15 +608,16 @@ class FakeProvider:
     `sleep` per turn, `calls` (tool arguments, one call each, per turn),
     `pressure` (high pressure during the attempt), `stall` (a host-log stall,
     seconds), `guard` (a guard pause over the attempt), `resume_after`
-    (seconds after which the operator resumes) and `raise` (the conversation
-    raises)."""
+    (seconds after which the operator resumes), `raise` (the conversation
+    raises before its first turn), `raise_after` (it raises after its turns)
+    and `check` (a function of the lanes, called first)."""
 
     def __init__(self, world, specs=None):
         self.world, self.specs = world, specs or {}
         self.count: dict = {}
         self.lock = threading.Lock()
 
-    def __call__(self, lanes, sid, label, tool_call):
+    def __call__(self, lanes, sid, label, tool_call, spend):
         model = lanes.model
         with self.lock:
             n = self.count[(model, label, sid)] = (
@@ -465,6 +625,8 @@ class FakeProvider:
             )
         spec = self.specs.get((model, label, sid, n), {})
         readers = self.world.readers
+        if spec.get("check"):
+            spec["check"](lanes)
         if spec.get("raise"):
             raise RuntimeError("a test raised")
         if spec.get("pressure"):
@@ -482,7 +644,6 @@ class FakeProvider:
             "turns": [],
             "predictions": {v: 0.0 for v in VARIABLES},
         }
-        spend = lanes.run.ceiling
         for i in range(spec.get("turns", 1)):
             if spend.exhausted():
                 rec["status"] = "budget_stop"
@@ -503,6 +664,8 @@ class FakeProvider:
                 result, latency = tool_call(arguments)
                 turn["calls"].append({"arguments": arguments, "result": result})
             rec["turns"].append(turn)
+        if spec.get("raise_after"):
+            raise RuntimeError("a test raised after spending")
         if rec["status"] == "running":
             rec["status"] = spec.get("status", "complete")
         if spec.get("error"):
@@ -522,7 +685,10 @@ class FakeProvider:
             folder = lanes.folder
 
             def resume():
-                cr.write_json(folder / "RESUME.json", {"note": "fixed in a test"})
+                cr.write_json(
+                    folder / "RESUME.json",
+                    {"time": time.time(), "note": "fixed in a test"},
+                )
 
             threading.Timer(spec["resume_after"], resume).start()
         return rec
@@ -584,6 +750,8 @@ class World:
             "reserves": {m: reserve for m in cr.CHEAP + cr.FRONTIER},
             "overall_cap": overall_cap,
             "spent_before": spent_before,
+            "workers": 2,
+            "anchor_command": [sys.executable, str(ANCHOR_SCRIPT), str(tmp)],
         }
         self.readers = Readers()
         self.provider = FakeProvider(self, specs)
@@ -644,11 +812,13 @@ def host_from_files(folder: Path):
         (folder / "clamshell-guard.log").read_text(), meta["timezone"], end
     )
     spans += cr.power_spans((folder / "pmset.log").read_text(), end)
-    times = sorted(float(s["time"]) for s in samples)
+    # A sample with no pressure reading is no sample.
+    good = [s for s in samples if s.get("pressure") is not None]
+    times = sorted(float(s["time"]) for s in good)
     for a, b in zip([start] + times, times + [end]):
         if b - a > cr.HOST_LOG_GAP:
             spans.append((a, b, "host log gap"))
-    pressure = [float(s["time"]) for s in samples if int(s.get("pressure") or 0) > 1]
+    pressure = [float(s["time"]) for s in good if int(s["pressure"]) > 1]
 
     class Host:
         def trouble(self, s, e):
@@ -663,10 +833,78 @@ def host_from_files(folder: Path):
     return Host()
 
 
+def chain_problems(path: Path, seed: str) -> list[str]:
+    """Whether each line's `prev` is the line before's sha256 (the first's,
+    `seed`)."""
+    head = seed
+    for i, text in enumerate(path.read_text().splitlines() if path.exists() else []):
+        if json.loads(text).get("prev") != head:
+            return [f"{path.name} line {i + 1}: its prev is not the line before's hash"]
+        head = cr.line_sha(text)
+    return []
+
+
+def chain_heads(path: Path, seed: str) -> list[str]:
+    """The chain's head after each count of lines, from none."""
+    heads = [seed]
+    for text in path.read_text().splitlines() if path.exists() else []:
+        heads.append(cr.line_sha(text))
+    return heads
+
+
+def anchor_problems(world: World) -> list[str]:
+    """The anchors: a chain of their own; each holds every log's head at its
+    count; the last holds every log whole; the last was pushed."""
+    problems: list[str] = []
+    runs, frozen = world.runs(), world.design["frozen_sha256"]
+    path = runs / "anchors.jsonl"
+    problems += chain_problems(path, cr.chain_seed(frozen, "", "anchors.jsonl"))
+    anchors = [json.loads(x) for x in path.read_text().splitlines()]
+    heads = {
+        (model, name): chain_heads(
+            runs / model / name, cr.chain_seed(frozen, model, name)
+        )
+        for model in world.models
+        for name in ("run-log.jsonl", "admission-log.jsonl")
+    }
+    host = chain_heads(runs / "host" / "host-log.jsonl", cr.HOST_SEED)
+    for i, anchor in enumerate(anchors):
+        for (model, name), chain in heads.items():
+            got = anchor["models"][model][name]
+            if got["lines"] >= len(chain) or chain[got["lines"]] != got["sha256"]:
+                problems.append(f"anchor {i}: {model}/{name} is not the log's head")
+        got = anchor["host-log.jsonl"]
+        if got["lines"] >= len(host) or host[got["lines"]] != got["sha256"]:
+            problems.append(f"anchor {i}: the host log is not the log's head")
+    last = anchors[-1]
+    for (model, name), chain in heads.items():
+        if last["models"][model][name]["lines"] != len(chain) - 1:
+            problems.append(f"the last anchor leaves out lines of {model}/{name}")
+    if last["host-log.jsonl"]["lines"] != len(host) - 1:
+        problems.append("the last anchor leaves out host-log lines")
+    for a, b in zip(anchors, anchors[1:]):
+        if b["time"] - a["time"] > cr.ANCHOR_SECONDS + ANCHOR_SLACK:
+            problems.append(f"anchors {a['time']!r} and {b['time']!r} too far apart")
+    pushes = [
+        json.loads(x) for x in (runs / "anchor-pushes.jsonl").read_text().splitlines()
+    ]
+    final = cr.line_sha(path.read_text().splitlines()[-1])
+    if not any(x["anchor"] == final and x["returncode"] == 0 for x in pushes):
+        problems.append("the last anchor was not pushed")
+    copy = world.tmp / "anchored.jsonl"
+    if not copy.exists() or copy.read_text() != path.read_text():
+        problems.append("the anchor command's copy is not the anchors")
+    return problems
+
+
 def run_problems(world: World) -> list[str]:
     """Every rule of the run procedure, recomputed from the runner's files."""
     problems: list[str] = []
     host = host_from_files(world.runs() / "host")
+    frozen = world.design["frozen_sha256"]
+    problems += chain_problems(world.runs() / "host" / "host-log.jsonl", cr.HOST_SEED)
+    problems += anchor_problems(world)
+    late_total = 0.0
     position = {sid: i for i, sid in enumerate(world.draw_order)}
     master = cr.master_seed(world.design["frozen_sha256"])
     all_attempts = []
@@ -676,6 +914,17 @@ def run_problems(world: World) -> list[str]:
         drawn = cr.orders(master, model, world.draw_order, labels)
         lines = world.attempts(model)
         events = world.events(model)
+        for name in ("run-log.jsonl", "admission-log.jsonl"):
+            problems += chain_problems(
+                world.runs() / model / name, cr.chain_seed(frozen, model, name)
+            )
+        for e in events:
+            if e["event"] == "stop" and e.get("cause") not in cr.STOP_CAUSES:
+                problems.append(f"{model}: a stop with no cause ({e})")
+            if e["event"] == "ceiling" and e.get("cause") != "ceiling":
+                problems.append(f"{model}: a ceiling event with another cause")
+        late_total += sum(e["cost_usd"] for e in events if e["event"] == "late-cost")
+        causes = {e.get("cause") for e in events if e["event"] == "stop"}
         stops = [e["time"] for e in events if e["event"] in ("stop", "ceiling")]
         stopped_at = min(stops) if stops else math.inf
         ceiling_events[model] = [e["time"] for e in events if e["event"] == "ceiling"]
@@ -724,6 +973,8 @@ def run_problems(world: World) -> list[str]:
                             f"{at}#{k}: its line's hash is not its record's"
                         )
                 cls, _ = cr.classify(rec, x["start"], x["end"], host)
+                if x["class"] == "unsettled" and "runner-error" in causes:
+                    cls = "unsettled"  # classed when the runner failed: it stands
                 rule = cr.action(cls, k)
                 if x["class"] != cls or x["action"] != rule:
                     problems.append(
@@ -871,11 +1122,61 @@ def run_problems(world: World) -> list[str]:
         for t in times:
             if any(x["start"] > t for *_, x, _ in all_attempts):
                 problems.append("an attempt started after the ceiling")
-    # Conservation: the ceiling counted exactly the records' spend.
-    if abs(world.run.ceiling.spent_usd - total) > 1e-9:
+    # Conservation: the ceiling counted exactly the records' spend, and the
+    # spend of abandoned attempts after their deadline.
+    if abs(world.run.ceiling.spent_usd - total - late_total) > 1e-9:
         problems.append(
-            f"the ceiling counted {world.run.ceiling.spent_usd}, records {total}"
+            f"the ceiling counted {world.run.ceiling.spent_usd}, records {total} "
+            f"and late spend {late_total}"
         )
+    problems += trigger_problems(world, all_attempts)
+    return problems
+
+
+def trigger_problems(world: World, all_attempts) -> list[str]:
+    """Each stop rule's trigger has its stop, and each stop of those causes
+    its trigger: a harness failure and an abandoned attempt stop the model at
+    their end, before any other attempt starts; one inconclusive error ending
+    runs in a sixth household stops it once that household's pass is classed."""
+    problems: list[str] = []
+    for model in world.models:
+        events = world.events(model)
+        mine = [(sid, k, x, rec) for m, sid, _, k, x, rec in all_attempts if m == model]
+        triggers: list[tuple[str, float]] = []
+        joined: dict[str, dict[str, float]] = {}  # key -> household -> pass end
+        for sid, k, x, rec in mine:
+            if x["class"] == "harness":
+                triggers.append(("harness", x["end"]))
+            if str(rec.get("error") or "").startswith("AttemptDeadline"):
+                triggers.append(("deadline", x["end"]))
+            status = rec.get("status")
+            if x["class"] == "inconclusive" and status in (
+                "provider_error",
+                "harness_error",
+            ):
+                key = f"{status}: {cr.error_class(rec) or rec.get('error')}"
+                end = max(y["end"] for s, n, y, _ in mine if s == sid and n == k)
+                households = joined.setdefault(key, {})
+                households[sid] = min(households.get(sid, math.inf), end)
+        for households in joined.values():
+            ends = sorted(households.values())
+            if len(ends) > cr.INCONCLUSIVE_STOP:
+                triggers.append(("inconclusive", ends[cr.INCONCLUSIVE_STOP]))
+        stops = [e for e in events if e["event"] == "stop"]
+        for cause, t in triggers:
+            if not any(
+                e.get("cause") == cause and t <= e["time"] <= t + TRIGGER_BOUND
+                for e in stops
+            ):
+                problems.append(f"{model}: a {cause} trigger at {t!r} with no stop")
+            if cause != "inconclusive" and any(x["start"] > t for _, _, x, _ in mine):
+                problems.append(f"{model}: an attempt started after a {cause} stop")
+        for e in stops:
+            if e.get("cause") in ("harness", "deadline", "inconclusive") and not any(
+                cause == e["cause"] and t <= e["time"] <= t + TRIGGER_BOUND
+                for cause, t in triggers
+            ):
+                problems.append(f"{model}: a {e['cause']} stop with no trigger")
     return problems
 
 
@@ -1104,6 +1405,7 @@ def test_a_request_class_on_the_first_request_stops_the_model(world):
     w.execute()
     stops = w.events(model, "stop")
     assert len(stops) == 1 and "first request" in stops[0]["reason"]
+    assert stops[0]["cause"] == "harness"
     assert not [x for x in w.attempts(model) if x["start"] > stops[0]["time"]]
     assert len(w.attempts("gpt-6-sol")) == N_DRAW * 2  # the other model finishes
     assert run_problems(w) == []
@@ -1120,6 +1422,7 @@ def test_one_inconclusive_error_in_six_households_stops_the_model(world):
     assert (
         stops[0]["reason"] == "provider_error: ProviderEmpty ended runs in 6 households"
     )
+    assert stops[0]["cause"] == "inconclusive"
     assert run_problems(w) == []
 
 
@@ -1289,6 +1592,7 @@ def test_a_pool_that_cannot_start_again_stops_the_model(world, monkeypatch):
     w.execute()
     stops = w.events(model, "stop")
     assert stops and "engine pool" in stops[0]["reason"]
+    assert stops[0]["cause"] == "pool"
     assert run_problems(w) == []
 
 
@@ -1341,10 +1645,321 @@ def test_an_interrupt_stops_every_model_and_lets_attempts_end(world):
     for m in w.models:
         stops = w.events(m, "stop")
         assert len(stops) == 1 and stops[0]["reason"] == "operator stop (signal 2)"
+        assert stops[0]["cause"] == "interrupt"
         assert not [x for x in w.attempts(m) if x["start"] > stops[0]["time"]]
     luna = [x for x in w.attempts("gpt-6-luna") if x["household"] == sid]
     assert luna and len(luna) < len(cr.ARMS)  # cut by the stop
     assert run_problems(w) == []
+
+
+def test_a_failed_explain_trace_is_inconclusive(world):
+    """The explain feature's trace catches its own errors and returns them
+    under `explanations`: a MemoryError there is the host's, not a miss."""
+
+    class Explaining(FakePool):
+        def call(self, message):
+            self.messages.append(message)
+            return {
+                "results": {"snap": {"values": {"spm": 1.0}}},
+                "explanations": {"snap": {"error": "MemoryError: a test"}},
+            }, 0.0
+
+    model = "gpt-6-luna"
+    w = world(models=(model,), pool=Explaining)
+    sid = w.draw_order[0]
+    w.provider.specs = {(model, "pe3", sid, 1): {"calls": [{"situation": "{}"}]}}
+    w.execute()
+    line = next(
+        x for x in w.attempts(model) if x["household"] == sid and x["arm"] == "pe3"
+    )
+    assert line["class"] == "inconclusive" and line["action"] == "stands"
+    assert run_problems(w) == []
+
+
+def test_no_household_is_decided_after_the_crossing(world):
+    """The crossing lands between the lanes' halt check and the decision: the
+    decision's time is taken under the ceiling's lock, after a second look."""
+    w = world(models=("gpt-6-luna",))
+    lanes = w.run.lanes["gpt-6-luna"]
+    halted = lanes.halted
+
+    def crossing():
+        result = halted()
+        if not result:
+            w.run.ceiling.add(1e6)  # another lane's spend, just after the check
+        return result
+
+    lanes.halted = crossing
+    decided = lanes.admit(w.draw_order[0], 1)
+    lines = w.lines("gpt-6-luna", "admission-log.jsonl")
+    assert decided is False and lines == []
+
+
+@pytest.mark.parametrize(
+    "when", ["before the run", "before the run, misdated", "during the pause"]
+)
+def test_a_resume_written_before_the_pause_is_ignored(world, when):
+    """A resume left from before a pause would end that pause unseen: it is
+    set aside, and the pause holds until a resume written during it. One
+    found while no pause holds is set aside at once, whatever time it
+    states; one found during the pause but stamped before it is set aside
+    too."""
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    folder = w.runs() / model
+    folder.mkdir(parents=True)
+    stale = {"time": time.time(), "note": "stale"}
+    if when.startswith("before the run"):
+        if when.endswith("misdated"):
+            stale["time"] += 3600.0  # a writer whose clock runs ahead
+        cr.write_json(folder / "RESUME.json", stale)
+
+    def plant(lanes):
+        # Lands once the pause holds: the conversation returns at once.
+        threading.Timer(
+            0.1, lambda: cr.write_json(folder / "RESUME.json", stale)
+        ).start()
+
+    w.provider.specs = {
+        (model, "pe3", sid, 1): {
+            "status": "provider_error",
+            "error": "AuthenticationError: bad key",
+            "turns": 0,
+            "resume_after": 1.5,  # the main loop looks every 0.5 s
+            **({"check": plant} if when == "during the pause" else {}),
+        }
+    }
+    w.execute()
+    pauses, resumes = w.events(model, "pause"), w.events(model, "resume")
+    assert len(pauses) == 1 and len(resumes) == 1
+    assert resumes[0]["reason"] == "fixed in a test"
+    assert resumes[0]["time"] - pauses[0]["time"] >= 1.4
+    assert list(folder.glob("resume-ignored-*.json"))
+    assert run_problems(w) == []
+
+
+def test_the_signal_handler_only_notes_the_signal(world, monkeypatch):
+    """The handler runs on the main thread between any two of its bytecodes,
+    perhaps holding a lock it would need: it takes none. A second signal
+    exits at once."""
+    w = world(models=("gpt-6-luna",))
+    lanes = w.run.lanes["gpt-6-luna"]
+    exits = []
+    monkeypatch.setattr(os, "_exit", lambda code: exits.append(code))
+    with w.run._say_lock, lanes.cond, lanes._log_lock:
+        w.run.interrupt(2, None)  # would deadlock if it took any of these
+    assert w.run.signalled == 2 and not lanes.stopped
+    assert w.lines("gpt-6-luna") == []
+    w.run.interrupt(15, None)
+    assert exits == [130]
+
+
+def test_an_attempt_that_raises_after_spending_keeps_its_cost(world):
+    model = "claude-haiku-5.5"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    first = w.run.lanes[model].orders[sid][0]
+    w.provider.specs = {
+        (model, first, sid, 1): {"turns": 2, "cost": 0.03, "raise_after": True}
+    }
+    w.execute()
+    replaced = json.loads(
+        (w.folder(model, first) / "attempts" / f"{sid}-1.json").read_text()
+    )
+    assert replaced["status"] == "harness_error" and replaced["turns"] == []
+    assert replaced["totals"]["cost_usd"] == pytest.approx(0.06)
+    assert run_problems(w) == []  # the ceiling counted it, and so do the records
+
+
+def test_an_attempt_past_its_deadline_is_abandoned_and_stops_the_model(
+    world, monkeypatch
+):
+    """The conversation runs on in its own thread; at the deadline its record
+    is a harness error with the spend so far, the model stops, and the
+    conversation ends `budget_stop` at its next turn. Its spend after the
+    deadline is a late-cost event."""
+    monkeypatch.setattr(cr, "ATTEMPT_DEADLINE", 0.3)
+    model = "gpt-6-luna"
+    w = world(models=(model, "claude-haiku-5.5"))
+    sid = w.draw_order[0]
+    first = w.run.lanes[model].orders[sid][0]
+    w.provider.specs = {
+        (model, first, sid, 1): {"turns": 4, "cost": 0.01, "sleep": 0.2},
+        **{
+            ("claude-haiku-5.5", label, s, 1): {"sleep": 0.05}
+            for label in cr.ARMS
+            for s in w.draw_order[:2]
+        },
+    }
+    w.execute()
+    line = next(
+        x for x in w.attempts(model) if x["household"] == sid and x["arm"] == first
+    )
+    final = json.loads((w.folder(model, first) / f"{sid}.json").read_text())
+    assert final["error"].startswith("AttemptDeadline: past the attempt deadline")
+    assert final["totals"]["cost_usd"] == pytest.approx(0.01)  # turn 1 only
+    assert line["class"] == "none"  # its rerun is cut short by the stop
+    stops = w.events(model, "stop")
+    assert len(stops) == 1 and stops[0]["cause"] == "deadline"
+    late = w.events(model, "late-cost")
+    assert len(late) == 1 and late[0]["cost_usd"] == pytest.approx(0.01)
+    assert not [x for x in w.attempts(model) if x["start"] > line["end"]]
+    assert len(w.attempts("claude-haiku-5.5")) == N_DRAW * len(cr.ARMS)
+    assert run_problems(w) == []
+
+
+def test_a_sampler_whose_samples_fail_stops_every_model(world):
+    models = ("gpt-6-luna", "gpt-6-sol")
+    w = world(models=models)
+    w.provider.specs = {
+        (m, label, sid, 1): {"sleep": 0.1}
+        for m in models
+        for label in labels_of(m)
+        for sid in w.draw_order
+    }
+    threading.Timer(0.3, lambda: setattr(w.readers, "pressure", None)).start()
+    w.execute()
+    for m in models:
+        stops = w.events(m, "stop")
+        assert len(stops) == 1 and stops[0]["cause"] == "sampler"
+        assert "samples failing since" in stops[0]["reason"]
+    assert run_problems(w) == []
+
+
+def failing_settle(lanes, sid, times):
+    """Lanes.settle, failing its first `times` calls for household `sid`."""
+    original, calls = lanes.settle, []
+
+    def settle(at, done):
+        if at == sid and len(calls) < times:
+            calls.append(at)
+            raise RuntimeError("a test's runner defect")
+        return original(at, done)
+
+    lanes.settle = settle
+    return calls
+
+
+@pytest.mark.parametrize("times", [1, 2])
+def test_a_runner_error_stops_every_model_and_writes_what_ended(world, times):
+    """A runner error in a household's pass: every model stops, and that
+    household's ended attempts are classed, or `unsettled` if classing fails
+    again, and written with their lines before the lane ends."""
+    models = ("gpt-6-luna", "gpt-6-sol")
+    w = world(models=models)
+    sid = w.draw_order[2]
+    failing_settle(w.run.lanes["gpt-6-luna"], sid, times)
+    w.execute()
+    for m in models:
+        stops = w.events(m, "stop")
+        assert len(stops) == 1 and stops[0]["cause"] == "runner-error"
+    mine = [x for x in w.attempts("gpt-6-luna") if x["household"] == sid]
+    assert len(mine) == len(cr.ARMS)  # the pass ended before the error
+    assert {x["class"] for x in mine} == ({"ok"} if times == 1 else {"unsettled"})
+    for label in cr.ARMS:
+        assert (w.folder("gpt-6-luna", label) / f"{sid}.json").exists()
+    assert run_problems(w) == []
+
+
+def test_each_attempt_is_on_disk_before_the_next_starts(world, monkeypatch):
+    """An ended attempt is written, synced, before its household's next
+    attempt starts; a replaced one is saved, with its line, before its rerun
+    starts."""
+    model = "claude-haiku-5.5"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    order = w.run.lanes[model].orders[sid]
+    import fcntl
+
+    if not hasattr(fcntl, "F_GETPATH"):
+        pytest.skip("no F_GETPATH: the paths synced cannot be told")
+    synced: list[str] = []
+    real = os.fsync
+
+    def fsync(fd):
+        path = fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024))
+        synced.append(path.rstrip(b"\0").decode())
+        return real(fd)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    seen = {}
+
+    def before_second(lanes):
+        seen["in-flight"] = (
+            lanes.folder / "in-flight" / sid / f"{order[0]}-1.json"
+        ).exists()
+
+    def before_rerun(lanes):
+        seen["replaced"] = (
+            w.folder(model, order[1]) / "attempts" / f"{sid}-1.json"
+        ).exists()
+        seen["line"] = any(
+            x["household"] == sid and x["arm"] == order[1] and x["attempt"] == 1
+            for x in w.attempts(model)
+        )
+
+    error = {"status": "provider_error", "error": "RateLimitError: slow"}
+    w.provider.specs = {
+        (model, order[1], sid, 1): {**error, "check": before_second},
+        (model, order[1], sid, 2): {"check": before_rerun},
+    }
+    w.execute()
+    assert seen == {"in-flight": True, "replaced": True, "line": True}
+    # Each whole-file write is synced before its rename.
+    assert any(f"/in-flight/{sid}/.{order[0]}-1.json.tmp" in p for p in synced)
+    assert any(f"/attempts/.{sid}-1.json.tmp" in p for p in synced)
+    assert run_problems(w) == []
+
+
+def test_the_worker_count_is_the_design_s(tmp_path, capsys):
+    design = tmp_path / "design.json"
+    design.write_text(json.dumps({"runs": str(tmp_path / "runs"), "workers": 2}))
+    assert cr.main(["run", str(design), "--workers", "3"]) == 1
+    assert "the design runs 2 engine workers" in capsys.readouterr().out
+
+
+def test_the_checker_catches_a_runner_that_ignores_a_harness_failure(
+    world, monkeypatch
+):
+    """trigger_problems is not vacuous: a runner whose harness failure does
+    not stop the model fails it."""
+    model = "claude-opus-5.5"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    w.provider.specs = {
+        (model, "pe", sid, 1): {
+            "status": "provider_error",
+            "error": "BadRequestError: bad tools",
+            "turns": 0,
+        }
+    }
+    lanes = w.run.lanes[model]
+    real = lanes.event
+
+    def no_stop(kind, reason, at=None, cause=None, **extra):
+        if cause == "harness":
+            lanes.stopped = False  # the fault: the stop is not kept
+            return
+        real(kind, reason, at, cause, **extra)
+
+    lanes.event = no_stop
+    w.execute()
+    problems = run_problems(w)
+    assert any("a harness trigger" in p and "with no stop" in p for p in problems)
+    assert any("an attempt started after a harness stop" in p for p in problems)
+
+
+def test_the_checker_catches_an_edited_log_line(world):
+    w = world(models=("gpt-6-sol",)).execute()
+    path = w.runs() / "gpt-6-sol" / "admission-log.jsonl"
+    lines = path.read_text().splitlines()
+    edited = json.loads(lines[1])
+    edited["finished_spend"] = 0.0
+    path.write_text("\n".join([lines[0], json.dumps(edited)] + lines[2:]) + "\n")
+    problems = run_problems(w)
+    assert any("its prev is not the line before's hash" in p for p in problems)
+    assert any("is not the log's head" in p for p in problems)
 
 
 KINDS = {
