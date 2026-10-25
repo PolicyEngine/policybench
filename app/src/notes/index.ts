@@ -1,3 +1,5 @@
+import givenAPolicyEngineToolThreeModelsScoreAbove99 from "./2026-10-20-given-a-policyengine-tool-three-models-score-above-99.json";
+import americaGovScoresLevelWithGpt55 from "./2026-10-19-america-gov-scores-level-with-gpt-5-5.json";
 import gemini4ArgonJoinsTheBoard from "./2026-10-14-gemini-4-argon-joins-the-board.json";
 import museWonderJoinsTheBoard from "./2026-10-13-muse-wonder-joins-the-board.json";
 import claudeHaiku55JoinsTheBoard from "./2026-10-10-claude-haiku-5-5-joins-the-board.json";
@@ -32,6 +34,8 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
+  givenAPolicyEngineToolThreeModelsScoreAbove99,
+  americaGovScoresLevelWithGpt55,
   gemini4ArgonJoinsTheBoard,
   museWonderJoinsTheBoard,
   claudeHaiku55JoinsTheBoard,

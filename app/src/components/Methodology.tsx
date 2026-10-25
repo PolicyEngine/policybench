@@ -178,7 +178,19 @@ export default function Methodology({
           Each model sees the same household facts and requested outputs and
           must return every scored output plus a short explanation for each,
           with no external tools — no calculator, search, or PolicyEngine
-          access. The answer instructions follow each row&apos;s transport: a
+          access.{" "}
+          {country === "us" ? (
+            <>
+              Four output definitions in the current US prompts name
+              PolicyEngine: Medicaid and CHIP eligibility are asked &ldquo;under
+              PolicyEngine rules,&rdquo; and the two school-meal outputs ask
+              whether &ldquo;PolicyEngine returns&rdquo; support. PolicyBench
+              aims to measure knowledge of tax and benefit law, not of
+              PolicyEngine&apos;s implementation, and is revising these
+              definitions.{" "}
+            </>
+          ) : null}
+          The answer instructions follow each row&apos;s transport: a
           forced answer-schema tool call, or a JSON object where the model card
           or its family default selects JSON, for most such rows because the
           provider rejects a forced tool call.{" "}
