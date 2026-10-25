@@ -2829,8 +2829,9 @@ def _exported(incumbents):
         row.update(n=driver.RELEASE_SCORED, exact=row["exact"] + 0.25)
         row["score"] = row["exact"] / 100
     fable = stats[-1]
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     return stats + [
         _stat(NEW, 65.0, costUsd=0.13),
         _stat(OTHER, 61.0, costUsd=0.11),
@@ -2924,6 +2925,9 @@ def test_the_scope_check_allows_every_incumbent_change_the_base_record_explains(
     assert {row["n"] for row in rows} == {1935}
     fable = next(row for row in rows if row["model"] == "claude-fable-5")
     assert {key: fable[key] for key in FABLE_USAGE} == FABLE_USAGE
+    # The export reports none of Fable 5's usage; the carry puts it back where
+    # the published row has it, so the serialized key order is the release's.
+    assert list(fable) == list(incumbents[-1])
     assert fable["exact"] == incumbents[-1]["exact"] + 0.25
     (_, run_dir, kwargs), (_, bundle, live, record) = scope.calls
     assert run_dir == bundle == Path("b")

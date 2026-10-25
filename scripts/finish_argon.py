@@ -213,7 +213,7 @@ INPUT_PINS = ROOT / INPUT_PINS_PATH
 PINNED_INPUTS = ("predictions.csv", "run_state.json")
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
-# token or latency fields, so export_full_run reports $0 and omits the rest.
+# token or latency fields, so export_full_run reports none of its usage.
 # The released values are carried over; the drift gate then checks every field.
 CARRIED_USAGE = {
     "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")

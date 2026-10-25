@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 import {
   NOTES_INTRO,
   NotesPageContent,
+  formatNoteDate,
 } from "../../components/NotesContent";
 import SiteHeader from "../../components/SiteHeader";
+import { notes } from "../../notes";
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -44,6 +46,23 @@ export default function NotesPage() {
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-secondary sm:text-base">
         {NOTES_INTRO}
       </p>
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-[family-name:var(--font-mono)] text-lg font-semibold tracking-tight text-primary sm:text-xl">
+            {notes.length}
+          </span>
+          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">
+            notes
+          </span>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-text-secondary">
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-primary/70"
+            aria-hidden="true"
+          />
+          Latest {formatNoteDate(notes[0].date)}
+        </span>
+      </div>
     </>
   );
 
