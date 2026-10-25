@@ -25,6 +25,7 @@ from policybench.cache import (
     darwin_acl_problem,
     enable_cache,
     linux_acl_problem,
+    mountinfo_filesystem_type,
     nfs4_acl_entries,
     nfs4_acl_problem,
     parent_problem,
@@ -1547,8 +1548,15 @@ NFS4_ACLS = [
         False,
         "has an NFSv4 ACL entry letting bob@example.com write",
     ),
-    ([(ALLOW, 0, WRITE_DATA, str(ME))], False, None),
-    ([(ALLOW, 0, WRITE_DATA, "0")], False, None),
+    # Review r4: a holder is the server's name, which this process's uids
+    # needn't match, so even the user's own uid may be another account.
+    (
+        [(ALLOW, 0, WRITE_DATA, str(ME))],
+        False,
+        f"has an NFSv4 ACL entry letting {ME} write",
+    ),
+    ([(ALLOW, 0, WRITE_DATA, "0")], False, "has an NFSv4 ACL entry letting 0 write"),
+    ([(ALLOW, 0, NFS4_READ, str(ME))], False, None),
     (
         [(ALLOW, IDENTIFIER_GROUP, WRITE_DATA, str(ME))],
         False,
@@ -1621,6 +1629,12 @@ def test_nfs4_group_entries_need_private_groups():
         struct.pack(">I", 1),
         struct.pack(">IIIII", 1, ALLOW, 0, WRITE_DATA, 9) + b"EVERYONE",
         struct.pack(">IIIII", 1, ALLOW, 0, WRITE_DATA, 2) + b"\xff\xfe\x00\x00",
+        # Review r4's nit: a name short of its padding, and bytes after the
+        # last entry.
+        struct.pack(">IIIII", 1, ALLOW, 0, 1, 1) + b"x",
+        struct.pack(">IIIII", 1, ALLOW, 0, 1, 1) + b"x\x00",
+        struct.pack(">IIIII", 1, ALLOW, 0, 1, 1) + b"x\x00\x00\x00" + b"\x00" * 4,
+        struct.pack(">I", 0) + b"\x00",
     ],
 )
 def test_unreadable_nfs4_acl_is_a_problem(blob):
@@ -1665,6 +1679,18 @@ def test_nfs4_acl_round_trips(entries):
     assert nfs4_acl_entries(nfs4_blob(entries)) == entries
 
 
+@given(entries=nfs4_entries, data=st.data())
+def test_nfs4_acl_must_be_read_to_its_end(entries, data):
+    """Any cut short of the whole attribute, and any bytes added after it,
+    make it unreadable."""
+    blob = nfs4_blob(entries)
+    cut = data.draw(st.integers(0, len(blob) - 1))
+    extra = data.draw(st.binary(min_size=1, max_size=8))
+    for broken in (blob[:cut], blob + extra):
+        with pytest.raises(ValueError):
+            nfs4_acl_entries(broken)
+
+
 def nfs4_grants_write(entries, group: int, attacker: str, groups) -> bool:
     """RFC 5661's evaluation (section 6.2.1) of an ACL for an account that is
     neither the owner nor root: for each right, the first allow or deny entry
@@ -1675,12 +1701,8 @@ def nfs4_grants_write(entries, group: int, attacker: str, groups) -> bool:
             return group in groups
         if holder in ("EVERYONE@", "INTERACTIVE@"):
             return True
-        if (
-            holder.endswith("@")
-            or holder in (str(ME), "0")
-            and not flags & IDENTIFIER_GROUP
-        ):
-            return False  # OWNER@, or the user or root by uid
+        if holder.endswith("@"):
+            return False  # OWNER@
         return holder in groups if flags & IDENTIFIER_GROUP else holder == attacker
 
     for right in NFS4_WRITES:
@@ -1694,8 +1716,9 @@ def nfs4_grants_write(entries, group: int, attacker: str, groups) -> bool:
 
 
 def nfs4_writer(entries, group: int) -> bool:
-    # The guard doesn't map NFSv4 group names to gids, so any named group,
-    # even one named by the user's or root's id, may hold another account.
+    # NFSv4 names are the server's, which the guard can't map to this
+    # process's ids, so any named account or group, even one named by the
+    # user's or root's id, may be or hold another account (review r4).
     shared = [g for g in (group,) if g != GID] + [
         "bob@example.com",
         "2000",
@@ -1704,7 +1727,7 @@ def nfs4_writer(entries, group: int) -> bool:
     ]
     return any(
         nfs4_grants_write(entries, group, attacker, set(groups))
-        for attacker in ("bob@example.com", "2000", "4242")
+        for attacker in ("bob@example.com", "2000", "4242", str(ME), "0")
         for groups in subsets(shared)
     )
 
@@ -1758,12 +1781,18 @@ def fake_linux_xattrs(monkeypatch, attributes: dict[str, bytes]) -> None:
     monkeypatch.setattr(cache_module, "_xattr", xattr)
 
 
-def linux_verdict(monkeypatch, attributes, *, inherited_too=True):
+def linux_verdict(
+    monkeypatch, attributes, *, inherited_too=True, filesystem="ext4", mode=None
+):
     monkeypatch.setattr(cache_module, "_BSD_GROUPS", False)
     monkeypatch.setattr(os, "getegid", lambda: GID)
+    monkeypatch.setattr(cache_module, "_filesystem_type", lambda dev: filesystem)
     fake_linux_xattrs(monkeypatch, attributes)
+    entry = stat_with(0o755, ME)
+    if mode is not None:
+        entry = os.stat_result((mode, *entry[1:]))
     return cache_module._linux_acl_problem(
-        "entry", stat_with(0o755, ME), ME, private_to_me, inherited_too=inherited_too
+        "entry", entry, ME, private_to_me, inherited_too=inherited_too
     )
 
 
@@ -1818,6 +1847,13 @@ def test_linux_reads_an_nfs4_dacl(monkeypatch, name):
         "hidden:security.nfs4acl_xdr",
         "hidden:system.cifs_acl",
         "hidden:system.smb3_acl",
+        # Review r4 finding 1: the kernel's AFS client lists none of these.
+        # A listed one, from a client that lists them, is refused too.
+        "afs.yfs.acl_inherited",
+        "afs.acl",
+        "hidden:afs.acl",
+        "hidden:afs.yfs.acl",
+        "hidden:afs.yfs.vol_acl",
     ],
 )
 def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
@@ -1828,6 +1864,69 @@ def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
         assert linux_verdict(monkeypatch, {name: b""}, inherited_too=inherited_too) == (
             f"has an ACL PolicyBench can't check ({shown})"
         )
+
+
+def test_linux_refuses_directories_on_afs(monkeypatch):
+    """Review r4 finding 1: AFS grants writes by its directories' ACLs, which
+    OpenAFS doesn't show as attributes, so any directory on AFS is refused,
+    with or without them."""
+    for attributes in ({}, {"hidden:afs.acl": b""}):
+        for inherited_too in (True, False):
+            assert linux_verdict(
+                monkeypatch, attributes, inherited_too=inherited_too, filesystem="afs"
+            ) == ("is on an afs filesystem, whose ACLs PolicyBench can't check")
+    # A file shares its directory's filesystem, which is judged with it.
+    regular = stat.S_IFREG | 0o644
+    assert linux_verdict(monkeypatch, {}, filesystem="afs", mode=regular) is None
+    assert linux_verdict(monkeypatch, {}, filesystem=None) is None
+
+
+def dev(major, minor):
+    return os.makedev(major, minor)
+
+
+MOUNTINFO = """\
+22 1 253:2 / / rw,relatime shared:1 - ext4 /dev/mapper/root rw
+36 35 98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+41 22 0:52 / /afs rw,relatime shared:30 - afs AFS rw
+42 41 0:53 / /afs/example.com/user\\040name rw,relatime - afs %example.com:user rw
+43 22 0:54 / /run/doc rw,nosuid shared:31 propagate_from:2 - fuse.portal portal rw
+44 22 0:55 / /broken rw shared:32
+"""
+
+
+@pytest.mark.parametrize(
+    ("major", "minor", "expected"),
+    [
+        (253, 2, "ext4"),
+        (98, 0, "ext3"),  # proc_pid_mountinfo(5)'s example
+        (0, 52, "afs"),  # OpenAFS's single /afs mount
+        (0, 53, "afs"),  # a volume the kernel's client mounts
+        (0, 54, "fuse.portal"),  # two optional fields
+        (0, 55, None),  # no separator
+        (8, 1, None),  # not mounted
+    ],
+)
+def test_mountinfo_gives_each_devices_filesystem_type(major, minor, expected):
+    assert mountinfo_filesystem_type(MOUNTINFO, dev(major, minor)) == expected
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"), reason="reads /proc/self/mountinfo"
+)
+def test_filesystem_type_agrees_with_findmnt(tmp_path):
+    """The type read from /proc for tmp_path's device is the one util-linux's
+    findmnt gives for the mount holding it."""
+    try:
+        found = subprocess.run(
+            ["findmnt", "--noheadings", "--output", "FSTYPE", "--target", tmp_path],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        pytest.skip("findmnt is unavailable")
+    assert cache_module._filesystem_type(os.stat(tmp_path).st_dev) == found[0]
 
 
 def test_linux_without_attribute_support_has_no_acl_problem(monkeypatch):
@@ -1844,32 +1943,76 @@ def test_linux_without_attribute_support_has_no_acl_problem(monkeypatch):
     )
 
 
-def test_concurrent_umask_reads_see_the_real_umask(monkeypatch):
-    """Review r3: where reading the umask means setting it, a second reader
-    between the first's two calls would read the first's stand-in, 0o077,
-    and restore it."""
-    monkeypatch.setattr(cache_module, "_proc_umask", lambda: None)
-    real_umask = os.umask
-    real_umask(0o022)
-    stand_in_set, release = threading.Event(), threading.Event()
+class WatchedLock:
+    """A lock that records when a thread has to wait for it."""
 
-    def slow_umask(mask):
-        previous = real_umask(mask)
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.waited = threading.Event()
+
+    def __enter__(self):
+        if not self.lock.acquire(blocking=False):
+            self.waited.set()
+            self.lock.acquire()
+        return self
+
+    def __exit__(self, *exc):
+        self.lock.release()
+
+
+def run_umask_readers(monkeypatch, proc_reads):
+    """Run two process_umask calls, the first paused holding its 0o077
+    stand-in until the second has finished or is waiting for the lock.
+
+    The process umask is faked, starting at 0o000. ``proc_reads`` gives what
+    each /proc read returns in turn, None for a failed read or ``"umask"`` for
+    the umask at that moment.
+    """
+    current = {"umask": 0o000}
+    stand_in_set, release = threading.Event(), threading.Event()
+    reads = iter(proc_reads)
+
+    def proc_umask():
+        value = next(reads)
+        return current["umask"] if value == "umask" else value
+
+    def fake_umask(mask):
+        previous, current["umask"] = current["umask"], mask
         if mask == 0o077 and not stand_in_set.is_set():
             stand_in_set.set()
             release.wait(10)
         return previous
 
-    monkeypatch.setattr(os, "umask", slow_umask)
+    lock = WatchedLock()
+    monkeypatch.setattr(cache_module, "_UMASK_LOCK", lock)
+    monkeypatch.setattr(cache_module, "_proc_umask", proc_umask)
+    monkeypatch.setattr(os, "umask", fake_umask)
     results = {}
     first = threading.Thread(target=lambda: results.update(first=process_umask()))
     second = threading.Thread(target=lambda: results.update(second=process_umask()))
     first.start()
     assert stand_in_set.wait(10)
     second.start()
-    second.join(0.5)  # unlocked, the second read finishes here
+    # Without the lock the second read finishes; with it, it waits.
+    while second.is_alive() and not lock.waited.wait(0.01):
+        pass
     release.set()
     first.join(10)
     second.join(10)
-    assert results == {"first": 0o022, "second": 0o022}
-    assert real_umask(0o022) == 0o022
+    assert current["umask"] == 0o000
+    return results
+
+
+def test_concurrent_umask_reads_see_the_real_umask(monkeypatch):
+    """Review r3: where reading the umask means setting it, a second reader
+    between the first's two calls would read the first's stand-in, 0o077,
+    and restore it."""
+    results = run_umask_readers(monkeypatch, [None, None])
+    assert results == {"first": 0o000, "second": 0o000}
+
+
+def test_a_proc_read_waits_for_another_guards_stand_in(monkeypatch):
+    """Review r4 finding 3: the first guard's /proc read fails, so it sets the
+    stand-in; the second's /proc read succeeds, and must not see it."""
+    results = run_umask_readers(monkeypatch, [None, "umask"])
+    assert results == {"first": 0o000, "second": 0o000}

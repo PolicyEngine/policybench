@@ -345,11 +345,14 @@ def nfs4_acl_entries(blob: bytes) -> list[tuple[int, int, int, str]]:
     for _ in range(u32(0)):
         kind, flags, rights, length = (u32(at + 4 * i) for i in range(4))
         at += 16
-        if at + length > len(blob):
+        end = at + length + -length % 4  # XDR pads to 4 bytes (RFC 4506 section 3)
+        if end > len(blob):
             raise ValueError("a truncated NFSv4 ACL")
         holder = blob[at : at + length].decode()  # UnicodeDecodeError is a ValueError
-        at += length + -length % 4
+        at = end
         entries.append((kind, flags, rights, holder))
+    if at != len(blob):
+        raise ValueError("an NFSv4 ACL with bytes after its entries")
     return entries
 
 
@@ -370,8 +373,11 @@ def nfs4_acl_problem(
     cache_problem and parent_problem judge. GROUP@ may write only for the
     owner's private group, and, in an entry new entries inherit, only when
     every group they may get is the user's. Any other holder that may write,
-    EVERYONE@ or a named account or group, is refused, except an account
-    named by the user's own uid or root's.
+    EVERYONE@ or a named account or group, is refused, even one named by the
+    user's own uid. A holder is the server's name for an account, which the
+    client passes on unmapped (fs/nfs/nfs4proc.c), so where this process's
+    uids aren't the server's, as in a container's user namespace or on an
+    idmapped mount, the user's uid can name another account.
     """
     try:
         entries = nfs4_acl_entries(blob)
@@ -398,20 +404,23 @@ def nfs4_acl_problem(
                             f"letting {_group(gid)} write"
                         )
             continue
-        if not flags & _NFS4_IDENTIFIER_GROUP and holder in (str(uid), "0"):
-            continue
         return f"has an NFSv4 ACL entry {scope}letting {holder} write"
     return None
 
 
 # ACL attributes Linux shows for filesystems whose ACLs the guard can't judge:
-# OpenZFS's NFSv4 ACLs and SMB's security descriptors. Any other system or
-# security attribute with "acl" or "ntsd" in its name is refused the same way.
+# OpenZFS's NFSv4 ACLs, SMB's security descriptors, and the ACLs of the
+# kernel's AFS client, which it doesn't list (fs/afs/xattr.c). Any other
+# system, security or afs attribute with "acl" or "ntsd" in its name is
+# refused the same way.
 _UNCHECKED_ACLS = (
     "system.nfs4_acl_xdr",
     "security.nfs4acl_xdr",
     "system.cifs_acl",
     "system.smb3_acl",
+    "afs.acl",
+    "afs.yfs.acl",
+    "afs.yfs.vol_acl",
 )
 # Read and judged: POSIX ACLs and NFSv4's. The SACL holds only audit and
 # alarm entries, which grant nothing (RFC 5661 section 6.2.3).
@@ -437,7 +446,7 @@ def _unchecked_acl(target: int | str) -> str | None:
     for name in names:
         lowered = name.lower()
         if (
-            lowered.startswith(("system.", "security."))
+            lowered.startswith(("system.", "security.", "afs."))
             and ("acl" in lowered or "ntsd" in lowered)
             and name not in _CHECKED_ACLS
         ):
@@ -445,6 +454,39 @@ def _unchecked_acl(target: int | str) -> str | None:
     return next(
         (name for name in _UNCHECKED_ACLS if _xattr(target, name) is not None), None
     )
+
+
+# Filesystems whose grants the guard can't read. AFS lets an account write a
+# file when its directory's ACL lets it, whatever the group and other mode
+# bits say (fs/afs/security.c), and OpenAFS's client shows no ACL attribute at
+# all (its src/afs/LINUX/osi_vnodeops.c has no xattr handlers). Both clients
+# register the type "afs".
+_UNCHECKED_FILESYSTEMS = frozenset({"afs"})
+
+
+def mountinfo_filesystem_type(mountinfo: str, dev: int) -> str | None:
+    """The type /proc/self/mountinfo gives the filesystem on device ``dev``.
+
+    Each line has the device's st_dev, as major:minor, in its third field,
+    and the type right after the "-" that ends its optional fields
+    (proc_pid_mountinfo(5)).
+    """
+    device = f"{os.major(dev)}:{os.minor(dev)}"
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        if len(fields) > 2 and fields[2] == device and "-" in fields[6:]:
+            separator = fields.index("-", 6)
+            if separator + 1 < len(fields):
+                return fields[separator + 1]
+    return None
+
+
+def _filesystem_type(dev: int) -> str | None:
+    try:
+        with open("/proc/self/mountinfo") as mountinfo:
+            return mountinfo_filesystem_type(mountinfo.read(), dev)
+    except OSError:
+        return None
 
 
 def _xattr(target: int | str, name: str) -> bytes | None:
@@ -503,6 +545,14 @@ def _linux_acl_problem(
     *,
     inherited_too: bool,
 ) -> str | None:
+    # Directories only: a file is on its directory's filesystem unless
+    # something is mounted on it, which takes root.
+    if stat.S_ISDIR(st.st_mode):
+        filesystem = _filesystem_type(st.st_dev)
+        if filesystem in _UNCHECKED_FILESYSTEMS:
+            return (
+                f"is on an {filesystem} filesystem, whose ACLs PolicyBench can't check"
+            )
     unchecked = _unchecked_acl(target)
     if unchecked:
         return f"has an ACL PolicyBench can't check ({unchecked})"
@@ -548,13 +598,14 @@ def _proc_umask() -> int | None:
 
 def process_umask() -> int:
     """The process umask, read without changing it where Linux allows."""
-    umask = _proc_umask()
-    if umask is not None:
-        return umask
-    # Elsewhere reading it means setting it. The lock keeps two guards from
-    # reading each other's stand-in, and the stand-in is the strictest value,
-    # so a file another thread makes meanwhile stays private.
+    # Elsewhere, or when the /proc read fails, reading it means setting it.
+    # The lock covers both routes, so no guard reads another's stand-in, and
+    # the stand-in is the strictest value, so a file another thread makes
+    # meanwhile stays private.
     with _UMASK_LOCK:
+        umask = _proc_umask()
+        if umask is not None:
+            return umask
         umask = os.umask(0o077)
         try:
             return umask
