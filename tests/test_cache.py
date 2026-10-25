@@ -1030,6 +1030,10 @@ def set_linux_acl(path, kind: str, entries) -> None:
     try:
         os.setxattr(path, f"system.posix_acl_{kind}", acl_blob(entries))
     except OSError as error:
+        # GitHub's Ubuntu runners take ACLs, and CI's -q output wouldn't show
+        # a skip, so only skip elsewhere.
+        if os.environ.get("GITHUB_ACTIONS"):
+            raise
         pytest.skip(f"this filesystem won't take a POSIX ACL: {error}")
 
 
