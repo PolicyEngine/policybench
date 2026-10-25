@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -1893,8 +1893,9 @@ def _exported(incumbents):
     """What export_full_run returns: Fable's usage is gone, the addition is new."""
     stats = copy.deepcopy(incumbents)
     fable = stats[-1]
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     return stats + [_stat(NEW, 65.0, costUsd=2.0)]
 
 
@@ -2712,6 +2713,9 @@ MUTATIONS = {
     target=st.integers(min_value=0, max_value=44),
     mutation=st.sampled_from(sorted(MUTATIONS)),
 )
+@example(target=44, mutation="zero_cost_to_missing")
+@example(target=44, mutation="zero_to_negative_zero")
+@example(target=44, mutation="key_order")
 def test_the_no_drift_gate_refuses_any_change_to_any_incumbent(
     exporting, target, mutation
 ):
@@ -2719,15 +2723,19 @@ def test_the_no_drift_gate_refuses_any_change_to_any_incumbent(
     stage, _, run, _ = exporting
     incumbents = _incumbents()
     stats = _exported(incumbents)
-    MUTATIONS[mutation](stats[target])
     (stage / "data-board46.json").unlink(missing_ok=True)
-    # Fable's usage values are carried over from the base (the exporter cannot
-    # recompute them), so a changed value there is replaced by the released
-    # one; a missing key comes back out of order and is still refused.
-    if target == 44 and mutation == "zero_to_negative_zero":
+    # Fable's usage is carried over from the base (the exporter reports none
+    # of it), so its export row has no cost for these two to change. Their
+    # analogue there is an export that reports a cost after all, as the
+    # exporter did ($0) before model_cost_latency stopped pricing unrecorded
+    # tokens: the carry replaces it with the released value, so no drift.
+    if target == 44 and mutation in ("zero_cost_to_missing", "zero_to_negative_zero"):
+        zero = -0.0 if mutation == "zero_to_negative_zero" else 0.0
+        stats[target].update(costUsd=zero, costPerHousehold=zero)
         run(stats, incumbents, early=True)
         assert json.dumps(stats[target]) == json.dumps(incumbents[target])
         return
+    MUTATIONS[mutation](stats[target])
     with pytest.raises(SystemExit, match="incumbent modelStats drift"):
         run(stats, incumbents, early=True)
     assert not (stage / "data-board46.json").exists()

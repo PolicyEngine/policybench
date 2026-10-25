@@ -761,6 +761,10 @@ def load_us_cost_latency() -> dict:
     )
     computed = model_cost_latency(predictions, PRICE_OVERRIDES_PER_1M)
     stats = us_model.set_index("model")
+    # model_cost_latency gives no entry to a model whose rows record no usage
+    # (Claude Fable 5), so seed every board model to reach its fallback.
+    for model_id in stats.index:
+        computed.setdefault(model_id, {})
     for model_id, entry in computed.items():
         row = stats.loc[model_id] if model_id in stats.index else None
         cost = entry.get("costPerHousehold")
@@ -783,6 +787,15 @@ def load_us_cost_latency() -> dict:
 
 
 us_cost_latency = load_us_cost_latency()
+# Every model the board prices shows a cost. One whose frozen rows record no
+# usage (Claude Fable 5) takes its modelStats figure, not a dash.
+_unpriced = [
+    row["model"]
+    for _, row in us_model.iterrows()
+    if (row.get("costPerHousehold") or 0) > 0
+    and us_cost_latency.get(row["model"], {}).get("costPerHousehold") is None
+]
+assert not _unpriced, _unpriced
 
 
 def cost_latency_table() -> pd.DataFrame:

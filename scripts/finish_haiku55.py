@@ -194,8 +194,8 @@ PINNED_INPUTS = ("predictions.csv", "run_state.json")
 # Incumbent usage the exporter cannot recompute from committed predictions:
 # Fable 5's board rows were rebuilt from release 20260701 without their cost,
 # token and latency fields (its original per-call rows are that release's
-# claude-fable-5-predictions.csv.gz), so export_full_run reports $0 and
-# omits the rest.
+# claude-fable-5-predictions.csv.gz), so export_full_run reports none of its
+# usage.
 # The released values are carried over; the drift gate then checks every field.
 CARRIED_USAGE = {
     "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")
