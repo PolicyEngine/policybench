@@ -730,14 +730,17 @@ def test_rows_record_each_responses_provenance_and_agree_with_the_ledger(
             expected_rows = frame[frame["scenario_id"] == row["scenario_id"]]
             assert usage["cache_hit_calls"] in set(expected_rows["cache_hit_calls"])
             assert usage["live_calls"] in set(expected_rows["live_calls"])
-            live_times = expected_rows["live_elapsed_seconds"].dropna()
-            if live_times.empty:
-                assert "live_elapsed_seconds" not in usage
-            else:
+            # One scenario can hold several responses (one per output for the
+            # single-output writer), so, like the counts, the stored live time
+            # must be one of its rows' values; an empty one is left out.
+            live_times = expected_rows["live_elapsed_seconds"]
+            if "live_elapsed_seconds" in usage:
                 assert any(
                     usage["live_elapsed_seconds"] == pytest.approx(value, rel=1e-15)
-                    for value in live_times
+                    for value in live_times.dropna()
                 )
+            else:
+                assert live_times.isna().any()
 
 
 @pytest.mark.parametrize("repair_replayed", [True, False])
