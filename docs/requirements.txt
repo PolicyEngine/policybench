@@ -1,1 +1,4 @@
+# Builds the docs/ site: cd docs && uv run --no-project --with-requirements
+# requirements.txt jupyter book build --html. Kept out of pyproject.toml and
+# uv.lock on purpose; see "Paper and documentation site" in README.md.
 jupyter-book>=2.0
