@@ -8,7 +8,8 @@ import os
 import stat
 import struct
 import sys
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Collection
 
 import litellm
 from litellm.caching.caching import Cache
@@ -45,8 +46,9 @@ _FILE_FLAGS = (
     | getattr(os, "O_CLOEXEC", 0)
 )
 
-# BSD and macOS give an entry the group of the directory it is made in; Linux
-# and System V give it the process's group unless the directory is setgid.
+# BSD and macOS give an entry the group of the directory it is made in. Linux
+# gives it the process's group, unless the directory is setgid or its
+# filesystem is mounted with grpid (bsdgroups); see _new_entry_gids.
 _BSD_GROUPS = sys.platform == "darwin" or "bsd" in sys.platform
 
 
@@ -273,7 +275,7 @@ def linux_acl_problem(
     st: os.stat_result,
     uid: int,
     private_gid: Callable[[int], int | None] = _no_private_groups,
-    new_entry_gid: int | None = None,
+    new_entry_gids: Collection[int] = (),
 ) -> str | None:
     """Why this entry's POSIX ACLs let another account write it or new entries.
 
@@ -281,8 +283,8 @@ def linux_acl_problem(
     mode bits, which cache_problem and parent_problem judge, so only its named
     entries are judged here; the mask limits them. The default ACL of a
     directory becomes the access ACL of entries made in it, in place of the
-    umask, so all of its entries count, the owning group's as the group
-    ``new_entry_gid`` that new entries get.
+    umask, so all of its entries count, the owning group's as each group in
+    ``new_entry_gids`` that new entries may get.
     """
     try:
         acls = [
@@ -306,12 +308,143 @@ def linux_acl_problem(
             if kind == "default ACL":
                 if tag == _ACL_OTHER:
                     return "has a default ACL letting every account write new entries"
-                if tag == _ACL_GROUP_OBJ and new_entry_gid != private_gid(uid):
-                    return (
-                        "has a default ACL letting "
-                        f"{_group(new_entry_gid)} write new entries"
-                    )
+                if tag == _ACL_GROUP_OBJ:
+                    for gid in sorted(new_entry_gids):
+                        if gid != private_gid(uid):
+                            return (
+                                "has a default ACL letting "
+                                f"{_group(gid)} write new entries"
+                            )
     return None
+
+
+# NFSv4 ACLs (RFC 7531), which Linux's NFS client shows as system.nfs4_acl:
+# the XDR of the entry list, big-endian, each entry a type, flags, rights and
+# the holder's name.
+_NFS4_ALLOW = 0
+_NFS4_INHERIT = 0x01 | 0x02  # file and directory inherit
+_NFS4_INHERIT_ONLY = 0x08
+_NFS4_IDENTIFIER_GROUP = 0x40
+# Read data or list, read named attributes, execute, read attributes, write
+# attributes (times and the hidden and system flags), read the ACL,
+# synchronize (RFC 5661 section 6.2.1.3.1). Any other right counts as a
+# write, as an unknown macOS right does.
+_NFS4_HARMLESS_RIGHTS = 0x01 | 0x08 | 0x20 | 0x80 | 0x100 | 0x20000 | 0x100000
+
+
+def nfs4_acl_entries(blob: bytes) -> list[tuple[int, int, int, str]]:
+    """The (type, flags, rights, holder) entries of an NFSv4 ACL attribute."""
+
+    def u32(at: int) -> int:
+        if at + 4 > len(blob):
+            raise ValueError("a truncated NFSv4 ACL")
+        return struct.unpack_from(">I", blob, at)[0]
+
+    entries = []
+    at = 4
+    for _ in range(u32(0)):
+        kind, flags, rights, length = (u32(at + 4 * i) for i in range(4))
+        at += 16
+        if at + length > len(blob):
+            raise ValueError("a truncated NFSv4 ACL")
+        holder = blob[at : at + length].decode()  # UnicodeDecodeError is a ValueError
+        at += length + -length % 4
+        entries.append((kind, flags, rights, holder))
+    return entries
+
+
+def nfs4_acl_problem(
+    blob: bytes,
+    st: os.stat_result,
+    uid: int,
+    private_gid: Callable[[int], int | None] = _no_private_groups,
+    new_entry_gids: Collection[int] = (),
+    *,
+    inherited_too: bool,
+) -> str | None:
+    """Why this entry's NFSv4 ACL lets another account write it or, with
+    ``inherited_too``, entries made in it later.
+
+    Only allow entries count: deny entries can only take rights away, so
+    passing over them errs toward refusing. OWNER@ is the owner, which
+    cache_problem and parent_problem judge. GROUP@ may write only for the
+    owner's private group, and, in an entry new entries inherit, only when
+    every group they may get is the user's. Any other holder that may write,
+    EVERYONE@ or a named account or group, is refused, except an account
+    named by the user's own uid or root's.
+    """
+    try:
+        entries = nfs4_acl_entries(blob)
+    except ValueError:
+        return "has an NFSv4 ACL PolicyBench can't read"
+    for kind, flags, rights, holder in entries:
+        if kind != _NFS4_ALLOW or not rights & ~_NFS4_HARMLESS_RIGHTS:
+            continue
+        here = not flags & _NFS4_INHERIT_ONLY
+        later = inherited_too and bool(flags & _NFS4_INHERIT)
+        if not (here or later):
+            continue
+        scope = "" if here else "inherited by new entries "
+        if holder == "OWNER@":
+            continue
+        if holder == "GROUP@":
+            if here and st.st_gid != private_gid(st.st_uid):
+                return f"has an NFSv4 ACL entry letting {_group(st.st_gid)} write"
+            if later:
+                for gid in sorted(new_entry_gids):
+                    if gid != private_gid(uid):
+                        return (
+                            "has an NFSv4 ACL entry inherited by new entries "
+                            f"letting {_group(gid)} write"
+                        )
+            continue
+        if not flags & _NFS4_IDENTIFIER_GROUP and holder in (str(uid), "0"):
+            continue
+        return f"has an NFSv4 ACL entry {scope}letting {holder} write"
+    return None
+
+
+# ACL attributes Linux shows for filesystems whose ACLs the guard can't judge:
+# OpenZFS's NFSv4 ACLs and SMB's security descriptors. Any other system or
+# security attribute with "acl" or "ntsd" in its name is refused the same way.
+_UNCHECKED_ACLS = (
+    "system.nfs4_acl_xdr",
+    "security.nfs4acl_xdr",
+    "system.cifs_acl",
+    "system.smb3_acl",
+)
+# Read and judged: POSIX ACLs and NFSv4's. The SACL holds only audit and
+# alarm entries, which grant nothing (RFC 5661 section 6.2.3).
+_CHECKED_ACLS = frozenset(
+    {
+        "system.posix_acl_access",
+        "system.posix_acl_default",
+        "system.nfs4_acl",
+        "system.nfs4_dacl",
+        "system.nfs4_sacl",
+    }
+)
+
+
+def _unchecked_acl(target: int | str) -> str | None:
+    """The name of an ACL attribute on this entry the guard can't judge."""
+    try:
+        names = os.listxattr(target)
+    except OSError as error:
+        if error.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
+        names = []
+    for name in names:
+        lowered = name.lower()
+        if (
+            lowered.startswith(("system.", "security."))
+            and ("acl" in lowered or "ntsd" in lowered)
+            and name not in _CHECKED_ACLS
+        ):
+            return name
+    return next(
+        (name for name in _UNCHECKED_ACLS if _xattr(target, name) is not None), None
+    )
 
 
 def _xattr(target: int | str, name: str) -> bytes | None:
@@ -323,11 +456,18 @@ def _xattr(target: int | str, name: str) -> bytes | None:
         raise
 
 
-def _new_entry_gid(st: os.stat_result) -> int:
-    """The group of an entry made in this directory."""
+def _new_entry_gids(st: os.stat_result) -> frozenset[int]:
+    """The groups an entry made in this directory may get.
+
+    macOS and BSD give it the directory's group, and so does Linux when the
+    directory is setgid (open(2)). Otherwise Linux gives it the process's
+    group, or the directory's on a filesystem mounted with grpid (bsdgroups;
+    see ext4's mount options), which the guard can't see, so it allows for
+    both.
+    """
     if _BSD_GROUPS or st.st_mode & stat.S_ISGID:
-        return st.st_gid
-    return os.getegid()
+        return frozenset({st.st_gid})
+    return frozenset({st.st_gid, os.getegid()})
 
 
 def _acl_problem(
@@ -349,18 +489,53 @@ def _acl_problem(
     if sys.platform.startswith("linux"):
         # A search-only (O_PATH) descriptor can't read attributes itself.
         target = fd if readable else f"/proc/self/fd/{fd}"
-        access = _xattr(target, "system.posix_acl_access")
-        default = None
-        if inherited_too and stat.S_ISDIR(st.st_mode):
-            default = _xattr(target, "system.posix_acl_default")
-        return linux_acl_problem(
-            access, default, st, uid, private_gid, _new_entry_gid(st)
+        return _linux_acl_problem(
+            target, st, uid, private_gid, inherited_too=inherited_too
         )
     return None
 
 
-def process_umask() -> int:
-    """The process umask, read without changing it where Linux allows."""
+def _linux_acl_problem(
+    target: int | str,
+    st: os.stat_result,
+    uid: int,
+    private_gid: Callable[[int], int | None],
+    *,
+    inherited_too: bool,
+) -> str | None:
+    unchecked = _unchecked_acl(target)
+    if unchecked:
+        return f"has an ACL PolicyBench can't check ({unchecked})"
+    new_entry_gids = _new_entry_gids(st)
+    # A server may offer an NFSv4.1 DACL without the ACL attribute, or both.
+    # The DACL is the same entry list after a flag word (RFC 5661 section
+    # 6.4.3.2).
+    for name, start in (("system.nfs4_acl", 0), ("system.nfs4_dacl", 4)):
+        nfs4 = _xattr(target, name)
+        if nfs4 is None:
+            continue
+        problem = nfs4_acl_problem(
+            nfs4[start:],
+            st,
+            uid,
+            private_gid,
+            new_entry_gids,
+            inherited_too=inherited_too and stat.S_ISDIR(st.st_mode),
+        )
+        if problem:
+            return problem
+    access = _xattr(target, "system.posix_acl_access")
+    default = None
+    if inherited_too and stat.S_ISDIR(st.st_mode):
+        default = _xattr(target, "system.posix_acl_default")
+    return linux_acl_problem(access, default, st, uid, private_gid, new_entry_gids)
+
+
+_UMASK_LOCK = threading.Lock()
+
+
+def _proc_umask() -> int | None:
+    """The umask Linux shows in /proc/self/status, if it does."""
     try:
         with open("/proc/self/status") as status:
             for line in status:
@@ -368,11 +543,23 @@ def process_umask() -> int:
                     return int(line.split()[1], 8)
     except OSError:
         pass
-    # Elsewhere reading it means setting it; the strictest value in between
-    # keeps a file another thread makes meanwhile private.
-    umask = os.umask(0o077)
-    os.umask(umask)
-    return umask
+    return None
+
+
+def process_umask() -> int:
+    """The process umask, read without changing it where Linux allows."""
+    umask = _proc_umask()
+    if umask is not None:
+        return umask
+    # Elsewhere reading it means setting it. The lock keeps two guards from
+    # reading each other's stand-in, and the stand-in is the strictest value,
+    # so a file another thread makes meanwhile stays private.
+    with _UMASK_LOCK:
+        umask = os.umask(0o077)
+        try:
+            return umask
+        finally:
+            os.umask(umask)
 
 
 def umask_problem(
@@ -389,9 +576,19 @@ def umask_problem(
     """
     if not umask & stat.S_IWOTH:
         return f"every account under your umask {umask:03o}"
-    gid = _new_entry_gid(st)
-    if not umask & stat.S_IWGRP and gid != private_gid(uid):
-        return f"{_group(gid)} under your umask {umask:03o}"
+    if umask & stat.S_IWGRP:
+        return None
+    gids = _new_entry_gids(st)
+    for gid in sorted(gids):
+        if gid != private_gid(uid):
+            writers = f"{_group(gid)} under your umask {umask:03o}"
+            if len(gids) > 1 and gid == st.st_gid:
+                # Linux, only where the filesystem is mounted with grpid.
+                writers += (
+                    " if the filesystem gives new entries the directory's group"
+                    " (the grpid mount option)"
+                )
+            return writers
     return None
 
 

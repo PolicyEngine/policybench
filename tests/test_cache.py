@@ -1,11 +1,14 @@
 """Tests for versioned LiteLLM cache setup and the cache-directory guard."""
 
+import errno
 import glob
 import os
 import stat
 import struct
 import subprocess
 import sys
+import threading
+from itertools import chain, combinations
 from unittest.mock import patch
 
 import diskcache
@@ -22,8 +25,11 @@ from policybench.cache import (
     darwin_acl_problem,
     enable_cache,
     linux_acl_problem,
+    nfs4_acl_entries,
+    nfs4_acl_problem,
     parent_problem,
     posix_acl_entries,
+    process_umask,
     secure_cache_dir,
     umask_problem,
 )
@@ -1250,20 +1256,68 @@ def test_parent_rule_over_every_mode(me, owner, private):
         assert accepted == expected, oct(mode)
 
 
+def group_semantics(monkeypatch, semantics: str) -> int:
+    """Judge new entries' groups as on BSD, or as on Linux with the process's
+    group GID; the directory mode to use (setgid for "setgid")."""
+    monkeypatch.setattr(cache_module, "_BSD_GROUPS", semantics == "bsd")
+    monkeypatch.setattr(os, "getegid", lambda: GID)
+    return 0o2755 if semantics == "setgid" else 0o755
+
+
+@pytest.mark.parametrize("semantics", ["bsd", "setgid", "linux"])
 @pytest.mark.parametrize("private", [True, False])
-def test_umask_rule_over_every_umask(private):
-    # Setgid, so new entries get the directory's group on every platform.
-    directory = stat_with(0o2755, ME)
+def test_umask_rule_over_every_umask(monkeypatch, private, semantics):
+    mode = group_semantics(monkeypatch, semantics)
     private_gid = PRIVATE_GROUPS["mine" if private else "none"]
-    for umask in range(0o1000):
-        accepted = umask_problem(umask, directory, ME, private_gid) is None
-        expected = bool(umask & 0o002 and (umask & 0o020 or private))
-        assert accepted == expected, oct(umask)
+    for directory_gid in (GID, OTHER_GID):
+        directory = stat_with(mode, ME, directory_gid)
+        # BSD and setgid: the directory's group. Linux: the process's, or the
+        # directory's under grpid.
+        possible = {directory_gid} | ({GID} if semantics == "linux" else set())
+        groups_private = all(private_gid(ME) == gid for gid in possible)
+        for umask in range(0o1000):
+            accepted = umask_problem(umask, directory, ME, private_gid) is None
+            expected = bool(umask & 0o002 and (umask & 0o020 or groups_private))
+            assert accepted == expected, (oct(umask), directory_gid)
 
 
 @posix_only
-def test_new_entries_get_the_group_the_umask_rule_assumes(tmp_path):
-    assert cache_module._new_entry_gid(os.stat(tmp_path)) == new_entry_group(tmp_path)
+def test_new_entries_get_one_of_the_groups_the_umask_rule_allows_for(tmp_path):
+    groups = cache_module._new_entry_gids(os.stat(tmp_path))
+    assert new_entry_group(tmp_path) in groups
+
+
+@pytest.mark.parametrize("semantics", ["bsd", "setgid", "linux"])
+def test_new_entry_groups(monkeypatch, semantics):
+    mode = group_semantics(monkeypatch, semantics)
+    groups = cache_module._new_entry_gids(stat_with(mode, ME, OTHER_GID))
+    assert groups == ({OTHER_GID, GID} if semantics == "linux" else {OTHER_GID})
+
+
+@posix_only
+def test_a_shared_group_cache_is_refused_under_umask_002_where_grpid_could_apply(
+    monkeypatch, tmp_path, umask
+):
+    """Review r3's case: a private process group, umask 002 and an existing
+    0o755 cache of a shared group, not setgid. On a filesystem mounted with
+    grpid, diskcache's new entries would get the shared group."""
+    cache_dir = make_cache(tmp_path, dir_mode=0o755)
+    shared = os.stat(cache_dir).st_gid
+    monkeypatch.setattr(cache_module, "_BSD_GROUPS", False)
+    monkeypatch.setattr(os, "getegid", lambda: shared + 1)
+    private_group(monkeypatch, shared + 1)
+    umask(0o002)
+
+    with pytest.raises(UnsafeCacheDirError) as refused:
+        secure_cache_dir(str(cache_dir))
+
+    message = str(refused.value)
+    assert cache_module._group(shared) in message
+    assert "under your umask 002 if the filesystem gives new entries" in message
+
+    private_group(monkeypatch, shared)
+    monkeypatch.setattr(os, "getegid", lambda: shared)
+    assert secure_cache_dir(str(cache_dir)) == os.path.realpath(cache_dir)
 
 
 uids = st.integers(min_value=0, max_value=2**32 - 1)
@@ -1300,39 +1354,112 @@ def test_the_cache_rule_is_at_least_as_strict_as_the_parent_rule(
         assert parent_problem(stat_with(mode, owner), me, private_gid) is None
 
 
-# Linux POSIX ACLs over every combination of entries the guard tells apart.
-posix_entries = st.lists(
-    st.tuples(
-        st.sampled_from([USER_OBJ, USER, GROUP_OBJ, GROUP, MASK, OTHER]),
-        st.integers(min_value=0, max_value=7),
-        st.sampled_from([ME, OTHER_USER, ROOT, OTHER_GID, ACL_UNDEFINED_ID]),
-    ),
-    max_size=8,
-)
+# Linux POSIX ACLs. The oracle runs acl(5)'s access check algorithm for each
+# account that might try to write, rather than restating the guard's rule.
+# GID is the private group of ME, so no one else is in it; anyone may be in
+# OTHER_GID or 3000.
+ATTACKERS = (OTHER_USER, 2000, 4242)
+SHARED_GROUPS = (OTHER_GID, 3000)
+acl_perms = st.integers(min_value=0, max_value=7)
+
+
+@st.composite
+def posix_acls(draw):
+    """A valid ACL: one owner, owning-group and other entry, distinct named
+    entries, and a mask whenever there is a named entry (acl(5))."""
+    users = draw(st.lists(st.sampled_from([ME, *ATTACKERS[:2], ROOT]), unique=True))
+    groups = draw(st.lists(st.sampled_from([GID, *SHARED_GROUPS]), unique=True))
+    entries = [(USER_OBJ, draw(acl_perms), ACL_UNDEFINED_ID)]
+    entries += [(USER, draw(acl_perms), qualifier) for qualifier in users]
+    entries.append((GROUP_OBJ, draw(acl_perms), ACL_UNDEFINED_ID))
+    entries += [(GROUP, draw(acl_perms), qualifier) for qualifier in groups]
+    if users or groups or draw(st.booleans()):
+        entries.append((MASK, draw(acl_perms), ACL_UNDEFINED_ID))
+    entries.append((OTHER, draw(acl_perms), ACL_UNDEFINED_ID))
+    return entries
+
+
+def acl5_grants_write(entries, owner: int, group: int, euid: int, groups) -> bool:
+    """acl(5)'s access check algorithm, for write, for an unprivileged process."""
+
+    def only(tag):
+        (perm,) = [perm for t, perm, _ in entries if t == tag]
+        return perm
+
+    mask = next((perm for tag, perm, _ in entries if tag == MASK), 0o7)
+    if euid == owner:
+        return bool(only(USER_OBJ) & 0o2)
+    for tag, perm, qualifier in entries:
+        if tag == USER and qualifier == euid:
+            return bool(perm & mask & 0o2)
+    matching = [
+        perm
+        for tag, perm, qualifier in entries
+        if (tag == GROUP_OBJ and group in groups)
+        or (tag == GROUP and qualifier in groups)
+    ]
+    if matching:
+        return any(perm & mask & 0o2 for perm in matching)
+    return bool(only(OTHER) & 0o2)
+
+
+def subsets(items):
+    return chain.from_iterable(combinations(items, n) for n in range(len(items) + 1))
+
+
+def another_account_can_write(entries, owner: int, group: int) -> bool:
+    shared = [g for g in (group, *SHARED_GROUPS) if g != GID]
+    return any(
+        acl5_grants_write(entries, owner, group, attacker, set(groups))
+        for attacker in ATTACKERS
+        if attacker != owner
+        for groups in subsets(shared)
+    )
+
+
+def mode_of_acl(entries) -> int:
+    """The mode bits an entry with this access ACL shows (acl(5))."""
+    perm = {tag: perm for tag, perm, _ in entries}
+    group_class = perm.get(MASK, perm[GROUP_OBJ])
+    return perm[USER_OBJ] << 6 | group_class << 3 | perm[OTHER]
 
 
 def private_to_me(uid: int) -> int | None:
     return GID if uid == ME else None
 
 
-def posix_writer(entries, default: bool, new_gid: int) -> bool:
-    mask = next((perm for tag, perm, _ in entries if tag == MASK), 0o7)
-    for tag, perm, qualifier in entries:
-        masked = perm & mask if tag in (USER, GROUP_OBJ, GROUP) else perm
-        if not masked & 0o2:
-            continue
-        if tag == USER and qualifier not in (ME, ROOT):
-            return True
-        if tag == GROUP and qualifier != GID:
-            return True
-        if default and tag == OTHER:
-            return True
-        if default and tag == GROUP_OBJ and new_gid != GID:
-            return True
-    return False
+@given(entries=posix_acls(), group=st.sampled_from([GID, OTHER_GID]))
+def test_an_access_acl_is_refused_when_acl5_lets_another_account_write(entries, group):
+    """Sound against acl(5); stricter only where the mode bits show group write
+    by a shared group that the owning-group entry itself lacks."""
+    entry = stat_with(mode_of_acl(entries), ME, group)
+    refused = (
+        cache_problem(entry, ME, private_to_me)
+        or linux_acl_problem(acl_blob(entries), None, entry, ME, private_to_me)
+    ) is not None
+    writable = another_account_can_write(entries, ME, group)
+    shows_shared_group_write = mode_of_acl(entries) & 0o020 and group != GID
+    assert refused == (writable or bool(shows_shared_group_write))
 
 
-@given(entries=posix_entries)
+@given(
+    entries=posix_acls(),
+    new_gids=st.sampled_from([{GID}, {OTHER_GID}, {GID, OTHER_GID}]),
+)
+def test_a_default_acl_is_refused_exactly_when_new_entries_would_be_writable(
+    entries, new_gids
+):
+    """A directory's default ACL becomes its new entries' access ACL (owned by
+    ME, of one of new_gids); diskcache's modes keep every write bit."""
+    directory = stat_with(0o755, ME)
+    refused = linux_acl_problem(
+        None, acl_blob(entries), directory, ME, private_to_me, new_gids
+    )
+    writable = any(another_account_can_write(entries, ME, gid) for gid in new_gids)
+    assert (refused is not None) == writable
+
+
+@given(entries=posix_acls())
 def test_posix_acl_round_trips(entries):
     assert posix_acl_entries(acl_blob(entries)) == entries
 
@@ -1346,25 +1473,403 @@ def test_unreadable_posix_acl_is_a_problem(blob):
     )
 
 
-@given(
-    entries=posix_entries,
-    default=st.booleans(),
-    new_gid=st.sampled_from([GID, OTHER_GID]),
-)
-def test_linux_acl_problem_is_any_named_or_new_entry_write(entries, default, new_gid):
-    blob = acl_blob(entries)
-    access, default_acl = (None, blob) if default else (blob, None)
-    problem = linux_acl_problem(
-        access, default_acl, stat_with(0o755, ME), ME, private_to_me, new_gid
-    )
-    assert (problem is not None) == posix_writer(entries, default, new_gid)
-
-
-@given(entries=posix_entries, new_gid=st.sampled_from([GID, OTHER_GID]))
-def test_linux_default_acl_rule_is_at_least_as_strict(entries, new_gid):
+@given(entries=posix_acls(), new_gids=st.sampled_from([{GID}, {GID, OTHER_GID}]))
+def test_linux_default_acl_rule_is_at_least_as_strict(entries, new_gids):
     blob = acl_blob(entries)
     directory = stat_with(0o755, ME)
-    if linux_acl_problem(None, blob, directory, ME, private_to_me, new_gid) is None:
-        assert (
-            linux_acl_problem(blob, None, directory, ME, private_to_me, new_gid) is None
+    if linux_acl_problem(None, blob, directory, ME, private_to_me, new_gids) is None:
+        assert linux_acl_problem(blob, None, directory, ME, private_to_me) is None
+
+
+# NFSv4 ACLs (RFC 7531), as Linux's NFS client shows them in system.nfs4_acl.
+ALLOW, DENY, AUDIT, ALARM = 0, 1, 2, 3
+FILE_INHERIT, DIRECTORY_INHERIT, NO_PROPAGATE, INHERIT_ONLY = 0x1, 0x2, 0x4, 0x8
+IDENTIFIER_GROUP = 0x40
+READ_DATA, WRITE_DATA, APPEND_DATA, READ_NAMED_ATTRS = 0x1, 0x2, 0x4, 0x8
+WRITE_NAMED_ATTRS, EXECUTE, DELETE_CHILD, READ_ATTRIBUTES = 0x10, 0x20, 0x40, 0x80
+WRITE_ATTRIBUTES, WRITE_RETENTION, DELETE = 0x100, 0x200, 0x10000
+READ_ACL, WRITE_ACL, WRITE_OWNER, SYNCHRONIZE = 0x20000, 0x40000, 0x80000, 0x100000
+NFS4_HARMLESS = (
+    READ_DATA,
+    READ_NAMED_ATTRS,
+    EXECUTE,
+    READ_ATTRIBUTES,
+    WRITE_ATTRIBUTES,
+    READ_ACL,
+    SYNCHRONIZE,
+)
+NFS4_WRITES = (
+    WRITE_DATA,
+    APPEND_DATA,
+    WRITE_NAMED_ATTRS,
+    DELETE_CHILD,
+    WRITE_RETENTION,
+    DELETE,
+    WRITE_ACL,
+    WRITE_OWNER,
+)
+NFS4_READ = READ_DATA | EXECUTE | READ_ATTRIBUTES | READ_ACL | SYNCHRONIZE
+
+
+def nfs4_blob(entries) -> bytes:
+    blob = struct.pack(">I", len(entries))
+    for kind, flags, rights, holder in entries:
+        name = holder.encode()
+        blob += struct.pack(">IIII", kind, flags, rights, len(name))
+        blob += name + b"\x00" * (-len(name) % 4)
+    return blob
+
+
+# What a server derives from a 0o755 directory's mode: the owner may do
+# anything, the group and everyone else read and search.
+NFS4_FROM_0755 = [
+    (
+        ALLOW,
+        0,
+        NFS4_READ | WRITE_DATA | APPEND_DATA | DELETE_CHILD | WRITE_ACL,
+        "OWNER@",
+    ),
+    (DENY, 0, WRITE_DATA | APPEND_DATA | DELETE_CHILD, "GROUP@"),
+    (ALLOW, 0, NFS4_READ, "GROUP@"),
+    (DENY, 0, WRITE_DATA | APPEND_DATA | DELETE_CHILD | WRITE_ACL, "EVERYONE@"),
+    (ALLOW, 0, NFS4_READ, "EVERYONE@"),
+]
+NFS4_ACLS = [
+    (NFS4_FROM_0755, False, None),
+    (NFS4_FROM_0755, True, None),
+    (
+        [(ALLOW, 0, WRITE_DATA, "EVERYONE@")],
+        False,
+        "has an NFSv4 ACL entry letting EVERYONE@ write",
+    ),
+    (
+        [(ALLOW, 0, APPEND_DATA, "bob@example.com")],
+        False,
+        "has an NFSv4 ACL entry letting bob@example.com write",
+    ),
+    ([(ALLOW, 0, WRITE_DATA, str(ME))], False, None),
+    ([(ALLOW, 0, WRITE_DATA, "0")], False, None),
+    (
+        [(ALLOW, IDENTIFIER_GROUP, WRITE_DATA, str(ME))],
+        False,
+        f"has an NFSv4 ACL entry letting {ME} write",
+    ),
+    ([(DENY, 0, WRITE_DATA, "EVERYONE@")], False, None),
+    (
+        [(AUDIT, 0, WRITE_DATA, "EVERYONE@"), (ALARM, 0, DELETE, "EVERYONE@")],
+        True,
+        None,
+    ),
+    ([(ALLOW, 0, WRITE_ATTRIBUTES | NFS4_READ, "EVERYONE@")], True, None),
+    (
+        [(ALLOW, 0, WRITE_RETENTION, "EVERYONE@")],
+        False,
+        "has an NFSv4 ACL entry letting EVERYONE@ write",
+    ),
+    ([(ALLOW, FILE_INHERIT | INHERIT_ONLY, WRITE_DATA, "EVERYONE@")], False, None),
+    (
+        [(ALLOW, FILE_INHERIT | INHERIT_ONLY, WRITE_DATA, "EVERYONE@")],
+        True,
+        "has an NFSv4 ACL entry inherited by new entries letting EVERYONE@ write",
+    ),
+    ([(ALLOW, INHERIT_ONLY, WRITE_DATA, "EVERYONE@")], True, None),
+    ([(ALLOW, 0, WRITE_DATA, "OWNER@")], True, None),
+    ([(ALLOW, DIRECTORY_INHERIT, WRITE_DATA, "GROUP@")], True, None),
+]
+
+
+@pytest.mark.parametrize(("entries", "inherited_too", "expected"), NFS4_ACLS)
+def test_nfs4_acl(entries, inherited_too, expected):
+    directory = stat_with(0o755, ME)  # of GID, the private group
+    problem = nfs4_acl_problem(
+        nfs4_blob(entries),
+        directory,
+        ME,
+        private_to_me,
+        {GID},
+        inherited_too=inherited_too,
+    )
+    assert problem == expected
+
+
+def test_nfs4_group_entries_need_private_groups():
+    write = nfs4_blob([(ALLOW, FILE_INHERIT, WRITE_DATA, "GROUP@")])
+    shared = stat_with(0o755, ME, OTHER_GID)
+    problem = nfs4_acl_problem(
+        write, shared, ME, private_to_me, {OTHER_GID}, inherited_too=False
+    )
+    other = cache_module._group(OTHER_GID)
+    assert problem == f"has an NFSv4 ACL entry letting {other} write"
+    # The directory's group is private, but new entries may get a shared one.
+    problem = nfs4_acl_problem(
+        write,
+        stat_with(0o755, ME),
+        ME,
+        private_to_me,
+        {GID, OTHER_GID},
+        inherited_too=True,
+    )
+    assert problem == (
+        f"has an NFSv4 ACL entry inherited by new entries letting {other} write"
+    )
+
+
+@pytest.mark.parametrize(
+    "blob",
+    [
+        b"",
+        struct.pack(">I", 1),
+        struct.pack(">IIIII", 1, ALLOW, 0, WRITE_DATA, 9) + b"EVERYONE",
+        struct.pack(">IIIII", 1, ALLOW, 0, WRITE_DATA, 2) + b"\xff\xfe\x00\x00",
+    ],
+)
+def test_unreadable_nfs4_acl_is_a_problem(blob):
+    assert nfs4_acl_problem(blob, stat_with(0o755, ME), ME, inherited_too=False) == (
+        "has an NFSv4 ACL PolicyBench can't read"
+    )
+
+
+NFS4_HOLDERS = (
+    "OWNER@",
+    "GROUP@",
+    "EVERYONE@",
+    "INTERACTIVE@",
+    "bob@example.com",
+    "2000",
+    str(ME),
+    "0",
+)
+nfs4_entries = st.lists(
+    st.tuples(
+        st.sampled_from([ALLOW, DENY, AUDIT, ALARM]),
+        st.sets(
+            st.sampled_from(
+                [
+                    FILE_INHERIT,
+                    DIRECTORY_INHERIT,
+                    NO_PROPAGATE,
+                    INHERIT_ONLY,
+                    IDENTIFIER_GROUP,
+                ]
+            )
+        ).map(sum),
+        st.sets(st.sampled_from(NFS4_HARMLESS + NFS4_WRITES)).map(sum),
+        st.sampled_from(NFS4_HOLDERS),
+    ),
+    max_size=6,
+)
+
+
+@given(entries=nfs4_entries)
+def test_nfs4_acl_round_trips(entries):
+    assert nfs4_acl_entries(nfs4_blob(entries)) == entries
+
+
+def nfs4_grants_write(entries, group: int, attacker: str, groups) -> bool:
+    """RFC 5661's evaluation (section 6.2.1) of an ACL for an account that is
+    neither the owner nor root: for each right, the first allow or deny entry
+    that names the account and holds the right decides it."""
+
+    def names_attacker(flags, holder):
+        if holder == "GROUP@":
+            return group in groups
+        if holder in ("EVERYONE@", "INTERACTIVE@"):
+            return True
+        if (
+            holder.endswith("@")
+            or holder in (str(ME), "0")
+            and not flags & IDENTIFIER_GROUP
+        ):
+            return False  # OWNER@, or the user or root by uid
+        return holder in groups if flags & IDENTIFIER_GROUP else holder == attacker
+
+    for right in NFS4_WRITES:
+        for kind, flags, rights, holder in entries:
+            if kind in (ALLOW, DENY) and not flags & INHERIT_ONLY and rights & right:
+                if names_attacker(flags, holder):
+                    if kind == ALLOW:
+                        return True
+                    break
+    return False
+
+
+def nfs4_writer(entries, group: int) -> bool:
+    # The guard doesn't map NFSv4 group names to gids, so any named group,
+    # even one named by the user's or root's id, may hold another account.
+    shared = [g for g in (group,) if g != GID] + [
+        "bob@example.com",
+        "2000",
+        str(ME),
+        "0",
+    ]
+    return any(
+        nfs4_grants_write(entries, group, attacker, set(groups))
+        for attacker in ("bob@example.com", "2000", "4242")
+        for groups in subsets(shared)
+    )
+
+
+@given(entries=nfs4_entries, group=st.sampled_from([GID, OTHER_GID]))
+def test_nfs4_acl_is_refused_exactly_when_its_allow_entries_let_someone_write(
+    entries, group
+):
+    """Ignoring deny entries errs toward refusing: refused exactly when the
+    RFC's evaluation, with the deny entries taken out, lets another account
+    write; so always when it does with them in."""
+    entry = stat_with(0o755, ME, group)
+    refused = (
+        nfs4_acl_problem(
+            nfs4_blob(entries), entry, ME, private_to_me, inherited_too=False
         )
+        is not None
+    )
+    allows = [e for e in entries if e[0] != DENY]
+    assert refused == nfs4_writer(allows, group)
+    if nfs4_writer(entries, group):
+        assert refused
+
+
+@given(entries=nfs4_entries, new_gids=st.sampled_from([{GID}, {GID, OTHER_GID}]))
+def test_nfs4_new_entries_rule_is_at_least_as_strict(entries, new_gids):
+    blob = nfs4_blob(entries)
+    directory = stat_with(0o755, ME)
+    if (
+        nfs4_acl_problem(
+            blob, directory, ME, private_to_me, new_gids, inherited_too=True
+        )
+        is None
+    ):
+        assert (
+            nfs4_acl_problem(blob, directory, ME, private_to_me, inherited_too=False)
+            is None
+        )
+
+
+def fake_linux_xattrs(monkeypatch, attributes: dict[str, bytes]) -> None:
+    """Make the guard's Linux attribute reads see ``attributes``."""
+
+    def listxattr(target):
+        return [name for name in attributes if not name.startswith("hidden:")]
+
+    def xattr(target, name):
+        return attributes.get(name, attributes.get(f"hidden:{name}"))
+
+    monkeypatch.setattr(os, "listxattr", listxattr, raising=False)
+    monkeypatch.setattr(cache_module, "_xattr", xattr)
+
+
+def linux_verdict(monkeypatch, attributes, *, inherited_too=True):
+    monkeypatch.setattr(cache_module, "_BSD_GROUPS", False)
+    monkeypatch.setattr(os, "getegid", lambda: GID)
+    fake_linux_xattrs(monkeypatch, attributes)
+    return cache_module._linux_acl_problem(
+        "entry", stat_with(0o755, ME), ME, private_to_me, inherited_too=inherited_too
+    )
+
+
+def test_linux_reads_nfs4_acls_then_posix_acls(monkeypatch):
+    everyone = nfs4_blob([(ALLOW, 0, WRITE_DATA, "EVERYONE@")])
+    assert linux_verdict(monkeypatch, {"system.nfs4_acl": everyone}) == (
+        "has an NFSv4 ACL entry letting EVERYONE@ write"
+    )
+    safe = nfs4_blob(NFS4_FROM_0755)
+    posix = acl_blob(acl_granting(OTHER_USER, 6, 6))
+    assert (
+        linux_verdict(
+            monkeypatch,
+            {
+                "system.nfs4_acl": safe,
+                "system.posix_acl_access": posix,
+                "security.selinux": b"x",
+            },
+        )
+        == f"has an ACL entry letting uid {OTHER_USER} write"
+    )
+    assert linux_verdict(monkeypatch, {"system.nfs4_acl": safe}) is None
+
+
+@pytest.mark.parametrize("name", ["system.nfs4_dacl", "hidden:system.nfs4_dacl"])
+def test_linux_reads_an_nfs4_dacl(monkeypatch, name):
+    """An NFSv4.1 server may offer the DACL alone: a flag word, then the
+    entries."""
+    flag = struct.pack(">I", 1)  # ACL4_AUTO_INHERIT
+    everyone = nfs4_blob([(ALLOW, 0, WRITE_DATA, "EVERYONE@")])
+    assert linux_verdict(monkeypatch, {name: flag + everyone}) == (
+        "has an NFSv4 ACL entry letting EVERYONE@ write"
+    )
+    assert linux_verdict(monkeypatch, {name: flag + nfs4_blob(NFS4_FROM_0755)}) is None
+    assert linux_verdict(monkeypatch, {name: flag}) == (
+        "has an NFSv4 ACL PolicyBench can't read"
+    )
+    # The ACL attribute, when there is one, doesn't excuse the DACL.
+    safe = nfs4_blob(NFS4_FROM_0755)
+    assert linux_verdict(
+        monkeypatch, {"system.nfs4_acl": safe, name: flag + everyone}
+    ) == ("has an NFSv4 ACL entry letting EVERYONE@ write")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "system.richacl",
+        "security.NTACL",
+        "system.cifs_ntsd",
+        "hidden:system.nfs4_acl_xdr",
+        "hidden:security.nfs4acl_xdr",
+        "hidden:system.cifs_acl",
+        "hidden:system.smb3_acl",
+    ],
+)
+def test_linux_refuses_acls_it_cant_judge(monkeypatch, name):
+    """Listed or not, an ACL attribute the guard doesn't read is refused,
+    including on parents."""
+    shown = name.removeprefix("hidden:")
+    for inherited_too in (True, False):
+        assert linux_verdict(monkeypatch, {name: b""}, inherited_too=inherited_too) == (
+            f"has an ACL PolicyBench can't check ({shown})"
+        )
+
+
+def test_linux_without_attribute_support_has_no_acl_problem(monkeypatch):
+    def listxattr(target):
+        raise OSError(errno.ENOTSUP, os.strerror(errno.ENOTSUP))
+
+    assert linux_verdict(monkeypatch, {}) is None
+    monkeypatch.setattr(os, "listxattr", listxattr, raising=False)
+    assert (
+        cache_module._linux_acl_problem(
+            "entry", stat_with(0o755, ME), ME, private_to_me, inherited_too=True
+        )
+        is None
+    )
+
+
+def test_concurrent_umask_reads_see_the_real_umask(monkeypatch):
+    """Review r3: where reading the umask means setting it, a second reader
+    between the first's two calls would read the first's stand-in, 0o077,
+    and restore it."""
+    monkeypatch.setattr(cache_module, "_proc_umask", lambda: None)
+    real_umask = os.umask
+    real_umask(0o022)
+    stand_in_set, release = threading.Event(), threading.Event()
+
+    def slow_umask(mask):
+        previous = real_umask(mask)
+        if mask == 0o077 and not stand_in_set.is_set():
+            stand_in_set.set()
+            release.wait(10)
+        return previous
+
+    monkeypatch.setattr(os, "umask", slow_umask)
+    results = {}
+    first = threading.Thread(target=lambda: results.update(first=process_umask()))
+    second = threading.Thread(target=lambda: results.update(second=process_umask()))
+    first.start()
+    assert stand_in_set.wait(10)
+    second.start()
+    second.join(0.5)  # unlocked, the second read finishes here
+    release.set()
+    first.join(10)
+    second.join(10)
+    assert results == {"first": 0o022, "second": 0o022}
+    assert real_umask(0o022) == 0o022
