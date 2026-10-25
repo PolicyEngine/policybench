@@ -1,0 +1,60 @@
+{
+  "note": "The first reference sweep of this upgrade, on policyengine-us 2.59.0, the newest PyPI release when it began. A host restart at 20:01 UTC cut the session off before the build; when it resumed at 01:43 UTC on 2026-10-23, 2.60.0 (wheel uploaded 2026-10-22 22:47:49 UTC) was the newest release, and its first pass differs from 2.59.0's on the three outputs listed, all scored (PolicyEngine/policyengine-us#10238, in 2.60.0's release commit 2bc4ccc970 and not in 2.59.0's, 05813807e1). A 2.59.0 build would fail the publication check, so the sweep began again on 2.60.0 (sweep_timing.json). Every other output is identical on the two releases.",
+  "sweep_timing_2_59_0": {
+    "note": "When PolicyBench began sweeping the references for the 2026-10-22 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
+    "pypi": {
+      "source": "https://pypi.org/pypi/policyengine-us/json",
+      "read_at_utc": "2026-10-22T19:49:39Z",
+      "newest_at_read": "2.59.0",
+      "wheel_uploaded_at_utc": {
+        "2.59.0": "2026-10-22T17:15:04.594706Z"
+      },
+      "yanked_newer": {}
+    },
+    "reference_sweep": {
+      "engine": "2.59.0",
+      "engine_installed_at_utc": "2026-10-22T19:44:13Z",
+      "engine_installed_evidence": ".venv/lib/python3.12/site-packages/policyengine_us-2.59.0.dist-info",
+      "engine_install": {
+        "version": "2.59.0",
+        "files_verified": 19463,
+        "editable": false,
+        "imported_from_package": true,
+        "fresh_bytecode_cache": true
+      },
+      "script": "reference_audit/2026-10-22-engine-upgrade/scripts/build_references_upgrade.py (first pass, empty actions)",
+      "first_output_at_utc": "2026-10-22T19:49:15Z",
+      "first_output": "results/local/engine-upgrade-1022/pass1_2590/computed.csv",
+      "first_output_sha256": "39708907df73461d753b0765fd5c83af3eb35d0e93f2c4ecae3d9aeb39ef7d51"
+    }
+  },
+  "first_pass_2_59_0_sha256": "39708907df73461d753b0765fd5c83af3eb35d0e93f2c4ecae3d9aeb39ef7d51",
+  "first_pass_2_60_0_sha256": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008",
+  "outputs": 1984,
+  "differ_2_59_0_vs_2_60_0": [
+    {
+      "scenario_id": "scenario_028",
+      "state": "PA",
+      "variable": "free_school_meals_eligible",
+      "value_2_59_0": 0.0,
+      "value_2_60_0": 1.0,
+      "scored": true
+    },
+    {
+      "scenario_id": "scenario_117",
+      "state": "AR",
+      "variable": "free_school_meals_eligible",
+      "value_2_59_0": 0.0,
+      "value_2_60_0": 1.0,
+      "scored": true
+    },
+    {
+      "scenario_id": "scenario_123",
+      "state": "PA",
+      "variable": "free_school_meals_eligible",
+      "value_2_59_0": 0.0,
+      "value_2_60_0": 1.0,
+      "scored": true
+    }
+  ]
+}

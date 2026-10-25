@@ -103,7 +103,8 @@ the stage's binding against it.
 
 The exporter still needs the Fable 5 usage carry-over. Fable 5 ran through the
 Anthropic batch adapter, and its committed rows carry no cost, token or latency
-fields, so `export_full_run` reports `costUsd` $0 and omits the rest. The live
+fields, so `export_full_run` reported `costUsd` $0 and omitted the rest (since
+#230 it reports none of them). The live
 payload has $54.11, 3,850,174 tokens and 97.68 s. The driver copies those four
 values from the base, and the drift gate then checks every field and the key
 order. Ox Alpha's `costUsd` of $0.0 comes out of the exporter unchanged, so it
