@@ -237,7 +237,10 @@ class Supervisor:
         )
 
     def _scenario_complete(self, index: int) -> bool:
-        from policybench.eval_no_tools import NO_TOOLS_RESULT_COLUMNS
+        from policybench.eval_no_tools import (
+            NO_TOOLS_CALL_PROVENANCE_COLUMNS,
+            NO_TOOLS_RESULT_COLUMNS,
+        )
 
         path = self.scenario_csv(index)
         if not path.exists():
@@ -256,7 +259,16 @@ class Supervisor:
         except Exception as error:
             self._raise_stale_scenario_output(path, f"could not read CSV: {error}")
 
-        missing_columns = sorted(set(NO_TOOLS_RESULT_COLUMNS) - set(frame.columns))
+        # A scenario finished before the call-provenance columns existed is
+        # still complete: its rows predate them and leave them empty. A file
+        # with only some of them was not written by any harness version.
+        provenance = set(NO_TOOLS_CALL_PROVENANCE_COLUMNS)
+        missing_columns = sorted(
+            set(NO_TOOLS_RESULT_COLUMNS) - provenance - set(frame.columns)
+        )
+        present_provenance = provenance & set(frame.columns)
+        if present_provenance and present_provenance != provenance:
+            missing_columns += sorted(provenance - present_provenance)
         if missing_columns:
             self._raise_stale_scenario_output(
                 path,

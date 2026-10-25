@@ -20,6 +20,7 @@ import pytest
 
 from policybench.config import MODELS, PROGRAMS, get_programs
 from policybench.eval_no_tools import (
+    NO_TOOLS_CALL_PROVENANCE_COLUMNS,
     NO_TOOLS_RESULT_COLUMNS,
     _build_resume_metadata,
     run_no_tools_eval,
@@ -458,6 +459,19 @@ def test_scenario_completion_requires_full_worker_schema(
 
     with pytest.raises(ValueError, match=f"missing columns.*{missing_column}"):
         supervisor._scenario_complete(0)
+
+
+def test_scenario_written_before_call_provenance_is_still_complete(manifest, tmp_path):
+    """A supervised run resumed across the change keeps its finished
+    scenarios: their rows predate the call-provenance columns and stay
+    empty. Only a file with some but not all of them is stale (the
+    parametrized test above)."""
+    supervisor = make_supervisor(manifest, tmp_path)
+    path, _ = write_current_worker_output(supervisor, 0)
+    frame = pd.read_csv(path).drop(columns=list(NO_TOOLS_CALL_PROVENANCE_COLUMNS))
+    frame.to_csv(path, index=False)
+
+    assert supervisor._scenario_complete(0) is True
 
 
 @pytest.mark.parametrize(
