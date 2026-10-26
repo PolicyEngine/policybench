@@ -59,9 +59,11 @@ def remote_file(remote: Path) -> str:
     return out.stdout
 
 
-def test_each_anchor_is_committed_and_pushed(clone, tmp_path):
+@pytest.mark.parametrize("name", ["anchors.jsonl", "anchors.push-snapshot.jsonl"])
+def test_each_anchor_is_committed_and_pushed(clone, tmp_path, name):
+    """A snapshot's local name never changes the remote record's name."""
     remote, repo = clone
-    anchors = tmp_path / "anchors.jsonl"
+    anchors = tmp_path / name
     lines = ['{"time": 1.0, "prev": "a"}', '{"time": 2.0, "prev": "b"}']
     shas = [hashlib.sha256(line.encode()).hexdigest() for line in lines]
     anchors.write_text(lines[0] + "\n")
@@ -70,6 +72,9 @@ def test_each_anchor_is_committed_and_pushed(clone, tmp_path):
     assert confirmatory_anchor.main(["--repo", str(repo), str(anchors)]) == 0
     assert remote_log(remote) == [f"anchor 2: {shas[1]}", f"anchor 1: {shas[0]}"]
     assert remote_file(remote) == anchors.read_text()
+    assert sorted(path.name for path in repo.iterdir() if path.name != ".git") == [
+        "anchors.jsonl"
+    ]
 
 
 def test_an_unchanged_file_makes_no_commit(clone, tmp_path):
@@ -109,6 +114,20 @@ def bare_run(folder, command):
     run._anchored = run._next_anchor = -math.inf
     run._pushing, run._push = threading.Lock(), None
     run._push_error = None
+    return run
+
+
+def bare_finish_run(folder, command):
+    """An anchor writer with an empty, already closed run to finish."""
+
+    class Ledger:
+        def close(self, pending):
+            return []
+
+    run = bare_run(folder, command)
+    run.ceiling, run._failed = Ledger(), threading.Event()
+    run.signalled, run._interrupted = None, False
+    run.watch = lambda anchor=True: None
     return run
 
 
@@ -184,7 +203,8 @@ def test_push_log_io_failure_reaches_the_supervisor(tmp_path, monkeypatch, wait)
 
     def fail_push_sync(fd):
         calls.append(fd)
-        if len(calls) == 2:  # The anchor itself was synced; its push outcome was not.
+        if (tmp_path / "anchor-pushes.jsonl").exists():
+            # The anchor and its copy synced; only the outcome's sync fails.
             raise OSError("push-log fsync failed")
         return fsync(fd)
 
@@ -200,7 +220,92 @@ def test_push_log_io_failure_reaches_the_supervisor(tmp_path, monkeypatch, wait)
     with pytest.raises(OSError, match="push-log fsync failed"):
         run.anchor_due()
     assert not run._push.is_alive()
-    assert len(calls) == 2
+    assert len(calls) == 3
+
+
+def test_a_running_push_reads_a_snapshot_while_the_final_anchor_is_appended(
+    tmp_path, monkeypatch
+):
+    """A push released after the final append still sees its own whole prefix."""
+    reading, release, joining = threading.Event(), threading.Event(), threading.Event()
+    calls, copies, errors = [], [], []
+
+    class Push:
+        returncode = 0
+
+        def __init__(self, command, **kwargs):
+            self.source = Path(command[-1])
+            calls.append(self.source)
+            self.first = len(calls) == 1
+
+        def communicate(self, timeout):
+            if self.first:
+                reading.set()
+                assert release.wait(15.0), "the first push was never released"
+            copies.append(self.source.read_bytes())
+            return "pushed", ""
+
+    monkeypatch.setattr(cr.subprocess, "Popen", Push)
+    run = bare_run(tmp_path, ["push-anchors"])
+    run.anchor()
+    assert reading.wait(15.0), "the first push did not start"
+    first, join = run._push, run._push.join
+
+    def joining_push(timeout=None):
+        joining.set()
+        return join(timeout=timeout)
+
+    def final_anchor():
+        try:
+            run.anchor(wait=True)
+        except BaseException as error:
+            errors.append(error)
+
+    monkeypatch.setattr(first, "join", joining_push)
+    final = threading.Thread(target=final_anchor, daemon=True)
+    final.start()
+    try:
+        assert joining.wait(15.0), "the final anchor did not join the blocked push"
+        live = (tmp_path / "anchors.jsonl").read_bytes()
+        assert len(live.splitlines()) == 2
+        assert calls[0] != tmp_path / "anchors.jsonl"
+        assert calls[0].name.endswith("push-snapshot.jsonl")
+        assert len(calls[0].read_bytes().splitlines()) == 1
+    finally:
+        release.set()
+        final.join(timeout=15.0)
+    assert not final.is_alive() and not errors
+    live = (tmp_path / "anchors.jsonl").read_bytes()
+    assert len(copies) == 2 and copies[-1] == live
+    assert all(copy.endswith(b"\n") and live.startswith(copy) for copy in copies)
+    assert len(set(calls)) == 2
+
+
+def test_push_times_use_the_ordered_clock_after_a_wall_clock_step_back(
+    tmp_path, monkeypatch
+):
+    """The anchor, its cadence and its push never precede that anchor's time."""
+    base = time.time() + 1000.0
+    readings = iter([base, base - 0.0001])
+    monkeypatch.setattr(cr, "_clock_last", 0.0)
+    monkeypatch.setattr(cr.time, "time", lambda: next(readings, base - 0.0001))
+
+    class Push:
+        returncode = 0
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def communicate(self, timeout):
+            return "pushed", ""
+
+    monkeypatch.setattr(cr.subprocess, "Popen", Push)
+    run = bare_run(tmp_path, ["push-anchors"])
+    run.anchor(wait=True)
+    anchor = json.loads((tmp_path / "anchors.jsonl").read_text())
+    push = json.loads((tmp_path / "anchor-pushes.jsonl").read_text())
+    assert anchor["time"] <= run._anchored <= push["started"] <= push["ended"]
+    assert push["anchor_time"] == anchor["time"]
 
 
 def test_a_push_timeout_kills_its_children_and_grandchildren(tmp_path, monkeypatch):
@@ -273,3 +378,150 @@ def test_a_push_timeout_kills_its_children_and_grandchildren(tmp_path, monkeypat
     assert push["started"] <= push["ended"]
     for level in (1, 2):
         assert int((tmp_path / f"pid-{level}").read_text()) > 0
+
+
+def test_finish_abandons_pipes_held_by_a_descendant_outside_the_push_group(
+    tmp_path, monkeypatch
+):
+    """An escaped grandchild cannot hold finish open after the kill's grace."""
+    script = tmp_path / "escaped-push.py"
+    script.write_text(
+        "import os, subprocess, sys, threading\n"
+        "from pathlib import Path\n"
+        "folder = Path(sys.argv[1])\n"
+        "if len(sys.argv) > 2 and sys.argv[2] == 'escaped':\n"
+        "    (folder / 'escaped-pid').write_text(str(os.getpid()))\n"
+        "else:\n"
+        "    subprocess.Popen(\n"
+        "        [sys.executable, __file__, str(folder), 'escaped'],\n"
+        "        start_new_session=True)\n"
+        "threading.Event().wait()\n"
+    )
+    run = bare_finish_run(tmp_path, [sys.executable, str(script), str(tmp_path)])
+    real_popen = subprocess.Popen
+    ready, done = threading.Event(), threading.Event()
+    children, errors = [], []
+
+    def popen(*args, **kwargs):
+        child = real_popen(*args, **kwargs)
+        children.append(child)
+        communicate = child.communicate
+
+        def ready_communicate(timeout=None):
+            if not ready.is_set():
+                deadline = time.monotonic() + 15.0
+                pid = tmp_path / "escaped-pid"
+                while not pid.exists() or not pid.read_text().strip():
+                    assert time.monotonic() < deadline, "the grandchild did not start"
+                    done.wait(0.01)
+                ready.set()
+            return communicate(timeout=timeout)
+
+        child.communicate = ready_communicate
+        return child
+
+    def finish():
+        try:
+            run.finish()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            done.set()
+
+    monkeypatch.setattr(cr.subprocess, "Popen", popen)
+    monkeypatch.setattr(cr.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(cr, "ANCHOR_PUSH_TIMEOUT", 0.05)
+    monkeypatch.setattr(cr, "KILL_GRACE", 0.05)
+    monkeypatch.setattr(cr, "FINAL_PUSH_TRIES", 1)
+    thread = threading.Thread(target=finish, daemon=True)
+    thread.start()
+    try:
+        assert ready.wait(15.0), "the push never launched its grandchild"
+        started = time.monotonic()
+        finished = done.wait(10.0)
+        elapsed = time.monotonic() - started
+    finally:
+        pid = tmp_path / "escaped-pid"
+        if pid.exists() and pid.read_text().strip():
+            try:
+                os.kill(int(pid.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        for child in children:
+            if child.poll() is None:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        thread.join(timeout=15.0)
+    assert finished and elapsed < 10.0, "finish waited for the escaped child's pipe"
+    assert not errors and not thread.is_alive()
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "anchor-pushes.jsonl").read_text().splitlines()
+    ]
+    assert len(rows) == 1 and rows[0]["outcome"] == "timeout"
+    assert "pipes" in rows[0]["output"] and "held open after the kill" in rows[0]["output"]
+
+
+def test_finish_records_a_stuck_push_once_even_if_its_thread_later_ends(
+    tmp_path, monkeypatch
+):
+    """A bounded join retires the worker's right to append a second outcome."""
+    started, release = threading.Event(), threading.Event()
+    calls, waits, copies = [], [], {}
+
+    class Push:
+        returncode = 0
+
+        def __init__(self, command, **kwargs):
+            calls.append(command)
+            self.first = len(calls) == 1
+            self.source = Path(command[-1])
+            self.returncode = 1 if self.first else 0
+
+        def communicate(self, timeout):
+            if self.first:
+                started.set()
+                assert release.wait(15.0), "the abandoned worker was never released"
+            copies[self.source] = self.source.read_bytes()
+            return "pushed", ""
+
+    monkeypatch.setattr(cr.subprocess, "Popen", Push)
+    monkeypatch.setattr(cr.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(cr, "ANCHOR_PUSH_TIMEOUT", 0.05)
+    monkeypatch.setattr(cr, "KILL_GRACE", 0.05)
+    run = bare_finish_run(tmp_path, ["push-anchors"])
+    run.anchor()
+    assert started.wait(15.0), "the periodic push did not start"
+    worker, join = run._push, run._push.join
+
+    def short_join(timeout=None):
+        waits.append(timeout)
+        return join(timeout=0.02)
+
+    monkeypatch.setattr(worker, "join", short_join)
+    try:
+        began = time.monotonic()
+        run.finish()
+        assert time.monotonic() - began < 10.0
+        path = tmp_path / "anchor-pushes.jsonl"
+        before = path.read_bytes()
+        rows = [json.loads(line) for line in before.splitlines()]
+        assert waits == [pytest.approx(cr.ANCHOR_PUSH_TIMEOUT + cr.KILL_GRACE + 30)]
+        assert len(rows) == 2
+        assert rows[0]["outcome"] == "error" and rows[0]["returncode"] is None
+        assert "push thread did not end" in rows[0]["output"]
+        assert rows[1]["outcome"] == "success"
+        next_anchor = run._next_anchor
+    finally:
+        release.set()
+        join(timeout=15.0)
+    assert not worker.is_alive()
+    assert path.read_bytes() == before
+    assert len({row["anchor"] for row in rows}) == len(rows)
+    assert run._last_push_outcome == "success" and run._next_anchor == next_anchor
+    live = (tmp_path / "anchors.jsonl").read_bytes()
+    assert len(copies[Path(calls[0][-1])].splitlines()) == 1
+    assert len(copies[Path(calls[1][-1])].splitlines()) == 2
+    assert all(copy.endswith(b"\n") and live.startswith(copy) for copy in copies.values())

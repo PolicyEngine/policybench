@@ -3,9 +3,10 @@
 Usage:
     python scripts/confirmatory_anchor.py --repo DIR ANCHORS
 
-The runner calls this every 15 minutes, and once more at its end, with the
-path of its `anchors.jsonl`: each line holds every log's line count and chain
-head at a time. This copies the file into DIR, a clone checked out on a branch
+The runner calls this every 15 minutes and at its end (with up to three final
+tries), with a snapshot of its `anchors.jsonl`: each line holds every log's
+line count and chain head at a time. The snapshot is a copy, not a record.
+This copies it to `anchors.jsonl` in DIR, a clone checked out on a branch
 of its own, commits it and pushes the branch to its remote. The remote's record
 of each push is the anchor's time from outside the run: a log edited after an
 anchor was pushed no longer matches that anchor's head.
@@ -30,7 +31,7 @@ def git(repo: Path, *args: str) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--repo", type=Path, required=True, help="the anchors clone")
-    parser.add_argument("anchors", type=Path, help="the run's anchors.jsonl")
+    parser.add_argument("anchors", type=Path, help="a snapshot of the run's anchors.jsonl")
     args = parser.parse_args(argv)
     repo = args.repo.expanduser()
     target = repo / "anchors.jsonl"

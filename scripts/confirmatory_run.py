@@ -70,7 +70,9 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   model and the file's name; for the host log, of its name. Every 15
   minutes, and at the end, ``anchors.jsonl`` gets a line with every log's
   line count and head and every manifest's sha256, itself chained, and the
-  design's ``anchor_command`` is run on it in the background; each run's
+  design's ``anchor_command`` is run on a synced, atomic copy in the
+  background. Each ``anchors.<head>.push-snapshot.jsonl`` is a copy, not a
+  record, and is never replaced by a later push's snapshot. Each push's
   result goes to ``anchor-pushes.jsonl``. ``confirmatory_anchor.py`` is that
   command: it commits the file to a clone and pushes it, so the remote holds
   each anchor's time from outside the run.
@@ -168,6 +170,8 @@ READ_WAIT = 10.0  # seconds between them
 ANCHOR_SECONDS = 900.0  # how often the logs' chain heads are anchored
 ANCHOR_RETRY = 60.0  # seconds to the next anchor after a failed push
 ANCHOR_PUSH_TIMEOUT = 300.0  # seconds; then the command's process group is killed
+KILL_GRACE = 10.0  # seconds to drain pipes after killing the process group
+FINAL_PUSH_TRIES = 3  # includes the first final push
 LATE_JOIN = 60.0  # seconds the run's end waits, in all, for abandoned attempts
 # What a stop event names as its cause.
 STOP_CAUSES = frozenset(
@@ -1646,6 +1650,8 @@ class Run:
         self._next_anchor = -math.inf
         self._push: threading.Thread | None = None
         self._push_error: OSError | None = None
+        self._push_pending: dict | None = None
+        self._last_push_outcome: str | None = None
 
     def say(self, text: str) -> None:
         with self._say_lock:
@@ -1679,13 +1685,15 @@ class Run:
     def anchor_due(self) -> bool:
         self._check_push_error()
         with self._pushing:
-            return time.time() >= self._next_anchor
+            return clock() >= self._next_anchor
 
     def anchor(self, wait: bool = False, push: bool = True) -> None:
         """Every log's chain head to `anchors.jsonl`, itself a chain, then the
-        design's anchor command on that file, in the background (one at a
+        design's anchor command on a synced snapshot, in the background (one at a
         time; an anchor whose push would wait is written but not pushed until
-        the next). Each push's result goes to `anchor-pushes.jsonl`."""
+        the next). A snapshot is a copy, not a record, and its path is unique
+        even if a push thread has to be abandoned. Each push's result goes to
+        `anchor-pushes.jsonl`."""
         runs = Path(self.design["runs"])
         line = {
             "time": clock(),
@@ -1701,7 +1709,7 @@ class Run:
             handle.write(text + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        self._anchor_head, self._anchored = line_sha(text), time.time()
+        self._anchor_head, self._anchored = line_sha(text), clock()
         with self._pushing:
             self._next_anchor = self._anchored + ANCHOR_SECONDS
         if not push:
@@ -1709,8 +1717,21 @@ class Run:
         if self._push is not None and self._push.is_alive():
             if not wait:
                 return
-            self._push.join()
-            self._check_push_error()
+            self._join_push()
+        snapshot = runs / f"anchors.{self._anchor_head}.push-snapshot.jsonl"
+        tmp = snapshot.with_suffix(".tmp")
+        with tmp.open("wb") as handle:
+            handle.write((runs / "anchors.jsonl").read_bytes())
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, snapshot)
+        with self._pushing:
+            self._push_pending = {
+                "anchor": self._anchor_head,
+                "anchor_time": line["time"],
+                "started": clock(),
+            }
+            self._last_push_outcome = None
         self._push = threading.Thread(
             target=self._push_anchor,
             args=(self._anchor_head, line["time"]),
@@ -1718,14 +1739,64 @@ class Run:
         )
         self._push.start()
         if wait:
-            self._push.join()
-            self._check_push_error()
+            self._join_push()
+
+    def _join_push(self) -> None:
+        """Bound the push thread's join and claim an error if it cannot end."""
+        self._push.join(timeout=ANCHOR_PUSH_TIMEOUT + KILL_GRACE + 30)
+        if self._push.is_alive():
+            with self._pushing:
+                pending = self._push_pending
+            if pending is not None:
+                self._record_push(
+                    {
+                        **pending,
+                        "ended": clock(),
+                        "outcome": "error",
+                        "returncode": None,
+                        "output": "the anchor push thread did not end after its time limit",
+                    }
+                )
+        self._check_push_error()
+
+    def _record_push(self, line: dict) -> None:
+        """Claim one outcome under the push lock; a late worker cannot repeat it."""
+        with self._pushing:
+            pending = self._push_pending
+            if pending is None or pending["anchor"] != line["anchor"]:
+                return
+            self._push_pending = None
+            self._last_push_outcome = line["outcome"]
+            if line["outcome"] != "success":
+                self._next_anchor = min(
+                    self._next_anchor, line["ended"] + ANCHOR_RETRY
+                )
+            try:
+                path = Path(self.design["runs"]) / "anchor-pushes.jsonl"
+                with path.open("a") as handle:
+                    handle.write(json.dumps(line) + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except OSError as error:
+                # A daemon's exception must reach the supervisor or final join.
+                self._push_error = self._push_error or error
+                return
+        if line["outcome"] != "success":
+            self.say(
+                f"the anchor push failed ({line['outcome']}, "
+                f"{line['returncode']}): {line['output']}"
+            )
 
     def _push_anchor(self, head: str, anchor_time: float) -> None:
+        """Push one immutable snapshot and record its bounded command's outcome."""
         runs = Path(self.design["runs"])
         command = [str(x) for x in self.design["anchor_command"]]
-        command.append(str(runs / "anchors.jsonl"))
-        started = time.time()
+        command.append(str(runs / f"anchors.{head}.push-snapshot.jsonl"))
+        with self._pushing:
+            pending = self._push_pending
+            if pending is None or pending["anchor"] != head:
+                return
+            started = pending["started"] = clock()
         try:
             child = subprocess.Popen(
                 command,
@@ -1744,15 +1815,23 @@ class Run:
                     os.killpg(child.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                stdout, stderr = child.communicate()
+                try:
+                    stdout, stderr = child.communicate(timeout=KILL_GRACE)
+                except subprocess.TimeoutExpired as error:
+                    for pipe in (child.stdout, child.stderr):
+                        if pipe is not None:
+                            pipe.close()
+                    stdout, stderr = error.output or b"", error.stderr or b""
+                    if isinstance(stdout, bytes):
+                        stdout = stdout.decode(errors="replace")
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode(errors="replace")
+                    stderr += "\npipes were held open after the kill"
                 outcome = "timeout"
             code, text = child.returncode, (stdout + stderr)[-2000:]
         except (OSError, subprocess.SubprocessError) as error:
             code, outcome, text = None, "error", f"{type(error).__name__}: {error}"
-        ended = time.time()
-        if outcome != "success":
-            with self._pushing:
-                self._next_anchor = min(self._next_anchor, ended + ANCHOR_RETRY)
+        ended = clock()
         line = {
             "anchor": head,
             "anchor_time": anchor_time,
@@ -1762,19 +1841,7 @@ class Run:
             "returncode": code,
             "output": text,
         }
-        try:
-            with (runs / "anchor-pushes.jsonl").open("a") as handle:
-                handle.write(json.dumps(line) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-        except OSError as error:
-            # A daemon's exception cannot stop the run: hand this one back
-            # to the supervisor, or to the final caller after it joins us.
-            with self._pushing:
-                self._push_error = self._push_error or error
-            return
-        if outcome != "success":
-            self.say(f"the anchor push failed ({outcome}, {code}): {text}")
+        self._record_push(line)
 
     # The main loop's work.
 
@@ -1948,7 +2015,9 @@ class Run:
         """One join deadline, then close pools and host before closing the
         ledger. Its final late costs, crossings and signals precede the last
         anchor. An unresolved request makes future spend unknowable: record
-        it explicitly, with a runner-error stop, rather than claim it settled."""
+        it explicitly, with a runner-error stop, rather than claim it settled.
+        Retry the final push up to three times per set of heads, then ignore
+        signals and check once more for a first signal needing coverage."""
         errors = []
 
         def attempt(work):
@@ -2017,20 +2086,34 @@ class Run:
                         indent=2,
                     )
                 )
-            if not attempt(lambda: self.anchor(wait=True)):
-                attempt(lambda: self.watch(anchor=False))
-                # The error handler appended stops after that snapshot. Keep
-                # them covered locally even if pushing cannot be recorded.
-                try:
-                    self.anchor(push=False)
-                except Exception as error:
-                    errors.append(error)
-                    self.say(traceback.format_exc())
-                break
-            if self.signalled is None or self._interrupted:
-                break
+            for push_try in range(FINAL_PUSH_TRIES):
+                if push_try:
+                    time.sleep(ANCHOR_RETRY)
+                if not attempt(lambda: self.anchor(wait=True)):
+                    attempt(lambda: self.watch(anchor=False))
+                    # The error handler appended stops after that snapshot. Keep
+                    # them covered locally even if pushing cannot be recorded.
+                    try:
+                        self.anchor(push=False)
+                    except Exception as error:
+                        errors.append(error)
+                        self.say(traceback.format_exc())
+                    break
+                if self._last_push_outcome == "success":
+                    break
+            if self.signalled is not None and not self._interrupted:
+                continue
+            self._ignore_signals()
+            if self.signalled is not None and not self._interrupted:
+                continue
+            break
         if errors:
             raise errors[0]
+
+    def _ignore_signals(self) -> None:
+        """Close signal delivery before the last check; the process is ending."""
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
 
     def interrupt(self, signum, frame) -> None:
         """The signal handler. It only notes the signal; the main loop stops

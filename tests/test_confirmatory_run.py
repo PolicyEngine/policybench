@@ -16,6 +16,7 @@ import io
 import json
 import math
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -360,6 +361,10 @@ def fast(monkeypatch):
     monkeypatch.setattr(cr, "SAMPLER_SILENCE", 1.0)
     monkeypatch.setattr(cr, "READ_WAIT", 0.01)
     monkeypatch.setattr(cr, "ANCHOR_SECONDS", 0.3)
+    handlers = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM)}
+    yield
+    for signum, handler in handlers.items():
+        signal.signal(signum, handler)
 
 
 def test_the_host_log_samples_and_closes(tmp_path, fast):
@@ -2760,6 +2765,151 @@ def test_a_supervision_error_drains_active_lanes_before_final_anchor(
     assert w.run.ceiling.spent_usd == pytest.approx(1.0 + COST)
     assert anchor_problems(w) == []
     assert run_problems(w) == []
+
+
+def final_push_world(world, monkeypatch, fail_all=False, models=("gpt-6-luna",)):
+    """A run with no periodic pushes, whose first final push fails."""
+    w = world(models=models)
+    w.run.no_output.update(w.draw_order)
+    monkeypatch.setattr(w.run, "anchor_due", lambda: False)
+    monkeypatch.setattr(cr, "ANCHOR_RETRY", 0.013)
+    script = w.tmp / "retrying-anchor.py"
+    script.write_text(
+        "import shutil, sys\n"
+        "from pathlib import Path\n"
+        "folder = Path(sys.argv[1])\n"
+        "counter = folder / 'push-count'\n"
+        "n = int(counter.read_text()) + 1 if counter.exists() else 1\n"
+        "counter.write_text(str(n))\n"
+        "shutil.copyfile(sys.argv[3], folder / f'pushed-{n}.jsonl')\n"
+        "raise SystemExit(1 if n == 1 or sys.argv[2] == '1' else 0)\n"
+    )
+    w.design["anchor_command"] = [
+        sys.executable,
+        str(script),
+        str(w.tmp),
+        str(int(fail_all)),
+    ]
+    return w
+
+
+@pytest.mark.parametrize("fail_all", [False, True], ids=["then-success", "all-fail"])
+def test_the_final_push_is_retried_until_success_or_three_tries(
+    world, monkeypatch, fail_all
+):
+    """Final retries stop at the first success, or after three failures."""
+    w = final_push_world(world, monkeypatch, fail_all=fail_all)
+    w.execute()
+    anchors = [
+        json.loads(x) for x in (w.runs() / "anchors.jsonl").read_text().splitlines()
+    ]
+    pushes = [
+        json.loads(x)
+        for x in (w.runs() / "anchor-pushes.jsonl").read_text().splitlines()
+    ]
+    expected = 3 if fail_all else 2
+    assert cr.FINAL_PUSH_TRIES == 3
+    assert len(pushes) == len(anchors) == expected
+    assert [row["outcome"] for row in pushes] == (
+        ["failed"] * 3 if fail_all else ["failed", "success"]
+    )
+    final = (w.runs() / "anchors.jsonl").read_bytes()
+    assert (w.tmp / f"pushed-{expected}.jsonl").read_bytes() == final
+    assert pushes[-1]["anchor"] == cr.line_sha(final.decode().splitlines()[-1])
+    assert pushes[-1]["anchor_time"] == anchors[-1]["time"]
+    assert all(a["models"] == anchors[0]["models"] for a in anchors)
+    assert all(a["host-log.jsonl"] == anchors[0]["host-log.jsonl"] for a in anchors)
+    assert all(a["time"] < b["time"] for a, b in zip(anchors, anchors[1:]))
+
+
+def test_a_first_signal_during_final_push_retries_is_logged_and_anchored(
+    world, monkeypatch
+):
+    """A first signal during the retry wait is covered by the last push."""
+    w = final_push_world(world, monkeypatch, models=("gpt-6-luna", "gpt-6-sol"))
+    sleep, delivered = time.sleep, []
+
+    def during_retry(seconds):
+        if seconds == cr.ANCHOR_RETRY and not delivered:
+            delivered.append(True)
+            w.run.interrupt(signal.SIGTERM, None)
+        sleep(seconds)
+
+    monkeypatch.setattr(time, "sleep", during_retry)
+    w.execute()
+    assert delivered and w.run._interrupted
+    anchors = [
+        json.loads(x) for x in (w.runs() / "anchors.jsonl").read_text().splitlines()
+    ]
+    pushes = [
+        json.loads(x)
+        for x in (w.runs() / "anchor-pushes.jsonl").read_text().splitlines()
+    ]
+    assert [row["outcome"] for row in pushes] == ["failed", "success", "success"]
+    for model in w.models:
+        assert [row["cause"] for row in w.events(model, "stop")] == ["interrupt"]
+        assert anchors[-1]["models"][model]["run-log.jsonl"] == (
+            w.run.lanes[model].heads()["run-log.jsonl"]
+        )
+        assert anchors[-2]["models"][model]["run-log.jsonl"]["lines"] == (
+            len(w.lines(model)) - 1
+        )
+    assert (w.tmp / "pushed-3.jsonl").read_bytes() == (
+        w.runs() / "anchors.jsonl"
+    ).read_bytes()
+
+
+def test_a_second_signal_during_final_push_retries_exits_at_once(world, monkeypatch):
+    """The retry wait leaves the second signal's immediate exit intact."""
+    w = final_push_world(world, monkeypatch)
+    sleep, delivered = time.sleep, []
+
+    def exit_now(code):
+        raise SystemExit(code)
+
+    def during_retry(seconds):
+        if seconds == cr.ANCHOR_RETRY and not delivered:
+            delivered.append(True)
+            w.run.interrupt(signal.SIGINT, None)
+            w.run.interrupt(signal.SIGTERM, None)
+        sleep(seconds)
+
+    monkeypatch.setattr(os, "_exit", exit_now)
+    monkeypatch.setattr(time, "sleep", during_retry)
+    with pytest.raises(SystemExit) as stopped:
+        w.execute()
+    assert stopped.value.code == 130 and delivered
+    assert len((w.runs() / "anchor-pushes.jsonl").read_text().splitlines()) == 1
+    assert all(not w.events(model, "stop") for model in w.models)
+
+
+def test_a_signal_at_the_final_ignore_hook_is_logged_and_anchored(world, monkeypatch):
+    """A signal between the last ordinary check and SIG_IGN is not lost."""
+    w = world(models=("gpt-6-luna", "gpt-6-sol"))
+    w.run.no_output.update(w.draw_order)
+    monkeypatch.setattr(w.run, "anchor_due", lambda: False)
+    ignore = w.run._ignore_signals
+    ignored, delivered = [], []
+    monkeypatch.setattr(
+        signal, "signal", lambda signum, handler: ignored.append((signum, handler))
+    )
+
+    def at_end():
+        if not delivered:
+            delivered.append(True)
+            w.run.interrupt(signal.SIGTERM, None)
+        ignore()
+
+    monkeypatch.setattr(w.run, "_ignore_signals", at_end)
+    w.execute()
+    assert delivered and w.run._interrupted
+    assert (signal.SIGINT, signal.SIG_IGN) in ignored
+    assert (signal.SIGTERM, signal.SIG_IGN) in ignored
+    for model in w.models:
+        stops = w.events(model, "stop")
+        assert len(stops) == 1 and stops[0]["cause"] == "interrupt"
+        assert stops[0]["reason"] == f"operator stop (signal {signal.SIGTERM})"
+    assert anchor_problems(w) == []
 
 
 def test_a_final_push_log_failure_is_stopped_and_locally_anchored(world, monkeypatch):
