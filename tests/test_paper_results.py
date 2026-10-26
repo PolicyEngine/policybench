@@ -101,6 +101,13 @@ def test_gemini_4_argon_release_date_is_its_public_day():
     assert MODEL_RELEASE_DATES["gemini-4-argon"] == "2026-10-13"
 
 
+def test_gpt_6_1_terra_release_date_is_its_announcement_day():
+    """OpenAI announced GPT-6.1 Terra on 2026-10-26 and opened it in ChatGPT
+    (Plus, Pro, Business, Enterprise and Edu), Codex and the API (id
+    gpt-6.1-terra) the same day."""
+    assert MODEL_RELEASE_DATES["gpt-6.1-terra"] == "2026-10-26"
+
+
 def test_app_release_dates_mirror_the_paper_registry():
     """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
     update both together); every runnable model has a date, and the two

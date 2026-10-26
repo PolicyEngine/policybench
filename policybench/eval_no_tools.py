@@ -141,6 +141,22 @@ for _display_id in _LOCAL_CLAUDE_MODELS:
         }
     )
 
+
+def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
+    """Per-token cache read and write rates of a Responses-API GPT model.
+
+    The default is the GPT-5.6 line's structure: cache reads at a tenth of
+    input and cache writes at 1.25x. GPT-6.1 Sol and GPT-6.1 Terra list cache
+    reads at a twentieth (their ``PRICE_OVERRIDES_PER_1M`` entries), so an
+    override's own ``cache_read`` or ``cache_write`` rate replaces the
+    default. The caller doubles both above 272k prompt tokens, as it does
+    input.
+    """
+    read = prices.get("cache_read", prices["input"] * 0.1) / 1_000_000
+    write = prices.get("cache_write", prices["input"] * 1.25) / 1_000_000
+    return read, write
+
+
 # LiteLLM's bundled model map predates the GPT-5.6 release. Without a
 # local entry it cannot infer that the unprefixed public API ids belong to
 # OpenAI, so requests fail before reaching the provider. Keep these entries
@@ -152,6 +168,7 @@ for _model_id in GPT_RESPONSES_MODELS.values():
     _prices = PRICE_OVERRIDES_PER_1M[_model_id]
     _input_cost = _prices["input"] / 1_000_000
     _output_cost = _prices["output"] / 1_000_000
+    _cache_read_cost, _cache_write_cost = _gpt_responses_cache_rates(_prices)
     litellm.register_model(
         {
             _model_id: {
@@ -160,10 +177,10 @@ for _model_id in GPT_RESPONSES_MODELS.values():
                 "max_output_tokens": 128000,
                 "input_cost_per_token": _input_cost,
                 "output_cost_per_token": _output_cost,
-                "cache_read_input_token_cost": _input_cost * 0.1,
-                "cache_creation_input_token_cost": _input_cost * 1.25,
+                "cache_read_input_token_cost": _cache_read_cost,
+                "cache_creation_input_token_cost": _cache_write_cost,
                 "input_cost_per_token_above_272k_tokens": _input_cost * 2,
-                "cache_read_input_token_cost_above_272k_tokens": (_input_cost * 0.2),
+                "cache_read_input_token_cost_above_272k_tokens": _cache_read_cost * 2,
                 "output_cost_per_token_above_272k_tokens": _output_cost * 1.5,
                 "litellm_provider": "openai",
                 "mode": "chat",
@@ -449,10 +466,10 @@ def _reconstruct_token_cost(
 
     PolicyBench's explicit prices are authoritative. LiteLLM's mutable model
     map is used only when no override exists, and that fallback is marked as
-    estimated. GPT-5.6 overrides include their documented cache and
-    long-context pricing. Other overrides can declare cache-read and
-    cache-write rates; overrides without them apply their standard rate to
-    the inclusive prompt-token count.
+    estimated. Responses-API GPT overrides take their documented cache and
+    long-context pricing (``_gpt_responses_cache_rates``). Other overrides
+    can declare cache-read and cache-write rates; overrides without them
+    apply their standard rate to the inclusive prompt-token count.
     """
     if prompt_tokens is None or completion_tokens is None:
         return ReconstructedCost(None, None)
@@ -468,14 +485,17 @@ def _reconstruct_token_cost(
         input_rate = rates["input"] / 1_000_000
         output_rate = rates["output"] / 1_000_000
         if override_name in GPT_RESPONSES_MODELS:
+            cache_read_rate, cache_write_rate = _gpt_responses_cache_rates(rates)
             if prompt_tokens > 272_000:
                 input_rate *= 2
+                cache_read_rate *= 2
+                cache_write_rate *= 2
                 output_rate *= 1.5
             uncached = int(prompt_tokens) - cached - cache_write
             cost = (
                 uncached * input_rate
-                + cached * input_rate * 0.1
-                + cache_write * input_rate * 1.25
+                + cached * cache_read_rate
+                + cache_write * cache_write_rate
                 + int(completion_tokens) * output_rate
             )
         elif "cache_read" in rates or "cache_write" in rates:
