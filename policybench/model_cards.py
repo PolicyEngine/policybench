@@ -112,6 +112,22 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "384-token non-thinking budget and stopped incomplete."
         ),
     ),
+    "gpt-6.1-terra": ModelCard(
+        litellm_id="gpt-6.1-terra",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.01,
+        notes=(
+            "Onboarded 2026-10-26, the day OpenAI announced it: forced tool "
+            "contract passed 3/3 (881 completion tokens) and 16/16 "
+            "whole-scenario (1,414 tokens) on the Responses API with "
+            "provider-default reasoning (effort medium, per the model page), "
+            "like GPT-6.1 Sol. Probed before its card existed, it got the "
+            "384-token non-thinking budget and stopped incomplete. A "
+            "two-household smoke parsed all 36 outputs for $0.02, with "
+            "reasoning tokens on every request."
+        ),
+    ),
     "gpt-6-luna": ModelCard(
         litellm_id="gpt-6-luna",
         answer_contract="tool",

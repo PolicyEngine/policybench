@@ -65,6 +65,7 @@ EXPECTED = {
     "gpt-6-astra": ("tool", None, 300, 16_384),
     "gpt-6-sol": ("tool", None, 300, 16_384),
     "gpt-6.1-sol": ("tool", None, 300, 16_384),
+    "gpt-6.1-terra": ("tool", None, 300, 16_384),
     "gpt-6-luna": ("tool", None, 300, 16_384),
     "openrouter/deepseek/deepseek-v4-pro-0813": ("tool", None, 2400, 98_304),
     "openrouter/deepseek/deepseek-v4-flash-0731": ("tool", None, 2400, 98_304),

@@ -3480,6 +3480,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gpt-6-sol": "2026-09-22",
     # OpenAI announced GPT-6.1 Sol at DevDay on 2026-09-29 (API id gpt-6.1-sol).
     "gpt-6.1-sol": "2026-09-29",
+    # OpenAI announced GPT-6.1 Terra on 2026-10-26, in ChatGPT, Codex and the
+    # API (id gpt-6.1-terra) the same day (x.com/OpenAI/status/
+    # 2114780711664398349; 9to5mac.com 2026-10-26).
+    "gpt-6.1-terra": "2026-10-26",
     "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",
