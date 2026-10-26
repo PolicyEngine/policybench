@@ -545,6 +545,20 @@ def test_the_clock_never_goes_back(monkeypatch):
     ]
 
 
+def test_a_backward_wall_clock_does_not_delay_a_due_anchor(monkeypatch):
+    """Once the ordered clock reaches the due time, a wall-clock step cannot
+    make the anchor not due again."""
+    run = cr.Run.__new__(cr.Run)
+    run._pushing = threading.Lock()
+    run._push_error = None
+    base = time.time() + 1000.0
+    run._next_anchor = base
+    monkeypatch.setattr(cr, "_clock_last", base - 1.0)
+    readings = iter([base - 1.0, base + 1.0, base - 5.0])
+    monkeypatch.setattr(time, "time", lambda: next(readings))
+    assert [run.anchor_due() for _ in range(3)] == [False, True, True]
+
+
 def test_a_wall_clock_that_steps_back_keeps_the_run_procedure(world, monkeypatch):
     """Every reading of the wall clock up to 0.2 ms early (steps back of up to
     0.1 ms seen on this host): the run's times still order its attempts,
@@ -2820,6 +2834,46 @@ def test_the_final_push_is_retried_until_success_or_three_tries(
     assert all(a["models"] == anchors[0]["models"] for a in anchors)
     assert all(a["host-log.jsonl"] == anchors[0]["host-log.jsonl"] for a in anchors)
     assert all(a["time"] < b["time"] for a, b in zip(anchors, anchors[1:]))
+
+
+def test_each_final_push_retry_waits_from_the_previous_try_s_end(world, monkeypatch):
+    """Each final retry starts at least ANCHOR_RETRY after the prior try ends,
+    even when the failed command itself takes time."""
+    from types import SimpleNamespace
+
+    w = world(models=("gpt-6-luna",))
+    now = [1000.0]
+    durations = iter([7.0, 11.0, 5.0])
+    monkeypatch.setattr(cr, "clock", lambda: now[0])
+
+    def sleep(seconds):
+        """Advance the controlled clock by the requested wait."""
+        now[0] += seconds
+
+    def failed_command(*args, **kwargs):
+        """A failed anchor command with a controlled, nonzero duration."""
+
+        def communicate(timeout):
+            """Finish the command after its planted duration."""
+            now[0] += next(durations)
+            return "", "controlled push failure"
+
+        return SimpleNamespace(returncode=1, communicate=communicate)
+
+    monkeypatch.setattr(time, "sleep", sleep)
+    monkeypatch.setattr(subprocess, "Popen", failed_command)
+    w.run.finish()
+    pushes = [
+        json.loads(x)
+        for x in (w.runs() / "anchor-pushes.jsonl").read_text().splitlines()
+    ]
+    assert len(pushes) == cr.FINAL_PUSH_TRIES == 3
+    assert [p["outcome"] for p in pushes] == ["failed"] * 3
+    assert [p["ended"] - p["started"] for p in pushes] == [7.0, 11.0, 5.0]
+    assert all(
+        b["started"] >= a["ended"] + cr.ANCHOR_RETRY
+        for a, b in zip(pushes, pushes[1:])
+    )
 
 
 def test_a_first_signal_during_final_push_retries_is_logged_and_anchored(

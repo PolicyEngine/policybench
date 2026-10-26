@@ -1,10 +1,12 @@
 """The anchor command: each call commits the run's anchors and pushes them."""
 
+import fcntl
 import hashlib
 import io
 import json
 import math
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -59,6 +61,15 @@ def remote_file(remote: Path) -> str:
     return out.stdout
 
 
+def anchor_command(repo: Path, anchors: Path):
+    """Run the real helper and retain its failure message and exit status."""
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), "--repo", str(repo), str(anchors)],
+        capture_output=True,
+        text=True,
+    )
+
+
 @pytest.mark.parametrize("name", ["anchors.jsonl", "anchors.push-snapshot.jsonl"])
 def test_each_anchor_is_committed_and_pushed(clone, tmp_path, name):
     """A snapshot's local name never changes the remote record's name."""
@@ -78,12 +89,84 @@ def test_each_anchor_is_committed_and_pushed(clone, tmp_path, name):
 
 
 def test_an_unchanged_file_makes_no_commit(clone, tmp_path):
+    """An equal snapshot succeeds without changing the file or remote history."""
     remote, repo = clone
     anchors = tmp_path / "anchors.jsonl"
     anchors.write_text('{"time": 1.0}\n')
     for _ in range(2):
         assert confirmatory_anchor.main(["--repo", str(repo), str(anchors)]) == 0
     assert len(remote_log(remote)) == 1
+    assert remote_file(remote) == anchors.read_text()
+
+
+def test_an_older_snapshot_cannot_replace_a_newer_remote_file(clone, tmp_path):
+    """A delayed helper cannot commit or push a prefix after the newer snapshot."""
+    remote, repo = clone
+    older, newer = tmp_path / "older.jsonl", tmp_path / "newer.jsonl"
+    older.write_bytes(b'{"time": 1.0}\n')
+    newer.write_bytes(older.read_bytes() + b'{"time": 2.0}\n')
+    assert anchor_command(repo, newer).returncode == 0
+    history, index = remote_log(remote), (repo / ".git" / "index").read_bytes()
+    out = anchor_command(repo, older)
+    assert out.returncode != 0 and "not a byte prefix" in out.stderr
+    assert (repo / "anchors.jsonl").read_bytes() == newer.read_bytes()
+    assert (repo / ".git" / "index").read_bytes() == index
+    assert remote_file(remote).encode() == newer.read_bytes()
+    assert remote_log(remote) == history
+
+
+def test_a_busy_clone_is_refused_without_changing_its_records(clone, tmp_path):
+    """A held flock prevents target, index, commit and remote writes."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n'
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    history, index = remote_log(remote), (repo / ".git" / "index").read_bytes()
+    anchors.write_bytes(first + b'{"time": 2.0}\n')
+    with (repo / ".git" / "confirmatory-anchor.lock").open("a") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        out = anchor_command(repo, anchors)
+    assert out.returncode != 0 and "busy" in out.stderr
+    assert (repo / "anchors.jsonl").read_bytes() == first
+    assert (repo / ".git" / "index").read_bytes() == index
+    assert remote_file(remote).encode() == first
+    assert remote_log(remote) == history
+
+
+def test_a_changed_middle_line_is_refused_without_writing(clone, tmp_path):
+    """A longer snapshot still fails when it rewrites an existing line."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n{"time": 2.0}\n{"time": 3.0}\n'
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    history, index = remote_log(remote), (repo / ".git" / "index").read_bytes()
+    anchors.write_bytes(first.replace(b"2.0", b"9.0") + b'{"time": 4.0}\n')
+    out = anchor_command(repo, anchors)
+    assert out.returncode != 0 and "not a byte prefix" in out.stderr
+    assert (repo / "anchors.jsonl").read_bytes() == first
+    assert (repo / ".git" / "index").read_bytes() == index
+    assert remote_file(remote).encode() == first
+    assert remote_log(remote) == history
+
+
+def test_a_stale_git_index_lock_is_left_alone(clone, tmp_path):
+    """A failed git command never removes another command's index lock."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n'
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    history = remote_log(remote)
+    index_lock = repo / ".git" / "index.lock"
+    index_lock.write_bytes(b"stale lock kept for its owner\n")
+    anchors.write_bytes(first + b'{"time": 2.0}\n')
+    out = anchor_command(repo, anchors)
+    assert out.returncode != 0 and "CalledProcessError" in out.stderr
+    assert index_lock.read_bytes() == b"stale lock kept for its owner\n"
+    assert remote_file(remote).encode() == first
+    assert remote_log(remote) == history
 
 
 def test_a_failed_push_exits_nonzero(clone, tmp_path):
@@ -512,6 +595,7 @@ def test_finish_records_a_stuck_push_once_even_if_its_thread_later_ends(
         assert len(rows) == 2
         assert rows[0]["outcome"] == "error" and rows[0]["returncode"] is None
         assert "push thread did not end" in rows[0]["output"]
+        assert "command may still be running" in rows[0]["output"]
         assert rows[1]["outcome"] == "success"
         next_anchor = run._next_anchor
     finally:
@@ -525,3 +609,96 @@ def test_finish_records_a_stuck_push_once_even_if_its_thread_later_ends(
     assert len(copies[Path(calls[0][-1])].splitlines()) == 1
     assert len(copies[Path(calls[1][-1])].splitlines()) == 2
     assert all(copy.endswith(b"\n") and live.startswith(copy) for copy in copies.values())
+
+
+def test_a_retired_command_cannot_shrink_the_remote_after_the_final_push(
+    clone, tmp_path, monkeypatch
+):
+    """A live old command released after finish cannot replace newer evidence."""
+    remote, repo = clone
+    folder = tmp_path / "run"
+    folder.mkdir()
+    delayed = tmp_path / "delayed-helper.py"
+    delayed.write_text(
+        "import os, sys\n"
+        "ready, release = map(int, sys.argv[1:3])\n"
+        "os.write(ready, b'1')\n"
+        "os.close(ready)\n"
+        "os.read(release, 1)\n"
+        "os.close(release)\n"
+        "os.execv(sys.executable, [sys.executable, *sys.argv[3:]])\n"
+    )
+    ready_read, ready_write = os.pipe()
+    release_read, release_write = os.pipe()
+    real_popen, children, waits = subprocess.Popen, [], []
+    run = bare_finish_run(
+        folder, [sys.executable, str(SCRIPT), "--repo", str(repo)]
+    )
+
+    def popen(command, **kwargs):
+        """Delay only the first real helper, before it can acquire the clone lock."""
+        if len(command) > 1 and command[1] == str(SCRIPT):
+            if not children:
+                command = [
+                    sys.executable,
+                    str(delayed),
+                    str(ready_write),
+                    str(release_read),
+                    *command[1:],
+                ]
+                kwargs["pass_fds"] = (ready_write, release_read)
+            child = real_popen(command, **kwargs)
+            children.append(child)
+            return child
+        return real_popen(command, **kwargs)
+
+    def short_join(timeout=None):
+        """Exercise retirement without waiting for the production join bound."""
+        waits.append(timeout)
+        return join(timeout=0.02)
+
+    monkeypatch.setattr(cr.subprocess, "Popen", popen)
+    monkeypatch.setattr(cr.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(cr, "ANCHOR_PUSH_TIMEOUT", 30.0)
+    worker = join = None
+    try:
+        run.anchor()
+        worker, join = run._push, run._push.join
+        assert select.select([ready_read], [], [], 15.0)[0], (
+            "the old command did not start"
+        )
+        assert os.read(ready_read, 1) == b"1"
+        monkeypatch.setattr(worker, "join", short_join)
+        run.finish()
+        assert children[0].poll() is None
+        newer = (folder / "anchors.jsonl").read_bytes()
+        assert len(newer.splitlines()) == 2
+        assert remote_file(remote).encode() == newer
+        history = remote_log(remote)
+        path = folder / "anchor-pushes.jsonl"
+        before = path.read_bytes()
+        rows = [json.loads(line) for line in before.splitlines()]
+        assert waits == [pytest.approx(cr.ANCHOR_PUSH_TIMEOUT + cr.KILL_GRACE + 30)]
+        assert [row["outcome"] for row in rows] == ["error", "success"]
+        assert rows[0]["returncode"] is None
+        assert "command may still be running" in rows[0]["output"]
+    finally:
+        try:
+            os.write(release_write, b"1")
+        except BrokenPipeError:
+            pass
+        if join is not None:
+            join(timeout=45.0)
+        for child in children:
+            if child.poll() is None:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        for fd in (ready_read, ready_write, release_read, release_write):
+            os.close(fd)
+    assert not worker.is_alive() and len(children) == 2
+    assert children[0].returncode == 1
+    assert path.read_bytes() == before
+    assert remote_file(remote).encode() == newer
+    assert remote_log(remote) == history

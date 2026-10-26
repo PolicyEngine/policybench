@@ -74,8 +74,13 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   background. Each ``anchors.<head>.push-snapshot.jsonl`` is a copy, not a
   record, and is never replaced by a later push's snapshot. Each push's
   result goes to ``anchor-pushes.jsonl``. ``confirmatory_anchor.py`` is that
-  command: it commits the file to a clone and pushes it, so the remote holds
-  each anchor's time from outside the run.
+  command: under an exclusive, non-blocking clone lock, it accepts only a
+  snapshot extending the clone's anchors, commits it and pushes it, so the
+  remote holds each anchor's time from outside the run. Retiring a worker
+  does not ensure its command has ended. If an old helper still holds the
+  lock, later pushes fail as busy; a final segment left local is a deviation.
+  Final pushes get up to three tries per set of heads, waiting a minute
+  after each failed try ends before starting the next.
 
 The records' format is the confirmatory report's (its module docstring). The
 report recomputes every class, action, order and admission decision from the
@@ -90,7 +95,9 @@ records: a run is never resumed. ``--workers`` must equal the design's
 engine workers per model. An interrupt (SIGINT or SIGTERM) only notes the
 signal; the main loop then stops every model's lanes with cause
 ``interrupt`` and lets the conversations under way end. A second interrupt
-exits at once.
+exits at once until cleanup ignores signals before its final check. Signals
+during any re-anchoring after that check are ignored, including a second
+interrupt.
 """
 
 from __future__ import annotations
@@ -1689,11 +1696,11 @@ class Run:
 
     def anchor(self, wait: bool = False, push: bool = True) -> None:
         """Every log's chain head to `anchors.jsonl`, itself a chain, then the
-        design's anchor command on a synced snapshot, in the background (one at a
-        time; an anchor whose push would wait is written but not pushed until
-        the next). A snapshot is a copy, not a record, and its path is unique
-        even if a push thread has to be abandoned. Each push's result goes to
-        `anchor-pushes.jsonl`."""
+        design's anchor command on a synced snapshot, in the background (one
+        current worker at a time; an anchor whose push would wait is written
+        but not pushed until the next). A snapshot is a copy, not a record,
+        and its path is unique even if a push thread has to be abandoned.
+        Each push's result goes to `anchor-pushes.jsonl`."""
         runs = Path(self.design["runs"])
         line = {
             "time": clock(),
@@ -1742,7 +1749,9 @@ class Run:
             self._join_push()
 
     def _join_push(self) -> None:
-        """Bound the push thread's join and claim an error if it cannot end."""
+        """Bound the thread join and retire its outcome if it cannot end.
+        Its command may survive; the helper's lock and prefix check protect
+        the clone. Waiting for _pushing still assumes a responsive filesystem."""
         self._push.join(timeout=ANCHOR_PUSH_TIMEOUT + KILL_GRACE + 30)
         if self._push.is_alive():
             with self._pushing:
@@ -1754,13 +1763,16 @@ class Run:
                         "ended": clock(),
                         "outcome": "error",
                         "returncode": None,
-                        "output": "the anchor push thread did not end after its time limit",
+                        "output": "the anchor push thread did not end after its time limit; "
+                        "its command may still be running",
                     }
                 )
         self._check_push_error()
 
     def _record_push(self, line: dict) -> None:
-        """Claim one outcome under the push lock; a late worker cannot repeat it."""
+        """Claim one outcome under the push lock; a late worker cannot repeat it.
+        The lock covers writing and fsync, so a wedged filesystem can delay
+        supervision and retirement beyond the thread join's bound."""
         with self._pushing:
             pending = self._push_pending
             if pending is None or pending["anchor"] != line["anchor"]:
@@ -2016,8 +2028,10 @@ class Run:
         ledger. Its final late costs, crossings and signals precede the last
         anchor. An unresolved request makes future spend unknowable: record
         it explicitly, with a runner-error stop, rather than claim it settled.
-        Retry the final push up to three times per set of heads, then ignore
-        signals and check once more for a first signal needing coverage."""
+        Retry the final push up to three times per set of heads, waiting
+        ANCHOR_RETRY after each failed try ends. Then ignore signals and check
+        once more for a first signal needing coverage. Signals during the
+        resulting re-anchoring are ignored, including a second interrupt."""
         errors = []
 
         def attempt(work):
@@ -2117,7 +2131,8 @@ class Run:
 
     def interrupt(self, signum, frame) -> None:
         """The signal handler. It only notes the signal; the main loop stops
-        every model's lanes. A second signal exits at once."""
+        every model's lanes. A second signal exits at once while this handler
+        is installed; cleanup ignores signals before its final check."""
         self.interrupts += 1
         if self.interrupts > 1:
             os._exit(130)
