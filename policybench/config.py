@@ -36,8 +36,9 @@ GPT_56_MODELS = {
 # announced and available 2026-09-22) share the GPT-5.6 line's
 # Responses-API transport and pricing structure (cache reads at a tenth,
 # cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
-# GPT-6.1 Terra (announced and available 2026-10-26) shares it too, with
-# cache reads at a twentieth.
+# GPT-6.1 Sol (2026-09-29) and GPT-6.1 Terra (announced and available
+# 2026-10-26) share it too, with cache reads at a twentieth of input; their
+# overrides' cache_read rates carry that (eval_no_tools._gpt_responses_cache_rates).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
     "gpt-6-sol": "gpt-6-sol",

@@ -13,6 +13,7 @@ from hypothesis import strategies as st
 from policybench.config import (
     COUNTRY_PROGRAMS,
     GPT_56_MODELS,
+    GPT_RESPONSES_MODELS,
     MODELS,
     PRICE_OVERRIDES_PER_1M,
 )
@@ -25,6 +26,7 @@ from policybench.eval_no_tools import (
     _combined_cost_is_estimated,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _gpt_responses_cache_rates,
     _reconstruct_token_cost,
     _request_explanations_once,
     _request_timeout_seconds,
@@ -3238,6 +3240,151 @@ def test_gemini_4_argon_cost_is_linear_in_tokens_and_bounded_by_the_cache_rates(
     assert cost(cached) == pytest.approx(expected, abs=1e-12)
     assert cost(cached) >= 0
     assert cost(prompt_tokens) - 1e-12 <= cost(cached) <= cost(0) + 1e-12
+
+
+@pytest.mark.parametrize(
+    (
+        "prompt_tokens",
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        # 200k prompt tokens stay below the 272k long-context line.
+        (200_000, 0, 0, 0, 0.2),
+        (0, 1_000_000, 0, 0, 5.0),
+        (200_000, 0, 200_000, 0, 0.01),
+        (200_000, 0, 0, 200_000, 0.25),
+        # The card review's case: the smoke's first ledger entry recorded
+        # 2,046 prompt tokens, 1,914 of them cached, and 1,959 completion
+        # tokens. At a tenth for cache reads it came to $0.0101184.
+        (2_046, 1_959, 1_914, 0, 0.0100227),
+        # Above 272k prompt tokens input and cache double; output takes 1.5x.
+        (300_000, 10_000, 300_000, 0, 0.105),
+        (300_000, 0, 0, 300_000, 0.75),
+    ],
+)
+def test_gpt_6_1_terra_override_reconstructs_token_costs(
+    prompt_tokens,
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    """GPT-6.1 Terra is priced at $1 / $5 per 1M input/output tokens, $0.05
+    cached input (a twentieth, where the GPT-5.6 line reads at a tenth) and
+    $1.25 cache writes (developers.openai.com/api/docs/models/gpt-6.1-terra,
+    read 2026-10-26)."""
+    assert PRICE_OVERRIDES_PER_1M["gpt-6.1-terra"] == {
+        "input": 1.0,
+        "output": 5.0,
+        "cache_read": 0.05,
+    }
+    reconstructed = _reconstruct_token_cost(
+        model_name="gpt-6.1-terra",
+        model_id="gpt-6.1-terra",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+@pytest.mark.parametrize(
+    ("model", "read", "write"),
+    [
+        ("gpt-6.1-terra", 0.05, 1.25),
+        ("gpt-6.1-sol", 0.10, 2.50),
+        ("gpt-6-sol", 0.20, 2.50),
+        ("gpt-6-luna", 0.01, 0.125),
+        ("gpt-6-astra", 1.0, 12.5),
+        ("gpt-5.6-sol", 0.5, 6.25),
+    ],
+)
+def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write):
+    """Each Responses-API GPT row prices its cache at the rate its override
+    lists, or at the GPT-5.6 line's tenth and 1.25x when it lists none. The
+    two GPT-6.1 rows read at a twentieth (the bug the Terra card review found:
+    the reconstruction hard-coded a tenth)."""
+    assert _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model]) == (
+        pytest.approx(read / 1_000_000),
+        pytest.approx(write / 1_000_000),
+    )
+    # 200k prompt tokens, all read from (or written to) the cache: below the
+    # 272k long-context line, so a fifth of the per-1M rate.
+    for cached, cache_write, rate in ((200_000, 0, read), (0, 200_000, write)):
+        reconstructed = _reconstruct_token_cost(
+            model_name=model,
+            model_id=GPT_RESPONSES_MODELS[model],
+            prompt_tokens=200_000,
+            completion_tokens=0,
+            cached_prompt_tokens=cached,
+            cache_write_prompt_tokens=cache_write,
+        )
+        assert reconstructed.usd == pytest.approx(rate / 5)
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-terra", "gpt-6.1-sol"])
+def test_litellm_registers_the_gpt_6_1_cache_read_rate(model):
+    """The local litellm entry carries the same cache rates as the
+    reconstruction, doubled above 272k prompt tokens."""
+    entry = litellm.model_cost[GPT_RESPONSES_MODELS[model]]
+    read, write = _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model])
+    assert entry["cache_read_input_token_cost"] == pytest.approx(read)
+    assert entry["cache_read_input_token_cost_above_272k_tokens"] == pytest.approx(
+        2 * read
+    )
+    assert entry["cache_creation_input_token_cost"] == pytest.approx(write)
+
+
+@given(
+    model=st.sampled_from(sorted(GPT_RESPONSES_MODELS)),
+    prompt_tokens=st.integers(min_value=0, max_value=1_050_000),
+    completion_tokens=st.integers(min_value=0, max_value=128_000),
+    cached_share=st.floats(min_value=0.0, max_value=1.0),
+    write_share=st.floats(min_value=0.0, max_value=1.0),
+)
+def test_responses_cost_is_the_sum_of_its_priced_token_classes(
+    model, prompt_tokens, completion_tokens, cached_share, write_share
+):
+    """For every Responses-API GPT row and every usage: the cost is uncached
+    input, cache reads, cache writes and output, each at its listed rate (all
+    input classes doubled and output 1.5x above 272k prompt tokens); it is
+    never negative; and caching the whole prompt never costs more than
+    caching none of it, since every listed read rate is below input."""
+    rates = PRICE_OVERRIDES_PER_1M[model]
+    cached = int(prompt_tokens * cached_share)
+    written = int((prompt_tokens - cached) * write_share)
+
+    def cost(cached_prompt_tokens, cache_write_prompt_tokens):
+        return _reconstruct_token_cost(
+            model_name=model,
+            model_id=GPT_RESPONSES_MODELS[model],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+            cache_write_prompt_tokens=cache_write_prompt_tokens,
+        ).usd
+
+    read, write = _gpt_responses_cache_rates(rates)
+    long = prompt_tokens > 272_000
+    scale_in, scale_out = (2, 1.5) if long else (1, 1)
+    expected = (
+        scale_in
+        * (
+            (prompt_tokens - cached - written) * rates["input"] / 1_000_000
+            + cached * read
+            + written * write
+        )
+        + scale_out * completion_tokens * rates["output"] / 1_000_000
+    )
+    assert cost(cached, written) == pytest.approx(expected, rel=1e-9, abs=1e-12)
+    assert cost(cached, written) >= 0
+    assert cost(prompt_tokens, 0) <= cost(0, 0) + 1e-12
 
 
 def test_gemini_4_argon_request_forces_the_answer_tool_and_sets_no_reasoning(
