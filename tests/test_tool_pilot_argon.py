@@ -7,6 +7,7 @@ real tool system are marked slow.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -2295,6 +2296,7 @@ def test_web_notices_name_search_and_keep_the_answer_instruction():
         "web+pe": "gpt-6-sol+web+pe-tool",
         "pe2": "gpt-6-sol+pe-tool-v2",
         "pe3": "gpt-6-sol+pe-tool-v3",
+        "web+pe3": "gpt-6-sol+web+pe-tool-v3",
     }
     with pytest.raises(SystemExit):
         pilot.model_profile(SOL, "search")
@@ -3161,7 +3163,7 @@ def test_the_school_meal_wording_matches_every_reference():
 
 
 def test_the_benchmark_search_rule_rides_only_on_web_notices():
-    for arm in ("web", "web+pe"):
+    for arm in ("web", "web+pe", "web+pe3"):
         for name in (SOL, OPUS):
             with_rule = pilot.model_profile(name, arm, "v2-pilot", True)
             without = pilot.model_profile(name, arm, "v2-pilot")
@@ -3598,3 +3600,76 @@ def test_the_law_date_sentence_states_the_fallback_and_the_snap_split():
     assert "asset limits through December 2026" in prompt
     assert "2026 HHS poverty guidelines from October 2026" in prompt
     assert "fiscal year 2026 values for all of 2026" not in prompt
+
+
+def test_web_and_tool_v3_is_tool_v3_with_web_search_named_in_its_opening():
+    # web+pe3 is to pe3 what web+pe is to pe: the same calculator, features,
+    # schema and notice, with web search named in the notice's first sentence.
+    for name in (SOL, OPUS):
+        both = pilot.model_profile(name, "web+pe3")
+        alone = pilot.model_profile(name, "pe3")
+        assert both.uses_web and both.uses_calculator and not alone.uses_web
+        assert (
+            both.tool_features == alone.tool_features == frozenset(pilot.TOOL_FEATURES)
+        )
+        assert pilot.profile_treatment(both) == pilot.profile_treatment(alone)
+        assert both.notice != alone.notice and "web search" in both.notice
+        assert (
+            both.notice.split("function. ", 1)[1]
+            == alone.notice.split("function. ", 1)[1]
+        )
+        assert both.notice == alone.notice.replace(
+            pilot._CALCULATE_OPENING, pilot._WEB_CALCULATE_OPENING
+        )
+        ruled = pilot.model_profile(name, "web+pe3", "v2-pilot", True)
+        assert ruled.notice.endswith(pilot.BENCHMARK_SEARCH_RULE)
+    # web+pe's notice is unchanged by the refactor into with_web_opening.
+    assert pilot.WEB_TOOL_NOTICE == pilot.TOOL_NOTICE.replace(
+        pilot._CALCULATE_OPENING,
+        "You also have web search, which searches the public web, and a "
+        "`calculate_household` function.",
+    )
+    with pytest.raises(ValueError):
+        pilot.with_web_opening("no calculator here")
+
+
+def test_a_responses_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(SOL, "web+pe3", "v2-pilot", True)
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call(
+                        "ws_1", SimpleNamespace(type="search", query="co snap")
+                    ),
+                    sol_submit({"snap": 2553, VARIABLES[1]: 0}),
+                ],
+                "resp_1",
+            ),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    assert (
+        record["tool_notice_sha256"]
+        == hashlib.sha256(profile.notice.encode()).hexdigest()
+    )
+    (first,) = model.requests
+    assert first["tools"][0] == {
+        "type": "web_search",
+        "filters": {"blocked_domains": list(pilot.BLOCKED_DOMAINS)},
+    }
+    assert [t.get("name") for t in first["tools"][1:]] == [
+        pilot.TOOL_NAME,
+        "submit_outputs",
+    ]
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(SOL, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None
