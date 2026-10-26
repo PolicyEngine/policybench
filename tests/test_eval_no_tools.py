@@ -3294,16 +3294,30 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
+# Each Responses-API GPT row's cache read and write rates per 1M tokens, as
+# OpenAI lists them, written out here so the pricing tests do not derive their
+# expectations from the helper they test (Terra card review r2): the GPT-6.1
+# rows read at a twentieth of input, the rest at the GPT-5.6 line's tenth;
+# every row writes at 1.25x input.
+LISTED_CACHE_RATES_PER_1M = {
+    "gpt-6.1-terra": (0.05, 1.25),
+    "gpt-6.1-sol": (0.10, 2.50),
+    "gpt-6-sol": (0.20, 2.50),
+    "gpt-6-luna": (0.01, 0.125),
+    "gpt-6-astra": (1.0, 12.5),
+    "gpt-5.6-sol": (0.5, 6.25),
+    "gpt-5.6-terra": (0.25, 3.125),
+    "gpt-5.6-luna": (0.1, 1.25),
+}
+
+
+def test_every_responses_model_has_a_listed_cache_rate():
+    assert set(LISTED_CACHE_RATES_PER_1M) == set(GPT_RESPONSES_MODELS)
+
+
 @pytest.mark.parametrize(
     ("model", "read", "write"),
-    [
-        ("gpt-6.1-terra", 0.05, 1.25),
-        ("gpt-6.1-sol", 0.10, 2.50),
-        ("gpt-6-sol", 0.20, 2.50),
-        ("gpt-6-luna", 0.01, 0.125),
-        ("gpt-6-astra", 1.0, 12.5),
-        ("gpt-5.6-sol", 0.5, 6.25),
-    ],
+    [(model, *rates) for model, rates in LISTED_CACHE_RATES_PER_1M.items()],
 )
 def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write):
     """Each Responses-API GPT row prices its cache at the rate its override
@@ -3370,7 +3384,7 @@ def test_responses_cost_is_the_sum_of_its_priced_token_classes(
             cache_write_prompt_tokens=cache_write_prompt_tokens,
         ).usd
 
-    read, write = _gpt_responses_cache_rates(rates)
+    read, write = (r / 1_000_000 for r in LISTED_CACHE_RATES_PER_1M[model])
     long = prompt_tokens > 272_000
     scale_in, scale_out = (2, 1.5) if long else (1, 1)
     expected = (
