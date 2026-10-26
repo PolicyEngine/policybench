@@ -16,7 +16,9 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   household. The six models run at once.
 - **One engine pool per model**, started once, with no features of its own.
   Each call carries its arm's features in a call frame (``tool_call_frame``),
-  the message a pool started with those features would send.
+  the message a pool started with those features would send. ``setup-start``
+  and ``setup-end`` events bracket startup and pool restarts, so setup time
+  can be distinguished from an idle lane.
 - **Admission.** A lane admits its next household when the spend of the
   model's finished households (every attempt, replaced ones included) plus
   the reserve for each household under way, this one included, is at most
@@ -643,6 +645,7 @@ class HostLog:
                 self.failure = "no memory-pressure reading"
                 self.failing_since = self.failing_since or t
             else:
+                self.failure = None
                 self.failing_since = None
             self._samples.append((t, pressure))
             self._cond.notify_all()
@@ -824,11 +827,13 @@ class Ceiling(pilot.Spend):
         with self._lock:
             self.charge(float(usd or 0.0))
 
-    def close(self) -> None:
+    def close(self, pending: list[dict] | None = None) -> list[dict]:
         """Close the ledger at the run's end: what the ceiling has counted is
-        then what the records hold."""
+        then what the records hold. Snapshot unresolved requests under the
+        same lock: one finishing afterward cannot disappear from recovery."""
         with self._lock:
             self.closed = True
+            return [item for item in pending or [] if item["thread"].is_alive()]
 
     def exhausted(self, reserve_usd: float = 0.0) -> bool:
         with self._lock:
@@ -1036,7 +1041,7 @@ class Lanes:
     # Stops and pauses.
 
     def halted(self) -> bool:
-        return self.stopped or self.run.ceiling.exhausted()
+        return self.stopped or self.run._failed.is_set() or self.run.ceiling.exhausted()
 
     def stop(
         self, reason: str, cause: str, kind: str = "stop", at: float | None = None
@@ -1047,15 +1052,19 @@ class Lanes:
             raise ValueError(f"no stop has the cause {cause!r}")
         with self.cond:
             self.stopped = True
-            self.event(kind, reason, at, cause=cause)
             self.cond.notify_all()
+            self.event(kind, reason, at, cause=cause)
 
-    def resume(self, note: str) -> None:
+    def resume(self, note: str, noted_at: float) -> bool:
+        """A note may end only a pause it was written during; another lane's
+        later operator failure cannot be cleared by the older note."""
         with self.cond:
-            if self.paused:
-                self.paused = False
-                self.event("resume", note)
-                self.cond.notify_all()
+            if not (self.paused and noted_at >= self.paused_at):
+                return False
+            self.paused = False
+            self.cond.notify_all()
+            self.event("resume", note)
+            return True
 
     # One household.
 
@@ -1067,7 +1076,11 @@ class Lanes:
                 self.cond.wait(timeout=WAIT_SECONDS)
             # Taken under the ceiling's lock, so no decision follows the crossing.
             with self.run.ceiling.lock:
-                if self.stopped or self.run.ceiling.crossed_at is not None:
+                if (
+                    self.stopped
+                    or self.run._failed.is_set()
+                    or self.run.ceiling.crossed_at is not None
+                ):
                     return False
                 now = clock()
             finished = [h for h, s in self.state.items() if s == "finished"]
@@ -1105,7 +1118,11 @@ class Lanes:
             while self.paused and not self.halted():
                 self.cond.wait(timeout=WAIT_SECONDS)
             with self.run.ceiling.lock:
-                if self.stopped or self.run.ceiling.crossed_at is not None:
+                if (
+                    self.stopped
+                    or self.run._failed.is_set()
+                    or self.run.ceiling.crossed_at is not None
+                ):
                     return None
                 return clock()
 
@@ -1118,6 +1135,7 @@ class Lanes:
         record: dict,
         last: bool,
         deadline: bool = False,
+        retained: list[Attempt] | None = None,
     ) -> Attempt:
         """The attempt's end. A class decided without the host evidence acts at
         once: an operator failure pauses the lanes, a harness failure stops
@@ -1127,32 +1145,35 @@ class Lanes:
             end = clock()
             self.spent[sid] += attempt_cost(record)
             attempt = Attempt(label, n, start, end, record)
+            if retained is not None:
+                retained.append(attempt)  # recovery owns it before any event I/O
             cls, detail = classify(record, start, end, None)
             if cls in EARLY:
                 attempt.cls, attempt.detail = cls, detail
             if cls == "operator":
                 self.paused, self.paused_at = True, clock()
+            if cls == "harness" or deadline:
+                self.stopped = True
+            if last:
+                self.state[sid] = "settling"
+            self.cond.notify_all()
+            if cls == "operator":
                 self.event(
                     "pause", f"{label}/{sid} attempt {n}: {detail}", at=self.paused_at
                 )
             if cls == "harness":
-                self.stopped = True
                 self.event(
                     "stop",
                     f"{label}/{sid}: a request class on the first request ({detail})",
                     cause="harness",
                 )
             if deadline:
-                self.stopped = True
                 self.event(
                     "stop",
                     f"{label}/{sid} attempt {n} ran past the attempt deadline "
                     f"of {ATTEMPT_DEADLINE:.0f} s",
                     cause="deadline",
                 )
-            if last:
-                self.state[sid] = "settling"
-            self.cond.notify_all()
         return attempt
 
     def settle(self, sid: str, done: list[Attempt]) -> None:
@@ -1264,27 +1285,52 @@ class Lanes:
                 with self.cond:
                     self.abandoned.remove(item)
 
-    def ensure_pool(self) -> bool:
+    def ensure_pool(self, startup: bool = False) -> bool:
         """The model's pool, started again if it has lost every worker; False
         if it cannot be."""
         with self._pool_lock:
+            if self.halted():
+                return False
             if (
                 self.pool is not None
                 and self.pool.counters()["lost"] < self.run.workers
             ):
                 return True
             old = self.pool
-            try:
-                self.pool = self.run.pool_factory(self)
-            except RuntimeError as error:
-                self.run.say(f"{self.model}: the engine pool did not start: {error}")
-                return False
-            if old is not None:
-                self.run.say(
-                    f"{self.model}: the engine pool lost every worker; started again"
+            start, outcome = clock(), "failed"
+            if not startup:
+                self.event(
+                    "setup-start",
+                    "engine pool restart",
+                    at=start,
+                    phase="restart",
+                    start=start,
                 )
-                old.close()
-            return True
+            try:
+                try:
+                    self.pool = self.run.pool_factory(self)
+                except RuntimeError as error:
+                    self.run.say(
+                        f"{self.model}: the engine pool did not start: {error}"
+                    )
+                    return False
+                if old is not None:
+                    self.run.say(
+                        f"{self.model}: the engine pool lost every worker; "
+                        "started again"
+                    )
+                    old.close()
+                outcome = "stopped" if self.halted() else "ready"
+                return outcome == "ready"
+            finally:
+                if not startup:
+                    self.event(
+                        "setup-end",
+                        "engine pool restart",
+                        phase="restart",
+                        start=start,
+                        outcome=outcome,
+                    )
 
     def replace(self, sid: str, lane: int, previous: Attempt, entries: list) -> None:
         """Save the attempt a rerun replaces, before the rerun."""
@@ -1313,7 +1359,8 @@ class Lanes:
             done: list[Attempt] = []
             for i, (n, label) in enumerate(todo):
                 if not self.ensure_pool():
-                    self.stop("the engine pool could not be started again", "pool")
+                    if not self.halted():
+                        self.stop("the engine pool could not be started again", "pool")
                     break
                 start = self.start_attempt()
                 if start is None:
@@ -1322,9 +1369,15 @@ class Lanes:
                     self.replace(sid, lane, attempts[label][-1], entries[label])
                 record, abandoned = self.converse(sid, label, n)
                 a = self.end_attempt(
-                    sid, label, n, start, record, i == len(todo) - 1, abandoned
+                    sid,
+                    label,
+                    n,
+                    start,
+                    record,
+                    i == len(todo) - 1,
+                    abandoned,
+                    retained=attempts[label],
                 )
-                attempts[label].append(a)
                 done.append(a)
                 write_json(in_flight / f"{label}-{n}.json", record)
                 self.run.say(
@@ -1357,17 +1410,16 @@ class Lanes:
         attempts: dict[str, list[Attempt]] = {label: [] for label in self.orders[sid]}
         entries: dict[str, list[dict]] = {label: [] for label in self.orders[sid]}
         in_flight = self.folder / "in-flight" / sid
-        failed = False
+        failure = None
         try:
             self.passes(sid, lane, attempts, entries, in_flight)
         except Exception as error:
-            failed = True
-            self.run.say(traceback.format_exc())
-            self.run.stop_all(
+            self.run._failed.set()  # block starts while records are recovered
+            failure = (
                 f"runner error on {self.model} lane {lane} ({sid}): "
-                f"{type(error).__name__}: {error}",
-                cause="runner-error",
+                f"{type(error).__name__}: {error}"
             )
+            self.run.say(traceback.format_exc())
             pending = [a for mine in attempts.values() for a in mine if not a.settled]
             if pending:
                 try:
@@ -1382,17 +1434,34 @@ class Lanes:
         for label, mine in attempts.items():
             if mine and not mine[-1].logged:
                 final = mine[-1]
-                sha = write_json(
-                    self.households_dir[label] / f"{sid}.json",
-                    {**final.record, "attempts": entries[label]},
-                )
-                self.attempt_line(sid, lane, final, sha)
+                try:
+                    sha = write_json(
+                        self.households_dir[label] / f"{sid}.json",
+                        {
+                            **final.record,
+                            "attempts": [
+                                entry
+                                for entry in entries[label]
+                                if entry["n"] < final.n
+                            ],
+                        },
+                    )
+                    self.attempt_line(sid, lane, final, sha)
+                except Exception as error:  # the other arms still get written
+                    self.run._failed.set()
+                    failure = failure or (
+                        f"runner error writing {self.model} lane {lane} ({sid}): "
+                        f"{type(error).__name__}: {error}"
+                    )
+                    self.run.say(traceback.format_exc())
+        if failure is not None:
+            self.run.stop_all(failure, cause="runner-error")
         with self.cond:
             self.state[sid] = "finished"
             self.cond.notify_all()
-        if not failed:
+        if failure is None:
             shutil.rmtree(in_flight, ignore_errors=True)
-        return not failed
+        return failure is None
 
     def lane(self, lane: int) -> None:
         try:
@@ -1570,22 +1639,49 @@ class Run:
         self.signalled: int | None = None  # set by the signal handler alone
         self._interrupted = False
         self._sampler_stopped = False
+        self._failed = threading.Event()  # recovery blocks starts before stop I/O
         self._anchor_head = chain_seed(design["frozen_sha256"], "", "anchors.jsonl")
         self._anchored = -math.inf
         self._pushing = threading.Lock()
+        self._next_anchor = -math.inf
         self._push: threading.Thread | None = None
+        self._push_error: OSError | None = None
 
     def say(self, text: str) -> None:
         with self._say_lock:
             print(text, file=self.out, flush=True)
 
-    def stop_all(self, reason: str, cause: str) -> None:
+    def stop_all(
+        self, reason: str, cause: str, kind: str = "stop", at: float | None = None
+    ) -> None:
+        # Set every state before the first fallible write; notify even if a
+        # disk error prevents a model's event from being recorded.
         for lanes in self.lanes.values():
-            lanes.stop(reason, cause)
+            with lanes.cond:
+                lanes.stopped = True
+                lanes.cond.notify_all()
+        for lanes in self.lanes.values():
+            try:
+                lanes.event(kind, reason, at, cause=cause)
+            except Exception:
+                self.say(traceback.format_exc())
 
     # Anchors: the logs' chain heads, written and pushed outside the run.
 
-    def anchor(self, wait: bool = False) -> None:
+    def _check_push_error(self) -> None:
+        with self._pushing:
+            error = self._push_error
+        if error is not None:
+            raise OSError(
+                f"anchor push outcome could not be recorded: {error}"
+            ) from error
+
+    def anchor_due(self) -> bool:
+        self._check_push_error()
+        with self._pushing:
+            return time.time() >= self._next_anchor
+
+    def anchor(self, wait: bool = False, push: bool = True) -> None:
         """Every log's chain head to `anchors.jsonl`, itself a chain, then the
         design's anchor command on that file, in the background (one at a
         time; an anchor whose push would wait is written but not pushed until
@@ -1606,42 +1702,83 @@ class Run:
             handle.flush()
             os.fsync(handle.fileno())
         self._anchor_head, self._anchored = line_sha(text), time.time()
+        with self._pushing:
+            self._next_anchor = self._anchored + ANCHOR_SECONDS
+        if not push:
+            return  # a push-log failure still leaves the final local heads
         if self._push is not None and self._push.is_alive():
             if not wait:
                 return
             self._push.join()
+            self._check_push_error()
         self._push = threading.Thread(
-            target=self._push_anchor, args=(self._anchor_head,), daemon=True
+            target=self._push_anchor,
+            args=(self._anchor_head, line["time"]),
+            daemon=True,
         )
         self._push.start()
         if wait:
             self._push.join()
+            self._check_push_error()
 
-    def _push_anchor(self, head: str) -> None:
+    def _push_anchor(self, head: str, anchor_time: float) -> None:
         runs = Path(self.design["runs"])
         command = [str(x) for x in self.design["anchor_command"]]
         command.append(str(runs / "anchors.jsonl"))
         started = time.time()
         try:
-            out = subprocess.run(command, capture_output=True, text=True, timeout=300)
-            code, text = out.returncode, (out.stdout + out.stderr)[-2000:]
+            child = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                stdout, stderr = child.communicate(timeout=ANCHOR_PUSH_TIMEOUT)
+                outcome = "success" if child.returncode == 0 else "failed"
+            except subprocess.TimeoutExpired:
+                # The command is a session leader: git and ssh share its group.
+                # Killing just the command leaves its push running after timeout.
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                stdout, stderr = child.communicate()
+                outcome = "timeout"
+            code, text = child.returncode, (stdout + stderr)[-2000:]
         except (OSError, subprocess.SubprocessError) as error:
-            code, text = None, f"{type(error).__name__}: {error}"
+            code, outcome, text = None, "error", f"{type(error).__name__}: {error}"
+        ended = time.time()
+        if outcome != "success":
+            with self._pushing:
+                self._next_anchor = min(self._next_anchor, ended + ANCHOR_RETRY)
         line = {
             "anchor": head,
+            "anchor_time": anchor_time,
             "started": started,
-            "ended": time.time(),
+            "ended": ended,
+            "outcome": outcome,
             "returncode": code,
             "output": text,
         }
-        with (runs / "anchor-pushes.jsonl").open("a") as handle:
-            handle.write(json.dumps(line) + "\n")
-        if code != 0:
-            self.say(f"the anchor push failed ({code}): {text}")
+        try:
+            with (runs / "anchor-pushes.jsonl").open("a") as handle:
+                handle.write(json.dumps(line) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        except OSError as error:
+            # A daemon's exception cannot stop the run: hand this one back
+            # to the supervisor, or to the final caller after it joins us.
+            with self._pushing:
+                self._push_error = self._push_error or error
+            return
+        if outcome != "success":
+            self.say(f"the anchor push failed ({outcome}, {code}): {text}")
 
     # The main loop's work.
 
-    def watch(self) -> None:
+    def watch(self, anchor: bool = True) -> None:
         """The ceiling's events, an interrupt, a dead sampler, resumes after
         operator pauses, late spend and the anchors."""
         crossed = self.ceiling.crossed_at
@@ -1651,8 +1788,7 @@ class Run:
                 f"total spend ${self.ceiling.spent_usd:.2f} reached the hard ceiling "
                 f"${self.ceiling.budget_usd:.2f}"
             )
-            for lanes in self.lanes.values():
-                lanes.stop(reason, "ceiling", kind="ceiling", at=crossed)
+            self.stop_all(reason, "ceiling", kind="ceiling", at=crossed)
         if self.signalled is not None and not self._interrupted:
             self._interrupted = True
             self.say(
@@ -1672,27 +1808,39 @@ class Run:
                 note = json.loads(path.read_text())
             except (OSError, ValueError):
                 continue  # still being written
-            with lanes.cond:
-                paused, since = lanes.paused, lanes.paused_at
             stamp = f"{time.time():.3f}"
-            if paused and float(note.get("time") or 0.0) >= since:
+            if lanes.resume(
+                note.get("note") or "resumed", float(note.get("time") or 0.0)
+            ):
                 path.rename(lanes.folder / f"resume-{stamp}.json")
-                lanes.resume(note.get("note") or "resumed")
             else:
                 # Written before the pause it would end, or with no pause.
                 path.rename(lanes.folder / f"resume-ignored-{stamp}.json")
                 self.say(f"{lanes.model}: a resume written before any pause, ignored")
         for lanes in self.lanes.values():
             lanes.log_late()
-        if time.time() - self._anchored >= ANCHOR_SECONDS:
+        if anchor and self.anchor_due():
             self.anchor()
 
     def execute(self) -> None:
         runs = Path(self.design["runs"])
-        self.host = self.host_factory(runs / "host")
+        starting, threads = {}, []
+        setup_open = set()
         try:
-            starting = {}
+            self.host = self.host_factory(runs / "host")
+            ready, failures = {}, {}
+            startup = clock()
+            for lanes in self.lanes.values():
+                lanes.event(
+                    "setup-start",
+                    "run startup",
+                    at=startup,
+                    phase="startup",
+                    start=startup,
+                )
+                setup_open.add(lanes.model)
             for model, lanes in self.lanes.items():
+                self.watch(anchor=False)
                 lanes.completion = self.completion_for(lanes.profiles["pe3"])
                 stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
                 lanes.manifest_sha256 = write_json(
@@ -1701,41 +1849,188 @@ class Run:
                 # A model whose lanes never decide still has both logs.
                 for name in ("run-log.jsonl", "admission-log.jsonl"):
                     (lanes.folder / name).touch()
+
+            def start_pool(model, lanes):
+                try:
+                    ready[model] = lanes.ensure_pool(startup=True)
+                except Exception as error:
+                    failures[model] = error
+                    self._failed.set()
+
+            for model, lanes in self.lanes.items():
+                self.watch()
+                if lanes.halted():
+                    continue
                 starting[model] = threading.Thread(
-                    target=lanes.ensure_pool, daemon=True
+                    target=start_pool, args=(model, lanes), daemon=True
                 )
                 starting[model].start()
-            for thread in starting.values():
-                thread.join()
-            threads = [
-                threading.Thread(
-                    target=lanes.lane, args=(lane,), name=f"{model}-{lane}", daemon=True
+            while any(t.is_alive() for t in starting.values()):
+                self.watch()
+                for thread in starting.values():
+                    thread.join(timeout=0.5 / len(starting))
+            self.watch()
+            for model, lanes in self.lanes.items():
+                outcome = (
+                    "failed"
+                    if model in failures
+                    else "stopped"
+                    if lanes.halted()
+                    else "ready"
+                    if ready.get(model)
+                    else "failed"
                 )
-                for model, lanes in self.lanes.items()
-                for lane in (1, 2)
-            ]
-            for thread in threads:
-                thread.start()
+                lanes.event(
+                    "setup-end",
+                    "run startup",
+                    phase="startup",
+                    start=startup,
+                    outcome=outcome,
+                )
+                setup_open.discard(model)
+                if outcome == "failed" and model not in failures:
+                    lanes.stop("the engine pool could not be started", "pool")
+            if failures:
+                raise next(iter(failures.values()))
+            threads = []
+            for model, lanes in self.lanes.items():
+                for lane in (1, 2):
+                    self.watch()
+                    with lanes.cond:
+                        if lanes.halted() or self.signalled is not None:
+                            continue
+                        thread = threading.Thread(
+                            target=lanes.lane,
+                            args=(lane,),
+                            name=f"{model}-{lane}",
+                            daemon=True,
+                        )
+                        thread.start()
+                        threads.append(thread)
             while any(t.is_alive() for t in threads):
                 self.watch()
                 for t in threads:
                     t.join(timeout=0.5 / len(threads))
             self.watch()
+        except Exception as error:
+            self._failed.set()
+            # Supervisors finish their bounded attempts and recovery before
+            # the ledger, host and final anchor can close underneath them.
+            for lanes in self.lanes.values():
+                with lanes.cond:
+                    lanes.cond.notify_all()
+            for thread in [*starting.values(), *threads]:
+                while thread.is_alive():
+                    thread.join(timeout=WAIT_SECONDS)
+                    try:
+                        self.watch(anchor=False)
+                    except Exception:
+                        self.say(traceback.format_exc())
+            for model in setup_open:
+                try:
+                    self.lanes[model].event(
+                        "setup-end",
+                        "run startup",
+                        phase="startup",
+                        start=startup,
+                        outcome="failed",
+                    )
+                except Exception:
+                    self.say(traceback.format_exc())
+            self.stop_all(
+                f"runner error: {type(error).__name__}: {error}", "runner-error"
+            )
+            raise
         finally:
-            for model, lanes in self.lanes.items():
-                for item in list(lanes.abandoned):
-                    item["thread"].join(timeout=LATE_JOIN)
-                lanes.log_late(final=True)
-                stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
-                write_json(
-                    lanes.folder / f"run-summary-{stamp}.json",
-                    lanes.summary(),
-                    indent=2,
+            self.finish()
+
+    def finish(self) -> None:
+        """One join deadline, then close pools and host before closing the
+        ledger. Its final late costs, crossings and signals precede the last
+        anchor. An unresolved request makes future spend unknowable: record
+        it explicitly, with a runner-error stop, rather than claim it settled."""
+        errors = []
+
+        def attempt(work):
+            try:
+                work()
+                return True
+            except Exception as error:
+                errors.append(error)
+                self._failed.set()
+                self.say(traceback.format_exc())
+                self.stop_all(
+                    f"runner error during cleanup: {type(error).__name__}: {error}",
+                    "runner-error",
                 )
-                if lanes.pool is not None:
-                    lanes.pool.close()
-            self.host.close()
-            self.anchor(wait=True)
+                return False
+
+        until = time.monotonic() + LATE_JOIN
+        for lanes in self.lanes.values():
+            for item in list(lanes.abandoned):
+                while item["thread"].is_alive() and time.monotonic() < until:
+                    item["thread"].join(
+                        timeout=min(WAIT_SECONDS, max(0.0, until - time.monotonic()))
+                    )
+                    attempt(lambda: self.watch(anchor=False))
+        for lanes in self.lanes.values():
+            if lanes.pool is not None:
+                attempt(lanes.pool.close)
+        if self.host is not None:
+            attempt(self.host.close)
+        pending = []
+        for lanes in self.lanes.values():
+            with lanes.cond:
+                pending.extend({**item, "lanes": lanes} for item in lanes.abandoned)
+        unresolved = self.ceiling.close(pending)
+        for lanes in self.lanes.values():
+            attempt(lambda: lanes.log_late(final=True))
+        for item in unresolved:
+            attempt(
+                lambda: item["lanes"].event(
+                    "late-unresolved",
+                    "request unresolved when the ledger closed; "
+                    "future spend is unrecorded",
+                    household=item["household"],
+                    arm=item["arm"],
+                    attempt=item["attempt"],
+                    outcome="unresolved-at-ledger-close",
+                    counted_usd=item["spend"].spent_usd + item["spend"].late_usd,
+                )
+            )
+        if unresolved:
+            self._failed.set()
+            self.stop_all(
+                f"{len(unresolved)} abandoned requests unresolved at ledger close; "
+                "future spend is unrecorded",
+                "runner-error",
+            )
+        # A first signal can also arrive while the final push is running.
+        while True:
+            attempt(lambda: self.watch(anchor=False))
+            for lanes in self.lanes.values():
+                stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
+                attempt(
+                    lambda: write_json(
+                        lanes.folder / f"run-summary-{stamp}.json",
+                        lanes.summary(),
+                        indent=2,
+                    )
+                )
+            if not attempt(lambda: self.anchor(wait=True)):
+                attempt(lambda: self.watch(anchor=False))
+                # The error handler appended stops after that snapshot. Keep
+                # them covered locally even if pushing cannot be recorded.
+                try:
+                    self.anchor(push=False)
+                except Exception as error:
+                    errors.append(error)
+                    self.say(traceback.format_exc())
+                break
+            if self.signalled is None or self._interrupted:
+                break
+        if errors:
+            raise errors[0]
 
     def interrupt(self, signum, frame) -> None:
         """The signal handler. It only notes the signal; the main loop stops

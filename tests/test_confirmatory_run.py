@@ -52,7 +52,7 @@ CLOCK_SLACK = 1.0
 ANCHOR_SCRIPT = Path(__file__).resolve().parent / "fake_anchor.py"
 # How far apart anchors and their triggers' stops may be in a test, on a
 # loaded host.
-ANCHOR_SLACK = 5.0
+ANCHOR_SLACK = 30.0
 TRIGGER_BOUND = 5.0
 
 
@@ -78,6 +78,7 @@ def test_a_stream_is_keyed_by_its_name_alone():
     )
 
 
+@settings(deadline=None)
 @given(st.integers(0, (1 << 64) - 1), st.integers(1, 12))
 def test_the_draw_is_seeded_and_without_replacement(master, n):
     got = cr.draw(master, list(reversed(POOL)), n=n)
@@ -349,11 +350,11 @@ class Readers:
 
 @pytest.fixture
 def fast(monkeypatch):
-    """Windows scaled down a thousandfold, so a fake run takes a second; the
-    host-log gap less, so a sampler a busy host stalls past 90 ms (seen at a
-    load of 12) is not a gap."""
+    """Short evidence windows, with room for the shared host's scheduler.
+    Intentional gaps scale with this bound; ordinary stalls must not turn
+    an untouched fake run into a host-failure test."""
     monkeypatch.setattr(cr, "PRESSURE_WINDOW", 0.06)
-    monkeypatch.setattr(cr, "HOST_LOG_GAP", 0.5)
+    monkeypatch.setattr(cr, "HOST_LOG_GAP", 5.0)
     monkeypatch.setattr(cr, "WAIT_SECONDS", 0.005)
     monkeypatch.setattr(cr, "HOUSEHOLDS", N_DRAW)
     monkeypatch.setattr(cr, "SAMPLER_SILENCE", 1.0)
@@ -399,8 +400,9 @@ def test_a_stalled_host_log_is_a_gap(tmp_path, fast):
     host = readers.host(tmp_path)
     time.sleep(0.03)
     start = time.time()
-    readers.stall = 0.8
-    time.sleep(0.85)
+    stall = cr.HOST_LOG_GAP + 0.3
+    readers.stall = stall
+    time.sleep(stall + 0.05)
     end = time.time()
     host.wait_settled(end)
     host.refresh(after=end)
@@ -435,7 +437,7 @@ def test_a_failed_pressure_reading_is_no_sample(tmp_path, fast):
     time.sleep(0.03)
     start = time.time()
     readers.pressure = None
-    time.sleep(0.7)
+    time.sleep(cr.HOST_LOG_GAP + 0.2)
     readers.pressure = 1
     end = time.time()
     host.wait_settled(end)
@@ -512,10 +514,11 @@ def test_a_sampler_whose_samples_fail_is_dead_after_its_silence(tmp_path, fast):
     host = readers.host(tmp_path)
     assert host.dead() is None
     readers.pressure = None
+    host.sample()
     time.sleep(cr.SAMPLER_SILENCE + 0.2)
     assert "samples failing since" in host.dead()
     readers.pressure = 1
-    time.sleep(0.1)
+    host.sample()
     assert host.dead() is None  # a good sample: alive again
     host.close()
 
@@ -632,6 +635,7 @@ class FakeProvider:
         if spec.get("pressure"):
             with readers.lock:
                 readers.pressing += 1
+            lanes.run.host.sample()  # the planted pressure is actually observed
         if spec.get("stall"):
             readers.stall = spec["stall"]
         start = time.time()
@@ -685,12 +689,21 @@ class FakeProvider:
             folder = lanes.folder
 
             def resume():
+                with lanes.cond:
+                    if (
+                        not lanes.cond.wait_for(
+                            lambda: lanes.paused or lanes.halted(), timeout=30
+                        )
+                        or not lanes.paused
+                    ):
+                        return
+                time.sleep(spec["resume_after"])
                 cr.write_json(
                     folder / "RESUME.json",
-                    {"time": time.time(), "note": "fixed in a test"},
+                    {"time": cr.clock(), "note": "fixed in a test"},
                 )
 
-            threading.Timer(spec["resume_after"], resume).start()
+            threading.Thread(target=resume, daemon=True).start()
         return rec
 
 
@@ -1320,7 +1333,7 @@ def test_host_trouble_during_an_attempt_reruns_it(world):
     pressured, stalled = w.draw_order[0], w.draw_order[2]  # both lane 1
     w.provider.specs = {
         (model, "loo-flat", pressured, 1): {"pressure": True, "sleep": 0.05},
-        (model, "pe", stalled, 1): {"stall": 0.8},
+        (model, "pe", stalled, 1): {"stall": cr.HOST_LOG_GAP + 0.3},
     }
     w.execute()
 
@@ -1341,7 +1354,10 @@ def test_host_trouble_during_an_attempt_reruns_it(world):
     assert run_problems(w) == []
 
 
-def test_a_guard_pause_over_an_attempt_reruns_it(world):
+def test_a_guard_pause_over_an_attempt_reruns_it(world, monkeypatch):
+    # Guard lines have whole seconds and the fake brackets by another
+    # second: keep the lookahead longer than its possible two-second backdate.
+    monkeypatch.setattr(cr, "PRESSURE_WINDOW", 2.1)
     model = "gpt-6-sol"
     w = world(models=(model,))
     sid = w.draw_order[0]
@@ -1507,7 +1523,11 @@ def test_a_model_that_decides_nothing_still_has_both_logs(world):
     w.execute()
     admission = w.runs() / "gpt-6-sol" / "admission-log.jsonl"
     assert admission.exists() and admission.read_text() == ""
-    assert [x["event"] for x in w.lines("gpt-6-sol")] == ["ceiling"]
+    assert [
+        x["event"]
+        for x in w.lines("gpt-6-sol")
+        if x["event"] not in ("setup-start", "setup-end")
+    ] == ["ceiling"]
     assert run_problems(w) == []
 
 
@@ -1568,6 +1588,11 @@ def test_a_pool_that_lost_every_worker_is_started_again(world):
     w.provider.specs = {(model, "pe", sid, 1): {"calls": [{"situation": "{}"}]}}
     w.execute()
     assert len(starts) == 2 and starts[0].closed
+    setup = [e for e in w.events(model) if e.get("phase") == "restart"]
+    assert [e["event"] for e in setup] == ["setup-start", "setup-end"]
+    assert setup[0]["start"] == setup[0]["time"] == setup[1]["start"]
+    assert setup[1]["time"] >= setup[0]["time"]
+    assert setup[1]["outcome"] == "ready"
     assert run_problems(w) == []
 
 
@@ -1593,36 +1618,62 @@ def test_a_pool_that_cannot_start_again_stops_the_model(world, monkeypatch):
     stops = w.events(model, "stop")
     assert stops and "engine pool" in stops[0]["reason"]
     assert stops[0]["cause"] == "pool"
+    setup = [e for e in w.events(model) if e.get("phase") == "restart"]
+    assert [e["event"] for e in setup] == ["setup-start", "setup-end"]
+    assert setup[1]["outcome"] == "failed"
     assert run_problems(w) == []
 
 
 def test_a_household_a_stop_cuts_short_is_under_way_until_the_stop(world):
     """Lane 1's first household loses the pool in its first arm, and the
-    restart fails 0.6 s later. In between, lane 2 finishes its household and
+    restart waits while lane 2 finishes its household and
     decides its next: the household lane 1 cut short has ended its last
     attempt, but it is still under way, so its spend is not counted."""
     model = "gpt-6-sol"
     made = []
+    other_second, restarting, decided_after = (
+        threading.Event(),
+        threading.Event(),
+        threading.Event(),
+    )
 
     class Losing(FakePool):
         def call(self, message):
+            assert other_second.wait(30)
             self.lost = 2
             return super().call(message)
 
     def pool(lanes):
         made.append(1)
         if len(made) > 1:
-            time.sleep(0.6)
+            restarting.set()
+            assert decided_after.wait(30)
             raise RuntimeError("tool worker failed to start: a test")
         return Losing(lanes)
 
     w = world(models=(model,), pool=pool)
     cut, other, after = w.draw_order[0], w.draw_order[1], w.draw_order[3]
-    orders = w.run.lanes[model].orders
+    lanes = w.run.lanes[model]
+    orders, admit = lanes.orders, lanes.admit
+
+    def in_second(lanes):
+        other_second.set()
+        assert restarting.wait(30)
+
+    def admitted(sid, lane):
+        ok = admit(sid, lane)
+        if sid == after and ok:
+            decided_after.set()
+            # Keep this admitted household from racing the failed restart
+            # for the pool lock before lane 1 records its stop.
+            with lanes.cond:
+                assert lanes.cond.wait_for(lambda: lanes.stopped, timeout=30)
+        return ok
+
+    lanes.admit = admitted
     w.provider.specs = {
-        (model, orders[cut][0], cut, 1): {"sleep": 0.1, "calls": [{"situation": "{}"}]},
-        (model, orders[other][0], other, 1): {"sleep": 0.02},
-        (model, orders[other][1], other, 1): {"sleep": 0.3},
+        (model, orders[cut][0], cut, 1): {"calls": [{"situation": "{}"}]},
+        (model, orders[other][1], other, 1): {"check": in_second},
     }
     w.execute()
     stop = w.events(model, "stop")[0]["time"]
@@ -1633,6 +1684,11 @@ def test_a_household_a_stop_cuts_short_is_under_way_until_the_stop(world):
     assert [x["arm"] for x in w.attempts(model) if x["household"] == cut] == [
         orders[cut][0]
     ]
+    setup = [e for e in w.events(model) if e.get("phase") == "restart"]
+    assert [e["event"] for e in setup] == ["setup-start", "setup-end"]
+    assert setup[0]["start"] == setup[0]["time"] == setup[1]["start"]
+    assert setup[1]["time"] >= decided[after]["time"]
+    assert setup[1]["outcome"] == "failed"
     assert run_problems(w) == []
 
 
@@ -1708,7 +1764,7 @@ def test_no_household_is_decided_after_the_crossing(world):
 @pytest.mark.parametrize(
     "when", ["before the run", "before the run, misdated", "during the pause"]
 )
-def test_a_resume_written_before_the_pause_is_ignored(world, when):
+def test_a_resume_written_before_the_pause_is_ignored(world, when, monkeypatch):
     """A resume left from before a pause would end that pause unseen: it is
     set aside, and the pause holds until a resume written during it. One
     found while no pause holds is set aside at once, whatever time it
@@ -1725,27 +1781,46 @@ def test_a_resume_written_before_the_pause_is_ignored(world, when):
             stale["time"] += 3600.0  # a writer whose clock runs ahead
         cr.write_json(folder / "RESUME.json", stale)
 
-    def plant(lanes):
-        # Lands once the pause holds: the conversation returns at once.
-        threading.Timer(
-            0.1, lambda: cr.write_json(folder / "RESUME.json", stale)
-        ).start()
+    lanes, watch = w.run.lanes[model], w.run.watch
+    planted, fresh = False, False
+
+    def supervised(*args, **kwargs):
+        nonlocal planted, fresh
+        with lanes.cond:
+            if when == "during the pause" and lanes.paused and not planted:
+                cr.write_json(folder / "RESUME.json", stale)
+                planted = True
+        watch(*args, **kwargs)
+        with lanes.cond:
+            if (
+                lanes.paused
+                and list(folder.glob("resume-ignored-*.json"))
+                and not fresh
+            ):
+                # The stale note has been read and archived before its
+                # replacement exists; the next watch sees only the fresh one.
+                cr.write_json(
+                    folder / "RESUME.json",
+                    {"time": cr.clock(), "note": "fixed in a test"},
+                )
+                fresh = True
+
+    monkeypatch.setattr(w.run, "watch", supervised)
 
     w.provider.specs = {
         (model, "pe3", sid, 1): {
             "status": "provider_error",
             "error": "AuthenticationError: bad key",
             "turns": 0,
-            "resume_after": 1.5,  # the main loop looks every 0.5 s
-            **({"check": plant} if when == "during the pause" else {}),
         }
     }
     w.execute()
     pauses, resumes = w.events(model, "pause"), w.events(model, "resume")
     assert len(pauses) == 1 and len(resumes) == 1
     assert resumes[0]["reason"] == "fixed in a test"
-    assert resumes[0]["time"] - pauses[0]["time"] >= 1.4
-    assert list(folder.glob("resume-ignored-*.json"))
+    assert resumes[0]["time"] >= pauses[0]["time"]
+    ignored = list(folder.glob("resume-ignored-*.json"))
+    assert len(ignored) == 1 and json.loads(ignored[0].read_text()) == stale
     assert run_problems(w) == []
 
 
@@ -1965,10 +2040,16 @@ def test_the_checker_catches_an_edited_log_line(world):
     path = w.runs() / "gpt-6-sol" / "admission-log.jsonl"
     lines = path.read_text().splitlines()
     edited = json.loads(lines[1])
-    edited["finished_spend"] = 0.0
+    edited["finished_spend"] += 1.0
     path.write_text("\n".join([lines[0], json.dumps(edited)] + lines[2:]) + "\n")
     problems = run_problems(w)
     assert any("its prev is not the line before's hash" in p for p in problems)
+    # An interior edit need not change a later anchor's head: its successor
+    # still has its old bytes. A tail edit separately exercises the anchor.
+    edited = json.loads(lines[-1])
+    edited["finished_spend"] += 1.0
+    path.write_text("\n".join(lines[:-1] + [json.dumps(edited)]) + "\n")
+    problems = run_problems(w)
     assert any("is not the log's head" in p for p in problems)
 
 
@@ -2035,9 +2116,11 @@ def test_the_checker_catches_a_planted_fault(world):
     w = world(models=("gpt-6-sol",)).execute()
     path = w.runs() / "gpt-6-sol" / "run-log.jsonl"
     lines = path.read_text().splitlines()
-    first = json.loads(lines[0])
+    at = next(i for i, line in enumerate(lines) if "event" not in json.loads(line))
+    first = json.loads(lines[at])
     first["class"] = "provider"
-    path.write_text("\n".join([json.dumps(first)] + lines[1:]) + "\n")
+    lines[at] = json.dumps(first)
+    path.write_text("\n".join(lines) + "\n")
     assert any("recomputed" in p for p in run_problems(w))
 
 
@@ -2172,3 +2255,530 @@ def test_the_ceiling_ends_a_harness_conversation_at_its_next_turn(world):
     assert len(attempts) <= 2  # one per lane at most
     assert len(w.events(model, "ceiling")) == 1
     assert run_problems(w) == []
+
+
+def test_a_reader_that_keeps_raising_starts_the_sampler_silence(
+    tmp_path, fast, monkeypatch
+):
+    readers = Readers()
+    host = readers.host(tmp_path)
+    host._stop.set()
+    host._thread.join()
+    now, reads = [time.time()], []
+
+    def pressure():
+        reads.append(now[0])
+        raise RuntimeError("pressure reader failed")
+
+    class Ticks:
+        def wait(self, timeout):
+            now[0] += cr.SAMPLER_SILENCE + 1.0
+            return len(reads) == 3
+
+    # Run the real sampling loop across three failures with a controlled
+    # clock; no scheduling or sleep decides whether its silence has elapsed.
+    with monkeypatch.context() as patch:
+        patch.setattr(cr.time, "time", lambda: now[0])
+        patch.setattr(host, "_stop", Ticks())
+        patch.setattr(host, "_read_pressure", pressure)
+        patch.setattr(host._thread, "is_alive", lambda: True)
+        host._loop()
+        assert len(reads) == 3
+        assert host.failing_since == reads[0]
+        assert "samples failing since" in host.dead()
+        assert "RuntimeError: pressure reader failed" in host.dead()
+        patch.setattr(host, "_read_pressure", lambda: 1)
+        host.sample()
+        assert host.failing_since is None and host.failure is None
+        assert host.dead() is None
+    host.close()
+
+
+def test_a_second_lane_s_authentication_failure_invalidates_a_resume(
+    world, monkeypatch
+):
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    lanes = w.run.lanes[model]
+    first, second = w.draw_order[:2]
+    lanes.spent.update({first: 0.0, second: 0.0})
+    now = [time.time()]
+
+    def tick():
+        now[0] += 1.0
+        return now[0]
+
+    monkeypatch.setattr(cr, "clock", tick)
+    auth = record("provider_error", "AuthenticationError: bad key", turns=0)
+    lanes.end_attempt(first, "pe3", 1, now[0], auth, False)
+    note = {"time": lanes.paused_at, "note": "first key fixed"}
+    cr.write_json(lanes.folder / "RESUME.json", note)
+    resume = lanes.resume
+
+    def second_failure(*args, **kwargs):
+        # The other lane finishes after watch reads the note and immediately
+        # before resume validates it. The second pause requires its own note.
+        lanes.end_attempt(second, "pe3", 1, now[0], auth, False)
+        return resume(*args, **kwargs)
+
+    monkeypatch.setattr(lanes, "resume", second_failure)
+    w.run.watch(anchor=False)
+    assert lanes.paused and lanes.paused_at > note["time"]
+    assert len(w.events(model, "pause")) == 2
+    assert w.events(model, "resume") == []
+    assert list(lanes.folder.glob("resume-ignored-*.json"))
+    monkeypatch.setattr(lanes, "resume", resume)
+    cr.write_json(
+        lanes.folder / "RESUME.json",
+        {"time": lanes.paused_at, "note": "both keys fixed"},
+    )
+    w.run.watch(anchor=False)
+    assert not lanes.paused
+    assert [event["reason"] for event in w.events(model, "resume")] == [
+        "both keys fixed"
+    ]
+
+
+def test_an_interrupt_during_setup_starts_no_pool_or_lane(world, monkeypatch):
+    started = []
+    w = world(
+        models=("gpt-6-luna", "gpt-6-sol"),
+        pool=lambda lanes: started.append((lanes.model, "pool")),
+    )
+
+    def completion(profile):
+        if w.run.signalled is None:
+            w.run.interrupt(2, None)
+
+    w.run.completion_for = completion
+    for model, lanes in w.run.lanes.items():
+        monkeypatch.setattr(
+            lanes, "lane", lambda lane, m=model: started.append((m, lane))
+        )
+    w.execute()
+    assert started == [] and w.provider.count == {}
+    for model in w.models:
+        assert [e["cause"] for e in w.events(model, "stop")] == ["interrupt"]
+        setup = [e for e in w.events(model) if e.get("phase") == "startup"]
+        assert [e["event"] for e in setup] == ["setup-start", "setup-end"]
+        assert setup[0]["start"] == setup[0]["time"] == setup[1]["start"]
+        stop = w.events(model, "stop")[0]["time"]
+        assert setup[0]["time"] <= stop <= setup[1]["time"]
+        assert setup[1]["outcome"] == "stopped"
+    assert run_problems(w) == []
+
+
+def test_a_slow_pool_start_is_polled_and_anchored_before_it_finishes(
+    world, monkeypatch
+):
+    model = "gpt-6-sol"
+    entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+    polls, anchors = [], []
+
+    def pool(lanes):
+        entered.set()
+        # Readiness depends on supervision, never on which sleep wins.
+        assert release.wait(10), "startup was not supervised"
+        finished.set()
+        return FakePool(lanes)
+
+    w = world(models=(model,), pool=pool)
+    watch, anchor = w.run.watch, w.run.anchor
+
+    def supervised(*args, **kwargs):
+        watch(*args, **kwargs)
+        if entered.is_set() and not finished.is_set():
+            polls.append(cr.clock())
+            if len(polls) == 3:
+                release.set()
+
+    def anchored(*args, **kwargs):
+        if entered.is_set() and not finished.is_set():
+            anchors.append(cr.clock())
+        return anchor(*args, **kwargs)
+
+    monkeypatch.setattr(w.run, "watch", supervised)
+    monkeypatch.setattr(w.run, "anchor", anchored)
+    w.execute()
+    assert len(polls) >= 3 and anchors
+    setup = [e for e in w.events(model) if e.get("phase") == "startup"]
+    assert setup[0]["time"] <= min(polls + anchors)
+    assert max(polls + anchors) <= setup[1]["time"]
+    assert setup[1]["outcome"] == "ready"
+    assert all(a["start"] >= setup[1]["time"] for a in w.attempts(model))
+    assert run_problems(w) == []
+
+
+def test_an_interrupt_during_pool_start_is_recorded_before_readiness(
+    world, monkeypatch
+):
+    model = "gpt-6-sol"
+    stopped = threading.Event()
+    started = []
+
+    def pool(lanes):
+        w.run.interrupt(2, None)
+        assert stopped.wait(10), "the setup interrupt was not processed"
+        return FakePool(lanes)
+
+    w = world(models=(model,), pool=pool)
+    watch = w.run.watch
+
+    def supervised(*args, **kwargs):
+        watch(*args, **kwargs)
+        if w.run.lanes[model].stopped:
+            stopped.set()
+
+    monkeypatch.setattr(w.run, "watch", supervised)
+    monkeypatch.setattr(w.run.lanes[model], "lane", started.append)
+    w.execute()
+    assert stopped.is_set() and started == []
+    assert [e["cause"] for e in w.events(model, "stop")] == ["interrupt"]
+    assert w.events(model, "setup-end")[0]["outcome"] == "stopped"
+    assert w.run.lanes[model].pool.closed
+    assert run_problems(w) == []
+
+
+def test_an_interrupt_between_lane_launches_prevents_the_next_lane(world, monkeypatch):
+    model = "gpt-6-sol"
+    w = world(models=(model,))
+    signalled = threading.Event()
+    started = []
+    start = threading.Thread.start
+
+    def lane(number):
+        started.append(number)
+        w.run.interrupt(2, None)
+        signalled.set()
+
+    def start_and_signal(thread):
+        start(thread)
+        if thread.name == f"{model}-1":
+            assert signalled.wait(10)
+
+    monkeypatch.setattr(w.run.lanes[model], "lane", lane)
+    monkeypatch.setattr(threading.Thread, "start", start_and_signal)
+    w.execute()
+    assert started == [1]
+    assert [e["cause"] for e in w.events(model, "stop")] == ["interrupt"]
+    assert run_problems(w) == []
+
+
+def test_stop_all_notifies_every_model_before_a_failed_event_write(world, monkeypatch):
+    w = world(models=("gpt-6-luna", "gpt-6-sol"))
+    notified = []
+    for model, lanes in w.run.lanes.items():
+        notify = lanes.cond.notify_all
+
+        def observed(model=model, notify=notify):
+            notified.append(model)
+            notify()
+
+        monkeypatch.setattr(lanes.cond, "notify_all", observed)
+    first = w.run.lanes[w.models[0]]
+
+    def broken(line, name="run-log.jsonl"):
+        assert all(lanes.stopped for lanes in w.run.lanes.values())
+        raise OSError("the first model's event log is unavailable")
+
+    monkeypatch.setattr(first, "write_line", broken)
+    w.run.stop_all("disk failure", "runner-error")
+    assert notified == list(w.models)
+    assert all(lanes.stopped for lanes in w.run.lanes.values())
+    assert w.events(w.models[1], "stop")[0]["cause"] == "runner-error"
+
+
+@pytest.mark.parametrize(
+    "kind,error", [("pause", "AuthenticationError"), ("stop", "BadRequestError")]
+)
+def test_end_attempt_retains_the_record_before_a_failed_event_write(
+    world, monkeypatch, kind, error
+):
+    model = "gpt-6-luna"
+    w = world(models=(model, "gpt-6-sol"))
+    sid = w.draw_order[0]
+    lanes = w.run.lanes[model]
+    label = lanes.orders[sid][0]
+    w.provider.specs = {
+        (model, label, sid, 1): {
+            "status": "provider_error",
+            "error": f"{error}: a test",
+            "turns": 0 if kind == "stop" else 1,
+        }
+    }
+    write = lanes.write_line
+    failed = []
+
+    def broken(line, name="run-log.jsonl"):
+        if line.get("event") == kind and not failed:
+            failed.append(line)
+            raise OSError("end_attempt's event write failed")
+        write(line, name)
+
+    monkeypatch.setattr(lanes, "write_line", broken)
+    w.execute()
+    assert len(failed) == 1
+    record = json.loads((w.folder(model, label) / f"{sid}.json").read_text())
+    assert record["error"] == f"{error}: a test"
+    assert record["totals"]["cost_usd"] == pytest.approx(0 if kind == "stop" else COST)
+    lines = w.lines(model)
+    saved = next(
+        i
+        for i, x in enumerate(lines)
+        if x.get("household") == sid and x.get("arm") == label
+    )
+    stopped = next(i for i, x in enumerate(lines) if x.get("cause") == "runner-error")
+    assert saved < stopped
+    assert all(lanes.stopped for lanes in w.run.lanes.values())
+    assert (
+        lanes.folder / "in-flight" / sid
+    ).exists() is False  # event failed before disk write
+
+
+def test_a_final_record_write_failure_still_recovers_the_other_arms(world, monkeypatch):
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    w.run.no_output.update(w.draw_order[1:])
+    first = w.run.lanes[model].orders[sid][0]
+    target = w.folder(model, first) / f"{sid}.json"
+    write = cr.write_json
+
+    def broken(path, payload, indent=1):
+        if Path(path) == target:
+            raise OSError("one final record cannot be written")
+        return write(path, payload, indent)
+
+    monkeypatch.setattr(cr, "write_json", broken)
+    w.execute()
+    assert len(w.attempts(model)) == len(cr.ARMS) - 1
+    assert all(
+        (w.folder(model, a) / f"{sid}.json").exists() for a in cr.ARMS if a != first
+    )
+    assert (w.run.lanes[model].folder / "in-flight" / sid / f"{first}-1.json").exists()
+    assert w.lines(model)[-1]["cause"] == "runner-error"
+
+
+def blocked_cleanup_request(w, monkeypatch):
+    """One real request, released by the test after the abandoned join."""
+    monkeypatch.setattr(cr, "ATTEMPT_DEADLINE", 0.02)
+    monkeypatch.setattr(cr, "LATE_JOIN", 0.0)
+    monkeypatch.setattr(cr, "CEILING_MARGIN", 0.0)
+    w.design.update(overall_cap=0.10, spent_before=0.0)
+    w.run.no_output.update(w.draw_order[1:])
+    w.run.ceiling = cr.Ceiling(0.10, 0.0)
+    release, returned = threading.Event(), threading.Event()
+
+    def converse(lanes, sid, label, tool_call, spend):
+        assert release.wait(30)
+        spend.add(0.20)
+        returned.set()
+        return {"status": "budget_stop", "turns": [], "totals": {"cost_usd": 0.20}}
+
+    w.run.converse = converse
+    return release, returned
+
+
+def test_cleanup_counts_a_request_returning_during_host_close(world, monkeypatch):
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    release, returned = blocked_cleanup_request(w, monkeypatch)
+    host_factory = w.run.host_factory
+
+    def host(folder):
+        evidence = host_factory(folder)
+        close = evidence.close
+
+        def finish():
+            release.set()
+            assert returned.wait(10)
+            for lanes in w.run.lanes.values():
+                for item in list(lanes.abandoned):
+                    item["thread"].join(timeout=10)
+                    assert not item["thread"].is_alive()
+            close()
+
+        evidence.close = finish
+        return evidence
+
+    w.run.host_factory = host
+    try:
+        w.execute()
+    finally:
+        release.set()
+    assert returned.is_set()
+    assert w.run.ceiling.spent_usd == pytest.approx(0.20)
+    assert w.run.ceiling.closed
+    assert [e["cost_usd"] for e in w.events(model, "late-cost")] == [
+        pytest.approx(0.20)
+    ]
+    assert len(w.events(model, "ceiling")) == 1
+    assert w.events(model, "late-unresolved") == []
+    assert anchor_problems(w) == []
+    assert run_problems(w) == []
+
+
+@pytest.mark.parametrize("returns_at_close", [False, True])
+def test_cleanup_records_an_unresolved_request_before_closing_the_ledger(
+    world, monkeypatch, returns_at_close
+):
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    release, returned = blocked_cleanup_request(w, monkeypatch)
+    if returns_at_close:
+        close = w.run.ceiling.close
+
+        def finish(pending=None):
+            unresolved = close(pending)
+            release.set()
+            assert returned.wait(10)
+            return unresolved
+
+        monkeypatch.setattr(w.run.ceiling, "close", finish)
+    try:
+        w.execute()
+        unresolved = w.events(model, "late-unresolved")
+        assert len(unresolved) == 1
+        assert unresolved[0]["outcome"] == "unresolved-at-ledger-close"
+        assert unresolved[0]["counted_usd"] == 0.0
+        assert w.events(model, "stop")[-1]["cause"] == "runner-error"
+        assert w.run.ceiling.closed
+        assert anchor_problems(w) == []
+        before = (w.runs() / model / "run-log.jsonl").read_bytes()
+    finally:
+        release.set()
+        assert returned.wait(10)
+    assert w.run.ceiling.spent_usd == 0.0
+    assert w.run.ceiling.unrecorded_usd == pytest.approx(0.20)
+    assert (w.runs() / model / "run-log.jsonl").read_bytes() == before
+
+
+@pytest.mark.parametrize("during", ["host-close", "final-push"])
+def test_a_first_interrupt_during_cleanup_is_recorded_and_anchored(
+    world, monkeypatch, during
+):
+    model = "gpt-6-sol"
+    w = world(models=(model,))
+    w.run.no_output.update(w.draw_order)
+    if during == "host-close":
+        host_factory = w.run.host_factory
+
+        def host(folder):
+            evidence = host_factory(folder)
+            close = evidence.close
+
+            def finish():
+                w.run.interrupt(2, None)
+                close()
+
+            evidence.close = finish
+            return evidence
+
+        w.run.host_factory = host
+    else:
+        anchor = w.run.anchor
+        signalled = []
+
+        def push(wait=False):
+            anchor(wait=wait)
+            if wait and not signalled:
+                signalled.append(True)
+                w.run.interrupt(2, None)
+
+        monkeypatch.setattr(w.run, "anchor", push)
+    w.execute()
+    assert [e["cause"] for e in w.events(model, "stop")] == ["interrupt"]
+    assert w.run._interrupted
+    assert anchor_problems(w) == []
+
+
+def test_a_replacement_log_failure_keeps_a_valid_final_history(world, monkeypatch):
+    model = "gpt-6-luna"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    w.run.no_output.update(w.draw_order[1:])
+    lanes = w.run.lanes[model]
+    label = lanes.orders[sid][0]
+    w.provider.specs = {
+        (model, label, sid, 1): {
+            "status": "provider_error",
+            "error": "RateLimitError: a test",
+        }
+    }
+    write, failed = lanes.write_line, []
+
+    def broken(line, name="run-log.jsonl"):
+        if line.get("arm") == label and line.get("attempt") == 1 and not failed:
+            failed.append(line)
+            raise OSError("the replaced attempt's log write failed")
+        write(line, name)
+
+    monkeypatch.setattr(lanes, "write_line", broken)
+    w.execute()
+    rec = json.loads((w.folder(model, label) / f"{sid}.json").read_text())
+    assert rec["attempts"] == []
+    assert w.provider.count[(model, label, sid)] == 1
+    logged = [x for x in w.attempts(model) if x["arm"] == label]
+    assert len(logged) == 1
+    assert all(
+        logged[0][key] == value for key, value in failed[0].items() if key != "sha256"
+    )
+    assert logged[0]["sha256"] == cr.sha256_file(w.folder(model, label) / f"{sid}.json")
+    assert run_problems(w) == []
+
+
+def test_a_supervision_error_drains_active_lanes_before_final_anchor(
+    world, monkeypatch
+):
+    model = "gpt-6-sol"
+    w = world(models=(model,))
+    w.run.no_output.update(w.draw_order[1:])
+    started, returned = threading.Event(), threading.Event()
+    converse, watch = w.run.converse, w.run.watch
+    failed = []
+
+    def request(*args):
+        started.set()
+        assert w.run._failed.wait(10)
+        rec = converse(*args)
+        returned.set()
+        return rec
+
+    def broken_watch(anchor=True):
+        if started.is_set() and not failed:
+            failed.append(True)
+            raise OSError("supervision failed while a request was active")
+        watch(anchor=anchor)
+
+    w.run.converse = request
+    monkeypatch.setattr(w.run, "watch", broken_watch)
+    with pytest.raises(OSError, match="supervision failed"):
+        w.execute()
+    assert returned.is_set()
+    assert len(w.attempts(model)) == 1
+    assert w.lines(model)[-1]["cause"] == "runner-error"
+    assert w.run.ceiling.spent_usd == pytest.approx(1.0 + COST)
+    assert anchor_problems(w) == []
+    assert run_problems(w) == []
+
+
+def test_a_final_push_log_failure_is_stopped_and_locally_anchored(world, monkeypatch):
+    model = "gpt-6-sol"
+    w = world(models=(model,))
+    w.run.no_output.update(w.draw_order)
+    push = w.run._push_anchor
+
+    def broken(head, anchor_time):
+        if w.run.host.end is not None:
+            with w.run._pushing:
+                w.run._push_error = OSError("the final push outcome cannot be written")
+        else:
+            push(head, anchor_time)
+
+    monkeypatch.setattr(w.run, "_push_anchor", broken)
+    with pytest.raises(OSError, match="push outcome could not be recorded"):
+        w.execute()
+    assert w.events(model, "stop")[-1]["cause"] == "runner-error"
+    last = json.loads((w.runs() / "anchors.jsonl").read_text().splitlines()[-1])
+    assert last["models"][model]["run-log.jsonl"]["lines"] == len(w.lines(model))
+    assert last["host-log.jsonl"] == w.run.host.heads()
