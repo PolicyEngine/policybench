@@ -2421,6 +2421,21 @@ def test_export_refuses_a_verdict_that_opts_out_of_isolation(exporting, monkeypa
     case_id = "us__scenario_000__snap"
     cases = exporting.stage / "audit/cases"
     case = _provenance_case(cases, case_id, LANE_10, "xhigh")
+    wrong_models = ["incumbent-00", NEW]
+    write_verdict(case, _verdict(wrong_models), judge_account_declared=LANE_10)
+    (exporting.stage / "audit/cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": case_id,
+                "country": "us",
+                "scenario_id": "scenario_000",
+                "variable": "snap",
+                "wrong_models": wrong_models,
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
     record = driver.judge_provenance_record(cases, frozenset({case_id}))
     meta_path = case / "verdict.meta.json"
     meta = json.loads(meta_path.read_text())
