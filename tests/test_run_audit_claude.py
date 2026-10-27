@@ -324,13 +324,12 @@ def test_each_judge_runs_isolated_on_the_lanes_login(lane):
     result, calls = run()
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(calls) == 2
-    schema = (audit / "schema.json").read_text()
     for call in calls:
         argv = call["argv"]
         assert argv[0] == "-p"
         assert _flag(argv, "--model") == "claude-opus-5-5"
         assert _flag(argv, "--output-format") == "json"
-        assert _flag(argv, "--json-schema") == schema
+        _assert_case_schema(call, ["gpt-6.1-sol"])
         # Every built-in tool removed, and the dangerous ones denied by name.
         assert _flag(argv, "--tools") == ""
         denied = set(_flag(argv, "--disallowedTools").split(","))
@@ -1129,6 +1128,10 @@ def test_a_verdict_not_naming_exactly_the_cases_models_is_invalid(
     result, calls = run()
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(calls) == 2  # the run went on to the next case
+    if listed is None:
+        assert (
+            json.loads(_flag(calls[0]["argv"], "--json-schema")) == AUDIT_OUTPUT_SCHEMA
+        )
     bad, good = (audit / "cases" / name for name in CASES)
     assert f"[ok] {CASES[0]}" not in result.stdout
     assert f"[invalid] {CASES[0]} ({problem}" in result.stdout
@@ -1391,7 +1394,7 @@ def _judge_both(work: Path, events: list, prompt: bytes, monkeypatch):
     argv += [str(config), "{}", "", _runner_value("DISALLOWED")]
     argv += [_runner_value("ATTACHMENTS"), "xhigh", str(work / "judged")]
     argv += [sha(prompt), _runner_value("PROMPT_NUDGE"), _runner_value("EVENT_TYPES")]
-    argv += [str(RUNNER.parent)]
+    argv += [str(RUNNER.parent), json.dumps(AUDIT_OUTPUT_SCHEMA)]
     monkeypatch.setattr(sys, "argv", ["extract_verdict", *argv])
     try:
         with contextlib.redirect_stderr(io.StringIO()):
