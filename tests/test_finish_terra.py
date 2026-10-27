@@ -3094,3 +3094,270 @@ def test_check_prompt_changes_names_new_incumbent_only_cases(tmp_path, monkeypat
     assert driver.check_prompt_changes(root, {})["added"] == [case.name]
     with pytest.raises(SystemExit, match="seed cases vanished.*us__s9__snap"):
         driver.check_prompt_changes(root, {"us__s9__snap": "0" * 64})
+
+
+# --- Real preparation (prepare_inputs on a synthetic complete run) ---------------
+
+INCUMBENTS = ("incumbent-a", "incumbent-b")
+
+
+def _run_rows(reference, model=NEW, **changes) -> pd.DataFrame:
+    frame = reference[driver.KEY].copy()
+    frame.insert(0, "model", model)
+    frame["prediction"] = reference["value"].to_numpy()
+    frame["explanation"] = "Synthetic answer."
+    frame["error"] = None
+    frame["raw_response"] = '{"answer": 1}'
+    frame["live_calls"] = 1
+    frame["cache_hit_calls"] = 0
+    frame["live_elapsed_seconds"] = 1.5
+    frame["elapsed_seconds"] = 1.5
+    frame["estimated_cost_usd"] = 0.001
+    frame["total_tokens"] = 900
+    frame["provider_resolved_model"] = model
+    frame["provider_response_id"] = [f"resp_{i}" for i in range(len(frame))]
+    for column, value in changes.items():
+        frame[column] = value
+    return frame
+
+
+@pytest.fixture
+def full_run(tmp_path, monkeypatch):
+    """MOCK: a complete synthetic Terra run on every reference key of release
+    20261014's snapshot (read from git), two synthetic incumbents as the base,
+    and the treatment check recorded instead of run (the freeze tests run the
+    real one against the current card)."""
+    import freeze_gpt61sol
+
+    snapshot = base_references(tmp_path / "snapshot")
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    annotations = tmp_path / "annotations"
+    annotations.mkdir()
+    for name in driver.ANNOTATION_FILES:
+        (annotations / name).write_text(f"{name}\n")
+    monkeypatch.setattr(driver, "ANNOTATIONS", annotations)
+    monkeypatch.setattr(driver, "BOARD_MODELS", len(INCUMBENTS) + 1)
+    checked = []
+    monkeypatch.setattr(
+        freeze_gpt61sol,
+        "validate_treatment",
+        lambda freezer, state, path, scenarios: checked.append(
+            (state, path, scenarios)
+        ),
+    )
+    reference = pd.read_csv(snapshot / CSV_NAME)
+    base = pd.concat(
+        [
+            _run_rows(reference, model)[
+                ["model", *driver.KEY, "prediction", "explanation", "error"]
+            ]
+            for model in INCUMBENTS
+        ],
+        ignore_index=True,
+    )
+    root = tmp_path / "runs"
+    run_dir = root / SLUG / "run"
+    run_dir.mkdir(parents=True)
+    state = {
+        "model": NEW,
+        "completed": 100,
+        "total": 100,
+        "stopped_reason": None,
+        "treatment_fingerprint": {"model_id": "gpt-6.1-terra"},
+    }
+
+    def write(frame=None, **state_changes):
+        (frame if frame is not None else _run_rows(reference)).to_csv(
+            run_dir / "predictions.csv", index=False
+        )
+        driver.write_json(run_dir / "run_state.json", {**state, **state_changes})
+        return driver.discover_new_models(root)
+
+    def prepare(runs, partial=False):
+        args = SimpleNamespace(stage_dir=tmp_path / "stage", partial=partial)
+        return driver.prepare_inputs(args, runs, base, reference)
+
+    return SimpleNamespace(
+        reference=reference,
+        base=base,
+        write=write,
+        prepare=prepare,
+        stage=tmp_path / "stage",
+        checked=checked,
+        snapshot=snapshot,
+    )
+
+
+def test_real_preparation_folds_terra_onto_the_base(full_run):
+    runs = full_run.write()
+    bundle, frames = full_run.prepare(runs)
+    folded = pd.read_csv(bundle / "us/predictions.csv", low_memory=False)
+    assert sorted(set(folded.model)) == sorted([*INCUMBENTS, NEW])
+    assert (folded.model == NEW).sum() == driver.BASE_OUTPUTS
+    assert set(frames) == {NEW}
+    for name in driver.PINNED_INPUTS:
+        assert (full_run.stage / "inputs" / SLUG / name).read_bytes() == (
+            runs[0].run_dir / name
+        ).read_bytes()
+    for name in driver.REFERENCE_FILES:
+        assert (bundle / "us" / name).read_bytes() == (
+            full_run.snapshot / name
+        ).read_bytes()
+    provenance = json.loads((full_run.stage / "model-provenance.json").read_text())
+    assert provenance[NEW]["households"] == 100
+    assert provenance[NEW]["provider_resolved_models"] == [NEW]
+    assert [state for state, *_ in full_run.checked] == [runs[0].state]
+
+
+def _drop_household(reference, scenario="scenario_000"):
+    return _run_rows(reference[reference.scenario_id != scenario])
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("state_total_disagrees", "state/CSV household mismatch"),
+        ("household_missing", "full release requires 100 households"),
+        ("unknown_household", "unknown households"),
+        ("output_missing", "prediction keys differ"),
+        ("output_duplicated", "duplicate prediction keys"),
+        ("another_models_rows", "unexpected model rows"),
+    ],
+)
+def test_real_preparation_needs_every_household_and_output(full_run, defect, message):
+    reference = full_run.reference
+    frame, state = _run_rows(reference), {}
+    if defect == "state_total_disagrees":
+        frame, state = _drop_household(reference), {"total": 100, "completed": 100}
+    elif defect == "household_missing":
+        frame, state = _drop_household(reference), {"total": 99, "completed": 99}
+    elif defect == "unknown_household":
+        frame.loc[frame.scenario_id == "scenario_000", "scenario_id"] = "scenario_x"
+    elif defect == "output_missing":
+        frame = frame.drop(index=frame.index[0])
+    elif defect == "output_duplicated":
+        frame = pd.concat([frame, frame.iloc[:1]], ignore_index=True)
+    else:
+        frame.loc[frame.index[0], "model"] = "gpt-6.1-sol"
+    runs = full_run.write(frame, **state)
+    with pytest.raises(SystemExit, match=message):
+        full_run.prepare(runs)
+    assert not (full_run.stage / "publish").exists()
+
+
+@pytest.mark.parametrize(
+    "state, message",
+    [
+        ({"synthetic_partial": True}, "synthetic run state is partial only"),
+        ({"treatment_fingerprint": None}, "missing/mismatched treatment fingerprint"),
+        ({"treatment_fingerprint": "gpt-6.1-terra"}, "treatment fingerprint"),
+        (
+            {"treatment_fingerprint": {"model_id": "gpt-6.1-sol"}},
+            "missing/mismatched treatment fingerprint",
+        ),
+    ],
+)
+def test_real_preparation_refuses_a_synthetic_or_other_treatment(
+    full_run, state, message
+):
+    runs = full_run.write(**state)
+    with pytest.raises(SystemExit, match=message):
+        full_run.prepare(runs)
+    assert not full_run.checked
+
+
+def test_real_preparation_stops_when_the_treatment_check_fails(full_run, monkeypatch):
+    import freeze_gpt61sol
+
+    def refuse(*args):
+        raise SystemExit("treatment differs from the registered card")
+
+    monkeypatch.setattr(freeze_gpt61sol, "validate_treatment", refuse)
+    with pytest.raises(SystemExit, match="registered card"):
+        full_run.prepare(full_run.write())
+    assert not (full_run.stage / "publish").exists()
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"provider_resolved_model": "gpt-6.1-sol"}, "unexpected provider-resolved"),
+        ({"provider_resolved_model": "openai/gpt-6.1-terra"}, "provider-resolved"),
+        ({"provider_resolved_model": None}, "missing provider_resolved_model"),
+        ({"provider_response_id": None}, "missing provider_response_id"),
+        ({"live_calls": -1}, "invalid call provenance"),
+        ({"live_elapsed_seconds": 9.0}, "inconsistent call provenance"),
+        ({"estimated_cost_usd": -0.5}, "invalid estimated_cost_usd"),
+        ({"total_tokens": float("inf")}, "invalid total_tokens"),
+    ],
+)
+def test_real_preparation_checks_provider_identity_and_disclosures(
+    full_run, changes, message
+):
+    frame = _run_rows(full_run.reference, **changes)
+    with pytest.raises(SystemExit, match=message):
+        full_run.prepare(full_run.write(frame))
+
+
+@pytest.mark.parametrize(
+    "column", ["provider_resolved_model", "provider_response_id", "total_tokens"]
+)
+def test_real_preparation_needs_the_identity_and_usage_columns(full_run, column):
+    frame = _run_rows(full_run.reference).drop(columns=[column])
+    with pytest.raises(SystemExit, match=f"missing {column}"):
+        full_run.prepare(full_run.write(frame))
+
+
+@pytest.mark.parametrize("table", ["MODELS", "PRICE_OVERRIDES_PER_1M"])
+def test_real_preparation_needs_terras_registration_and_pricing(
+    full_run, monkeypatch, table
+):
+    import policybench.config as config
+
+    entries = dict(getattr(config, table))
+    del entries[NEW]
+    monkeypatch.setattr(config, table, entries)
+    with pytest.raises(SystemExit, match="missing model registration/pricing"):
+        full_run.prepare(full_run.write())
+
+
+def test_a_stale_by_model_folder_cannot_shadow_the_combined_predictions(full_run):
+    runs = full_run.write()
+    (full_run.stage / "publish" / driver.RUN_NAME / "us" / "by_model").mkdir(
+        parents=True
+    )
+    with pytest.raises(SystemExit, match="by_model would shadow"):
+        full_run.prepare(runs)
+
+
+def test_a_fold_short_of_the_board_is_refused(full_run, monkeypatch):
+    monkeypatch.setattr(driver, "BOARD_MODELS", driver.BOARD_MODELS + 1)
+    with pytest.raises(SystemExit, match="fold refused additions"):
+        full_run.prepare(full_run.write())
+
+
+@pytest.mark.parametrize("name", driver.REFERENCE_FILES)
+def test_real_preparation_refuses_a_snapshot_off_the_base_pins(full_run, name):
+    path = full_run.snapshot / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(SystemExit, match=f"staged reference {name} does not match"):
+        full_run.prepare(full_run.write())
+
+
+def test_a_partial_rehearsal_scores_only_the_shared_households(full_run):
+    """--partial admits an unfinished cohort, rewrites the scoring references
+    to its households and marks them partial; a full release cannot."""
+    reference = full_run.reference
+    kept = sorted(set(reference.scenario_id))[:40]
+    frame = _run_rows(reference[reference.scenario_id.isin(kept)])
+    runs = full_run.write(frame, total=40, completed=40, synthetic_partial=True)
+    full_run.prepare(runs, partial=True)
+    meta = json.loads(
+        (full_run.stage / "scoring" / "reference_outputs.csv.meta.json").read_text()
+    )
+    assert meta["partial"] is True
+    scored = pd.read_csv(full_run.stage / "scoring" / CSV_NAME)
+    assert set(scored.scenario_id) == set(kept)
+    assert not full_run.checked
+    with pytest.raises(SystemExit, match="full release requires 100 households"):
+        full_run.prepare(full_run.write(frame, total=40, completed=40))
