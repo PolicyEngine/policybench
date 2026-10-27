@@ -551,8 +551,9 @@ class Stage:
                     previous[sig] = signal.signal(sig, interrupt)
             return self._execute()
         except BaseException:
-            with self._admission_lock:
-                self.interrupted.set()
+            # The main thread must remain outside admission here: a first signal
+            # can interrupt cleanup and its handler must take that same lock.
+            self.interrupted.set()
             for thread in self._threads:
                 if thread.ident is not None:
                     thread.join()
