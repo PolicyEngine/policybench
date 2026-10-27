@@ -291,6 +291,42 @@ def test_base_payload_loader_checks_synthetic_committed_blob(
         driver.base_payload_from_commit()
 
 
+@pytest.mark.parametrize("prediction, flag", [("0", True), ("", False)])
+def test_parse_failure_flags_are_derived_from_numeric_predictions(
+    tmp_path, prediction, flag
+):
+    stage = tmp_path / "stage"
+    us = stage / "publish" / driver.RUN_NAME / "us"
+    us.mkdir(parents=True)
+    (us / "reference_outputs.csv").write_text(
+        "scenario_id,variable,value\ns1,free_school_meals_eligible,1\n"
+    )
+    (us / "predictions.csv").write_text(
+        f"model,scenario_id,variable,prediction\n{NEW},s1,free_school_meals_eligible,{prediction}\n"
+    )
+    audit = stage / "audit"
+    audit.mkdir()
+    item = {
+        "case_id": "us__s1__free_school_meals_eligible",
+        "scenario_id": "s1",
+        "variable": "free_school_meals_eligible",
+        "wrong_models": [NEW],
+        "parse_failure_only": flag,
+    }
+    (audit / "cases.jsonl").write_text(json.dumps(item) + "\n")
+    before = {
+        p.relative_to(stage): p.read_bytes() for p in stage.rglob("*") if p.is_file()
+    }
+    with pytest.raises(SystemExit, match="parse_failure_only disagrees"):
+        driver.verify_parse_failure_flags(stage)
+    assert {
+        p.relative_to(stage): p.read_bytes() for p in stage.rglob("*") if p.is_file()
+    } == before
+    item["parse_failure_only"] = not flag
+    (audit / "cases.jsonl").write_text(json.dumps(item) + "\n")
+    driver.verify_parse_failure_flags(stage)
+
+
 @pytest.fixture
 def predictions():
     return pd.DataFrame(
@@ -4164,7 +4200,7 @@ def exporting(tmp_path, monkeypatch, scope, committed_build):
     annotations = bundle / "annotations"
     annotations.mkdir()
     for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
-        (annotations / name).write_text("country\n")
+        (annotations / name).write_text("country,scenario_id,variable,model,failure_source,failure_subtype,annotation\n")
     (annotations / driver.ADJUDICATIONS).write_text('{"adjudications": []}\n')
     shutil.copyfile(
         committed_build.explanations, annotations / driver.EXPLANATIONS_NAME
@@ -4223,6 +4259,9 @@ def exporting(tmp_path, monkeypatch, scope, committed_build):
     monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
     # Before the freeze: the pointer names release 20261014.
     monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.BASE_TAG})
+
+    (stage / "audit").mkdir()
+    (stage / "audit/cases.jsonl").write_text("")
 
     def run(previous=None, *, partial=False, early=False):
         args = SimpleNamespace(stage_dir=stage, partial=partial, early=early)

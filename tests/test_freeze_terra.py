@@ -1927,7 +1927,7 @@ def _h_export(h_stage):
     receipt["repository_inputs"] = driver.repository_input_hashes(h_stage.workspace)
     driver.write_json(stage / "release-ready.json", receipt)
 
-def _h_rejudge(h_stage, monkeypatch, *, new_case=False):
+def _h_rejudge(h_stage, monkeypatch, *, new_case=False, adjudicated=True):
     """Re-open a synthetic case and affirm its flagged reference through triage."""
     from policybench.judge_template import template_header
 
@@ -1968,7 +1968,7 @@ def _h_rejudge(h_stage, monkeypatch, *, new_case=False):
         f"\nClassify both synthetic wrong answers on {case_id}.\n"
     )
     (case / "prompt.md").write_text(prompt)
-    verdict = _h_verdict("llm_error", "thresholds_rates", True)
+    verdict = _h_verdict("llm_error", "thresholds_rates", adjudicated)
     verdict["models"].append({**verdict["models"][0], "model": H_TERRA})
     driver.write_json(case / "verdict.json", verdict)
     driver.write_json(
@@ -2020,22 +2020,25 @@ def _h_rejudge(h_stage, monkeypatch, *, new_case=False):
         "".join(json.dumps(event) + "\n" for event in events)
     )
     spec = driver.load_spec()
-    spec.update(
-        triage_decided_on="2026-10-24",
-        triage_adjudications_written_on="2026-10-24",
-        triage_adjudications=[
-            {
-                "scenario_id": scenario,
-                "variable": variable,
-                "adjudicated_failure_source": "llm_error",
-                "adjudicated_failure_subtype": "thresholds_rates",
-                "adjudicated_on": "2026-10-24",
-                "reference_verdict": "affirmed",
-                "reference_basis": "The synthetic reference follows the stated rule.",
-                "reasoning": "The synthetic models used an outdated threshold.",
-            }
-        ],
-    )
+    if adjudicated:
+        spec.update(
+            triage_decided_on="2026-10-24",
+            triage_adjudications_written_on="2026-10-24",
+            triage_adjudications=[
+                {
+                    "scenario_id": scenario,
+                    "variable": variable,
+                    "adjudicated_failure_source": "llm_error",
+                    "adjudicated_failure_subtype": "thresholds_rates",
+                    "adjudicated_on": "2026-10-24",
+                    "reference_verdict": "affirmed",
+                    "reference_basis": (
+                        "The synthetic reference follows the stated rule."
+                    ),
+                    "reasoning": "The synthetic models used an outdated threshold.",
+                }
+            ],
+        )
     spec_path = h_stage.workspace / "docs/terra/spec.json"
     driver.write_json(spec_path, spec)
     monkeypatch.setattr(driver, "SPEC_PATH", spec_path)
@@ -3221,3 +3224,67 @@ def test_freeze_refuses_a_rebound_shadow_without_touching_stage(h_stage, bound):
         receipt["files"][str(shadow.relative_to(h_stage.stage))] = sha(shadow)
         write_json(receipt_path, receipt)
     _h_refused(h_stage, "by_model would shadow")
+
+
+@pytest.mark.parametrize("numeric", [True, False])
+def test_rebound_parse_flag_is_refused_at_export_and_freeze(
+    h_stage, monkeypatch, numeric
+):
+    from policybench.adjudications import apply_adjudications
+    from policybench.audit import collect_audit
+
+    case_id = _h_rejudge(h_stage, monkeypatch, new_case=True, adjudicated=False)
+    stage = h_stage.stage
+    audit = stage / "audit"
+    items = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    item = next(row for row in items if row["case_id"] == case_id)
+    item["parse_failure_only"] = numeric
+    if numeric:
+        changes = _h_json(stage / driver.PROMPT_CHANGES)
+        changes["added"].remove(case_id)
+        write_json(stage / driver.PROMPT_CHANGES, changes)
+        record = driver.judge_provenance_record(audit / "cases", frozenset())
+        driver.write_json(driver.JUDGE_PROVENANCE, record)
+        for name in ("verdict.json", "verdict.meta.json", "claude.transcript.jsonl"):
+            (audit / "cases" / case_id / name).unlink()
+    else:
+        _, scenario, variable = case_id.split("__")
+        for path in (
+            stage / "inputs" / H_SLUG / "predictions.csv",
+            stage / BUNDLE / "us/predictions.csv",
+        ):
+            with path.open(newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            for row in rows:
+                if row["scenario_id"] == scenario and row["variable"] == variable:
+                    row["prediction"] = ""
+            path.write_text(_h_csv([H_COLUMNS, *[list(row.values()) for row in rows]]))
+    (audit / "cases.jsonl").write_text("".join(json.dumps(row) + "\n" for row in items))
+    out = collect_audit(stage / BUNDLE / "us", audit)
+    annotations = stage / BUNDLE / "annotations"
+    adjudications = freezer.load_adjudications(annotations / driver.ADJUDICATIONS)
+    cases = out["case"].rename(
+        columns={
+            "case_failure_source": "case_failure_sources",
+            "case_failure_subtype": "case_failure_subtypes",
+        }
+    )
+    rows, cases, _ = apply_adjudications(out["row"], cases, adjudications)
+    driver.amend_annotations(rows, cases, [])
+    (annotations / H_ROWS).write_text(driver.annotation_csv_text(rows))
+    (annotations / H_NOTES).write_text(driver.annotation_csv_text(cases))
+    h_stage.rebind(repin=True)
+    # Regenerate the synthetic exporter's payload and bind the current annotations.
+    payload = driver.build_payload(
+        stage / BUNDLE, copy.deepcopy(h_stage.board.live), upgrade=h_stage.upgrade
+    )
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind()
+    before = h_stage.files()
+    args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+    with pytest.raises(SystemExit, match="parse_failure_only disagrees"):
+        driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
+    assert h_stage.files() == before
+    _h_refused(h_stage, "parse_failure_only disagrees")

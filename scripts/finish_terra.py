@@ -2446,6 +2446,7 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
     from the staged files against release 20261014's in git). The staged
     predictions must agree (verify_reopened_by_predictions).
     """
+    evidence = verify_parse_failure_flags(stage)
     derived = check_prompt_changes(
         stage / "audit",
         {case: item["prompt_sha256"] for case, item in seed.items()},
@@ -2464,10 +2465,43 @@ def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
         f"{PROMPT_CHANGES} disagrees with the stage's prompts and the bound "
         f"seed on {len(differ)} cases: {differ[:8]}",
     )
-    verify_reopened_by_predictions(stage, derived)
+    verify_reopened_by_predictions(stage, derived, evidence=evidence)
 
 
-def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> None:
+def verify_parse_failure_flags(stage: Path):
+    """A parse-only case has no numeric prediction among its actual wrong rows."""
+    import pandas as pd
+
+    from policybench.audit import _case_id, _load_manifest
+    from policybench.case_annotations import wrong_prediction_rows
+
+    us = stage / "publish" / RUN_NAME / "us"
+    require_combined_predictions(us.parent)
+    wrong = wrong_prediction_rows(us)
+    manifest = _load_manifest(stage / "audit")
+    parse_only = {
+        _case_id(us.name, str(scenario), str(variable)): bool(
+            pd.to_numeric(rows["prediction"], errors="coerce").isna().all()
+        )
+        for (scenario, variable), rows in wrong.groupby(KEY, sort=False)
+    }
+    differ = [
+        case
+        for case, row in manifest.items()
+        if case not in parse_only
+        or row.get("parse_failure_only") is not parse_only[case]
+    ]
+    require(
+        not differ,
+        "audit parse_failure_only disagrees with staged predictions: "
+        f"{sorted(differ)[:8]}",
+    )
+    return wrong, manifest
+
+
+def verify_reopened_by_predictions(
+    stage: Path, derived: dict[str, list], *, evidence: tuple | None = None
+) -> None:
     """The manifest's claim that a new model re-opened a case must hold.
 
     cases.jsonl is editable, so re-score the staged predictions against the
@@ -2480,13 +2514,12 @@ def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> Non
     upgrade re-opened without the new model (its prediction right on the new
     reference) passes, and one the upgrade made it miss must list it.
     """
-    from policybench.audit import _case_id, _load_manifest
-    from policybench.case_annotations import wrong_prediction_rows
+    from policybench.audit import _case_id
 
     us = stage / "publish" / RUN_NAME / "us"
-    require_combined_predictions(us.parent)
-    wrong = wrong_prediction_rows(us)
-    manifest = _load_manifest(stage / "audit")
+    wrong, manifest = (
+        verify_parse_failure_flags(stage) if evidence is None else evidence
+    )
     reopened = {*derived["changed"], *derived["added"]}
     parse_only = {case for case, row in manifest.items() if row["parse_failure_only"]}
     differ = set()
@@ -3614,6 +3647,7 @@ def export(args, bundle, live) -> dict:
         )
         verify_reference_pins(bundle / "us", "staged reference", pins=pins)
     if not args.early:
+        verify_parse_failure_flags(args.stage_dir)
         verify_new_model_inputs(args.stage_dir)
         verify_judge_provenance(
             args.stage_dir / "audit" / "cases",
