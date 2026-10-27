@@ -147,11 +147,7 @@ parts = [
 ]
 parts += [{{"type": fake["part_type"], "name": name, "input": {{}}}}
           for name in fake["tools"]]
-# The judge's answer: the verdict, unless the fake answers otherwise.
-answer = verdict if fake["answer"] is None else fake["answer"]
-parts.append({{"type": "tool_use", "id": "toolu_answer", "name": "StructuredOutput",
-               "input": answer}})
-for part in parts:
+def assistant(part):
     turn = {{"type": "assistant", "message": {{"role": "assistant",
                                               "content": [part]}},
              "effort": fake["turn_effort"] or effort}}
@@ -159,14 +155,38 @@ for part in parts:
         del turn["effort"]
     if fake["advisor"]:
         turn["advisorModel"] = fake["advisor"]
-    events.append(turn)
-events += [
-    {{"type": "attachment", "attachment": {{"type": "structured_output",
-                                           "data": verdict}}}},
-    {{"type": "user", "message": {{"role": "user", "content": [
-        {{"type": "tool_result", "tool_use_id": "toolu_answer",
-          "content": "Structured output provided successfully"}}]}}}},
-]
+    return turn
+
+events += [assistant(part) for part in parts]
+# Opt in to the CLI's schema enforcement for retry tests. The default lets
+# isolation tests inject malformed answers and envelopes into the extractor.
+validator = None
+attempts = fake["structured_attempts"]
+if attempts is None:
+    attempts = [verdict if fake["answer"] is None else fake["answer"]]
+else:
+    import jsonschema
+    schema = json.loads(args[args.index("--json-schema") + 1])
+    validator = jsonschema.Draft202012Validator(schema)
+accepted = False
+for index, answer in enumerate(attempts):
+    call_id = "toolu_answer" if validator is None else f"toolu_attempt_{{index}}"
+    events.append(assistant({{"type": "tool_use", "id": call_id,
+                             "name": "StructuredOutput", "input": answer}}))
+    errors = [] if validator is None else [
+        error.message for error in validator.iter_errors(answer)]
+    events.append({{"type": "user", "message": {{"role": "user", "content": [
+        {{"type": "tool_result", "tool_use_id": call_id, "is_error": bool(errors),
+          "content": "; ".join(errors) if errors else
+                     "Structured output provided successfully"}}]}}}})
+    if errors:
+        continue
+    if validator is not None:
+        verdict = answer
+    events.append({{"type": "attachment", "attachment": {{
+        "type": "structured_output", "data": verdict}}}})
+    accepted = True
+    break
 events += fake["events"]
 lines = "".join(json.dumps(e) + "\\n" for e in events)
 if fake["bad_line"]:
@@ -177,6 +197,7 @@ for copy in range(fake["transcripts"]):
     transcript.parent.mkdir(parents=True, exist_ok=True)
     transcript.write_text(lines)
 print(json.dumps({{
+    "is_error": not accepted,
     "structured_output": verdict,
     "modelUsage": {{"claude-opus-5-5": {{}}}},
     "session_id": session,
@@ -232,6 +253,10 @@ def lane(tmp_path):
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "HOME": str(home),
         "TMPDIR": str(scratch),
+        # A workspace-local pytest basetemp may have an enclosing checkout.
+        # Still detect repositories created below tmp_path; never forward
+        # this fixture setting to the judge's allowlisted environment.
+        "GIT_CEILING_DIRECTORIES": str(tmp_path),
         "AUDIT_PYTHON": sys.executable,
         "AUDIT_PARALLEL": "1",
         "AUDIT_MODEL": "claude-opus-5-5",
@@ -267,6 +292,7 @@ def lane(tmp_path):
         "rewrite": [],
         "snapshot": {},
         "answer": None,
+        "structured_attempts": None,
         "events": [],
     }
 
@@ -970,6 +996,111 @@ def test_a_login_that_puts_account_context_in_the_judge_stops_the_run(lane, fake
     log = (audit / "cases" / CASES[0] / "claude.log").read_text()
     assert "it puts account context in every judge's context" in log
     assert not list(audit.rglob("verdict.json"))
+
+
+def _verdict_for_models(models: list[str]) -> dict:
+    return {
+        **VERDICT,
+        "models": [{**VERDICT["models"][0], "model": model} for model in models],
+    }
+
+
+def _assert_case_schema(call: dict, models: list[str]) -> None:
+    schema = json.loads(_flag(call["argv"], "--json-schema"))
+    expected = json.loads(json.dumps(AUDIT_OUTPUT_SCHEMA))
+    array = expected["properties"]["models"]
+    array["minItems"] = array["maxItems"] = len(models)
+    array["items"]["properties"]["model"]["enum"] = models
+    assert schema == expected
+
+
+def test_each_judge_receives_its_cases_model_bounds_and_enum(lane):
+    audit, _, _, run = lane
+    listed = [["gpt-6.1-sol", "deepseek-v4.1-flash"], ["gpt-6.1-sol"]]
+    write_manifest(audit, dict(zip(CASES, listed)))
+    result, calls = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 2
+    for call, models in zip(calls, listed):
+        _assert_case_schema(call, models)
+    # The shared schema still governs extraction and the resumable verdicts.
+    assert json.loads((audit / "schema.json").read_text()) == AUDIT_OUTPUT_SCHEMA
+
+
+@pytest.mark.parametrize(
+    "first_models",
+    [["gpt-6.1-sol"], ["inkling", "gpt-6.1-sol"]],
+    ids=["omitted-model", "unlisted-model"],
+)
+def test_the_case_schema_refuses_an_answer_then_publishes_the_retry(lane, first_models):
+    audit, _, scratch, run = lane
+    models = ["gpt-6.1-sol", "deepseek-v4.1-flash"]
+    write_manifest(audit, {CASES[0]: models, CASES[1]: ["gpt-6.1-sol"]})
+    first, complete = map(_verdict_for_models, [first_models, models])
+    result, calls = run({"AUDIT_ONLY": CASES[0]}, structured_attempts=[first, complete])
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 1  # The retry happens within the same judge session.
+    case = audit / "cases" / CASES[0]
+    assert f"[ok] {CASES[0]}" in result.stdout
+    assert json.loads((case / "verdict.json").read_text()) == complete
+    events = [
+        json.loads(line)
+        for line in (case / "claude.transcript.jsonl").read_text().splitlines()
+    ]
+    attempts = [
+        part
+        for event in events
+        if event["type"] == "assistant"
+        for part in event["message"]["content"]
+        if part["type"] == "tool_use"
+    ]
+    assert [part["input"] for part in attempts] == [first, complete]
+    results = [
+        part
+        for event in events
+        if event["type"] == "user" and isinstance(event["message"]["content"], list)
+        for part in event["message"]["content"]
+    ]
+    assert [(part["tool_use_id"], part["is_error"]) for part in results] == [
+        ("toolu_attempt_0", True),
+        ("toolu_attempt_1", False),
+    ]
+    assert (
+        driver.transcript_problems(
+            case / "claude.transcript.jsonl",
+            "xhigh",
+            (case / "prompt.md").read_bytes(),
+            complete,
+        )
+        == []
+    )
+    _assert_case_schema(calls[0], models)
+    assert list(scratch.iterdir()) == []
+
+
+def test_the_case_schema_allows_exactly_one_listed_model(lane):
+    audit, _, _, run = lane
+    result, calls = run(
+        {"AUDIT_ONLY": CASES[0]}, structured_attempts=[_verdict_for_models([]), VERDICT]
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 1
+    _assert_case_schema(calls[0], ["gpt-6.1-sol"])
+    assert (
+        json.loads((audit / "cases" / CASES[0] / "verdict.json").read_text()) == VERDICT
+    )
+
+
+def test_the_sidecar_hashes_the_exact_schema_argument(lane):
+    audit, _, _, run = lane
+    result, calls = run()
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(calls) == 2
+    for name, call in zip(CASES, calls):
+        meta = json.loads((audit / "cases" / name / "verdict.meta.json").read_text())
+        assert meta["judge_schema_sha256"] == sha(
+            _flag(call["argv"], "--json-schema").encode("utf-8")
+        )
 
 
 @pytest.mark.parametrize(
