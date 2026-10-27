@@ -24,6 +24,8 @@ The seed is `/Users/maxghenis/reviews/policybench-gemini-4-argon/worktree-result
 
 Argon's driver supplies the folding, seed binding, adjudication record gates, `judge_ever_flagged` handling, judge transcript and provenance validation, and template v2 for every new or re-opened case. Carried verdicts keep the template version recorded in their sidecars and their exact seed bytes. `MODELS` contains only `{"terra": "gpt-6.1-terra"}`. `RELEASE_TAG` has one definition in the driver; the spec must agree with it. The lead may change that constant and the matching spec field at freeze time.
 
+Two judge gates are stricter than Argon's. Every verdict that is not carried over from the seed must record `claude-opus-5-5` as the judge requested and the only one reported, `scripts/run_audit_claude.sh` as its runner (the runner the judge step runs) and an ISO 8601 `judged_at_utc` in UTC, whichever models its case lists: a case the installed build re-opened can list incumbents alone. The judge provenance record's note is generated from its entries (`provenance_note`). It tallies the judge model each sidecar reports, the effort and judge template each records and whether each judge ran isolated, and it states no login, schedule or retry history beyond what the entries and their group counts record. Export and the freeze refuse a record whose note differs from the generated one.
+
 Muse Wonder's driver supplies the installed-build gates and copying, with the build read from its committed audit directory. The directory and pins share one driver table, so repointing a later audit is reviewable. The driver's install step accepts exactly that build. It checks the sidecar against the base plus one engine-upgrade revision, the reviewed actions against their own provenance hash, the builder and inherited module pins, every changed reference, every retained exclusion and the reference narratives. The audit's UTC revision day is 2026-10-23; its directory name records when the audit began.
 
 | Installed input | SHA256 |
@@ -101,7 +103,7 @@ The judge command requires the authorized `CLAUDE_CODE_OAUTH_TOKEN` and `AUDIT_A
 "$PB_PY" scripts/finish_terra.py --step provenance --stage-dir "$PB_STAGE"
 ```
 
-Commit the checked `docs/terra/judge_provenance.json` and any spec changes before export. Fill the result placeholders below and update the paper's release prose before rendering.
+Commit the checked `docs/terra/judge_provenance.json`, its generated note unedited, and any spec changes before export. Fill the result placeholders below and update the paper's release prose before rendering.
 
 ```bash
 "$PB_PY" scripts/finish_terra.py --step export --stage-dir "$PB_STAGE"

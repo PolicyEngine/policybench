@@ -12,10 +12,14 @@ import copy
 import csv
 import functools
 import hashlib
+import inspect
 import json
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -616,17 +620,17 @@ def test_a_recorded_terra_zero_cost_stays_zero():
     assert usage[NEW]["costPerHousehold"] == 0.0
 
 
-def _verdict(models):
+def _verdict(models, source="llm_error"):
     return {
         "reference_suspect": False,
         "reference_bug_hypothesis": "",
-        "case_failure_source": "llm_error",
+        "case_failure_source": source,
         "case_failure_subtype": "thresholds_rates",
         "rationale": "The models applied an outdated threshold.",
         "models": [
             {
                 "model": m,
-                "failure_source": "llm_error",
+                "failure_source": source,
                 "failure_subtype": "thresholds_rates",
                 "diagnosis": "The model used the prior year's threshold.",
             }
@@ -644,7 +648,9 @@ def write_verdict(case, verdict, **meta):
             k: v
             for k, v in {
                 "verdict_sha256": sha(path),
-                "prompt_sha256": sha(case / "prompt.md"),
+                "prompt_sha256": (
+                    sha(case / "prompt.md") if (case / "prompt.md").is_file() else None
+                ),
                 "judge_runner": "scripts/run_audit_claude.sh",
                 "judge_model_requested": driver.JUDGE_MODEL,
                 "judge_model_reported": [driver.JUDGE_MODEL],
@@ -1456,3 +1462,848 @@ def test_the_new_release_tag_occurs_once_in_the_drivers():
     source = (REPO / "scripts/finish_terra.py").read_text()
     assert source.count(driver.RELEASE_TAG) == 1
     assert driver.RELEASE_TAG not in (REPO / "scripts/freeze_terra.py").read_text()
+
+
+# --- Judge provenance and transcripts (ported from test_finish_argon.py) ---------
+
+ISOLATED = "us__scenario_001__snap"
+UNHARDENED = "us__scenario_002__snap"
+# The prompt an isolated judge's transcript shows, and its case's prompt.md.
+JUDGED = "Classify these wrong answers.\n"
+
+
+def _event(kind, **fields):
+    return {"type": kind, **fields}
+
+
+def _attachment(kind, **fields):
+    return _event("attachment", attachment={"type": kind, **fields})
+
+
+def _call(name, call_id, answer=None, effort="xhigh"):
+    content = [{"type": "tool_use", "id": call_id, "name": name, "input": answer or {}}]
+    return _event("assistant", effort=effort, message={"content": content})
+
+
+def _result(call_id, error=False):
+    part = {"type": "tool_result", "tool_use_id": call_id, "content": "done"}
+    if error:
+        part["is_error"] = True
+    return _event("user", message={"content": [part]})
+
+
+def _clean_transcript(effort="xhigh", prompt=JUDGED, models=(NEW,)):
+    """An isolated judge's transcript, shaped like the runner's real ones: its
+    one accepted StructuredOutput call answers the verdict the provenance
+    fixture writes, every assistant turn at ``effort``."""
+    return [
+        _event("user", message={"content": prompt}),
+        _attachment("environment", snapshot={"isGitRepo": False}),
+        _attachment("model"),
+        _attachment("session_context", context={}),
+        _attachment("date"),
+        _attachment("prompt_snapshot"),
+        _event("assistant", effort=effort, message={"content": [{"type": "text"}]}),
+        _call("StructuredOutput", "call-1", _verdict(list(models)), effort=effort),
+        _attachment("structured_output"),
+        _result("call-1"),
+    ]
+
+
+def _write_transcript(case, events):
+    (case / "claude.transcript.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
+
+
+# An isolated judge's sidecar fields: a token login on a lane whose account
+# it declares, which the public record withholds.
+ISOLATED_SIDECAR = {
+    "judge_effort": "xhigh",
+    "judge_isolation": {"tools": "none (--tools '')"},
+    "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+    "judge_account_declared": "claude:lane@example.org (pb-judge)",
+}
+WITHHELD = "<account withheld>"
+
+
+def _record_entry(case: Path, group: str) -> dict:
+    """The entry a true record gives a staged verdict: its hashes, its group
+    and isolation, and its sidecar's fields with addresses withheld."""
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    return {
+        "case_id": case.name,
+        "group": group,
+        "isolated": "judge_isolation" in meta,
+        "judge_account_declared": (
+            meta["judge_account_declared"].replace("lane@example.org", WITHHELD)
+            if "judge_account_declared" in meta
+            else None
+        ),
+        "judge_effort": meta.get("judge_effort"),
+        "judge_model_reported": meta["judge_model_reported"],
+        "judged_at_utc": meta["judged_at_utc"],
+        "judge_template_version": meta.get("judge_template_version"),
+        "verdict_sha256": driver.digest(case / "verdict.json"),
+        "prompt_sha256": driver.digest(case / "prompt.md"),
+    }
+
+
+def _provenance_record(entries: list[dict], note: str | None = None):
+    """A record of ``entries``; its note is the one they give unless ``note``."""
+    counts: dict[str, int] = {}
+    for entry in entries:
+        counts[entry["group"]] = counts.get(entry["group"], 0) + 1
+    if note is None:
+        note = driver.provenance_note(entries)
+    return {"note": note, "counts": counts, "verdicts": entries}
+
+
+GROUPS = {ISOLATED: "isolated: pb-judge", UNHARDENED: "unhardened: in-repo runner"}
+
+
+@pytest.fixture
+def provenance(tmp_path):
+    """Two new verdicts, one isolated and one not, and a true record of both."""
+    cases = tmp_path / "audit/cases"
+    entries = []
+    for name, isolated in ((ISOLATED, True), (UNHARDENED, False)):
+        case = cases / name
+        case.mkdir(parents=True)
+        (case / "prompt.md").write_text(JUDGED)
+        write_verdict(case, _verdict([NEW]), **(ISOLATED_SIDECAR if isolated else {}))
+        _write_transcript(case, _clean_transcript())
+        entries.append(_record_entry(case, GROUPS[name]))
+    record = tmp_path / "judge_provenance.json"
+
+    def verify(edit=lambda entries: None, edit_record=lambda record: None):
+        edited = copy.deepcopy(entries)
+        edit(edited)
+        written = _provenance_record(edited)
+        edit_record(written)
+        record.write_text(json.dumps(written))
+        driver.verify_judge_provenance(cases, frozenset({ISOLATED, UNHARDENED}), record)
+
+    return cases, verify
+
+
+def test_the_judge_provenance_record_describes_the_staged_verdicts(provenance):
+    _, verify = provenance
+    verify()
+
+
+def test_the_runners_attachment_allowlist_is_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    line = next(line for line in script.splitlines() if line.startswith("ATTACHMENTS="))
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_ATTACHMENTS
+
+
+@pytest.mark.parametrize("case", [ISOLATED, UNHARDENED])
+def test_a_verdict_whose_isolation_disagrees_with_the_record_is_refused(
+    provenance, case
+):
+    _, verify = provenance
+
+    def flip(entries):
+        entry = next(e for e in entries if e["case_id"] == case)
+        entry["isolated"] = not entry["isolated"]
+
+    with pytest.raises(SystemExit, match=f"{case}: the record says isolated"):
+        verify(flip)
+
+
+def test_a_sidecar_that_drops_its_isolation_disagrees_with_the_record(provenance):
+    cases, verify = provenance
+    case = cases / ISOLATED
+    meta = json.loads((case / "verdict.meta.json").read_text())
+    del meta["judge_isolation"]
+    (case / "verdict.meta.json").write_text(json.dumps(meta))
+    with pytest.raises(SystemExit, match="sidecar lacks judge_isolation"):
+        verify()
+
+
+@pytest.mark.parametrize(
+    "edit, problem",
+    [
+        (lambda e: e.pop(), "does not list each re-opened case once"),
+        (lambda e: e.append(dict(e[0])), "does not list each re-opened case once"),
+        (lambda e: e[0].update(verdict_sha256="0" * 64), "names another verdict"),
+        (lambda e: e[1].update(prompt_sha256="0" * 64), "names another prompt"),
+    ],
+)
+def test_the_record_must_list_each_staged_new_verdict_once(provenance, edit, problem):
+    _, verify = provenance
+    with pytest.raises(SystemExit, match=problem):
+        verify(edit)
+
+
+def _entry(case):
+    return lambda entries: next(e for e in entries if e["case_id"] == case)
+
+
+# Each sidecar field the record copies, rewritten in one entry.
+SIDECAR_FIELD_EDITS = {
+    "judge_effort": (ISOLATED, "max"),
+    "judge_model_reported": (UNHARDENED, ["claude-opus-5"]),
+    "judged_at_utc": (ISOLATED, "2026-10-09T08:00:00+00:00"),
+    "judge_account_declared": (ISOLATED, f"claude:{WITHHELD} (another lane)"),
+    "judge_account_declared_unhardened": (UNHARDENED, "a lane it never ran on"),
+    "judge_template_version": (ISOLATED, 1),
+}
+
+
+@pytest.mark.parametrize("edit", sorted(SIDECAR_FIELD_EDITS))
+def test_each_entrys_fields_must_be_its_sidecars(provenance, edit):
+    _, verify = provenance
+    case, value = SIDECAR_FIELD_EDITS[edit]
+    field = edit.removesuffix("_unhardened")
+
+    def rewrite(entries):
+        _entry(case)(entries)[field] = value
+
+    problem = f"{case}: its {field} .* is not the sidecar's"
+    with pytest.raises(SystemExit, match=problem):
+        verify(rewrite)
+
+
+def test_the_record_withholds_the_sidecars_address_and_names_none(provenance):
+    """The entry carries the sidecar's declaration with its address withheld;
+    the address itself, there or anywhere else in the record, is refused."""
+    _, verify = provenance
+
+    def declared(entries):
+        _entry(ISOLATED)(entries)["judge_account_declared"] = (
+            "claude:lane@example.org (pb-judge)"
+        )
+
+    with pytest.raises(SystemExit, match=r"is public and names .*e-mail address"):
+        verify(declared)
+
+    def in_note(record):
+        record["note"] += " The lane is lane@example.org."
+
+    with pytest.raises(SystemExit, match=r"is public and names .*record\.note"):
+        verify(edit_record=in_note)
+
+    def in_group(entries):
+        for entry in entries:
+            entry["group"] = entry["group"].replace("pb-judge", "judge@example.org")
+
+    with pytest.raises(SystemExit, match="is public and names"):
+        verify(in_group)
+
+
+# The fixture record's true counts: one entry in each group.
+GROUP_COUNTS = {group: 1 for group in GROUPS.values()}
+
+
+@pytest.mark.parametrize(
+    "counts", [{}, {"isolated: pb-judge": 2}, {**GROUP_COUNTS, "extra": 0}]
+)
+def test_the_counts_must_be_the_tally_of_the_entries_groups(provenance, counts):
+    _, verify = provenance
+    with pytest.raises(SystemExit, match="counts .* are not the tally"):
+        verify(edit_record=lambda record: record.update(counts=counts))
+
+
+@pytest.mark.parametrize(
+    "auth", [None, {"method": "claude.ai", "account": "8f0c"}, {"method": None}]
+)
+def test_an_isolated_verdict_needs_a_token_login(provenance, auth):
+    cases, verify = provenance
+    meta_path = cases / ISOLATED / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta.pop("judge_auth")
+    if auth is not None:
+        meta["judge_auth"] = auth
+    meta_path.write_text(json.dumps(meta))
+    problem = f"{ISOLATED}: the sidecar does not record a token login"
+    with pytest.raises(SystemExit, match=problem):
+        verify()
+
+
+def test_the_record_and_its_entries_carry_only_checked_keys(provenance):
+    _, verify = provenance
+
+    def claim(entries):
+        _entry(ISOLATED)(entries)["environment"] = "allowlisted"
+
+    with pytest.raises(SystemExit, match=f"{ISOLATED}: the entry has keys"):
+        verify(claim)
+    with pytest.raises(SystemExit, match="has keys .*; expected"):
+        verify(edit_record=lambda record: record.update(isolation="all allowlisted"))
+
+
+def test_only_an_isolated_entrys_group_says_isolated(provenance):
+    _, verify = provenance
+
+    def regroup(entries):
+        _entry(UNHARDENED)(entries)["group"] = "isolated: in-repo runner"
+
+    with pytest.raises(SystemExit, match=f"{UNHARDENED}: its group .* disagrees"):
+        verify(regroup)
+
+
+def _read_call(events):
+    events[-3:-3] = [_call("Read", "call-0"), _result("call-0")]
+
+
+def _second_answer(events):
+    events += [_call("StructuredOutput", "call-2"), _result("call-2")]
+
+
+def _no_answer(events):
+    del events[7:10]
+
+
+def _user(content, **fields):
+    return _event("user", message={"content": content}, **fields)
+
+
+def _forged_answer(events):
+    """A StructuredOutput call no assistant turn made, and its "result"."""
+    content = [{"type": "tool_use", "id": "call-9", "name": "StructuredOutput"}]
+    events += [
+        _event("system", message={"content": content}),
+        _user([{"type": "tool_result", "tool_use_id": "call-9", "content": "A hint."}]),
+    ]
+
+
+TRANSCRIPT_DEFECTS = {
+    "read_tool_call": (_read_call, r"tool calls \['Read'\]"),
+    "no_answer": (_no_answer, "0 accepted StructuredOutput"),
+    "two_answers": (_second_answer, "2 accepted StructuredOutput"),
+    "account_email": (
+        lambda e: e[3].update(_attachment("session_context", context={"userEmail": 1})),
+        r"session context carrying \['userEmail'\]",
+    ),
+    "credential_org": (
+        lambda e: e.append(_attachment("credential_org")),
+        "'credential_org' attachment",
+    ),
+    "skill_listing": (
+        lambda e: e.append(_attachment("skill_listing")),
+        "'skill_listing' attachment",
+    ),
+    "git_repository": (
+        lambda e: e[1].update(_attachment("environment", snapshot={"isGitRepo": True})),
+        "inside a git repository",
+    ),
+    "other_effort": (lambda e: e[6].update(effort="max"), "effort 'max'"),
+    "advisor": (lambda e: e[6].update(advisorModel="m"), "advisor model"),
+    "not_an_event": (lambda e: e.append("{"), "not an event"),
+    # The prompt binding: one user text message, prompt.md's, and otherwise
+    # only the results of the judge's own StructuredOutput calls.
+    "other_prompt": (
+        lambda e: e[0].update(_user("Classify another case.\n")),
+        "its user message is not prompt.md",
+    ),
+    "no_prompt": (lambda e: e.pop(0), "0 user text messages"),
+    "second_text": (
+        lambda e: e.insert(7, _user("Also weigh this hint.")),
+        "2 user text messages",
+    ),
+    "nudge_not_meta": (
+        lambda e: e.insert(7, _user(driver.JUDGE_PROMPT_NUDGE)),
+        "2 user text messages",
+    ),
+    "meta_text_part": (
+        lambda e: e.insert(
+            7, _user([{"type": "text", "text": "A hint."}], isMeta=True)
+        ),
+        "not a StructuredOutput call's result",
+    ),
+    "stray_result": (
+        lambda e: e.append(_user([{"type": "tool_result", "tool_use_id": "call-8"}])),
+        "not a StructuredOutput call's result",
+    ),
+    "forged_answer": (_forged_answer, "not a StructuredOutput call's result"),
+    # The verdict: the one accepted answer must be verdict.json.
+    "other_answer": (
+        lambda e: e[7]["message"]["content"][0]["input"].update(rationale="Other."),
+        "its accepted StructuredOutput answer is not verdict.json",
+    ),
+    # Only the event types the isolated transcripts carry.
+    "unlisted_event": (
+        lambda e: e.append(_event("progress", data={"phase": "thinking"})),
+        "an event of type 'progress'",
+    ),
+    # No account data outside the prompt's own text and the judge's words.
+    "email_in_system_prompt": (
+        lambda e: e[5].update(
+            _attachment("prompt_snapshot", systemPrompt=["Mail max@example.org."])
+        ),
+        r"an e-mail address at line 6\.attachment\.systemPrompt\[0\]",
+    ),
+    "account_key_in_environment": (
+        lambda e: e[1].update(
+            _attachment(
+                "environment",
+                snapshot={"isGitRepo": False, "identity": {"accountUuid": "8f0c"}},
+            )
+        ),
+        r"key line 2\.attachment\.snapshot\.identity\.accountUuid",
+    ),
+    "email_beside_the_prompt": (
+        lambda e: e[0].update(userEmail="max@example.org"),
+        r"key line 1\.userEmail",
+    ),
+    "account_key_beside_the_judges_words": (
+        lambda e: e[6].update(organizationUuid="org-1"),
+        r"key line 7\.organizationUuid",
+    ),
+    "email_in_queue_operation": (
+        lambda e: e.insert(
+            0, _event("queue-operation", operation="enqueue", content="max@x.org")
+        ),
+        r"an e-mail address at line 1\.content",
+    ),
+    "git_status_key": (
+        lambda e: e[4].update(_attachment("date", gitStatus="M a.py")),
+        r"key line 5\.attachment\.gitStatus",
+    ),
+}
+
+
+@pytest.mark.parametrize("defect", sorted(TRANSCRIPT_DEFECTS))
+def test_an_isolated_verdict_whose_transcript_fails_the_runners_checks_is_refused(
+    provenance, defect
+):
+    cases, verify = provenance
+    edit, problem = TRANSCRIPT_DEFECTS[defect]
+    events = _clean_transcript()
+    edit(events)
+    _write_transcript(cases / ISOLATED, events)
+    with pytest.raises(SystemExit, match=f"{ISOLATED}: .*{problem}"):
+        verify()
+
+
+def test_an_isolated_verdict_needs_its_transcript(provenance):
+    cases, verify = provenance
+    (cases / ISOLATED / "claude.transcript.jsonl").unlink()
+    with pytest.raises(SystemExit, match="no transcript"):
+        verify()
+
+
+def test_an_answer_the_schema_refused_and_the_judge_gave_again_passes(provenance):
+    cases, verify = provenance
+    events = _clean_transcript()
+    events[7:7] = [_call("StructuredOutput", "call-0"), _result("call-0", error=True)]
+    _write_transcript(cases / ISOLATED, events)
+    verify()
+
+
+def test_claude_codes_own_structured_output_nudge_passes(provenance):
+    """The judge answered in text, Claude Code nudged it (an isMeta user
+    message) and it called StructuredOutput."""
+    cases, verify = provenance
+    events = _clean_transcript()
+    events.insert(7, _user(driver.JUDGE_PROMPT_NUDGE, isMeta=True))
+    _write_transcript(cases / ISOLATED, events)
+    verify()
+
+
+def test_an_address_in_the_prompt_or_the_judges_own_words_passes(provenance):
+    """The account-data rule reads neither the judged prompt's own text nor
+    the judge's turns."""
+    cases, verify = provenance
+    case = cases / ISOLATED
+    prompt = "Classify these wrong answers; the filer wrote to irs@example.gov.\n"
+    (case / "prompt.md").write_text(prompt)
+    events = _clean_transcript()
+    events[0] = _user(prompt)
+    events[6]["message"]["content"] = [{"type": "text", "text": "irs@example.gov"}]
+    _write_transcript(case, events)
+
+    def follow(entries):
+        entry = next(e for e in entries if e["case_id"] == ISOLATED)
+        entry["prompt_sha256"] = driver.digest(case / "prompt.md")
+
+    verify(follow)
+
+
+def test_the_runners_event_types_are_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    line = next(line for line in script.splitlines() if line.startswith("EVENT_TYPES="))
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_EVENT_TYPES
+
+
+def test_the_runners_account_patterns_are_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    assert driver.ACCOUNT_KEY.flags & re.IGNORECASE
+    assert f'account_key = re.compile(r"{driver.ACCOUNT_KEY.pattern}", re.I)' in script
+    assert f'email_address = re.compile(r"{driver.EMAIL_ADDRESS.pattern}")' in script
+
+
+def test_the_runners_nudge_is_the_gates():
+    script = (driver.ROOT / "scripts/run_audit_claude.sh").read_text()
+    line = next(
+        line for line in script.splitlines() if line.startswith("PROMPT_NUDGE=")
+    )
+    assert line == f'PROMPT_NUDGE="{driver.JUDGE_PROMPT_NUDGE}"'
+
+
+# The two problem messages this driver words differently from the GPT-6.1 Sol
+# driver's port (which tests/test_run_audit_claude.py compares with the
+# runner); the differential tests below read them in that driver's words.
+TERRA_WORDING = (
+    (
+        re.compile(r" accepted StructuredOutput calls; exactly 1 is required$"),
+        " accepted StructuredOutput calls, not 1",
+    ),
+    (
+        re.compile(r" user text messages; only the prompt is allowed$"),
+        " user text messages, not the prompt alone",
+    ),
+)
+
+
+def _in_gpt61sol_words(problems):
+    if not isinstance(problems, list):
+        return problems
+    worded = []
+    for problem in problems:
+        for pattern, replacement in TERRA_WORDING:
+            problem = pattern.sub(replacement, problem)
+        worded.append(problem)
+    return worded
+
+
+def _both_gates(path: Path, effort, prompt: bytes, verdict) -> tuple:
+    import finish_gpt61sol as gpt61sol
+
+    results = []
+    for module in (driver, gpt61sol):
+        try:
+            results.append(module.transcript_problems(path, effort, prompt, verdict))
+        except Exception as error:  # noqa: BLE001 - compared, not swallowed
+            results.append((type(error).__name__, str(error)))
+    return (_in_gpt61sol_words(results[0]), results[1])
+
+
+def test_this_drivers_transcript_gate_is_the_gpt61sol_drivers():
+    """tests/test_run_audit_claude.py compares the runner with the GPT-6.1 Sol
+    driver's Python port of its transcript checks, so this driver's port must
+    be that one: the same helpers and constants and, on every defect the tests
+    name, the same problems (two of them worded differently)."""
+    import finish_gpt61sol as gpt61sol
+
+    for name in ("account_data", "outside_the_judge", "withhold_addresses"):
+        assert inspect.getsource(getattr(driver, name)) == inspect.getsource(
+            getattr(gpt61sol, name)
+        ), name
+    for name in (
+        "JUDGE_ATTACHMENTS",
+        "JUDGE_EVENT_TYPES",
+        "JUDGE_PROMPT_NUDGE",
+        "JUDGE_PROVENANCE_KEYS",
+        "WITHHELD_ADDRESS",
+        "JUDGE_MODEL",
+    ):
+        assert getattr(driver, name) == getattr(gpt61sol, name), name
+    assert driver.JUDGE_SIDECAR_FIELDS == (
+        *gpt61sol.JUDGE_SIDECAR_FIELDS,
+        "judge_template_version",
+    )
+    assert driver.JUDGE_PROVENANCE_ENTRY_KEYS == (
+        gpt61sol.JUDGE_PROVENANCE_ENTRY_KEYS | {"judge_template_version"}
+    )
+    for name in ("ACCOUNT_KEY", "EMAIL_ADDRESS"):
+        ours, theirs = getattr(driver, name), getattr(gpt61sol, name)
+        assert (ours.pattern, ours.flags) == (theirs.pattern, theirs.flags), name
+    with tempfile.TemporaryDirectory() as scratch:
+        path = Path(scratch) / "claude.transcript.jsonl"
+        for defect in [None, *sorted(TRANSCRIPT_DEFECTS)]:
+            events = _clean_transcript()
+            if defect is not None:
+                TRANSCRIPT_DEFECTS[defect][0](events)
+            _write_transcript(path.parent, events)
+            ours, theirs = _both_gates(path, "xhigh", JUDGED.encode(), _verdict([NEW]))
+            assert ours == theirs, defect
+            # The comparison is not vacuous: each named defect is a problem.
+            assert (ours == []) == (defect is None), defect
+
+
+JSON_LEAVES = st.none() | st.booleans() | st.integers() | st.text(max_size=3)
+JSON_LEAVES |= st.floats(allow_nan=False, allow_infinity=False)
+JSON_VALUES = st.recursive(
+    JSON_LEAVES,
+    lambda inner: (
+        st.lists(inner, max_size=3)
+        | st.dictionaries(st.sampled_from("abcd"), inner, max_size=3)
+    ),
+    max_leaves=12,
+)
+JSON_EVENT = st.fixed_dictionaries(
+    {"type": st.sampled_from(sorted(driver.JUDGE_EVENT_TYPES | {"system", "other"}))},
+    optional={
+        "message": st.fixed_dictionaries(
+            {},
+            optional={
+                "content": st.text(max_size=12)
+                | st.lists(
+                    st.fixed_dictionaries(
+                        {
+                            "type": st.sampled_from(
+                                ["text", "tool_use", "tool_result", "server_tool_use"]
+                            )
+                        },
+                        optional={
+                            "id": st.sampled_from(["c1", "c2"]),
+                            "tool_use_id": st.sampled_from(["c1", "c2"]),
+                            "name": st.sampled_from(["StructuredOutput", "Read"]),
+                            "input": JSON_VALUES,
+                            "is_error": st.booleans(),
+                        },
+                    ),
+                    max_size=3,
+                )
+            },
+        ),
+        "attachment": st.fixed_dictionaries(
+            {"type": st.sampled_from(sorted(driver.JUDGE_ATTACHMENTS | {"skill"}))},
+            optional={"context": JSON_VALUES, "snapshot": JSON_VALUES},
+        ),
+        "effort": st.sampled_from(["xhigh", "max"]),
+        "isMeta": st.booleans(),
+        "userEmail": st.just("a@b.org"),
+    },
+)
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    events=st.lists(JSON_EVENT | JSON_VALUES, max_size=6),
+    defects=st.lists(st.sampled_from(sorted(TRANSCRIPT_DEFECTS)), max_size=3),
+    effort=st.none() | st.just("xhigh"),
+)
+def test_the_transcript_gates_agree_on_any_transcript(events, defects, effort):
+    """Differential: on arbitrary event lists, and on any combination of the
+    named defects, this driver's transcript checks give the GPT-6.1 Sol
+    driver's answer."""
+    clean = _clean_transcript()
+    for defect in defects:
+        try:
+            TRANSCRIPT_DEFECTS[defect][0](clean)
+        except (IndexError, KeyError, TypeError, AttributeError):
+            pass
+    with tempfile.TemporaryDirectory() as scratch:
+        for lines in (events, clean, clean + events):
+            path = Path(scratch) / "claude.transcript.jsonl"
+            path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+            ours, theirs = _both_gates(path, effort, JUDGED.encode(), _verdict([NEW]))
+            assert ours == theirs
+
+
+def test_a_prompt_changed_after_its_judge_ran_is_refused(provenance):
+    """A prompt.md replaced after judging, with the record following it, still
+    disagrees with the prompt the judge's transcript shows."""
+    cases, verify = provenance
+    (cases / ISOLATED / "prompt.md").write_text("Classify these, and one more.\n")
+
+    def follow(entries):
+        entry = next(e for e in entries if e["case_id"] == ISOLATED)
+        entry["prompt_sha256"] = driver.digest(cases / ISOLATED / "prompt.md")
+
+    with pytest.raises(SystemExit, match=f"{ISOLATED}: its user message is not"):
+        verify(follow)
+
+
+def test_an_unhardened_verdicts_transcript_is_not_held_to_isolation(provenance):
+    cases, verify = provenance
+    events = _clean_transcript()
+    _read_call(events)
+    _write_transcript(cases / UNHARDENED, events)
+    verify()
+
+
+def test_the_committed_provenance_record_is_public_and_tallied():
+    """Once committed: the record is json.dumps(indent=1), ASCII-escaped, with
+    a trailing newline; it names no e-mail address, its counts are the tally
+    of its entries' groups, and its note is the one its entries give."""
+    if not driver.JUDGE_PROVENANCE.is_file():
+        pytest.skip("docs/terra/judge_provenance.json is not written yet")
+    text = driver.JUDGE_PROVENANCE.read_text()
+    record = json.loads(text)
+    assert text == json.dumps(record, indent=1) + "\n" and text.isascii()
+    assert not driver.EMAIL_ADDRESS.search(text)
+    groups = [entry["group"] for entry in record["verdicts"]]
+    assert record["counts"] == {group: groups.count(group) for group in groups}
+    assert record["note"] == driver.provenance_note(record["verdicts"])
+
+
+# --- The generated provenance note (review r1, finding 2) ------------------------
+
+# Claims release 20261014's note made about its own run, which no Terra record
+# carries: its one login, its effort, its schedule and its retries.
+INHERITED_CLAIMS = (
+    "two at a time",
+    "one at a time",
+    "dropped network connection",
+    "judged again",
+    "Max's second setup-token login",
+    "2026-09-30 opt-in",
+    "All ran on",
+    "Scores do not depend",
+)
+
+
+def _provenance_case(cases: Path, case_id: str, account: str, effort: str) -> Path:
+    """An isolated, re-opened case whose sidecar declares ``account`` and
+    records ``effort``, with the transcript the runner leaves at that effort."""
+    case = cases / case_id
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text(JUDGED)
+    write_verdict(
+        case,
+        _verdict([NEW]),
+        judge_effort=effort,
+        judge_isolation={"tools": "none (--tools '')"},
+        judge_auth={"method": "oauth_token", "account": None, "org": None},
+        judge_account_declared=account,
+    )
+    _write_transcript(case, _clean_transcript(effort=effort))
+    return case
+
+
+def _generated_record(tmp_path: Path, runs: list[tuple[str, str]]) -> dict:
+    """The record write_judge_provenance writes for one case per (account,
+    effort) in ``runs``, checked by the export gate."""
+    cases = tmp_path / "audit/cases"
+    names = []
+    for index, (account, effort) in enumerate(runs):
+        names.append(f"us__scenario_{index:03d}__snap")
+        _provenance_case(cases, names[-1], account, effort)
+    rejudged = frozenset(names)
+    record = json.loads(
+        json.dumps(driver.judge_provenance_record(cases, rejudged), sort_keys=True)
+    )
+    path = tmp_path / "judge_provenance.json"
+    path.write_text(json.dumps(record, indent=1) + "\n")
+    driver.verify_judge_provenance(cases, rejudged, path)
+    return record
+
+
+LANE_10 = "claude:max@farness.ai (subfleet lane claude-10)"
+LANE_18 = "claude:max@axiom.org (subfleet lane claude-18)"
+SETUP_TOKEN = "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30"
+
+
+@pytest.mark.parametrize("account", [LANE_10, LANE_18, SETUP_TOKEN])
+@pytest.mark.parametrize("effort", ["high", "xhigh", "max"])
+def test_the_note_states_only_what_the_runs_sidecars_record(tmp_path, account, effort):
+    """A run on any listed account, at the effort AUDIT_EFFORT set, gets a note
+    whose every claim its sidecars support: no other login, effort, schedule
+    or retry history."""
+    record = _generated_record(tmp_path, [(account, effort)])
+    note = record["note"]
+    assert f"Effort recorded: {effort} (1)." in note
+    assert f"Judge model reported: {driver.JUDGE_MODEL} (1)." in note
+    assert f"Judge template: v{driver.JUDGE_TEMPLATE_VERSION} (1)." in note
+    assert "Isolation: isolated (1)." in note
+    assert record["counts"] == {driver.PROVENANCE_GROUPS[account]: 1}
+    for claim in INHERITED_CLAIMS:
+        assert claim not in note, claim
+    others = {"low", "medium", "high", "xhigh", "max"} - {effort}
+    assert (
+        not {word for word in re.findall(r"[a-z]+", note.split("Effort recorded:")[1])}
+        & others
+    )
+    assert "setup-token" not in note and "lane" not in note
+    assert not driver.EMAIL_ADDRESS.search(json.dumps(record))
+
+
+def test_a_mixed_run_is_tallied_by_effort_and_login(tmp_path):
+    record = _generated_record(
+        tmp_path, [(LANE_10, "high"), (SETUP_TOKEN, "xhigh"), (LANE_10, "xhigh")]
+    )
+    assert "Effort recorded: high (1), xhigh (2)." in record["note"]
+    assert record["counts"] == {
+        "isolated: subfleet lane claude-10": 2,
+        "isolated: setup-token 2": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    "note",
+    [
+        # Release 20261014's note, its claims about that run kept.
+        "Provenance of the new Opus 5.5 judge verdicts in the GPT-6.1 Terra stage: "
+        "cases re-opened by Terra or the installed reference build. All ran on "
+        "Max's second setup-token login (2026-09-30 opt-in), at effort xhigh, "
+        "two at a time and then one at a time.",
+        "How each was judged.",
+    ],
+)
+def test_a_note_its_entries_do_not_give_is_refused(provenance, note):
+    _, verify = provenance
+    with pytest.raises(SystemExit, match="note is not the one its entries give"):
+        verify(edit_record=lambda record: record.update(note=note))
+
+
+def test_an_edited_effort_in_the_note_is_refused(tmp_path):
+    record = _generated_record(tmp_path, [(LANE_10, "high")])
+    cases = tmp_path / "audit/cases"
+    record["note"] = record["note"].replace("high (1)", "xhigh (1)")
+    path = tmp_path / "judge_provenance.json"
+    path.write_text(json.dumps(record))
+    with pytest.raises(SystemExit, match="note is not the one its entries give"):
+        driver.verify_judge_provenance(
+            cases, frozenset({"us__scenario_000__snap"}), path
+        )
+
+
+def _phrase_counts(note: str, label: str, after: str) -> dict[str, int]:
+    text = note.split(f"{label}: ")[1].split(f". {after}")[0]
+    if text == "none":
+        return {}
+    pairs = re.findall(r"(.+?) \((\d+)\)(?:, |$)", text)
+    return {value: int(count) for value, count in pairs}
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    entries=st.lists(
+        st.fixed_dictionaries(
+            {
+                "judge_effort": st.sampled_from(
+                    [None, "low", "medium", "high", "xhigh", "max"]
+                ),
+                "judge_template_version": st.sampled_from([None, 1, 2]),
+                "isolated": st.booleans(),
+                "judge_model_reported": st.sampled_from(
+                    [[driver.JUDGE_MODEL], ["claude-sonnet-5-5"], [], None]
+                ),
+            }
+        ),
+        max_size=8,
+    )
+)
+def test_the_note_round_trips_to_the_entries_tallies(entries):
+    """Every tally the note states is its entries' tally, and the note names
+    the count of entries: no value appears that no entry records."""
+    note = driver.provenance_note(entries)
+    assert note == driver.provenance_note(copy.deepcopy(entries))
+    assert note.startswith(f"Provenance of the {len(entries)} new judge verdicts")
+    efforts = Counter(
+        e["judge_effort"] if e["judge_effort"] else "none recorded" for e in entries
+    )
+    assert _phrase_counts(note, "Effort recorded", "Judge template") == efforts
+    templates = Counter(
+        f"v{e['judge_template_version']}"
+        if e["judge_template_version"] is not None
+        else "none recorded"
+        for e in entries
+    )
+    assert _phrase_counts(note, "Judge template", "Isolation") == templates
+    isolation = Counter(
+        "isolated" if e["isolated"] else "not isolated" for e in entries
+    )
+    assert _phrase_counts(note, "Isolation", "An isolated") == isolation
+    models = Counter(
+        " and ".join(e["judge_model_reported"])
+        if e["judge_model_reported"]
+        else "none reported"
+        for e in entries
+    )
+    assert _phrase_counts(note, "Judge model reported", "Effort recorded") == models

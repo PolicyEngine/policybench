@@ -3021,7 +3021,9 @@ def verify_judge_provenance(
     claude.transcript.jsonl, must pass the runner's transcript checks
     (transcript_problems), its prompt and verdict included: the one user
     text message must be the staged prompt.md, and the one accepted
-    StructuredOutput answer the staged verdict.json.
+    StructuredOutput answer the staged verdict.json. The record's note must
+    be the one its entries give (provenance_note), so it states nothing the
+    entries do not record.
     """
     record = json.loads(record_path.read_text())
     entries = record.get("verdicts") if isinstance(record, dict) else None
@@ -3054,6 +3056,11 @@ def verify_judge_provenance(
         record["counts"] == tally,
         f"{JUDGE_PROVENANCE_PATH} counts {record['counts']!r} are not the tally "
         f"of its entries' groups {tally!r}",
+    )
+    require(
+        record["note"] == provenance_note(entries),
+        f"{JUDGE_PROVENANCE_PATH}'s note is not the one its entries give "
+        f"(provenance_note): {record['note']!r}",
     )
     wrong = []
     for entry in entries:
@@ -3125,19 +3132,71 @@ PROVENANCE_GROUPS = {
         "isolated: subfleet lane claude-10"
     ),
 }
-PROVENANCE_NOTE = (
-    "Provenance of the new Opus 5.5 judge verdicts in the GPT-6.1 Terra "
-    "stage: cases re-opened by Terra or the installed reference build. Every "
-    "verdict ran through scripts/run_audit_claude.sh from an empty directory "
-    "outside the repo, with no tools, an allowlisted environment, no user "
-    "settings and a token login, at effort xhigh, on judge template v2; each "
-    "transcript passes the runner's checks. All ran on Max's second "
-    "setup-token login (2026-09-30 opt-in), two at a time and then one at a "
-    "time. A call whose transcript failed the runner's checks (a dropped "
-    "network connection leaves retry events in it), or whose verdict missed a "
-    "model, was judged again. "
-    "Counts are by group. Scores do not depend on judge verdicts."
-)
+
+
+def _tally_phrase(entries: list[dict], field: str, label) -> str:
+    """How many ``entries`` give each spelling (``label``) of ``field``, in
+    the spellings' order; "none" when there are no entries."""
+    counts: dict[str, int] = {}
+    for entry in entries:
+        spelled = label(entry.get(field))
+        counts[spelled] = counts.get(spelled, 0) + 1
+    if not counts:
+        return "none"
+    return ", ".join(
+        f"{spelled} ({count})" for spelled, count in sorted(counts.items())
+    )
+
+
+def _reported_models(value) -> str:
+    if isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+        return " and ".join(value)
+    return "none reported" if value in (None, []) else repr(value)
+
+
+def provenance_note(entries: list[dict]) -> str:
+    """The judge provenance record's note, every claim in it read from
+    ``entries``.
+
+    It says what the record lists and what verify_judge_provenance checks of
+    each entry, and tallies what the entries' sidecar fields record: the
+    judge model each reports, the effort and judge template each records, and
+    whether each judge ran isolated. The logins are the record's counts, by
+    the group of the account each sidecar declares. It states no schedule,
+    concurrency or retry history, which no record carries.
+    """
+    return (
+        f"Provenance of the {len(entries)} new judge verdicts in the GPT-6.1 "
+        "Terra stage: the cases it re-opened, because GPT-6.1 Terra joined a "
+        "case or the installed reference build changed a reference value or "
+        "explanation it shows. Each entry gives its verdict's and prompt's "
+        "sha256 and the fields its sidecar (verdict.meta.json) records. Judge "
+        "model reported: "
+        f"{_tally_phrase(entries, 'judge_model_reported', _reported_models)}. "
+        "Effort recorded: "
+        + _tally_phrase(
+            entries,
+            "judge_effort",
+            lambda value: value if isinstance(value, str) else "none recorded",
+        )
+        + ". Judge template: "
+        + _tally_phrase(
+            entries,
+            "judge_template_version",
+            lambda value: f"v{value}" if isinstance(value, int) else "none recorded",
+        )
+        + ". Isolation: "
+        + _tally_phrase(
+            entries,
+            "isolated",
+            lambda value: "isolated" if value is True else "not isolated",
+        )
+        + ". An isolated entry's sidecar records the isolation "
+        f"{JUDGE_RUNNER} ran its judge under (judge_isolation) and a token "
+        "login (judge_auth method oauth_token), and its transcript passes the "
+        "runner's checks. Counts are by the group of the account each sidecar "
+        "declares."
+    )
 
 
 def judge_provenance_record(cases_dir: Path, rejudged: frozenset[str]) -> dict:
@@ -3167,7 +3226,7 @@ def judge_provenance_record(cases_dir: Path, rejudged: frozenset[str]) -> dict:
     counts: dict[str, int] = {}
     for entry in entries:
         counts[entry["group"]] = counts.get(entry["group"], 0) + 1
-    return {"note": PROVENANCE_NOTE, "counts": counts, "verdicts": entries}
+    return {"note": provenance_note(entries), "counts": counts, "verdicts": entries}
 
 
 def write_judge_provenance(args) -> None:
