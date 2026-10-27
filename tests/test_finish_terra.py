@@ -2246,6 +2246,76 @@ def test_export_refuses_a_verdict_that_opts_out_of_isolation(exporting, monkeypa
     }
 
 
+@pytest.fixture
+def provenance_writer(audit, tmp_path, monkeypatch):
+    root, case, _ = audit
+    destination = tmp_path / "public/judge_provenance.json"
+    destination.parent.mkdir()
+    monkeypatch.setattr(driver, "JUDGE_PROVENANCE", destination)
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({case.name}))
+    monkeypatch.setattr(driver, "load_seed", lambda stage: {})
+    return SimpleNamespace(
+        case=case,
+        destination=destination,
+        run=lambda: driver.write_judge_provenance(
+            SimpleNamespace(stage_dir=root.parent)
+        ),
+    )
+
+@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize("defect", ["transcript", "authentication", "candidate"])
+def test_failed_provenance_generation_preserves_the_public_file(
+    provenance_writer, monkeypatch, existing, defect
+):
+    s = provenance_writer
+    previous = b"Previously published provenance.\n"
+    if existing:
+        s.destination.write_bytes(previous)
+    if defect == "transcript":
+        (s.case / "claude.transcript.jsonl").unlink()
+    elif defect == "authentication":
+        meta_path = s.case / "verdict.meta.json"
+        meta = json.loads(meta_path.read_text())
+        meta["judge_auth"] = {"method": "claude.ai"}
+        meta_path.write_text(json.dumps(meta))
+    else:
+        generate = driver.judge_provenance_record
+
+        def invalid_candidate(*args):
+            record = generate(*args)
+            record["verdicts"][0]["prompt_sha256"] = "0" * 64
+            return record
+
+        monkeypatch.setattr(driver, "judge_provenance_record", invalid_candidate)
+    message = "names another prompt" if defect == "candidate" else "invalid verdicts"
+    with pytest.raises(SystemExit, match=message):
+        s.run()
+    assert s.destination.exists() is existing
+    if existing:
+        assert s.destination.read_bytes() == previous
+    assert list(s.destination.parent.iterdir()) == ([s.destination] if existing else [])
+
+def test_provenance_is_verified_before_replacing_the_public_file(
+    provenance_writer, monkeypatch
+):
+    s = provenance_writer
+    previous = b"Previously published provenance.\n"
+    s.destination.write_bytes(previous)
+    verify = driver.verify_judge_provenance
+    checked = []
+
+    def inspect_candidate(cases, rejudged, candidate):
+        assert candidate != s.destination
+        assert s.destination.read_bytes() == previous
+        verify(cases, rejudged, candidate)
+        checked.append(candidate.read_bytes())
+
+    monkeypatch.setattr(driver, "verify_judge_provenance", inspect_candidate)
+    s.run()
+    assert checked == [s.destination.read_bytes()]
+    assert list(s.destination.parent.iterdir()) == [s.destination]
+
+
 def test_the_committed_provenance_record_is_public_and_tallied():
     """Once committed: the record is json.dumps(indent=1), ASCII-escaped, with
     a trailing newline; it names no e-mail address, its counts are the tally

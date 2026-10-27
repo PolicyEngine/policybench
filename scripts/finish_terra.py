@@ -3318,7 +3318,9 @@ def judge_provenance_record(cases_dir: Path, rejudged: frozenset[str]) -> dict:
 
 
 def write_judge_provenance(args) -> None:
-    """Write JUDGE_PROVENANCE from the stage's sidecars, then check it."""
+    """Verify a candidate from the sidecars, then replace JUDGE_PROVENANCE."""
+    import tempfile
+
     cases = args.stage_dir / "audit" / "cases"
     rejudged = rejudged_cases(args.stage_dir)
     require(
@@ -3329,8 +3331,13 @@ def write_judge_provenance(args) -> None:
     record = json.loads(
         json.dumps(judge_provenance_record(cases, rejudged), sort_keys=True)
     )
-    JUDGE_PROVENANCE.write_text(json.dumps(record, indent=1, allow_nan=False) + "\n")
-    verify_judge_provenance(cases, rejudged, JUDGE_PROVENANCE)
+    with tempfile.TemporaryDirectory(
+        prefix=".terra-judge-provenance-", dir=JUDGE_PROVENANCE.parent
+    ) as scratch:
+        candidate = Path(scratch) / JUDGE_PROVENANCE.name
+        candidate.write_text(json.dumps(record, indent=1, allow_nan=False) + "\n")
+        verify_judge_provenance(cases, rejudged, candidate)
+        os.replace(candidate, JUDGE_PROVENANCE)
     print(f"Wrote {JUDGE_PROVENANCE_PATH}: {len(rejudged)} verdicts")
 
 
