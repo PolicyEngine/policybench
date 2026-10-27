@@ -3288,3 +3288,17 @@ def test_rebound_parse_flag_is_refused_at_export_and_freeze(
         driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
     assert h_stage.files() == before
     _h_refused(h_stage, "parse_failure_only disagrees")
+
+
+def test_cli_export_refuses_a_shadow_without_invalidating_its_receipt(
+    h_stage, monkeypatch
+):
+    stage = h_stage.stage
+    shadow = stage / BUNDLE / "us/by_model"
+    shadow.mkdir()
+    shutil.copyfile(stage / BUNDLE / "us/predictions.csv", shadow / "shadow.csv")
+    monkeypatch.setattr(driver, "ROOT", h_stage.workspace)
+    before = h_stage.files()
+    with pytest.raises(SystemExit, match="by_model would shadow"):
+        driver.main(["--stage-dir", str(stage), "--step", "export"])
+    assert h_stage.files() == before

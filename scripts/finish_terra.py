@@ -470,16 +470,21 @@ def verify_prepared_inputs(stage: Path) -> None:
         )
 
 
-def require_combined_predictions(bundle: Path) -> None:
+def require_combined_predictions(bundle: Path, *, require_file: bool = True) -> None:
     """Every release consumer reads the bound combined CSV without alternatives."""
     candidates = set(bundle.rglob("by_model"))
     candidates.add(bundle / "us/by_model")
-    shadows = sorted(str(path.relative_to(bundle)) for path in candidates
-                     if path.exists() or path.is_symlink())
-    require(not shadows, f"by_model would shadow combined predictions: {shadows}")
-    require(
-        (bundle / "us/predictions.csv").is_file(), "missing combined predictions.csv"
+    shadows = sorted(
+        str(path.relative_to(bundle))
+        for path in candidates
+        if path.exists() or path.is_symlink()
     )
+    require(not shadows, f"by_model would shadow combined predictions: {shadows}")
+    if require_file:
+        require(
+            (bundle / "us/predictions.csv").is_file(),
+            "missing combined predictions.csv",
+        )
 
 
 def new_model_row_differences(stage: Path, limit: int = 5) -> list[str]:
@@ -5881,12 +5886,15 @@ def main(argv=None) -> None:
     else:
         receipt = json.loads(receipt_path.read_text())
         require_release_stage(receipt)
+        if args.step == "export":
+            require_combined_predictions(bundle, require_file=False)
         for name, expected in receipt["files"].items():
             require(
                 digest(stage / name) == expected,
                 f"staged input changed: {name}; prepare a new stage",
             )
-        (stage / "release-ready.json").unlink(missing_ok=True)
+        if args.step != "export":
+            (stage / "release-ready.json").unlink(missing_ok=True)
         if args.step not in ("bind-seed", "install-exclusions"):
             installed = receipt.get("exclusions_installed") or {}
             upgrade = stage_upgrade(stage)
