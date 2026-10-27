@@ -116,7 +116,11 @@ def installed(tmp_path, monkeypatch, upgrade):
     scoring.mkdir()
     for name in ("scenarios.csv", "scenarios.csv.meta.json"):
         (scoring / name).write_bytes(driver.base_commit_blob(FROZEN / name))
-    prepared = {"references_installed": driver.references_record(upgrade, None)}
+    prepared = {
+        "early": False,
+        "partial": False,
+        "references_installed": driver.references_record(upgrade, None),
+    }
     write_json(stage / "stage.json", prepared)
     receipt = {
         "files": {
@@ -144,9 +148,39 @@ def test_the_freeze_adds_terra_under_the_driver_tag():
 @pytest.mark.parametrize("installed", [None, False, {}, "unbound"])
 def test_the_freeze_requires_an_installed_build(tmp_path, installed):
     (tmp_path / "stage.json").write_text(
-        json.dumps({"references_installed": installed})
+        json.dumps(
+            {"early": False, "partial": False, "references_installed": installed}
+        )
     )
     with pytest.raises(SystemExit, match="installed build"):
+        release.verify_upgrade(tmp_path, {"files": {}})
+
+
+# What a rehearsal stage.json may carry in place of each flag's False.
+REHEARSAL_FLAGS = [True, "missing", None, 0, 1, "false", "False", [], {}]
+
+
+@pytest.mark.parametrize("field", ["early", "partial"])
+@pytest.mark.parametrize("value", REHEARSAL_FLAGS, ids=repr)
+def test_the_freeze_refuses_a_rehearsal_stage(installed, field, value):
+    """Review r1, finding 3: stage.json's early and partial flags must each be
+    recorded as False. A flag that is True, missing or not a boolean stops the
+    freeze, however valid the rest of the stage and its receipt."""
+    assert release.verify_upgrade(installed.stage, installed.receipt)
+    prepared = copy.deepcopy(installed.prepared)
+    if value == "missing":
+        del prepared[field]
+    else:
+        prepared[field] = value
+    write_json(installed.stage / "stage.json", prepared)
+    with pytest.raises(SystemExit, match="early/partial stage cannot become a release"):
+        release.verify_upgrade(installed.stage, installed.receipt)
+
+
+@pytest.mark.parametrize("prepared", [[], "stage", None, 0])
+def test_the_freeze_refuses_a_stage_json_that_is_not_an_object(tmp_path, prepared):
+    (tmp_path / "stage.json").write_text(json.dumps(prepared))
+    with pytest.raises(SystemExit, match="early/partial stage cannot become a release"):
         release.verify_upgrade(tmp_path, {"files": {}})
 
 

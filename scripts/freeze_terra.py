@@ -229,12 +229,18 @@ def release_spec(tag: str) -> dict:
 def verify_upgrade(stage: Path, receipt: dict) -> driver.Upgrade:
     """Re-gate the installed build and drops, all bound by strict export.
 
+    stage.json must record a release stage: its early and partial flags both
+    False (driver.require_release_stage).
+
     The driver checks the build against git and the spec, then every installed
     copy. The export must bind every retained build file independently of
     stage.json. A build adding exclusions freezes only when the spec's
     upgrade_adjudications decide exactly those outputs (driver.upgrade_decisions).
     """
     prepared = read_json(stage / "stage.json")
+    # A rehearsal stage (prepare --early, or --early --partial) never freezes,
+    # whatever its receipt says: both flags must be recorded as False.
+    driver.require_release_stage(prepared)
     installed = prepared.get("references_installed")
     if not isinstance(installed, dict) or not installed:
         raise SystemExit("stage.json requires the release's installed build")

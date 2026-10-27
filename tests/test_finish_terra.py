@@ -2307,3 +2307,71 @@ def test_the_note_round_trips_to_the_entries_tallies(entries):
         for e in entries
     )
     assert _phrase_counts(note, "Judge model reported", "Effort recorded") == models
+
+
+# --- Stage isolation, CLI modes and resume (ported from test_finish_argon.py) ----
+
+
+@pytest.fixture
+def workspace(tmp_path, monkeypatch):
+    root = tmp_path / "workspace"
+    root.mkdir()
+    monkeypatch.setattr(driver, "ROOT", root)
+    return root
+
+
+RESUMED_STEPS = [
+    "export",
+    "triage",
+    "judge",
+    "provenance",
+    "install-exclusions",
+    "adjudicate-exclusions",
+    "bind-seed",
+]
+# What a rehearsal stage.json may carry in place of each flag's False.
+REHEARSAL_FLAGS = [True, "missing", None, 0, 1, "false", "False", [], {}]
+
+
+@pytest.mark.parametrize("step", RESUMED_STEPS)
+@pytest.mark.parametrize("field", ["partial", "early"])
+@pytest.mark.parametrize("value", REHEARSAL_FLAGS, ids=repr)
+def test_an_early_or_partial_stage_cannot_resume_into_release(
+    workspace, monkeypatch, field, step, value
+):
+    """Each later step refuses a stage.json whose early or partial flag is not
+    recorded as False, before it reads anything else of the stage."""
+    for name in ("stage_upgrade", "triage", "export", "judge", "bind_seed"):
+        monkeypatch.setattr(driver, name, lambda *a, n=name: pytest.fail(f"{n} ran"))
+    stage = workspace / "results/local/stage"
+    stage.mkdir(parents=True)
+    receipt = {"partial": False, "early": False, "files": {}}
+    if value == "missing":
+        del receipt[field]
+    else:
+        receipt[field] = value
+    (stage / "stage.json").write_text(json.dumps(receipt))
+    with pytest.raises(SystemExit, match="early/partial stage cannot become a release"):
+        driver.main(["--stage-dir", str(stage), "--step", step])
+
+
+@pytest.mark.parametrize(
+    "receipt, ok",
+    [
+        ({"early": False, "partial": False}, True),
+        ({"early": False, "partial": False, "files": {}}, True),
+        ({"early": True, "partial": False}, False),
+        ({"early": False, "partial": True}, False),
+        ({"early": False}, False),
+        ({"partial": False}, False),
+        ({"early": 0, "partial": 0}, False),
+        ([], False),
+        (None, False),
+    ],
+)
+def test_require_release_stage_accepts_only_two_false_flags(receipt, ok):
+    if ok:
+        driver.require_release_stage(receipt)
+    else:
+        with pytest.raises(SystemExit, match="cannot become a release"):
+            driver.require_release_stage(receipt)

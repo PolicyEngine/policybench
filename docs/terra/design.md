@@ -118,7 +118,7 @@ Commit the checked `docs/terra/judge_provenance.json`, its generated note unedit
 "$PB_PY" scripts/freeze_snapshot.py --rendered-only
 ```
 
-Export writes `data-board51.json` and a hash-bound `release-ready.json`. Both freeze modes rebuild that payload from its bound inputs and validate every gate; `--dry-run` validates before the following freeze command writes the repository artifacts. The freeze uploads nothing. If the publication check finds another scored move, stop and stage a reviewed build for it before proceeding.
+Export writes `data-board51.json` and a hash-bound `release-ready.json`. Every resumed step and the freeze require `stage.json` to record `early` and `partial` as the boolean `false` (`require_release_stage`); a rehearsal stage, or one missing either flag, never becomes a release. Both freeze modes rebuild that payload from its bound inputs and validate every gate; `--dry-run` validates before the following freeze command writes the repository artifacts. The freeze uploads nothing. If the publication check finds another scored move, stop and stage a reviewed build for it before proceeding.
 
 ## Lead completion record
 

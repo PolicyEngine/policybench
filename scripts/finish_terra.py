@@ -655,6 +655,23 @@ def restore_run_row_text(path: Path, runs: list[NewRun]) -> None:
         pending.unlink(missing_ok=True)
 
 
+def require_release_stage(receipt) -> None:
+    """A stage.json that may become a release: prepare records both rehearsal
+    flags, ``early`` (a fold and export without paid judging) and ``partial``
+    (a scratch cohort rehearsal), and each must be the boolean False. A flag
+    that is True, missing or anything else stops the step."""
+    flags = (
+        {name: receipt.get(name, "missing") for name in ("early", "partial")}
+        if isinstance(receipt, dict)
+        else {"stage.json": type(receipt).__name__}
+    )
+    require(
+        isinstance(receipt, dict) and all(value is False for value in flags.values()),
+        f"early/partial stage cannot become a release ({flags}); prepare fresh "
+        "full inputs",
+    )
+
+
 def validate_stage_path(stage: Path, sources: list[Path]) -> None:
     """Allow only scratch outputs, disjoint from every read-only source."""
     stage = stage.resolve()
@@ -5690,10 +5707,7 @@ def main(argv=None) -> None:
             )
     else:
         receipt = json.loads(receipt_path.read_text())
-        require(
-            not receipt["partial"] and not receipt["early"],
-            "early/partial stage cannot become a release; prepare fresh full inputs",
-        )
+        require_release_stage(receipt)
         for name, expected in receipt["files"].items():
             require(
                 digest(stage / name) == expected,
