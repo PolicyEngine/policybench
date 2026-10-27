@@ -14,15 +14,26 @@ anchor was pushed no longer matches that anchor's head.
 An exclusive non-blocking lock in the clone's `.git` directory covers every
 read, copy, commit and push. Every Git command inherits its descriptor, so a
 surviving command keeps the clone busy even if this helper alone is killed.
-Git's hooks and remote helpers inherit it too; automatic fsmonitor startup,
-which closes inherited descriptors, is disabled. Configured commands must
-preserve the descriptor in any background clone writer. This advisory lock
-does not cover independent writers or replacement of the lock file.
-A busy clone fails without changing its records. Under the lock, the clone's
-current file must be a byte prefix of the snapshot (equality is allowed): a
-delayed older command cannot replace newer evidence. This checks bytes, not
-JSON or line boundaries; the runner supplies complete, synced lines. Git's
-own index.lock is left alone; a git failure is a failed push. Never force-push.
+Ordinary local hooks and remote helpers inherit it too. The per-command
+`core.fsmonitor=false` disables normal index-triggered fsmonitor startup.
+A configured hook can still run `git fsmonitor--daemon start`, whose child
+closes inherited descriptors; this falls under the configured-command limit:
+configured commands must retain the descriptor without unlocking it in any
+background clone writer. This advisory lock does not cover independent
+writers or replacement of the lock file. The lock is local: processes on an
+external remote server never hold it. The remote's safety rests on the byte-prefix
+check and ordinary non-force pushes.
+
+A credential-cache daemon or any other descriptor holder can keep the clone
+busy up to the holder's lifetime (the credential cache defaults to 900
+seconds), indefinitely if it never exits or closes the descriptor. Every
+later try, including all three final tries, then fails as busy and is reported
+as a failed push. A busy clone fails without changing its records. Under the
+lock, the clone's current file must be a byte prefix of the snapshot (equality
+is allowed): a delayed older command cannot replace newer evidence. This
+checks bytes, not JSON or line boundaries; the runner supplies complete,
+synced lines. Git's own index.lock is left alone; a git failure is a failed
+push. Never force-push.
 """
 
 from __future__ import annotations

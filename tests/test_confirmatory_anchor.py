@@ -263,6 +263,297 @@ def test_killing_only_the_helper_keeps_its_git_writer_locked(
             os.close(fd)
 
 
+@pytest.mark.parametrize("command", ["add", "status"])
+def test_killing_only_the_helper_during_add_or_status_keeps_the_clone_locked(
+    clone, tmp_path, command
+):
+    """A clean filter pins each real Git command across helper-only death."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n'
+    older = first + b'{"time": 2.0}\n'
+    snapshots = [older + b'{"time": 3.0}\n', older + b'{"time": 3.0}\n{"time": 4.0}\n']
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    for path in (ready, release):
+        os.mkfifo(path)
+    invocation = tmp_path / "filter-invocation"
+    filter_lock = tmp_path / "filter-lock.json"
+    clean = tmp_path / "clean-filter"
+    block_at = 1 if command == "add" else 2
+    clean.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "content = sys.stdin.buffer.read()\n"
+        "if os.environ.get('ANCHOR_TEST_BLOCK') == '1':\n"
+        f"    invocation = Path({str(invocation)!r})\n"
+        "    count = int(invocation.read_text()) + 1 if invocation.exists() else 1\n"
+        "    invocation.write_text(str(count))\n"
+        f"    if count == {block_at}:\n"
+        f"        lock = Path({str(repo / '.git' / 'confirmatory-anchor.lock')!r})"
+        ".stat()\n"
+        "        inherited = []\n"
+        "        for fd in range(3, 256):\n"
+        "            try:\n"
+        "                info = os.fstat(fd)\n"
+        "            except OSError:\n"
+        "                continue\n"
+        "            if (info.st_dev, info.st_ino) == (lock.st_dev, lock.st_ino):\n"
+        "                inherited.append(os.get_inheritable(fd))\n"
+        f"        Path({str(filter_lock)!r}).write_text(json.dumps(inherited))\n"
+        f"        with open({str(ready)!r}, 'wb', buffering=0) as pipe:\n"
+        "            pipe.write(b'1')\n"
+        f"        with open({str(release)!r}, 'rb', buffering=0) as pipe:\n"
+        "            pipe.read(1)\n"
+        f"    elif count == 1 and {command == 'status'!r}:\n"
+        f"        target = Path({str(repo / 'anchors.jsonl')!r})\n"
+        "        info = target.stat()\n"
+        "        os.utime(target, ns=(info.st_atime_ns, "
+        "info.st_mtime_ns - 2000000000))\n"
+        "sys.stdout.buffer.write(content)\n"
+    )
+    clean.chmod(0o755)
+    (repo / ".git" / "info" / "attributes").write_text("anchors.jsonl filter=anchor\n")
+    for name, value in (("clean", str(clean)), ("required", "true")):
+        subprocess.run(
+            ["git", "-C", str(repo), "config", f"filter.anchor.{name}", value],
+            check=True,
+        )
+
+    def records():
+        """Read file, raw index, staged and committed bytes and remote history."""
+        objects = [
+            subprocess.run(
+                ["git", "-C", str(repo), "show", obj], check=True, capture_output=True
+            ).stdout
+            for obj in (":anchors.jsonl", "HEAD:anchors.jsonl")
+        ]
+        return (
+            (repo / "anchors.jsonl").read_bytes(),
+            (repo / ".git" / "index").read_bytes(),
+            *objects,
+            remote_file(remote).encode(),
+            remote_log(remote),
+        )
+
+    ready_fd, release_fd = (os.open(path, os.O_RDWR) for path in (ready, release))
+    child = None
+    try:
+        anchors.write_bytes(older)
+        child = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "--repo", str(repo), str(anchors)],
+            env={**os.environ, "ANCHOR_TEST_BLOCK": "1"},
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert select.select([ready_fd], [], [], 15.0)[0], (
+            f"Git {command} did not reach its clean filter"
+        )
+        assert os.read(ready_fd, 1) == b"1"
+        # The first conversion runs in add; changing its stat forces status's second.
+        assert invocation.read_text() == str(block_at)
+        before = records()
+        assert before[0] == older
+        assert before[2] == (first if command == "add" else older)
+        assert before[3] == before[4] == first
+        child.kill()
+        assert child.wait(timeout=15.0) == -signal.SIGKILL
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 1 and "busy" in out.stderr, (
+                f"a surviving Git {command} lost the helper's clone lock: " + out.stderr
+            )
+            assert records() == before
+        assert json.loads(filter_lock.read_text()) == [True]
+        os.write(release_fd, b"1")
+        child.communicate(timeout=15.0)
+        with (repo / ".git" / "confirmatory-anchor.lock").open("a") as lock:
+            deadline = time.monotonic() + 15.0
+            while True:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    assert time.monotonic() < deadline, f"Git {command} did not finish"
+                    threading.Event().wait(0.01)
+        after = records()
+        assert after[0] == after[2] == older
+        assert after[3] == after[4] == first
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 0, out.stderr
+            state = records()
+            assert state[0] == state[2] == state[3] == state[4] == snapshot
+        history = subprocess.run(
+            ["git", "-C", str(remote), "rev-list", "--reverse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        previous = b""
+        for commit in history:
+            content = subprocess.run(
+                ["git", "-C", str(remote), "show", f"{commit}:anchors.jsonl"],
+                check=True,
+                capture_output=True,
+            ).stdout
+            assert content.startswith(previous)
+            previous = content
+        assert previous == snapshots[-1]
+    finally:
+        if child is not None:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.communicate(timeout=15.0)
+        for fd in (ready_fd, release_fd):
+            os.close(fd)
+
+
+def test_a_detached_hook_descendant_keeps_the_clone_locked(clone, tmp_path):
+    """A double-forked holder outlives its hook and helper until explicitly released."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n'
+    older = first + b'{"time": 2.0}\n'
+    snapshots = [older + b'{"time": 3.0}\n', older + b'{"time": 3.0}\n{"time": 4.0}\n']
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    for path in (ready, release):
+        os.mkfifo(path)
+    holder = tmp_path / "detached-holder.json"
+    hook = repo / ".git" / "hooks" / "pre-push"
+    hook.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os\n"
+        "from pathlib import Path\n"
+        "if os.environ.get('ANCHOR_TEST_DETACH') == '1':\n"
+        f"    ready = os.open({str(ready)!r}, os.O_WRONLY)\n"
+        f"    release = os.open({str(release)!r}, os.O_RDONLY)\n"
+        "    hook_pid = os.getpid()\n"
+        "    child = os.fork()\n"
+        "    if child:\n"
+        "        os.waitpid(child, 0)\n"
+        "        raise SystemExit(0)\n"
+        "    os.setsid()\n"
+        "    if os.fork():\n"
+        "        os._exit(0)\n"
+        "    with open(os.devnull, 'r+b', buffering=0) as null:\n"
+        "        for fd in range(3):\n"
+        "            os.dup2(null.fileno(), fd)\n"
+        f"    lock = Path({str(repo / '.git' / 'confirmatory-anchor.lock')!r}).stat()\n"
+        "    inherited = []\n"
+        "    for fd in range(3, 256):\n"
+        "        try:\n"
+        "            info = os.fstat(fd)\n"
+        "        except OSError:\n"
+        "            continue\n"
+        "        if (info.st_dev, info.st_ino) == (lock.st_dev, lock.st_ino):\n"
+        "            inherited.append(os.get_inheritable(fd))\n"
+        "    state = dict(pid=os.getpid(), sid=os.getsid(0), pgid=os.getpgrp(),\n"
+        "                 hook_pid=hook_pid, inherited=inherited)\n"
+        f"    Path({str(holder)!r}).write_text(json.dumps(state))\n"
+        "    os.write(ready, b'1')\n"
+        "    os.read(release, 1)\n"
+        "    os._exit(0)\n"
+    )
+    hook.chmod(0o755)
+
+    def records():
+        """Read the clone's file, index, HEAD and remote without writing."""
+        objects = [
+            subprocess.run(
+                ["git", "-C", str(repo), "show", obj], check=True, capture_output=True
+            ).stdout
+            for obj in (":anchors.jsonl", "HEAD:anchors.jsonl")
+        ]
+        return (
+            (repo / "anchors.jsonl").read_bytes(),
+            (repo / ".git" / "index").read_bytes(),
+            *objects,
+            remote_file(remote).encode(),
+            remote_log(remote),
+        )
+
+    ready_fd, release_fd = (os.open(path, os.O_RDWR) for path in (ready, release))
+    child = None
+    descendant = None
+    try:
+        anchors.write_bytes(older)
+        child = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "--repo", str(repo), str(anchors)],
+            env={**os.environ, "ANCHOR_TEST_DETACH": "1"},
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert select.select([ready_fd], [], [], 15.0)[0], (
+            "hook did not detach its holder"
+        )
+        assert os.read(ready_fd, 1) == b"1"
+        state = json.loads(holder.read_text())
+        descendant = state["pid"]
+        stdout, stderr = child.communicate(timeout=15.0)
+        assert child.returncode == 0, stderr.decode()
+        assert stdout == b"pushed 2 anchors\n"
+        assert state["sid"] != child.pid and state["pgid"] != child.pid
+        assert descendant != state["sid"]
+        os.kill(descendant, 0)
+        with pytest.raises(ProcessLookupError):
+            os.kill(state["hook_pid"], 0)
+        before = records()
+        assert before[0] == before[2] == before[3] == before[4] == older
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 1 and "busy" in out.stderr, (
+                "a detached hook descendant lost the helper's clone lock: " + out.stderr
+            )
+            assert records() == before
+        assert state["inherited"] == [True]
+        os.write(release_fd, b"1")
+        with (repo / ".git" / "confirmatory-anchor.lock").open("a") as lock:
+            deadline = time.monotonic() + 15.0
+            while True:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    assert time.monotonic() < deadline, (
+                        "the detached holder did not exit"
+                    )
+                    threading.Event().wait(0.01)
+        descendant = None
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 0, out.stderr
+            state = records()
+            assert state[0] == state[2] == state[3] == state[4] == snapshot
+    finally:
+        os.write(release_fd, b"1")
+        if descendant is not None:
+            try:
+                os.kill(descendant, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if child is not None:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.communicate(timeout=15.0)
+        for fd in (ready_fd, release_fd):
+            os.close(fd)
+
+
 def test_a_changed_middle_line_is_refused_without_writing(clone, tmp_path):
     """A longer snapshot still fails when it rewrites an existing line."""
     remote, repo = clone
@@ -298,8 +589,8 @@ def test_a_stale_git_index_lock_is_left_alone(clone, tmp_path):
     assert remote_log(remote) == history
 
 
-def test_git_fsmonitor_is_disabled_even_when_the_clone_enables_it(clone, tmp_path):
-    """Git must not launch a monitor that can discard the inherited clone lock."""
+def test_normal_index_fsmonitor_startup_is_disabled(clone, tmp_path):
+    """The per-command override suppresses a configured index-triggered monitor."""
     remote, repo = clone
     anchors = tmp_path / "anchors.jsonl"
     anchors.write_bytes(b'{"time": 1.0}\n')
