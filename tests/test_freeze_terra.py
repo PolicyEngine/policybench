@@ -899,6 +899,14 @@ def test_a_synthetic_installed_release_passes_the_freeze_dry_run(
     versions = board.workspace / release.VERSIONS
     versions.parent.mkdir(parents=True)
     versions.write_bytes(driver.base_commit_blob(release.VERSIONS))
+    for name in driver.BASE_REPOSITORY_INPUT_FILES:
+        path = board.workspace / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(driver.base_commit_blob(name))
+    timing = board.workspace / driver.REPOSITORY_INPUT_FILES[2]
+    timing.parent.mkdir(parents=True, exist_ok=True)
+    timing.write_text("{}\n")
+    board.receipt["repository_inputs"] = driver.repository_input_hashes(board.workspace)
     monkeypatch.setattr(release, "verify_freezer_destinations", lambda freezer: None)
     monkeypatch.setattr(release, "verify_receipt", lambda *args: board.receipt)
     monkeypatch.setattr(driver, "verify_new_model_inputs", lambda stage: None)
@@ -1081,6 +1089,77 @@ def test_baseline_prediction_loader_reads_synthetic_committed_blob(
     commit("corrupted synthetic baseline predictions")
     with pytest.raises(gzip.BadGzipFile):
         release.base_prediction_rows()
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "pyproject.toml",
+        "uv.lock",
+        "reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json",
+        "paper/snapshot/20260501/manifest.json",
+        "app/src/data.versions.json",
+        "app/public/paper/policybench.pdf",
+        "app/public/paper/web/index.html",
+        "app/public/paper/web/style.css",
+    ],
+)
+def test_repository_input_edits_after_export_are_refused_without_writes(h_stage, name):
+    path = h_stage.workspace / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    _h_refused(h_stage, "Repository inputs changed since strict export")
+
+@pytest.mark.parametrize("name", [str(p) for p in driver.BASE_REPOSITORY_INPUT_FILES])
+def test_scoring_repository_inputs_keep_the_base_bytes_even_if_rebound(h_stage, name):
+    path = h_stage.workspace / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    receipt["repository_inputs"][name] = sha(path)
+    driver.write_json(receipt_path, receipt)
+    _h_refused(h_stage, "Repository input changed from the base release")
+
+@pytest.mark.parametrize("field", ["sha256", "url"])
+def test_historical_versions_cannot_change_even_if_rebound(h_stage, field):
+    path = h_stage.workspace / release.VERSIONS
+    versions = _h_json(path)
+    historical = next(item for item in versions["versions"] if item["id"] == "1.0")
+    historical["artifact"][field] = "synthetic altered historical artifact"
+    driver.write_json(path, versions)
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    receipt["repository_inputs"][str(release.VERSIONS)] = sha(path)
+    driver.write_json(receipt_path, receipt)
+    _h_refused(h_stage, "Historical data.versions.json entries changed")
+
+@pytest.mark.parametrize("change", ["add", "delete", "remove_web"])
+def test_the_export_binds_the_complete_rendered_paper_inventory(h_stage, change):
+    web = h_stage.workspace / "app/public/paper/web"
+    if change == "add":
+        (web / "added.js").write_text("synthetic additional paper asset\n")
+    elif change == "delete":
+        (web / "style.css").unlink()
+    else:
+        shutil.rmtree(web)
+    _h_refused(h_stage, "Repository inputs changed since strict export")
+
+def test_the_export_must_bind_repository_inputs(h_stage):
+    path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(path)
+    del receipt["repository_inputs"]
+    driver.write_json(path, receipt)
+    _h_refused(h_stage, "Strict export receipt does not bind repository inputs")
+
+def test_the_freeze_preserves_export_hashes_when_binding_its_outputs(h_stage):
+    path = h_stage.stage / "release-ready.json"
+    original = _h_json(path)["repository_inputs"]
+    h_stage.run()
+    receipt = _h_json(path)
+    assert receipt["repository_inputs"] == original
+    assert receipt["repository_postfreeze"] == {
+        str(name): sha(h_stage.workspace / name)
+        for name in (release.SNAPSHOT / "manifest.json", release.VERSIONS)
+    }
 
 
 import csv  # noqa: E402
@@ -1492,10 +1571,19 @@ def _h_write_checkout(workspace: Path) -> None:
     ]
     names += [release.POINTER, release.VERSIONS]
     names += [Path("reference_audit/held_references.json")]
+    names += list(driver.BASE_REPOSITORY_INPUT_FILES)
     for name in names:
         path = workspace / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(h_blob(name))
+    timing = workspace / driver.REPOSITORY_INPUT_FILES[2]
+    timing.parent.mkdir(parents=True, exist_ok=True)
+    timing.write_bytes((REPO / driver.REPOSITORY_INPUT_FILES[2]).read_bytes())
+    paper = workspace / "app/public/paper"
+    (paper / "web").mkdir(parents=True)
+    (paper / "policybench.pdf").write_bytes(b"synthetic rendered PDF\n")
+    (paper / "web/index.html").write_text("<p>Synthetic paper</p>\n")
+    (paper / "web/style.css").write_text("p { color: black; }\n")
     (snapshot / "us_reference_outputs.csv").write_bytes(
         h_blob(FROZEN / driver.CSV_NAME)
     )
@@ -1761,6 +1849,12 @@ def h_template(tmp_path_factory):
         driver.triage(args, stage / BUNDLE)
         driver.write_judge_provenance(args)
         driver.export(args, stage / BUNDLE, copy.deepcopy(board.live))
+        # The fixture's driver reads its committed build from REPO while its
+        # writable checkout lives here. Bind the actual freeze inputs here.
+        receipt_path = stage / "release-ready.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["repository_inputs"] = driver.repository_input_hashes(workspace)
+        driver.write_json(receipt_path, receipt)
     board.reads.clear()
     return SimpleNamespace(workspace=workspace, board=board, upgrade=upgrade)
 

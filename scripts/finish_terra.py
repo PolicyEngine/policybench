@@ -84,6 +84,45 @@ JUDGE_PROVENANCE_PATH = "docs/terra/judge_provenance.json"
 JUDGE_PROVENANCE = ROOT / JUDGE_PROVENANCE_PATH
 # The record's keys, and each entry's: every one is checked, against the
 # case's verdict, prompt or sidecar, the entries' tally, or the isolated flag.
+REPOSITORY_INPUT_FILES = (
+    Path("pyproject.toml"),
+    Path("uv.lock"),
+    Path("reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json"),
+    Path("paper/snapshot/20260501/manifest.json"),
+    Path("app/src/data.versions.json"),
+)
+
+BASE_REPOSITORY_INPUT_FILES = (
+    Path("policybench/benchmark_specs.json"),
+    Path("policybench/population_weights.json"),
+)
+
+def repository_input_hashes(root: Path | None = None) -> dict[str, str | None]:
+    """Bind every mutable repository data input, including paper inventory.
+
+    The optional rendered paper can be absent when the shared freezer falls
+    back to the existing manifest. Bind absence too, so an added PDF or web
+    file cannot change that choice after export.
+    """
+    root = ROOT if root is None else root
+    for path in REPOSITORY_INPUT_FILES:
+        require((root / path).is_file(), f"Repository input is missing: {path}")
+    files = {str(path): digest(root / path) for path in REPOSITORY_INPUT_FILES}
+    paper = Path("app/public/paper")
+    pdf = paper / "policybench.pdf"
+    files[str(pdf)] = digest(root / pdf) if (root / pdf).is_file() else None
+    web = root / paper / "web"
+    files[str(paper / "web") + "/"] = "directory" if web.is_dir() else None
+    files.update(
+        {
+            str(path.relative_to(root)): digest(path)
+            for path in sorted(web.rglob("*"))
+            if path.is_file()
+        }
+    )
+    return files
+
+
 JUDGE_PROVENANCE_KEYS = frozenset({"note", "counts", "verdicts"})
 JUDGE_PROVENANCE_ENTRY_KEYS = frozenset(
     {
@@ -3548,6 +3587,7 @@ def export(args, bundle, live) -> dict:
             rejudged_cases(args.stage_dir),
             JUDGE_PROVENANCE,
         )
+    repository_inputs = None if args.early else repository_input_hashes()
     payload = build_payload(
         bundle, live, partial=args.partial, early=args.early, upgrade=upgrade
     )
@@ -3618,6 +3658,7 @@ def export(args, bundle, live) -> dict:
                     str(p.relative_to(args.stage_dir)): digest(p) for p in pinned
                 },
                 # A repository file, so outside "files", which binds stage files.
+                "repository_inputs": repository_inputs,
                 "judge_provenance": {
                     "path": JUDGE_PROVENANCE_PATH,
                     "sha256": digest(JUDGE_PROVENANCE),

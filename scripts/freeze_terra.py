@@ -409,6 +409,56 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     return receipt
 
 
+def verify_repository_inputs(receipt: dict) -> None:
+    """Bind every repository data read before any release destination changes.
+
+    Scoring data and historical versions retain BASE_COMMIT's values. The
+    dependency files, build timing record, existing manifest and rendered
+    paper are exact export-time inputs. A completed freeze records the two
+    files it replaces, permitting an identical second freeze while retaining
+    the original export hashes.
+    """
+    for name in driver.BASE_REPOSITORY_INPUT_FILES:
+        path = ROOT / name
+        if not path.is_file() or path.read_bytes() != driver.base_commit_blob(name):
+            raise SystemExit(f"Repository input changed from the base release: {name}")
+    versions = read_json(ROOT / VERSIONS)
+    base_versions = json.loads(driver.base_commit_blob(VERSIONS))
+    preserved = copy.deepcopy(versions)
+    for row in preserved.get("versions", []):
+        if row.get("id") == base_versions["default"]:
+            original = next(
+                item
+                for item in base_versions["versions"]
+                if item["id"] == base_versions["default"]
+            )
+            for key in ("description", "snapshotLabel"):
+                row[key] = original[key]
+    if preserved != base_versions:
+        raise SystemExit(
+            "Historical data.versions.json entries changed from the base release"
+        )
+    bound = receipt.get("repository_inputs")
+    if not isinstance(bound, dict) or not bound:
+        raise SystemExit("Strict export receipt does not bind repository inputs")
+    current = driver.repository_input_hashes(ROOT)
+    postfreeze = receipt.get("repository_postfreeze", {})
+    if not isinstance(postfreeze, dict):
+        raise SystemExit("Strict export receipt has malformed repository output hashes")
+    changed = sorted(
+        name
+        for name in set(bound) | set(current)
+        if (name not in bound or name not in current or current[name] != bound[name])
+        and not (
+            name in {str(SNAPSHOT / "manifest.json"), str(VERSIONS)}
+            and name in postfreeze
+            and current.get(name) == postfreeze[name]
+        )
+    )
+    if changed:
+        raise SystemExit(f"Repository inputs changed since strict export: {changed}")
+
+
 def verify_installed_exclusions(
     stage: Path, receipt: dict, text: str, upgrade: driver.Upgrade | None = None
 ) -> str:
@@ -1484,6 +1534,7 @@ def main(argv: list[str] | None = None) -> None:
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     driver.require_combined_predictions(stage / "publish" / RUN)
     receipt = verify_receipt(stage, payload_path, args.tag)
+    verify_repository_inputs(receipt)
     spec = release_spec(args.tag)
     upgrade = verify_upgrade(stage, receipt)
     snapshot_date = spec["snapshot_date"]
@@ -1711,6 +1762,13 @@ def main(argv: list[str] | None = None) -> None:
     )
     if asset.read_bytes() != (frozen_run / "predictions.csv.gz").read_bytes():
         raise SystemExit("The predictions asset is not the frozen predictions")
+    receipt["repository_postfreeze"] = {
+        str(name): digest(ROOT / name)
+        for name in (SNAPSHOT / "manifest.json", VERSIONS)
+    }
+    pending_receipt = stage / "release-ready.json.freezing"
+    write_json(pending_receipt, receipt)
+    os.replace(pending_receipt, stage / "release-ready.json")
     print(f"Built {args.tag} locally; payload and predictions remain in {stage}")
     print("Next: update note and paper prose, render the paper, re-pin, run tests.")
 
