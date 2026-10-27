@@ -1834,6 +1834,35 @@ def test_only_an_isolated_entrys_group_says_isolated(provenance):
         verify(regroup)
 
 
+def test_a_provenance_group_must_match_the_sidecars_account(provenance):
+    _, verify = provenance
+
+    def regroup(entries):
+        _entry(ISOLATED)(entries)["group"] = "isolated: setup-token 2"
+
+    with pytest.raises(
+        SystemExit, match="group .* is not the declared account's group"
+    ):
+        verify(regroup)
+
+def test_a_provenance_account_must_have_an_allowed_group(provenance):
+    cases, verify = provenance
+    meta_path = cases / ISOLATED / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["judge_account_declared"] = "unlisted subscription lane"
+    meta_path.write_text(json.dumps(meta))
+
+    def follow(entries):
+        _entry(ISOLATED)(entries)["judge_account_declared"] = meta[
+            "judge_account_declared"
+        ]
+
+    with pytest.raises(
+        SystemExit, match="no provenance group for the sidecar's declared"
+    ):
+        verify(follow)
+
+
 def _read_call(events):
     events[-3:-3] = [_call("Read", "call-0"), _result("call-0")]
 

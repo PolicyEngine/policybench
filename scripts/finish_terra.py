@@ -3191,6 +3191,14 @@ def verify_judge_provenance(
         group = entry.get("group")
         if not isinstance(group, str) or group.startswith("isolated: ") != isolated:
             problems.append(f"its group {group!r} disagrees with its isolation")
+        declared = meta.get("judge_account_declared")
+        if not isinstance(declared, str) or declared not in PROVENANCE_GROUPS:
+            problems.append("no provenance group for the sidecar's declared account")
+        elif group != PROVENANCE_GROUPS[declared]:
+            problems.append(
+                f"its group {group!r} is not the declared account's group "
+                f"{PROVENANCE_GROUPS[declared]!r}"
+            )
         if entry.get("isolated") is not isolated:
             problems.append(
                 f"the record says isolated={entry.get('isolated')!r} but the "
