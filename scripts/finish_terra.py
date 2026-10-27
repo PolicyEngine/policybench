@@ -3531,6 +3531,43 @@ def build_payload(
     partial: bool = False,
     early: bool = False,
     upgrade: Upgrade | None = None,
+    outputs: dict[str, bytes] | None = None,
+) -> dict:
+    """Compute and validate every export in a disposable copy of its inputs."""
+    import tempfile
+
+    from release_20261006 import EXPORT_INPUTS
+
+    require_combined_predictions(bundle)
+    with tempfile.TemporaryDirectory(prefix="export-terra-") as scratch:
+        working = Path(scratch) / bundle.name
+        for relative in EXPORT_INPUTS:
+            target = working / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(bundle / relative, target)
+        payload = _build_payload_in_scratch(
+            working, live, partial=partial, early=early, upgrade=upgrade
+        )
+        if outputs is not None:
+            generated = [working / "us/data.json"]
+            generated.extend((working / "us/analysis").rglob("*"))
+            outputs.update(
+                {
+                    str(p.relative_to(working)): p.read_bytes()
+                    for p in generated
+                    if p.is_file()
+                }
+            )
+    return payload
+
+
+def _build_payload_in_scratch(
+    bundle: Path,
+    live: dict,
+    *,
+    partial: bool = False,
+    early: bool = False,
+    upgrade: Upgrade | None = None,
 ) -> dict:
     """The payload export writes, built from ``bundle``; the one definition.
 
@@ -3539,7 +3576,7 @@ def build_payload(
     carried from ``live`` (CARRIED_USAGE), and no incumbent may drift; then the
     dashboard schema. The freeze rebuilds the staged payload with this.
     export_full_run writes data.json, us/data.json and us/analysis/ into
-    ``bundle``.
+    its disposable ``bundle``.
 
     With an engine upgrade installed (``upgrade``) the scope check is two-sided:
     (a) with release 20261014's references and exclusion record both put back,
@@ -3654,16 +3691,27 @@ def export(args, bundle, live) -> dict:
             rejudged_cases(args.stage_dir),
             JUDGE_PROVENANCE,
         )
-    repository_inputs = None if args.early else repository_input_hashes()
+    outputs = {}
     payload = build_payload(
-        bundle, live, partial=args.partial, early=args.early, upgrade=upgrade
+        bundle,
+        live,
+        partial=args.partial,
+        early=args.early,
+        upgrade=upgrade,
+        outputs=outputs,
     )
+    repository_inputs = None if args.early else repository_input_hashes()
     stats = payload["countries"]["us"]["modelStats"]
     path = args.stage_dir / (
         f"PARTIAL-data-board{BOARD_MODELS}.json"
         if args.partial
         else f"data-board{BOARD_MODELS}.json"
     )
+    outputs["us/data.json"] = json.dumps(payload["countries"]["us"]).encode()
+    for relative, contents in outputs.items():
+        destination = bundle / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(contents)
     path.write_text(payload_text(payload))
     # Keep the freeze input identical to the gated payload, including Fable usage.
     shutil.copyfile(path, bundle / "data.json")
@@ -3725,11 +3773,11 @@ def export(args, bundle, live) -> dict:
                     str(p.relative_to(args.stage_dir)): digest(p) for p in pinned
                 },
                 # A repository file, so outside "files", which binds stage files.
-                "repository_inputs": repository_inputs,
                 "judge_provenance": {
                     "path": JUDGE_PROVENANCE_PATH,
                     "sha256": digest(JUDGE_PROVENANCE),
                 },
+                "repository_inputs": repository_inputs,
             },
         )
     return payload

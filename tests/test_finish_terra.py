@@ -1422,8 +1422,14 @@ def scope(tmp_path, monkeypatch, committed_build):
         calls=[], references=[], stats=None, base_stats=None, installed_stats=None
     )
 
-    def exported(*a, **kw):
-        return {"countries": {"us": {"modelStats": copy.deepcopy(state.stats)}}}
+    def exported(path, **kw):
+        path = Path(path)
+        payload = {"countries": {"us": {"modelStats": copy.deepcopy(state.stats)}}}
+        (path / "us/analysis").mkdir(parents=True, exist_ok=True)
+        (path / "us/analysis/summary.csv").write_text("exported analysis\n")
+        (path / "us/data.json").write_text(json.dumps(payload["countries"]["us"]))
+        (path / "data.json").write_text(json.dumps(payload))
+        return payload
 
     def scoped(path, live, record=None, **kwargs):
         refs = {
@@ -4200,7 +4206,9 @@ def exporting(tmp_path, monkeypatch, scope, committed_build):
     annotations = bundle / "annotations"
     annotations.mkdir()
     for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
-        (annotations / name).write_text("country,scenario_id,variable,model,failure_source,failure_subtype,annotation\n")
+        (annotations / name).write_text(
+            "country,scenario_id,variable,model,failure_source,failure_subtype,annotation\n"
+        )
     (annotations / driver.ADJUDICATIONS).write_text('{"adjudications": []}\n')
     shutil.copyfile(
         committed_build.explanations, annotations / driver.EXPLANATIONS_NAME
@@ -4263,21 +4271,29 @@ def exporting(tmp_path, monkeypatch, scope, committed_build):
     (stage / "audit").mkdir()
     (stage / "audit/cases.jsonl").write_text("")
 
+    def stage_files():
+        return {
+            p.relative_to(stage): p.read_bytes()
+            for p in stage.rglob("*")
+            if p.is_file()
+        }
+
+    last_before = None
+
     def run(previous=None, *, partial=False, early=False):
+        nonlocal last_before
+        last_before = stage_files()
         args = SimpleNamespace(stage_dir=stage, partial=partial, early=early)
         stats = incumbents() if previous is None else previous
         live = {"countries": {"us": {"modelStats": stats}}}
-        return driver.export(args, bundle, live)
+        try:
+            return driver.export(args, bundle, live)
+        except BaseException:
+            assert stage_files() == last_before
+            raise
 
     def nothing_written():
-        return not any(
-            path.exists()
-            for path in (
-                stage / "release-ready.json",
-                stage / BOARD,
-                bundle / "data.json",
-            )
-        )
+        return stage_files() == last_before
 
     return SimpleNamespace(
         stage=stage,
@@ -4538,6 +4554,19 @@ def test_the_export_roster_must_be_the_incumbents_plus_terra(exporting):
 def test_export_writes_nothing_when_the_scope_check_refuses(exporting):
     exporting.scope.base_stats[7]["exact"] += 0.5
     with pytest.raises(SystemExit, match=r"drift: \['incumbent-07'\]"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_a_refused_reexport_preserves_every_existing_stage_output(exporting):
+    for relative in ("data.json", "us/data.json", "us/analysis/summary.csv"):
+        path = exporting.bundle / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Previously accepted output\n")
+    (exporting.stage / BOARD).write_text("Previously accepted payload\n")
+    (exporting.stage / "release-ready.json").write_text("Previously accepted receipt\n")
+    exporting.scope.base_stats[7]["exact"] += 0.5
+    with pytest.raises(SystemExit, match="incumbent modelStats drift"):
         exporting.run()
     assert exporting.nothing_written()
 
