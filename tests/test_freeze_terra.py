@@ -2138,6 +2138,32 @@ def test_rebound_adjudication_wording_reaches_applied_sentence_gate(
     )
 
 
+def test_rebound_nonisolated_verdict_is_refused_at_export_and_freeze(
+    h_stage, monkeypatch
+):
+    case_id = _h_rejudge(h_stage, monkeypatch)
+    stage = h_stage.stage
+    case = stage / "audit/cases" / case_id
+    meta = _h_json(case / "verdict.meta.json")
+    meta.pop("judge_isolation")
+    driver.write_json(case / "verdict.meta.json", meta)
+    (case / "claude.transcript.jsonl").unlink()
+    record = _h_json(driver.JUDGE_PROVENANCE)
+    entry = next(item for item in record["verdicts"] if item["case_id"] == case_id)
+    entry["isolated"] = False
+    entry["group"] = entry["group"].removeprefix("isolated: ")
+    record["counts"] = {entry["group"]: 1}
+    record["note"] = driver.provenance_note(record["verdicts"])
+    driver.write_json(driver.JUDGE_PROVENANCE, record)
+    h_stage.rebind()
+    before = h_stage.files()
+    args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+    with pytest.raises(SystemExit, match="isolation|isolated|account"):
+        driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
+    assert h_stage.files() == before
+    _h_refused(h_stage, "validation|isolation|isolated|account")
+
+
 def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
     h_stage, capsys
 ):

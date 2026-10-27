@@ -2821,7 +2821,9 @@ def validate_verdicts(
     verdict, and any verdict naming a new model, also needs this release's
     judge identity (judge_identity_problems): a case re-opened because the
     installed build moved its reference is held to it even when only
-    incumbents answered it wrong. Returns the pending cases;
+    incumbents answered it wrong. Every non-carried verdict also needs the
+    hardened runner's isolation, token authentication and a transcript bound
+    to its prompt and answer (judge_isolation_problems). Returns the pending cases;
     ``remove_invalid`` sets their verdicts aside. A carried-over verdict that
     fails is refused outright: a re-judge cannot restore it.
     """
@@ -2887,6 +2889,14 @@ def validate_verdicts(
                     raise ValueError(
                         "missing or mismatched Opus 5.5 provenance: "
                         + "; ".join(identity)
+                    )
+            if not carried:
+                isolation = judge_isolation_problems(
+                    path.parent, meta, prompt.read_bytes(), verdict
+                )
+                if isolation:
+                    raise ValueError(
+                        "missing or invalid judge isolation: " + "; ".join(isolation)
                     )
         except (OSError, ValueError, jsonschema.ValidationError) as error:
             if carried:
@@ -3062,6 +3072,25 @@ def transcript_problems(
     return problems
 
 
+def judge_isolation_problems(
+    case: Path, meta: dict, prompt: bytes, verdict: object
+) -> list[str]:
+    """Every verdict judged for this release uses the hardened token runner."""
+    problems = []
+    if "judge_isolation" not in meta:
+        problems.append("the verdict is not isolated (sidecar lacks judge_isolation)")
+    auth = meta.get("judge_auth")
+    if not isinstance(auth, dict) or auth.get("method") != "oauth_token":
+        problems.append(
+            "the sidecar does not record a token login (judge_auth "
+            f"method oauth_token): {auth!r}"
+        )
+    problems += transcript_problems(
+        case / "claude.transcript.jsonl", meta.get("judge_effort"), prompt, verdict
+    )
+    return problems
+
+
 def withhold_addresses(value):
     """``value`` with every e-mail address in it replaced by WITHHELD_ADDRESS."""
     if not isinstance(value, str):
@@ -3083,10 +3112,11 @@ def verify_judge_provenance(
     JUDGE_PROVENANCE_ENTRY_KEYS), its counts are the tally of the entries'
     groups, and it names no e-mail address anywhere, for it is public. Each
     entry's hashes must be the staged verdict's and prompt's, and its other
-    fields its sidecar's. Its isolation must be its sidecar's: a sidecar
-    records judge_isolation only when scripts/run_audit_claude.sh's hardened
-    runner wrote it, and only an isolated entry's group says "isolated: ".
-    An isolated verdict's sidecar must record a token login
+    fields its sidecar's. Its group must be PROVENANCE_GROUPS' group for the
+    sidecar's declared account; an unlisted account is refused. Every entry
+    must be isolated: its sidecar records
+    judge_isolation from scripts/run_audit_claude.sh's hardened runner, and
+    its group says "isolated: ". Every verdict's sidecar must record a token login
     (judge_auth.method oauth_token), and its transcript,
     claude.transcript.jsonl, must pass the runner's transcript checks
     (transcript_problems), its prompt and verdict included: the one user
@@ -3166,19 +3196,7 @@ def verify_judge_provenance(
                 f"the record says isolated={entry.get('isolated')!r} but the "
                 f"sidecar {'records' if isolated else 'lacks'} judge_isolation"
             )
-        elif isolated:
-            auth = meta.get("judge_auth")
-            if not isinstance(auth, dict) or auth.get("method") != "oauth_token":
-                problems.append(
-                    "the sidecar does not record a token login (judge_auth "
-                    f"method oauth_token): {auth!r}"
-                )
-            problems += transcript_problems(
-                case / "claude.transcript.jsonl",
-                meta.get("judge_effort"),
-                prompt,
-                verdict,
-            )
+        problems += judge_isolation_problems(case, meta, prompt, verdict)
         if problems:
             wrong.append(f"{entry['case_id']}: {'; '.join(problems)}")
     require(

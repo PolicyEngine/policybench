@@ -702,11 +702,25 @@ def write_verdict(case, verdict, **meta):
                 "judge_model_reported": [driver.JUDGE_MODEL],
                 "judged_at_utc": "2026-10-26T12:00:00+00:00",
                 "judge_template_version": driver.JUDGE_TEMPLATE_VERSION,
+                "judge_isolation": {"tools": "none (--tools '')"},
+                "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+                "judge_account_declared": (
+                    "claude setup-token login (token sha256 6a6daf56361b), "
+                    "Max 2026-09-30"
+                ),
+                "judge_effort": "xhigh",
                 **meta,
             }.items()
             if v is not None
         },
     )
+    if (case / "prompt.md").is_file():
+        events = _clean_transcript(
+            prompt=(case / "prompt.md").read_text(),
+            effort=meta.get("judge_effort", "xhigh"),
+        )
+        events[7]["message"]["content"][0]["input"] = verdict
+        _write_transcript(case, events)
 
 
 @pytest.fixture
@@ -773,6 +787,34 @@ def test_new_verdicts_need_the_bound_judge_provenance(audit, field, value):
     root, case, verdict = audit
     write_verdict(case, verdict, **{field: value})
     assert driver.validate_verdicts(root) == [case.name]
+
+
+@pytest.mark.parametrize(
+    "defect", ["isolation", "authentication", "transcript", "tool_call"]
+)
+def test_every_new_verdict_needs_the_hardened_runner(audit, defect):
+    root, case, _ = audit
+    meta_path = case / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    if defect == "isolation":
+        del meta["judge_isolation"]
+    elif defect == "authentication":
+        meta["judge_auth"] = {"method": "claude.ai"}
+    elif defect == "transcript":
+        (case / "claude.transcript.jsonl").unlink()
+    else:
+        events = [
+            json.loads(line)
+            for line in (case / "claude.transcript.jsonl").read_text().splitlines()
+        ]
+        _read_call(events)
+        _write_transcript(case, events)
+    meta_path.write_text(json.dumps(meta))
+    before = {path.name: path.read_bytes() for path in case.iterdir() if path.is_file()}
+    assert driver.validate_verdicts(root) == [case.name]
+    assert before == {
+        path.name: path.read_bytes() for path in case.iterdir() if path.is_file()
+    }
 
 
 def test_a_reopened_case_cannot_use_a_v1_prompt(audit):
@@ -1569,7 +1611,7 @@ ISOLATED_SIDECAR = {
     "judge_effort": "xhigh",
     "judge_isolation": {"tools": "none (--tools '')"},
     "judge_auth": {"method": "oauth_token", "account": None, "org": None},
-    "judge_account_declared": "claude:lane@example.org (pb-judge)",
+    "judge_account_declared": "claude:max@farness.ai (subfleet lane claude-10)",
 }
 WITHHELD = "<account withheld>"
 
@@ -1582,10 +1624,8 @@ def _record_entry(case: Path, group: str) -> dict:
         "case_id": case.name,
         "group": group,
         "isolated": "judge_isolation" in meta,
-        "judge_account_declared": (
-            meta["judge_account_declared"].replace("lane@example.org", WITHHELD)
-            if "judge_account_declared" in meta
-            else None
+        "judge_account_declared": driver.withhold_addresses(
+            meta.get("judge_account_declared")
         ),
         "judge_effort": meta.get("judge_effort"),
         "judge_model_reported": meta["judge_model_reported"],
@@ -1606,19 +1646,22 @@ def _provenance_record(entries: list[dict], note: str | None = None):
     return {"note": note, "counts": counts, "verdicts": entries}
 
 
-GROUPS = {ISOLATED: "isolated: pb-judge", UNHARDENED: "unhardened: in-repo runner"}
+GROUPS = {
+    ISOLATED: "isolated: subfleet lane claude-10",
+    UNHARDENED: "isolated: setup-token 2",
+}
 
 
 @pytest.fixture
 def provenance(tmp_path):
-    """Two new verdicts, one isolated and one not, and a true record of both."""
+    """Two isolated new verdicts and a true record of both."""
     cases = tmp_path / "audit/cases"
     entries = []
-    for name, isolated in ((ISOLATED, True), (UNHARDENED, False)):
+    for name, lane in ((ISOLATED, True), (UNHARDENED, False)):
         case = cases / name
         case.mkdir(parents=True)
         (case / "prompt.md").write_text(JUDGED)
-        write_verdict(case, _verdict([NEW]), **(ISOLATED_SIDECAR if isolated else {}))
+        write_verdict(case, _verdict([NEW]), **(ISOLATED_SIDECAR if lane else {}))
         _write_transcript(case, _clean_transcript())
         entries.append(_record_entry(case, GROUPS[name]))
     record = tmp_path / "judge_provenance.json"
@@ -1734,7 +1777,7 @@ def test_the_record_withholds_the_sidecars_address_and_names_none(provenance):
 
     def in_group(entries):
         for entry in entries:
-            entry["group"] = entry["group"].replace("pb-judge", "judge@example.org")
+            entry["group"] += " judge@example.org"
 
     with pytest.raises(SystemExit, match="is public and names"):
         verify(in_group)
@@ -1785,7 +1828,7 @@ def test_only_an_isolated_entrys_group_says_isolated(provenance):
     _, verify = provenance
 
     def regroup(entries):
-        _entry(UNHARDENED)(entries)["group"] = "isolated: in-repo runner"
+        _entry(UNHARDENED)(entries)["group"] = "unhardened: in-repo runner"
 
     with pytest.raises(SystemExit, match=f"{UNHARDENED}: its group .* disagrees"):
         verify(regroup)
@@ -2156,12 +2199,51 @@ def test_a_prompt_changed_after_its_judge_ran_is_refused(provenance):
         verify(follow)
 
 
-def test_an_unhardened_verdicts_transcript_is_not_held_to_isolation(provenance):
+
+
+def test_an_unhardened_verdicts_transcript_is_refused(provenance):
     cases, verify = provenance
+    meta_path = cases / UNHARDENED / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    del meta["judge_isolation"]
+    meta_path.write_text(json.dumps(meta))
     events = _clean_transcript()
     _read_call(events)
     _write_transcript(cases / UNHARDENED, events)
-    verify()
+
+    def downgrade(entries):
+        entry = _entry(UNHARDENED)(entries)
+        entry.update(isolated=False, group="unhardened: setup-token 2")
+
+    with pytest.raises(SystemExit, match="the verdict is not isolated.*tool calls"):
+        verify(downgrade)
+
+def test_export_refuses_a_verdict_that_opts_out_of_isolation(exporting, monkeypatch):
+    case_id = "us__scenario_000__snap"
+    cases = exporting.stage / "audit/cases"
+    case = _provenance_case(cases, case_id, LANE_10, "xhigh")
+    record = driver.judge_provenance_record(cases, frozenset({case_id}))
+    meta_path = case / "verdict.meta.json"
+    meta = json.loads(meta_path.read_text())
+    del meta["judge_isolation"]
+    meta_path.write_text(json.dumps(meta))
+    (case / "claude.transcript.jsonl").unlink()
+    record["verdicts"][0].update(isolated=False, group="subfleet lane claude-10")
+    record = _provenance_record(record["verdicts"])
+    exporting.record.write_text(json.dumps(record))
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({case_id}))
+    before = {
+        str(path.relative_to(exporting.stage)): path.read_bytes()
+        for path in exporting.stage.rglob("*")
+        if path.is_file()
+    }
+    with pytest.raises(SystemExit, match="the verdict is not isolated.*no transcript"):
+        exporting.run()
+    assert before == {
+        str(path.relative_to(exporting.stage)): path.read_bytes()
+        for path in exporting.stage.rglob("*")
+        if path.is_file()
+    }
 
 
 def test_the_committed_provenance_record_is_public_and_tallied():
