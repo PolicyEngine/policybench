@@ -34,6 +34,9 @@ import finish_terra as driver  # noqa: E402
 import release_20261006  # noqa: E402
 
 from policybench.audit import AUDIT_OUTPUT_SCHEMA  # noqa: E402
+from policybench.dashboard_schema import (  # noqa: E402
+    validate_dashboard_payload as REAL_DASHBOARD_VALIDATOR,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 NEW, SLUG = "gpt-6.1-terra", "terra"
@@ -1326,6 +1329,7 @@ def scope(tmp_path, monkeypatch, committed_build):
 
     state.build = build
     state.bundle = bundle
+    state.upgrade = upgrade
     previous = incumbents()
     state.base_stats = copy.deepcopy(previous) + [stat(NEW)]
     state.stats = copy.deepcopy(previous) + [stat(NEW)]
@@ -3910,3 +3914,346 @@ def test_triage_refuses_an_amendment_outside_its_rules(triage_stage, item):
     _amendments(triage_stage.stage, item)
     with pytest.raises(SystemExit):
         triage_stage.run()
+
+
+# --- Strict export: every refusal comes before a payload or receipt -------------
+
+RUN_HEADER = (
+    "model,scenario_id,variable,prediction,estimated_cost_usd,total_tokens,"
+    "live_calls,cache_hit_calls,live_elapsed_seconds,elapsed_seconds\n"
+)
+RUN_ROW = f"{NEW},scenario_000,snap,1200.0,0.0001,900,1,0,2.75,2.75\n"
+BOARD = "data-board51.json"
+
+
+@pytest.fixture
+def exporting(tmp_path, monkeypatch, scope, committed_build):
+    """A stage export can run on: release 20261014's references committed,
+    the installed build staged and bound, Terra's pinned run, and an empty
+    judge provenance record (no case re-opened). The exporters are the scope
+    fixture's; one test below runs the real dashboard validator."""
+    stage = tmp_path / "stage"
+    bundle = stage / "publish" / driver.RUN_NAME
+    us = base_references(bundle / "us")
+    for name in driver.UPGRADED_FILES:
+        shutil.copyfile(committed_build.built / name, us / name)
+    annotations = bundle / "annotations"
+    annotations.mkdir()
+    for name in ("us_audit_row_annotations.csv", "us_case_notes.csv"):
+        (annotations / name).write_text("country\n")
+    (annotations / driver.ADJUDICATIONS).write_text('{"adjudications": []}\n')
+    shutil.copyfile(
+        committed_build.explanations, annotations / driver.EXPLANATIONS_NAME
+    )
+    copy_dir = stage / driver.BUILD_COPY
+    copy_dir.mkdir()
+    for name in driver.BUILT_FILES:
+        shutil.copyfile(committed_build.built / name, copy_dir / name)
+    shutil.copyfile(committed_build.explanations, copy_dir / driver.EXPLANATIONS_NAME)
+    shutil.copyfile(committed_build.actions, copy_dir / driver.ACTIONS_NAME)
+    inputs = stage / "inputs" / SLUG
+    inputs.mkdir(parents=True)
+    (inputs / "predictions.csv").write_text(RUN_HEADER + RUN_ROW)
+    fingerprint = {"model_id": NEW}
+    driver.write_json(
+        inputs / "run_state.json", {"model": NEW, "treatment_fingerprint": fingerprint}
+    )
+    (us / "predictions.csv").write_text(
+        RUN_HEADER
+        + "incumbent-00,scenario_000,snap,900.0,0.002,800,1,0,3.5,3.5\n"
+        + RUN_ROW
+    )
+    files = [us / name for name in (*driver.REFERENCE_FILES, "predictions.csv")]
+    files += [inputs / name for name in driver.PINNED_INPUTS]
+    driver.write_json(
+        stage / "stage.json",
+        {
+            "partial": False,
+            "early": False,
+            "files": {str(path.relative_to(stage)): sha(path) for path in files},
+        },
+    )
+    driver.write_json(
+        stage / "model-provenance.json",
+        {
+            NEW: {
+                "predictions_sha256": sha(inputs / "predictions.csv"),
+                "treatment_fingerprint": fingerprint,
+            }
+        },
+    )
+    pins = {SLUG: {name: sha(inputs / name) for name in driver.PINNED_INPUTS}}
+    monkeypatch.setattr(driver, "committed_input_pins", lambda: pins)
+    record = tmp_path / "judge_provenance.json"
+    record.write_text(json.dumps(_provenance_record([])))
+    monkeypatch.setattr(driver, "JUDGE_PROVENANCE", record)
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset())
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage: scope.upgrade)
+    # The committed snapshot moves to a scratch copy; release 20261014's
+    # exclusion record is still read from BASE_COMMIT (and checked) first.
+    base_record = driver.base_exclusion_record()
+    monkeypatch.setattr(
+        driver, "base_exclusion_record", lambda: copy.deepcopy(base_record)
+    )
+    snapshot = base_references(tmp_path / "committed-snapshot")
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    # Before the freeze: the pointer names release 20261014.
+    monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.BASE_TAG})
+
+    def run(previous=None, *, partial=False, early=False):
+        args = SimpleNamespace(stage_dir=stage, partial=partial, early=early)
+        stats = incumbents() if previous is None else previous
+        live = {"countries": {"us": {"modelStats": stats}}}
+        return driver.export(args, bundle, live)
+
+    def nothing_written():
+        return not any(
+            path.exists()
+            for path in (
+                stage / "release-ready.json",
+                stage / BOARD,
+                bundle / "data.json",
+            )
+        )
+
+    return SimpleNamespace(
+        stage=stage,
+        bundle=bundle,
+        run=run,
+        scope=scope,
+        snapshot=snapshot,
+        record=record,
+        nothing_written=nothing_written,
+    )
+
+
+def test_strict_export_binds_the_build_the_run_and_the_evidence(exporting):
+    payload = exporting.run()
+    stage, bundle = exporting.stage, exporting.bundle
+    output = stage / BOARD
+    assert output.read_bytes() == driver.payload_text(payload).encode()
+    assert (bundle / "data.json").read_bytes() == output.read_bytes()
+    receipt = json.loads((stage / "release-ready.json").read_text())
+    assert receipt["release_tag"] == driver.RELEASE_TAG
+    assert (receipt["base_tag"], receipt["base_sha256"]) == (
+        driver.BASE_TAG,
+        driver.BASE_SHA256,
+    )
+    assert receipt["models"] == 51 and receipt["partial"] is False
+    assert receipt["payload_sha256"] == sha(output)
+    for name in driver.BUILD_COPY_FILES:
+        assert receipt["files"][f"{driver.BUILD_COPY}/{name}"] == sha(
+            stage / driver.BUILD_COPY / name
+        )
+    for name in (*driver.REFERENCE_FILES, "predictions.csv"):
+        path = f"publish/{driver.RUN_NAME}/us/{name}"
+        assert receipt["files"][path] == sha(stage / path)
+    for name in (
+        "stage.json",
+        "model-provenance.json",
+        *[f"inputs/{SLUG}/{n}" for n in driver.PINNED_INPUTS],
+    ):
+        assert receipt["files"][name] == sha(stage / name)
+    assert receipt["judge_provenance"] == {
+        "path": "docs/terra/judge_provenance.json",
+        "sha256": sha(exporting.record),
+    }
+
+
+@pytest.mark.parametrize("name", driver.REFERENCE_FILES)
+def test_export_refuses_a_staged_reference_off_the_installed_build(exporting, name):
+    path = exporting.bundle / "us" / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(SystemExit, match=f"staged reference {name} does not match"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize("name", driver.UPGRADED_FILES)
+def test_export_refuses_a_staged_base_reference_in_place_of_the_build(exporting, name):
+    (exporting.bundle / "us" / name).write_bytes(base_blob(SNAPSHOT_PATH / name))
+    with pytest.raises(SystemExit, match=f"staged reference {name} does not match"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize("frozen", [False, True])
+def test_export_refuses_a_committed_reference_off_its_pin(
+    exporting, monkeypatch, frozen
+):
+    """Before the freeze the committed snapshot is release 20261014's; after
+    it, the build's. Either other state is refused."""
+    if frozen:
+        monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.RELEASE_TAG})
+    else:
+        shutil.copyfile(
+            exporting.bundle / "us" / CSV_NAME, exporting.snapshot / CSV_NAME
+        )
+    with pytest.raises(SystemExit, match="committed reference"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_a_re_export_after_the_freeze_accepts_the_build_as_committed(
+    exporting, monkeypatch
+):
+    monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.RELEASE_TAG})
+    for name in driver.UPGRADED_FILES:
+        shutil.copyfile(exporting.bundle / "us" / name, exporting.snapshot / name)
+    exporting.run()
+    assert (exporting.stage / "release-ready.json").is_file()
+
+
+def test_export_writes_no_receipt_when_the_inputs_are_not_the_pinned_run(
+    exporting, monkeypatch
+):
+    pins = {SLUG: {"predictions.csv": "0" * 64, "run_state.json": "0" * 64}}
+    monkeypatch.setattr(driver, "committed_input_pins", lambda: pins)
+    with pytest.raises(SystemExit, match=f"staged inputs/{SLUG}/.* is not the run"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("stage_json_hash", "staged input changed since prepare"),
+        ("stage_json_omits_input", "stage.json does not record"),
+        ("provenance_hash", "model-provenance.json disagrees"),
+        ("provenance_fingerprint", "model-provenance.json disagrees"),
+        ("provenance_extra_model", "does not describe exactly"),
+    ],
+)
+def test_export_refuses_prepare_time_hashes_that_no_longer_hold(
+    exporting, defect, message
+):
+    stage = exporting.stage
+    receipt = json.loads((stage / "stage.json").read_text())
+    provenance = json.loads((stage / "model-provenance.json").read_text())
+    if defect == "stage_json_hash":
+        receipt["files"][f"inputs/{SLUG}/run_state.json"] = "0" * 64
+    elif defect == "stage_json_omits_input":
+        del receipt["files"][f"publish/{driver.RUN_NAME}/us/predictions.csv"]
+    elif defect == "provenance_hash":
+        provenance[NEW]["predictions_sha256"] = "0" * 64
+    elif defect == "provenance_fingerprint":
+        provenance[NEW]["treatment_fingerprint"] = {"model_id": "gpt-6.1-sol"}
+    else:
+        provenance["gpt-6.1-sol"] = provenance[NEW]
+    driver.write_json(stage / "stage.json", receipt)
+    driver.write_json(stage / "model-provenance.json", provenance)
+    with pytest.raises(SystemExit, match=message):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize(
+    "column, value",
+    [("prediction", "1201.0"), ("estimated_cost_usd", "0.0002"), ("live_calls", "1.0")],
+)
+def test_export_refuses_terra_rows_that_are_not_the_pinned_runs(
+    exporting, column, value
+):
+    """A Terra cell in the bundle's predictions that differs from its run file
+    (rehashed into stage.json so only the row check can catch it) is
+    refused."""
+    stage = exporting.stage
+    path = exporting.bundle / "us" / "predictions.csv"
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    frame.loc[frame.model == NEW, column] = value
+    frame.to_csv(path, index=False)
+    receipt = json.loads((stage / "stage.json").read_text())
+    receipt["files"][f"publish/{driver.RUN_NAME}/us/predictions.csv"] = sha(path)
+    driver.write_json(stage / "stage.json", receipt)
+    with pytest.raises(SystemExit, match=f"not the pinned run's.*{column}"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize(
+    "edit",
+    ["lists_an_unstaged_verdict", "counts", "note", "extra_key"],
+)
+def test_export_refuses_a_provenance_record_the_stage_does_not_give(exporting, edit):
+    record = _provenance_record([])
+    if edit == "lists_an_unstaged_verdict":
+        record["verdicts"].append({"case_id": "us__scenario_000__snap"})
+    elif edit == "counts":
+        record["counts"] = {"isolated: pb-judge": 1}
+    elif edit == "note":
+        record["note"] += " Every verdict was checked by hand."
+    else:
+        record["reviewed_by"] = "someone"
+    exporting.record.write_text(json.dumps(record))
+    with pytest.raises(SystemExit):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_export_refuses_a_payload_the_dashboard_schema_refuses(exporting, monkeypatch):
+    import policybench.dashboard_schema
+
+    monkeypatch.setattr(
+        policybench.dashboard_schema,
+        "validate_dashboard_payload",
+        lambda payload, **kw: ["modelStats[50].exact: missing"],
+    )
+    with pytest.raises(SystemExit, match="payload validation failed"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_the_real_dashboard_validator_refuses_a_payload_missing_its_fields(
+    exporting, monkeypatch
+):
+    """The scope fixture's synthetic payload holds modelStats only, so the
+    real validator, which build_payload calls, refuses it."""
+    import policybench.dashboard_schema
+
+    monkeypatch.setattr(
+        policybench.dashboard_schema,
+        "validate_dashboard_payload",
+        REAL_DASHBOARD_VALIDATOR,
+    )
+    with pytest.raises(SystemExit, match="payload validation failed"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_the_export_roster_must_be_the_incumbents_plus_terra(exporting):
+    scope = exporting.scope
+    original = copy.deepcopy(scope.stats)
+    scope.stats[-1] = stat("terra-impostor")
+    with pytest.raises(SystemExit, match="roster"):
+        exporting.run()
+    scope.stats = original
+    with pytest.raises(SystemExit, match="50 incumbents only"):
+        exporting.run(incumbents()[:-1] + [stat(NEW)])
+    scope.stats = original[:-1]
+    with pytest.raises(SystemExit, match="all 51 models"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+def test_export_writes_nothing_when_the_scope_check_refuses(exporting):
+    exporting.scope.base_stats[7]["exact"] += 0.5
+    with pytest.raises(SystemExit, match=r"drift: \['incumbent-07'\]"):
+        exporting.run()
+    assert exporting.nothing_written()
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_an_early_or_partial_export_never_gets_a_release_receipt(
+    exporting, monkeypatch, partial
+):
+    """An early export skips the judge gates and writes no receipt; a partial
+    one also skips the scope checks and marks its payload."""
+    for name in ("verify_new_model_inputs", "verify_judge_provenance"):
+        monkeypatch.setattr(driver, name, lambda *a, n=name: pytest.fail(f"{n} ran"))
+    exporting.run(partial=partial, early=True)
+    stage = exporting.stage
+    assert not (stage / "release-ready.json").exists()
+    payload = stage / (f"PARTIAL-{BOARD}" if partial else BOARD)
+    assert (exporting.bundle / "data.json").read_bytes() == payload.read_bytes()
+    if partial:
+        assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
