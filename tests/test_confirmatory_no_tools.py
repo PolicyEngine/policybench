@@ -23,7 +23,7 @@ import confirmatory_no_tools as nt  # noqa: E402
 def setup(tmp_path):
     draw = ["h2", "h1"]
     baseline = tmp_path / "baseline-exclusions.json"
-    baseline.write_text("[]\n")
+    baseline.write_text('{"exclusions": []}\n')
     return {
         "design": {
             "board": "synthetic.csv",
@@ -836,3 +836,44 @@ def test_second_signal_exits_while_output_lock_is_held(setup, tmp_path):
     assert process.returncode == 128 + signal.SIGTERM, (stdout, stderr)
     assert b"every attempt under way" in stderr
     assert b"saved finals and archives survive" in stderr
+
+
+@pytest.mark.parametrize("category", ["optional", "outside-draw"])
+def test_stage_problems_classifies_every_saved_final(setup, category):
+    """R3: optional and off-draw finals use the initialization classifier."""
+    plan = stage(setup)
+    assert plan.execute() == 0
+    model = "gpt-6-sol" if category == "optional" else nt.CHEAP[0]
+    sid = "h2" if category == "optional" else "outside-draw"
+    profile = nt.pilot.model_profile(
+        model, arm="none", prompt_version=nt.PROMPT_VERSION
+    )
+    payload = record(sid, profile)
+    payload.update(attempts=[], turns=[None])
+    path = plan.households(model) / f"{sid}.json"
+    nt.write_json(path, payload)
+    with pytest.raises((nt.StateError, AttributeError), match="get"):
+        stage(setup)
+    problems = nt.stage_problems(setup["design"])
+    assert any(model in problem and "get" in problem for problem in problems), (
+        "R3: every final refused by initialization must fail stage preflight",
+        problems,
+    )
+
+
+@pytest.mark.parametrize(
+    "payload", ["[]", "{invalid json", '{"exclusions": [{"scenario_id": "h2"}]}']
+)
+def test_baseline_schema_is_usable_before_any_provider_call(setup, payload):
+    """R5: correctly hashed malformed inventories refuse without provider calls."""
+    spec = setup["design"]["baseline_exclusions"]
+    path = Path(spec["path"])
+    path.write_text(payload)
+    spec["sha256"] = nt.sha256_file(path)
+    provider = Provider()
+    try:
+        with pytest.raises(nt.StateError, match="baseline exclusion"):
+            plan = stage(setup, provider)
+            plan.close()
+    finally:
+        assert provider.calls == [], "R5: schema checks precede provider calls"

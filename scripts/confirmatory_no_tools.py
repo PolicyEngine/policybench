@@ -130,6 +130,12 @@ def history(folder: Path) -> tuple[dict[str, dict], float]:
                 raise StateError(f"{path}: household differs from final name {sid}")
             if final["attempts"] != entries:
                 raise StateError(f"{path}: attempts disagree with archived files")
+            try:
+                classify(final, 0.0, 0.0, None)
+            except (TypeError, ValueError, AttributeError, KeyError) as error:
+                raise StateError(
+                    f"{path}: cannot classify saved final: {error}"
+                ) from error
             spent += attempt_cost(final)
         states[sid] = {"entries": entries, "final": final}
     return states, spent
@@ -243,9 +249,32 @@ class Stage:
         self._lock_file = None
         try:
             baseline = design["baseline_exclusions"]
-            if sha256_file(Path(baseline["path"])) != baseline["sha256"]:
+            if not isinstance(baseline, dict) or not isinstance(
+                baseline.get("path"), str
+            ):
+                raise StateError("baseline exclusions need path and sha256")
+            baseline_path = Path(baseline["path"])
+            if sha256_file(baseline_path) != baseline.get("sha256"):
                 raise StateError("baseline exclusions do not hash as declared")
-        except (OSError, KeyError, TypeError) as error:
+            payload = json.loads(baseline_path.read_text())
+            exclusions = (
+                payload.get("exclusions") if isinstance(payload, dict) else None
+            )
+            if not isinstance(exclusions, list):
+                raise StateError("baseline exclusions must contain an exclusions list")
+            cells = []
+            for exclusion in exclusions:
+                if not isinstance(exclusion, dict) or any(
+                    not isinstance(exclusion.get(key), str) or not exclusion[key]
+                    for key in ("scenario_id", "variable")
+                ):
+                    raise StateError(
+                        "baseline exclusion needs household and output strings"
+                    )
+                cells.append((exclusion["scenario_id"], exclusion["variable"]))
+            if len(cells) != len(set(cells)):
+                raise StateError("baseline exclusions repeat a cell")
+        except (OSError, KeyError, TypeError, ValueError) as error:
             raise StateError(f"baseline exclusions: {error}") from error
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock_file = (self.root / ".confirmatory-no-tools.lock").open("a")
