@@ -6,6 +6,7 @@ import ast
 import io
 import json
 import os
+import signal
 import sys
 import threading
 from pathlib import Path
@@ -21,11 +22,17 @@ import confirmatory_no_tools as nt  # noqa: E402
 @pytest.fixture
 def setup(tmp_path):
     draw = ["h2", "h1"]
+    baseline = tmp_path / "baseline-exclusions.json"
+    baseline.write_text("[]\n")
     return {
         "design": {
             "board": "synthetic.csv",
             "engine": "policyengine-us 2.60.4",
             "draw_order": draw,
+            "baseline_exclusions": {
+                "path": str(baseline),
+                "sha256": nt.sha256_file(baseline),
+            },
             "no_tools": {
                 "runs": str(tmp_path / "no-tools"),
                 "folder": "none",
@@ -413,14 +420,222 @@ def test_in_flight_models_observe_the_shared_cap_before_their_next_turn(
     assert plan.spend.spent_usd == pytest.approx(0.1)
 
 
-def test_dry_run_marks_harness_and_budget_finals_as_blocked(setup):
+@pytest.mark.parametrize(
+    "status,error,expected",
+    [
+        ("budget_stop", None, "stopped"),
+        ("provider_error", "BadRequestError: synthetic", "stop"),
+    ],
+)
+def test_dry_run_marks_harness_and_budget_finals_as_blocked(
+    setup, status, error, expected
+):
     plan = stage(setup, models=[nt.CHEAP[0]])
     profile = nt.pilot.model_profile(
         nt.CHEAP[0], arm="none", prompt_version=nt.PROMPT_VERSION
     )
-    payload = record("h2", profile, status="budget_stop", cost=0)
+    payload = record("h2", profile, status=status, error=error, cost=0)
+    payload["turns"] = []
     payload["attempts"] = []
     nt.write_json(final(plan), payload)
+    if hasattr(plan, "close"):
+        plan.close()
     resumed = stage(setup, models=[nt.CHEAP[0]])
     assert resumed.dry_run() == 1
-    assert "h2:blocked stopped at attempt 1" in resumed.out.getvalue()
+    assert f"h2:blocked {expected} at attempt 1" in resumed.out.getvalue()
+
+
+def test_sigint_finishes_saves_and_stops_before_the_next_household(setup):
+    calls = []
+    saved_handlers = {
+        sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+    }
+    continued = threading.Event()
+
+    def interrupted(scenario, variables, tool_call, completion, spend, *, profile):
+        calls.append(scenario.id)
+        spend.add(0.17)
+        if scenario.id == "h2":
+            os.kill(os.getpid(), signal.SIGINT)
+            continued.wait(0.05)
+        return record(scenario.id, profile, cost=0.17)
+
+    plan = stage(setup, interrupted, models=[nt.CHEAP[0]])
+    try:
+        result = plan.execute()
+    except KeyboardInterrupt:
+        # Let the old implementation's uncoordinated worker finish before the
+        # regression assertion, so a red run leaves no worker behind.
+        continued.set()
+        for worker in threading.enumerate():
+            if worker.name.startswith("no-tools-"):
+                worker.join(timeout=30)
+        result = 0
+    assert result != 0, "SIGINT must give a coordinated nonzero exit"
+    assert calls == ["h2"]
+    assert load(final(plan))["totals"]["cost_usd"] == 0.17
+    assert plan.states[nt.CHEAP[0]] == "interrupted"
+    assert not plan.stopped.is_set(), "interrupts must preserve the budget event"
+    assert not final(plan, sid="h1").exists()
+    assert all(
+        signal.getsignal(sig) == handler for sig, handler in saved_handlers.items()
+    )
+    assert "finish and save" in plan.out.getvalue()
+
+
+def test_stage_lock_refuses_a_second_invocation_and_releases_after_dry_run(setup):
+    first = stage(setup, models=[nt.CHEAP[0]])
+    with pytest.raises(nt.StateError, match="another no-tools invocation"):
+        stage(setup, models=[nt.CHEAP[1]])
+    assert first.dry_run() == 1
+    second = stage(setup, models=[nt.CHEAP[1]])
+    assert second.dry_run() == 1
+
+
+@pytest.mark.parametrize("fault", ["missing", "hash"])
+def test_baseline_exclusions_must_exist_and_hash_before_startup(setup, fault):
+    spec = setup["design"]["baseline_exclusions"]
+    if fault == "missing":
+        Path(spec["path"]).unlink()
+    else:
+        spec["sha256"] = "0" * 64
+    with pytest.raises(nt.StateError, match="baseline exclusions"):
+        stage(setup)
+
+
+def test_archive_identity_and_rerun_eligibility_are_checked_directly(setup):
+    first = paused(setup)
+    first.archive(nt.CHEAP[0], "h2")
+    path = final(first).parent / "attempts/h2-1.json"
+    payload = load(path)
+    payload["scenario_id"] = "h1"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(nt.StateError, match="household differs from archive name h2"):
+        stage(setup)
+    payload.update(scenario_id="h2", status="complete", error=None)
+    path.write_text(json.dumps(payload))
+    with pytest.raises(nt.StateError, match="archived attempt was ineligible"):
+        stage(setup)
+
+
+def test_two_provider_failures_then_harness_failure_has_no_standing_final(setup):
+    provider = Provider(
+        {
+            **plant(setup, "provider_error", "APIConnectionError", 1),
+            **plant(setup, "provider_error", "APIConnectionError", 2),
+            **plant(setup, "provider_error", "BadRequestError", 3),
+        }
+    )
+
+    def failure(*args, **kwargs):
+        result = provider(*args, **kwargs)
+        if result["error"] == "BadRequestError":
+            result["turns"] = []
+        return result
+
+    plan = stage(setup, failure, models=[nt.CHEAP[0]])
+    assert plan.execute() == 1
+    assert plan.states[nt.CHEAP[0]] == "harness-stopped"
+    assert [n for _, _, n in provider.calls] == [1, 2, 3]
+    assert len(load(final(plan))["attempts"]) == 2
+    assert not plan.standing(nt.CHEAP[0], "h2")
+    assert not final(plan, sid="h1").exists()
+
+
+@pytest.mark.parametrize(
+    "status,error,expected",
+    [
+        ("provider_error", "BadRequestError", "stop"),
+        ("budget_stop", None, "stopped"),
+    ],
+)
+def test_stage_problems_requires_every_cheap_model_final_to_stand(
+    setup, status, error, expected, monkeypatch
+):
+    plan = stage(setup)
+    assert plan.execute() == 0
+    path = final(plan, model=nt.CHEAP[-1], sid="h1")
+    payload = load(path)
+    payload.update(status=status, error=error, turns=[])
+    path.write_text(json.dumps(payload))
+    monkeypatch.setattr(
+        nt.pilot, "load_board", lambda _: pytest.fail("helper loads board")
+    )
+    problems = nt.stage_problems(setup["design"])
+    assert any(nt.CHEAP[-1] in p and "h1" in p and expected in p for p in problems)
+
+
+def test_stage_problems_reports_missing_finals_and_invalid_optional_history(setup):
+    plan = stage(setup)
+    assert plan.execute() == 0
+    assert nt.stage_problems(setup["design"]) == []
+    final(plan, sid="h1").unlink()
+    optional = plan.households("gpt-6-sol") / "attempts/h2-2.json"
+    optional.parent.mkdir(parents=True)
+    optional.write_text("{}")
+    problems = nt.stage_problems(setup["design"])
+    assert any(nt.CHEAP[0] in p and "h1" in p and "missing" in p for p in problems)
+    assert any("attempt-number gap" in p and "gpt-6-sol" in p for p in problems)
+
+
+def test_real_harness_checks_other_models_spend_before_the_next_turn(
+    setup, monkeypatch
+):
+    from policybench import eval_no_tools
+
+    monkeypatch.setattr(nt, "NO_TOOLS_CAP", 0.1)
+    for scenario in setup["board"]["scenarios"].values():
+        scenario.country = "us"
+
+    def prompt(scenario, variables, profile):
+        return "Synthetic household", {
+            "_board_prompt_sha256": "synthetic",
+            "_sent_board_prompt_sha256": "synthetic",
+            "_budget_ceiling": 100,
+            "_answer_tool": nt.pilot.answer_tool_for(
+                profile, variables, scenario.country
+            ),
+            "max_tokens": 100,
+        }
+
+    monkeypatch.setattr(nt.pilot, "build_initial_request", prompt)
+    monkeypatch.setattr(
+        eval_no_tools,
+        "_extract_usage_metadata",
+        lambda response, *args: {"total_cost_usd": response.synthetic_cost},
+    )
+    entered = threading.Barrier(2)
+    requests = []
+    models = [nt.CHEAP[0], nt.CHEAP[2]]
+    first_id = nt.pilot.model_profile(models[0], arm="none").model_id
+
+    def completion(**kwargs):
+        requests.append(kwargs["model"])
+        entered.wait(timeout=30)
+        if kwargs["model"] != first_id:
+            assert plan.stopped.wait(timeout=30), "other model must cross shared cap"
+        message = SimpleNamespace(
+            role="assistant", content="", tool_calls=None, function_call=None
+        )
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message, finish_reason="stop")],
+            synthetic_cost=0.11 if kwargs["model"] == first_id else 0.0,
+            id="synthetic-response",
+        )
+
+    plan = nt.Stage(
+        setup["design"],
+        models=models,
+        board=setup["board"],
+        run_household=nt.pilot.run_household,
+        completion_for=lambda profile: completion,
+        out=io.StringIO(),
+    )
+    assert plan.execute() == 1
+    assert len(requests) == 2
+    for model in models:
+        payload = load(final(plan, model=model))
+        assert payload["status"] == "budget_stop", payload.get("error")
+        assert len(payload["turns"]) == 1
+        assert not final(plan, model=model, sid="h1").exists()
+    assert plan.spend.spent_usd == pytest.approx(0.11)

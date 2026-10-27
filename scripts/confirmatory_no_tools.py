@@ -11,10 +11,12 @@ to rerun a paused account failure. Native harness resume is never used.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import math
 import os
 import re
+import signal
 import sys
 import threading
 from pathlib import Path
@@ -125,6 +127,42 @@ def history(folder: Path) -> tuple[dict[str, dict], float]:
     return states, spent
 
 
+def stage_problems(design: dict) -> list[str]:
+    """Read stage histories and standing finals without a board or provider."""
+    problems = []
+    try:
+        spec = design["no_tools"]
+        root = Path(spec["runs"])
+        folder, stage = component(spec["folder"]), component(spec["stage"])
+        draw_order = [component(sid) for sid in design["draw_order"]]
+        models = set(CHEAP)
+        if root.is_dir():
+            models.update(path.name for path in root.iterdir() if path.is_dir())
+    except (OSError, KeyError, TypeError, ValueError) as error:
+        return [f"no-tools stage: {error}"]
+    for model in sorted(models):
+        try:
+            states, _ = history(root / model / folder / stage / "households")
+            if model not in CHEAP:
+                continue
+            for sid in draw_order:
+                state = states.get(sid)
+                if state is None or state["final"] is None:
+                    problems.append(f"no-tools {model}/{sid}: missing standing final")
+                    continue
+                outcome = action(
+                    classify(state["final"], 0.0, 0.0, None)[0],
+                    len(state["entries"]) + 1,
+                )
+                if outcome != "stands":
+                    problems.append(
+                        f"no-tools {model}/{sid}: final action is {outcome}"
+                    )
+        except (OSError, TypeError, ValueError, AttributeError, KeyError) as error:
+            problems.append(f"no-tools {model}: {error}")
+    return problems
+
+
 class Spend:
     """The stage's recorded spend, shared by every model and every invocation."""
 
@@ -184,12 +222,37 @@ class Stage:
         self.root = Path(spec["runs"])
         self.folder, self.stage = component(spec["folder"]), component(spec["stage"])
         self.out = sys.stdout if out is None else out
-        self._say_lock = threading.Lock()
+        self._say_lock = threading.RLock()
         self.stopped = threading.Event()
+        self.interrupted = threading.Event()
         self.completion_for = completion_for
         self.run_household = (
             run_household if run_household is not None else pilot.run_household
         )
+        self._lock_file = None
+        try:
+            baseline = design["baseline_exclusions"]
+            if sha256_file(Path(baseline["path"])) != baseline["sha256"]:
+                raise StateError("baseline exclusions do not hash as declared")
+        except (OSError, KeyError, TypeError) as error:
+            raise StateError(f"baseline exclusions: {error}") from error
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._lock_file = (self.root / ".confirmatory-no-tools.lock").open("a")
+        try:
+            fcntl.flock(self._lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            self.close()
+            raise StateError(
+                f"another no-tools invocation holds the lock in {self.root}"
+            ) from error
+        try:
+            self._load_state(board)
+        except BaseException:
+            self.close()
+            raise
+
+    def _load_state(self, board) -> None:
+        design = self.design
         pilot.set_stated_engine(design["engine"].split()[-1])
         if board is None:
             board_path = Path(design["board"])
@@ -229,6 +292,22 @@ class Stage:
         self.spend = Spend(spent, self.stopped)
         self.states = {model: "pending" for model in self.models}
 
+    def close(self) -> None:
+        """Release the invocation lock, including after initialization failure."""
+        lock = getattr(self, "_lock_file", None)
+        if lock is not None:
+            lock.close()
+            self._lock_file = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
     def households(self, model: str) -> Path:
         return self.root / model / self.folder / self.stage / "households"
 
@@ -248,6 +327,12 @@ class Stage:
         )
 
     def dry_run(self) -> int:
+        try:
+            return self._dry_run()
+        finally:
+            self.close()
+
+    def _dry_run(self) -> int:
         for model in self.models:
             done = [sid for sid in self.draw_order if self.standing(model, sid)]
             owed = []
@@ -302,10 +387,16 @@ class Stage:
             completion = None
             completion_loaded = False
             for sid in self.draw_order:
+                if self.interrupted.is_set():
+                    self.states[model] = "interrupted"
+                    return
                 state = self.histories[model].setdefault(
                     sid, {"entries": [], "final": None}
                 )
                 while True:
+                    if self.interrupted.is_set():
+                        self.states[model] = "interrupted"
+                        return
                     if state["final"] is not None:
                         cls, _ = classify(state["final"], 0.0, 0.0, None)
                         outcome = action(cls, len(state["entries"]) + 1)
@@ -320,12 +411,18 @@ class Stage:
                         self.states[model] = "budget-stopped"
                         return
                     if state["final"] is not None:
+                        if self.interrupted.is_set():
+                            self.states[model] = "interrupted"
+                            return
                         self.archive(model, sid)
                     if not completion_loaded:
                         completion = self.completion_for(profile)
                         completion_loaded = True
                     if self.spend.exhausted():
                         self.states[model] = "budget-stopped"
+                        return
+                    if self.interrupted.is_set():
+                        self.states[model] = "interrupted"
                         return
                     spend = AttemptSpend(self.spend)
 
@@ -355,6 +452,9 @@ class Stage:
                     self.say(
                         f"{model} {sid} {n} {cls} {outcome} ${attempt_cost(record):.6f}"
                     )
+                    if self.interrupted.is_set():
+                        self.states[model] = "interrupted"
+                        return
                     if outcome == "pause-rerun":
                         self.states[model] = "operator-paused"
                         return
@@ -373,6 +473,29 @@ class Stage:
             self.say(f"{model}: {type(error).__name__}: {error}")
 
     def execute(self) -> int:
+        previous = {}
+
+        def interrupt(signum, frame):
+            if self.interrupted.is_set():
+                self.say(
+                    "Forced interruption: an attempt under way, and its spend, "
+                    "are then lost."
+                )
+                os._exit(128 + signum)
+            self.interrupted.set()
+            self.say("Interrupted: attempts under way will finish and save.")
+
+        try:
+            if threading.current_thread() is threading.main_thread():
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    previous[sig] = signal.signal(sig, interrupt)
+            return self._execute()
+        finally:
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            self.close()
+
+    def _execute(self) -> int:
         threads = [
             threading.Thread(
                 target=self.run_model, args=(model,), name=f"no-tools-{model}"
@@ -387,7 +510,10 @@ class Stage:
             self.say(f"{model}: {self.states[model]}")
         self.say(f"stage spend ${self.spend.spent_usd:.6f} of ${NO_TOOLS_CAP:.2f}")
         return (
-            0 if all(self.states[model] == "complete" for model in self.models) else 1
+            0
+            if not self.interrupted.is_set()
+            and all(self.states[model] == "complete" for model in self.models)
+            else 1
         )
 
 
@@ -400,8 +526,8 @@ def main(argv=None) -> int:
     run.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     try:
-        stage = Stage(json.loads(args.design.read_text()), models=args.model)
-        return stage.dry_run() if args.dry_run else stage.execute()
+        with Stage(json.loads(args.design.read_text()), models=args.model) as stage:
+            return stage.dry_run() if args.dry_run else stage.execute()
     except (StateError, OSError, ValueError, KeyError, TypeError) as error:
         print(f"The no-tools stage cannot start: {error}")
         return 1
