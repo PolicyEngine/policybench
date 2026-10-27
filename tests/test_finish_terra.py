@@ -328,6 +328,134 @@ def test_parse_failure_flags_are_derived_from_numeric_predictions(
 
 
 @pytest.fixture
+def combined_audit_stage(tmp_path):
+    stage = tmp_path / "stage"
+    us = stage / "publish" / driver.RUN_NAME / "us"
+    us.mkdir(parents=True)
+    (us / "reference_outputs.csv").write_text(
+        "scenario_id,variable,value\ns1,free_school_meals_eligible,1\n"
+    )
+    (us / "predictions.csv").write_text(
+        "model,scenario_id,variable,prediction,cost_usd\n"
+        f"{NEW},s1,free_school_meals_eligible,0,2\n"
+    )
+    audit = stage / "audit"
+    audit.mkdir()
+    (audit / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": "us__s1__free_school_meals_eligible",
+                "scenario_id": "s1",
+                "variable": "free_school_meals_eligible",
+                "wrong_models": [NEW],
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
+    return stage, us
+
+
+@pytest.mark.parametrize("consumer", ["parse_gate", "build", "prepare", "render"])
+def test_combined_audit_consumers_refuse_a_shadow_added_during_reference_read(
+    combined_audit_stage, monkeypatch, consumer
+):
+    from policybench.audit import build_audit_cases, prepare_audit
+
+    stage, us = combined_audit_stage
+    combined = us / "predictions.csv"
+    before = combined.read_bytes()
+    read_csv = pd.read_csv
+    inserted = []
+
+    def introduce_shadow(path, *args, **kwargs):
+        if Path(path).name == "reference_outputs.csv" and not inserted:
+            shadow = Path(path).parent / "by_model/shadow.csv"
+            shadow.parent.mkdir()
+            shadow.write_bytes(before.replace(b",0,2\n", b",0,0\n"))
+            inserted.append(shadow)
+        return read_csv(path, *args, **kwargs)
+
+    # The shadow appears only after the existing entry guard has passed.
+    driver.require_combined_predictions(us.parent)
+    monkeypatch.setattr(pd, "read_csv", introduce_shadow)
+    refusal = None
+    try:
+        if consumer == "parse_gate":
+            driver.verify_parse_failure_flags(stage)
+        elif consumer == "build":
+            build_audit_cases(us, prediction_reader=driver.load_combined_predictions)
+        elif consumer == "prepare":
+            prepare_audit(
+                us,
+                stage / "audit",
+                template_version=driver.JUDGE_TEMPLATE_VERSION,
+                prediction_reader=driver.load_combined_predictions,
+            )
+        else:
+            sources = {name: b"{}" for name in driver.UPGRADED_FILES} | {
+                driver.CSV_NAME: (us / "reference_outputs.csv").read_bytes(),
+                driver.EXPLANATIONS_NAME: (
+                    b"scenario_id,variable,reference_explanation\n"
+                    b"s1,free_school_meals_eligible,Synthetic derivation.\n"
+                ),
+            }
+            driver.render_audit_with(us.parent, sources, {})
+    except SystemExit as error:
+        refusal = str(error)
+    assert inserted
+    assert combined.read_bytes() == before
+    assert refusal is not None and "by_model would shadow" in refusal
+
+
+def test_combined_audit_reader_never_discovers_alternatives_or_writes(
+    combined_audit_stage, monkeypatch
+):
+    from policybench.audit import build_audit_cases, prepare_audit
+    from policybench.case_annotations import wrong_prediction_rows
+
+    stage, us = combined_audit_stage
+    before = (us / "predictions.csv").read_bytes()
+
+    def forbidden_loader(*args, **kwargs):
+        pytest.fail(
+            "the audit consulted the loader that discovers and writes predictions"
+        )
+
+    monkeypatch.setattr(
+        "policybench.case_annotations.load_predictions", forbidden_loader
+    )
+    assert len(driver.verify_parse_failure_flags(stage)[0]) == 1
+    assert (
+        len(
+            wrong_prediction_rows(
+                us, prediction_reader=driver.load_combined_predictions
+            )
+        )
+        == 1
+    )
+    assert (
+        len(build_audit_cases(us, prediction_reader=driver.load_combined_predictions))
+        == 1
+    )
+    assert (
+        len(
+            prepare_audit(
+                us,
+                stage / "prepared",
+                template_version=driver.JUDGE_TEMPLATE_VERSION,
+                prediction_reader=driver.load_combined_predictions,
+            )
+        )
+        == 1
+    )
+    assert (us / "predictions.csv").read_bytes() == before
+    (us / "predictions.csv").rename(us / "predictions.csv.gz")
+    with pytest.raises(SystemExit, match="missing combined predictions.csv"):
+        driver.load_combined_predictions(us)
+
+
+@pytest.fixture
 def predictions():
     return pd.DataFrame(
         {

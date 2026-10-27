@@ -489,6 +489,16 @@ def require_combined_predictions(bundle: Path, *, require_file: bool = True) -> 
         )
 
 
+def load_combined_predictions(country_dir: Path):
+    """Read only the bound CSV; reject shadows introduced during audit reads."""
+    import pandas as pd
+
+    require_combined_predictions(country_dir.parent)
+    predictions = pd.read_csv(country_dir / "predictions.csv", low_memory=False)
+    require_combined_predictions(country_dir.parent)
+    return predictions
+
+
 def new_model_row_differences(stage: Path, limit: int = 5) -> list[str]:
     """Where a new model's rows in the bundle's predictions are not its run's.
 
@@ -2484,7 +2494,7 @@ def verify_parse_failure_flags(stage: Path):
 
     us = stage / "publish" / RUN_NAME / "us"
     require_combined_predictions(us.parent)
-    wrong = wrong_prediction_rows(us)
+    wrong = wrong_prediction_rows(us, prediction_reader=load_combined_predictions)
     manifest = _load_manifest(stage / "audit")
     parse_only = {
         _case_id(us.name, str(scenario), str(variable)): bool(
@@ -2762,6 +2772,7 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
         audit,
         grounding_lookup=lookup,
         template_version=JUDGE_TEMPLATE_VERSION,
+        prediction_reader=load_combined_predictions,
     )
     changes = check_prompt_changes(audit, seeded)
     write_json(
@@ -5217,7 +5228,11 @@ def render_audit_with(
             path.unlink(missing_ok=True)
             path.write_bytes(blob)
         with object_strings():
-            cases = build_audit_cases(run / "us", grounding_lookup=lookup)
+            cases = build_audit_cases(
+                run / "us",
+                grounding_lookup=lookup,
+                prediction_reader=load_combined_predictions,
+            )
             return [
                 (
                     case.case_id,
@@ -5520,6 +5535,7 @@ def install_references(args) -> None:
             audit,
             grounding_lookup=lookup,
             template_version=JUDGE_TEMPLATE_VERSION,
+            prediction_reader=load_combined_predictions,
         )
     manifest = [
         json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()

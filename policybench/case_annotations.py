@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Sequence
 
@@ -108,10 +109,18 @@ def _expected_prediction_rows(
     return merged
 
 
-def wrong_prediction_rows(country_dir: Path) -> pd.DataFrame:
-    """Return all wrong prediction rows with row-level audit annotations."""
+def wrong_prediction_rows(
+    country_dir: Path,
+    *,
+    prediction_reader: Callable[[Path], pd.DataFrame] | None = None,
+) -> pd.DataFrame:
+    """Return all wrong prediction rows with row-level audit annotations.
+
+    Release consumers can supply a reader for their bound prediction file;
+    other callers retain the full-run loader's per-model discovery behavior.
+    """
     reference = pd.read_csv(_reference_path(country_dir))
-    predictions = load_predictions(country_dir)
+    predictions = (prediction_reader or load_predictions)(country_dir)
     merged = _expected_prediction_rows(reference, predictions)
     merged["score"] = [
         threshold_score_single_prediction(variable, truth, prediction)
