@@ -2173,10 +2173,8 @@ def test_the_preflight_names_a_missing_field():
     assert cr.preflight({}, cr.CHEAP) == [f"the design has no {', '.join(cr.REQUIRED)}"]
 
 
-def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
-    world, tmp_path, monkeypatch
-):
-    w = world(models=("gpt-6-luna",))
+def complete_preflight_design(w, tmp_path):
+    """Each calculator preflight starts after synthetic standing no-tools finals."""
     pool = tmp_path / "pool.json"
     pool.write_text(json.dumps([{"id": s} for s in POOL]))
     design = dict(
@@ -2184,8 +2182,36 @@ def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
         eligible_pool={"path": str(pool), "sha256": cr.sha256_file(pool)},
         treatment_harness=str(cr.ROOT),
         run_commit="0" * 40,
-        draw_order=list(reversed(w.draw_order)),
+        no_tools={
+            "runs": str(tmp_path / "no-tools"),
+            "folder": "none",
+            "stage": "confirm",
+        },
     )
+    for model in cr.CHEAP:
+        for sid in design["draw_order"]:
+            cr.write_json(
+                Path(design["no_tools"]["runs"])
+                / model
+                / "none/confirm/households"
+                / f"{sid}.json",
+                {
+                    "scenario_id": sid,
+                    "status": "complete",
+                    "turns": [{}],
+                    "totals": {"cost_usd": 0.0},
+                    "attempts": [],
+                },
+            )
+    return design
+
+
+def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
+    world, tmp_path, monkeypatch
+):
+    w = world(models=("gpt-6-luna",))
+    design = complete_preflight_design(w, tmp_path)
+    design["draw_order"] = list(reversed(w.draw_order))
     monkeypatch.setattr(cr, "host_power", lambda: (True, False))
     problems = cr.preflight(design, ("gpt-6-luna",))
     text = "\n".join(problems)
@@ -2194,20 +2220,71 @@ def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
     assert "lid open False" in text
     design["draw_order"] = w.draw_order
     assert "the draw" not in "\n".join(cr.preflight(design, ("gpt-6-luna",)))
+    assert not any(
+        p.startswith("no-tools") for p in cr.preflight(design, ("gpt-6-luna",))
+    )
 
 
 def test_the_preflight_refuses_a_runs_folder_with_records(world, tmp_path):
     w = world(models=("gpt-6-luna",)).execute()
-    pool = tmp_path / "pool.json"
-    pool.write_text(json.dumps([{"id": s} for s in POOL]))
-    design = dict(
-        w.design,
-        eligible_pool={"path": str(pool), "sha256": cr.sha256_file(pool)},
-        treatment_harness=str(cr.ROOT),
-        run_commit="0" * 40,
-    )
+    design = complete_preflight_design(w, tmp_path)
     text = "\n".join(cr.preflight(design, ("gpt-6-luna",)))
     assert "already holds records" in text and "already holds a host log" in text
+
+
+@pytest.mark.parametrize(
+    "fault,expected",
+    [
+        ("missing", "missing"),
+        ("harness", "stop"),
+        ("ceiling", "stopped"),
+        ("history", "attempts list"),
+    ],
+)
+def test_preflight_refuses_an_unfinished_no_tools_stage(
+    world, tmp_path, fault, expected
+):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    model, sid = cr.CHEAP[-1], w.draw_order[-1]
+    path = (
+        Path(design["no_tools"]["runs"])
+        / model
+        / "none/confirm/households"
+        / f"{sid}.json"
+    )
+    payload = json.loads(path.read_text())
+    if fault == "missing":
+        path.unlink()
+    else:
+        if fault == "history":
+            payload.pop("attempts")
+        else:
+            payload.update(
+                status="budget_stop" if fault == "ceiling" else "provider_error",
+                error="BadRequestError" if fault == "harness" else None,
+                turns=[],
+            )
+        path.write_text(json.dumps(payload))
+    text = "\n".join(cr.preflight(design, (cr.CHEAP[0],)))
+    assert "no-tools" in text and model in text and sid in text and expected in text
+
+
+@pytest.mark.parametrize("relationship", ["equal", "inside", "contains"])
+def test_preflight_refuses_overlapping_no_tools_and_calculator_roots(
+    world, tmp_path, relationship
+):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    calculator = Path(design["runs"])
+    design["no_tools"]["runs"] = str(
+        {
+            "equal": calculator,
+            "inside": calculator / "no-tools",
+            "contains": calculator.parent,
+        }[relationship]
+    )
+    assert any("roots overlap" in p for p in cr.preflight(design, (cr.CHEAP[0],)))
 
 
 def test_resume_writes_the_operator_s_note(tmp_path):

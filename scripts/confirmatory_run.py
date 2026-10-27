@@ -2162,6 +2162,18 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     if missing:
         return [f"the design has no {', '.join(missing)}"]
     problems = []
+    from confirmatory_no_tools import stage_problems
+
+    problems.extend(stage_problems(design))
+    try:
+        no_tools_root = Path(design["no_tools"]["runs"]).resolve()
+        calculator_root = Path(design["runs"]).resolve()
+        if no_tools_root.is_relative_to(
+            calculator_root
+        ) or calculator_root.is_relative_to(no_tools_root):
+            problems.append("the no-tools and calculator runs roots overlap")
+    except (KeyError, TypeError, OSError, ValueError) as error:
+        problems.append(f"the no-tools runs root is invalid: {error}")
     command = design["anchor_command"]
     if (
         not isinstance(command, list)
