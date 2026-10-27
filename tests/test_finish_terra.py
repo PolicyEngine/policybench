@@ -4103,6 +4103,43 @@ def test_strict_export_binds_the_build_the_run_and_the_evidence(exporting):
     }
 
 
+@pytest.mark.parametrize("kind", ["directory", "file", "dangling_symlink"])
+def test_export_refuses_a_shadow_added_after_export(exporting, kind):
+    exporting.run()
+    shadow = exporting.bundle / "us/by_model"
+    if kind == "directory":
+        shadow.mkdir()
+        frame = pd.read_csv(exporting.bundle / "us/predictions.csv")
+        frame.loc[frame.model == NEW, "total_cost_usd"] = 0
+        frame.to_csv(shadow / "shadow.csv", index=False)
+        receipt_path = exporting.stage / "release-ready.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["files"][str((shadow / "shadow.csv").relative_to(exporting.stage))] = sha(shadow / "shadow.csv")
+        payload_path = exporting.stage / BOARD
+        payload = json.loads(payload_path.read_text())
+        terra = next(row for row in payload["countries"]["us"]["modelStats"] if row["model"] == NEW)
+        terra.update(costUsd=0.0, costPerHousehold=0.0)
+        payload_path.write_text(driver.payload_text(payload))
+        receipt["payload_sha256"] = sha(payload_path)
+        driver.write_json(receipt_path, receipt)
+    elif kind == "file":
+        shadow.write_text("shadow")
+    else:
+        shadow.symlink_to("missing")
+    before = {
+        p.relative_to(exporting.stage): p.read_bytes()
+        for p in exporting.stage.rglob("*")
+        if p.is_file()
+    }
+    with pytest.raises(SystemExit, match="by_model would shadow"):
+        exporting.run()
+    assert {
+        p.relative_to(exporting.stage): p.read_bytes()
+        for p in exporting.stage.rglob("*")
+        if p.is_file()
+    } == before
+
+
 @pytest.mark.parametrize("name", driver.REFERENCE_FILES)
 def test_export_refuses_a_staged_reference_off_the_installed_build(exporting, name):
     path = exporting.bundle / "us" / name

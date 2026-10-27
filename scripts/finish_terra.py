@@ -431,6 +431,18 @@ def verify_prepared_inputs(stage: Path) -> None:
         )
 
 
+def require_combined_predictions(bundle: Path) -> None:
+    """Every release consumer reads the bound combined CSV without alternatives."""
+    candidates = set(bundle.rglob("by_model"))
+    candidates.add(bundle / "us/by_model")
+    shadows = sorted(str(path.relative_to(bundle)) for path in candidates
+                     if path.exists() or path.is_symlink())
+    require(not shadows, f"by_model would shadow combined predictions: {shadows}")
+    require(
+        (bundle / "us/predictions.csv").is_file(), "missing combined predictions.csv"
+    )
+
+
 def new_model_row_differences(stage: Path, limit: int = 5) -> list[str]:
     """Where a new model's rows in the bundle's predictions are not its run's.
 
@@ -2433,6 +2445,7 @@ def verify_reopened_by_predictions(stage: Path, derived: dict[str, list]) -> Non
     from policybench.case_annotations import wrong_prediction_rows
 
     us = stage / "publish" / RUN_NAME / "us"
+    require_combined_predictions(us.parent)
     wrong = wrong_prediction_rows(us)
     manifest = _load_manifest(stage / "audit")
     reopened = {*derived["changed"], *derived["added"]}
@@ -2648,6 +2661,7 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
         digest(args.grounding) == GROUNDING_SHA256,
         "grounding differs from the one the 20260929 audit was rendered with",
     )
+    require_combined_predictions(bundle)
     audit = args.stage_dir / "audit"
     # Compare against the read-only seed so a retried
     # prepare cannot mistake its own earlier rendering for the seed.
@@ -3430,6 +3444,7 @@ def build_payload(
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
 
+    require_combined_predictions(bundle)
     payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
     stats = payload["countries"]["us"]["modelStats"]
     require(
@@ -3506,6 +3521,7 @@ def build_payload(
 
 def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
+    require_combined_predictions(bundle)
     upgrade = None if args.partial else stage_upgrade(args.stage_dir)
     if not args.partial and upgrade is None:
         # After the freeze the pointer and committed record are this release's.
@@ -4978,6 +4994,7 @@ def render_audit_with(
 
     from policybench.audit import build_audit_cases, render_case_prompt
 
+    require_combined_predictions(bundle)
     versions = versions or {}
     with tempfile.TemporaryDirectory(prefix="install-references-") as scratch:
         run = Path(scratch) / bundle.name

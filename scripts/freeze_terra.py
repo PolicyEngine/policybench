@@ -1482,6 +1482,7 @@ def main(argv: list[str] | None = None) -> None:
 
     verify_freezer_destinations(freezer)
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
+    driver.require_combined_predictions(stage / "publish" / RUN)
     receipt = verify_receipt(stage, payload_path, args.tag)
     spec = release_spec(args.tag)
     upgrade = verify_upgrade(stage, receipt)

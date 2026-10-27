@@ -2849,3 +2849,27 @@ def test_verify_frozen_checks_the_release_the_freeze_derived(h_stage, change, me
     release.verify_frozen(**arguments)
     with pytest.raises(SystemExit, match=message):
         release.verify_frozen(**{**arguments, **change})
+
+
+@pytest.mark.parametrize("bound", [False, True])
+def test_freeze_refuses_a_rebound_shadow_without_touching_stage(h_stage, bound):
+    import pandas as pd
+
+    shadow = h_stage.stage / BUNDLE / "us/by_model/shadow.csv"
+    shadow.parent.mkdir()
+    frame = pd.read_csv(h_stage.stage / BUNDLE / "us/predictions.csv")
+    frame.loc[frame.model == H_TERRA, "total_cost_usd"] = 0
+    frame.to_csv(shadow, index=False)
+    payload = _h_payload(h_stage)
+    terra = next(
+        r for r in payload["countries"]["us"]["modelStats"] if r["model"] == H_TERRA
+    )
+    terra.update(costUsd=0.0, costPerHousehold=0.0)
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind()
+    if bound:
+        receipt_path = h_stage.stage / "release-ready.json"
+        receipt = _h_json(receipt_path)
+        receipt["files"][str(shadow.relative_to(h_stage.stage))] = sha(shadow)
+        write_json(receipt_path, receipt)
+    _h_refused(h_stage, "by_model would shadow")
