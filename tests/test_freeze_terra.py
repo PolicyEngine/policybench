@@ -1037,6 +1037,52 @@ def test_the_freeze_refuses_a_reference_only_rejudgment_by_another_judge(
 # (_h_freezer_main writes what the freezer writes, from where the freeze
 # configured it). None of these values is a board-run result.
 
+def test_baseline_prediction_loader_reads_synthetic_committed_blob(
+    tmp_path, monkeypatch
+):
+    import gzip
+    import subprocess
+
+    root = tmp_path / "repo"
+    path = root / FROZEN / "predictions.csv.gz"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(
+        gzip.compress(b"model,scenario_id,variable,prediction\nincumbent,s1,snap,1\n")
+    )
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    git = [
+        "git",
+        "-C",
+        str(root),
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+    ]
+
+    def commit(message):
+        subprocess.run([*git, "add", "."], check=True)
+        subprocess.run([*git, "commit", "-qm", message], check=True)
+
+    commit("synthetic baseline predictions")
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "BASE_COMMIT", "HEAD")
+    monkeypatch.setattr(release, "SNAPSHOT", Path("paper/snapshot/20260501"))
+    expected = [
+        {"model": "incumbent", "scenario_id": "s1", "variable": "snap", "prediction": 1}
+    ]
+    assert release.base_prediction_rows().to_dict("records") == expected
+    path.write_bytes(b"corrupted synthetic gzip")
+    assert release.base_prediction_rows().to_dict("records") == expected
+    commit("corrupted synthetic baseline predictions")
+    with pytest.raises(gzip.BadGzipFile):
+        release.base_prediction_rows()
+
+
 import csv  # noqa: E402
 import functools  # noqa: E402
 import io  # noqa: E402

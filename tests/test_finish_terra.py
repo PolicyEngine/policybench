@@ -248,6 +248,49 @@ def test_incomplete_input_pins_are_refused(pinned_repo, inputs):
         driver.committed_input_pins()
 
 
+@pytest.mark.parametrize("tampering", ["payload", "model_count"])
+def test_base_payload_loader_checks_synthetic_committed_blob(
+    tmp_path, monkeypatch, tampering
+):
+    import gzip
+
+    root = tmp_path / "repo"
+    snapshot = root / SNAPSHOT_PATH
+    snapshot.mkdir(parents=True)
+    path = snapshot / "data.json.gz"
+    country = {"modelStats": {"incumbent": {"accuracy": 1.0}}}
+    live = {"countries": {"us": country}}
+    path.write_bytes(gzip.compress(json.dumps(country).encode()))
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+    scratch_commit(root, "synthetic baseline payload")
+    monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    monkeypatch.setattr(driver, "BASE_COMMIT", "HEAD")
+    monkeypatch.setattr(driver, "BASE_MODELS", 1)
+    monkeypatch.setattr(
+        driver, "BASE_SHA256", hashlib.sha256(json.dumps(live).encode()).hexdigest()
+    )
+    assert driver.base_payload_from_commit() == live
+
+    changed = {"modelStats": {"other": {"accuracy": 0.0}}}
+    if tampering == "model_count":
+        changed["modelStats"]["extra"] = {"accuracy": 0.0}
+    path.write_bytes(gzip.compress(json.dumps(changed).encode()))
+    # A working-tree replacement cannot become the baseline implicitly.
+    assert driver.base_payload_from_commit() == live
+    scratch_commit(root, "changed synthetic baseline payload")
+    if tampering == "model_count":
+        changed_live = {"countries": {"us": changed}}
+        monkeypatch.setattr(
+            driver,
+            "BASE_SHA256",
+            hashlib.sha256(json.dumps(changed_live).encode()).hexdigest(),
+        )
+    message = "base payload SHA256 mismatch" if tampering == "payload" else "1 models"
+    with pytest.raises(SystemExit, match=message):
+        driver.base_payload_from_commit()
+
+
 @pytest.fixture
 def predictions():
     return pd.DataFrame(
