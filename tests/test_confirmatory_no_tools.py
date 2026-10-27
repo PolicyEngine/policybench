@@ -639,3 +639,200 @@ def test_real_harness_checks_other_models_spend_before_the_next_turn(
         assert len(payload["turns"]) == 1
         assert not final(plan, model=model, sid="h1").exists()
     assert plan.spend.spent_usd == pytest.approx(0.11)
+
+
+def track_interrupt_return(monkeypatch):
+    """Observe the actual installed first-signal handler returning."""
+    returned = threading.Event()
+    register = signal.signal
+
+    def install(signum, handler):
+        if callable(handler) and handler.__name__ == "interrupt":
+
+            def tracked(sig, frame):
+                handler(sig, frame)
+                returned.set()
+
+            return register(signum, tracked)
+        return register(signum, handler)
+
+    monkeypatch.setattr(signal, "signal", install)
+    return returned
+
+
+@pytest.mark.parametrize("boundary", ["archive", "attempt"])
+def test_signal_between_check_and_action_refuses_new_admission(
+    setup, monkeypatch, boundary
+):
+    """R1: a real SIGINT returns before the proposed action reaches admission."""
+    if boundary == "archive":
+        paused(setup)
+    provider = Provider()
+    plan = stage(setup, provider, models=[nt.CHEAP[0]])
+    returned = track_interrupt_return(monkeypatch)
+
+    def signal_and_wait():
+        os.kill(os.getpid(), signal.SIGINT)
+        assert returned.wait(timeout=10), "the signal handler must finish"
+
+    if boundary == "archive":
+        original = plan.archive
+
+        def archive(*args):
+            signal_and_wait()
+            return original(*args)
+
+        monkeypatch.setattr(plan, "archive", archive)
+    else:
+        original = nt.AttemptSpend
+
+        def attempt_spend(*args):
+            signal_and_wait()
+            return original(*args)
+
+        monkeypatch.setattr(nt, "AttemptSpend", attempt_spend)
+    assert plan.execute() == 1
+    assert returned.is_set()
+    assert provider.calls == [], "R1: no provider attempt begins after interruption"
+    archives = plan.households(nt.CHEAP[0]) / "attempts"
+    assert not list(archives.glob("*.json")), "R1: no archive moves after interruption"
+
+
+def test_failed_second_thread_start_keeps_invocation_lock_until_worker_finishes(
+    setup, monkeypatch
+):
+    """R2: exceptional shutdown waits for every worker before closing its lock."""
+    entered, release, failed_start, closed = (threading.Event() for _ in range(4))
+    original_start = threading.Thread.start
+    original_close = nt.Stage.close
+    observed = {}
+
+    def provider(scenario, variables, tool_call, completion, spend, *, profile):
+        entered.set()
+        assert release.wait(timeout=10)
+        return record(scenario.id, profile)
+
+    plan = stage(setup, provider)
+
+    def start(thread):
+        if thread.name == f"no-tools-{nt.CHEAP[1]}":
+            assert entered.wait(timeout=10)
+            failed_start.set()
+            raise RuntimeError("synthetic second thread start failure")
+        return original_start(thread)
+
+    def close(current):
+        original_close(current)
+        if current is plan:
+            closed.set()
+
+    def observe():
+        assert failed_start.wait(timeout=10)
+        observed["closed_while_live"] = closed.wait(timeout=0.2)
+        lock = (plan.root / ".confirmatory-no-tools.lock").open("a")
+        try:
+            import fcntl
+
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                observed["held"] = True
+            else:
+                observed["held"] = False
+        finally:
+            lock.close()
+            release.set()
+
+    watcher = threading.Thread(target=observe)
+    watcher.start()
+    monkeypatch.setattr(threading.Thread, "start", start)
+    monkeypatch.setattr(nt.Stage, "close", close)
+    try:
+        with pytest.raises(RuntimeError, match="second thread start"):
+            plan.execute()
+    finally:
+        release.set()
+        watcher.join(timeout=10)
+        for worker in threading.enumerate():
+            if worker.name.startswith("no-tools-"):
+                worker.join(timeout=10)
+    assert observed["held"], "R2: a live worker must retain the invocation lock"
+    assert not observed["closed_while_live"], "R2: cleanup joins before unlocking"
+    assert plan.interrupted.is_set(), "R2: exceptional shutdown refuses further work"
+    assert plan._lock_file is None
+
+
+def test_second_signal_exits_while_output_lock_is_held(setup, tmp_path):
+    """R4: forced termination is independent of the worker-shared output lock."""
+    import select
+    import subprocess
+    import textwrap
+
+    probe = tmp_path / "forced_exit.py"
+    probe.write_text(
+        textwrap.dedent("""\
+        import io
+        import json
+        import os
+        import signal
+        import sys
+        import threading
+        import time
+        from types import SimpleNamespace
+        import confirmatory_no_tools as nt
+
+        design = json.loads(sys.argv[1])
+        draw = design['draw_order']
+        board = {
+            'scenarios': {sid: SimpleNamespace(id=sid) for sid in draw},
+            'variables': {sid: ['snap'] for sid in draw},
+        }
+        held = threading.Event()
+        plan = nt.Stage(design, models=[nt.CHEAP[0]], board=board,
+                        completion_for=lambda profile: None, out=io.StringIO())
+
+        def worker(model):
+            with plan._say_lock:
+                held.set()
+                time.sleep(30)
+
+        plan.run_model = worker
+
+        def signals():
+            assert held.wait(10)
+            os.write(1, b'ready\\n')
+            os.kill(os.getpid(), signal.SIGINT)
+            time.sleep(0.1)
+            os.kill(os.getpid(), signal.SIGTERM)
+
+        threading.Thread(target=signals, daemon=True).start()
+        plan.execute()
+        raise AssertionError('forced exit returned')
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    process = subprocess.Popen(
+        [sys.executable, str(probe), json.dumps(setup["design"])],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    try:
+        ready, _, _ = select.select([process.stdout], [], [], 90)
+        assert ready, "R4: subprocess must reach output contention before signals"
+        assert process.stdout.readline() == b"ready\n"
+        stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate()
+        pytest.fail("R4: the second signal blocked on the held output lock")
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+    assert process.returncode == 128 + signal.SIGTERM, (stdout, stderr)
+    assert b"every attempt under way" in stderr
+    assert b"saved finals and archives survive" in stderr

@@ -6,6 +6,14 @@ A replaced final is moved byte for byte into ``households/attempts`` before
 its rerun; the final links every archive by number, hash, status and reason.
 Re-invocation resumes solely from those files and is an operator's approval
 to rerun a paused account failure. Native harness resume is never used.
+An archive move or attempt is admitted when it takes the admission lock and
+commits before the first signal handler finishes; everything else is refused.
+The lock covers only an interruption check and a rename or an admission state
+change. Admitted attempts finish and save outside the admission lock.
+Exceptional shutdown interrupts and joins all started workers before restoring
+signal handlers or releasing the invocation lock. A second signal immediately
+uses a nonblocking stderr write and exits, losing every active unsaved attempt
+and its spend; saved finals and archives survive.
 """
 
 from __future__ import annotations
@@ -225,6 +233,9 @@ class Stage:
         self._say_lock = threading.RLock()
         self.stopped = threading.Event()
         self.interrupted = threading.Event()
+        self._admission_lock = threading.Lock()
+        self._admitted_attempts = {}
+        self._threads = []
         self.completion_for = completion_for
         self.run_household = (
             run_household if run_household is not None else pilot.run_household
@@ -360,8 +371,8 @@ class Stage:
             else 1
         )
 
-    def archive(self, model: str, sid: str) -> None:
-        """Move an eligible final unchanged, then extend its reconstructed links."""
+    def archive(self, model: str, sid: str) -> bool:
+        """Atomically admit a prepared archive move, then extend its links."""
         state = self.histories[model][sid]
         record, entries = state["final"], state["entries"]
         n = len(entries) + 1
@@ -369,13 +380,20 @@ class Stage:
         if action(cls, n) not in ("rerun", "pause-rerun"):
             raise StateError(f"{model}/{sid}: attempt {n} is ineligible for rerun")
         folder = self.households(model)
+        source = folder / f"{sid}.json"
         target = folder / "attempts" / f"{sid}-{n}.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             raise StateError(f"{target}: would overwrite an archived attempt")
-        os.replace(folder / f"{sid}.json", target)
-        entries.append(entry(target, record, n))
-        state["final"] = None
+        link = entry(source, record, n)
+        link["file"] = f"attempts/{target.name}"
+        with self._admission_lock:
+            if self.interrupted.is_set():
+                return False
+            os.replace(source, target)
+            state["final"] = None
+        entries.append(link)
+        return True
 
     def run_model(self, model: str) -> None:
         try:
@@ -414,17 +432,21 @@ class Stage:
                         if self.interrupted.is_set():
                             self.states[model] = "interrupted"
                             return
-                        self.archive(model, sid)
+                        if not self.archive(model, sid):
+                            self.states[model] = "interrupted"
+                            return
                     if not completion_loaded:
                         completion = self.completion_for(profile)
                         completion_loaded = True
                     if self.spend.exhausted():
                         self.states[model] = "budget-stopped"
                         return
-                    if self.interrupted.is_set():
-                        self.states[model] = "interrupted"
-                        return
                     spend = AttemptSpend(self.spend)
+                    with self._admission_lock:
+                        if self.interrupted.is_set():
+                            self.states[model] = "interrupted"
+                            return
+                        self._admitted_attempts[model, sid] = len(state["entries"]) + 1
 
                     def no_tool(arguments):
                         raise RuntimeError("the no-tools arm cannot call a tool")
@@ -474,15 +496,24 @@ class Stage:
 
     def execute(self) -> int:
         previous = {}
+        first_signal_seen = False
 
         def interrupt(signum, frame):
-            if self.interrupted.is_set():
-                self.say(
-                    "Forced interruption: an attempt under way, and its spend, "
-                    "are then lost."
-                )
+            nonlocal first_signal_seen
+            if first_signal_seen:
+                try:
+                    os.set_blocking(2, False)
+                    os.write(
+                        2,
+                        b"Forced interruption: every attempt under way, and its spend, "
+                        b"are lost; saved finals and archives survive.\n",
+                    )
+                except OSError:
+                    pass
                 os._exit(128 + signum)
-            self.interrupted.set()
+            first_signal_seen = True
+            with self._admission_lock:
+                self.interrupted.set()
             self.say("Interrupted: attempts under way will finish and save.")
 
         try:
@@ -490,21 +521,28 @@ class Stage:
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     previous[sig] = signal.signal(sig, interrupt)
             return self._execute()
+        except BaseException:
+            with self._admission_lock:
+                self.interrupted.set()
+            for thread in self._threads:
+                if thread.ident is not None:
+                    thread.join()
+            raise
         finally:
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
             self.close()
 
     def _execute(self) -> int:
-        threads = [
+        self._threads = [
             threading.Thread(
                 target=self.run_model, args=(model,), name=f"no-tools-{model}"
             )
             for model in self.models
         ]
-        for thread in threads:
+        for thread in self._threads:
             thread.start()
-        for thread in threads:
+        for thread in self._threads:
             thread.join()
         for model in self.models:
             self.say(f"{model}: {self.states[model]}")
