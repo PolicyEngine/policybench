@@ -2375,3 +2375,722 @@ def test_require_release_stage_accepts_only_two_false_flags(receipt, ok):
     else:
         with pytest.raises(SystemExit, match="cannot become a release"):
             driver.require_release_stage(receipt)
+
+
+@pytest.mark.parametrize("relation", ["same", "parent", "child"])
+def test_stage_must_not_overlap_any_input(workspace, relation):
+    stage = workspace / "results/local/stage"
+    source = {"same": stage, "parent": stage.parent, "child": stage / "source"}[
+        relation
+    ]
+    with pytest.raises(SystemExit, match="overlaps input"):
+        driver.validate_stage_path(stage, [source])
+
+
+@pytest.mark.parametrize("relative", ["app/src", "paper/snapshot", "results/local"])
+def test_stage_must_be_a_scratch_subdirectory(workspace, relative):
+    with pytest.raises(SystemExit, match="stage-dir must be below"):
+        driver.validate_stage_path(workspace / relative, [])
+
+
+@pytest.mark.parametrize("depth", ["top", "nested"])
+def test_stage_cannot_contain_symlink_to_a_live_file(workspace, depth):
+    stage = workspace / "results/local/stage"
+    folder = stage if depth == "top" else stage / "publish" / driver.RUN_NAME / "us"
+    folder.mkdir(parents=True)
+    (folder / "predictions.csv").symlink_to(workspace / "live.csv")
+    with pytest.raises(SystemExit, match="symlink in stage-dir"):
+        driver.validate_stage_path(stage, [])
+
+
+def test_disjoint_scratch_stage_is_allowed(workspace):
+    driver.validate_stage_path(
+        workspace / "results/local/stage", [workspace / "results/local/inputs"]
+    )
+
+
+@pytest.mark.parametrize(
+    "source", ["snapshot", "annotations", "runs", "seed", "grounding"]
+)
+def test_main_refuses_a_stage_inside_any_read_only_input(workspace, source):
+    """main passes every read-only source to the overlap check before any
+    step reads the stage."""
+    inputs = workspace / "results/local/inputs"
+    stage = inputs / "stage"
+    options = {
+        "snapshot": [],
+        "annotations": [],
+        "runs": ["--runs-root", str(inputs)],
+        "seed": ["--audit-seed", str(inputs)],
+        "grounding": ["--grounding", str(inputs)],
+    }[source]
+    if source in ("snapshot", "annotations"):
+        stage = (driver.SNAPSHOT if source == "snapshot" else driver.ANNOTATIONS) / "s"
+    with pytest.raises(SystemExit, match="overlaps input|stage-dir must be below"):
+        driver.main(["--stage-dir", str(stage), "--step", "triage", *options])
+
+
+EARLY_STEPS = [
+    "judge",
+    "triage",
+    "export",
+    "provenance",
+    "bind-seed",
+    "install-exclusions",
+    "adjudicate-exclusions",
+]
+
+
+@pytest.mark.parametrize(
+    "options, message",
+    [
+        (["--partial"], "--partial requires --early"),
+        (["--partial", "--step", "export"], "--partial requires --early"),
+        *[
+            (["--early", "--step", step], "--early only applies to prepare")
+            for step in EARLY_STEPS
+        ],
+        (
+            ["--early", "--step", "install-references", "--grounding", "g.csv"],
+            "--early only applies to prepare",
+        ),
+        ([], "prepare requires --runs-root"),
+        (["--early"], "prepare requires --runs-root"),
+        (["--step", "install-references"], "install-references requires --grounding"),
+    ],
+)
+def test_cli_rejects_unsafe_mode_combinations(tmp_path, options, message, capsys):
+    with pytest.raises(SystemExit):
+        driver.parse_args(["--stage-dir", str(tmp_path), *options])
+    assert message in capsys.readouterr().err
+
+
+def test_pin_inputs_needs_the_runs_root(capsys):
+    with pytest.raises(SystemExit):
+        driver.parse_args(["--step", "pin-inputs"])
+    assert "pin-inputs requires --runs-root" in capsys.readouterr().err
+
+
+def test_partial_mode_is_explicitly_early(tmp_path):
+    args = driver.parse_args(
+        [
+            "--stage-dir",
+            str(tmp_path / "stage"),
+            "--runs-root",
+            str(tmp_path / "runs"),
+            "--early",
+            "--partial",
+        ]
+    )
+    assert args.partial and args.early and args.step == "prepare"
+
+
+@pytest.mark.parametrize("step", [*EARLY_STEPS, "install-references"])
+def test_every_stage_step_needs_a_stage(step, capsys):
+    with pytest.raises(SystemExit):
+        driver.parse_args(["--step", step, "--grounding", "g.csv"])
+    assert f"{step} requires --stage-dir" in capsys.readouterr().err
+
+
+def _fail_steps(monkeypatch, keep=()):
+    for name in {
+        "stage_upgrade",
+        "triage",
+        "export",
+        "judge",
+        "bind_seed",
+        "install_exclusions",
+        "adjudicate_exclusions",
+        "write_judge_provenance",
+        "resolve_live_base",
+    } - set(keep):
+        monkeypatch.setattr(driver, name, lambda *a, n=name: pytest.fail(f"{n} ran"))
+
+
+@pytest.mark.parametrize("step", RESUMED_STEPS)
+@pytest.mark.parametrize("change", ["edited", "removed"])
+def test_resume_refuses_changed_staged_inputs(workspace, monkeypatch, step, change):
+    _fail_steps(monkeypatch)
+    stage = workspace / "results/local/stage"
+    stage.mkdir(parents=True)
+    if change == "edited":
+        (stage / "predictions.csv").write_text("changed data")
+    (stage / "stage.json").write_text(
+        json.dumps(
+            {
+                "partial": False,
+                "early": False,
+                "files": {
+                    "predictions.csv": hashlib.sha256(b"original data").hexdigest()
+                },
+            }
+        )
+    )
+    # A removed input stops the step when its digest is read.
+    refusal = SystemExit if change == "edited" else FileNotFoundError
+    with pytest.raises(refusal, match="staged input changed|predictions.csv"):
+        driver.main(["--stage-dir", str(stage), "--step", step])
+
+
+# Steps that read the installed build and the release's exclusion record.
+GATED_STEPS = {
+    "triage": "triage",
+    "export": "triage",
+    "judge": "judge",
+    "provenance": "write_judge_provenance",
+    "adjudicate-exclusions": "adjudicate_exclusions",
+}
+
+
+def _resumable(stage: Path, **receipt) -> None:
+    stage.mkdir(parents=True)
+    driver.write_json(
+        stage / "stage.json", {"partial": False, "early": False, "files": {}, **receipt}
+    )
+
+
+@pytest.mark.parametrize("step", GATED_STEPS)
+@pytest.mark.parametrize("installed", [None, {}, False])
+def test_later_steps_refuse_a_stage_without_the_installed_build(
+    workspace, monkeypatch, step, installed
+):
+    _fail_steps(monkeypatch, keep={"stage_upgrade"})
+    stage = workspace / "results/local/stage"
+    receipt = {} if installed is None else {"references_installed": installed}
+    _resumable(stage, **receipt)
+    with pytest.raises(SystemExit, match="run --step install-references"):
+        driver.main(["--stage-dir", str(stage), "--step", step])
+
+
+@pytest.mark.parametrize("step", GATED_STEPS)
+@pytest.mark.parametrize("installed", [None, {}, {"sha256": "0" * 64}])
+def test_later_steps_refuse_a_stage_without_the_build_exclusions(
+    workspace, monkeypatch, step, installed
+):
+    _fail_steps(monkeypatch)
+    build = SimpleNamespace(sha256={EXCLUSIONS_NAME: "1" * 64})
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage: build)
+    stage = workspace / "results/local/stage"
+    receipt = {} if installed is None else {"exclusions_installed": installed}
+    _resumable(stage, **receipt)
+    with pytest.raises(SystemExit, match="exclusions are not the release's"):
+        driver.main(["--stage-dir", str(stage), "--step", step])
+
+
+@pytest.mark.parametrize("step, called", [*GATED_STEPS.items()])
+def test_a_stage_with_the_build_exclusions_reaches_its_step(
+    workspace, monkeypatch, step, called
+):
+    calls = []
+    for name in set(GATED_STEPS.values()) | {"export", "resolve_live_base"}:
+        monkeypatch.setattr(driver, name, lambda *a, n=name: calls.append(n))
+    build = SimpleNamespace(sha256={EXCLUSIONS_NAME: "1" * 64})
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage: build)
+    stage = workspace / "results/local/stage"
+    _resumable(stage, exclusions_installed={"sha256": "1" * 64})
+    driver.main(["--stage-dir", str(stage), "--step", step])
+    expected = [called] if step != "export" else ["triage", "resolve_live_base"]
+    assert calls[: len(expected)] == expected
+
+
+@pytest.mark.parametrize(
+    "step, called",
+    [("install-exclusions", "install_exclusions"), ("bind-seed", "bind_seed")],
+)
+def test_the_steps_before_installation_do_not_need_the_build(
+    workspace, monkeypatch, step, called
+):
+    _fail_steps(monkeypatch)
+    calls = []
+    monkeypatch.setattr(driver, called, lambda *a: calls.append(called))
+    stage = workspace / "results/local/stage"
+    _resumable(stage)
+    driver.main(["--stage-dir", str(stage), "--step", step])
+    assert calls == [called]
+
+
+# --- Seed binding and prompt partitions (ported from test_finish_argon.py) -------
+
+# A three-household board whose audit prompts render for real (policybench.audit).
+REFERENCE_ROWS = [
+    {"scenario_id": "s0", "variable": "snap", "value": 0.0},
+    {"scenario_id": "s1", "variable": "snap", "value": 300.0},
+    {"scenario_id": "s2", "variable": "snap", "value": 100.0},
+]
+INCUMBENT_ROWS = [
+    ("m1", "s0", 250.0, "Estimated benefit from income."),
+    ("m2", "s0", 400.0, "Used gross income test."),
+    ("m1", "s1", 300.0, "Matched the allotment."),
+    ("m2", "s1", 0.0, "Assumed ineligible."),
+    ("m1", "s2", 100.0, "Matched the allotment."),
+    ("m2", "s2", 100.0, "Matched the allotment."),
+]
+# GPT-6.1 Terra misses s0 alone: s0 is re-opened, s1 carries over.
+JOINS_S0 = [
+    (NEW, "s0", 99.0, "Guessed."),
+    (NEW, "s1", 300.0, "Right."),
+    (NEW, "s2", 100.0, "Right."),
+]
+# GPT-6.1 Terra answers every output right: no case is joined.
+JOINS_NONE = [
+    (NEW, "s0", 0.0, "Ineligible."),
+    (NEW, "s1", 300.0, "Right."),
+    (NEW, "s2", 100.0, "Right."),
+]
+COMMITTED_SEED_DIGEST_SHA256 = driver.SEED_DIGEST_SHA256
+
+
+def _board(directory: Path, rows, references=REFERENCE_ROWS) -> Path:
+    us = directory / "us"
+    us.mkdir(parents=True)
+    pd.DataFrame(references).to_csv(us / CSV_NAME, index=False)
+    pd.DataFrame(
+        [
+            {
+                "model": model,
+                "scenario_id": scenario,
+                "variable": "snap",
+                "prediction": value,
+                "explanation": text,
+                "error": None,
+            }
+            for model, scenario, value, text in rows
+        ]
+    ).to_csv(us / "predictions.csv", index=False)
+    return directory
+
+
+def _audit(root: Path, wrong_models) -> Path:
+    from policybench.judge_template import template_header
+
+    case = root / "cases/us__scenario_000__snap"
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text(template_header(2) + "\nClassify these.\n")
+    driver.write_json(root / "schema.json", AUDIT_OUTPUT_SCHEMA)
+    (root / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": case.name,
+                "wrong_models": wrong_models,
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
+    return case
+
+
+@pytest.fixture
+def seeded_stage(tmp_path, monkeypatch):
+    """A judged two-incumbent seed audit and a stage whose board adds Terra.
+
+    MOCK: a synthetic seed judged on template v1 by another judge, its
+    sidecars recording no prompt or template version, as release 20261014's
+    oldest carried verdicts do. No reference build is installed, so only the
+    cases Terra joins may re-open.
+    """
+    from policybench.audit import prepare_audit
+
+    monkeypatch.setattr(driver, "reworded_since_seed", lambda: frozenset())
+    grounding = tmp_path / "grounding.csv"
+    pd.DataFrame(
+        [{"scenario_id": "s1", "variable": "snap", "grounding": "Gross test: pass."}]
+    ).to_csv(grounding, index=False)
+    monkeypatch.setattr(driver, "GROUNDING_SHA256", sha(grounding))
+    lookup = {("s1", "snap"): "Gross test: pass."}
+    seed = tmp_path / "seed"
+    seed_board = _board(tmp_path / "seed-board", INCUMBENT_ROWS)
+    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup, template_version=1)
+    for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
+        write_verdict(
+            seed / "cases" / item["case_id"],
+            _verdict(item["wrong_models"]),
+            judge_model_requested="default",
+            judge_model_reported=["gpt-6.1-sol"],
+            judge_runner="scripts/run_audit_codex.sh",
+            prompt_sha256=None,
+            judge_template_version=None,
+        )
+    digest_text = driver.seed_digest_text(driver.seed_digest(seed))
+    monkeypatch.setattr(driver, "SEED_DIGEST_SHA256", sha(digest_text.encode()))
+    stage = tmp_path / "stage"
+
+    def prepare(
+        new_rows, *, grounding_path=grounding, explanations=None, references=None
+    ):
+        bundle = _board(
+            stage / "publish" / driver.RUN_NAME,
+            INCUMBENT_ROWS + new_rows,
+            references or REFERENCE_ROWS,
+        )
+        if explanations:
+            (bundle / "annotations").mkdir()
+            pd.DataFrame(
+                [
+                    {"scenario_id": scenario, "variable": "snap", "explanation": text}
+                    for scenario, text in explanations.items()
+                ]
+            ).to_csv(bundle / "annotations" / driver.EXPLANATIONS_NAME, index=False)
+        args = SimpleNamespace(
+            stage_dir=stage, audit_seed=seed, grounding=grounding_path
+        )
+        binding = driver.prepare_cases(args, bundle)
+        # main binds the seed in stage.json beside the input hashes.
+        driver.write_json(
+            stage / "stage.json",
+            {"partial": False, "early": False, "files": {}, "seed": binding},
+        )
+        return stage / "audit"
+
+    return seed, stage, prepare
+
+
+def test_a_case_terra_joins_is_rejudged_and_the_rest_carry_over(seeded_stage):
+    seed, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    joined, untouched = "us__s0__snap", "us__s1__snap"
+    assert json.loads((stage / "pending.json").read_text()) == [joined]
+    assert not (audit / "cases" / joined / "verdict.json").exists()
+    assert not (audit / "cases" / joined / "verdict.meta.json").exists()
+    for name in ("prompt.md", "verdict.json", "verdict.meta.json"):
+        assert (audit / "cases" / untouched / name).read_bytes() == (
+            seed / "cases" / untouched / name
+        ).read_bytes()
+    assert json.loads((stage / driver.PROMPT_CHANGES).read_text()) == {
+        "added": [],
+        "changed": [joined],
+        "kept": [untouched],
+    }
+    write_verdict(audit / "cases" / joined, _verdict(["m1", "m2", NEW]))
+    binding = driver.load_seed(stage)
+    assert binding == driver.seed_digest(seed)
+    assert driver.rejudged_cases(stage) == {joined}
+    assert driver.validate_verdicts(audit, seed=binding) == []
+
+
+def test_a_rejudged_case_by_the_seeds_judge_stays_pending(seeded_stage):
+    """The joined case's new verdict must come from this release's judge; the
+    seed's own judge and runner do not qualify."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(
+        audit / "cases/us__s0__snap",
+        _verdict(["m1", "m2", NEW]),
+        judge_model_requested="default",
+        judge_model_reported=["gpt-6.1-sol"],
+        judge_runner="scripts/run_audit_codex.sh",
+    )
+    assert driver.validate_verdicts(audit, seed=driver.load_seed(stage)) == [
+        "us__s0__snap"
+    ]
+
+
+@pytest.mark.parametrize("mutation", ["edited", "rebound", "missing"])
+def test_an_edited_carried_over_verdict_is_refused_after_prepare(
+    seeded_stage, mutation
+):
+    """Edit a kept incumbent verdict in a prepared stage (sidecar re-hashed to
+    match, or by this release's judge), or remove it, and validation refuses
+    it without setting anything aside."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    seed = driver.load_seed(stage)
+    assert driver.validate_verdicts(audit, seed=seed) == []
+    kept = audit / "cases/us__s1__snap"
+    verdict = json.loads((kept / "verdict.json").read_text())
+    verdict["case_failure_source"] = "prompt_ambiguity"
+    if mutation == "edited":
+        (kept / "verdict.json").write_text(json.dumps(verdict))
+    elif mutation == "rebound":
+        write_verdict(kept, verdict)
+    else:
+        (kept / "verdict.json").unlink()
+    before = sorted(p.name for p in kept.iterdir())
+    with pytest.raises(SystemExit, match="carried-over verdicts differ.*us__s1__snap"):
+        driver.validate_verdicts(audit, remove_invalid=True, seed=seed)
+    assert sorted(p.name for p in kept.iterdir()) == before
+
+
+def test_prepare_refuses_a_seed_the_committed_digest_does_not_record(
+    seeded_stage, monkeypatch
+):
+    _, stage, prepare = seeded_stage
+    monkeypatch.setattr(driver, "SEED_DIGEST_SHA256", COMMITTED_SEED_DIGEST_SHA256)
+    with pytest.raises(SystemExit, match="not release 20261014's"):
+        prepare(JOINS_S0)
+    assert not (stage / "audit").exists()
+
+
+@pytest.mark.parametrize("field", ["prompt_sha256", "verdict_sha256"])
+def test_load_seed_refuses_a_stage_without_a_binding_or_with_another(
+    seeded_stage, field
+):
+    _, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    edited = copy.deepcopy(receipt)
+    edited["seed"]["us__s1__snap"][field] = "0" * 64
+    driver.write_json(stage / "stage.json", edited)
+    with pytest.raises(SystemExit, match="not release 20261014's"):
+        driver.load_seed(stage)
+    added = copy.deepcopy(receipt)
+    added["seed"]["us__s9__snap"] = added["seed"]["us__s1__snap"]
+    driver.write_json(stage / "stage.json", added)
+    with pytest.raises(SystemExit, match="not release 20261014's"):
+        driver.load_seed(stage)
+    del receipt["seed"]
+    driver.write_json(stage / "stage.json", receipt)
+    with pytest.raises(SystemExit, match="bind-seed --audit-seed <the 20261014"):
+        driver.load_seed(stage)
+
+
+def test_bind_seed_binds_a_stage_prepared_before_prepare_did(seeded_stage):
+    seed, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    binding = receipt.pop("seed")
+    driver.write_json(stage / "stage.json", receipt)
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed)
+    driver.bind_seed(args)
+    assert driver.load_seed(stage) == binding
+    with pytest.raises(SystemExit, match="already binds"):
+        driver.bind_seed(args)
+
+
+def test_bind_seed_before_prepare_binds_the_install_record_once(tmp_path, seeded_stage):
+    """Before prepare, bind-seed writes the seed into reference-install.json,
+    refuses a seed the committed digest does not record and binds only once."""
+    seed, _, _ = seeded_stage
+    stage = tmp_path / "early-stage"
+    stage.mkdir()
+    args = SimpleNamespace(stage_dir=stage, audit_seed=seed)
+    with pytest.raises(SystemExit, match="installed build or prepared stage"):
+        driver.bind_seed(args)
+    driver.write_json(stage / "reference-install.json", {"sha256": {}})
+    driver.bind_seed(args)
+    marker = json.loads((stage / "reference-install.json").read_text())
+    assert marker["seed"] == driver.seed_digest(seed)
+    with pytest.raises(SystemExit, match="already binds its audit seed"):
+        driver.bind_seed(args)
+
+
+def test_bind_seed_before_prepare_refuses_another_seed(
+    tmp_path, seeded_stage, monkeypatch
+):
+    seed, _, _ = seeded_stage
+    stage = tmp_path / "early-stage"
+    stage.mkdir()
+    driver.write_json(stage / "reference-install.json", {"sha256": {}})
+    monkeypatch.setattr(driver, "SEED_DIGEST_SHA256", COMMITTED_SEED_DIGEST_SHA256)
+    with pytest.raises(SystemExit, match="not release 20261014's"):
+        driver.bind_seed(SimpleNamespace(stage_dir=stage, audit_seed=seed))
+    assert "seed" not in json.loads((stage / "reference-install.json").read_text())
+
+
+@pytest.mark.parametrize(
+    "move", ["kept_to_changed", "changed_to_kept", "dropped", "kept_to_added"]
+)
+def test_prompt_changes_that_disagree_with_the_stage_stop_every_step(
+    seeded_stage, move
+):
+    """prompt-changes.json is re-derived from the stage's prompts and the
+    bound seed on every read: moving a case between the lists, or dropping
+    one, is refused."""
+    _, stage, prepare = seeded_stage
+    prepare(JOINS_S0)
+    path = stage / driver.PROMPT_CHANGES
+    changes = json.loads(path.read_text())
+    if move == "kept_to_changed":
+        changes["kept"].remove("us__s1__snap")
+        changes["changed"].append("us__s1__snap")
+    elif move == "changed_to_kept":
+        changes["changed"].remove("us__s0__snap")
+        changes["kept"].append("us__s0__snap")
+    elif move == "kept_to_added":
+        changes["kept"].remove("us__s1__snap")
+        changes["added"].append("us__s1__snap")
+    else:
+        changes["changed"].remove("us__s0__snap")
+    path.write_text(json.dumps(changes))
+    for step in (driver.load_seed, driver.rejudged_cases):
+        with pytest.raises(SystemExit, match="disagrees with the stage's prompts"):
+            step(stage)
+
+
+@pytest.mark.parametrize("edit", ["prompt_only", "verdict_sidecar_and_prompt"])
+def test_a_kept_case_cannot_pass_as_a_new_verdict(seeded_stage, edit):
+    """A kept case whose prompt is edited (with or without a re-bound
+    verdict by this release's judge) is refused, never re-judged."""
+    _, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    write_verdict(audit / "cases/us__s0__snap", _verdict(["m1", "m2", NEW]))
+    kept = audit / "cases/us__s1__snap"
+    (kept / "prompt.md").write_text((kept / "prompt.md").read_text() + "\n")
+    if edit == "verdict_sidecar_and_prompt":
+        verdict = json.loads((kept / "verdict.json").read_text())
+        verdict["case_failure_subtype"] = "other"
+        write_verdict(kept, verdict)
+    before = sorted(p.name for p in kept.iterdir())
+    with pytest.raises(SystemExit, match="incumbent-only case prompts changed"):
+        driver.load_seed(stage)
+    assert sorted(p.name for p in kept.iterdir()) == before
+
+
+@pytest.mark.parametrize("claim", ["reopens_a_right_answer", "keeps_a_wrong_answer"])
+def test_the_manifest_cannot_reopen_a_case_the_predictions_do_not(seeded_stage, claim):
+    """Terra answers s1 right and s0 wrong. Listing it as wrong on s1 (prompt
+    edited, case moved to changed), or dropping it from s0 (seed prompt
+    restored, case moved to kept), leaves the re-derived lists agreeing, so
+    only the predictions can refuse the forged manifest."""
+    seed, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    driver.load_seed(stage)
+    manifest = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    changes = json.loads((stage / driver.PROMPT_CHANGES).read_text())
+    case = "us__s1__snap" if claim == "reopens_a_right_answer" else "us__s0__snap"
+    row = next(item for item in manifest if item["case_id"] == case)
+    if claim == "reopens_a_right_answer":
+        row["wrong_models"].append(NEW)
+        prompt = audit / "cases" / case / "prompt.md"
+        prompt.write_text(prompt.read_text() + f"{NEW}: Wrong.\n")
+        changes["kept"].remove(case)
+        changes["changed"].append(case)
+    else:
+        row["wrong_models"].remove(NEW)
+        shutil.copyfile(
+            seed / "cases" / case / "prompt.md", audit / "cases" / case / "prompt.md"
+        )
+        changes["changed"].remove(case)
+        changes["kept"].append(case)
+    (audit / "cases.jsonl").write_text("".join(json.dumps(r) + "\n" for r in manifest))
+    (stage / driver.PROMPT_CHANGES).write_text(json.dumps(changes))
+    for step in (driver.load_seed, driver.rejudged_cases):
+        with pytest.raises(
+            SystemExit, match=f"disagree with the staged predictions.*{case}"
+        ):
+            step(stage)
+
+
+@pytest.mark.parametrize("defect", ["kept_verdict", "kept_prompt", "changed_prompt"])
+def test_bind_seed_refuses_a_stage_that_disagrees_with_the_seed(seeded_stage, defect):
+    seed, stage, prepare = seeded_stage
+    audit = prepare(JOINS_S0)
+    receipt = json.loads((stage / "stage.json").read_text())
+    del receipt["seed"]
+    driver.write_json(stage / "stage.json", receipt)
+    if defect == "kept_verdict":
+        (audit / "cases/us__s1__snap/verdict.json").write_text("{}")
+    elif defect == "kept_prompt":
+        (audit / "cases/us__s1__snap/prompt.md").write_text("Another prompt.\n")
+    else:
+        shutil.copyfile(
+            seed / "cases/us__s0__snap/prompt.md",
+            audit / "cases/us__s0__snap/prompt.md",
+        )
+    with pytest.raises(SystemExit, match="disagrees with the seed"):
+        driver.bind_seed(SimpleNamespace(stage_dir=stage, audit_seed=seed))
+    assert "seed" not in json.loads((stage / "stage.json").read_text())
+
+
+def test_a_household_only_terra_misses_becomes_a_new_case(seeded_stage):
+    _, stage, prepare = seeded_stage
+    audit = prepare(
+        [
+            (NEW, "s0", 0.0, "Ineligible."),
+            (NEW, "s1", 300.0, "Right."),
+            (NEW, "s2", 55.0, "Halved."),
+        ]
+    )
+    assert json.loads((stage / driver.PROMPT_CHANGES).read_text()) == {
+        "added": ["us__s2__snap"],
+        "changed": [],
+        "kept": ["us__s0__snap", "us__s1__snap"],
+    }
+    assert json.loads((stage / "pending.json").read_text()) == ["us__s2__snap"]
+    assert not (audit / "cases/us__s2__snap/verdict.json").exists()
+
+
+def test_an_incumbent_prompt_that_changes_is_refused(
+    seeded_stage, tmp_path, monkeypatch
+):
+    _, _, prepare = seeded_stage
+    other = tmp_path / "other-grounding.csv"
+    pd.DataFrame(
+        [{"scenario_id": "s1", "variable": "snap", "grounding": "Gross test: fail."}]
+    ).to_csv(other, index=False)
+    monkeypatch.setattr(driver, "GROUNDING_SHA256", sha(other))
+    with pytest.raises(SystemExit, match=r"incumbent-only case prompts changed.*s1"):
+        prepare(JOINS_S0, grounding_path=other)
+
+
+def test_a_moved_reference_without_the_installed_build_is_refused(seeded_stage):
+    """A reference value that moves outside an installed build's record
+    re-renders an incumbent-only prompt, which prepare refuses."""
+    _, _, prepare = seeded_stage
+    moved = [
+        {**row, "value": 310.0} if row["scenario_id"] == "s1" else row
+        for row in REFERENCE_ROWS
+    ]
+    rows = [(NEW, "s0", 99.0, "Guessed."), (NEW, "s1", 310.0, "Right.")]
+    with pytest.raises(SystemExit, match=r"incumbent-only case prompts changed.*s1"):
+        prepare([*rows, (NEW, "s2", 100.0, "Right.")], references=moved)
+
+
+def test_a_reworded_explanation_outside_the_pinned_set_is_refused(seeded_stage):
+    _, _, prepare = seeded_stage
+    with pytest.raises(
+        SystemExit, match=r"incumbent-only case prompts changed.*\['us__s1__snap'\]"
+    ):
+        prepare(JOINS_S0, explanations={"s1": "The allotment is the maximum."})
+
+
+def test_prepare_refuses_a_grounding_other_than_the_pinned_one(seeded_stage, tmp_path):
+    _, stage, prepare = seeded_stage
+    other = tmp_path / "other-grounding.csv"
+    other.write_text("scenario_id,variable,grounding\n")
+    with pytest.raises(SystemExit, match="grounding differs"):
+        prepare([], grounding_path=other)
+    assert not (stage / "audit").exists()
+
+
+def test_set_aside_keeps_the_judge_evidence_with_the_verdict(tmp_path):
+    root = tmp_path / "audit"
+    case = _audit(root, [NEW])
+    write_verdict(case, _verdict(["someone-else"]))
+    for name in ("claude.json", "claude.log", "claude.transcript.jsonl"):
+        (case / name).write_text(name)
+    assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
+    (kept,) = (tmp_path / "rejected-verdicts" / case.name).iterdir()
+    assert sorted(p.name for p in kept.iterdir()) == [
+        "claude.json",
+        "claude.log",
+        "claude.transcript.jsonl",
+        "reason.txt",
+        "verdict.json",
+        "verdict.meta.json",
+    ]
+    assert sorted(p.name for p in case.iterdir()) == ["prompt.md"]
+
+
+@pytest.mark.parametrize("payload", [[], "text", {"amendments": {}}])
+def test_a_malformed_amendment_file_is_refused(tmp_path, payload):
+    (tmp_path / driver.AMENDMENTS).write_text(json.dumps(payload))
+    with pytest.raises(SystemExit, match="'amendments' is not a list"):
+        driver.load_amendments(tmp_path, frozenset())
+
+
+def test_check_prompt_changes_names_new_incumbent_only_cases(tmp_path, monkeypatch):
+    monkeypatch.setattr(driver, "reworded_since_seed", lambda: frozenset())
+    root = tmp_path / "audit"
+    case = _audit(root, ["incumbent"])
+    with pytest.raises(SystemExit, match=case.name):
+        driver.check_prompt_changes(root, {})
+    manifest = json.loads((root / "cases.jsonl").read_text())
+    manifest["wrong_models"] = ["incumbent", NEW]
+    (root / "cases.jsonl").write_text(json.dumps(manifest) + "\n")
+    assert driver.check_prompt_changes(root, {})["added"] == [case.name]
+    with pytest.raises(SystemExit, match="seed cases vanished.*us__s9__snap"):
+        driver.check_prompt_changes(root, {"us__s9__snap": "0" * 64})
