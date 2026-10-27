@@ -2876,7 +2876,9 @@ def verify_verdict_inventory(audit: Path) -> tuple[str, ...]:
         for path in cases.rglob("*")
         if path.is_symlink() and path.is_dir()
     )
-    require(not linked, f"audit case directory symlinks are not permitted: {linked[:8]}")
+    require(
+        not linked, f"audit case directory symlinks are not permitted: {linked[:8]}"
+    )
     verdicts = {
         str(path.parent.relative_to(cases))
         for path in cases.rglob("verdict.json")
