@@ -2247,8 +2247,34 @@ def test_unlisted_verdict_added_after_export_is_refused_without_writes(
     assert h_stage.board.calls == []
 
 
+def test_verdict_inventory_refuses_a_nested_directory_symlink(tmp_path):
+    audit = tmp_path / "audit"
+    audit.mkdir()
+    (audit / "cases.jsonl").write_text("")
+    external = tmp_path / "unlisted"
+    write_json(external / "verdict.json", {})
+    container = audit / "cases/container"
+    container.mkdir(parents=True)
+    (container / "linked").symlink_to(external, target_is_directory=True)
+    before = {p: p.read_bytes() for p in audit.rglob("*") if p.is_file()}
+    with pytest.raises(SystemExit, match="audit case directory symlinks"):
+        driver.verify_verdict_inventory(audit)
+    assert {p: p.read_bytes() for p in audit.rglob("*") if p.is_file()} == before
+
+
 def test_the_terra_provenance_tally_reads_only_bound_manifest_cases(h_stage):
     stage = h_stage.stage
+    # Carried-verdict fixtures elsewhere need only their seed hash. Supply
+    # complete synthetic identity fields here to exercise the real tally.
+    for sidecar in (stage / "audit/cases").glob("*/verdict.meta.json"):
+        meta = _h_json(sidecar)
+        meta.update(
+            judge_model_requested="synthetic-carried-judge",
+            judge_model_reported=["synthetic-carried-judge"],
+            judge_runner="scripts/run_audit_claude.sh",
+        )
+        write_json(sidecar, meta)
+    h_stage.rebind(restamp=False)
     receipt = release.verify_receipt(stage, stage / H_BOARD, driver.RELEASE_TAG)
     release.verify_verdicts(stage)
     case_ids = driver.verify_verdict_inventory(stage / "audit")
