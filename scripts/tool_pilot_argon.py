@@ -25,8 +25,10 @@ Arms, on the same 100 households (``run --arm`` picks arm 2's tools):
      computes every reference on that system). The ``oracle`` subcommand checks
      that the reference situations reproduce every scored reference through it.
      ``--arm web`` offers the provider's own web search in place of the tool,
-     and ``--arm web+pe`` offers both; rows are labeled ``<model>+web`` and
-     ``<model>+web+pe-tool``. Searches are logged per turn and priced at list
+     ``--arm web+pe`` offers both, and ``--arm web+pe3`` offers web search with
+     the version 3 calculator (pe3's notice, with web search named in its
+     opening); rows are labeled ``<model>+web``, ``<model>+web+pe-tool`` and
+     ``<model>+web+pe-tool-v3``. Searches are logged per turn and priced at list
      (SEARCH_USD_PER_1K) on top of their tokens; policybench.org and GitHub are
      blocked where the provider allows it (BLOCKED_DOMAINS), and ``score``
      writes searches.csv with an audit of any that touch the benchmark.
@@ -3029,7 +3031,8 @@ def run_household(
     tool is offered under tool_choice auto and the cap is a user message.
 
     The profile's arm sets the tools: the calculate tool ("pe"), the
-    provider's web search ("web"), or both ("web+pe"). The provider runs a
+    provider's web search ("web"), or both ("web+pe", or "web+pe3" with the
+    version 3 calculator). The provider runs a
     search inside the response that asked for it, so searches use no
     calculation turn; each response's searches are logged and their list
     price added to its cost.
@@ -5598,7 +5601,7 @@ def main(argv: list[str] | None = None) -> None:
                 default="pe",
                 help="the tools: none, PolicyEngine (pe, pe2, pe3, or pe: plus "
                 "calculator features joined by +), web search (web), or both "
-                "(web+pe)",
+                "(web+pe, or web+pe3 with the version 3 calculator)",
             )
             p.add_argument(
                 "--prompt",

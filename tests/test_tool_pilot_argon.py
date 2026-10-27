@@ -3633,6 +3633,65 @@ def test_web_and_tool_v3_is_tool_v3_with_web_search_named_in_its_opening():
         pilot.with_web_opening("no calculator here")
 
 
+def test_a_gemini_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web+pe3", "v2-pilot", True)
+    model = FakeModel(
+        [
+            with_fields(
+                response([submit({"snap": 2553, VARIABLES[1]: 0})]),
+                gemini_searches(("g1", ["co snap 2026"])),
+            )
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    (request,) = model.requests
+    assert request["tools"][0] == {"googleSearch": {}}
+    assert [t["function"]["name"] for t in request["tools"][1:]] == [
+        pilot.TOOL_NAME,
+        "submit_outputs",
+    ]
+    assert request["include_server_side_tool_invocations"] is True
+    assert request["messages"][0]["content"].endswith(profile.notice)
+    assert record["totals"]["web_searches"] == 1
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(pilot.MODEL_NAME, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None
+
+
+def test_an_anthropic_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(OPUS, "web+pe3", "v2-pilot", True)
+    model = FakeModel(
+        [response([], content=json_answer({"snap": 2553, VARIABLES[1]: 0}))]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    (request,) = model.requests
+    assert [t.get("name") or t["function"]["name"] for t in request["tools"]] == [
+        "web_search",
+        pilot.TOOL_NAME,
+    ]
+    system = request["messages"][0]["content"]  # text blocks on Anthropic
+    assert "".join(part["text"] for part in system).endswith(profile.notice)
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(OPUS, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None
+
+
 def test_a_responses_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
     profile = pilot.model_profile(SOL, "web+pe3", "v2-pilot", True)
     model = FakeResponses(
