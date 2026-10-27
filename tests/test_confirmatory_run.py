@@ -11,6 +11,7 @@ the runner and checks its records with the confirmatory report itself.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
@@ -559,6 +560,13 @@ def test_a_backward_wall_clock_does_not_delay_a_due_anchor(monkeypatch):
     assert [run.anchor_due() for _ in range(3)] == [False, True, True]
 
 
+def test_the_anchor_interval_and_retry_wait_are_registered_durations():
+    """paper/preregistration-draft.md:218: anchors every 15 minutes, and retries
+    a minute after the failed push ends."""
+    assert cr.ANCHOR_SECONDS == 900.0
+    assert cr.ANCHOR_RETRY == 60.0
+
+
 def test_a_wall_clock_that_steps_back_keeps_the_run_procedure(world, monkeypatch):
     """Every reading of the wall clock up to 0.2 ms early (steps back of up to
     0.1 ms seen on this host): the run's times still order its attempts,
@@ -768,6 +776,7 @@ class World:
             pilot._STATED_ENGINE, "version", pilot._STATED_ENGINE["version"]
         )
         self.models = tuple(models or cr.CHEAP + cr.FRONTIER)
+        budget_models = tuple(dict.fromkeys(cr.CHEAP + cr.FRONTIER + self.models))
         self.design = {
             "preregistration": str(prereg),
             "frozen_sha256": frozen,
@@ -778,8 +787,8 @@ class World:
             "draw_order": self.draw_order,
             "arms": {a: a for a in cr.ARMS},
             "frontier_arms": {a: f"f-{a}" for a in cr.FRONTIER_ARMS},
-            "caps": {m: (caps or {}).get(m, 10.0) for m in cr.CHEAP + cr.FRONTIER},
-            "reserves": {m: reserve for m in cr.CHEAP + cr.FRONTIER},
+            "caps": {m: (caps or {}).get(m, 10.0) for m in budget_models},
+            "reserves": {m: reserve for m in budget_models},
             "overall_cap": overall_cap,
             "spent_before": spent_before,
             "workers": 2,
@@ -2239,26 +2248,178 @@ def stateless_model(**kwargs):
     return chat_response([chat_call("submit_outputs", {"outputs": outputs}, "s1")])
 
 
-def test_the_harness_conversation_runs_under_the_runner(world):
-    model = "claude-haiku-5.5"
+def stateless_responses_model(**kwargs):
+    """A Responses tool-contract model: calculate, then submit the answers."""
+    from types import SimpleNamespace
+
+    if "previous_response_id" not in kwargs:
+        name, call_id = pilot.TOOL_NAME, "c1"
+        arguments = {"situation": json.dumps({"people": {}}), "variables": ["snap"]}
+    else:
+        name, call_id = "submit_outputs", "s1"
+        arguments = {
+            "outputs": {v: {"value": 0, "explanation": "value = 0"} for v in VARIABLES}
+        }
+    return SimpleNamespace(
+        id=f"resp_{call_id}",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                id=f"fc_{call_id}",
+                call_id=call_id,
+                name=name,
+                arguments=json.dumps(arguments),
+                status="completed",
+            )
+        ],
+        output_text=None,
+        status="completed",
+        incomplete_details=None,
+        usage=SimpleNamespace(
+            input_tokens=1000,
+            output_tokens=200,
+            total_tokens=1200,
+            input_tokens_details=SimpleNamespace(cached_tokens=0),
+            output_tokens_details=SimpleNamespace(reasoning_tokens=0),
+        ),
+        model=kwargs["model"],
+    )
+
+
+def stateless_json_model(**kwargs):
+    """A Gemini JSON-contract model: calculate, then answer in JSON text."""
+    if not any(m.get("role") == "tool" for m in kwargs["messages"]):
+        response = stateless_model(**kwargs)
+        response.model = kwargs["model"]
+        return response
+    response = chat_response([])
+    response.model = kwargs["model"]
+    response.choices[0].finish_reason = "stop"
+    response.choices[0].message.content = json.dumps(
+        {v: {"value": 0, "explanation": "value = 0"} for v in VARIABLES}
+    )
+    return response
+
+
+@pytest.mark.parametrize(
+    "model, completion",
+    [
+        ("claude-haiku-5.5", stateless_model),
+        ("gpt-6-luna", stateless_responses_model),
+        ("gemini-3.1-pro-preview", stateless_json_model),
+    ],
+)
+def test_the_harness_conversation_runs_under_the_runner(world, model, completion):
+    """Each API and answer contract completes real harness conversations in
+    both runner lanes, with the registered feature frame for every arm.
+
+    The confirmatory roster's Geminis use tools. The older board profile
+    covers the harness's Gemini JSON path in a fake design, without changing
+    the production roster or any model's answer contract."""
     w = world(models=(model,))
     w.run.converse = cr.converse_with_harness
-    w.run.completion_for = lambda profile: stateless_model
+    w.run.completion_for = lambda profile: completion
     w.execute()
+    labels = labels_of(model)
     attempts = w.attempts(model)
-    assert len(attempts) == N_DRAW * len(cr.ARMS)
+    assert len(attempts) == N_DRAW * len(labels)
     assert {x["status"] for x in attempts} == {"complete"}
     messages = w.run.lanes[model].pool.messages
-    assert len(messages) == N_DRAW * len(cr.ARMS)  # one calculation per attempt
+    assert len(messages) == N_DRAW * len(labels)  # one calculation per attempt
     frames = [m for m in messages if isinstance(m, tuple)]
-    assert len(frames) == N_DRAW * (len(cr.ARMS) - 1)  # every arm but pe
+    assert len(frames) == N_DRAW * (len(labels) - 1)  # every arm but pe
     sid = w.draw_order[0]
-    rec = json.loads((w.folder(model, "loo-names") / f"{sid}.json").read_text())
-    profile = cr.arm_profile(model, "loo-names")
-    assert rec["arm"] == cr.arm_string("loo-names") and rec["attempts"] == []
+    label = "loo-names" if "loo-names" in labels else "pe3"
+    rec = json.loads((w.folder(model, label) / f"{sid}.json").read_text())
+    profile = cr.arm_profile(model, label)
+    assert rec["arm"] == cr.arm_string(label) and rec["attempts"] == []
     assert rec["tool_features"] == sorted(profile.tool_features)
     assert rec["predictions"] == {v: 0.0 for v in VARIABLES}
     assert run_problems(w) == []
+
+
+@pytest.mark.parametrize(
+    "model, completion, api, contract, label",
+    [
+        (model, completion, api, contract, label)
+        for model, completion, api, contract in [
+            ("gpt-6-luna", stateless_responses_model, "responses", "tool"),
+            ("gemini-3.1-pro-preview", stateless_json_model, "chat", "json"),
+        ]
+        for label in labels_of(model)
+    ],
+)
+def test_the_runner_sends_the_treatment_conversation(
+    world, label, model, completion, api, contract
+):
+    """Compare every provider request and calculation against the unchanged
+    treatment harness at 6b00a6f0, including the tool-result continuation.
+
+    Gemini 3.1's board profile exercises JSON; both confirmatory Geminis use
+    the tool contract. No contract or model card is replaced for this test."""
+    w = world(models=(model,))
+    lanes, sid = w.run.lanes[model], w.draw_order[0]
+    requests, calculations = [], []
+
+    def provider(**kwargs):
+        """Keep each request before the conversation can extend its messages."""
+        requests.append(copy.deepcopy(kwargs))
+        return completion(**kwargs)
+
+    def tool(arguments):
+        """Keep exactly what the conversation sends to the calculator."""
+        calculations.append(arguments)
+        return {"results": {"snap": {"values": {"spm": 1.0}}}}, 0.0
+
+    lanes.completion = provider
+    record = cr.converse_with_harness(
+        lanes, sid, label, tool, cr.AttemptSpend(w.run.ceiling)
+    )
+    sent, called = requests[:], calculations[:]
+    requests.clear()
+    calculations.clear()
+    profile = pilot.model_profile(
+        model, arm=cr.arm_string(label), prompt_version="v2-pilot"
+    )
+    treatment = pilot.run_household(
+        w.board["scenarios"][sid],
+        w.board["variables"][sid],
+        tool,
+        provider,
+        pilot.Spend(100.0),
+        profile=profile,
+    )
+    assert record["api"] == treatment["api"] == api
+    assert record["contract"] == treatment["contract"] == contract
+    assert record["status"] == treatment["status"] == "complete"
+    assert record["predictions"] == treatment["predictions"] == {
+        v: 0.0 for v in VARIABLES
+    }
+    assert len(sent) == len(requests) == 2
+    assert sent == requests and called == calculations and len(called) == 1
+    assert record["messages"] == treatment["messages"]
+    first, second = sent
+    if api == "responses":
+        assert "messages" not in first and "previous_response_id" not in first
+        assert first["tool_choice"] == "required"
+        assert [t["name"] for t in first["tools"]] == [
+            pilot.TOOL_NAME,
+            "submit_outputs",
+        ]
+        assert "max_output_tokens" in first
+        assert second["previous_response_id"] == "resp_c1"
+        assert second["input"] == [
+            {
+                "type": "function_call_output",
+                "call_id": "c1",
+                "output": json.dumps({"results": {"snap": {"values": {"spm": 1.0}}}}),
+            }
+        ]
+    else:
+        assert "input" not in first and first["tool_choice"] == "auto"
+        assert [t["function"]["name"] for t in first["tools"]] == [pilot.TOOL_NAME]
+        assert second["messages"][-1]["role"] == "tool"
+        assert second["messages"][-1]["tool_call_id"] == "c1"
 
 
 def test_the_ceiling_ends_a_harness_conversation_at_its_next_turn(world):

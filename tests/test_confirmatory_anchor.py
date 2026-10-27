@@ -134,6 +134,135 @@ def test_a_busy_clone_is_refused_without_changing_its_records(clone, tmp_path):
     assert remote_log(remote) == history
 
 
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push", "pre-receive"])
+def test_killing_only_the_helper_keeps_its_git_writer_locked(
+    clone, tmp_path, hook_name
+):
+    """A Git child already using the clone retains the lock after helper death."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    first = b'{"time": 1.0}\n'
+    older = first + b'{"time": 2.0}\n'
+    snapshots = [older + b'{"time": 3.0}\n', older + b'{"time": 3.0}\n{"time": 4.0}\n']
+    anchors.write_bytes(first)
+    assert anchor_command(repo, anchors).returncode == 0
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    for path in (ready, release):
+        os.mkfifo(path)
+    hook_lock = tmp_path / "hook-lock.json"
+    hooks = remote / "hooks" if hook_name == "pre-receive" else repo / ".git" / "hooks"
+    hook = hooks / hook_name
+    hook.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os\n"
+        "from pathlib import Path\n"
+        "if os.environ.get('ANCHOR_TEST_BLOCK') == '1':\n"
+        f"    lock = Path({str(repo / '.git' / 'confirmatory-anchor.lock')!r}).stat()\n"
+        "    inherited = []\n"
+        "    for fd in range(3, 256):\n"
+        "        try:\n"
+        "            info = os.fstat(fd)\n"
+        "        except OSError:\n"
+        "            continue\n"
+        "        if (info.st_dev, info.st_ino) == (lock.st_dev, lock.st_ino):\n"
+        "            inherited.append(os.get_inheritable(fd))\n"
+        f"    Path({str(hook_lock)!r}).write_text(json.dumps(inherited))\n"
+        f"    with open({str(ready)!r}, 'wb', buffering=0) as pipe:\n"
+        "        pipe.write(b'1')\n"
+        f"    with open({str(release)!r}, 'rb', buffering=0) as pipe:\n"
+        "        pipe.read(1)\n"
+    )
+    hook.chmod(0o755)
+
+    def records():
+        """Read the clone's file, index, HEAD and the remote without writing."""
+        objects = [
+            subprocess.run(
+                ["git", "-C", str(repo), "show", obj], check=True, capture_output=True
+            ).stdout
+            for obj in (":anchors.jsonl", "HEAD:anchors.jsonl")
+        ]
+        return (
+            (repo / "anchors.jsonl").read_bytes(),
+            (repo / ".git" / "index").read_bytes(),
+            *objects,
+            remote_file(remote).encode(),
+            remote_log(remote),
+        )
+
+    ready_fd, release_fd = (os.open(path, os.O_RDWR) for path in (ready, release))
+    child = None
+    try:
+        anchors.write_bytes(older)
+        child = subprocess.Popen(
+            [sys.executable, str(SCRIPT), "--repo", str(repo), str(anchors)],
+            env={**os.environ, "ANCHOR_TEST_BLOCK": "1"},
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert select.select([ready_fd], [], [], 15.0)[0], "Git did not reach its hook"
+        assert os.read(ready_fd, 1) == b"1"
+        before = records()
+        assert before[0] == before[2] == older
+        child.kill()
+        assert child.wait(timeout=15.0) == -signal.SIGKILL
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 1 and "busy" in out.stderr, (
+                "a surviving Git writer lost the helper's clone lock: " + out.stderr
+            )
+            assert records() == before
+        assert json.loads(hook_lock.read_text()) == [True]
+        os.write(release_fd, b"1")
+        child.communicate(timeout=15.0)
+        # Pipe closure need not mean every inherited lock holder has ended.
+        with (repo / ".git" / "confirmatory-anchor.lock").open("a") as lock:
+            deadline = time.monotonic() + 15.0
+            while True:
+                try:
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    assert time.monotonic() < deadline, "a Git child did not finish"
+                    threading.Event().wait(0.01)
+        after = records()
+        assert after[0] == after[2] == after[3] == older
+        assert after[4] in (first, older)
+        for snapshot in snapshots:
+            anchors.write_bytes(snapshot)
+            out = anchor_command(repo, anchors)
+            assert out.returncode == 0, out.stderr
+            state = records()
+            assert state[0] == state[2] == state[3] == state[4] == snapshot
+        history = subprocess.run(
+            ["git", "-C", str(remote), "rev-list", "--reverse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        previous = b""
+        for commit in history:
+            content = subprocess.run(
+                ["git", "-C", str(remote), "show", f"{commit}:anchors.jsonl"],
+                check=True,
+                capture_output=True,
+            ).stdout
+            assert content.startswith(previous)
+            previous = content
+        assert previous == snapshots[-1]
+    finally:
+        if child is not None:
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.communicate(timeout=15.0)
+        for fd in (ready_fd, release_fd):
+            os.close(fd)
+
+
 def test_a_changed_middle_line_is_refused_without_writing(clone, tmp_path):
     """A longer snapshot still fails when it rewrites an existing line."""
     remote, repo = clone
@@ -167,6 +296,29 @@ def test_a_stale_git_index_lock_is_left_alone(clone, tmp_path):
     assert index_lock.read_bytes() == b"stale lock kept for its owner\n"
     assert remote_file(remote).encode() == first
     assert remote_log(remote) == history
+
+
+def test_git_fsmonitor_is_disabled_even_when_the_clone_enables_it(clone, tmp_path):
+    """Git must not launch a monitor that can discard the inherited clone lock."""
+    remote, repo = clone
+    anchors = tmp_path / "anchors.jsonl"
+    anchors.write_bytes(b'{"time": 1.0}\n')
+    assert anchor_command(repo, anchors).returncode == 0
+    invoked, monitor = tmp_path / "monitor-invoked", tmp_path / "fsmonitor"
+    monitor.write_text(
+        f"#!{sys.executable}\n"
+        "from pathlib import Path\n"
+        f"Path({str(invoked)!r}).touch()\n"
+    )
+    monitor.chmod(0o755)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "core.fsmonitor", str(monitor)], check=True
+    )
+    anchors.write_bytes(anchors.read_bytes() + b'{"time": 2.0}\n')
+    out = anchor_command(repo, anchors)
+    assert out.returncode == 0, out.stderr
+    assert not invoked.exists()
+    assert remote_file(remote).encode() == anchors.read_bytes()
 
 
 def test_a_failed_push_exits_nonzero(clone, tmp_path):

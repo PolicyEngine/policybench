@@ -12,10 +12,17 @@ of each push is the anchor's time from outside the run: a log edited after an
 anchor was pushed no longer matches that anchor's head.
 
 An exclusive non-blocking lock in the clone's `.git` directory covers every
-read, copy, commit and push. A busy clone fails without changing its records.
-Under the lock, the clone's current file must be a byte prefix of the snapshot:
-a delayed older command cannot replace newer evidence. Git's own index.lock
-is left alone; a git failure is a failed push.
+read, copy, commit and push. Every Git command inherits its descriptor, so a
+surviving command keeps the clone busy even if this helper alone is killed.
+Git's hooks and remote helpers inherit it too; automatic fsmonitor startup,
+which closes inherited descriptors, is disabled. Configured commands must
+preserve the descriptor in any background clone writer. This advisory lock
+does not cover independent writers or replacement of the lock file.
+A busy clone fails without changing its records. Under the lock, the clone's
+current file must be a byte prefix of the snapshot (equality is allowed): a
+delayed older command cannot replace newer evidence. This checks bytes, not
+JSON or line boundaries; the runner supplies complete, synced lines. Git's
+own index.lock is left alone; a git failure is a failed push. Never force-push.
 """
 
 from __future__ import annotations
@@ -28,10 +35,14 @@ import sys
 from pathlib import Path
 
 
-def git(repo: Path, *args: str) -> str:
-    """Run git in the anchor clone, retaining failures for the caller."""
+def git(repo: Path, lock_fd: int, *args: str) -> str:
+    """Run Git with the clone lock inherited, retaining failures for the caller."""
     return subprocess.run(
-        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
+        ["git", "-c", "core.fsmonitor=false", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        pass_fds=(lock_fd,),
     ).stdout
 
 
@@ -47,7 +58,10 @@ def main(argv=None) -> int:
         try:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            print("anchor clone busy: another helper holds its lock", file=sys.stderr)
+            print(
+                "anchor clone busy: another helper or Git process holds its lock",
+                file=sys.stderr,
+            )
             return 1
         snapshot = args.anchors.read_bytes()
         current = target.read_bytes() if target.exists() else b""
@@ -61,11 +75,18 @@ def main(argv=None) -> int:
         if snapshot != current or not target.exists():
             target.write_bytes(snapshot)
         lines = snapshot.decode().splitlines()
-        git(repo, "add", "anchors.jsonl")
-        if git(repo, "status", "--porcelain", "--", "anchors.jsonl"):
+        git(repo, lock.fileno(), "add", "anchors.jsonl")
+        if git(repo, lock.fileno(), "status", "--porcelain", "--", "anchors.jsonl"):
             head = hashlib.sha256(lines[-1].encode()).hexdigest() if lines else "none"
-            git(repo, "commit", "-q", "-m", f"anchor {len(lines)}: {head}")
-        git(repo, "push", "-q", "origin", "HEAD")
+            git(
+                repo,
+                lock.fileno(),
+                "commit",
+                "-q",
+                "-m",
+                f"anchor {len(lines)}: {head}",
+            )
+        git(repo, lock.fileno(), "push", "-q", "origin", "HEAD")
         print(f"pushed {len(lines)} anchors")
     return 0
 

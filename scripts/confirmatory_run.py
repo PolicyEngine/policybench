@@ -77,8 +77,9 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   command: under an exclusive, non-blocking clone lock, it accepts only a
   snapshot extending the clone's anchors, commits it and pushes it, so the
   remote holds each anchor's time from outside the run. Retiring a worker
-  does not ensure its command has ended. If an old helper still holds the
-  lock, later pushes fail as busy; a final segment left local is a deviation.
+  does not ensure its command has ended. If an old helper or its Git child
+  still holds the lock, later pushes fail as busy; a final segment left local
+  is a deviation.
   Final pushes get up to three tries per set of heads, waiting a minute
   after each failed try ends before starting the next.
 
