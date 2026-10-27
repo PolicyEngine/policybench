@@ -25,8 +25,10 @@ Arms, on the same 100 households (``run --arm`` picks arm 2's tools):
      computes every reference on that system). The ``oracle`` subcommand checks
      that the reference situations reproduce every scored reference through it.
      ``--arm web`` offers the provider's own web search in place of the tool,
-     and ``--arm web+pe`` offers both; rows are labeled ``<model>+web`` and
-     ``<model>+web+pe-tool``. Searches are logged per turn and priced at list
+     ``--arm web+pe`` offers both, and ``--arm web+pe3`` offers web search with
+     the version 3 calculator (pe3's notice, with web search named in its
+     opening); rows are labeled ``<model>+web``, ``<model>+web+pe-tool`` and
+     ``<model>+web+pe-tool-v3``. Searches are logged per turn and priced at list
      (SEARCH_USD_PER_1K) on top of their tokens; policybench.org and GitHub are
      blocked where the provider allows it (BLOCKED_DOMAINS), and ``score``
      writes searches.csv with an audit of any that touch the benchmark.
@@ -154,7 +156,12 @@ JSON_TOOL_NOTICE = (
 # with no tools), so a prompt version other than the board's has its own
 # no-tools baseline. Repairs, retries and truncation then follow this pilot's
 # loop, not the board's; they matter only when a first answer does not parse.
-ARMS = ("none", "pe", "web", "web+pe", "pe2", "pe3")
+# "web+pe3" offers web search with the version 3 calculator (Max 2026-10-26,
+# for the Aspen preview: web search against web search and the calculator is
+# the comparison, so version 3 runs with web search too). Its notice is pe3's
+# with web search named in the opening sentence, as web+pe's is pe's.
+ARMS = ("none", "pe", "web", "web+pe", "pe2", "pe3", "web+pe3")
+WEB_ARMS = ("web", "web+pe", "web+pe3")
 ARM_SUFFIX = {
     "none": "+no-tools",
     "pe": "+pe-tool",
@@ -162,6 +169,7 @@ ARM_SUFFIX = {
     "web+pe": "+web+pe-tool",
     "pe2": "+pe-tool-v2",
     "pe3": "+pe-tool-v3",
+    "web+pe3": "+web+pe-tool-v3",
 }
 # The calculator's features, each on or off, so a study can change one at a
 # time (Max, 2026-10-23: "measuring this as an experiment could be
@@ -202,6 +210,7 @@ FEATURES_BY_ARM = {
     "web+pe": frozenset(),
     "pe2": V2_FEATURES,
     "pe3": frozenset(TOOL_FEATURES),
+    "web+pe3": frozenset(TOOL_FEATURES),
 }
 _FEATURE_ARM = re.compile(r"^pe:([a-z]+(?:\+[a-z]+)*)$")
 
@@ -383,13 +392,21 @@ JSON_WEB_NOTICE = (
 )
 # The PE notice with web search named in its opening sentence; the rest of it,
 # the tool's description and the turn cap, is unchanged.
+_WEB_CALCULATE_OPENING = (
+    "You also have web search, which searches the public web, and a "
+    "`calculate_household` function."
+)
+
+
+def with_web_opening(notice: str) -> str:
+    """A calculator notice with web search named in its opening sentence."""
+    if notice.count(_CALCULATE_OPENING) != 1:
+        raise ValueError("a calculator notice opens with the calculator once")
+    return notice.replace(_CALCULATE_OPENING, _WEB_CALCULATE_OPENING)
+
+
 WEB_TOOL_NOTICE, JSON_WEB_TOOL_NOTICE = (
-    notice.replace(
-        _CALCULATE_OPENING,
-        "You also have web search, which searches the public web, and a "
-        "`calculate_household` function.",
-    )
-    for notice in (TOOL_NOTICE, JSON_TOOL_NOTICE)
+    with_web_opening(notice) for notice in (TOOL_NOTICE, JSON_TOOL_NOTICE)
 )
 
 # Prompt versions ``run --prompt`` takes. "v1" is the board's prompt. "v2-pilot"
@@ -2332,6 +2349,8 @@ class ModelProfile:
             notice = WEB_NOTICE if tool else JSON_WEB_NOTICE
         elif self.arm == "web+pe":
             notice = WEB_TOOL_NOTICE if tool else JSON_WEB_TOOL_NOTICE
+        elif self.arm == "web+pe3":
+            notice = with_web_opening(compose_tool_notice(arm_features(self.arm), tool))
         elif self.arm == "pe2":
             return engine_text(TOOL_NOTICE_V2 if tool else JSON_TOOL_NOTICE_V2)
         elif self.arm != "pe" and arm_features(self.arm) is not None:
@@ -2356,7 +2375,7 @@ class ModelProfile:
 
     @property
     def uses_web(self) -> bool:
-        return self.arm in ("web", "web+pe")
+        return self.arm in WEB_ARMS
 
     @property
     def provider(self) -> str:
@@ -2406,7 +2425,7 @@ def model_profile(
             f"unknown prompt {prompt_version!r}; the prompts are "
             f"{', '.join(PROMPT_VERSIONS)}"
         )
-    if benchmark_search_rule and arm not in ("web", "web+pe"):
+    if benchmark_search_rule and arm not in WEB_ARMS:
         raise SystemExit("the benchmark-search rule needs a web arm")
     model_id = MODELS[name]
     return ModelProfile(
@@ -3012,7 +3031,8 @@ def run_household(
     tool is offered under tool_choice auto and the cap is a user message.
 
     The profile's arm sets the tools: the calculate tool ("pe"), the
-    provider's web search ("web"), or both ("web+pe"). The provider runs a
+    provider's web search ("web"), or both ("web+pe", or "web+pe3" with the
+    version 3 calculator). The provider runs a
     search inside the response that asked for it, so searches use no
     calculation turn; each response's searches are logged and their list
     price added to its cost.
@@ -5581,7 +5601,7 @@ def main(argv: list[str] | None = None) -> None:
                 default="pe",
                 help="the tools: none, PolicyEngine (pe, pe2, pe3, or pe: plus "
                 "calculator features joined by +), web search (web), or both "
-                "(web+pe)",
+                "(web+pe, or web+pe3 with the version 3 calculator)",
             )
             p.add_argument(
                 "--prompt",
