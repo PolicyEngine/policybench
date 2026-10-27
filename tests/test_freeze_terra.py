@@ -1021,30 +1021,6 @@ def test_the_freeze_refuses_a_reference_only_rejudgment_by_another_judge(
         release.verify_verdicts(tmp_path)
 
 
-# --- The freeze of an installed-build stage, through the real gates -------------
-#
-# Review r1, finding 4. The stage below is written by the driver's own steps
-# where they run offline, on the real committed build: references_record and
-# bind_build_exclusions as install-references records them, seed_digest,
-# triage (the real collect_audit, adjudication record and annotation writer),
-# write_judge_provenance and export (its pins, inputs, provenance, roster,
-# scope check and the real dashboard validator). release.main then runs every
-# one of its gates on that stage, and the tests at the end of the section
-# freeze it.
-#
-# MOCK, each set where named: Terra's run (an answer for every one of the
-# build's 1,984 outputs, each the build's reference, timed 2026-10-24 UTC);
-# an incumbent's wrong answers on the 63 cases release 20261014's record
-# decides and on one undecided case, with seed verdicts classed as each
-# decision records its judge; the seed digest those verdicts give, in place
-# of the committed one; the input pins, as if committed at HEAD; release
-# 20261014's payload (synthetic modelStats under the real 50-model roster);
-# the boards export_full_run and release_20261006.export_payload return
-# (both compute from a full board); the incumbent's base prediction rows; and
-# freeze_snapshot.main with the serving and registry lookups it makes
-# (_h_freezer_main writes what the freezer writes, from where the freeze
-# configured it). None of these values is a board-run result.
-
 def test_baseline_prediction_loader_reads_synthetic_committed_blob(
     tmp_path, monkeypatch
 ):
@@ -1109,6 +1085,7 @@ def test_repository_input_edits_after_export_are_refused_without_writes(h_stage,
     path.write_bytes(path.read_bytes() + b"\n")
     _h_refused(h_stage, "Repository inputs changed since strict export")
 
+
 @pytest.mark.parametrize("name", [str(p) for p in driver.BASE_REPOSITORY_INPUT_FILES])
 def test_scoring_repository_inputs_keep_the_base_bytes_even_if_rebound(h_stage, name):
     path = h_stage.workspace / name
@@ -1118,6 +1095,7 @@ def test_scoring_repository_inputs_keep_the_base_bytes_even_if_rebound(h_stage, 
     receipt["repository_inputs"][name] = sha(path)
     driver.write_json(receipt_path, receipt)
     _h_refused(h_stage, "Repository input changed from the base release")
+
 
 @pytest.mark.parametrize("field", ["sha256", "url"])
 def test_historical_versions_cannot_change_even_if_rebound(h_stage, field):
@@ -1132,6 +1110,7 @@ def test_historical_versions_cannot_change_even_if_rebound(h_stage, field):
     driver.write_json(receipt_path, receipt)
     _h_refused(h_stage, "Historical data.versions.json entries changed")
 
+
 @pytest.mark.parametrize("change", ["add", "delete", "remove_web"])
 def test_the_export_binds_the_complete_rendered_paper_inventory(h_stage, change):
     web = h_stage.workspace / "app/public/paper/web"
@@ -1143,12 +1122,14 @@ def test_the_export_binds_the_complete_rendered_paper_inventory(h_stage, change)
         shutil.rmtree(web)
     _h_refused(h_stage, "Repository inputs changed since strict export")
 
+
 def test_the_export_must_bind_repository_inputs(h_stage):
     path = h_stage.stage / "release-ready.json"
     receipt = _h_json(path)
     del receipt["repository_inputs"]
     driver.write_json(path, receipt)
     _h_refused(h_stage, "Strict export receipt does not bind repository inputs")
+
 
 def test_the_freeze_preserves_export_hashes_when_binding_its_outputs(h_stage):
     path = h_stage.stage / "release-ready.json"
@@ -1161,6 +1142,32 @@ def test_the_freeze_preserves_export_hashes_when_binding_its_outputs(h_stage):
         for name in (release.SNAPSHOT / "manifest.json", release.VERSIONS)
     }
 
+
+# --- The freeze of an installed-build stage, through the real gates -------------
+#
+# Review r1, finding 4. The stage below is written by the driver's own steps
+# where they run offline, on the real committed build: references_record and
+# bind_build_exclusions as install-references records them, seed_digest,
+# triage (the real collect_audit, adjudication record and annotation writer),
+# write_judge_provenance and export (its pins, inputs, provenance, roster,
+# scope check and the real dashboard validator). release.main then runs every
+# one of its gates on that stage, and the tests at the end of the section
+# freeze it.
+#
+# MOCK, each set where named: Terra's run (an answer for every one of the
+# build's 1,984 outputs, each the build's reference, timed 2026-10-24 UTC);
+# an incumbent's wrong answers on the 63 cases release 20261014's record
+# decides and on one undecided case, with seed verdicts classed as each
+# decision records its judge; the seed digest those verdicts give, in place
+# of the committed one; the input pins, as if committed at HEAD; release
+# 20261014's payload (synthetic modelStats under the real 50-model roster);
+# the boards export_full_run and release_20261006.export_payload return
+# (both compute from a full board); the incumbent's base prediction rows; and
+# freeze_snapshot.main with the serving and registry lookups it makes
+# (_h_freezer_main writes what the freezer writes, from where the freeze
+# configured it). None of these values is a board-run result.
+# _h_rejudge extends this fixture with a fresh isolated verdict, optionally
+# adding a developer triage decision through the real adjudication steps.
 
 import csv  # noqa: E402
 import functools  # noqa: E402
@@ -1927,8 +1934,9 @@ def _h_export(h_stage):
     receipt["repository_inputs"] = driver.repository_input_hashes(h_stage.workspace)
     driver.write_json(stage / "release-ready.json", receipt)
 
+
 def _h_rejudge(h_stage, monkeypatch, *, new_case=False, adjudicated=True):
-    """Re-open a synthetic case and affirm its flagged reference through triage."""
+    """Add a fresh judgment, optionally affirming its reference through triage."""
     from policybench.judge_template import template_header
 
     stage = h_stage.stage
@@ -2066,11 +2074,13 @@ def _h_rejudge(h_stage, monkeypatch, *, new_case=False, adjudicated=True):
     _h_export(h_stage)
     return case_id
 
+
 def test_rejudged_adjudicated_stage_passes_the_freeze(h_stage, monkeypatch):
     _h_rejudge(h_stage, monkeypatch)
     before = h_stage.files()
     h_stage.run("--dry-run")
     assert h_stage.files() == before
+
 
 def test_rebound_numeric_explanation_reaches_run_state_evidence_gate(h_stage):
     """Text equality accepts '001'; the run-only pandas frame parses it as 1."""
@@ -2094,6 +2104,7 @@ def test_rebound_numeric_explanation_reaches_run_state_evidence_gate(h_stage):
     assert source.explanation.iloc[0] == 1
     assert set(combined.loc[combined.model == H_TERRA, "explanation"]) == {"001"}
     _h_refused(h_stage, "Run-state prediction evidence failed")
+
 
 def test_rebound_adjudication_wording_reaches_applied_sentence_gate(
     h_stage, monkeypatch

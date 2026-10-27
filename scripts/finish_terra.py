@@ -82,8 +82,8 @@ AMENDMENTS = "wording-amendments.json"
 # bytes in the receipt.
 JUDGE_PROVENANCE_PATH = "docs/terra/judge_provenance.json"
 JUDGE_PROVENANCE = ROOT / JUDGE_PROVENANCE_PATH
-# The record's keys, and each entry's: every one is checked, against the
-# case's verdict, prompt or sidecar, the entries' tally, or the isolated flag.
+# Repository data read by the freeze outside the staged bundle. Scoring's two
+# immutable data files are checked against BASE_COMMIT by the consuming gate.
 REPOSITORY_INPUT_FILES = (
     Path("pyproject.toml"),
     Path("uv.lock"),
@@ -91,11 +91,11 @@ REPOSITORY_INPUT_FILES = (
     Path("paper/snapshot/20260501/manifest.json"),
     Path("app/src/data.versions.json"),
 )
-
 BASE_REPOSITORY_INPUT_FILES = (
     Path("policybench/benchmark_specs.json"),
     Path("policybench/population_weights.json"),
 )
+
 
 def repository_input_hashes(root: Path | None = None) -> dict[str, str | None]:
     """Bind every mutable repository data input, including paper inventory.
@@ -123,6 +123,8 @@ def repository_input_hashes(root: Path | None = None) -> dict[str, str | None]:
     return files
 
 
+# The record's keys, and each entry's: every one is checked, against the
+# case's verdict, prompt or sidecar, the entries' tally, or the isolated flag.
 JUDGE_PROVENANCE_KEYS = frozenset({"note", "counts", "verdicts"})
 JUDGE_PROVENANCE_ENTRY_KEYS = frozenset(
     {

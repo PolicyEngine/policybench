@@ -1887,6 +1887,7 @@ def test_a_provenance_group_must_match_the_sidecars_account(provenance):
     ):
         verify(regroup)
 
+
 def test_a_provenance_account_must_have_an_allowed_group(provenance):
     cases, verify = provenance
     meta_path = cases / ISOLATED / "verdict.meta.json"
@@ -2270,8 +2271,6 @@ def test_a_prompt_changed_after_its_judge_ran_is_refused(provenance):
         verify(follow)
 
 
-
-
 def test_an_unhardened_verdicts_transcript_is_refused(provenance):
     cases, verify = provenance
     meta_path = cases / UNHARDENED / "verdict.meta.json"
@@ -2288,6 +2287,7 @@ def test_an_unhardened_verdicts_transcript_is_refused(provenance):
 
     with pytest.raises(SystemExit, match="the verdict is not isolated.*tool calls"):
         verify(downgrade)
+
 
 def test_export_refuses_a_verdict_that_opts_out_of_isolation(exporting, monkeypatch):
     case_id = "us__scenario_000__snap"
@@ -2333,6 +2333,7 @@ def provenance_writer(audit, tmp_path, monkeypatch):
         ),
     )
 
+
 @pytest.mark.parametrize("existing", [False, True])
 @pytest.mark.parametrize("defect", ["transcript", "authentication", "candidate"])
 def test_failed_provenance_generation_preserves_the_public_file(
@@ -2365,6 +2366,7 @@ def test_failed_provenance_generation_preserves_the_public_file(
     if existing:
         assert s.destination.read_bytes() == previous
     assert list(s.destination.parent.iterdir()) == ([s.destination] if existing else [])
+
 
 def test_provenance_is_verified_before_replacing_the_public_file(
     provenance_writer, monkeypatch
@@ -4350,10 +4352,16 @@ def test_export_refuses_a_shadow_added_after_export(exporting, kind):
         frame.to_csv(shadow / "shadow.csv", index=False)
         receipt_path = exporting.stage / "release-ready.json"
         receipt = json.loads(receipt_path.read_text())
-        receipt["files"][str((shadow / "shadow.csv").relative_to(exporting.stage))] = sha(shadow / "shadow.csv")
+        receipt["files"][str((shadow / "shadow.csv").relative_to(exporting.stage))] = (
+            sha(shadow / "shadow.csv")
+        )
         payload_path = exporting.stage / BOARD
         payload = json.loads(payload_path.read_text())
-        terra = next(row for row in payload["countries"]["us"]["modelStats"] if row["model"] == NEW)
+        terra = next(
+            row
+            for row in payload["countries"]["us"]["modelStats"]
+            if row["model"] == NEW
+        )
         terra.update(costUsd=0.0, costPerHousehold=0.0)
         payload_path.write_text(driver.payload_text(payload))
         receipt["payload_sha256"] = sha(payload_path)
