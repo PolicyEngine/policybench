@@ -258,7 +258,7 @@ def test_base_payload_loader_checks_synthetic_committed_blob(
     snapshot = root / SNAPSHOT_PATH
     snapshot.mkdir(parents=True)
     path = snapshot / "data.json.gz"
-    country = {"modelStats": {"incumbent": {"accuracy": 1.0}}}
+    country = {"modelStats": [{"model": "incumbent", "accuracy": 1.0}]}
     live = {"countries": {"us": country}}
     path.write_bytes(gzip.compress(json.dumps(country).encode()))
     subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
@@ -272,9 +272,9 @@ def test_base_payload_loader_checks_synthetic_committed_blob(
     )
     assert driver.base_payload_from_commit() == live
 
-    changed = {"modelStats": {"other": {"accuracy": 0.0}}}
+    changed = {"modelStats": [{"model": "other", "accuracy": 0.0}]}
     if tampering == "model_count":
-        changed["modelStats"]["extra"] = {"accuracy": 0.0}
+        changed["modelStats"].append({"model": "extra", "accuracy": 0.0})
     path.write_bytes(gzip.compress(json.dumps(changed).encode()))
     # A working-tree replacement cannot become the baseline implicitly.
     assert driver.base_payload_from_commit() == live
