@@ -2842,6 +2842,46 @@ def judge_identity_problems(meta: dict) -> list[str]:
     return problems
 
 
+def verify_verdict_inventory(audit: Path) -> tuple[str, ...]:
+    """Refuse verdicts outside the manifest's judged case directories.
+
+    Parse-only cases have no judge, so their directories cannot contribute
+    verdicts either. The release receipt binds this manifest and every listed
+    judged case; no other directory may become published provenance.
+    """
+    manifest = audit / "cases.jsonl"
+    judged = (
+        {
+            item["case_id"]
+            for item in map(json.loads, manifest.read_text().splitlines())
+            if not item["parse_failure_only"]
+        }
+        if manifest.is_file()
+        else set()
+    )
+    cases = audit / "cases"
+    verdicts = {
+        str(path.parent.relative_to(cases))
+        for path in cases.rglob("verdict.json")
+        if path.is_file()
+    }
+    if cases.is_dir():
+        # Include direct symlinked directories, which rglob does not recurse
+        # into but the shared whole-tree tally would otherwise discover.
+        verdicts.update(
+            str(directory.relative_to(cases))
+            for directory in cases.iterdir()
+            if (directory / "verdict.json").is_file()
+        )
+    extra = sorted(verdicts - judged)
+    require(
+        not extra,
+        "verdict-bearing directories are not manifest-listed judged cases: "
+        f"{extra[:8]}",
+    )
+    return tuple(sorted(judged))
+
+
 def validate_verdicts(
     audit: Path,
     remove_invalid: bool = False,
@@ -3671,6 +3711,8 @@ def _build_payload_in_scratch(
 def export(args, bundle, live) -> dict:
     """Export into scratch, preserve incumbent statistics, and gate release."""
     require_combined_predictions(bundle)
+    if not args.early:
+        verify_verdict_inventory(args.stage_dir / "audit")
     upgrade = None if args.partial else stage_upgrade(args.stage_dir)
     if not args.partial and upgrade is None:
         # After the freeze the pointer and committed record are this release's.

@@ -2214,6 +2214,76 @@ def test_rebound_nonisolated_verdict_is_refused_at_export_and_freeze(
     _h_refused(h_stage, "validation|isolation|isolated|account")
 
 
+def _unlisted_verdict(stage):
+    """A synthetic unbound sidecar the historical whole-tree tally accepts."""
+    case = stage / "audit/cases/us__extra__invented"
+    write_json(case / "verdict.json", {})
+    write_json(
+        case / "verdict.meta.json",
+        {
+            "verdict_sha256": sha(case / "verdict.json"),
+            "judge_model_requested": "invented-judge",
+            "judge_model_reported": ["invented-judge"],
+            "judge_runner": "scripts/run_audit_claude.sh",
+        },
+    )
+    return case
+
+
+@pytest.mark.parametrize("operation", ["export", "freeze", "dry-run"])
+def test_unlisted_verdict_added_after_export_is_refused_without_writes(
+    h_stage, operation
+):
+    stage = h_stage.stage
+    _unlisted_verdict(stage)
+    before = h_stage.files()
+    with pytest.raises(SystemExit, match="not manifest-listed judged cases"):
+        if operation == "export":
+            args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+            driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
+        else:
+            h_stage.run(*(["--dry-run"] if operation == "dry-run" else []))
+    assert h_stage.files() == before
+    assert h_stage.board.calls == []
+
+
+def test_the_terra_provenance_tally_reads_only_bound_manifest_cases(h_stage):
+    stage = h_stage.stage
+    receipt = release.verify_receipt(stage, stage / H_BOARD, driver.RELEASE_TAG)
+    release.verify_verdicts(stage)
+    case_ids = driver.verify_verdict_inventory(stage / "audit")
+    for case_id in case_ids:
+        assert f"audit/cases/{case_id}/verdict.json" in receipt["files"]
+        assert f"audit/cases/{case_id}/verdict.meta.json" in receipt["files"]
+    cases = stage / "audit/cases"
+    expected = freezer.audit_judge_provenance(cases)
+    assert freezer.audit_judge_provenance(cases, case_ids=case_ids) == expected
+    _unlisted_verdict(stage)
+    # Keep the shared freezer's historical default: prior releases still read
+    # their whole audit tree. Terra supplies an explicit receipt-bound list.
+    whole_tree = freezer.audit_judge_provenance(cases)
+    assert whole_tree["cases_judged"] == expected["cases_judged"] + 1
+    assert whole_tree["by_judge"]["invented-judge"]["cases"] == 1
+    assert freezer.audit_judge_provenance(cases, case_ids=case_ids) == expected
+
+    release.configure_freezer(
+        freezer,
+        snapshot_date="2026-10-27",
+        source_run=stage / BUNDLE,
+        payload_path=stage / H_BOARD,
+        pointer={
+            key: "synthetic" for key in ("tag", "asset", "url", "sha256", "bytes")
+        },
+        evidence_paths={},
+        cases_dir=cases,
+        judged_case_ids=case_ids,
+        previous_serving={},
+        incumbents=set(),
+        runs={},
+    )
+    assert freezer.audit_judge_provenance() == expected
+
+
 def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
     h_stage, capsys
 ):

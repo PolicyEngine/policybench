@@ -375,6 +375,7 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
             or digest(source) != expected
         ):
             raise SystemExit(f"Staged evidence changed since strict export: {name}")
+    driver.verify_verdict_inventory(stage / "audit")
     bundle = Path("publish") / RUN
     required = [bundle / "us" / name for name in driver.REFERENCE_FILES]
     required += [bundle / "us/predictions.csv", bundle / "annotations" / ADJUDICATIONS]
@@ -1461,6 +1462,7 @@ def configure_freezer(
     pointer: dict,
     evidence_paths: dict[str, str],
     cases_dir: Path,
+    judged_case_ids: tuple[str, ...],
     previous_serving: dict,
     incumbents: set[str],
     runs: dict[str, str],
@@ -1493,7 +1495,7 @@ def configure_freezer(
     freezer.RUN_STATE_EVIDENCE = evidence_paths
     freezer.AUDIT_CASES_DIR = cases_dir
     freezer.audit_judge_provenance = functools.partial(
-        freezer.audit_judge_provenance, cases_dir=cases_dir
+        freezer.audit_judge_provenance, cases_dir=cases_dir, case_ids=judged_case_ids
     )
     freezer.developer_adjudications_block = functools.partial(
         freezer.developer_adjudications_block, cases_dir=cases_dir
@@ -1619,6 +1621,9 @@ def main(argv: list[str] | None = None) -> None:
     rebuild_payload(stage, receipt, payload_path, base, upgrade)
     del base
     verify_verdicts(stage)
+    # Only these manifest cases have passed both the receipt binding and the
+    # verdict gate. A directory discovered later cannot enter the tally.
+    judged_case_ids = driver.verify_verdict_inventory(stage / "audit")
     rejudged = driver.rejudged_cases(stage)
     verify_judge_provenance(stage, receipt, rejudged)
     amendments = driver.load_amendments(stage, rejudged)
@@ -1724,6 +1729,7 @@ def main(argv: list[str] | None = None) -> None:
         pointer=pointer,
         evidence_paths=evidence_paths,
         cases_dir=cases_dir,
+        judged_case_ids=judged_case_ids,
         previous_serving=previous_serving,
         incumbents=incumbents,
         runs=runs,

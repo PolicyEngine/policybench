@@ -248,6 +248,8 @@ def codex_log_describes_verdict(
 def audit_judge_provenance(
     cases_dir: Path = AUDIT_CASES_DIR,
     log_tolerance: float = LOG_FALLBACK_TOLERANCE_SECONDS,
+    *,
+    case_ids: tuple[str, ...] | None = None,
 ) -> dict:
     """Tally which judge model produced each case verdict in the audit tree.
 
@@ -258,12 +260,20 @@ def audit_judge_provenance(
     read from the log's ``model:`` line. Anything else, including a stale or
     hash-less sidecar beside an unrelated log, is counted under ``unknown``
     so the manifest cannot silently claim provenance it does not have.
+
+    A release driver may provide its validated, receipt-bound manifest case
+    IDs. The default retains the historical whole-tree tally unchanged.
     """
     if not cases_dir.is_dir():
         raise SystemExit(f"Audit case tree not found: {cases_dir}")
     by_judge: dict[str, dict] = {}
     judged = 0
-    for case_dir in sorted(cases_dir.iterdir()):
+    directories = (
+        sorted(cases_dir.iterdir())
+        if case_ids is None
+        else [cases_dir / case for case in sorted(case_ids)]
+    )
+    for case_dir in directories:
         if not (case_dir / "verdict.json").is_file():
             continue
         judged += 1
