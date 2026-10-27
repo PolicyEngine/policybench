@@ -350,6 +350,17 @@ class Readers:
         )
 
 
+def wait_for_samples(log: Path, enough, seconds: float = 5.0) -> None:
+    """Wait until the host log's complete samples satisfy `enough`. A loaded
+    host can stretch the 0.02 s sampler past any fixed sleep."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        text = log.read_text() if log.exists() else ""
+        if enough([json.loads(x) for x in text.split("\n")[:-1]]):
+            return
+        time.sleep(0.01)
+
+
 @pytest.fixture
 def fast(monkeypatch):
     """Short evidence windows, with room for the shared host's scheduler.
@@ -371,7 +382,7 @@ def fast(monkeypatch):
 def test_the_host_log_samples_and_closes(tmp_path, fast):
     readers = Readers()
     host = readers.host(tmp_path)
-    time.sleep(0.1)
+    wait_for_samples(tmp_path / "host-log.jsonl", lambda samples: len(samples) >= 4)
     host.close()
     meta = json.loads((tmp_path / "host.json").read_text())
     samples = [
@@ -390,7 +401,10 @@ def test_pressure_near_an_attempt_is_host_trouble_once_settled(tmp_path, fast):
     host = readers.host(tmp_path)
     start = time.time()
     readers.pressure = 2
-    time.sleep(0.05)
+    wait_for_samples(
+        tmp_path / "host-log.jsonl",
+        lambda samples: any(x["pressure"] == 2 for x in samples),
+    )
     readers.pressure = 1
     end = time.time()
     host.wait_settled(end)
