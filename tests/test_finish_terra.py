@@ -4257,3 +4257,409 @@ def test_an_early_or_partial_export_never_gets_a_release_receipt(
     assert (exporting.bundle / "data.json").read_bytes() == payload.read_bytes()
     if partial:
         assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
+
+
+# --- Semantic build mutations (ported from test_finish_musewonder.py) ------------
+#
+# The exact-build pins refuse any changed byte before a semantic gate runs (the
+# tests above keep that). Here every hash binding is re-pinned to the mutated
+# bytes (REFERENCE_BUILD, the sidecar's CSV and actions hashes, and the audit's
+# publication record), so each refusal comes from the revision, CSV, actions,
+# trace, explanation or exclusion validator alone.
+
+
+def _json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+@pytest.fixture
+def semantic_build(tmp_path, monkeypatch, committed_build):
+    audit = tmp_path / "audit"
+    shutil.copytree(REPO / driver.REFERENCE_BUILD["directory"], audit)
+    built = tmp_path / "built"
+    shutil.copytree(committed_build.built, built)
+    explanations = tmp_path / driver.EXPLANATIONS_NAME
+    shutil.copyfile(committed_build.explanations, explanations)
+    actions = tmp_path / driver.ACTIONS_NAME
+    shutil.copyfile(committed_build.actions, actions)
+    pins = copy.deepcopy(driver.REFERENCE_BUILD)
+    pins["directory"] = audit
+    monkeypatch.setattr(driver, "REFERENCE_BUILD", pins)
+    build = SimpleNamespace(built=built, explanations=explanations, actions=actions)
+
+    def edit(name, change):
+        path = {
+            driver.EXPLANATIONS_NAME: explanations,
+            driver.ACTIONS_NAME: actions,
+        }.get(name, built / name)
+        doc = _json(path)
+        change(doc)
+        if name == EXCLUSIONS_NAME:
+            path.write_text(driver.exclusions_text(doc))
+        else:
+            path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+
+    def repin(csv=True, actions_hash=True):
+        meta_path = built / META_NAME
+        meta = _json(meta_path)
+        if csv:
+            meta["reference_csv_sha256"] = sha(built / CSV_NAME)
+        if actions_hash:
+            meta["revisions"][-1]["provenance"]["actions_sha256"] = sha(actions)
+        meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False) + "\n")
+        pins["sha256"] = {
+            **{name: sha(built / name) for name in driver.BUILT_FILES},
+            driver.EXPLANATIONS_NAME: sha(explanations),
+            driver.ACTIONS_NAME: sha(actions),
+        }
+        timing_path = audit / "verification/sweep_timing.json"
+        timing = _json(timing_path)
+        for name in driver.UPGRADED_FILES:
+            timing["publication_check"]["build_sha256"][name] = pins["sha256"][name]
+        timing_path.write_text(json.dumps(timing, indent=2) + "\n")
+
+    def loads(**repinned):
+        repin(**repinned)
+        return driver.load_build(built, explanations, actions)
+
+    build.edit, build.repin, build.load = edit, repin, loads
+    return build
+
+
+def _revision(change):
+    return lambda meta: change(meta["revisions"][-1])
+
+
+def _csv_value(build, key, value):
+    path = build.built / CSV_NAME
+    lines = path.read_text().splitlines(keepends=True)
+    prefix = f"{key[0]},{key[1]},"
+    index = next(i for i, line in enumerate(lines) if line.startswith(prefix))
+    fields = lines[index].rstrip("\n").split(",")
+    fields[2] = value
+    lines[index] = ",".join(fields) + "\n"
+    path.write_text("".join(lines))
+
+
+def _explanation_rows(build, change):
+    path = build.explanations
+    rows = list(csv.reader(path.open(newline="")))
+    change(rows)
+    with path.open("w", newline="") as stream:
+        csv.writer(stream, lineterminator="\n").writerows(rows)
+
+
+UNMOVED = ("scenario_000", "snap")
+MOVED_SNAP = ("scenario_031", "snap")
+
+
+def _list_unmoved(revision):
+    revision["changed"].append(
+        {
+            "scenario_id": UNMOVED[0],
+            "variable": UNMOVED[1],
+            "frozen": 0.0,
+            "previous": 0.0,
+            "regenerated": 0.0,
+            "cause": "synthetic",
+            "basis": "Synthetic.",
+        }
+    )
+
+
+def _rewrite_unchanged(rows):
+    rows[1][rows[0].index("explanation")] += " Edited."
+
+
+def _stale_value(rows):
+    header = rows[0]
+    s, v = header.index("scenario_id"), header.index("variable")
+    row = next(r for r in rows[1:] if (r[s], r[v]) == MOVED_SNAP)
+    row[header.index("reference_value")] = "0.0"
+
+
+SEMANTIC_TAMPERS = {
+    # The sidecar's revision (upgrade_revision).
+    "an_earlier_revision": (
+        META_NAME,
+        lambda meta: meta["revisions"][0].update(date="2026-09-21"),
+        "keep release 20261014's revisions and add one",
+    ),
+    "two_revisions": (
+        META_NAME,
+        lambda meta: meta["revisions"].append(copy.deepcopy(meta["revisions"][-1])),
+        "keep release 20261014's revisions and add one",
+    ),
+    "not_an_upgrade": (
+        META_NAME,
+        _revision(lambda r: r.update(kind="convention")),
+        "is not an engine_upgrade",
+    ),
+    "from_another_engine": (
+        META_NAME,
+        _revision(lambda r: r.update(previous_engine_version="policyengine-us 2.38.6")),
+        "does not upgrade from policyengine-us 2.41.0",
+    ),
+    "to_the_same_engine": (
+        META_NAME,
+        _revision(lambda r: r.update(engine_version=driver.BASE_ENGINE)),
+        "names no newer engine",
+    ),
+    "to_an_unpinned_engine": (
+        META_NAME,
+        lambda meta: (
+            meta["revisions"][-1].update(engine_version="policyengine-us 2.61.0"),
+            meta["policyengine_bundles"]["us"].update(model_version="2.61.0"),
+        ),
+        "names a different installed engine",
+    ),
+    "another_field": (
+        META_NAME,
+        lambda meta: meta.update(seed=43),
+        r"changes \['seed'\]",
+    ),
+    "another_bundle": (
+        META_NAME,
+        lambda meta: meta["policyengine_bundles"]["us"].update(model_version="2.59.0"),
+        "bundle does not name",
+    ),
+    "touched_exclusions": (
+        META_NAME,
+        _revision(lambda r: r.update(excluded_outputs_untouched=False)),
+        "keep every excluded output untouched",
+    ),
+    "another_builder": (
+        META_NAME,
+        _revision(lambda r: r["provenance"].update(builder_sha256="0" * 64)),
+        "builder or actions differs from its pin",
+    ),
+    "another_base_commit": (
+        META_NAME,
+        _revision(lambda r: r["provenance"].update(base_commit="0" * 40)),
+        "provenance does not name these actions",
+    ),
+    "a_malformed_change": (
+        META_NAME,
+        _revision(lambda r: r["changed"][0].update(regenerated="1")),
+        "does not list each change's output",
+    ),
+    "a_misstated_value": (
+        META_NAME,
+        _revision(lambda r: r["changed"][0].update(regenerated=0.5)),
+        "misstates the previous or regenerated value",
+    ),
+    "a_misstated_previous": (
+        META_NAME,
+        _revision(lambda r: r["changed"][0].update(previous=7.0)),
+        "misstates the previous or regenerated value",
+    ),
+    "a_change_dropped_from_the_list": (
+        META_NAME,
+        _revision(lambda r: r.update(changed=r["changed"][1:])),
+        "outside the build's changed list: unlisted moves",
+    ),
+    "a_change_listed_twice": (
+        META_NAME,
+        _revision(lambda r: r["changed"].append(copy.deepcopy(r["changed"][0]))),
+        "lists .* twice",
+    ),
+    "a_listed_change_that_did_not_happen": (
+        META_NAME,
+        _revision(_list_unmoved),
+        "listed changes that did not happen",
+    ),
+    "a_recheck_off_its_value": (
+        META_NAME,
+        _revision(lambda r: r["excluded_outputs_rechecked"][0].update(kept_value=9.0)),
+        "does not keep excluded at their value",
+    ),
+    "a_kept_ruled_record_claimed": (
+        META_NAME,
+        _revision(
+            lambda r: r.update(
+                kept_exclusions_from_release=[{**dict(zip(driver.KEY, UNMOVED))}]
+            )
+        ),
+        "kept_exclusions_from_release names",
+    ),
+    # The actions (load_build, builder_claim_problems).
+    "actions_name_another_engine": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(engine="policyengine-us 2.59.0"),
+        "the build's actions name",
+    ),
+    "actions_upgrade_from_another_engine": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(previous_engine="policyengine-us 2.38.6"),
+        "the actions upgrade from",
+    ),
+    "an_approval_at_another_value": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan["approved"][0].update(value=0.0),
+        "approve moves the build did not make",
+    ),
+    "an_approval_of_an_unmoved_output": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan["approved"].append(
+            {**plan["approved"][0], "scenario_id": UNMOVED[0], "variable": UNMOVED[1]}
+        ),
+        "approve moves the build did not make",
+    ),
+    "an_approval_dropped": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(approved=plan["approved"][1:]),
+        "without an approval in its actions",
+    ),
+    "a_recheck_dropped": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(excluded_rechecked=plan["excluded_rechecked"][1:]),
+        "recheck different excluded outputs",
+    ),
+    "a_recheck_with_another_reason": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan["excluded_rechecked"][0].update(reason="Another reason."),
+        "with another reason",
+    ),
+    "a_new_exclusion_the_record_lacks": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(
+            new_exclusions=[{"scenario_id": UNMOVED[0], "variable": UNMOVED[1]}]
+        ),
+        "new exclusions are not its actions'",
+    ),
+    "actions_that_are_not_lists": (
+        driver.ACTIONS_NAME,
+        lambda plan: plan.update(approved={"x": 1}),
+        "not lists of actions",
+    ),
+    # The traces.
+    "a_trace_dropped": (
+        driver.TRACES_NAME,
+        lambda traces: traces.pop(next(iter(traces))),
+        "traces do not cover exactly its changed outputs",
+    ),
+    "an_extra_trace": (
+        driver.TRACES_NAME,
+        lambda traces: traces.update(
+            {"scenario_000|snap": {"pe_variable": "snap", "trace": "snap = 0"}}
+        ),
+        "traces do not cover exactly its changed outputs",
+    ),
+    "a_trace_that_is_not_text": (
+        driver.TRACES_NAME,
+        lambda traces: next(iter(traces.values())).update(trace=5),
+        "traces do not cover exactly its changed outputs",
+    ),
+    # The exclusion record (upgrade_exclusion_records).
+    "a_record_dropped": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc.update(exclusions=doc["exclusions"][1:]),
+        "the build's exclusion record: .*regenerates only an engine defect",
+    ),
+    "a_record_edited": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc["exclusions"][0].update(note="Edited."),
+        "changes release 20261014's record",
+    ),
+    "two_records_swapped": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc.update(
+            exclusions=[doc["exclusions"][1], doc["exclusions"][0]]
+            + doc["exclusions"][2:]
+        ),
+        "changed their order",
+    ),
+    "a_record_the_loader_refuses": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc["exclusions"][0].pop("frozen_value"),
+        "fails the loader",
+    ),
+    "a_changed_rule": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc.update(rule="Another rule."),
+        "changes release 20261014's fields outside its records",
+    ),
+    "an_unlisted_new_record": (
+        EXCLUSIONS_NAME,
+        lambda doc: doc["exclusions"].insert(
+            0,
+            {
+                **doc["exclusions"][0],
+                "scenario_id": UNMOVED[0],
+                "variable": UNMOVED[1],
+            },
+        ),
+        "new exclusions are not its actions'",
+    ),
+}
+
+
+@pytest.mark.parametrize("tamper", sorted(SEMANTIC_TAMPERS))
+def test_a_semantic_build_mutation_is_refused_by_its_own_gate(semantic_build, tamper):
+    name, change, problem = SEMANTIC_TAMPERS[tamper]
+    semantic_build.edit(name, change)
+    with pytest.raises(SystemExit, match=problem):
+        semantic_build.load()
+
+
+def test_a_re_pinned_unchanged_build_still_passes(semantic_build):
+    """Rewriting every JSON record and re-pinning changes no semantic: the
+    mutation tests' refusals come from their gates, not from the repin."""
+    for name in (META_NAME, driver.TRACES_NAME, driver.ACTIONS_NAME):
+        semantic_build.edit(name, lambda doc: None)
+    semantic_build.edit(EXCLUSIONS_NAME, lambda doc: None)
+    _explanation_rows(semantic_build, lambda rows: None)
+    _csv_value(semantic_build, UNMOVED, "0.0")
+    upgrade = semantic_build.load()
+    assert set(upgrade.changed) == set(MOVED) and upgrade.records == 49
+
+
+@pytest.mark.parametrize(
+    "repinned, problem",
+    [
+        ({"csv": False}, "does not pin the built reference CSV"),
+        ({"actions_hash": False}, "builder or actions differs from its pin"),
+    ],
+)
+def test_a_sidecar_that_does_not_pin_its_csv_or_actions_is_refused(
+    semantic_build, repinned, problem
+):
+    _csv_value(semantic_build, UNMOVED, "0.00")
+    semantic_build.edit(driver.ACTIONS_NAME, lambda plan: plan.update(review=[]))
+    with pytest.raises(SystemExit, match=problem):
+        semantic_build.load(**repinned)
+
+
+@pytest.mark.parametrize(
+    "key, value, problem",
+    [
+        (UNMOVED, "25.0", "outside the build's changed list: unlisted moves"),
+        (UNMOVED, "0.01", "outside the build's changed list: unlisted moves"),
+        (MOVED_SNAP, "289.0", "misstates the previous or regenerated value"),
+        (MOVED_SNAP, "0.0", "listed changes that did not happen"),
+    ],
+)
+def test_a_reference_csv_that_differs_from_its_list_is_refused(
+    semantic_build, key, value, problem
+):
+    _csv_value(semantic_build, key, value)
+    with pytest.raises(SystemExit, match=problem):
+        semantic_build.load()
+
+
+@pytest.mark.parametrize(
+    "change, problem",
+    [
+        (_rewrite_unchanged, "rewrite outputs it did not change"),
+        (_stale_value, "do not state the new reference"),
+        (lambda rows: rows[1].append("x"), "a row of the wrong width"),
+        (lambda rows: rows.__setitem__(slice(1, 3), rows[2:0:-1]), "order changed"),
+    ],
+    ids=["unchanged_output", "stale_value", "row_width", "row_order"],
+)
+def test_explanations_that_misstate_the_build_are_refused(
+    semantic_build, change, problem
+):
+    _explanation_rows(semantic_build, change)
+    with pytest.raises(SystemExit, match=problem):
+        semantic_build.load()
