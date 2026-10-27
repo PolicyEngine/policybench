@@ -1007,10 +1007,46 @@ def test_the_freeze_refuses_a_reference_only_rejudgment_by_another_judge(
         "judge_model_reported": [driver.JUDGE_MODEL],
         "judged_at_utc": "2026-10-26T12:00:00+00:00",
         "judge_template_version": driver.JUDGE_TEMPLATE_VERSION,
+        "judge_isolation": {"tools": "none (--tools '')"},
+        "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+        "judge_effort": "xhigh",
+        "judge_account_declared": next(iter(driver.PROVENANCE_GROUPS)),
     }
     seed = {case.name: {"prompt_sha256": "0" * 64, "verdict_sha256": "1" * 64}}
     monkeypatch.setattr(driver, "load_seed", lambda stage: seed)
     write_json(case / "verdict.meta.json", meta)
+    events = [
+        {"type": "user", "message": {"content": (case / "prompt.md").read_text()}},
+        {
+            "type": "assistant",
+            "effort": "xhigh",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "answer-1",
+                        "name": "StructuredOutput",
+                        "input": verdict,
+                    }
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "answer-1",
+                        "content": "done",
+                    }
+                ]
+            },
+        },
+    ]
+    (case / "claude.transcript.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
     release.verify_verdicts(tmp_path)
     if value is None:
         del meta[field]
