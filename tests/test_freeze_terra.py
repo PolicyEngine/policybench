@@ -1533,6 +1533,12 @@ def _h_patch(mp, workspace: Path, board) -> None:
         assert countries == ["us"] and skip_app_data
         board.reads.append(Path(run_dir))
         (Path(run_dir) / "data.json").write_text("export_full_run's own payload\n")
+        (Path(run_dir) / "us/data.json").write_text(
+            "export_full_run's country payload\n"
+        )
+        analysis = Path(run_dir) / "us/analysis"
+        analysis.mkdir(exist_ok=True)
+        (analysis / "metrics.csv").write_text("model,score\nsynthetic,1\n")
         return copy.deepcopy(board.exports["release"])
 
     def export_payload(bundle, base, exclusions=None, **kwargs):
@@ -1661,7 +1667,9 @@ def _h_write_stage(workspace: Path, board, build, upgrade) -> Path:
     undecided = next(
         driver.output_case((row["scenario_id"], row["variable"]))
         for row in reference
-        if driver.output_case((row["scenario_id"], row["variable"]))
+        if row["variable"] == "free_school_meals_eligible"
+        and float(row["value"]) == 1.0
+        and driver.output_case((row["scenario_id"], row["variable"]))
         not in {*decided, *moved}
     )
     board.undecided = undecided
@@ -1907,6 +1915,226 @@ def h_stage(h_template, tmp_path, monkeypatch):
         files=files,
         rebind=rebind,
         run=run,
+    )
+
+
+def _h_export(h_stage):
+    """Export with the synthetic checkout's repository inputs bound."""
+    stage = h_stage.stage
+    args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+    driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
+    receipt = _h_json(stage / "release-ready.json")
+    receipt["repository_inputs"] = driver.repository_input_hashes(h_stage.workspace)
+    driver.write_json(stage / "release-ready.json", receipt)
+
+def _h_rejudge(h_stage, monkeypatch, *, new_case=False):
+    """Re-open a synthetic case and affirm its flagged reference through triage."""
+    from policybench.judge_template import template_header
+
+    stage = h_stage.stage
+    case_id = h_stage.board.undecided
+    _, scenario, variable = case_id.split("__")
+    for path in (
+        stage / "inputs" / H_SLUG / "predictions.csv",
+        stage / BUNDLE / "us/predictions.csv",
+    ):
+        with path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        for row in rows:
+            if (row["model"], row["scenario_id"], row["variable"]) == (
+                H_TERRA,
+                scenario,
+                variable,
+            ):
+                assert float(row["prediction"]) == 1.0
+                row["prediction"] = "0"
+        path.write_text(_h_csv([H_COLUMNS, *[list(row.values()) for row in rows]]))
+    audit = stage / "audit"
+    items = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    for item in items:
+        if item["case_id"] == case_id:
+            item["wrong_models"] = sorted([H_INCUMBENT, H_TERRA])
+    (audit / "cases.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in items)
+    )
+    changes = _h_json(stage / driver.PROMPT_CHANGES)
+    changes["kept"].remove(case_id)
+    changes["added" if new_case else "changed"].append(case_id)
+    driver.write_json(stage / driver.PROMPT_CHANGES, changes)
+    case = audit / "cases" / case_id
+    prompt = template_header(driver.JUDGE_TEMPLATE_VERSION) + (
+        f"\nClassify both synthetic wrong answers on {case_id}.\n"
+    )
+    (case / "prompt.md").write_text(prompt)
+    verdict = _h_verdict("llm_error", "thresholds_rates", True)
+    verdict["models"].append({**verdict["models"][0], "model": H_TERRA})
+    driver.write_json(case / "verdict.json", verdict)
+    driver.write_json(
+        case / "verdict.meta.json",
+        {
+            "verdict_sha256": sha(case / "verdict.json"),
+            "prompt_sha256": sha(case / "prompt.md"),
+            "judge_template_version": driver.JUDGE_TEMPLATE_VERSION,
+            "judge_model_requested": driver.JUDGE_MODEL,
+            "judge_model_reported": [driver.JUDGE_MODEL],
+            "judge_runner": driver.JUDGE_RUNNER,
+            "judged_at_utc": "2026-10-24T12:00:00+00:00",
+            "judge_effort": "xhigh",
+            "judge_isolation": {"tools": "none (--tools '')"},
+            "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+            "judge_account_declared": next(iter(driver.PROVENANCE_GROUPS)),
+        },
+    )
+    events = [
+        {"type": "user", "message": {"content": prompt}},
+        {
+            "type": "assistant",
+            "effort": "xhigh",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "answer-1",
+                        "name": "StructuredOutput",
+                        "input": verdict,
+                    }
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "answer-1",
+                        "content": "done",
+                    }
+                ]
+            },
+        },
+    ]
+    (case / "claude.transcript.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
+    spec = driver.load_spec()
+    spec.update(
+        triage_decided_on="2026-10-24",
+        triage_adjudications_written_on="2026-10-24",
+        triage_adjudications=[
+            {
+                "scenario_id": scenario,
+                "variable": variable,
+                "adjudicated_failure_source": "llm_error",
+                "adjudicated_failure_subtype": "thresholds_rates",
+                "adjudicated_on": "2026-10-24",
+                "reference_verdict": "affirmed",
+                "reference_basis": "The synthetic reference follows the stated rule.",
+                "reasoning": "The synthetic models used an outdated threshold.",
+            }
+        ],
+    )
+    spec_path = h_stage.workspace / "docs/terra/spec.json"
+    driver.write_json(spec_path, spec)
+    monkeypatch.setattr(driver, "SPEC_PATH", spec_path)
+    prepared = _h_json(stage / "stage.json")
+    if new_case:
+        del prepared["seed"][case_id]
+        board_seed = driver.seed_digest_text(prepared["seed"]).encode()
+        h_stage.board.seed_sha256 = hashlib.sha256(board_seed).hexdigest()
+        monkeypatch.setattr(driver, "SEED_DIGEST_SHA256", h_stage.board.seed_sha256)
+    for key in ("references_installed", "exclusions_installed"):
+        prepared[key]["spec_sha256"] = sha(spec_path)
+    driver.write_json(stage / "stage.json", prepared)
+    record = driver.exclusion_adjudications(
+        driver.base_adjudication_record(),
+        audit / "cases",
+        triage=driver.triage_items(h_stage.upgrade),
+    )
+    (stage / BUNDLE / "annotations" / driver.ADJUDICATIONS).write_text(
+        driver.record_text(record)
+    )
+    h_stage.rebind(repin=True)
+    args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+    driver.triage(args, stage / BUNDLE)
+    driver.write_judge_provenance(args)
+    _h_export(h_stage)
+    return case_id
+
+def test_rejudged_adjudicated_stage_passes_the_freeze(h_stage, monkeypatch):
+    _h_rejudge(h_stage, monkeypatch)
+    before = h_stage.files()
+    h_stage.run("--dry-run")
+    assert h_stage.files() == before
+
+def test_rebound_numeric_explanation_reaches_run_state_evidence_gate(h_stage):
+    """Text equality accepts '001'; the run-only pandas frame parses it as 1."""
+    import pandas as pd
+
+    stage = h_stage.stage
+    for path in (
+        stage / "inputs" / H_SLUG / "predictions.csv",
+        stage / BUNDLE / "us/predictions.csv",
+    ):
+        with path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        for row in rows:
+            if row["model"] == H_TERRA:
+                row["explanation"] = "001"
+        path.write_text(_h_csv([H_COLUMNS, *[list(row.values()) for row in rows]]))
+    h_stage.rebind(repin=True)
+    assert driver.new_model_row_differences(stage) == []
+    source = pd.read_csv(stage / "inputs" / H_SLUG / "predictions.csv")
+    combined = pd.read_csv(stage / BUNDLE / "us/predictions.csv", low_memory=False)
+    assert source.explanation.iloc[0] == 1
+    assert set(combined.loc[combined.model == H_TERRA, "explanation"]) == {"001"}
+    _h_refused(h_stage, "Run-state prediction evidence failed")
+
+def test_rebound_adjudication_wording_reaches_applied_sentence_gate(
+    h_stage, monkeypatch
+):
+    from policybench.adjudications import AdjudicationError, apply_adjudications
+    from policybench.audit import collect_audit
+
+    case_id = _h_rejudge(h_stage, monkeypatch)
+    stage = h_stage.stage
+    amendments = [
+        {
+            "case_id": case_id,
+            "field": "case_annotation",
+            "old": "Developer adjudication (",
+            "new": "Developer review (",
+            "reason": "A wording change",
+        }
+    ]
+    driver.write_json(stage / driver.AMENDMENTS, {"amendments": amendments})
+    audit = stage / "audit"
+    annotations = stage / BUNDLE / "annotations"
+    collected = collect_audit(stage / BUNDLE / "us", audit)
+    cases = collected["case"].rename(
+        columns={
+            "case_failure_source": "case_failure_sources",
+            "case_failure_subtype": "case_failure_subtypes",
+        }
+    )
+    rows, cases, _ = apply_adjudications(
+        collected["row"],
+        cases,
+        freezer.load_adjudications(annotations / driver.ADJUDICATIONS),
+    )
+    driver.amend_annotations(
+        rows, cases, driver.load_amendments(stage, frozenset({case_id}))
+    )
+    for name, frame in ((H_ROWS, rows), (H_NOTES, cases)):
+        (annotations / name).write_text(driver.annotation_csv_text(frame))
+    _h_export(h_stage)
+    h_stage.rebind()
+    _h_refused(
+        h_stage,
+        "does not carry the recorded adjudication sentence",
+        error=AdjudicationError,
     )
 
 
