@@ -3315,9 +3315,14 @@ def verify_judge_provenance(
 # The allowed provenance groups, by the account a sidecar declares. They
 # include Max's 2026-09-30 pb-judge opt-in and the two Subfleet lanes earlier
 # releases borrowed. The generated record states which groups judged this
-# release's cases.
+# release's cases. The opt-in's token is declared two ways: by its opt-in
+# (releases 20261013b and 20261014) and by where the launcher read it,
+# agent-secret's pb-judge (this release); both name the same token hash.
 PROVENANCE_GROUPS = {
     "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30": (
+        "isolated: setup-token 2"
+    ),
+    "claude setup-token login (token sha256 6a6daf56361b), agent-secret pb-judge": (
         "isolated: setup-token 2"
     ),
     "claude:max@axiom.org (subfleet lane claude-18)": (

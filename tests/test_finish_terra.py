@@ -2602,9 +2602,12 @@ def _generated_record(tmp_path: Path, runs: list[tuple[str, str]]) -> dict:
 LANE_10 = "claude:max@farness.ai (subfleet lane claude-10)"
 LANE_18 = "claude:max@axiom.org (subfleet lane claude-18)"
 SETUP_TOKEN = "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30"
+SETUP_TOKEN_SECRET = (
+    "claude setup-token login (token sha256 6a6daf56361b), agent-secret pb-judge"
+)
 
 
-@pytest.mark.parametrize("account", [LANE_10, LANE_18, SETUP_TOKEN])
+@pytest.mark.parametrize("account", [LANE_10, LANE_18, SETUP_TOKEN, SETUP_TOKEN_SECRET])
 @pytest.mark.parametrize("effort", ["high", "xhigh", "max"])
 def test_the_note_states_only_what_the_runs_sidecars_record(tmp_path, account, effort):
     """A run on any listed account, at the effort AUDIT_EFFORT set, gets a note
@@ -2626,6 +2629,16 @@ def test_the_note_states_only_what_the_runs_sidecars_record(tmp_path, account, e
     )
     assert "setup-token" not in note and "lane" not in note
     assert not driver.EMAIL_ADDRESS.search(json.dumps(record))
+
+
+def test_both_declarations_of_the_setup_token_are_one_group(tmp_path):
+    """The opt-in's token, declared by its opt-in in earlier releases and by
+    agent-secret's pb-judge in this one, is one login in the tally."""
+    record = _generated_record(
+        tmp_path, [(SETUP_TOKEN, "xhigh"), (SETUP_TOKEN_SECRET, "xhigh")]
+    )
+    assert record["counts"] == {"isolated: setup-token 2": 2}
+    assert "Effort recorded: xhigh (2)." in record["note"]
 
 
 def test_a_mixed_run_is_tallied_by_effort_and_login(tmp_path):
