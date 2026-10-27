@@ -4724,6 +4724,223 @@ def test_an_early_or_partial_export_never_gets_a_release_receipt(
         assert "PARTIAL" in json.loads(payload.read_text())["stage2Status"]
 
 
+@pytest.fixture
+def cli_exporting(exporting, monkeypatch):
+    """Exercise CLI dispatch and real triage with synthetic collected frames."""
+    import policybench.audit
+    import policybench.reference_exclusions
+
+    stage = exporting.stage
+    receipt = json.loads((stage / "stage.json").read_text())
+    receipt["exclusions_installed"] = {
+        "sha256": exporting.scope.upgrade.sha256[EXCLUSIONS_NAME]
+    }
+    driver.write_json(stage / "stage.json", receipt)
+    state = SimpleNamespace(reference_suspect=False, triaged=[])
+    row = {
+        "country": "us",
+        "scenario_id": "scenario_000",
+        "variable": "snap",
+        "model": NEW,
+        "failure_source": "llm_error",
+        "failure_subtype": "thresholds_rates",
+        "annotation": "Synthetic annotation from collection.",
+    }
+
+    def collected(*args, **kwargs):
+        state.triaged.append(args[1].parent)
+        return {
+            "missing": pd.DataFrame(),
+            "hedged": pd.DataFrame(),
+            "row": pd.DataFrame(
+                [{**row, "reference_suspect": state.reference_suspect}]
+            ),
+            "case": pd.DataFrame(
+                [
+                    {
+                        "country": "us",
+                        "scenario_id": "scenario_000",
+                        "variable": "snap",
+                        "wrong_model_count": 1,
+                        "reference_suspect": state.reference_suspect,
+                        "case_failure_source": "llm_error",
+                        "case_failure_subtype": "thresholds_rates",
+                        "case_annotation": "Synthetic collected case note.",
+                    }
+                ]
+            ),
+        }
+
+    monkeypatch.setattr(driver, "validate_stage_path", lambda *a: None)
+    monkeypatch.setattr(driver, "load_seed", lambda *a: {})
+    monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: [])
+    monkeypatch.setattr(driver, "stage_adjudications", lambda *a, **kw: [])
+    monkeypatch.setattr(policybench.audit, "collect_audit", collected)
+    monkeypatch.setattr(
+        policybench.reference_exclusions, "load_reference_exclusions", lambda *a: []
+    )
+    monkeypatch.setattr(
+        driver,
+        "resolve_live_base",
+        lambda *a: {"countries": {"us": {"modelStats": incumbents()}}},
+    )
+    # Every refusal must preserve outputs from the previous accepted export.
+    exporting.run()
+    for name in ("reference-flags.csv", "unresolved-rows.csv"):
+        (stage / name).write_text("Previously accepted diagnostic\n")
+    return SimpleNamespace(exporting=exporting, stage=stage, state=state)
+
+
+def test_cli_export_preserves_every_stage_byte_on_unresolved_reference_flag(
+    cli_exporting,
+):
+    s = cli_exporting
+    s.state.reference_suspect = True
+    before = stage_files(s.stage)
+    with pytest.raises(SystemExit, match="triage required"):
+        driver.main(["--stage-dir", str(s.stage), "--step", "export"])
+    assert s.state.triaged
+    assert stage_files(s.stage) == before
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("reference", "staged reference"),
+        ("parse_flag", "parse_failure_only disagrees"),
+        ("run_pin", "is not the run"),
+        ("prepare_hash", "staged input changed since prepare"),
+        ("prepare_inventory", "stage.json does not record"),
+        ("model_provenance", "model-provenance.json disagrees"),
+        ("prediction_row", "not the pinned run's"),
+        ("judge_provenance", "provenance_note"),
+        ("model_count", "all 51 models"),
+        ("base_roster", "50 incumbents only"),
+        ("roster", "export roster"),
+        ("scored", "every model must be scored"),
+        ("scope", "incumbent modelStats drift"),
+        ("approved_moves", "beyond the four approved"),
+        ("schema", "payload validation failed"),
+        ("repository_inputs", "Repository input"),
+    ],
+)
+def test_cli_export_preserves_every_stage_byte_on_later_refusal(
+    cli_exporting, monkeypatch, defect, message
+):
+    s = cli_exporting
+    e = s.exporting
+    if defect == "reference":
+        path = e.bundle / "us" / CSV_NAME
+        path.write_bytes(path.read_bytes() + b"\n")
+        receipt = json.loads((s.stage / "stage.json").read_text())
+        receipt["files"][str(path.relative_to(s.stage))] = sha(path)
+        driver.write_json(s.stage / "stage.json", receipt)
+    elif defect == "parse_flag":
+        (s.stage / "audit/cases.jsonl").write_text(
+            json.dumps(
+                {"case_id": "us__scenario_000__snap", "parse_failure_only": True}
+            )
+            + "\n"
+        )
+    elif defect == "run_pin":
+        monkeypatch.setattr(
+            driver,
+            "committed_input_pins",
+            lambda: {SLUG: {name: "0" * 64 for name in driver.PINNED_INPUTS}},
+        )
+    elif defect in {"prepare_hash", "prepare_inventory"}:
+        receipt = json.loads((s.stage / "stage.json").read_text())
+        key = f"inputs/{SLUG}/run_state.json"
+        if defect == "prepare_hash":
+            receipt["files"][key] = "0" * 64
+        else:
+            del receipt["files"][key]
+        driver.write_json(s.stage / "stage.json", receipt)
+        # CLI already checks prepare hashes; introduce this change after that
+        # check, during the real collection, to reach export's later gate.
+        if defect == "prepare_hash":
+            receipt["files"][key] = sha(s.stage / key)
+            driver.write_json(s.stage / "stage.json", receipt)
+            original = driver.verify_new_model_inputs
+
+            def changed(stage):
+                candidate = json.loads((stage / "stage.json").read_text())
+                candidate["files"][key] = "0" * 64
+                driver.write_json(stage / "stage.json", candidate)
+                return original(stage)
+
+            monkeypatch.setattr(driver, "verify_new_model_inputs", changed)
+    elif defect == "model_provenance":
+        path = s.stage / "model-provenance.json"
+        record = json.loads(path.read_text())
+        record[NEW]["predictions_sha256"] = "0" * 64
+        driver.write_json(path, record)
+    elif defect == "prediction_row":
+        path = e.bundle / "us/predictions.csv"
+        frame = pd.read_csv(path, dtype=str)
+        frame.loc[frame.model == NEW, "estimated_cost_usd"] = "0.0002"
+        frame.to_csv(path, index=False)
+        receipt = json.loads((s.stage / "stage.json").read_text())
+        receipt["files"][str(path.relative_to(s.stage))] = sha(path)
+        driver.write_json(s.stage / "stage.json", receipt)
+    elif defect == "judge_provenance":
+        record = json.loads(e.record.read_text())
+        record["note"] += " Unsupported synthetic claim."
+        driver.write_json(e.record, record)
+    elif defect == "model_count":
+        e.scope.stats.pop()
+    elif defect == "base_roster":
+        monkeypatch.setattr(
+            driver,
+            "resolve_live_base",
+            lambda *a: {"countries": {"us": {"modelStats": incumbents()[:-1]}}},
+        )
+    elif defect == "roster":
+        e.scope.stats[-1]["model"] = "synthetic-impostor"
+    elif defect == "scored":
+        e.scope.stats[-1]["n"] += 1
+    elif defect == "scope":
+        e.scope.base_stats[7]["exact"] += 0.5
+    elif defect == "approved_moves":
+        e.scope.installed_stats[7]["exact"] += 0.5
+    elif defect == "schema":
+        import policybench.dashboard_schema
+
+        monkeypatch.setattr(
+            policybench.dashboard_schema,
+            "validate_dashboard_payload",
+            lambda *a, **kw: ["Synthetic invalid payload"],
+        )
+    else:
+        monkeypatch.setattr(
+            driver,
+            "repository_input_hashes",
+            lambda: driver.require(
+                False, "Repository input is missing: synthetic fixture"
+            ),
+        )
+    before = stage_files(s.stage)
+    with pytest.raises(SystemExit, match=message):
+        driver.main(["--stage-dir", str(s.stage), "--step", "export"])
+    assert s.state.triaged
+    assert stage_files(s.stage) == before
+
+
+def test_cli_export_promotes_triage_outputs_and_their_receipt_together(cli_exporting):
+    s = cli_exporting
+    driver.main(["--stage-dir", str(s.stage), "--step", "export"])
+    assert s.state.triaged and s.stage not in s.state.triaged
+    assert (
+        "Synthetic collected case note."
+        in (s.exporting.bundle / "annotations/us_case_notes.csv").read_text()
+    )
+    receipt = json.loads((s.stage / "release-ready.json").read_text())
+    for relative, expected in receipt["files"].items():
+        assert sha(s.stage / relative) == expected
+    assert pd.read_csv(s.stage / "reference-flags.csv").empty
+    assert pd.read_csv(s.stage / "unresolved-rows.csv").empty
+
+
 # --- Semantic build mutations (ported from test_finish_musewonder.py) ------------
 #
 # The exact-build pins refuse any changed byte before a semantic gate runs (the

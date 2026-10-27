@@ -5839,6 +5839,40 @@ def parse_args(argv=None):
     return args
 
 
+def export_stage(args, bundle: Path) -> None:
+    """Validate CLI triage and export together before promoting their outputs."""
+    import tempfile
+
+    stage = args.stage_dir
+    with tempfile.TemporaryDirectory(
+        prefix="export-stage-terra-", dir=stage.parent
+    ) as scratch:
+        working = Path(scratch) / stage.name
+        shutil.copytree(stage, working)
+        candidate_args = argparse.Namespace(**{**vars(args), "stage_dir": working})
+        candidate_bundle = working / bundle.relative_to(stage)
+        triage(candidate_args, candidate_bundle)
+        export(candidate_args, candidate_bundle, resolve_live_base(candidate_args))
+        generated = [
+            working / "reference-flags.csv",
+            working / "unresolved-rows.csv",
+            working / f"data-board{BOARD_MODELS}.json",
+            candidate_bundle / "data.json",
+            candidate_bundle / "us/data.json",
+            candidate_bundle / "annotations/us_audit_row_annotations.csv",
+            candidate_bundle / "annotations/us_case_notes.csv",
+            *sorted((candidate_bundle / "us/analysis").rglob("*")),
+            # The receipt describes the accepted annotation and payload bytes.
+            # Keep it last when promoting the complete validated output set.
+            working / "release-ready.json",
+        ]
+        for source in generated:
+            if source.is_file():
+                destination = stage / source.relative_to(working)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, destination)
+
+
 def main(argv=None) -> None:
     args = parse_args(argv)
     if args.step == "pin-inputs":
@@ -5976,8 +6010,7 @@ def main(argv=None) -> None:
         elif args.step == "triage":
             triage(args, bundle)
         else:
-            triage(args, bundle)
-            export(args, bundle, resolve_live_base(args))
+            export_stage(args, bundle)
 
 
 if __name__ == "__main__":
