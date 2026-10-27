@@ -907,3 +907,73 @@ def test_a_synthetic_installed_release_passes_the_freeze_dry_run(
         if path.is_file()
     }
     assert "51 models" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("judge_model_requested", "claude-sonnet-5-5"),
+        ("judged_at_utc", None),
+        ("judge_runner", "scripts/run_audit_codex.sh"),
+    ],
+)
+def test_the_freeze_refuses_a_reference_only_rejudgment_by_another_judge(
+    tmp_path, monkeypatch, field, value
+):
+    """The freeze re-runs the driver's verdict gate: a case the installed
+    build re-opened, with Terra right and an incumbent wrong, must still
+    show this release's judge, runner and UTC timestamp."""
+    from policybench.audit import AUDIT_OUTPUT_SCHEMA
+    from policybench.judge_template import template_header
+
+    audit = tmp_path / "audit"
+    case = audit / "cases/us__scenario_031__snap"
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text(template_header(2) + "\nMoved reference.\n")
+    write_json(audit / "schema.json", AUDIT_OUTPUT_SCHEMA)
+    (audit / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": case.name,
+                "wrong_models": ["claude-fable-5"],
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
+    verdict = {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "rationale": "Synthetic.",
+        "models": [
+            {
+                "model": "claude-fable-5",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+                "diagnosis": "Synthetic.",
+            }
+        ],
+    }
+    write_json(case / "verdict.json", verdict)
+    meta = {
+        "verdict_sha256": sha(case / "verdict.json"),
+        "prompt_sha256": sha(case / "prompt.md"),
+        "judge_runner": driver.JUDGE_RUNNER,
+        "judge_model_requested": driver.JUDGE_MODEL,
+        "judge_model_reported": [driver.JUDGE_MODEL],
+        "judged_at_utc": "2026-10-26T12:00:00+00:00",
+        "judge_template_version": driver.JUDGE_TEMPLATE_VERSION,
+    }
+    seed = {case.name: {"prompt_sha256": "0" * 64, "verdict_sha256": "1" * 64}}
+    monkeypatch.setattr(driver, "load_seed", lambda stage: seed)
+    write_json(case / "verdict.meta.json", meta)
+    release.verify_verdicts(tmp_path)
+    if value is None:
+        del meta[field]
+    else:
+        meta[field] = value
+    write_json(case / "verdict.meta.json", meta)
+    with pytest.raises(SystemExit, match="1 staged verdicts fail validation"):
+        release.verify_verdicts(tmp_path)

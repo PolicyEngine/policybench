@@ -63,6 +63,9 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+# The runner the judge step runs, as it names itself in each verdict's sidecar
+# (judge_runner). Every verdict this release judges must have been written by it.
+JUDGE_RUNNER = "scripts/run_audit_claude.sh"
 # The judge template (policybench.judge_template) this driver renders new
 # and re-opened cases on: v2, which drops v1's claim that the reference
 # pipeline survived an adversarial review with its real bugs fixed (#210). A
@@ -2694,6 +2697,41 @@ def set_aside(audit: Path, case_id: str, reason: str) -> None:
             os.replace(path, target / path.name)
 
 
+def judge_identity_problems(meta: dict) -> list[str]:
+    """Why a sidecar does not show this release's judge; [] if it does.
+
+    The judge step requests JUDGE_MODEL through JUDGE_RUNNER, which records
+    the request, the models the CLI reports having used (that model alone),
+    itself, and the moment the verdict was written as an ISO 8601 timestamp
+    in UTC (judged_at_utc).
+    """
+    from datetime import datetime, timedelta
+
+    problems = []
+    if meta.get("judge_model_requested") != JUDGE_MODEL:
+        problems.append(
+            f"judge_model_requested {meta.get('judge_model_requested')!r}; "
+            f"expected {JUDGE_MODEL!r}"
+        )
+    if meta.get("judge_model_reported") != [JUDGE_MODEL]:
+        problems.append(
+            f"judge_model_reported {meta.get('judge_model_reported')!r}; "
+            f"expected {[JUDGE_MODEL]!r}"
+        )
+    if meta.get("judge_runner") != JUDGE_RUNNER:
+        problems.append(
+            f"judge_runner {meta.get('judge_runner')!r}; expected {JUDGE_RUNNER!r}"
+        )
+    stamp = meta.get("judged_at_utc")
+    try:
+        moment = datetime.fromisoformat(stamp) if isinstance(stamp, str) else None
+    except ValueError:
+        moment = None
+    if moment is None or moment.utcoffset() != timedelta(0):
+        problems.append(f"judged_at_utc {stamp!r} is not an ISO 8601 timestamp in UTC")
+    return problems
+
+
 def validate_verdicts(
     audit: Path,
     remove_invalid: bool = False,
@@ -2709,10 +2747,13 @@ def validate_verdicts(
     JUDGE_TEMPLATE_VERSION. Every judged case's prompt must begin with the
     header of the version its sidecar records
     (policybench.audit.template_version_problems), so a new verdict's sidecar
-    cannot claim v2 for a prompt rendered on another version. A verdict naming
-    a new model also needs bound Opus 5.5 provenance. Returns the pending
-    cases; ``remove_invalid`` sets their verdicts aside. A carried-over verdict
-    that fails is refused outright: a re-judge cannot restore it.
+    cannot claim v2 for a prompt rendered on another version. Every new
+    verdict, and any verdict naming a new model, also needs this release's
+    judge identity (judge_identity_problems): a case re-opened because the
+    installed build moved its reference is held to it even when only
+    incumbents answered it wrong. Returns the pending cases;
+    ``remove_invalid`` sets their verdicts aside. A carried-over verdict that
+    fails is refused outright: a re-judge cannot restore it.
     """
     import jsonschema
 
@@ -2768,14 +2809,15 @@ def validate_verdicts(
                 raise ValueError(
                     f"a new verdict is not on judge template v{JUDGE_TEMPLATE_VERSION}"
                 )
-            if set(names) & set(MODELS.values()):
-                if (
-                    meta.get("judge_model_requested") != JUDGE_MODEL
-                    or meta.get("judge_model_reported") != [JUDGE_MODEL]
-                    or not meta.get("judge_runner")
-                    or not meta.get("judged_at_utc")
-                ):
-                    raise ValueError("missing or mismatched Opus 5.5 provenance")
+            # Every verdict judged for this release, whichever models it names:
+            # a case the installed build re-opened may list incumbents alone.
+            if not carried or set(names) & set(MODELS.values()):
+                identity = judge_identity_problems(meta)
+                if identity:
+                    raise ValueError(
+                        "missing or mismatched Opus 5.5 provenance: "
+                        + "; ".join(identity)
+                    )
         except (OSError, ValueError, jsonschema.ValidationError) as error:
             if carried:
                 refused.append(f"{case_id} ({error})")
@@ -3154,7 +3196,7 @@ def judge(args, bundle) -> None:
     for _ in range(3):
         validate_verdicts(audit, remove_invalid=True, seed=seed)
         subprocess.run(
-            ["bash", str(ROOT / "scripts/run_audit_claude.sh"), str(audit)],
+            ["bash", str(ROOT / JUDGE_RUNNER), str(audit)],
             cwd=ROOT,
             env={
                 **os.environ,

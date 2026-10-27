@@ -747,6 +747,131 @@ def test_carried_verdicts_keep_the_seeds_bytes(audit):
         driver.validate_verdicts(root, seed=seed)
 
 
+@pytest.fixture
+def moved_reference_audit(tmp_path):
+    """scenario_031's SNAP, re-opened because the installed build moved its
+    reference: Terra answered it right, so its case lists an incumbent alone.
+    The seed held the case on another prompt, so its new verdict is not
+    carried over."""
+    from policybench.judge_template import template_header
+
+    root = tmp_path / "audit"
+    case = root / "cases" / driver.output_case(("scenario_031", "snap"))
+    case.mkdir(parents=True)
+    (case / "prompt.md").write_text(
+        template_header(2) + "\nThe reference is the installed build's.\n"
+    )
+    driver.write_json(root / "schema.json", AUDIT_OUTPUT_SCHEMA)
+    (root / "cases.jsonl").write_text(
+        json.dumps(
+            {
+                "case_id": case.name,
+                "wrong_models": ["claude-fable-5"],
+                "parse_failure_only": False,
+            }
+        )
+        + "\n"
+    )
+    verdict = _verdict(["claude-fable-5"])
+    write_verdict(case, verdict)
+    seed = {case.name: {"prompt_sha256": "0" * 64, "verdict_sha256": "1" * 64}}
+    return SimpleNamespace(root=root, case=case, verdict=verdict, seed=seed)
+
+
+def test_a_reference_only_rejudgment_with_this_releases_judge_passes(
+    moved_reference_audit,
+):
+    s = moved_reference_audit
+    assert NEW not in json.loads((s.root / "cases.jsonl").read_text())["wrong_models"]
+    assert driver.validate_verdicts(s.root, seed=s.seed) == []
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        # (a) another judge, requested or reported
+        ("judge_model_requested", "claude-sonnet-5-5"),
+        ("judge_model_reported", ["claude-sonnet-5-5"]),
+        ("judge_model_reported", [driver.JUDGE_MODEL, "claude-haiku-5-5"]),
+        # (b) no timestamp, or one that does not state UTC
+        ("judged_at_utc", None),
+        ("judged_at_utc", ""),
+        ("judged_at_utc", "2026-10-26T12:00:00"),
+        ("judged_at_utc", "2026-10-26T12:00:00-07:00"),
+        ("judged_at_utc", "yesterday"),
+        # (c) another runner, or none
+        ("judge_runner", "scripts/run_audit_codex.sh"),
+        ("judge_runner", None),
+    ],
+)
+def test_a_reference_only_rejudgment_needs_this_releases_judge(
+    moved_reference_audit, field, value
+):
+    """Terra right and an incumbent wrong on a moved reference: the new
+    verdict is refused unless its sidecar shows the judge step's model,
+    runner and a UTC timestamp. Before the fix the gate ran only when a new
+    model was among the wrong ones."""
+    s = moved_reference_audit
+    write_verdict(s.case, s.verdict, **{field: value})
+    if value is None:
+        assert field not in json.loads((s.case / "verdict.meta.json").read_text())
+    assert driver.validate_verdicts(s.root, seed=s.seed) == [s.case.name]
+    assert driver.validate_verdicts(s.root, remove_invalid=True, seed=s.seed) == [
+        s.case.name
+    ]
+    assert not (s.case / "verdict.json").exists()
+    (reason,) = (s.root.parent / "rejected-verdicts" / s.case.name).glob("*/reason.txt")
+    assert "Opus 5.5 provenance" in reason.read_text()
+    assert field in reason.read_text()
+
+
+def test_the_judge_step_runs_the_runner_the_gate_requires():
+    source = (REPO / "scripts/finish_terra.py").read_text()
+    assert driver.JUDGE_RUNNER == "scripts/run_audit_claude.sh"
+    assert '"judge_runner": "scripts/run_audit_claude.sh"' in (
+        (REPO / driver.JUDGE_RUNNER).read_text()
+    )
+    assert "ROOT / JUDGE_RUNNER" in source
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    requested=st.sampled_from([driver.JUDGE_MODEL, "claude-sonnet-5-5", None]),
+    reported=st.sampled_from(
+        [[driver.JUDGE_MODEL], [], ["claude-sonnet-5-5"], None, driver.JUDGE_MODEL]
+    ),
+    runner=st.sampled_from([driver.JUDGE_RUNNER, "scripts/run_audit_codex.sh", None]),
+    stamp=st.sampled_from(
+        [
+            "2026-10-26T12:00:00+00:00",
+            "2026-10-26T12:00:00.123456+00:00",
+            "2026-10-26T12:00:00Z",
+            "2026-10-26T12:00:00",
+            "2026-10-26T12:00:00+01:00",
+            None,
+            12,
+        ]
+    ),
+)
+def test_the_identity_gate_passes_exactly_this_releases_judge(
+    requested, reported, runner, stamp
+):
+    meta = {
+        "judge_model_requested": requested,
+        "judge_model_reported": reported,
+        "judge_runner": runner,
+        "judged_at_utc": stamp,
+    }
+    expected = (
+        requested == driver.JUDGE_MODEL
+        and reported == [driver.JUDGE_MODEL]
+        and runner == driver.JUDGE_RUNNER
+        and isinstance(stamp, str)
+        and stamp.endswith(("+00:00", "Z"))
+    )
+    assert (driver.judge_identity_problems(meta) == []) == expected
+
+
 def triage_item(**changes):
     return {
         "scenario_id": "scenario_001",
