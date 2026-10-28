@@ -100,7 +100,7 @@ def read_record(path: Path) -> dict:
         raise StateError(f"{path}: {error}") from error
 
 
-def _board_input(path: Path, read):
+def _board_input(path: Path | str, read):
     """Keep a delegated board reader's refusal attached to its input file."""
     try:
         return read()
@@ -158,7 +158,10 @@ def load_board(path: Path, engine: str) -> dict:
             lambda: object_json(exclusions_path.read_text(encoding="utf-8")),
         )
     exclusions = _board_input(exclusions_path, lambda: load_reference_exclusions(path))
-    _board_input(exclusions_path, lambda: split_reference(reference, exclusions))
+    _board_input(
+        f"{reference_path} and {exclusions_path}",
+        lambda: split_reference(reference, exclusions),
+    )
     scenarios_path = path / "scenarios.csv"
     scenarios = _board_input(scenarios_path, lambda: csv_frame(scenarios_path))
     for _, row in scenarios.iterrows():

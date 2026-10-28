@@ -371,14 +371,10 @@ def test_registered_cap_matches_the_report_when_available():
     assert nt.NO_TOOLS_CAP == cap == 5.0
 
 
-def test_main_supports_multiple_model_options_and_dry_run(
-    setup, tmp_path, monkeypatch, capsys
-):
+def test_main_supports_multiple_model_options_and_dry_run(setup, tmp_path, capsys):
+    write_board_fixture(setup, tmp_path / "board")
     path = tmp_path / "design.json"
     path.write_text(json.dumps(setup["design"]))
-    monkeypatch.setattr(nt.pilot, "board_engine", lambda path: "2.60.4")
-    monkeypatch.setattr(nt.pilot, "_require_engine", lambda path: None)
-    monkeypatch.setattr(nt.pilot, "load_board", lambda path: setup["board"])
     assert (
         nt.main(
             [
