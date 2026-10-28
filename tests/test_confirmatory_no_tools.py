@@ -2093,3 +2093,446 @@ def run_no_tools_fork_probe(
                 process.kill()
                 process.join(timeout=30)
             process.close()
+
+
+def test_signal_handlers_restore_before_either_watcher_descriptor_closes(
+    setup, tmp_path
+):
+    """R11: every handler that can write is removed before either pipe end closes."""
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        "watcher_descriptor_order",
+        r"""
+        plan = stage(setup, models=[nt.CHEAP[0]])
+        previous = {
+            sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+        }
+        original_pipe, original_close = os.pipe, os.close
+        original_signal = signal.signal
+        watcher_pipe, events = [], []
+
+
+        def pipe():
+            descriptors = original_pipe()
+            assert not watcher_pipe, "R11: execute creates one watcher pipe"
+            watcher_pipe.extend(descriptors)
+            return descriptors
+
+
+        def register(sig, handler):
+            old = original_signal(sig, handler)
+            if sig in previous and handler == previous[sig]:
+                events.append(("restore", sig))
+            return old
+
+
+        def close(fd):
+            original_close(fd)
+            if fd in watcher_pipe:
+                events.append(("close", fd))
+
+
+        monkeypatch.setattr(os, "pipe", pipe)
+        monkeypatch.setattr(os, "close", close)
+        monkeypatch.setattr(signal, "signal", register)
+        assert plan.execute() == 0
+        restored, closed = set(), []
+        for kind, value in events:
+            if kind == "restore":
+                restored.add(value)
+            else:
+                assert restored == set(previous), (
+                    "R11: both handlers restore before either pipe descriptor "
+                    f"closes: {events}"
+                )
+                closed.append(value)
+        assert len(watcher_pipe) == 2
+        assert closed == watcher_pipe, "R11: both watcher descriptors close"
+        assert all(
+            signal.getsignal(sig) == handler for sig, handler in previous.items()
+        ), "R11: both prior handlers remain installed"
+        """,
+    )
+
+
+def test_signal_after_watcher_descriptor_reuse_cannot_write_to_replacement(
+    setup, tmp_path
+):
+    """R11: a real signal after close cannot write into a reused descriptor."""
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        "watcher_descriptor_reuse",
+        r"""
+        plan = stage(setup, models=[nt.CHEAP[0]])
+        original_pipe, original_close = os.pipe, os.close
+        original_signal = signal.signal
+        previous_interrupts = []
+
+
+        def previous_interrupt(sig, frame):
+            previous_interrupts.append(sig)
+
+
+        original_signal(signal.SIGINT, previous_interrupt)
+        watcher_pipe, replacement = [], []
+        sent = False
+
+
+        def pipe():
+            descriptors = original_pipe()
+            assert not watcher_pipe, "R11: execute creates one watcher pipe"
+            watcher_pipe.extend(descriptors)
+            return descriptors
+
+
+        def close(fd):
+            global sent
+            original_close(fd)
+            if fd == watcher_pipe[1] and not replacement:
+                read_fd, write_fd = original_pipe()
+                # Preserve the read end if it acquired the descriptor that must
+                # become the replacement write end.
+                if read_fd == fd:
+                    copied_read_fd = os.dup(read_fd)
+                    original_close(read_fd)
+                    read_fd = copied_read_fd
+                if write_fd != fd:
+                    os.dup2(write_fd, fd)
+                    original_close(write_fd)
+                    write_fd = fd
+                replacement.extend((read_fd, write_fd))
+                os.set_blocking(read_fd, False)
+                sent = True
+                # This executes on the main thread immediately after the old
+                # write descriptor closes and its number is safely reused.
+                os.kill(os.getpid(), signal.SIGINT)
+
+
+        monkeypatch.setattr(os, "pipe", pipe)
+        monkeypatch.setattr(os, "close", close)
+        try:
+            result = plan.execute()
+            assert sent and len(replacement) == 2
+            try:
+                received = os.read(replacement[0], 1)
+            except BlockingIOError:
+                received = b""
+            assert received == b"", (
+                "R11: a restored handler cannot write into the replacement "
+                f"descriptor; received {received!r}"
+            )
+            assert result == 0
+            assert previous_interrupts == [signal.SIGINT], (
+                "R11: the real signal reaches the restored prior handler"
+            )
+        finally:
+            for fd in replacement:
+                original_close(fd)
+        """,
+    )
+
+
+@pytest.mark.parametrize("case", ["before-native", "after-native", "after-grace"])
+def test_watcher_start_failure_restores_resources_and_late_entry_is_safe(
+    setup, tmp_path, case
+):
+    """R11: failed watcher startup preserves cleanup and the late-entry guard."""
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        "watcher_start_" + case,
+        "        case = "
+        + repr(case)
+        + r"""
+        import errno
+        import time
+
+        provider = Provider()
+        plan = stage(setup, provider, models=[nt.CHEAP[0]])
+        original_handlers = {
+            sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+        }
+        original_start = threading.Thread.start
+        original_run = threading.Thread.run
+        original_pipe = os.pipe
+        original_read = os.read
+        original_fd_close = os.close
+        original_close = plan.close
+        native_entered, reading, release_late, target_finished = (
+            threading.Event() for _ in range(4)
+        )
+        watchers, pipe_fds, closed_fds, reads, target_errors, order = (
+            [] for _ in range(6)
+        )
+        start_error = RuntimeError("synthetic watcher start " + case)
+        nt.START_GRACE_SECONDS = 0.05
+
+
+        def pipe():
+            descriptors = original_pipe()
+            assert not pipe_fds, "watcher lifecycle: execute creates one pipe"
+            pipe_fds.extend(descriptors)
+            return descriptors
+
+
+        def read(fd, count):
+            if fd in pipe_fds:
+                assert fd not in closed_fds, (
+                    "watcher lifecycle: a late watcher cannot read a closed pipe"
+                )
+                reads.append(fd)
+                reading.set()
+            return original_read(fd, count)
+
+
+        def fd_close(fd):
+            result = original_fd_close(fd)
+            if fd in pipe_fds:
+                closed_fds.append(fd)
+                order.append("descriptor-closed")
+            return result
+
+
+        def close():
+            result = original_close()
+            order.append("stage-closed")
+            return result
+
+
+        def run(thread):
+            if thread.name != "no-tools-signal-watcher":
+                return original_run(thread)
+            native_entered.set()
+            try:
+                if case == "after-grace":
+                    assert release_late.wait(20), (
+                        "watcher lifecycle: release the delayed native target"
+                    )
+                    assert set(closed_fds) == set(pipe_fds), (
+                        "watcher lifecycle: delayed target begins after pipe close"
+                    )
+                    order.append("late-target-entered")
+                return original_run(thread)
+            except BaseException as error:
+                target_errors.append(error)
+                raise
+            finally:
+                target_finished.set()
+
+
+        def start(thread):
+            if thread.name != "no-tools-signal-watcher":
+                return original_start(thread)
+            watchers.append(thread)
+            if case != "before-native":
+                original_start(thread)
+                assert native_entered.wait(10), (
+                    "watcher lifecycle: the native thread starts before failure"
+                )
+                if case == "after-native":
+                    assert reading.wait(10), (
+                        "watcher lifecycle: the begun watcher reaches its pipe read"
+                    )
+            raise start_error
+
+
+        monkeypatch.setattr(os, "pipe", pipe)
+        monkeypatch.setattr(os, "read", read)
+        monkeypatch.setattr(os, "close", fd_close)
+        monkeypatch.setattr(threading.Thread, "run", run)
+        monkeypatch.setattr(threading.Thread, "start", start)
+        monkeypatch.setattr(plan, "close", close)
+        started_at = time.monotonic()
+        try:
+            plan.execute()
+        except RuntimeError as error:
+            assert error is start_error, (
+                "watcher lifecycle: propagate the original start exception"
+            )
+        else:
+            raise AssertionError("watcher lifecycle: startup failure must propagate")
+        elapsed = time.monotonic() - started_at
+
+        assert len(watchers) == 1 and len(pipe_fds) == 2
+        assert sorted(closed_fds) == sorted(pipe_fds), (
+            "watcher lifecycle: close both descriptors exactly once"
+        )
+        assert order.count("stage-closed") == 1
+        assert all(
+            signal.getsignal(sig) == handler
+            for sig, handler in original_handlers.items()
+        ), "watcher lifecycle: restore both installed handlers"
+        for fd in pipe_fds:
+            try:
+                os.fstat(fd)
+            except OSError as error:
+                assert error.errno == errno.EBADF
+            else:
+                raise AssertionError("watcher lifecycle: descriptor remains open")
+        assert plan.interrupted.is_set(), (
+            "watcher lifecycle: failed startup stops admission"
+        )
+        assert provider.calls == [] and plan._started_workers == [], (
+            "watcher lifecycle: no worker is admitted after startup failure"
+        )
+        assert plan._lock_file is None, (
+            "watcher lifecycle: release the stage invocation lock"
+        )
+        if case == "before-native":
+            assert elapsed >= nt.START_GRACE_SECONDS * 0.9, (
+                "watcher lifecycle: allow bounded grace for a possible native start"
+            )
+            assert not native_entered.is_set()
+            assert not target_finished.is_set()
+            assert not reads
+        elif case == "after-native":
+            assert reads == [pipe_fds[0]]
+            assert target_finished.is_set(), (
+                "watcher lifecycle: join the watcher before cleanup returns"
+            )
+        else:
+            assert elapsed >= nt.START_GRACE_SECONDS * 0.9, (
+                "watcher lifecycle: delayed target outlasts the bounded start grace"
+            )
+            assert not target_finished.is_set()
+            release_late.set()
+            watchers[0].join(timeout=10)
+            assert target_finished.is_set()
+            assert not reads, (
+                "watcher lifecycle: late entry checks closing before reading"
+            )
+            assert order.index("stage-closed") < order.index("late-target-entered")
+        assert not target_errors, target_errors
+        assert not watchers[0].is_alive(), (
+            "watcher lifecycle: no watcher remains after probe cleanup"
+        )
+        assert not any(
+            thread.name == "no-tools-signal-watcher"
+            for thread in threading.enumerate()
+        )
+        monkeypatch.undo()
+        """,
+    )
+
+
+def test_first_sigint_after_watcher_shutdown_preserves_completed_finals(
+    setup, tmp_path
+):
+    """R11.2: late recording forces exit 1 without watcher interruption or output."""
+    import textwrap
+
+    probe = tmp_path / "late_first_sigint.py"
+    probe.write_text(
+        textwrap.dedent(r"""
+        import json
+        import os
+        import runpy
+        import signal
+        import sys
+        import threading
+        from types import SimpleNamespace
+
+        helpers = runpy.run_path(sys.argv[2])
+        nt, stage, final, load = (
+            helpers[name] for name in ("nt", "stage", "final", "load")
+        )
+        design = json.loads(sys.argv[1])
+        setup = {
+            "design": design,
+            "board": {
+                "scenarios": {
+                    sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+                },
+                "variables": {sid: ["snap"] for sid in design["draw_order"]},
+            },
+        }
+        plan = stage(setup)
+        previous = {
+            sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+        }
+        original_signal = signal.signal
+        original_start = threading.Thread.start
+        watcher = []
+        restoring, recorded = threading.Event(), threading.Event()
+        handler_returned = threading.Event()
+        errors = []
+
+
+        def start(thread):
+            if thread.name == "no-tools-signal-watcher":
+                watcher.append(thread)
+            return original_start(thread)
+
+
+        def register(sig, handler):
+            if sig in previous and handler == previous[sig]:
+                if sig == signal.SIGINT:
+                    assert len(watcher) == 1 and not watcher[0].is_alive(), (
+                        "late signal: watcher has finished before restoration"
+                    )
+                    restoring.set()
+                    assert recorded.wait(20), "late signal: controller finishes"
+            elif sig in previous:
+                original_handler = handler
+
+                def tracked(signum, frame):
+                    original_handler(signum, frame)
+                    handler_returned.set()
+
+                handler = tracked
+            return original_signal(sig, handler)
+
+
+        def send():
+            try:
+                assert restoring.wait(20), "late signal: restoration pauses"
+                os.kill(os.getpid(), signal.SIGINT)
+                assert handler_returned.wait(20), "late signal: handler returns"
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                recorded.set()
+
+
+        actor = threading.Thread(target=send, daemon=True)
+        actor.start()
+        threading.Thread.start = start
+        signal.signal = register
+        result = plan.execute()
+        actor.join(20)
+        assert not actor.is_alive() and not errors, errors
+        assert result == 1, "late signal: recorded SIGINT requires exit 1"
+        assert not plan.interrupted.is_set(), (
+            "late signal: a finished watcher cannot set interruption"
+        )
+        assert all(state == "complete" for state in plan.states.values())
+        for model in plan.models:
+            for sid in design["draw_order"]:
+                assert load(final(plan, model, sid))["status"] == "complete", (
+                    "late signal: every worker's final is saved"
+                )
+        assert "Interrupted" not in plan.out.getvalue(), (
+            "late signal: a finished watcher prints no announcement"
+        )
+        assert all(signal.getsignal(sig) == old for sig, old in previous.items())
+        assert not watcher[0].is_alive() and plan._lock_file is None
+        print("late-first-signal-verified", flush=True)
+        sys.exit(result)
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"]), str(Path(__file__))],
+        env=env,
+    )
+    assert result.returncode == 1, (result.stdout, result.stderr)
+    assert b"late-first-signal-verified\n" in result.stdout, (
+        result.stdout,
+        result.stderr,
+    )
