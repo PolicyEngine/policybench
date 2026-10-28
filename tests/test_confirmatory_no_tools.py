@@ -1388,6 +1388,7 @@ def admission_probe(setup, tmp_path, boundary, force):
         import signal
         import sys
         import threading
+        import time
         import traceback
         from pathlib import Path
         from types import SimpleNamespace
@@ -1551,6 +1552,11 @@ def admission_probe(setup, tmp_path, boundary, force):
                 if force:
                     os.write(1, b"handler-returned-watcher-waiting\n")
                     os.kill(os.getpid(), signal.SIGINT)
+                    # The handler runs on the main thread. Sleep (releasing
+                    # the GIL) so it can exit the process before this thread
+                    # reports that it did not; 20 s stays inside the probe's
+                    # 30 s execution deadline.
+                    time.sleep(20)
                     raise AssertionError("R3: forced exit returned")
             except BaseException:
                 errors.append(traceback.format_exc())
