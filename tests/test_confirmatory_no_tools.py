@@ -20,7 +20,10 @@ import confirmatory_no_tools as nt  # noqa: E402
 
 
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, monkeypatch):
+    # These state-machine fixtures inject a minimal board and fake records.
+    # Real treatment pins and prompts are covered in the saved-record suite.
+    monkeypatch.setattr(nt, "validate_treatment", lambda *args: None, raising=False)
     draw = ["h2", "h1"]
     baseline = tmp_path / "baseline-exclusions.json"
     baseline.write_text('{"exclusions": []}\n')
@@ -309,7 +312,8 @@ def test_refuse_a_final_with_corrupted_attempt_links(setup, field, value):
     payload = load(path)
     payload["attempts"][0][field] = value
     path.write_text(json.dumps(payload))
-    with pytest.raises(nt.StateError, match="attempts disagree"):
+    match = "attempt link n" if field == "n" else "attempts disagree"
+    with pytest.raises(nt.StateError, match=match):
         stage(setup)
 
 
@@ -879,10 +883,11 @@ def test_stage_problems_classifies_every_saved_final(setup, category):
     payload.update(attempts=[], turns=[None])
     path = plan.households(model) / f"{sid}.json"
     nt.write_json(path, payload)
-    with pytest.raises((nt.StateError, AttributeError), match="get"):
+    match = "outside the draw" if category == "outside-draw" else "get"
+    with pytest.raises(nt.StateError, match=match):
         stage(setup)
     problems = nt.stage_problems(setup["design"])
-    assert any(model in problem and "get" in problem for problem in problems), (
+    assert any(model in problem and match in problem for problem in problems), (
         "R3: every final refused by initialization must fail stage preflight",
         problems,
     )

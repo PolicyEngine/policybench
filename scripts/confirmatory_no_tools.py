@@ -53,6 +53,7 @@ from confirmatory_run import (
     action,
     attempt_cost,
     classify,
+    completed_turns,
     default_completion,
     pilot,
     sha256_file,
@@ -61,6 +62,9 @@ from confirmatory_run import (
 
 NO_TOOLS_CAP = 5.0
 START_GRACE_SECONDS = 10
+NO_TOOLS_WORDING_SHA256 = (
+    "43b13e4e64463f4ee1654e9546672899f80ca5e1ce18e93cf2eb04091b3a2699"
+)
 
 
 class StateError(ValueError):
@@ -217,6 +221,150 @@ def load_board(path: Path, engine: str) -> dict:
         raise StateError(f"{at}{detail}: {error}") from error
 
 
+def _no_tools_answered(record: dict) -> bool:
+    predictions = record.get("predictions")
+    return isinstance(predictions, dict) and any(
+        value is not None for value in predictions.values()
+    )
+
+
+def _saved_treatment_problems(record: dict, model: str, board: dict) -> list[str]:
+    """Report treatment_problems specialized to the fixed none arm.
+
+    Keep the report's conditional evidence requirements and conversions.
+    In particular, empty failed attempts may omit prompt evidence, variables
+    use the report's list conversion, and unexamined fields remain unexamined.
+    """
+    problems = []
+    if record.get("model") != model:
+        return [f"record names model {record.get('model')!r}"]
+    if record.get("arm") != "none":
+        return [f"arm {record.get('arm')!r} differs from 'none'"]
+
+    profile = pilot.model_profile(model, arm="none", prompt_version=PROMPT_VERSION)
+    treatment = pilot.profile_treatment(profile)
+    if treatment["tool_features"] is not None:
+        raise ValueError(
+            f"none: the harness gives features {treatment['tool_features']}"
+        )
+
+    answered = _no_tools_answered(record)
+    owed = (
+        isinstance(record.get("turns"), list) and bool(completed_turns(record))
+    ) or answered
+    keys = (
+        "prompt_version",
+        "prompt_wording_sha256",
+        "tool_notice_sha256",
+        "tool_features",
+        "calculate_tool_sha256",
+        "variables",
+        "turns",
+    )
+    if owed:
+        keys += (
+            "contract",
+            "messages",
+            "board_prompt_sha256",
+            "sent_board_prompt_sha256",
+        )
+    for key in keys:
+        if key not in record:
+            problems.append(f"missing no-tools field {key!r}")
+    if "predictions" in record and not isinstance(record["predictions"], dict):
+        problems.append("no-tools predictions must be an object from run_household")
+
+    contract = record.get("contract")
+    if (owed or "contract" in record) and contract != profile.contract:
+        problems.append(
+            f"answer contract {contract!r} differs from {profile.contract!r}"
+        )
+    if record.get("prompt_version") != PROMPT_VERSION:
+        problems.append(f"prompt version {record.get('prompt_version')!r}")
+    wording = pilot.prompt_wording_sha256(profile)
+    if (
+        wording != NO_TOOLS_WORDING_SHA256
+        or record.get("prompt_wording_sha256") != NO_TOOLS_WORDING_SHA256
+    ):
+        problems.append(
+            f"prompt wording {str(record.get('prompt_wording_sha256'))[:12]}, "
+            f"harness {str(wording)[:12]}"
+        )
+    notice = hashlib.sha256(profile.notice.encode()).hexdigest()
+    if record.get("tool_notice_sha256") != notice:
+        problems.append("the notice hash differs from the arm's")
+    for key in ("tool_features", "calculate_tool_sha256"):
+        if record.get(key) != treatment[key]:
+            problems.append(f"{key} differs from the none arm's")
+
+    sid = record.get("scenario_id")
+    if sid not in board["scenarios"]:
+        return problems + ["no such household on the board"]
+    if list(record.get("variables") or []) != list(board["variables"][sid]):
+        problems.append("its outputs differ from the board's")
+    if not isinstance(record.get("turns"), list):
+        return problems + ["no-tools turns must be an array from run_household"]
+    if answered and not completed_turns(record):
+        problems.append("a no-tools answer has no completed turn")
+    for number, turn in enumerate(record.get("turns") or [], start=1):
+        served = turn.get("provider_resolved_model")
+        if not served:
+            problems.append(f"turn {number} reports no provider's model")
+        elif served != profile.model_id.split("/")[-1]:
+            problems.append(
+                f"turn {number}: providers reported {served!r}, "
+                f"expected {profile.model_id}"
+            )
+
+    messages = record.get("messages")
+    if (owed or "messages" in record) and not isinstance(messages, list):
+        return problems + [
+            "no-tools messages must be an array from conversation.transcript"
+        ]
+    if not messages:
+        if owed:
+            problems.append("no no-tools sent prompt in messages")
+        if completed_turns(record):
+            problems.append("no sent prompt in messages")
+        if owed:
+            return problems
+
+    built, settings = pilot.build_initial_request(
+        board["scenarios"][sid], board["variables"][sid], profile
+    )
+    if messages:
+        first = messages[0] if isinstance(messages[0], dict) else {}
+        text = (
+            first.get("input")
+            if isinstance(first.get("input"), str)
+            else first.get("content")
+        )
+        if text != built:
+            problems.append("the sent prompt differs from the harness's rebuilt prompt")
+    for key, description in (
+        ("sent_board_prompt_sha256", "sent board prompt"),
+        ("board_prompt_sha256", "board prompt"),
+    ):
+        if (messages or key in record) and record.get(key) != settings[f"_{key}"]:
+            problems.append(f"the {description} hash differs from the rebuilt one")
+    return problems
+
+
+def validate_treatment(path, record, model, board, engine):
+    """Check each saved record against the report's pinned none-arm treatment."""
+    try:
+        with pilot.stating_engine(engine.split()[-1]):
+            problems = _saved_treatment_problems(
+                record, model, board() if callable(board) else board
+            )
+    except BOARD_INPUT_ERRORS as error:
+        raise StateError(
+            f"{path}: cannot check saved no-tools treatment: {error}"
+        ) from error
+    if problems:
+        raise StateError(f"{path}: " + "; ".join(problems))
+
+
 def entry(path: Path, record: dict, n: int) -> dict:
     cls, reason = classify(record, 0.0, 0.0, None)
     return {
@@ -229,7 +377,17 @@ def entry(path: Path, record: dict, n: int) -> dict:
     }
 
 
-def history(folder: Path) -> tuple[dict[str, dict], float]:
+def _attempts_agree(listed: list, entries: list) -> bool:
+    """Match known link fields and retain each archive's exact earlier prefix."""
+    if len(listed) != len(entries) or listed[:-1] != entries[:-1]:
+        return False
+    return not entries or (
+        isinstance(listed[-1], dict)
+        and all(listed[-1].get(key) == value for key, value in entries[-1].items())
+    )
+
+
+def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], float]:
     """Validate a model's histories, including an interrupted archive, and sum spend."""
     archives: dict[str, list[tuple[int, Path]]] = {}
     for path in sorted((folder / "attempts").glob("*.json")):
@@ -254,34 +412,58 @@ def history(folder: Path) -> tuple[dict[str, dict], float]:
             record = read_record(path)
             if record.get("scenario_id") != sid:
                 raise StateError(f"{path}: household differs from archive name {sid}")
-            if record["attempts"] != entries:
+            if validate is not None:
+                validate(path, record)
+            if not _attempts_agree(record["attempts"], entries):
                 raise StateError(f"{path}: attempts disagree with earlier archives")
-            cls, _ = classify(record, 0.0, 0.0, None)
+            try:
+                cls, _ = classify(record, 0.0, 0.0, None)
+            except BOARD_INPUT_ERRORS as error:
+                raise StateError(
+                    f"{path}: cannot classify saved archive: {error}"
+                ) from error
             if action(cls, n) not in ("rerun", "pause-rerun"):
                 raise StateError(f"{path}: archived attempt was ineligible for rerun")
-            entries.append(entry(path, record, n))
+            entries = record["attempts"] + [entry(path, record, n)]
             spent += attempt_cost(record)
         final = None
         if sid in finals:
             path = finals[sid]
             final = read_record(path)
+            if drawn is not None:
+                if sid not in drawn:
+                    raise StateError(f"{path}: cheap-model final is outside the draw")
+                if not isinstance(final.get("predictions"), dict):
+                    raise StateError(
+                        f"{path}: final no-tools predictions must be an object"
+                    )
             if final.get("scenario_id") != sid:
                 raise StateError(f"{path}: household differs from final name {sid}")
-            if final["attempts"] != entries:
+            for n, link in enumerate(final["attempts"], 1):
+                if (
+                    not isinstance(link, dict)
+                    or type(link.get("n")) is not int
+                    or link["n"] != n
+                ):
+                    raise StateError(f"{path}: attempt link n must be integer {n}")
+            if validate is not None:
+                validate(path, final)
+            if not _attempts_agree(final["attempts"], entries):
                 raise StateError(f"{path}: attempts disagree with archived files")
             try:
                 classify(final, 0.0, 0.0, None)
-            except (TypeError, ValueError, AttributeError, KeyError) as error:
+            except BOARD_INPUT_ERRORS as error:
                 raise StateError(
                     f"{path}: cannot classify saved final: {error}"
                 ) from error
+            entries = final["attempts"]
             spent += attempt_cost(final)
         states[sid] = {"entries": entries, "final": final}
     return states, spent
 
 
 def stage_problems(design: dict) -> list[str]:
-    """Read stage histories and standing finals without a board or provider."""
+    """Check saved histories, treatment and standing without a provider."""
     problems = []
     try:
         spec = design["no_tools"]
@@ -293,9 +475,23 @@ def stage_problems(design: dict) -> list[str]:
             models.update(path.name for path in root.iterdir() if path.is_dir())
     except (OSError, KeyError, TypeError, ValueError) as error:
         return [f"no-tools stage: {error}"]
+    board = None
+
+    def checked_board():
+        nonlocal board
+        if board is None:
+            board = load_board(Path(design["board"]), design["engine"])
+        return board
+
     for model in sorted(models):
         try:
-            states, _ = history(root / model / folder / stage / "households")
+            states, _ = history(
+                root / model / folder / stage / "households",
+                validate=lambda path, record: validate_treatment(
+                    path, record, model, checked_board, design["engine"]
+                ),
+                drawn=set(draw_order) if model in CHEAP else None,
+            )
             if model not in CHEAP:
                 continue
             for sid in draw_order:
@@ -454,7 +650,13 @@ class Stage:
             else set()
         )
         for model in sorted(folders | set(self.models)):
-            states, cost = history(self.households(model))
+            states, cost = history(
+                self.households(model),
+                validate=lambda path, record: validate_treatment(
+                    path, record, model, self.board, design["engine"]
+                ),
+                drawn=set(self.draw_order) if model in CHEAP else None,
+            )
             self.histories[model] = states
             spent += cost
             # A saved ceiling failure is a stage-wide stop on every invocation.
