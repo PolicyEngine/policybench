@@ -1117,6 +1117,224 @@ def test_valid_board_loads_through_harness(setup, tmp_path, with_exclusions):
         assert provider.calls == []
 
 
+@pytest.mark.parametrize("with_filename", [True, False])
+def test_delegated_board_oserror_refuses_with_path(
+    setup, tmp_path, monkeypatch, with_filename
+):
+    directory = tmp_path / "board"
+    write_board_fixture(setup, directory)
+    reference = directory / "reference_outputs.csv"
+    error = (
+        OSError(5, "synthetic reread failure", str(reference))
+        if with_filename
+        else OSError("synthetic reread failure")
+    )
+    read_csv = nt.pilot.pd.read_csv
+    rereads = []
+
+    def fail_reference_reread(source, *args, **kwargs):
+        # Prechecks pass an opened stream; the unchanged harness passes a path.
+        if isinstance(source, Path) and source == reference:
+            rereads.append(source)
+            raise error
+        return read_csv(source, *args, **kwargs)
+
+    monkeypatch.setattr(nt.pilot.pd, "read_csv", fail_reference_reread)
+    provider = Provider()
+    try:
+        with pytest.raises(nt.StateError) as caught:
+            with nt.Stage(
+                setup["design"],
+                board=None,
+                run_household=provider,
+                completion_for=lambda profile: None,
+                out=io.StringIO(),
+            ):
+                pytest.fail("a failed board reread must refuse before execution")
+        assert rereads == [reference]
+        assert caught.value.__cause__ is error
+        assert str(reference if with_filename else directory) in str(caught.value)
+    finally:
+        assert provider.calls == []
+
+
+@pytest.mark.parametrize("reader", ["metadata", "scenarios"])
+def test_board_changed_to_nested_json_after_check_refuses_with_path(
+    setup, tmp_path, reader
+):
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        f"board_changed_{reader}",
+        f"        reader = {reader!r}\n"
+        + r"""
+        import csv
+        from pathlib import Path
+
+        sys.setrecursionlimit(1000)
+        depth = sys.getrecursionlimit() * 20
+        payload = '{"nested":' + "[" * depth + "0" + "]" * depth + "}"
+        directory = Path(setup["design"]["no_tools"]["runs"]).parent / "board"
+        write_board_fixture(setup, directory)
+        filename = (
+            "reference_outputs.csv.meta.json" if reader == "metadata"
+            else "scenarios.csv"
+        )
+        path = directory / filename
+        load_board = nt.pilot.load_board
+        delegates = []
+
+        def change_then_load(source):
+            delegates.append(source)
+            if reader == "metadata":
+                path.write_text(payload)
+            else:
+                with path.open("w", newline="") as stream:
+                    writer = csv.writer(stream)
+                    writer.writerow(["scenario_json"])
+                    writer.writerow([payload])
+            return load_board(source)
+
+        monkeypatch.setattr(nt.pilot, "load_board", change_then_load)
+        provider = Provider()
+        try:
+            with pytest.raises(nt.StateError) as caught:
+                with nt.Stage(
+                    setup["design"], board=None, run_household=provider,
+                    completion_for=lambda profile: None, out=io.StringIO(),
+                ):
+                    pytest.fail("a changed board must refuse before execution")
+            assert delegates == [directory], "all prechecks must finish first"
+            assert str(path) in str(caught.value)
+            assert "changed after" in str(caught.value)
+            assert isinstance(caught.value.__cause__, RecursionError)
+            trace = caught.value.__cause__.__traceback__
+            frames = []
+            while trace is not None:
+                frames.append(trace.tb_frame.f_code.co_filename)
+                trace = trace.tb_next
+            assert any(name.endswith("json/decoder.py") for name in frames), frames
+        finally:
+            assert provider.calls == []
+        """,
+    )
+
+
+def test_board_exclusions_exists_failure_refuses_with_path(
+    setup, tmp_path, monkeypatch
+):
+    directory = tmp_path / "board"
+    write_board_fixture(setup, directory)
+    exclusions = directory / "reference_exclusions.json"
+    error = PermissionError(13, "synthetic unreadable board parent", str(exclusions))
+    exists = Path.exists
+    checks = []
+
+    def fail_exclusions_exists(path):
+        if path == exclusions:
+            checks.append(path)
+            raise error
+        return exists(path)
+
+    monkeypatch.setattr(Path, "exists", fail_exclusions_exists)
+    provider = Provider()
+    try:
+        with pytest.raises(nt.StateError) as caught:
+            with nt.Stage(
+                setup["design"],
+                board=None,
+                run_household=provider,
+                completion_for=lambda profile: None,
+                out=io.StringIO(),
+            ):
+                pytest.fail("an unreadable exclusions path must refuse")
+        assert checks == [exclusions]
+        assert caught.value.__cause__ is error
+        assert str(exclusions) in str(caught.value)
+    finally:
+        assert provider.calls == []
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        ValueError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        RecursionError,
+        OverflowError,
+        SystemExit,
+    ],
+)
+def test_unchanged_board_delegate_failure_names_folder(
+    setup, tmp_path, monkeypatch, error_type
+):
+    directory = tmp_path / "board"
+    write_board_fixture(setup, directory)
+    error = error_type("synthetic delegated failure")
+    delegates = []
+
+    def fail_load(source):
+        delegates.append(source)
+        raise error
+
+    monkeypatch.setattr(nt.pilot, "load_board", fail_load)
+    provider = Provider()
+    try:
+        with pytest.raises(nt.StateError) as caught:
+            with nt.Stage(
+                setup["design"],
+                board=None,
+                run_household=provider,
+                completion_for=lambda profile: None,
+                out=io.StringIO(),
+            ):
+                pytest.fail("a failed board delegate must refuse before execution")
+        assert delegates == [directory]
+        assert caught.value.__cause__ is error
+        assert str(directory) in str(caught.value)
+        assert "changed after" not in str(caught.value)
+    finally:
+        assert provider.calls == []
+
+
+def test_board_delegate_failure_names_each_changed_file(setup, tmp_path, monkeypatch):
+    directory = tmp_path / "board"
+    write_board_fixture(setup, directory)
+    paths = [
+        directory / name
+        for name in ("reference_outputs.csv.meta.json", "scenarios.csv")
+    ]
+    error = ValueError("synthetic delegated failure")
+    delegates = []
+
+    def change_then_fail(source):
+        delegates.append(source)
+        for path in paths:
+            path.write_bytes(path.read_bytes() + b"\n")
+        raise error
+
+    monkeypatch.setattr(nt.pilot, "load_board", change_then_fail)
+    provider = Provider()
+    try:
+        with pytest.raises(nt.StateError) as caught:
+            with nt.Stage(
+                setup["design"],
+                board=None,
+                run_household=provider,
+                completion_for=lambda profile: None,
+                out=io.StringIO(),
+            ):
+                pytest.fail("a changed board must refuse before execution")
+        assert delegates == [directory]
+        assert caught.value.__cause__ is error
+        assert all(str(path) in str(caught.value) for path in paths)
+        assert "changed after" in str(caught.value)
+    finally:
+        assert provider.calls == []
+
+
 @pytest.mark.parametrize("reader", ["final", "archive"])
 @pytest.mark.parametrize("boundary", ["startup", "preflight"])
 def test_oversized_record_cost_refuses_with_path(setup, reader, boundary):
@@ -1143,6 +1361,123 @@ def test_oversized_record_cost_refuses_with_path(setup, reader, boundary):
     else:
         problems = nt.stage_problems(setup["design"])
         assert any(str(path) in problem for problem in problems), problems
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize("reader", ["final", "archive"])
+@pytest.mark.parametrize("boundary", ["startup", "preflight"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing-totals",
+        "null-totals",
+        "false-totals",
+        "empty-list-totals",
+        "empty-string-totals",
+        "true-totals",
+        "number-totals",
+        "list-totals",
+        "missing-cost",
+        "null",
+        "true",
+        "false",
+        "numeric-string",
+        "empty-string",
+        "invalid-string",
+        "empty-list",
+        "list",
+        "empty-object",
+        "object",
+        "nan",
+        "infinity",
+        "negative-infinity",
+        "negative",
+        "overflow",
+    ],
+)
+def test_strict_saved_cost_refuses_with_path(setup, reader, boundary, fault):
+    root = Path(setup["design"]["no_tools"]["runs"])
+    path = root / nt.CHEAP[0] / "none/confirmatory/households"
+    path /= "h2.json" if reader == "final" else "attempts/h2-1.json"
+    payload = record(
+        "h2",
+        SimpleNamespace(name=nt.CHEAP[0], arm="none", model_id="synthetic"),
+        status="provider_error",
+        error="APIConnectionError",
+    )
+    payload["attempts"] = []
+    totals = {
+        "null-totals": None,
+        "false-totals": False,
+        "empty-list-totals": [],
+        "empty-string-totals": "",
+        "true-totals": True,
+        "number-totals": 1,
+        "list-totals": [1],
+    }
+    costs = {
+        "null": None,
+        "true": True,
+        "false": False,
+        "numeric-string": "0.25",
+        "empty-string": "",
+        "invalid-string": "invalid",
+        "empty-list": [],
+        "list": [0.25],
+        "empty-object": {},
+        "object": {"value": 0.25},
+        "nan": float("nan"),
+        "infinity": float("inf"),
+        "negative-infinity": float("-inf"),
+        "negative": -0.25,
+        "overflow": 10**400,
+    }
+    if fault == "missing-totals":
+        del payload["totals"]
+    elif fault in totals:
+        payload["totals"] = totals[fault]
+    elif fault == "missing-cost":
+        payload["totals"] = {}
+    else:
+        payload["totals"]["cost_usd"] = costs[fault]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload))
+    provider = Provider()
+    try:
+        if boundary == "startup":
+            with pytest.raises(nt.StateError) as caught:
+                with stage(setup, provider):
+                    pytest.fail("an invalid saved cost must refuse before execution")
+            assert str(path) in str(caught.value)
+        else:
+            problems = nt.stage_problems(setup["design"])
+            assert any(str(path) in problem for problem in problems), problems
+    finally:
+        assert provider.calls == []
+
+
+@pytest.mark.parametrize("cost", [0, 0.0, -0.0, 0.25, 2])
+def test_valid_saved_numeric_cost_preserves_spend(setup, cost):
+    root = Path(setup["design"]["no_tools"]["runs"])
+    folder = root / nt.CHEAP[0] / "none/confirmatory/households"
+    folder.mkdir(parents=True)
+    profile = SimpleNamespace(name=nt.CHEAP[0], arm="none", model_id="synthetic")
+    archive = folder / "attempts/h2-1.json"
+    archive.parent.mkdir()
+    prior = record(
+        "h2", profile, status="provider_error", error="APIConnectionError", cost=cost
+    )
+    prior["attempts"] = []
+    archive.write_text(json.dumps(prior))
+    saved = record("h2", profile, cost=cost)
+    saved["attempts"] = [nt.entry(archive, prior, 1)]
+    (folder / "h2.json").write_text(json.dumps(saved))
+    provider = Provider()
+    with stage(setup, provider) as plan:
+        assert plan.spend.spent_usd == 2 * float(cost)
+    assert not any(
+        str(folder) in problem for problem in nt.stage_problems(setup["design"])
+    )
     assert provider.calls == []
 
 

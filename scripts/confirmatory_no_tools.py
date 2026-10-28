@@ -33,6 +33,8 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
+import io
 import json
 import math
 import os
@@ -85,7 +87,13 @@ def read_record(path: Path) -> dict:
             raise ValueError("native prior_attempts cannot preserve full attempts")
         if not isinstance(record.get("attempts"), list):
             raise ValueError("record lacks an attempts list")
-        cost = attempt_cost(record)
+        totals = record.get("totals")
+        if not isinstance(totals, dict):
+            raise ValueError("record totals must be an object with cost_usd")
+        raw_cost = totals.get("cost_usd")
+        if isinstance(raw_cost, bool) or not isinstance(raw_cost, (int, float)):
+            raise ValueError("record cost_usd must be a present number")
+        cost = float(raw_cost)
         if not math.isfinite(cost) or cost < 0:
             raise ValueError("attempt cost must be finite and nonnegative")
         return record
@@ -100,20 +108,23 @@ def read_record(path: Path) -> dict:
         raise StateError(f"{path}: {error}") from error
 
 
+BOARD_INPUT_ERRORS = (
+    OSError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    KeyError,
+    RecursionError,
+    OverflowError,
+    SystemExit,
+)
+
+
 def _board_input(path: Path | str, read):
     """Keep a delegated board reader's refusal attached to its input file."""
     try:
         return read()
-    except (
-        OSError,
-        ValueError,
-        TypeError,
-        AttributeError,
-        KeyError,
-        RecursionError,
-        OverflowError,
-        SystemExit,
-    ) as error:
+    except BOARD_INPUT_ERRORS as error:
         raise StateError(f"{path}: {error}") from error
 
 
@@ -126,6 +137,13 @@ def load_board(path: Path, engine: str) -> dict:
     from policybench.scenarios import scenario_from_dict
     from policybench.spec import expand_programs_for_scenario
 
+    checked = {}
+
+    def checked_bytes(source):
+        data = source.read_bytes()
+        checked[source] = hashlib.sha256(data).hexdigest()
+        return data
+
     def object_json(text):
         payload = json.loads(text)
         if not isinstance(payload, dict):
@@ -135,12 +153,14 @@ def load_board(path: Path, engine: str) -> dict:
     def csv_frame(source):
         # pandas also reads the original path in load_board. Check UTF-8 here
         # so every decode/parser failure has its concrete source filename.
-        with source.open(encoding="utf-8") as stream:
+        with io.TextIOWrapper(
+            io.BytesIO(checked_bytes(source)), encoding="utf-8"
+        ) as stream:
             return pilot.pd.read_csv(stream)
 
     metadata = path / "reference_outputs.csv.meta.json"
     meta = _board_input(
-        metadata, lambda: object_json(metadata.read_text(encoding="utf-8"))
+        metadata, lambda: object_json(checked_bytes(metadata).decode("utf-8"))
     )
 
     def require_engine():
@@ -152,11 +172,13 @@ def load_board(path: Path, engine: str) -> dict:
     reference_path = path / "reference_outputs.csv"
     reference = _board_input(reference_path, lambda: csv_frame(reference_path))
     exclusions_path = path / "reference_exclusions.json"
-    if exclusions_path.exists():
+    if _board_input(exclusions_path, exclusions_path.exists):
         _board_input(
             exclusions_path,
-            lambda: object_json(exclusions_path.read_text(encoding="utf-8")),
+            lambda: object_json(checked_bytes(exclusions_path).decode("utf-8")),
         )
+    else:
+        checked[exclusions_path] = None
     exclusions = _board_input(exclusions_path, lambda: load_reference_exclusions(path))
     _board_input(
         f"{reference_path} and {exclusions_path}",
@@ -172,7 +194,27 @@ def load_board(path: Path, engine: str) -> dict:
         _board_input(
             metadata, lambda: expand_programs_for_scenario(meta["programs"], scenario)
         )
-    return pilot.load_board(path)
+    try:
+        return pilot.load_board(path)
+    except BOARD_INPUT_ERRORS as error:
+        if isinstance(error, OSError):
+            raise StateError(f"{error.filename or path}: {error}") from error
+        changed, unreadable = [], []
+        for source, digest in checked.items():
+            try:
+                current = sha256_file(source)
+            except FileNotFoundError:
+                current = None
+            except BOARD_INPUT_ERRORS as reread_error:
+                unreadable.append(f"{source}: cannot recheck: {reread_error}")
+                continue
+            if current != digest:
+                changed.append(str(source))
+        at = " and ".join(changed) if changed else str(path)
+        detail = "; changed after it was checked" if changed else ""
+        if unreadable:
+            detail += "; " + "; ".join(unreadable)
+        raise StateError(f"{at}{detail}: {error}") from error
 
 
 def entry(path: Path, record: dict, n: int) -> dict:
