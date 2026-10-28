@@ -5,6 +5,8 @@ process and never calls a release upload. Run only after finish_terra.py
 --step export has written release-ready.json. The optional --dry-run validates
 inputs without changing repository files. Both rebuild the payload from the
 bound bundle, as export builds it, and refuse a staged payload that differs.
+After the publication check, render and re-pin, --finalize validates their
+outputs and atomically updates only the receipt.
 
 The release adds GPT-6.1 Terra to release 20261014 and installs the committed
 2026-10-22 reference build on policyengine-us 2.60.0. The build, narratives,
@@ -133,6 +135,17 @@ def read_json(path: Path) -> dict:
 def write_json(path: Path, value: dict) -> None:
     """Write reviewable deterministic JSON."""
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+def manifest_core_digest(manifest: dict) -> str:
+    """Bind the frozen manifest independently of the final rendered paper."""
+    core = {
+        key: value
+        for key, value in manifest.items()
+        if key != "rendered_paper_artifacts"
+    }
+    text = json.dumps(core, indent=2, sort_keys=True) + "\n"
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def digest(path: Path) -> str:
@@ -410,14 +423,46 @@ def verify_receipt(stage: Path, payload_path: Path, tag: str) -> dict:
     return receipt
 
 
+def repository_input_changes(
+    receipt: dict, current: dict, *, accept_postrender: bool = True
+) -> list[str]:
+    """Names differing from export and the accepted freeze or render outputs.
+
+    Keep removed render outputs in the inventory so their recorded absence
+    remains bound even when they were added after export.
+    """
+    bound = receipt.get("repository_inputs")
+    if not isinstance(bound, dict) or not bound:
+        raise SystemExit("Strict export receipt does not bind repository inputs")
+    postfreeze = receipt.get("repository_postfreeze", {})
+    postrender = receipt.get("repository_postrender", {})
+    if not isinstance(postfreeze, dict) or not isinstance(postrender, dict):
+        raise SystemExit("Strict export receipt has malformed repository output hashes")
+    return sorted(
+        name
+        for name in set(bound) | set(current) | set(postrender)
+        if (name not in bound or name not in current or current[name] != bound[name])
+        and not (
+            name in {str(SNAPSHOT / "manifest.json"), str(VERSIONS)}
+            and name in postfreeze
+            and current.get(name) == postfreeze[name]
+        )
+        and not (
+            accept_postrender
+            and name in postrender
+            and current.get(name) == postrender[name]
+        )
+    )
+
+
 def verify_repository_inputs(receipt: dict) -> None:
     """Bind every repository data read before any release destination changes.
 
     Scoring data and historical versions retain BASE_COMMIT's values. The
     dependency files, build timing record, existing manifest and rendered
     paper are exact export-time inputs. A completed freeze records the two
-    files it replaces, permitting an identical second freeze while retaining
-    the original export hashes.
+    files it replaces. Finalization binds the checked publication record and
+    rendered outputs. Both retain the original export hashes.
     """
     for name in driver.BASE_REPOSITORY_INPUT_FILES:
         path = ROOT / name
@@ -443,21 +488,89 @@ def verify_repository_inputs(receipt: dict) -> None:
     if not isinstance(bound, dict) or not bound:
         raise SystemExit("Strict export receipt does not bind repository inputs")
     current = driver.repository_input_hashes(ROOT)
-    postfreeze = receipt.get("repository_postfreeze", {})
-    if not isinstance(postfreeze, dict):
-        raise SystemExit("Strict export receipt has malformed repository output hashes")
-    changed = sorted(
-        name
-        for name in set(bound) | set(current)
-        if (name not in bound or name not in current or current[name] != bound[name])
-        and not (
-            name in {str(SNAPSHOT / "manifest.json"), str(VERSIONS)}
-            and name in postfreeze
-            and current.get(name) == postfreeze[name]
-        )
-    )
+    changed = repository_input_changes(receipt, current)
     if changed:
         raise SystemExit(f"Repository inputs changed since strict export: {changed}")
+
+
+def finalize(stage: Path, receipt: dict, freezer) -> None:
+    """Validate publication and render changes, then atomically bind them."""
+    manifest_name = str(SNAPSHOT / "manifest.json")
+    timing_name = str(driver.REPOSITORY_INPUT_FILES[2])
+    pdf_name = "app/public/paper/policybench.pdf"
+    web = "app/public/paper/web/"
+
+    def allowed(name: str) -> bool:
+        return name in {timing_name, manifest_name, pdf_name} or name.startswith(web)
+
+    def sha256(value) -> bool:
+        return (
+            isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+        )
+
+    def hashes(value) -> bool:
+        if not isinstance(value, dict):
+            return False
+        return all(
+            isinstance(name, str)
+            and (
+                (name == web and pin in (None, "directory"))
+                or (name != web and sha256(pin))
+                or (pin is None and (name == pdf_name or name.startswith(web)))
+            )
+            for name, pin in value.items()
+        )
+
+    bound = receipt.get("repository_inputs")
+    postfreeze = receipt.get("repository_postfreeze")
+    required = {str(name) for name in driver.REPOSITORY_INPUT_FILES}
+    if (
+        not hashes(bound)
+        or not (required | {pdf_name, web}).issubset(bound)
+        or any(not sha256(bound[name]) for name in required)
+        or not hashes(postfreeze)
+        or set(postfreeze) != {manifest_name, str(VERSIONS)}
+        or not sha256(receipt.get("postfreeze_manifest_core"))
+    ):
+        raise SystemExit(
+            "Finalize requires a completed freeze with well-formed repository_inputs, "
+            "repository_postfreeze and postfreeze_manifest_core; re-freeze this stage"
+        )
+    postrender = receipt.get("repository_postrender", {})
+    if not hashes(postrender) or any(not allowed(name) for name in postrender):
+        raise SystemExit("Strict export receipt has malformed repository render hashes")
+    driver.require_release_stage(read_json(stage / "stage.json"))
+    current = driver.repository_input_hashes(ROOT)
+    changed = repository_input_changes(receipt, current, accept_postrender=False)
+    forbidden = [name for name in changed if not allowed(name)]
+    if forbidden:
+        raise SystemExit(f"Finalize refuses repository changes: {forbidden}")
+    if timing_name in changed:
+        driver.stage_upgrade(stage)
+    manifest = read_json(ROOT / manifest_name)
+    if manifest_core_digest(manifest) != receipt["postfreeze_manifest_core"]:
+        raise SystemExit("Manifest core changed since the completed freeze")
+    if manifest.get("rendered_paper_artifacts") != freezer.rendered_paper_artifacts():
+        raise SystemExit("Rendered paper differs from the manifest pins")
+    expected = (
+        json.dumps(freezer.app_paper_snapshot(manifest), indent=2, sort_keys=True)
+        + "\n"
+    )
+    app_snapshot = ROOT / "app/src/paperSnapshot.json"
+    if not app_snapshot.is_file() or app_snapshot.read_bytes() != expected.encode():
+        raise SystemExit("app/src/paperSnapshot.json differs from the manifest")
+    accepted = dict(postrender)
+    accepted.update({name: current.get(name) for name in changed})
+    candidate = {**receipt, "repository_postrender": accepted}
+    # Reuse the base-release and historical-version gates with the new bindings.
+    verify_repository_inputs(candidate)
+    pending = stage / "release-ready.json.finalizing"
+    try:
+        write_json(pending, candidate)
+        os.replace(pending, stage / "release-ready.json")
+    finally:
+        pending.unlink(missing_ok=True)
+    print(f"Finalized publication and rendered paper bindings in {stage}")
 
 
 def verify_installed_exclusions(
@@ -1517,7 +1630,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--stage-dir", type=Path, required=True)
     parser.add_argument("--tag", default=driver.RELEASE_TAG)
-    parser.add_argument("--dry-run", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--dry-run", action="store_true")
+    modes.add_argument("--finalize", action="store_true")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"dashboard-data-\d{8}[a-z]?", args.tag):
         parser.error("--tag must be dashboard-data-YYYYMMDD[a-z]")
@@ -1536,6 +1651,10 @@ def main(argv: list[str] | None = None) -> None:
     payload_path = stage / f"data-board{BOARD_MODELS}.json"
     driver.require_combined_predictions(stage / "publish" / RUN)
     receipt = verify_receipt(stage, payload_path, args.tag)
+    if args.finalize:
+        release_spec(args.tag)
+        finalize(stage, receipt, freezer)
+        return
     verify_repository_inputs(receipt)
     spec = release_spec(args.tag)
     upgrade = verify_upgrade(stage, receipt)
@@ -1772,11 +1891,14 @@ def main(argv: list[str] | None = None) -> None:
         str(name): digest(ROOT / name)
         for name in (SNAPSHOT / "manifest.json", VERSIONS)
     }
+    receipt["postfreeze_manifest_core"] = manifest_core_digest(
+        read_json(snapshot / "manifest.json")
+    )
     pending_receipt = stage / "release-ready.json.freezing"
     write_json(pending_receipt, receipt)
     os.replace(pending_receipt, stage / "release-ready.json")
     print(f"Built {args.tag} locally; payload and predictions remain in {stage}")
-    print("Next: update note and paper prose, render the paper, re-pin, run tests.")
+    print("Next: publication check, render the paper, re-pin, --finalize, run tests.")
 
 
 if __name__ == "__main__":
