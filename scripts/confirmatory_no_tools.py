@@ -89,8 +89,87 @@ def read_record(path: Path) -> dict:
         if not math.isfinite(cost) or cost < 0:
             raise ValueError("attempt cost must be finite and nonnegative")
         return record
-    except (OSError, ValueError, TypeError, AttributeError, RecursionError) as error:
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ) as error:
         raise StateError(f"{path}: {error}") from error
+
+
+def _board_input(path: Path, read):
+    """Keep a delegated board reader's refusal attached to its input file."""
+    try:
+        return read()
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        RecursionError,
+        OverflowError,
+        SystemExit,
+    ) as error:
+        raise StateError(f"{path}: {error}") from error
+
+
+def load_board(path: Path, engine: str) -> dict:
+    """Check board inputs locally, then use the harness's unchanged loader."""
+    from policybench.reference_exclusions import (
+        load_reference_exclusions,
+        split_reference,
+    )
+    from policybench.scenarios import scenario_from_dict
+    from policybench.spec import expand_programs_for_scenario
+
+    def object_json(text):
+        payload = json.loads(text)
+        if not isinstance(payload, dict):
+            raise ValueError("board input is not a JSON object")
+        return payload
+
+    def csv_frame(source):
+        # pandas also reads the original path in load_board. Check UTF-8 here
+        # so every decode/parser failure has its concrete source filename.
+        with source.open(encoding="utf-8") as stream:
+            return pilot.pd.read_csv(stream)
+
+    metadata = path / "reference_outputs.csv.meta.json"
+    meta = _board_input(
+        metadata, lambda: object_json(metadata.read_text(encoding="utf-8"))
+    )
+
+    def require_engine():
+        if f"policyengine-us {pilot.board_engine(path)}" != engine:
+            raise StateError("the board's engine differs from the design")
+        pilot._require_engine(path)
+
+    _board_input(metadata, require_engine)
+    reference_path = path / "reference_outputs.csv"
+    reference = _board_input(reference_path, lambda: csv_frame(reference_path))
+    exclusions_path = path / "reference_exclusions.json"
+    if exclusions_path.exists():
+        _board_input(
+            exclusions_path,
+            lambda: object_json(exclusions_path.read_text(encoding="utf-8")),
+        )
+    exclusions = _board_input(exclusions_path, lambda: load_reference_exclusions(path))
+    _board_input(exclusions_path, lambda: split_reference(reference, exclusions))
+    scenarios_path = path / "scenarios.csv"
+    scenarios = _board_input(scenarios_path, lambda: csv_frame(scenarios_path))
+    for _, row in scenarios.iterrows():
+        scenario = _board_input(
+            scenarios_path,
+            lambda: scenario_from_dict(object_json(row["scenario_json"])),
+        )
+        _board_input(
+            metadata, lambda: expand_programs_for_scenario(meta["programs"], scenario)
+        )
+    return pilot.load_board(path)
 
 
 def entry(path: Path, record: dict, n: int) -> dict:
@@ -314,11 +393,7 @@ class Stage:
         design = self.design
         pilot.set_stated_engine(design["engine"].split()[-1])
         if board is None:
-            board_path = Path(design["board"])
-            if f"policyengine-us {pilot.board_engine(board_path)}" != design["engine"]:
-                raise StateError("the board's engine differs from the design")
-            pilot._require_engine(board_path)
-            board = pilot.load_board(board_path)
+            board = load_board(Path(design["board"]), design["engine"])
         self.board = board
         missing = set(self.draw_order) - set(board["scenarios"])
         missing |= set(self.draw_order) - set(board["variables"])

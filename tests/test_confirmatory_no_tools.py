@@ -924,9 +924,11 @@ def test_undecodable_stage_file_refuses_with_path(setup, tmp_path, reader, fault
         from pathlib import Path
 
         if fault == "nested":
+            sys.setrecursionlimit(1000)
+            depth = sys.getrecursionlimit() * 20
             payload = (
                 b'{"attempts": [], "exclusions": [], "nested": '
-                + b"[" * 20000 + b"0" + b"]" * 20000 + b"}"
+                + b"[" * depth + b"0" + b"]" * depth + b"}"
             )
         elif fault == "non-object":
             payload = b"[]"
@@ -950,15 +952,25 @@ def test_undecodable_stage_file_refuses_with_path(setup, tmp_path, reader, fault
         path.write_bytes(payload)
 
         if reader == "design":
+            refusals = []
+
+            class CapturedStateError(nt.StateError):
+                def __init__(self, *args):
+                    super().__init__(*args)
+                    refusals.append(self)
+
             def unexpected_stage(*args, **kwargs):
                 pytest.fail("an undecodable design must refuse before Stage")
 
+            monkeypatch.setattr(nt, "StateError", CapturedStateError)
             monkeypatch.setattr(nt, "Stage", unexpected_stage)
             output = io.StringIO()
             with redirect_stdout(output):
                 assert nt.main(["run", str(path), "--dry-run"]) == 1
             assert "The no-tools stage cannot start:" in output.getvalue()
             assert str(path) in output.getvalue()
+            assert len(refusals) == 1
+            caught = SimpleNamespace(value=refusals[0])
         else:
             if reader == "baseline":
                 setup["design"]["baseline_exclusions"]["sha256"] = (
@@ -968,14 +980,174 @@ def test_undecodable_stage_file_refuses_with_path(setup, tmp_path, reader, fault
                 with stage(setup, provider):
                     pytest.fail("an undecodable file must refuse before execution")
             assert str(path) in str(caught.value)
-            if fault == "invalid-utf8":
-                assert isinstance(caught.value.__cause__, UnicodeDecodeError)
             if reader in ("final", "archive"):
                 problems = nt.stage_problems(setup["design"])
                 assert any(str(path) in problem for problem in problems), problems
+        if fault == "nested":
+            assert isinstance(caught.value.__cause__, RecursionError)
+            trace = caught.value.__cause__.__traceback__
+            frames = []
+            while trace is not None:
+                frames.append(trace.tb_frame.f_code.co_filename)
+                trace = trace.tb_next
+            assert any(name.endswith("json/decoder.py") for name in frames), frames
+        elif fault == "invalid-utf8":
+            assert isinstance(caught.value.__cause__, UnicodeDecodeError)
         assert provider.calls == []
         """,
     )
+
+
+def write_board_fixture(setup, directory):
+    """Write a small board consumed by the unmodified harness readers."""
+    import csv
+
+    directory.mkdir()
+    engine = nt.pilot._versions()["policyengine-us"]
+    setup["design"]["engine"] = f"policyengine-us {engine}"
+    setup["design"]["board"] = str(directory)
+    meta = {
+        "programs": ["snap"],
+        "revisions": [
+            {"kind": "engine_upgrade", "engine_version": f"policyengine-us {engine}"}
+        ],
+    }
+    (directory / "reference_outputs.csv.meta.json").write_text(json.dumps(meta))
+    (directory / "reference_exclusions.json").write_text('{"exclusions": []}')
+    with (directory / "reference_outputs.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["scenario_id", "variable", "value"])
+        writer.writerows((sid, "snap", 1) for sid in setup["design"]["draw_order"])
+    with (directory / "scenarios.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["scenario_json"])
+        writer.writerows(
+            [json.dumps({"id": sid, "state": "CA", "adults": []})]
+            for sid in setup["design"]["draw_order"]
+        )
+
+
+@pytest.mark.parametrize(
+    "reader,fault",
+    [
+        (reader, fault)
+        for reader in ("metadata", "exclusions", "scenarios")
+        for fault in ("nested", "non-object", "invalid-utf8")
+    ]
+    + [("reference", "invalid-utf8")],
+)
+def test_undecodable_board_file_refuses_with_path(setup, tmp_path, reader, fault):
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        f"board_{reader}_{fault}",
+        f"        reader, fault = {reader!r}, {fault!r}\n"
+        + r"""
+        import csv
+        from pathlib import Path
+
+        directory = Path(setup["design"]["no_tools"]["runs"]).parent / "board"
+        write_board_fixture(setup, directory)
+        names = {
+            "metadata": "reference_outputs.csv.meta.json",
+            "exclusions": "reference_exclusions.json",
+            "scenarios": "scenarios.csv",
+            "reference": "reference_outputs.csv",
+        }
+        path = directory / names[reader]
+        if fault == "nested":
+            sys.setrecursionlimit(1000)
+            depth = sys.getrecursionlimit() * 20
+            payload = b'{"nested":' + b"[" * depth + b"0" + b"]" * depth + b"}"
+        elif fault == "non-object":
+            payload = b"[]"
+        else:
+            payload = b'{"note":"\xff"}'
+        if reader == "scenarios":
+            # Quote the JSON as a CSV field, retaining the corrupt UTF-8 byte.
+            text = io.StringIO(newline="")
+            writer = csv.writer(text)
+            writer.writerow(["scenario_json"])
+            writer.writerow([payload.decode("latin1")])
+            payload = text.getvalue().encode("latin1")
+        elif reader == "reference":
+            payload = b"scenario_id,variable,value\nh2,\xff,1\n"
+        path.write_bytes(payload)
+        provider = Provider()
+        with pytest.raises(nt.StateError) as caught:
+            with nt.Stage(
+                setup["design"], board=None, run_household=provider,
+                completion_for=lambda profile: None, out=io.StringIO(),
+            ):
+                pytest.fail("an unusable board must refuse before execution")
+        assert str(path) in str(caught.value)
+        if fault == "nested":
+            assert isinstance(caught.value.__cause__, RecursionError)
+            trace = caught.value.__cause__.__traceback__
+            frames = []
+            while trace is not None:
+                frames.append(trace.tb_frame.f_code.co_filename)
+                trace = trace.tb_next
+            assert any(name.endswith("json/decoder.py") for name in frames), frames
+        elif fault == "invalid-utf8":
+            assert isinstance(caught.value.__cause__, UnicodeDecodeError)
+        assert provider.calls == []
+        """,
+    )
+
+
+@pytest.mark.parametrize("with_exclusions", [True, False])
+def test_valid_board_loads_through_harness(setup, tmp_path, with_exclusions):
+    directory = tmp_path / "board"
+    write_board_fixture(setup, directory)
+    if not with_exclusions:
+        (directory / "reference_exclusions.json").unlink()
+    expected = nt.pilot.load_board(directory)
+    provider = Provider()
+    with nt.Stage(
+        setup["design"],
+        board=None,
+        run_household=provider,
+        completion_for=lambda profile: None,
+        out=io.StringIO(),
+    ) as plan:
+        assert plan.board.keys() == expected.keys()
+        for key in ("reference", "scored", "excluded", "scenarios_frame"):
+            assert plan.board[key].equals(expected[key])
+        for key in ("meta", "scenarios", "variables"):
+            assert plan.board[key] == expected[key]
+        assert plan.spend.spent_usd == 0
+        assert plan.histories == {model: {} for model in nt.CHEAP}
+        assert provider.calls == []
+
+
+@pytest.mark.parametrize("reader", ["final", "archive"])
+@pytest.mark.parametrize("boundary", ["startup", "preflight"])
+def test_oversized_record_cost_refuses_with_path(setup, reader, boundary):
+    root = Path(setup["design"]["no_tools"]["runs"])
+    path = root / nt.CHEAP[0] / "none/confirmatory/households"
+    path /= "h2.json" if reader == "final" else "attempts/h2-1.json"
+    payload = record(
+        "h2",
+        SimpleNamespace(name=nt.CHEAP[0], arm="none", model_id="synthetic"),
+        status="provider_error",
+        error="APIConnectionError",
+        cost=10**400,
+    )
+    payload["attempts"] = []
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload))
+    provider = Provider()
+    if boundary == "startup":
+        with pytest.raises(nt.StateError) as caught:
+            with stage(setup, provider):
+                pytest.fail("an oversized cost must refuse before execution")
+        assert str(path) in str(caught.value)
+        assert isinstance(caught.value.__cause__, OverflowError)
+    else:
+        problems = nt.stage_problems(setup["design"])
+        assert any(str(path) in problem for problem in problems), problems
+    assert provider.calls == []
 
 
 def run_no_tools_probe(setup, tmp_path, name, body):
@@ -1003,6 +1175,7 @@ def run_no_tools_probe(setup, tmp_path, name, body):
         "load",
         "paused",
         "track_interrupt_return",
+        "write_board_fixture",
     ):
         globals()[helper] = helpers[helper]
     design = json.loads(sys.argv[1])
