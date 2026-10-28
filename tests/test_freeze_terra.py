@@ -11,11 +11,12 @@ import hashlib
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -1177,6 +1178,14 @@ def test_the_freeze_preserves_export_hashes_when_binding_its_outputs(h_stage):
         str(name): sha(h_stage.workspace / name)
         for name in (release.SNAPSHOT / "manifest.json", release.VERSIONS)
     }
+    manifest = _h_json(h_stage.workspace / release.SNAPSHOT / "manifest.json")
+    del manifest["rendered_paper_artifacts"]
+    assert (
+        receipt["postfreeze_manifest_core"]
+        == hashlib.sha256(
+            (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
+        ).hexdigest()
+    )
 
 
 # --- The freeze of an installed-build stage, through the real gates -------------
@@ -1270,6 +1279,8 @@ H_FABLE_USAGE = {
     "totalTokens": 1000000,
     "latencySeconds": 30.25,
 }
+_H_BASE_BLOB_READER = driver.base_commit_blob
+_H_BASE_BLOBS: dict[tuple[Path, str, Path], bytes] = {}
 
 
 @functools.cache
@@ -1404,6 +1415,11 @@ def _h_point_freeze_at(workspace: Path, mp) -> None:
     mp.setattr(freezer, "SNAPSHOT_DIR", workspace / release.SNAPSHOT)
     mp.setattr(freezer, "RUN_DEST", workspace / FROZEN)
     mp.setattr(freezer, "ANNOTATIONS_DEST", workspace / release.ANNOTATIONS)
+    mp.setattr(
+        freezer, "PUBLIC_PAPER_PDF", workspace / "app/public/paper/policybench.pdf"
+    )
+    mp.setattr(freezer, "PUBLIC_PAPER_WEB_DIR", workspace / "app/public/paper/web")
+    mp.setattr(freezer, "APP_PAPER_SNAPSHOT", workspace / "app/src/paperSnapshot.json")
 
 
 def _h_serving_from_the_registry(board):
@@ -1545,9 +1561,11 @@ def _h_freezer_main(board):
             audit[EXPLANATIONS] = "0" * 64
         if "refresh" in defects:
             manifest["reference_output_refresh"]["policyengine_us_version"] = "2.41.0"
+        manifest["rendered_paper_artifacts"] = freezer.rendered_paper_artifacts()
         (freezer.SNAPSHOT_DIR / "manifest.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         )
+        freezer.write_app_paper_snapshot(manifest)
 
     return main
 
@@ -1559,6 +1577,21 @@ def _h_patch(mp, workspace: Path, board) -> None:
 
     import policybench.full_run_export
 
+    base_blob = driver.base_commit_blob
+
+    def immutable_base_blob(path: Path) -> bytes:
+        # Full commit IDs bind immutable bytes. Keep symbolic refs and custom
+        # readers live, including the loader test that changes synthetic HEAD.
+        if base_blob is not _H_BASE_BLOB_READER or not re.fullmatch(
+            r"[0-9a-f]{40}", driver.BASE_COMMIT
+        ):
+            return base_blob(path)
+        key = (driver.ROOT.resolve(), driver.BASE_COMMIT, Path(path))
+        if key not in _H_BASE_BLOBS:
+            _H_BASE_BLOBS[key] = base_blob(path)
+        return _H_BASE_BLOBS[key]
+
+    mp.setattr(driver, "base_commit_blob", immutable_base_blob)
     _h_point_freeze_at(workspace, mp)
     mp.setattr(driver, "JUDGE_PROVENANCE", workspace / driver.JUDGE_PROVENANCE_PATH)
     mp.setattr(driver, "INPUT_PINS", workspace / driver.INPUT_PINS_PATH)
@@ -2345,6 +2378,427 @@ def _h_refused(h_stage, message, modes=((), ("--dry-run",)), error=SystemExit):
         assert h_stage.files() == before
     assert h_stage.board.calls == []
     return refused
+
+
+H_TIMING = str(driver.REPOSITORY_INPUT_FILES[2])
+H_MANIFEST = str(release.SNAPSHOT / "manifest.json")
+H_PDF = "app/public/paper/policybench.pdf"
+H_WEB = "app/public/paper/web/"
+H_WEB_INDEX = H_WEB + "index.html"
+H_WEB_STYLE = H_WEB + "style.css"
+H_WEB_ADDED = H_WEB + "added.js"
+
+
+def _h_publication_gate_at(h_stage, monkeypatch):
+    """Read this checkout's timing through the real installed-build gate.
+
+    The driver retains REPO as its git and pinned-evidence source. Only its
+    audit directory becomes absolute here, so load_build reads the synthetic
+    publication record and a byte-identical copy of its pinned builder.
+    """
+    audit = h_stage.workspace / driver.REFERENCE_BUILD["directory"]
+    builder = audit / "scripts/build_references_upgrade.py"
+    builder.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(
+        REPO / driver.REFERENCE_BUILD["directory"] / builder.relative_to(audit),
+        builder,
+    )
+    monkeypatch.setattr(
+        driver, "REFERENCE_BUILD", {**driver.REFERENCE_BUILD, "directory": str(audit)}
+    )
+
+
+def _h_publication_check(h_stage, *, scored_differ=(), engine="99.0.0"):
+    path = h_stage.workspace / H_TIMING
+    timing = _h_json(path)
+    timing["publication_check"]["engine"] = engine
+    timing["publication_check"]["scored_differ"] = list(scored_differ)
+    driver.write_json(path, timing)
+
+
+def _h_render_and_repin(h_stage):
+    """Synthetic render, followed by the actual rendered-only re-pin."""
+    root = h_stage.workspace
+    (root / H_PDF).write_bytes(b"new synthetic rendered PDF\n")
+    (root / H_WEB_INDEX).write_text("<p>New synthetic paper</p>\n")
+    (root / H_WEB_ADDED).write_text("console.log('new paper asset');\n")
+    (root / H_WEB_STYLE).unlink()
+    freezer.repin_rendered_paper_artifacts()
+
+
+def _h_frozen_for_finalize(h_stage, monkeypatch):
+    _h_publication_gate_at(h_stage, monkeypatch)
+    h_stage.run()
+    h_stage.board.calls.clear()
+
+
+def test_the_finalize_accepts_publication_render_and_repin_sequence(
+    h_stage, monkeypatch
+):
+    """Accepted outputs retain export pins, bind removals and survive freeze."""
+    receipt_path = h_stage.stage / "release-ready.json"
+    exported = _h_json(receipt_path)["repository_inputs"]
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    frozen = _h_json(receipt_path)
+    _h_publication_check(h_stage)
+    _h_render_and_repin(h_stage)
+    before = h_stage.files()
+    h_stage.run("--finalize")
+    receipt = _h_json(receipt_path)
+    assert receipt["repository_inputs"] == exported
+    assert receipt["repository_postfreeze"] == frozen["repository_postfreeze"]
+    assert receipt["postfreeze_manifest_core"] == frozen["postfreeze_manifest_core"]
+    assert receipt["repository_postrender"] == {
+        name: sha(h_stage.workspace / name) if name != H_WEB_STYLE else None
+        for name in (H_TIMING, H_MANIFEST, H_PDF, H_WEB_INDEX, H_WEB_ADDED, H_WEB_STYLE)
+    }
+    after = h_stage.files()
+    receipt_name = receipt_path.relative_to(h_stage.workspace)
+    assert {name: data for name, data in before.items() if name != receipt_name} == {
+        name: data for name, data in after.items() if name != receipt_name
+    }
+    assert h_stage.board.calls == []
+    release.verify_repository_inputs(receipt)
+    h_stage.run("--finalize")
+    assert h_stage.files() == after
+    h_stage.run("--dry-run")
+    assert h_stage.files() == after
+    h_stage.run()
+    refrozen = h_stage.files()
+    h_stage.run("--finalize")
+    assert h_stage.files() == refrozen
+    release.verify_repository_inputs(_h_json(receipt_path))
+
+
+@pytest.mark.parametrize("name", [H_PDF, H_WEB_INDEX, H_WEB_ADDED])
+def test_the_finalize_refuses_a_render_changed_after_repin(h_stage, monkeypatch, name):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    path = h_stage.workspace / name
+    path.write_bytes(path.read_bytes() + b"edited after re-pin\n")
+    _h_refused(h_stage, "Rendered paper differs", modes=(("--finalize",),))
+
+
+def test_the_finalize_refuses_a_changed_manifest_core(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    path = h_stage.workspace / H_MANIFEST
+    manifest = _h_json(path)
+    manifest["description"] += " Altered after freeze."
+    driver.write_json(path, manifest)
+    _h_refused(h_stage, "Manifest core changed", modes=(("--finalize",),))
+
+
+@pytest.mark.parametrize("name", ["uv.lock", "pyproject.toml", str(release.VERSIONS)])
+def test_the_finalize_refuses_other_repository_changes(h_stage, monkeypatch, name):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    path = h_stage.workspace / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    refused = _h_refused(
+        h_stage, "Finalize refuses repository changes", modes=(("--finalize",),)
+    )
+    assert name in str(refused.value)
+
+
+def test_the_finalize_names_every_forbidden_repository_change(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    names = ["uv.lock", "pyproject.toml", str(release.VERSIONS)]
+    for name in names:
+        path = h_stage.workspace / name
+        path.write_bytes(path.read_bytes() + b"\n")
+    refused = _h_refused(
+        h_stage, "Finalize refuses repository changes", modes=(("--finalize",),)
+    )
+    assert all(name in str(refused.value) for name in names)
+
+
+@pytest.mark.parametrize(
+    "defect", ["scored_move", "older_engine", "missing_scored_differ"]
+)
+def test_the_finalize_regates_a_changed_publication_record(
+    h_stage, monkeypatch, defect
+):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    _h_publication_check(h_stage)
+    path = h_stage.workspace / H_TIMING
+    timing = _h_json(path)
+    if defect == "scored_move":
+        timing["publication_check"]["scored_differ"] = [
+            {"scenario_id": "scenario_031", "variable": "snap", "difference": 1}
+        ]
+    elif defect == "older_engine":
+        timing["publication_check"]["engine"] = "2.59.0"
+    else:
+        del timing["publication_check"]["scored_differ"]
+    driver.write_json(path, timing)
+    _h_refused(
+        h_stage,
+        "audit publication record disagrees with the build pins",
+        modes=(("--finalize",),),
+    )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("postfreeze_manifest_core", "missing"),
+        ("postfreeze_manifest_core", None),
+        ("postfreeze_manifest_core", "not a sha256"),
+        ("repository_postfreeze", "missing"),
+        ("repository_postfreeze", []),
+        ("repository_postfreeze", {}),
+        ("repository_postfreeze", {H_MANIFEST: "invalid"}),
+        ("repository_inputs", "missing"),
+        ("repository_inputs", []),
+        ("repository_inputs", {}),
+        ("repository_inputs", {H_PDF: None}),
+        ("repository_postrender", []),
+        ("repository_postrender", {"uv.lock": "0" * 64}),
+    ],
+)
+def test_the_finalize_requires_a_well_formed_completed_freeze(
+    h_stage, monkeypatch, field, value
+):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(path)
+    if value == "missing":
+        del receipt[field]
+    else:
+        receipt[field] = value
+    driver.write_json(path, receipt)
+    _h_refused(
+        h_stage,
+        "completed freeze|repository|postfreeze|malformed",
+        modes=(("--finalize",),),
+    )
+    if field == "postfreeze_manifest_core" and value == "missing":
+        with pytest.raises(SystemExit, match="re-freeze"):
+            h_stage.run("--finalize")
+
+
+def test_the_finalize_requires_a_stage_that_was_frozen(h_stage):
+    _h_refused(h_stage, "completed freeze.*re-freeze", modes=(("--finalize",),))
+
+
+def test_the_finalize_refuses_dry_run(h_stage, capsys):
+    refused = _h_refused(h_stage, "^2$", modes=(("--finalize", "--dry-run"),))
+    assert refused.value.code == 2
+    message = capsys.readouterr().err
+    assert "--finalize" in message and "--dry-run" in message
+
+
+def test_the_finalize_refuses_a_stale_app_paper_snapshot(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    freezer.APP_PAPER_SNAPSHOT.write_text("{}\n")
+    _h_refused(h_stage, "paperSnapshot.json differs", modes=(("--finalize",),))
+
+
+@pytest.mark.parametrize("name", [str(p) for p in driver.BASE_REPOSITORY_INPUT_FILES])
+def test_the_finalize_preserves_base_repository_checks(h_stage, monkeypatch, name):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    path = h_stage.workspace / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    _h_refused(
+        h_stage,
+        "Repository input changed from the base release",
+        modes=(("--finalize",),),
+    )
+
+
+def test_the_finalize_preserves_historical_versions_checks(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    path = h_stage.workspace / release.VERSIONS
+    versions = _h_json(path)
+    historical = next(row for row in versions["versions"] if row["id"] == "1.0")
+    historical["artifact"]["sha256"] = "0" * 64
+    driver.write_json(path, versions)
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    receipt["repository_inputs"][str(release.VERSIONS)] = sha(path)
+    driver.write_json(receipt_path, receipt)
+    _h_refused(
+        h_stage,
+        "Historical data.versions.json entries changed",
+        modes=(("--finalize",),),
+    )
+
+
+@pytest.mark.parametrize("defect", ["staged_evidence", "receipt", "release_stage"])
+def test_the_finalize_reuses_receipt_and_release_stage_checks(
+    h_stage, monkeypatch, defect
+):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    if defect == "staged_evidence":
+        path = h_stage.stage / "prompt-changes.json"
+        path.write_bytes(path.read_bytes() + b"\n")
+        message = "Staged evidence changed since strict export"
+    elif defect == "receipt":
+        receipt["models"] = 50
+        message = "Strict export receipt does not match"
+    else:
+        path = h_stage.stage / "stage.json"
+        prepared = _h_json(path)
+        prepared["early"] = True
+        driver.write_json(path, prepared)
+        receipt["files"]["stage.json"] = sha(path)
+        message = "early/partial stage cannot become a release"
+    driver.write_json(receipt_path, receipt)
+    _h_refused(h_stage, message, modes=(("--finalize",),))
+
+
+@pytest.mark.parametrize(
+    "name", [H_TIMING, H_MANIFEST, H_PDF, H_WEB_INDEX, H_WEB_ADDED, H_WEB_STYLE, H_WEB]
+)
+def test_finalized_repository_inputs_refuse_later_edits(h_stage, monkeypatch, name):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_publication_check(h_stage)
+    _h_render_and_repin(h_stage)
+    h_stage.run("--finalize")
+    path = h_stage.workspace / name
+    if name == H_WEB:
+        shutil.rmtree(path)
+    elif name == H_WEB_STYLE:
+        path.write_text("Restored after the accepted removal.\n")
+    else:
+        path.write_bytes(path.read_bytes() + b"\n")
+    receipt = _h_json(h_stage.stage / "release-ready.json")
+    with pytest.raises(
+        SystemExit, match="Repository inputs changed since strict export"
+    ):
+        release.verify_repository_inputs(receipt)
+    _h_refused(h_stage, "Repository inputs changed since strict export")
+
+
+def test_the_finalize_binds_removal_of_a_postrender_only_web_file(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    h_stage.run("--finalize")
+    path = h_stage.workspace / H_WEB_ADDED
+    path.unlink()
+    freezer.repin_rendered_paper_artifacts()
+    h_stage.run("--finalize")
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    assert H_WEB_ADDED not in receipt["repository_inputs"]
+    assert receipt["repository_postrender"][H_WEB_ADDED] is None
+    release.verify_repository_inputs(receipt)
+    before = receipt_path.read_bytes()
+    h_stage.run("--finalize")
+    assert receipt_path.read_bytes() == before
+    path.write_text("Restored postrender-only asset.\n")
+    with pytest.raises(
+        SystemExit, match="Repository inputs changed since strict export"
+    ):
+        release.verify_repository_inputs(receipt)
+
+
+def test_the_finalize_replaces_the_receipt_atomically(h_stage, monkeypatch):
+    _h_frozen_for_finalize(h_stage, monkeypatch)
+    _h_render_and_repin(h_stage)
+    before = h_stage.files()
+    receipt_path = h_stage.stage / "release-ready.json"
+    replacements = []
+
+    def failed_replace(source, destination):
+        source, destination = Path(source), Path(destination)
+        replacements.append((source, destination))
+        assert source != receipt_path
+        assert source.parent == receipt_path.parent
+        assert destination == receipt_path
+        assert _h_json(source)["repository_postrender"]
+        assert (
+            receipt_path.read_bytes()
+            == before[receipt_path.relative_to(h_stage.workspace)]
+        )
+        raise OSError("synthetic replacement failure")
+
+    monkeypatch.setattr(release.os, "replace", failed_replace)
+    with pytest.raises(OSError, match="synthetic replacement failure"):
+        h_stage.run("--finalize")
+    assert len(replacements) == 1
+    assert h_stage.files() == before
+
+
+H_FINALIZE_SUBSET_NAMES = (
+    "pyproject.toml",
+    "uv.lock",
+    H_TIMING,
+    H_MANIFEST,
+    str(release.VERSIONS),
+    H_PDF,
+    H_WEB,
+    H_WEB_INDEX,
+    H_WEB_STYLE,
+)
+
+
+@settings(max_examples=16, deadline=None, database=None)
+@example(changed=frozenset())
+@example(changed=frozenset({H_TIMING, H_MANIFEST, H_PDF, H_WEB_INDEX, H_WEB_STYLE}))
+@example(changed=frozenset({"pyproject.toml"}))
+@example(changed=frozenset({"uv.lock"}))
+@example(changed=frozenset({str(release.VERSIONS)}))
+@example(changed=frozenset({H_WEB}))
+@given(changed=st.frozensets(st.sampled_from(H_FINALIZE_SUBSET_NAMES)))
+def test_the_finalize_accepts_exactly_allowed_subsets_with_valid_checks(
+    h_template, changed
+):
+    """Each generated checkout starts at export; re-pin each rendered change."""
+    with (
+        tempfile.TemporaryDirectory(
+            prefix="finalize-property-", dir=h_template.workspace.parent
+        ) as directory,
+        pytest.MonkeyPatch.context() as monkeypatch,
+    ):
+        workspace = Path(directory) / "workspace"
+        shutil.copytree(h_template.workspace, workspace)
+        board = copy.deepcopy(h_template.board)
+        _h_patch(monkeypatch, workspace, board)
+        stage = workspace / H_STAGE
+        harness = SimpleNamespace(
+            workspace=workspace,
+            stage=stage,
+            board=board,
+            run=lambda *options: release.main(["--stage-dir", str(stage), *options]),
+        )
+        _h_frozen_for_finalize(harness, monkeypatch)
+        for name in changed:
+            path = workspace / name
+            if name == H_TIMING:
+                _h_publication_check(harness)
+            elif name == H_WEB:
+                continue
+            elif name == H_WEB_STYLE:
+                path.unlink()
+            else:
+                path.write_bytes(path.read_bytes() + b"\n")
+        if H_WEB in changed:
+            shutil.rmtree(workspace / H_WEB)
+        elif changed & {H_PDF, H_WEB_INDEX, H_WEB_STYLE}:
+            freezer.repin_rendered_paper_artifacts()
+        receipt_path = stage / "release-ready.json"
+        before = receipt_path.read_bytes()
+        allowed = {H_TIMING, H_MANIFEST, H_PDF, H_WEB, H_WEB_INDEX, H_WEB_STYLE}
+        # A removed web directory also fails the served-bundle existence gate.
+        expected = changed <= allowed and H_WEB not in changed
+        try:
+            harness.run("--finalize")
+        except SystemExit:
+            assert not expected, sorted(changed)
+            assert receipt_path.read_bytes() == before
+        else:
+            assert expected, sorted(changed)
+            receipt = _h_json(receipt_path)
+            release.verify_repository_inputs(receipt)
+            finalized = receipt_path.read_bytes()
+            harness.run("--finalize")
+            assert receipt_path.read_bytes() == finalized
 
 
 def _h_pointer(stage: Path) -> dict:
