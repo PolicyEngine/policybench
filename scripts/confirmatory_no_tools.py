@@ -617,6 +617,8 @@ class Stage:
             # SIGINT/SIGTERM handlers never raise, so production waits are not
             # interrupted by them. Tolerant waits defend against exceptions from
             # elsewhere (for example a test SIGUSR1 handler raising KeyboardInterrupt).
+            # Python cannot shield the instructions before these calls: another
+            # handler that raises there escapes without the wait.
             stop_admission()
             self._wait_for_workers()
             raise
@@ -649,11 +651,13 @@ class Stage:
                                 shutdown_error = error
             if failure is None and shutdown_error is not None:
                 stop_admission()
+            # Restore the handlers first: until then a signal still writes to
+            # write_fd, whose number a closed pipe could hand to another file.
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
             for fd in (read_fd, write_fd):
                 if fd is not None:
                     os.close(fd)
-            for sig, handler in previous.items():
-                signal.signal(sig, handler)
             self.close()
             if failure is None and shutdown_error is not None:
                 raise shutdown_error
