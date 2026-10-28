@@ -6,14 +6,22 @@ A replaced final is moved byte for byte into ``households/attempts`` before
 its rerun; the final links every archive by number, hash, status and reason.
 Re-invocation resumes solely from those files and is an operator's approval
 to rerun a paused account failure. Native harness resume is never used.
-An archive move or attempt is admitted when it takes the admission lock and
-commits before the first signal handler finishes; everything else is refused.
-The lock covers only an interruption check and a rename or an admission state
-change. Admitted attempts finish and save outside the admission lock.
-Exceptional shutdown interrupts and joins all started workers before restoring
-signal handlers or releasing the invocation lock. A second signal immediately
-uses a nonblocking stderr write and exits, losing every active unsaved attempt
-and its spend; saved finals and archives survive.
+An archive move or attempt is admitted when its interruption check and commit
+under the admission lock precede the watcher setting the interrupt under that
+same lock. After that interrupt is set, no archive move or attempt is admitted.
+The lock covers only the check and rename or admission state change; admitted
+attempts finish and save outside it. The first SIGINT or SIGTERM only records
+its number and wakes the watcher through a nonblocking pipe. The handler takes
+no lock and raises nothing. The watcher sets the interrupt, releases admission,
+and then announces that attempts already admitted will finish and save.
+An exception escaping execute interrupts and waits for script-owned worker
+completion events before restoring handlers or releasing the invocation lock.
+An exception caught in a model thread instead marks that model error without
+setting the interrupt. A second signal immediately uses a nonblocking stderr
+write and exits, losing every unsaved attempt then under way with its spend;
+saved finals, archives and their recorded spend survive. Any signal before
+handler restoration requires exit 1 on graceful completion, even if every
+worker completed.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ import re
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 # confirmatory_run pins the harness and policybench to this checkout.
@@ -44,6 +53,7 @@ from confirmatory_run import (
 )
 
 NO_TOOLS_CAP = 5.0
+START_GRACE_SECONDS = 10
 
 
 class StateError(ValueError):
@@ -525,54 +535,189 @@ class Stage:
 
     def execute(self) -> int:
         previous = {}
-        first_signal_seen = False
+        signals = []
+        closing = False
+        watcher = None
+        watcher_done = threading.Event()
+        watcher_began = threading.Event()
+        watcher_started = False
+        failure = None
+        read_fd = write_fd = None
+        self._started_workers = []
+        self._starting_worker = None
+        self._worker_began = {}
+        self._worker_done = {}
+
+        def wake_watcher():
+            try:
+                os.write(write_fd, b"!")
+            except OSError:
+                pass
 
         def interrupt(signum, frame):
-            nonlocal first_signal_seen
-            if first_signal_seen:
+            signals.append(signum)
+            if len(signals) >= 2:
                 try:
                     os.set_blocking(2, False)
                     os.write(
                         2,
-                        b"Forced interruption: every attempt under way, and its spend, "
-                        b"are lost; saved finals and archives survive.\n",
+                        b"Forced interruption: every unsaved attempt then under way "
+                        b"is lost, with its spend; saved finals, archives and the "
+                        b"spend they record survive.\n",
                     )
                 except OSError:
                     pass
                 os._exit(128 + signum)
-            first_signal_seen = True
-            with self._admission_lock:
-                self.interrupted.set()
-            self.say("Interrupted: attempts under way will finish and save.")
+            wake_watcher()
+
+        def stop_admission():
+            while True:
+                try:
+                    with self._admission_lock:
+                        self.interrupted.set()
+                    return
+                except BaseException:
+                    continue
+
+        def watch_signals():
+            watcher_began.set()
+            notified = False
+            try:
+                if closing:
+                    return
+                while True:
+                    os.read(read_fd, 1)
+                    if closing:
+                        return
+                    if signals and not notified:
+                        with self._admission_lock:
+                            self.interrupted.set()
+                        notified = True
+                        self.say(
+                            "Interrupted: attempts already admitted "
+                            "will finish and save."
+                        )
+            finally:
+                watcher_done.set()
 
         try:
+            read_fd, write_fd = os.pipe()
+            os.set_blocking(write_fd, False)
             if threading.current_thread() is threading.main_thread():
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     previous[sig] = signal.signal(sig, interrupt)
-            return self._execute()
-        except BaseException:
-            # The main thread must remain outside admission here: a first signal
-            # can interrupt cleanup and its handler must take that same lock.
-            self.interrupted.set()
-            for thread in self._threads:
-                if thread.ident is not None:
-                    thread.join()
+            watcher = threading.Thread(
+                target=watch_signals, name="no-tools-signal-watcher"
+            )
+            watcher.start()
+            watcher_started = True
+            result = self._execute()
+        except BaseException as error:
+            failure = error
+            # SIGINT/SIGTERM handlers never raise, so production waits are not
+            # interrupted by them. Tolerant waits defend against exceptions from
+            # elsewhere (for example a test SIGUSR1 handler raising KeyboardInterrupt).
+            stop_admission()
+            self._wait_for_workers()
             raise
         finally:
+            closing = True
+            if write_fd is not None:
+                wake_watcher()
+            shutdown_error = None
+            if watcher is not None:
+                # start() can raise after native startup, even before ident is set.
+                # A watcher beginning after grace sees closing before reading a pipe.
+                deadline = time.monotonic() + START_GRACE_SECONDS
+                while not watcher_started and not watcher_began.is_set():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    try:
+                        watcher_began.wait(remaining)
+                    except BaseException as error:
+                        if shutdown_error is None:
+                            shutdown_error = error
+                if watcher_started or watcher_began.is_set():
+                    while True:
+                        try:
+                            watcher_done.wait()
+                            watcher.join()
+                            break
+                        except BaseException as error:
+                            if shutdown_error is None:
+                                shutdown_error = error
+            if failure is None and shutdown_error is not None:
+                stop_admission()
+            for fd in (read_fd, write_fd):
+                if fd is not None:
+                    os.close(fd)
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
             self.close()
+            if failure is None and shutdown_error is not None:
+                raise shutdown_error
+        return 1 if signals else result
+
+    def _wait_for_workers(self) -> None:
+        """Retain protection through completion despite exceptional wait interruptions.
+
+        The installed SIGINT and SIGTERM handlers never raise. These tolerant
+        waits defend against an exception from elsewhere, such as a test-only
+        SIGUSR1 handler that raises KeyboardInterrupt, and preserve the original
+        exception escaping execute.
+        """
+        workers = list(self._started_workers)
+        starting = self._starting_worker
+        if starting is not None and starting not in workers:
+            model = self.models[self._threads.index(starting)]
+            deadline = time.monotonic() + START_GRACE_SECONDS
+            while not self._worker_began[model].is_set():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    self._worker_began[model].wait(remaining)
+                except BaseException:
+                    continue
+            if self._worker_began[model].is_set():
+                workers.append(starting)
+        for thread in workers:
+            model = self.models[self._threads.index(thread)]
+            while True:
+                try:
+                    self._worker_done[model].wait()
+                    thread.join()
+                    break
+                except BaseException:
+                    continue
+
+    def _run_worker(self, model: str) -> None:
+        self._worker_began[model].set()
+        try:
+            if self.interrupted.is_set():
+                self.states[model] = "interrupted"
+                return
+            self.run_model(model)
+        finally:
+            self._worker_done[model].set()
 
     def _execute(self) -> int:
+        self._worker_began = {model: threading.Event() for model in self.models}
+        self._worker_done = {model: threading.Event() for model in self.models}
         self._threads = [
             threading.Thread(
-                target=self.run_model, args=(model,), name=f"no-tools-{model}"
+                target=self._run_worker, args=(model,), name=f"no-tools-{model}"
             )
             for model in self.models
         ]
         for thread in self._threads:
+            self._starting_worker = thread
             thread.start()
-        for thread in self._threads:
+            self._started_workers.append(thread)
+            self._starting_worker = None
+        for model, thread in zip(self.models, self._threads):
+            self._worker_done[model].wait()
             thread.join()
         for model in self.models:
             self.say(f"{model}: {self.states[model]}")

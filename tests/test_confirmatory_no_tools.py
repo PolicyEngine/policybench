@@ -445,42 +445,48 @@ def test_dry_run_marks_harness_and_budget_finals_as_blocked(
     assert f"h2:blocked {expected} at attempt 1" in resumed.out.getvalue()
 
 
-def test_sigint_finishes_saves_and_stops_before_the_next_household(setup):
-    calls = []
-    saved_handlers = {
-        sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
-    }
-    continued = threading.Event()
+def test_sigint_finishes_saves_and_stops_before_the_next_household(setup, tmp_path):
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        "finish_admitted_attempt",
+        r"""
+        calls = []
+        saved_handlers = {
+            sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+        }
 
-    def interrupted(scenario, variables, tool_call, completion, spend, *, profile):
-        calls.append(scenario.id)
-        spend.add(0.17)
-        if scenario.id == "h2":
-            os.kill(os.getpid(), signal.SIGINT)
-            continued.wait(0.05)
-        return record(scenario.id, profile, cost=0.17)
 
-    plan = stage(setup, interrupted, models=[nt.CHEAP[0]])
-    try:
+        def interrupted(
+            scenario, variables, tool_call, completion, spend, *, profile
+        ):
+            calls.append(scenario.id)
+            spend.add(0.17)
+            if scenario.id == "h2":
+                os.kill(os.getpid(), signal.SIGINT)
+                assert plan.interrupted.wait(30), (
+                    "SIGINT must set the interruption event"
+                )
+            return record(scenario.id, profile, cost=0.17)
+
+
+        plan = stage(setup, interrupted, models=[nt.CHEAP[0]])
         result = plan.execute()
-    except KeyboardInterrupt:
-        # Let the old implementation's uncoordinated worker finish before the
-        # regression assertion, so a red run leaves no worker behind.
-        continued.set()
-        for worker in threading.enumerate():
-            if worker.name.startswith("no-tools-"):
-                worker.join(timeout=30)
-        result = 0
-    assert result != 0, "SIGINT must give a coordinated nonzero exit"
-    assert calls == ["h2"]
-    assert load(final(plan))["totals"]["cost_usd"] == 0.17
-    assert plan.states[nt.CHEAP[0]] == "interrupted"
-    assert not plan.stopped.is_set(), "interrupts must preserve the budget event"
-    assert not final(plan, sid="h1").exists()
-    assert all(
-        signal.getsignal(sig) == handler for sig, handler in saved_handlers.items()
+        assert result != 0, "SIGINT must give a coordinated nonzero exit"
+        assert calls == ["h2"]
+        assert load(final(plan))["totals"]["cost_usd"] == 0.17
+        assert plan.states[nt.CHEAP[0]] == "interrupted"
+        assert not plan.stopped.is_set(), (
+            "interrupts must preserve the budget event"
+        )
+        assert not final(plan, sid="h1").exists()
+        assert all(
+            signal.getsignal(sig) == handler
+            for sig, handler in saved_handlers.items()
+        )
+        assert "finish and save" in plan.out.getvalue()
+        """,
     )
-    assert "finish and save" in plan.out.getvalue()
 
 
 def test_stage_lock_refuses_a_second_invocation_and_releases_after_dry_run(setup):
@@ -662,110 +668,146 @@ def track_interrupt_return(monkeypatch):
 
 @pytest.mark.parametrize("boundary", ["archive", "attempt"])
 def test_signal_between_check_and_action_refuses_new_admission(
-    setup, monkeypatch, boundary
+    setup, tmp_path, boundary
 ):
-    """R1: a real SIGINT returns before the proposed action reaches admission."""
-    if boundary == "archive":
-        paused(setup)
-    provider = Provider()
-    plan = stage(setup, provider, models=[nt.CHEAP[0]])
-    returned = track_interrupt_return(monkeypatch)
+    """R1: the watcher interrupts before the proposed action reaches admission."""
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        f"refuse_{boundary}_admission",
+        f"        boundary = {boundary!r}\n"
+        + r"""
+        if boundary == "archive":
+            paused(setup)
+        provider = Provider()
+        plan = stage(setup, provider, models=[nt.CHEAP[0]])
+        returned = track_interrupt_return(monkeypatch)
 
-    def signal_and_wait():
-        os.kill(os.getpid(), signal.SIGINT)
-        assert returned.wait(timeout=10), "the signal handler must finish"
 
-    if boundary == "archive":
-        original = plan.archive
+        def signal_and_wait():
+            os.kill(os.getpid(), signal.SIGINT)
+            assert returned.wait(30), "the signal handler must finish"
+            assert plan.interrupted.wait(30), (
+                "the watcher must set the interrupt before admission"
+            )
 
-        def archive(*args):
-            signal_and_wait()
-            return original(*args)
 
-        monkeypatch.setattr(plan, "archive", archive)
-    else:
-        original = nt.AttemptSpend
+        if boundary == "archive":
+            original = plan.archive
 
-        def attempt_spend(*args):
-            signal_and_wait()
-            return original(*args)
+            def archive(*args):
+                signal_and_wait()
+                return original(*args)
 
-        monkeypatch.setattr(nt, "AttemptSpend", attempt_spend)
-    assert plan.execute() == 1
-    assert returned.is_set()
-    assert provider.calls == [], "R1: no provider attempt begins after interruption"
-    archives = plan.households(nt.CHEAP[0]) / "attempts"
-    assert not list(archives.glob("*.json")), "R1: no archive moves after interruption"
+            monkeypatch.setattr(plan, "archive", archive)
+        else:
+            original = nt.AttemptSpend
+
+            def attempt_spend(*args):
+                signal_and_wait()
+                return original(*args)
+
+            monkeypatch.setattr(nt, "AttemptSpend", attempt_spend)
+        assert plan.execute() == 1
+        assert returned.is_set()
+        assert provider.calls == [], (
+            "R1: no provider attempt begins after interruption"
+        )
+        archives = plan.households(nt.CHEAP[0]) / "attempts"
+        assert not list(archives.glob("*.json")), (
+            "R1: no archive moves after interruption"
+        )
+        """,
+    )
 
 
 def test_failed_second_thread_start_keeps_invocation_lock_until_worker_finishes(
-    setup, monkeypatch
+    setup, tmp_path
 ):
     """R2: exceptional shutdown waits for every worker before closing its lock."""
-    entered, release, failed_start, closed = (threading.Event() for _ in range(4))
-    original_start = threading.Thread.start
-    original_close = nt.Stage.close
-    observed = {}
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        "failed_second_start",
+        r"""
+        import fcntl
 
-    def provider(scenario, variables, tool_call, completion, spend, *, profile):
-        entered.set()
-        assert release.wait(timeout=10)
-        return record(scenario.id, profile)
+        entered, release, failed_start, closed = (
+            threading.Event() for _ in range(4)
+        )
+        original_start = threading.Thread.start
+        original_close = nt.Stage.close
+        observed = {}
 
-    plan = stage(setup, provider)
 
-    def start(thread):
-        if thread.name == f"no-tools-{nt.CHEAP[1]}":
-            assert entered.wait(timeout=10)
-            failed_start.set()
-            raise RuntimeError("synthetic second thread start failure")
-        return original_start(thread)
+        def provider(scenario, variables, tool_call, completion, spend, *, profile):
+            entered.set()
+            assert release.wait(timeout=30)
+            return record(scenario.id, profile)
 
-    def close(current):
-        original_close(current)
-        if current is plan:
-            closed.set()
 
-    def observe():
-        assert failed_start.wait(timeout=10)
-        observed["closed_while_live"] = closed.wait(timeout=0.2)
-        lock = (plan.root / ".confirmatory-no-tools.lock").open("a")
-        try:
-            import fcntl
+        plan = stage(setup, provider)
+        monkeypatch.setattr(nt, "START_GRACE_SECONDS", 0.05, raising=False)
 
+
+        def start(thread):
+            if thread.name == f"no-tools-{nt.CHEAP[1]}":
+                assert entered.wait(timeout=30)
+                failed_start.set()
+                raise RuntimeError("synthetic second thread start failure")
+            return original_start(thread)
+
+
+        def close(current):
+            original_close(current)
+            if current is plan:
+                closed.set()
+
+
+        def observe():
+            assert failed_start.wait(timeout=30)
+            observed["closed_while_live"] = closed.wait(timeout=0.2)
+            lock = (plan.root / ".confirmatory-no-tools.lock").open("a")
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                observed["held"] = True
-            else:
-                observed["held"] = False
-        finally:
-            lock.close()
-            release.set()
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    observed["held"] = True
+                else:
+                    observed["held"] = False
+            finally:
+                lock.close()
+                release.set()
 
-    watcher = threading.Thread(target=observe)
-    watcher.start()
-    monkeypatch.setattr(threading.Thread, "start", start)
-    monkeypatch.setattr(nt.Stage, "close", close)
-    try:
-        with pytest.raises(RuntimeError, match="second thread start"):
-            plan.execute()
-    finally:
-        release.set()
-        watcher.join(timeout=10)
-        for worker in threading.enumerate():
-            if worker.name.startswith("no-tools-"):
-                worker.join(timeout=10)
-    assert observed["held"], "R2: a live worker must retain the invocation lock"
-    assert not observed["closed_while_live"], "R2: cleanup joins before unlocking"
-    assert plan.interrupted.is_set(), "R2: exceptional shutdown refuses further work"
-    assert plan._lock_file is None
+
+        watcher = threading.Thread(target=observe)
+        watcher.start()
+        monkeypatch.setattr(threading.Thread, "start", start)
+        monkeypatch.setattr(nt.Stage, "close", close)
+        try:
+            with pytest.raises(RuntimeError, match="second thread start"):
+                plan.execute()
+        finally:
+            release.set()
+            watcher.join(timeout=30)
+        assert not watcher.is_alive(), "R2: independent lock probe finishes"
+        assert observed["held"], "R2: a live worker must retain the invocation lock"
+        assert not observed["closed_while_live"], (
+            "R2: cleanup joins before unlocking"
+        )
+        assert plan.interrupted.is_set(), (
+            "R2: exceptional shutdown refuses further work"
+        )
+        assert plan._lock_file is None
+        assert load(final(plan))["status"] == "complete", (
+            "R2: admitted worker saves before cleanup returns"
+        )
+        """,
+    )
 
 
 def test_second_signal_exits_while_output_lock_is_held(setup, tmp_path):
     """R4: forced termination is independent of the worker-shared output lock."""
-    import select
-    import subprocess
     import textwrap
 
     probe = tmp_path / "forced_exit.py"
@@ -802,7 +844,7 @@ def test_second_signal_exits_while_output_lock_is_held(setup, tmp_path):
             assert held.wait(10)
             os.write(1, b'ready\\n')
             os.kill(os.getpid(), signal.SIGINT)
-            time.sleep(0.1)
+            assert plan.interrupted.wait(30)
             os.kill(os.getpid(), signal.SIGTERM)
 
         threading.Thread(target=signals, daemon=True).start()
@@ -814,28 +856,17 @@ def test_second_signal_exits_while_output_lock_is_held(setup, tmp_path):
     env["PYTHONPATH"] = os.pathsep.join(
         [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
     )
-    process = subprocess.Popen(
-        [sys.executable, str(probe), json.dumps(setup["design"])],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"])],
         env=env,
+        ready_marker=b"ready\n",
     )
-    try:
-        ready, _, _ = select.select([process.stdout], [], [], 90)
-        assert ready, "R4: subprocess must reach output contention before signals"
-        assert process.stdout.readline() == b"ready\n"
-        stdout, stderr = process.communicate(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        stdout, stderr = process.communicate()
-        pytest.fail("R4: the second signal blocked on the held output lock")
-    finally:
-        if process.poll() is None:
-            process.kill()
-            process.communicate()
-    assert process.returncode == 128 + signal.SIGTERM, (stdout, stderr)
-    assert b"every attempt under way" in stderr
-    assert b"saved finals and archives survive" in stderr
+    stdout, stderr = result.stdout, result.stderr
+    assert b"ready\n" in stdout, (stdout, stderr)
+    assert result.returncode == 128 + signal.SIGTERM, (stdout, stderr)
+    assert b"every unsaved attempt then under way is lost, with its spend" in stderr
+    assert b"saved finals, archives and the spend they record survive" in stderr
 
 
 @pytest.mark.parametrize("category", ["optional", "outside-draw"])
@@ -877,3 +908,1182 @@ def test_baseline_schema_is_usable_before_any_provider_call(setup, payload):
             plan.close()
     finally:
         assert provider.calls == [], "R5: schema checks precede provider calls"
+
+
+def run_no_tools_probe(setup, tmp_path, name, body):
+    """Bound a signal or worker-shutdown regression to its own process."""
+    import textwrap
+
+    prelude = r"""
+    import io
+    import json
+    import os
+    import runpy
+    import signal
+    import sys
+    import threading
+    from types import SimpleNamespace
+    import pytest
+
+    helpers = runpy.run_path(sys.argv[2])
+    for helper in (
+        "nt",
+        "record",
+        "Provider",
+        "stage",
+        "final",
+        "load",
+        "paused",
+        "track_interrupt_return",
+    ):
+        globals()[helper] = helpers[helper]
+    design = json.loads(sys.argv[1])
+    setup = {
+        "design": design,
+        "board": {
+            "scenarios": {
+                sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+            },
+            "variables": {sid: ["snap"] for sid in design["draw_order"]},
+        },
+    }
+    monkeypatch = pytest.MonkeyPatch()
+    """
+    probe = tmp_path / f"{name}.py"
+    probe.write_text(textwrap.dedent(prelude) + "\n" + textwrap.dedent(body))
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"]), str(Path(__file__))],
+        env=env,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+
+def _run_cleanup_regression(setup, tmp_path, case):
+    """Run every exceptional-cleanup signal probe behind a process deadline."""
+    import textwrap
+
+    probe = tmp_path / "cleanup_regression.py"
+    probe.write_text(
+        textwrap.dedent(r"""
+        import io
+        import json
+        import os
+        import signal
+        import subprocess
+        import sys
+        import threading
+        import time
+        from types import SimpleNamespace
+        import confirmatory_no_tools as nt
+
+        nt.pilot.model_profile(
+            nt.CHEAP[0], arm="none", prompt_version=nt.PROMPT_VERSION
+        )
+        print("cleanup-regression-ready", flush=True)
+        design, case = json.loads(sys.argv[1]), sys.argv[2]
+        board = {
+            "scenarios": {
+                sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+            },
+            "variables": {sid: ["snap"] for sid in design["draw_order"]},
+        }
+        model = nt.CHEAP[0]
+        entered, release, saved, worker_returned = (
+            threading.Event() for _ in range(4)
+        )
+        cleanup_entered, closed = threading.Event(), threading.Event()
+        handler_returned = threading.Event()
+        order, observed, calls = [], {}, []
+        original_handlers = {
+            sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)
+        }
+        original_start = threading.Thread.start
+        original_signal = signal.signal
+        original_close = nt.Stage.close
+        original_write = nt.write_json
+        main_ident = threading.get_ident()
+        nt.START_GRACE_SECONDS = 0.05
+
+
+        def provider(scenario, variables, tool_call, completion, spend, *, profile):
+            calls.append((profile.name, scenario.id))
+            entered.set()
+            assert release.wait(20), "cleanup rule: release the admitted worker"
+            spend.add(0.1)
+            return {
+                "scenario_id": scenario.id,
+                "model": profile.name,
+                "arm": profile.arm,
+                "status": "complete",
+                "error": None,
+                "turns": [{"model": profile.model_id}],
+                "predictions": {"snap": 1},
+                "totals": {"cost_usd": 0.1},
+            }
+
+
+        models = list(nt.CHEAP[:2]) if case == "condition-signal" else [model]
+        plan = nt.Stage(
+            design,
+            models=models,
+            board=board,
+            run_household=provider,
+            completion_for=lambda profile: None,
+            out=io.StringIO(),
+        )
+        original_model = plan.run_model
+
+
+        def run_model(name):
+            try:
+                return original_model(name)
+            finally:
+                worker_returned.set()
+
+
+        plan.run_model = run_model
+
+
+        def write(path, payload, *args, **kwargs):
+            result = original_write(path, payload, *args, **kwargs)
+            if path == plan.households(model) / "h2.json":
+                order.append("saved")
+                saved.set()
+            return result
+
+
+        nt.write_json = write
+
+
+        def close(current):
+            if current is plan and current._lock_file is not None:
+                order.append("close")
+                closed.set()
+            return original_close(current)
+
+
+        nt.Stage.close = close
+
+
+        def register(sig, handler):
+            if sig in original_handlers and handler == original_handlers[sig]:
+                order.append("restore:" + signal.Signals(sig).name)
+            elif sig in original_handlers and callable(handler):
+                original = handler
+
+                def tracked(signum, frame):
+                    original(signum, frame)
+                    handler_returned.set()
+
+                handler = tracked
+            return original_signal(sig, handler)
+
+
+        signal.signal = register
+
+
+        def lock_held():
+            # A separate process opens the lock independently of the worker.
+            probe = (
+                "import fcntl,sys; f=open(sys.argv[1],'a'); "
+                "\ntry: fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: print('held')"
+                "\nelse: print('released')"
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    probe,
+                    str(plan.root / ".confirmatory-no-tools.lock"),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            return result.stdout.strip() == "held"
+
+
+        if case == "condition-signal":
+
+            class InterruptInsideSet(threading.Event):
+                def set(self):
+                    if threading.get_ident() == main_ident and not hasattr(
+                        self, "injected"
+                    ):
+                        self.injected = True
+                        with self._cond:
+                            cleanup_entered.set()
+                            os.kill(os.getpid(), signal.SIGINT)
+                            assert handler_returned.wait(10), (
+                                "cleanup rule: handler returns inside Event.set"
+                            )
+                            self._flag = True
+                            self._cond.notify_all()
+                        return
+                    super().set()
+
+            plan.interrupted = InterruptInsideSet()
+
+            def start(thread):
+                if thread.name == "no-tools-" + nt.CHEAP[1]:
+                    assert entered.wait(10)
+                    raise RuntimeError("synthetic second start failure")
+                return original_start(thread)
+
+            def observe():
+                assert cleanup_entered.wait(10)
+                assert handler_returned.wait(10)
+                observed["held"] = lock_held()
+                observed["closed_while_live"] = closed.is_set()
+                release.set()
+
+            actor = threading.Thread(target=observe, daemon=True)
+            actor.start()
+            threading.Thread.start = start
+            try:
+                plan.execute()
+            except RuntimeError as error:
+                assert str(error) == "synthetic second start failure"
+                observed["propagated"] = True
+                propagated_error = error
+            else:
+                raise AssertionError(
+                    "cleanup rule: original start exception propagates"
+                )
+            actor.join(10)
+            assert handler_returned.is_set(), (
+                "cleanup rule: SIGINT handler returns inside Event.set"
+            )
+            assert observed.get("held"), (
+                "cleanup rule: invocation lock survives Event.set signal"
+            )
+            assert not observed.get("closed_while_live"), (
+                "cleanup rule: admitted worker saves before close"
+            )
+            assert plan.interrupted.is_set()
+
+        elif case in ("join-once", "join-twice"):
+            raised = []
+            original_set = plan.interrupted.set
+
+            def interrupt_cleanup():
+                cleanup_entered.set()
+                return original_set()
+
+            plan.interrupted.set = interrupt_cleanup
+
+            def injected(sig, frame):
+                raised.append(len(raised) + 1)
+                raise KeyboardInterrupt(
+                    "synthetic wait interruption " + str(len(raised))
+                )
+
+            signal.signal(signal.SIGUSR1, injected)
+
+            def main_in_worker_wait():
+                frame = sys._current_frames().get(main_ident)
+                while frame is not None:
+                    if frame.f_code.co_name == "_wait_for_tstate_lock":
+                        return True
+                    if frame.f_code.co_name == "wait":
+                        event = frame.f_locals.get("self")
+                        if event in getattr(plan, "_worker_done", {}).values():
+                            return True
+                    frame = frame.f_back
+                return False
+
+            def await_wait(cleanup=False):
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    if closed.is_set():
+                        return False
+                    if (
+                        not cleanup or cleanup_entered.is_set()
+                    ) and main_in_worker_wait():
+                        return True
+                    time.sleep(0.001)
+                return False
+
+            def observe():
+                assert entered.wait(10)
+                assert await_wait(), (
+                    "cleanup rule: main thread reaches a worker wait"
+                )
+                os.kill(os.getpid(), signal.SIGUSR1)
+                if case == "join-twice":
+                    if await_wait(cleanup=True):
+                        os.kill(os.getpid(), signal.SIGUSR1)
+                # The original implementation closes early after poisoning Thread's
+                # tstate lock. Give it that opportunity while the provider is held.
+                observed["closed_while_live"] = closed.wait(0.1)
+                observed["held"] = lock_held()
+                release.set()
+
+            actor = threading.Thread(target=observe, daemon=True)
+            actor.start()
+            try:
+                plan.execute()
+            except KeyboardInterrupt as error:
+                observed["exception"] = str(error)
+                order.append("propagated")
+            else:
+                raise AssertionError("cleanup rule: wait exception must propagate")
+            finally:
+                release.set()
+            actor.join(15)
+            assert worker_returned.wait(10), (
+                "cleanup rule: worker finishes after injected wait exception"
+            )
+            assert observed.get("exception") == "synthetic wait interruption 1", (
+                "cleanup rule: preserve original exception"
+            )
+            expected = 2 if case == "join-twice" else 1
+            assert len(raised) == expected, (
+                "cleanup rule: repeat interruption exercises cleanup wait"
+            )
+            assert not observed.get("closed_while_live"), (
+                "cleanup rule: close waits for worker done"
+            )
+            assert observed.get("held"), (
+                "cleanup rule: invocation lock stays held through worker done"
+            )
+
+        elif case in ("start-after", "start-before"):
+
+            def start(thread):
+                if thread.name == "no-tools-" + model:
+                    if case == "start-after":
+                        original_start(thread)
+                        assert entered.wait(10)
+                    raise RuntimeError("synthetic start interruption")
+                return original_start(thread)
+
+            def observe():
+                assert entered.wait(10)
+                observed["closed_while_live"] = closed.wait(0.1)
+                observed["held"] = lock_held()
+                release.set()
+
+            actor = None
+            if case == "start-after":
+                actor = threading.Thread(target=observe, daemon=True)
+                actor.start()
+            threading.Thread.start = start
+            began = time.monotonic()
+            try:
+                plan.execute()
+            except RuntimeError as error:
+                observed["exception"] = str(error)
+                order.append("propagated")
+            else:
+                raise AssertionError(
+                    "cleanup rule: failed start exception must propagate"
+                )
+            if actor is not None:
+                actor.join(15)
+                assert not observed.get("closed_while_live"), (
+                    "cleanup rule: partially started worker saves before close"
+                )
+                assert observed.get("held"), (
+                    "cleanup rule: partially started worker retains invocation lock"
+                )
+            else:
+                elapsed = time.monotonic() - began
+                assert elapsed >= nt.START_GRACE_SECONDS * 0.9, (
+                    "cleanup rule: unstarted worker receives start grace"
+                )
+                assert not calls and not entered.is_set(), (
+                    "cleanup rule: failed native start touches no worker files"
+                )
+                assert not list(
+                    plan.root.glob("*/none/confirmatory/households/*.json")
+                )
+            assert observed.get("exception") == "synthetic start interruption"
+
+        else:
+            raise AssertionError(case)
+
+        if case != "start-before":
+            assert saved.is_set(), "cleanup rule: admitted worker saves its final"
+            assert order.index("saved") < order.index("close"), (
+                "cleanup rule: save precedes close"
+            )
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                assert order.index("saved") < order.index(
+                    "restore:" + signal.Signals(sig).name
+                ), "cleanup rule: save precedes handler restoration"
+        assert plan._lock_file is None, (
+            "cleanup rule: invocation lock eventually closes"
+        )
+        assert all(
+            signal.getsignal(sig) == old for sig, old in original_handlers.items()
+        ), "cleanup rule: handlers eventually restore"
+        print(json.dumps({"case": case, "order": order, "observed": observed}))
+        if case == "condition-signal":
+            raise propagated_error
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"]), case],
+        env=env,
+        ready_marker=b"cleanup-regression-ready\n",
+        text=True,
+    )
+    assert "cleanup-regression-ready\n" in result.stdout, (
+        "cleanup rule: subprocess reaches readiness",
+        result.stdout,
+        result.stderr,
+    )
+    assert result.returncode == (1 if case == "condition-signal" else 0), (
+        result.stdout,
+        result.stderr,
+    )
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def test_signal_inside_cleanup_event_condition_keeps_worker_protected(setup, tmp_path):
+    """R10.1: a real signal inside Event.set cannot reenter its condition lock."""
+    result = _run_cleanup_regression(setup, tmp_path, "condition-signal")
+    assert result["observed"]["propagated"]
+
+
+@pytest.mark.parametrize("case", ["join-once", "join-twice"])
+def test_wait_exceptions_preserve_worker_completion_and_original_exception(
+    setup, tmp_path, case
+):
+    """R10.2: real SIGUSR1 exceptions cannot release protection before done."""
+    _run_cleanup_regression(setup, tmp_path, case)
+
+
+@pytest.mark.parametrize("case", ["start-after", "start-before"])
+def test_raised_start_tracks_native_worker_or_waits_start_grace(setup, tmp_path, case):
+    """R10.2: a raised start has a completion event and bounded began grace."""
+    _run_cleanup_regression(setup, tmp_path, case)
+
+
+def admission_probe(setup, tmp_path, boundary, force):
+    """Exercise real signals behind a paused admission in a bounded subprocess."""
+    import textwrap
+
+    if boundary == "archive":
+        paused(setup)
+    probe = tmp_path / "admission_probe.py"
+    probe.write_text(
+        textwrap.dedent(r"""
+        import io
+        import json
+        import os
+        import signal
+        import sys
+        import threading
+        import traceback
+        from pathlib import Path
+        from types import SimpleNamespace
+        import confirmatory_no_tools as nt
+
+        design = json.loads(sys.argv[1])
+        boundary, force = sys.argv[2], sys.argv[3] == "force"
+        board = {
+            "scenarios": {
+                sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+            },
+            "variables": {sid: ["snap"] for sid in design["draw_order"]},
+        }
+        entered, release, returned, watcher_ready, committed = (
+            threading.Event() for _ in range(5)
+        )
+        errors, calls, order = [], [], []
+        plan = None
+
+
+        class AdmissionLock:
+            def __init__(self):
+                self.lock = threading.Lock()
+
+            def __enter__(self):
+                if threading.current_thread().name == "no-tools-signal-watcher":
+                    watcher_ready.set()
+                self.lock.acquire()
+                return self
+
+            def __exit__(self, *exc):
+                self.lock.release()
+
+            def locked(self):
+                return self.lock.locked()
+
+
+        class InterruptEvent(threading.Event):
+            def set(self):
+                order.append("interrupt")
+                super().set()
+                watcher_ready.set()
+
+
+        def provider(scenario, variables, tool_call, completion, spend, *, profile):
+            calls.append(scenario.id)
+            assert plan.interrupted.wait(20), "R3: watcher eventually interrupts"
+            spend.add(0.1)
+            return {
+                "scenario_id": scenario.id,
+                "model": profile.name,
+                "arm": profile.arm,
+                "status": "complete",
+                "error": None,
+                "turns": [{"model": profile.model_id}],
+                "predictions": {"snap": 1},
+                "totals": {"cost_usd": 0.1},
+            }
+
+
+        def completion(profile):
+            if boundary == "archive":
+                assert plan.interrupted.wait(20), (
+                    "R3: archive finishes before another attempt"
+                )
+            return None
+
+
+        plan = nt.Stage(
+            design,
+            models=[nt.CHEAP[0]],
+            board=board,
+            run_household=provider,
+            completion_for=completion,
+            out=io.StringIO(),
+        )
+        plan.interrupted = InterruptEvent()
+        plan._admission_lock = AdmissionLock()
+        original_say = plan.say
+
+
+        def say(text):
+            if text.startswith("Interrupted:"):
+                assert plan.interrupted.is_set(), "R3: message follows interruption"
+                assert committed.is_set(), (
+                    "R3: admitted commit precedes interruption message"
+                )
+                order.append("message")
+            original_say(text)
+
+
+        plan.say = say
+        original_signal = signal.signal
+
+
+        def install(signum, handler):
+            if callable(handler) and handler.__name__ == "interrupt":
+
+                def tracked(sig, frame):
+                    handler(sig, frame)
+                    returned.set()
+
+                return original_signal(signum, tracked)
+            return original_signal(signum, handler)
+
+
+        signal.signal = install
+
+
+        def pause_commit():
+            entered.set()
+            os.write(1, b"ready\n")
+            assert release.wait(20), "R3: paused admitted commit is released"
+
+
+        if boundary == "archive":
+            original_replace = nt.os.replace
+
+            def replace(source, target):
+                if Path(target).parent.name == "attempts":
+                    pause_commit()
+                    original_replace(source, target)
+                    order.append("commit")
+                    committed.set()
+                    return
+                return original_replace(source, target)
+
+            nt.os.replace = replace
+        else:
+
+            class Admitted(dict):
+                def __setitem__(self, key, value):
+                    pause_commit()
+                    super().__setitem__(key, value)
+                    order.append("commit")
+                    committed.set()
+
+            plan._admitted_attempts = Admitted()
+
+
+        def control():
+            try:
+                assert entered.wait(20), "R3: worker reaches the admission commit"
+                held_at_commit = plan._admission_lock.locked()
+                os.kill(os.getpid(), signal.SIGINT)
+                assert returned.wait(5), (
+                    "R3: first handler returns while worker holds admission lock"
+                )
+                assert held_at_commit, (
+                    "R3: worker holds the admission lock at its commit"
+                )
+                assert watcher_ready.wait(5), (
+                    "R3: watcher reaches the admission boundary"
+                )
+                assert not plan.interrupted.is_set(), (
+                    "R3: interrupt cannot precede admitted commit"
+                )
+                assert not committed.is_set(), (
+                    "R3: commit remains paused during first handler"
+                )
+                if force:
+                    os.write(1, b"handler-returned-watcher-waiting\n")
+                    os.kill(os.getpid(), signal.SIGINT)
+                    raise AssertionError("R3: forced exit returned")
+            except BaseException:
+                errors.append(traceback.format_exc())
+                if force:
+                    os.write(2, errors[-1].encode())
+                    os._exit(99)
+            finally:
+                if not force:
+                    release.set()
+
+
+        controller = threading.Thread(target=control, daemon=True)
+        controller.start()
+        result = plan.execute()
+        controller.join(20)
+        assert not errors, "\n".join(errors)
+        assert not controller.is_alive(), "R3: controller finishes"
+        assert result == 1, "R3: signalled run exits nonzero"
+        assert (
+            order.index("commit")
+            < order.index("interrupt")
+            < order.index("message")
+        ), order
+        assert plan.interrupted.is_set(), (
+            "R3: watcher sets interrupt after admitted commit"
+        )
+        households = plan.households(nt.CHEAP[0])
+        assert not (households / "h1.json").exists(), (
+            "R3: no later household is admitted"
+        )
+        if boundary == "archive":
+            assert calls == [], (
+                "R3: no attempt admitted after the watcher interrupts"
+            )
+            assert (households / "attempts/h2-1.json").exists(), (
+                "R3: admitted archive is saved"
+            )
+            assert not (households / "h2.json").exists(), (
+                "R3: refused next attempt has no final"
+            )
+            assert plan._admitted_attempts == {}, (
+                "R3: no subsequent attempt is admitted"
+            )
+        else:
+            assert calls == ["h2"], "R3: exactly the admitted attempt runs"
+            saved = json.loads((households / "h2.json").read_text())
+            assert saved["status"] == "complete", (
+                "R3: admitted attempt saves its final"
+            )
+            assert saved["totals"]["cost_usd"] == 0.1, (
+                "R3: admitted attempt saves spend"
+            )
+            assert len(plan._admitted_attempts) == 1, "R3: nothing else is admitted"
+        print(json.dumps({"order": order, "calls": calls}))
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"]), boundary, "force" if force else "finish"],
+        env=env,
+        ready_marker=b"ready\n",
+    )
+    assert b"ready\n" in result.stdout, (result.stdout, result.stderr)
+    return result.returncode, result.stdout, result.stderr
+
+
+@pytest.mark.parametrize("boundary", ["archive", "attempt"])
+def test_signal_waits_for_an_admission_commit_without_blocking_handler(
+    setup, tmp_path, boundary
+):
+    """R3: watcher interruption waits for commits admitted under the worker lock."""
+    code, stdout, stderr = admission_probe(setup, tmp_path, boundary, force=False)
+    assert code == 0, (stdout, stderr)
+
+
+@pytest.mark.parametrize("boundary", ["archive", "attempt"])
+def test_second_signal_forces_exit_while_watcher_waits_for_admission(
+    setup, tmp_path, boundary
+):
+    """R3: the forced path remains available while the watcher waits for admission."""
+    code, stdout, stderr = admission_probe(setup, tmp_path, boundary, force=True)
+    assert code == 128 + signal.SIGINT, (stdout, stderr)
+    assert b"handler-returned-watcher-waiting\n" in stdout
+    assert (
+        b"Forced interruption: every unsaved attempt then under way is lost, "
+        b"with its spend; saved finals, archives and the spend they record survive."
+    ) in stderr
+
+
+def test_signal_after_all_workers_complete_still_exits_one(setup, tmp_path):
+    """R4: a signal before handler restoration makes even a complete run fail."""
+    import textwrap
+
+    probe = tmp_path / "signal_after_workers.py"
+    probe.write_text(
+        textwrap.dedent(r"""
+        import io
+        import json
+        import os
+        import signal
+        import sys
+        from types import SimpleNamespace
+        import confirmatory_no_tools as nt
+
+        design = json.loads(sys.argv[1])
+        board = {
+            "scenarios": {
+                sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+            },
+            "variables": {sid: ["snap"] for sid in design["draw_order"]},
+        }
+        plan = nt.Stage(
+            design,
+            models=[nt.CHEAP[0]],
+            board=board,
+            completion_for=lambda profile: None,
+            out=io.StringIO(),
+        )
+
+
+        def complete(model):
+            plan.states[model] = "complete"
+
+
+        plan.run_model = complete
+        original_signal = signal.signal
+        previous = signal.getsignal(signal.SIGINT)
+        sent = False
+
+
+        def restore(sig, handler):
+            global sent
+            if not sent and sig == signal.SIGINT and handler == previous:
+                sent = True
+                os.kill(os.getpid(), signal.SIGINT)
+            return original_signal(sig, handler)
+
+
+        signal.signal = restore
+        assert plan.execute() == 1, (
+            "R4: signal arrival before restoration requires exit 1"
+        )
+        assert all(state == "complete" for state in plan.states.values())
+        assert sent, "R4: signal arrives after every worker completed"
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"])],
+        env=env,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+
+@pytest.mark.parametrize("during_grace", [True, False])
+def test_native_worker_without_ident_obeys_start_grace_and_entry_interrupt(
+    setup, tmp_path, during_grace
+):
+    """R10.2: native startup can precede ident and must never outlive file safety."""
+    import textwrap
+
+    probe = tmp_path / "native_start_regression.py"
+    probe.write_text(
+        textwrap.dedent(r"""
+        import io
+        import json
+        import os
+        import signal
+        import subprocess
+        import sys
+        import threading
+        import time
+        from types import SimpleNamespace
+        import confirmatory_no_tools as nt
+
+        nt.pilot.model_profile(
+            nt.CHEAP[0], arm="none", prompt_version=nt.PROMPT_VERSION
+        )
+        print("native-start-regression-ready", flush=True)
+        design = json.loads(sys.argv[1])
+        during_grace = sys.argv[2] == "True"
+        model = nt.CHEAP[0]
+        board = {
+            "scenarios": {
+                sid: SimpleNamespace(id=sid) for sid in design["draw_order"]
+            },
+            "variables": {sid: ["snap"] for sid in design["draw_order"]},
+        }
+        native_entered, bootstrap_release = threading.Event(), threading.Event()
+        cleanup_entered, closed, native_finished = (
+            threading.Event() for _ in range(3)
+        )
+        done_held, release_done = threading.Event(), threading.Event()
+        original_bootstrap = threading.Thread._bootstrap_inner
+        original_run = threading.Thread.run
+        original_close = nt.Stage.close
+        main_ident = threading.get_ident()
+        worker, calls, order, observed = [], [], [], {}
+        nt.START_GRACE_SECONDS = 10 if during_grace else 0.05
+
+
+        def provider(scenario, variables, tool_call, completion, spend, *, profile):
+            calls.append(scenario.id)
+            return {
+                "scenario_id": scenario.id,
+                "model": profile.name,
+                "arm": profile.arm,
+                "status": "complete",
+                "error": None,
+                "turns": [{"model": profile.model_id}],
+                "predictions": {"snap": 1},
+                "totals": {"cost_usd": 0.0},
+            }
+
+
+        plan = nt.Stage(
+            design,
+            models=[model],
+            board=board,
+            run_household=provider,
+            completion_for=lambda profile: None,
+            out=io.StringIO(),
+        )
+        original_set = plan.interrupted.set
+
+
+        def interrupt_cleanup():
+            result = original_set()
+            cleanup_entered.set()
+            return result
+
+
+        plan.interrupted.set = interrupt_cleanup
+
+
+        def bootstrap(thread):
+            if thread.name == "no-tools-" + model:
+                worker.append(thread)
+                native_entered.set()
+                assert bootstrap_release.wait(20), (
+                    "start grace rule: release native startup"
+                )
+            return original_bootstrap(thread)
+
+
+        def run(thread):
+            try:
+                return original_run(thread)
+            finally:
+                if thread.name == "no-tools-" + model:
+                    order.append("native-finished")
+                    native_finished.set()
+
+
+        def close(current):
+            if current is plan and current._lock_file is not None:
+                order.append("close")
+                closed.set()
+            return original_close(current)
+
+
+        threading.Thread._bootstrap_inner = bootstrap
+        threading.Thread.run = run
+        nt.Stage.close = close
+
+
+        def injected(sig, frame):
+            raise KeyboardInterrupt("synthetic startup wait interruption")
+
+
+        signal.signal(signal.SIGUSR1, injected)
+
+
+        def main_in_start_wait():
+            frame = sys._current_frames().get(main_ident)
+            while frame is not None:
+                if (
+                    frame.f_code.co_name == "wait"
+                    and frame.f_locals.get("self") is worker[0]._started
+                ):
+                    return True
+                frame = frame.f_back
+            return False
+
+
+        def lock_held():
+            probe = (
+                "import fcntl,sys; f=open(sys.argv[1],'a'); "
+                "\ntry: fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: print('held')"
+                "\nelse: print('released')"
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    probe,
+                    str(plan.root / ".confirmatory-no-tools.lock"),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+            )
+            return result.stdout.strip() == "held"
+
+
+        def observe():
+            assert native_entered.wait(10)
+            assert worker[0].ident is None, (
+                "start grace rule: native worker has no ident"
+            )
+            deadline = time.monotonic() + 10
+            while not main_in_start_wait():
+                assert time.monotonic() < deadline, (
+                    "start grace rule: main reaches _started.wait"
+                )
+                time.sleep(0.001)
+            os.kill(os.getpid(), signal.SIGUSR1)
+            assert cleanup_entered.wait(10)
+            if during_grace:
+                # Let the native target begin immediately within grace, then
+                # hold its completion independently of process-startup load.
+                done = getattr(plan, "_worker_done", {}).get(model)
+                if done is not None:
+                    original_done_set = done.set
+
+                    def set_done():
+                        done_held.set()
+                        assert release_done.wait(20), (
+                            "start grace rule: release begun worker completion"
+                        )
+                        return original_done_set()
+
+                    done.set = set_done
+                bootstrap_release.set()
+                if done is not None:
+                    assert done_held.wait(10), (
+                        "start grace rule: late target reaches completion"
+                    )
+                try:
+                    observed["held_at_cleanup"] = lock_held()
+                finally:
+                    release_done.set()
+            else:
+                assert closed.wait(10), (
+                    "start grace rule: close after bounded grace"
+                )
+                bootstrap_release.set()
+
+
+        actor = threading.Thread(target=observe, daemon=True)
+        actor.start()
+        try:
+            plan.execute()
+        except KeyboardInterrupt as error:
+            assert str(error) == "synthetic startup wait interruption"
+        else:
+            raise AssertionError("start grace rule: original exception propagates")
+        finally:
+            if closed.is_set() and not during_grace:
+                bootstrap_release.set()
+        actor.join(15)
+        assert native_finished.wait(10), (
+            "start grace rule: native worker eventually completes"
+        )
+        assert not calls, (
+            "start grace rule: interrupted late worker makes no provider call"
+        )
+        assert not list(plan.root.glob("*/none/confirmatory/households/*.json")), (
+            "start grace rule: interrupted late worker writes no files"
+        )
+        if during_grace:
+            assert observed.get("held_at_cleanup"), (
+                "start grace rule: invocation lock stays held during grace"
+            )
+            assert order.index("native-finished") < order.index("close"), (
+                "start grace rule: worker begun during grace completes before close"
+            )
+        else:
+            assert order.index("close") < order.index("native-finished"), (
+                "start grace rule: worker beyond grace exits safely after close"
+            )
+        assert plan._lock_file is None
+        print(json.dumps({"during_grace": during_grace, "order": order}))
+        """)
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(Path(nt.__file__).parent), env.get("PYTHONPATH", "")]
+    )
+    result = run_no_tools_fork_probe(
+        probe,
+        [json.dumps(setup["design"]), str(during_grace)],
+        env=env,
+        ready_marker=b"native-start-regression-ready\n",
+    )
+    assert b"native-start-regression-ready\n" in result.stdout, (
+        "start grace rule: subprocess reaches readiness",
+        result.stdout,
+        result.stderr,
+    )
+    assert result.returncode == 0, (result.stdout, result.stderr)
+
+
+_NO_TOOLS_FORK_WARMED = False
+
+
+def run_no_tools_fork_probe(
+    probe,
+    args=(),
+    *,
+    env=None,
+    timeout=30,
+    ready_marker=None,
+    ready_timeout=120,
+    text=False,
+):
+    """Run actual probe code in a forked subprocess with bounded cleanup.
+
+    The parent warms the provider-free profile imports once. A fresh child
+    executes the probe with its own signals, stdout, stderr and process exit.
+    Readiness has a separate deadline; the execution deadline begins when the
+    child reaches its actual readiness marker, or after subprocess setup.
+    """
+    import multiprocessing
+    import runpy
+    import subprocess
+    import time
+    import traceback
+
+    global _NO_TOOLS_FORK_WARMED
+    if not _NO_TOOLS_FORK_WARMED:
+        nt.pilot.model_profile(
+            nt.CHEAP[0], arm="none", prompt_version=nt.PROMPT_VERSION
+        )
+        _NO_TOOLS_FORK_WARMED = True
+    probe = Path(probe).resolve()
+    stdout_path = probe.with_suffix(".stdout")
+    stderr_path = probe.with_suffix(".stderr")
+    command = [sys.executable, str(probe), *map(str, args)]
+    context = multiprocessing.get_context("fork")
+    startup_ready = context.Event()
+
+    # Flush existing parent streams before fork so the child cannot duplicate
+    # any buffered pytest output when its streams are replaced.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+
+        def child():
+            code = 0
+            try:
+                os.dup2(stdout_file.fileno(), 1)
+                os.dup2(stderr_file.fileno(), 2)
+                sys.stdout = os.fdopen(os.dup(1), "w", buffering=1)
+                sys.stderr = os.fdopen(os.dup(2), "w", buffering=1)
+                if env is not None:
+                    os.environ.clear()
+                    os.environ.update(env)
+                sys.argv = command[1:]
+                signal.signal(signal.SIGINT, signal.default_int_handler)
+                signal.signal(signal.SIGTERM, signal.SIG_DFL)
+                startup_ready.set()
+                runpy.run_path(str(probe), run_name="__main__")
+            except SystemExit as error:
+                if error.code is None:
+                    code = 0
+                elif isinstance(error.code, int):
+                    code = error.code
+                else:
+                    print(error.code, file=sys.stderr)
+                    code = 1
+            except BaseException:
+                traceback.print_exc()
+                code = 1
+            finally:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            os._exit(code)
+
+        process = context.Process(target=child, name=f"no-tools-probe-{probe.stem}")
+        process.start()
+        initial_deadline = time.monotonic() + ready_timeout
+
+        def output():
+            stdout = stdout_path.read_bytes()
+            stderr = stderr_path.read_bytes()
+            if text:
+                return stdout.decode(errors="replace"), stderr.decode(errors="replace")
+            return stdout, stderr
+
+        def expired(limit):
+            process.kill()
+            process.join(timeout=30)
+            stdout, stderr = output()
+            raise subprocess.TimeoutExpired(
+                command, limit, output=stdout, stderr=stderr
+            )
+
+        try:
+            while not startup_ready.is_set() and process.is_alive():
+                remaining = initial_deadline - time.monotonic()
+                if remaining <= 0:
+                    expired(ready_timeout)
+                startup_ready.wait(timeout=min(remaining, 0.1))
+            if ready_marker is not None:
+                marker = (
+                    ready_marker.encode()
+                    if isinstance(ready_marker, str)
+                    else ready_marker
+                )
+                while marker not in stdout_path.read_bytes() and process.is_alive():
+                    if time.monotonic() >= initial_deadline:
+                        expired(ready_timeout)
+                    time.sleep(0.01)
+            process.join(timeout=timeout)
+            if process.is_alive():
+                expired(timeout)
+            stdout, stderr = output()
+            return subprocess.CompletedProcess(
+                command, process.exitcode, stdout, stderr
+            )
+        finally:
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=30)
+            process.close()
