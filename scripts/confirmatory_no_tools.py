@@ -10,12 +10,17 @@ An archive move or attempt is admitted when its interruption check and commit
 under the admission lock precede the watcher setting the interrupt under that
 same lock. After that interrupt is set, no archive move or attempt is admitted.
 The lock covers only the check and rename or admission state change; admitted
-attempts finish and save outside it. The first SIGINT or SIGTERM only records
-its number and wakes the watcher through a nonblocking pipe. The handler takes
-no lock and raises nothing. The watcher sets the interrupt, releases admission,
-and then announces that attempts already admitted will finish and save.
-An exception escaping execute interrupts and waits for script-owned worker
-completion events before restoring handlers or releasing the invocation lock.
+attempts finish and save outside it. The first SIGINT or SIGTERM records its
+number and wakes the watcher through a nonblocking pipe. The handler takes no
+lock and raises nothing beyond allocation failure. While running, the watcher
+sets the interrupt, releases admission, and then announces that attempts already
+admitted will finish and save. A first signal recorded after watcher shutdown
+still forces exit 1 without setting the interrupt or printing that announcement.
+The guarded cleanup path sets the interrupt and waits for script-owned worker
+completion before restoring handlers or releasing the invocation lock.
+Guarded waits retry exceptions raised within them and preserve the original
+exception. Another handler raising in an unguarded instruction, before a guarded
+call, in cleanup bookkeeping or in finally, can replace it and skip waits.
 An exception caught in a model thread instead marks that model error without
 setting the interrupt. A second signal immediately uses a nonblocking stderr
 write and exits, losing every unsaved attempt then under way with its spend;
@@ -614,11 +619,12 @@ class Stage:
             result = self._execute()
         except BaseException as error:
             failure = error
-            # SIGINT/SIGTERM handlers never raise, so production waits are not
-            # interrupted by them. Tolerant waits defend against exceptions from
-            # elsewhere (for example a test SIGUSR1 handler raising KeyboardInterrupt).
-            # Python cannot shield the instructions before these calls: another
-            # handler that raises there escapes without the wait.
+            # SIGINT/SIGTERM handlers raise nothing beyond allocation failure.
+            # Guarded waits retry exceptions raised within them, including those
+            # from another handler (for example SIGUSR1 raising KeyboardInterrupt).
+            # Another handler raising in an unguarded instruction, before a
+            # guarded call, in cleanup bookkeeping or in finally, can replace
+            # the original exception and skip waits.
             stop_admission()
             self._wait_for_workers()
             raise
@@ -664,12 +670,13 @@ class Stage:
         return 1 if signals else result
 
     def _wait_for_workers(self) -> None:
-        """Retain protection through completion despite exceptional wait interruptions.
+        """Retry exceptions raised within guarded worker-completion waits.
 
-        The installed SIGINT and SIGTERM handlers never raise. These tolerant
-        waits defend against an exception from elsewhere, such as a test-only
-        SIGUSR1 handler that raises KeyboardInterrupt, and preserve the original
-        exception escaping execute.
+        The installed SIGINT and SIGTERM handlers raise nothing beyond allocation
+        failure. Guarded waits retry exceptions from elsewhere, such as a test-only
+        SIGUSR1 handler raising KeyboardInterrupt, preserving the original exception.
+        Another handler raising in unguarded instructions before a guarded call,
+        in cleanup bookkeeping or in finally can replace it and skip waits.
         """
         workers = list(self._started_workers)
         starting = self._starting_worker
