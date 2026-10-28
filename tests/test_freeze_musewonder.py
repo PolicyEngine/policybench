@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 import types
 from dataclasses import replace
@@ -88,6 +89,19 @@ _HEAD_BLOB = driver.head_blob
 # <root>/<slug>/run); docs/musewonder/input_pins.json names it once the run
 # is pinned.
 RUNS = {SLUG: f"musewonder-runs/{SLUG}"}
+
+# The squash merge of #217, which froze Muse Wonder's release
+# (dashboard-data-20261013) with the 2026-10-12 engine upgrade as its last
+# reference revision. Later releases move the committed snapshot on.
+RELEASE_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
+# The 2026-10-12 builder's note, the one Muse Wonder's builds record. Later
+# releases append their own builders to freezer.UPGRADE_BUILDERS, so its last
+# entry is not this one.
+OCTOBER_12_BUILDER = next(
+    builder
+    for builder in freezer.UPGRADE_BUILDERS
+    if builder.startswith("reference_audit/2026-10-12-engine-upgrade/")
+)
 
 
 @functools.cache
@@ -2217,7 +2231,7 @@ def _builder_setup() -> dict:
     ):
         digest = hashlib.sha256(base_blob(Path(path))).hexdigest()
         entries.append({"module": name, "path": path, "sha256": digest})
-    return {"fix_modules": entries, "builder": freezer.UPGRADE_BUILDER}
+    return {"fix_modules": entries, "builder": OCTOBER_12_BUILDER}
 
 
 def test_the_later_builders_setup_is_the_one_release_20261010_pins():
@@ -2226,29 +2240,38 @@ def test_the_later_builders_setup_is_the_one_release_20261010_pins():
     its own note."""
     last = json.loads(base_blob(FROZEN_RUN / driver.META_NAME))["revisions"][-1]
     assert last["fix_modules"] == _builder_setup()["fix_modules"]
-    assert last["builder"] == freezer.UPGRADE_BUILDERS[0] != freezer.UPGRADE_BUILDER
+    assert last["builder"] == freezer.UPGRADE_BUILDERS[0] != OCTOBER_12_BUILDER
 
 
 def test_the_mock_setup_is_the_real_builders():
     """The MOCK builds' setup is the one every real build recorded: the
-    committed snapshot's engine upgrade from 2.38.6 (once a freeze commits
-    one, so the check runs everywhere), and the release build on this machine
-    (mock_builds.REAL_BUILD, under results/local)."""
-    real = []
-    committed = json.loads((REPO / FROZEN_RUN / driver.META_NAME).read_text())
-    last = committed["revisions"][-1]
-    if (
-        last.get("kind") == "engine_upgrade"
-        and last.get("previous_engine_version") == driver.BASE_ENGINE
-    ):
-        real.append(("committed snapshot", last))
+    engine upgrade from 2.38.6 that Muse Wonder's release committed
+    (RELEASE_COMMIT, so the check runs everywhere), and the release build on
+    this machine (mock_builds.REAL_BUILD, under results/local)."""
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(REPO),
+            "show",
+            f"{RELEASE_COMMIT}:{(FROZEN_RUN / driver.META_NAME).as_posix()}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, (
+        f"the snapshot at {RELEASE_COMMIT[:12]} needs git history; "
+        "fetch full history. " + shown.stderr
+    )
+    last = json.loads(shown.stdout)["revisions"][-1]
+    assert last["kind"] == "engine_upgrade"
+    assert last["previous_engine_version"] == driver.BASE_ENGINE
+    real = [("Muse Wonder's committed snapshot", last)]
     local = [mock_builds.REAL_BUILD / "build"]
     for build in local:
         meta = build / driver.META_NAME
         if meta.is_file():
             real.append((str(build), json.loads(meta.read_text())["revisions"][-1]))
-    if not real:
-        pytest.skip("no real engine-upgrade build is committed or on this machine")
     for where, revision in real:
         assert _builder_setup() == {
             "fix_modules": revision["fix_modules"],

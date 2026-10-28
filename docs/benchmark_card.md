@@ -1,8 +1,8 @@
 ---
-title: Benchmark Card
+title: Benchmark card
 ---
 
-# Benchmark Card
+# Benchmark card
 
 This document fixes the intended interpretation of PolicyBench.
 
@@ -35,7 +35,7 @@ PolicyBench is not:
 - an administrative-record benchmark
 
 PolicyEngine outputs are benchmark reference outputs produced by
-microsimulation, not administrative records.
+microsimulation, and no administrative record stands behind them.
 
 ## Canonical response contract
 
@@ -57,7 +57,7 @@ K3, Muse Spark 1.3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of Dee
 select JSON without recording a rejection, and the older Gemini rows answer as
 JSON by the Gemini family default. The per-model transport is in the
 snapshot's `model_serving_config.json`.
-This is an output format, not a capability — nothing executes, no result is
+This is an output format and adds no capability: nothing executes, no result is
 returned to the model, and each response is a single round trip. The benchmark
 remains no-tool in every response transport.
 
@@ -93,7 +93,7 @@ a 2026 amount with a price index, or carries one published after the freeze,
 the reference takes the amount published before the freeze or, where none was,
 the last one published. Nine publication conventions set those amounts, and each
 changes parameter values only: SNAP's October to December months, for example,
-hold the FY2026 figures rather than USDA's FY2027 figures of 2026-08-21.
+hold the FY2026 figures in place of USDA's FY2027 figures of 2026-08-21.
 
 PolicyBench first moved the references off the engine version that froze them
 on 2026-09-29, to policyengine-us 2.15.17, the newest release when it began
@@ -198,7 +198,7 @@ and the reviewed actions.
 
 The frozen US annotations cover 9,050 scored rows selected because their
 legacy threshold score is below 1 (1,949 further annotated rows sit on the 49
-excluded outputs and are description, not audit). This audit universe contains
+excluded outputs, as description outside the audit). This audit universe contains
 9,046 of the snapshot's 9,046 exact-match misses and four exact hits. Another
 2,407 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
@@ -346,8 +346,8 @@ Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
 labeled as ablations and not mixed into leaderboard claims.
 
-CLI default outputs under `results/local/` are scratch artifacts, not canonical
-leaderboard snapshots.
+CLI default outputs under `results/local/` are scratch artifacts. The canonical
+leaderboard snapshots are the frozen ones under `paper/snapshot/`.
 
 Operational paid runs should follow the repository runbook
 ([`docs/runbook.md`](runbook.md)): fixed scenario manifests, Claude models in
@@ -380,7 +380,7 @@ direct tax, credit, benefit, health-support, and coverage outputs that can be
 asked from household facts. It excludes intermediate tax bases, payroll
 subcomponents, outputs needing unavailable history or local market data, and
 outputs that are primarily take-up or imputation assignments. WIC is requested
-as person-level eligibility, not as a dollar amount.
+as person-level eligibility, with no dollar amount.
 
 ## Snapshot policy
 
@@ -432,20 +432,21 @@ Discipline for private files:
 
 The benchmark currently has one condition, `no_tools`. That label is attached
 at dashboard-export time (`build_dashboard_payload` in
-`policybench/analysis.py`), not carried through run artifacts: prediction
+`policybench/analysis.py`), and run artifacts do not carry it: prediction
 CSVs have no condition column, and the eval loop does not parameterize it.
 Adding a second condition (web search, tool-assisted) therefore requires
 threading a `condition` field through run storage and analysis before the
-export — tracked as part of the run-store cutover — rather than new UI work;
+export (tracked as part of the run-store cutover). It needs no new UI work:
 the site's types and leaderboard already filter on `condition`.
 
 ## Cost basis
 
 Each frozen row uses its recorded per-call cost: reconstructed from token counts
 at the list price configured at request time, or the provider-reported charge
-where no reconstruction was available. List-price overrides apply at request
-time, not retroactively to recorded costs. Published model costs retain these
-recorded totals rather than repricing past calls at today's rates. GPT-5.5 ran
+where no reconstruction was available. A list-price override applies to
+requests made after it is set and leaves recorded costs unchanged. Published
+model costs retain these recorded totals, and no past call is repriced at
+today's rates. GPT-5.5 ran
 through OpenAI's batch API, and its costs are reconstructed at standard
 synchronous rates. Claude Fable 5's board rows carry no usage fields: they were
 rebuilt from release dashboard-data-20260701 without them. Its published cost,
@@ -472,8 +473,8 @@ household's rows, so a household's latency is the sum over its rows
 completion budget) makes them one after another and records their sum. A
 request the harness retries after a provider error is timed only on the
 attempt that succeeded. Published `latencySeconds` is the median
-across households. A household with no recorded time is left out rather than
-counted as zero, so GPT-5.5, whose batch rows record none, has no latency.
+across households. A household with no recorded time is left out of the
+median, so GPT-5.5, whose batch rows record none, has no latency.
 
 A cached response is answered in hundredths of a second, and its row records
 that lookup as the call's latency. In the frozen predictions, 330 households
@@ -489,7 +490,7 @@ call.
 - Qwen3.7-max (93 households), GLM-5.2 (80), Kimi K2.6 (75) and MiniMax M3
   (53) were finished over several passes, each of which replayed the earlier
   passes' successes. Their published medians, 0.003 to 0.033 seconds, are
-  cache lookups, not latency, and the paper shows them as a dash.
+  cache lookups that measure no model latency, and the paper shows them as a dash.
 - Claude Sonnet 5 (9 households) replays its smoke and two restarted chunks.
   Muse Spark 1.3 (4) and Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5
   (2 each) replay their onboarding smokes. DeepSeek V4 Pro and GPT-5.6 Sol,
@@ -515,14 +516,14 @@ populace dataset and scores outputs against PolicyEngine US reference outputs.
 
 The repository retains legacy UK-calibrated transfer-path support, but the
 current public release is US-only. If UK results are revived, describe that path
-as a public UK transfer path for benchmarking, not as a replacement for enhanced
-Family Resources Survey (FRS) microdata or as a population-representative UK
-household sample.
+as a public UK transfer path for benchmarking. It does not replace enhanced
+Family Resources Survey (FRS) microdata, and its households are not a
+population-representative UK sample.
 
 The UK path samples households from the public calibrated transfer dataset in
 `PolicyEngine/policyengine-uk-data` (`enhanced_cps_2025.h5`, pinned to commit
 `6b1f80e` and its sha256). Those records are PolicyEngine US households
-re-weighted to UK targets, not UK survey records, and they carry no State
+re-weighted to UK targets, and they carry no State
 Pension: every pension-age person in the sample has none, and the prompt says
 so by listing none. Since October 2026 the path works as follows.
 
@@ -553,7 +554,7 @@ so by listing none. Since October 2026 the path works as follows.
   the scenario gives none).
 - **Facts as shown.** Every UK amount is the whole number the prompt shows,
   and every rate the four significant figures it shows, so the reference uses
-  the stated figure, not an unrounded uprated one.
+  the stated figure in place of an unrounded uprated one.
 - **Pension contributions.** PolicyEngine UK deducts both kinds of
   contribution from taxable income and neither from adjusted net income, so
   they do not lower the High Income Child Benefit Charge or the personal

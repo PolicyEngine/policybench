@@ -615,20 +615,20 @@ def test_rendered_pdf_prints_dollar_amounts_without_escapes():
 
 
 def _paper_engine_times() -> tuple[str, str]:
-    """The paper's engine sentences, as the timing record dates them."""
-    timing = json.loads(
-        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
-    )
-    # The record is the 2026-09-29 move's, whatever upgrades follow it.
-    engine = r.september_upgrade.engine_version
-    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine]
-    read_at = timing["pypi"]["read_at_utc"]
+    """The paper's engine sentences for the current references, as the timing
+    record of the move to the current engine dates them. Earlier moves' times
+    stay in their audit records."""
+    from policybench.paper_results import uploaded_phrase
+
+    timing = json.loads(OCTOBER_TIMING.read_text())
+    engine = r.policyengine_us_version
+    assert timing["reference_sweep"]["engine"] == engine
+    began = timing["reference_sweep"]["first_output_at_utc"][:10]
+    uploaded = uploaded_phrase(timing["pypi"]["wheel_uploaded_at_utc"][engine], began)
     return (
-        "the newest release when it began sweeping the references that day "
-        f"(uploaded {uploaded[11:16]} UTC)",
-        f"policyengine-us {timing['pypi']['newest_at_read']}, the newest release "
-        f"when PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC, "
-        f"gives the same value as {engine}",
+        f"policyengine-us {engine} was the newest release when PolicyBench began "
+        f"sweeping the references on {began} ({uploaded}).",
+        _publication_check_sentence(timing, engine),
     )
 
 
@@ -699,21 +699,46 @@ def test_pdf_running_text_joins_a_sentence_across_a_page_break(monkeypatch):
 
 
 def test_paper_takes_its_engine_times_from_the_timing_record():
-    """The paper renders both clock times from sweep_timing.json through
-    paper_results; its source hard-codes none."""
+    """The paper renders the current engine's clock times from its move's
+    sweep_timing.json through paper_results; its source hard-codes none, and
+    it states no earlier move's times, which would describe engines the
+    references have left."""
     source = PAPER.read_text()
     assert re.search(r"\d\d:\d\d UTC", source) is None
-    assert "r.reference_engine_uploaded_utc" in source
-    assert "r.publication_check_pypi_read_utc" in source
+    assert "r.engine_upgrade_timing_sentence" in source
+    for stale in (
+        "r.reference_engine_uploaded_utc",
+        "r.publication_check_pypi_read_utc",
+        "r.publication_check_policyengine_us_version",
+        "r10.engine_upgrade_timing_sentence",
+        "r12.engine_upgrade_timing_sentence",
+    ):
+        assert stale not in source, stale
     text = _html_text()
     for sentence in _paper_engine_times():
         assert sentence in text, sentence
 
 
+def _across_page_breaks(sentence: str) -> re.Pattern:
+    """The sentence as extracted PDF text can carry it: a page break may put
+    the page number between any two of its words."""
+    words = [re.escape(word) for word in sentence.split()]
+    return re.compile(r" (?:\d{1,3} )?".join(words))
+
+
+def test_across_page_breaks_tolerates_only_a_page_number():
+    pattern = _across_page_breaks("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 26 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 at 04:45 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-29 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 later at 04:44 UTC")
+
+
 def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
     text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
     for sentence in _paper_engine_times():
-        assert sentence in text, sentence
+        assert _across_page_breaks(sentence).search(text), sentence
 
 
 def _engine_groups(exclusions) -> list[tuple[str, int]]:

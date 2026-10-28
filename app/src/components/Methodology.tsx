@@ -185,9 +185,9 @@ export default function Methodology({
               PolicyEngine: Medicaid and CHIP eligibility are asked &ldquo;under
               PolicyEngine rules,&rdquo; and the two school-meal outputs ask
               whether &ldquo;PolicyEngine returns&rdquo; support. PolicyBench
-              aims to measure knowledge of tax and benefit law, not of
-              PolicyEngine&apos;s implementation, and is revising these
-              definitions.{" "}
+              aims to measure knowledge of tax and benefit law. Knowledge of
+              PolicyEngine&apos;s implementation is outside that aim, so
+              PolicyBench is revising these definitions.{" "}
             </>
           ) : null}
           The answer instructions follow each row&apos;s transport: a
@@ -237,7 +237,7 @@ export default function Methodology({
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
           market data, or program take-up assignment. WIC is scored as
-          person-level eligibility, not as a dollar amount. Local income tax is
+          person-level eligibility, with no dollar amount. Local income tax is
           retained as a displayed requested output, but currently receives zero
           default population-impact weight because the full populace dataset has
           no positive modeled local-income-tax records.
@@ -281,8 +281,8 @@ export default function Methodology({
           Each frozen row uses its recorded per-call cost: reconstructed from
           token counts at the list price configured at request time, or the
           provider-reported charge where no reconstruction was available.
-          List-price overrides apply at
-          request time, not retroactively to recorded costs. Models without
+          A list-price override applies to
+          requests made after it is set and leaves recorded costs unchanged. Models without
           per-call costs use the frozen release-metadata cost.
         </SectionCard>
 
@@ -314,8 +314,7 @@ export default function Methodology({
           Binary coverage flags have 0/1 labels, but a 0/1 label is not their
           economic impact. Their leaderboard weights therefore come from
           PolicyEngine value proxies where available, such as estimated health
-          coverage or nutrition-program value, rather than from the binary label
-          itself. When every reference impact in a household is zero, the
+          coverage or nutrition-program value. When every reference impact in a household is zero, the
           household falls back to equal output weights.
         </SectionCard>
       </div>

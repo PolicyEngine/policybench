@@ -81,7 +81,7 @@ thinking on.
 
 The leaderboard is unchanged: the frozen board holds every model to the
 request shape its model card records, and this run sits beside it as a
-labeled sensitivity, not in it. Each run's predictions are committed under
+labeled sensitivity outside it. Each run's predictions are committed under
 `sensitivity/data/` (and attached to the `dashboard-data-20260805` release)
 as `sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The
 manuscript's serving-configuration table documents the interaction. The next
@@ -140,8 +140,7 @@ and Qwen 3.8 Max already have; under litellm that request carries the
 prompt alone (`response_format: json_object` maps to no Anthropic
 parameter), so the board row reasons at the API default.
 
-The sensitivity run for this model isolates request shape under thinking
-rather than thinking itself: the answer tool declared with `tool_choice:
+The sensitivity run for this model isolates request shape under thinking: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
 reason. The ranks are on the 51-model board (2026-10-27).

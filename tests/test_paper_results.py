@@ -263,7 +263,11 @@ def test_cost_basis_discloses_recorded_costs_without_retroactive_overrides(path)
     )
     assert "provider-reported charge where no reconstruction was available" in text
     assert "where the provider returns one, otherwise reconstructed" not in text
-    assert "List-price overrides apply at request time, not retroactively" in text
+    assert (
+        "A list-price override applies to requests made after it is set and "
+        "leaves recorded costs unchanged" in text
+    )
+    assert "not retroactively" not in text
     assert "override provider-reported" not in text
     assert "supersede recorded costs" not in text
 
