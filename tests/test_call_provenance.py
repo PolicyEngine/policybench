@@ -1529,11 +1529,27 @@ def test_frames_without_the_columns_classify_as_unknown():
 @pytest.mark.skipif(
     not FROZEN_US_PREDICTIONS.exists(), reason="frozen snapshot not checked out"
 )
-def test_the_frozen_us_run_predates_the_columns():
-    """The frozen board predates the fields, so every household is unknown:
-    its replays are identified only by the audit's evidence (#228)."""
+def test_the_frozen_us_run_records_the_columns_only_for_gpt_61_terra():
+    """The board's earlier models predate the fields, so each of their
+    households is unknown: their replays are identified only by the audit's
+    evidence (#228). GPT-6.1 Terra, the first model run after them (release
+    20261027), records them on every row, and every one of its 100
+    households was answered live."""
     header = pd.read_csv(FROZEN_US_PREDICTIONS, nrows=0)
-    assert not set(PROVENANCE) & set(header.columns)
+    assert set(PROVENANCE) <= set(header.columns)
+    frame = pd.read_csv(
+        FROZEN_US_PREDICTIONS,
+        usecols=["model", "scenario_id", "variable", *PROVENANCE],
+    )
+    terra = frame["model"] == "gpt-6.1-terra"
+    assert frame.loc[~terra, list(PROVENANCE)].isna().all().all()
+    assert frame.loc[terra, list(PROVENANCE)].notna().all().all()
+    status = household_call_provenance(frame)["status"]
+    by_model = status.groupby(level="model").agg(lambda s: tuple(sorted(set(s))))
+    assert by_model.pop("gpt-6.1-terra") == ("live",)
+    assert len(by_model) == 50
+    assert set(by_model) == {("unknown",)}
+    assert (status.loc["gpt-6.1-terra"] == "live").sum() == 100
 
     sample = pd.read_csv(
         FROZEN_US_PREDICTIONS,

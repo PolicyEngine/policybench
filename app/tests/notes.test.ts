@@ -98,35 +98,81 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest notes are the frozen release's, ahead of the October 13 one", () => {
-    // The live pointer names the frozen release (src/data.artifact.json). The
-    // October 20 tool-pilot note and the October 19 America.gov note are checked
-    // against the same release as the October 14 release note.
-    expect(notes[0].slug).toBe(
+  test("the newest note is the frozen release's, ahead of the October 14 ones", () => {
+    // The live pointer names the frozen release (src/data.artifact.json).
+    expect(notes[0].slug).toBe("2026-10-27-gpt-6-1-terra-joins-the-board");
+    expect(notes[0].release).toBe(artifact.tag);
+    expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
+    expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+    // The October 20 tool-pilot note, the October 19 America.gov note and the
+    // October 14 release note keep release 20261014 and its board snapshot.
+    expect(notes[1].slug).toBe(
       "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
     );
-    expect(notes[1].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
-    expect(notes[2].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
-    for (const note of notes.slice(0, 3)) {
-      expect(note.release).toBe(artifact.tag);
-      expect(note.boardSnapshot).toBe(paperSnapshot.snapshotDate);
+    expect(notes[2].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
+    expect(notes[3].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
+    for (const note of notes.slice(1, 4)) {
+      expect(note.release).toBe("dashboard-data-20261014");
+      expect(note.boardSnapshot).toBe("2026-10-14");
       expect(note.slug.startsWith(note.date)).toBe(true);
     }
     // The October 13 and October 10 notes keep their own releases and board
     // snapshots.
-    expect(notes[3].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
-    expect(notes[3].release).toBe("dashboard-data-20261013");
-    expect(notes[3].boardSnapshot).toBe("2026-10-13");
-    expect(notes[4].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[4].release).toBe("dashboard-data-20261010");
-    expect(notes[4].boardSnapshot).toBe("2026-10-10");
-    expect(notes[5].slug).toBe(
+    expect(notes[4].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[4].release).toBe("dashboard-data-20261013");
+    expect(notes[4].boardSnapshot).toBe("2026-10-13");
+    expect(notes[5].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[5].release).toBe("dashboard-data-20261010");
+    expect(notes[5].boardSnapshot).toBe("2026-10-10");
+    expect(notes[6].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
   });
 
+  test("the GPT-6.1 Terra note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-27-gpt-6-1-terra-joins-the-board",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "OpenAI&#x27;s GPT-6.1 Terra joined the board on 2026-10-27, the day after OpenAI released it, bringing the board to 51 models.",
+    );
+    // Board rates keep one decimal.
+    expect(markup).toContain(
+      "It gets 93.1% of answers within $1, weighted by household impact, #3 of 51.",
+    );
+    expect(markup).toContain("GPT-6.1 Terra ranks #5.");
+    expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
+    // Costs keep their cents.
+    expect(markup).toContain(
+      "the 100 households cost $1.25, against $2.30 for GPT-6.1 Sol and $2.71 for GPT-6 Sol.",
+    );
+    expect(markup).toContain("The move changes four scored references");
+    expect(markup).toContain("now gets the $24 monthly minimum, $288 a year");
+    expect(markup).toContain(
+      "every model is still scored on 1,935 of its 1,984 requested outputs.",
+    );
+    expect(markup).toContain(
+      "gives the same value as 2.60.0 for all 1,935; it moves one excluded output",
+    );
+    expect(markup).toContain(
+      "the exact rates of 47 of the 50 earlier models fall, by 0.03 to 0.07 points, and three rise by 0.02.",
+    );
+    expect(markup).toContain("only three give the Californian&#x27;s new SNAP");
+    expect(markup).toContain('href="/model/gpt-6.1-terra"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261027"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
   test("the tool-pilot note renders its figures", () => {
-    const note = notes[0];
+    const note = notes.find(
+      (n) =>
+        n.slug === "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
+    )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );

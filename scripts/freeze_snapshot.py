@@ -1522,17 +1522,21 @@ UPGRADE_MODULE_PATHS = {
         "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
     ),
 }
-# Each later builder's note, oldest first: the 2026-10-10 upgrade's, then the
-# 2026-10-12 one's. Both build households as the 2026-09-29 upgrade did and pin
-# the same inherited setup; a sidecar keeps every upgrade's revision, so each
-# note must still read as a later builder's.
+# Each later builder's note, oldest first: the 2026-10-10 upgrade's, the
+# 2026-10-12 one's, then the 2026-10-22 one's. Each builds households as the
+# 2026-09-29 upgrade did and pins the same inherited setup; a sidecar keeps
+# every upgrade's revision, so each note must still read as a later builder's.
 UPGRADE_BUILDERS = tuple(
     f"reference_audit/{folder}/scripts/"
     "build_references_upgrade.py; households from "
     "policybench.scenarios.Scenario.to_pe_household through "
     "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
     "2026-09-29 upgrade"
-    for folder in ("2026-10-09-engine-upgrade", "2026-10-12-engine-upgrade")
+    for folder in (
+        "2026-10-09-engine-upgrade",
+        "2026-10-12-engine-upgrade",
+        "2026-10-22-engine-upgrade",
+    )
 )
 UPGRADE_BUILDER = UPGRADE_BUILDERS[-1]
 

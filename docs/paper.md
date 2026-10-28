@@ -52,7 +52,7 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   pinned release URL, byte count, and sha256 for each dashboard payload
 - `rendered_paper_artifacts`, with the rendered PDF and web bundle hashes
 - `reference_output_refresh`, with the policyengine-us version that computes
-  each scored reference (2.41.0 in this snapshot) and the policyengine.py
+  each scored reference (2.60.0 in this snapshot) and the policyengine.py
   version it records for provenance. Its dataset fields name the reference
   runtime's default dataset (build populace-us-2024-spm-20260915, from the
   policyengine.py 6.1.2 bundle), which reference computation does not read:
@@ -67,8 +67,8 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
 - `population_weight_artifact`, with the committed scoring-weight path and
   sha256
 - `audit_annotation_artifacts`, with the row and case audit file hashes. The
-  frozen annotations cover 8,765 scored rows whose legacy threshold score is
-  below 1: 8,761 of 8,761 exact-match misses and 4 exact hits. Another 2,329
+  frozen annotations cover 9,050 scored rows whose legacy threshold score is
+  below 1: 9,046 of 9,046 exact-match misses and 4 exact hits. Another 2,407
   scored rows have bounded score below 100 but were outside that selection and
   are not annotated. A judge_provenance block tallies which judge model produced
   each case verdict.
@@ -76,7 +76,7 @@ The manifest at `paper/snapshot/20260501/manifest.json` lists:
   because their reference rests on a reference-engine defect the audits found,
   depends on an input the prompt never states, or rests on an amount published
   after the reference freeze (49 in this snapshot, five of them engine-defect
-  records whose defect policyengine-us 2.41.0 fixes but which also move under an
+  records whose defect policyengine-us 2.60.0 fixes but which also move under an
   input the prompt does not state; 1,935 of 1,984 outputs per model are scored),
   the file's hash, and the tallies by unlisted input and by engine-defect root
   cause.

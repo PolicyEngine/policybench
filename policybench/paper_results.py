@@ -86,11 +86,14 @@ INDETERMINATE = "indeterminate on the stated facts"
 # The October 2026 engine moves' audits, oldest first: each holds its builder,
 # its fix-module evidence, and the timing record and publication check
 # scripts/sweep_timing.py writes there. The timing accessors read the newest
-# one, whose builder made the last upgrade (the 2026-10-12 audit moved the
-# references from 2.38.6 to 2.41.0, after the 2026-10-09 audit's move to 2.38.6).
+# one, whose builder made the last upgrade (the 2026-10-22 audit moved the
+# references from 2.41.0 to 2.60.0, after the 2026-10-12 audit's move from
+# 2.38.6 to 2.41.0 and the 2026-10-09 audit's move to 2.38.6); a view of an
+# earlier move reads its own audit's record.
 OCTOBER_UPGRADE_AUDITS = (
     "reference_audit/2026-10-09-engine-upgrade",
     "reference_audit/2026-10-12-engine-upgrade",
+    "reference_audit/2026-10-22-engine-upgrade",
 )
 OCTOBER_UPGRADE_AUDIT = OCTOBER_UPGRADE_AUDITS[-1]
 OCTOBER_SWEEP_TIMING = (
@@ -145,6 +148,18 @@ CHANGE_CAUSE_LABELS = {
     "id_permanent_building_fund_tax": (
         "Idaho's $10 permanent building fund tax (Idaho Code 63-3082), which "
         "policyengine-us now counts in state income tax"
+    ),
+    # The 2026-10-22 audit's two scored changes (its README's table).
+    # The paper's paragraph on that move states the breakfast laws' conditions,
+    # which policyengine-us does not model.
+    "state_universal_free_breakfast_10238": (
+        "the free school breakfast that Pennsylvania (Act 33 of 2023) and "
+        "Arkansas (Act 123 of 2025) give students at covered schools"
+    ),
+    "ca_snap_mce_no_net_income_test_10036": (
+        "California's modified categorical eligibility for CalFresh, which has "
+        "no net income test even for a household with an elderly or disabled "
+        "member"
     ),
 }
 UPSTREAM_PR = re.compile(r"policyengine-us#(\d+)")
@@ -605,6 +620,7 @@ MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6-sol": "GPT-6 Sol",
     "gpt-6.1-sol": "GPT-6.1 Sol",
+    "gpt-6.1-terra": "GPT-6.1 Terra",
     "gpt-6-luna": "GPT-6 Luna",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
@@ -2100,19 +2116,28 @@ class PaperResults:
 
     @cached_property
     def engine_upgrade_timing(self) -> dict | None:
-        """The last upgrade's sweep timing record, when that upgrade is the
-        October 2026 audit's build and the record is written (None before)."""
+        """The last upgrade's sweep timing record, when that upgrade is one
+        of the October 2026 audits' builds and the record is written (None
+        before): the newest audit's at OCTOBER_SWEEP_TIMING, an earlier one's
+        in its own verification folder (an upgrade_view of its move)."""
         last = self.last_engine_upgrade
-        if last is None or not str(last.revision.get("builder", "")).startswith(
-            OCTOBER_UPGRADE_AUDIT
-        ):
+        if last is None:
             return None
-        if not OCTOBER_SWEEP_TIMING.is_file():
+        builder = str(last.revision.get("builder", ""))
+        audit = builder.split(";")[0].strip().split("/scripts/")[0]
+        if audit not in OCTOBER_UPGRADE_AUDITS:
             return None
-        timing = json.loads(OCTOBER_SWEEP_TIMING.read_text())
+        path = (
+            OCTOBER_SWEEP_TIMING
+            if audit == OCTOBER_UPGRADE_AUDIT
+            else ROOT / audit / "verification" / "sweep_timing.json"
+        )
+        if not path.is_file():
+            return None
+        timing = json.loads(path.read_text())
         if timing["reference_sweep"]["engine"] != last.engine_version:
             raise ValueError(
-                f"{OCTOBER_SWEEP_TIMING} times policyengine-us "
+                f"{path} times policyengine-us "
                 f"{timing['reference_sweep']['engine']}, not {last.engine_version}"
             )
         return timing
@@ -2132,7 +2157,10 @@ class PaperResults:
         read_at = timing["pypi"]["read_at_utc"]
         check = timing.get("publication_check")
         if check is None or check["engine"] != timing["pypi"]["newest_at_read"]:
-            raise ValueError(f"{OCTOBER_SWEEP_TIMING} records no publication check")
+            raise ValueError(
+                f"the timing record of the move to {engine} records no "
+                "publication check"
+            )
         when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
         if check["engine"] == engine:
             checked = f"It was still the newest release when {when}."
@@ -2281,10 +2309,12 @@ class PaperResults:
                 "no output from scoring."
             )
         references = "reference" if beyond == 1 else "references"
-        outputs = "output" if removed == 1 else "outputs"
+        # "no output", as the sentence above says it; counts as words.
+        outputs = "output" if removed in (0, 1) else "outputs"
+        within_words = count_word(within) if within else "none"
         return (
             f"The move changes {count_word(beyond)} scored {references} beyond the "
-            f"dollar tolerance and {within} within it, and removes "
+            f"dollar tolerance and {within_words} within it, and removes "
             f"{count_word(removed)} {outputs} from scoring."
         )
 

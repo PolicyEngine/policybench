@@ -114,6 +114,8 @@ Commit the checked `docs/terra/judge_provenance.json`, its generated note unedit
   --snapshot "$PWD/paper/snapshot/20260501/runs/$PB_RUN" \
   --check-venv "$PB_CHECK_VENV"
 
+"$PB_PY" scripts/date_terra_judge_verdicts.py --stage-dir "$PB_STAGE"
+
 "$PB_PY" paper/render_paper.py
 "$PB_PY" scripts/freeze_snapshot.py --rendered-only
 ```
@@ -134,9 +136,10 @@ Export writes `data-board51.json` and a hash-bound `release-ready.json`. The res
 
 ## Lead completion record
 
-- [LEAD: Record Terra's score, rank, cost, latency and response window from the gated release.]
-- [LEAD: Record carried, re-opened and newly judged case counts, including the four changed-reference cases.]
-- [LEAD: Record every triage decision and its dates, or state that triage needed none.]
-- [LEAD: Record export scope checks, freeze dry-run, freeze and treatment-validation outcomes.]
-- [LEAD: Record the publication-check time, newest engine, comparison outcome and check venv.]
-- [LEAD: Record paper rendering, rendered-only repinning and any manual publication preparation.]
+- **Result.** GPT-6.1 Terra gets 93.14% of answers within $1, weighted by household impact, #3 of 51 on the 1,935 scored outputs, with every output parsed (bounded score 97.19). Its 100 households cost $1.2532 ($0.0125 each) and took a median 22.4 seconds each, all live calls. It answered on 2026-10-26 between 22:11 and 22:28 UTC (board run 2, input pins b0cfa0db). The board's response window is 2026-06-12 to 2026-10-26 and the snapshot is dated 2026-10-27.
+- **Judge.** The audit covers 681 cases: 551 verdicts carried over, and 127 cases were re-opened, among them scenario_031's `snap`, one of the four changed references, whose earlier verdict install-references set aside because its prompt re-renders on policyengine-us 2.60.0. The three new cases are the other three changed references, `free_school_meals_eligible` for scenarios 028, 117 and 123. Claude Opus 5.5 judged the 130 on 2026-10-27 under the isolated `setup-token 2` login (`docs/terra/judge_provenance.json`). Scenario 008's `payroll_tax` verdict left out one model in nine judgings in a row; it passed at 14:47 UTC under the per-case schema (7d71b7a0, c5974881).
+- **Triage.** `restate_gpt61sol_adjudications.py` restated the judge fields of 42 entries, every committed decision on a re-opened case. Triage read 10,999 rows in 990 cases and flagged no reference: `reference-flags.csv` and `unresolved-rows.csv` hold only their headers, so triage needed no decision.
+- **Export and freeze.** On 2026-10-28 at 2677b116: export ran 04:06 to 04:16 UTC and staged GPT-6.1 Terra at 93.138833%, #3 of 51 (n = 1,935). The freeze dry run (04:16 to 04:31) validated the release (`RELEASE_TAG`): 51 models, payload c1e47b70, references on policyengine-us 2.60.0, 49 exclusions (none new), no adjudications beyond the ruled outputs, no wording amendments, model responses 2026-06-12 to 2026-10-26, snapshot 2026-10-27, nothing written. The freeze (04:31 to 04:42) rebuilt the snapshot and exited 0, its treatment-fingerprint, reference, analysis, adjudication and manifest checks and `verify_frozen` included. Logs: `~/reviews/policybench-gpt-6-1-terra/freeze-run/`.
+- **Publication check.** It ran on 2026-10-28 from 04:44 to 04:55 UTC on policyengine-us 2.74.2, the newest release (uploaded 2026-10-28 at 01:08 UTC; still the newest at 05:53 UTC), in `results/local/terra/publication-check-venv` (Python 3.12, policyengine-core 3.33.13). It gives the same value as 2.60.0 for all 1,935 scored outputs. It moves one excluded output, scenario_121's `federal_income_tax_before_refundable_credits`, by $10.98; that output keeps the value it was decided on. Record: `reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json` and `publication_check_2_74_2.csv`.
+- **Judge evidence.** After the freeze, `scripts/date_terra_judge_verdicts.py` wrote `docs/terra/judge_verdicts_20261027.json`, the stage verdict of each of the 42 restated decisions, and filled release 20261014's 2026-10-14 triage wave in `reference_audit/2026-09-28/verification/judge_verdicts.json` with its commit (bf845cbe, #221, committed 2026-10-14) and the verdicts that commit published. The release decides no wave; a second run writes the same bytes.
+- **Rendering.** The release venv lacked the paper's render extra and still held policyengine-us 2.41.0, where `uv.lock` pins 2.60.0, so before rendering it was synced to its lock (`uv sync --extra docs --extra dev --inexact`; `uv.lock` and `pyproject.toml` unchanged). `paper/render_paper.py` then rendered the HTML and PDF paper, finishing at 06:46 UTC on 2026-10-28, and `scripts/freeze_snapshot.py --rendered-only` re-pinned the PDF (sha256 be79f306) and the 17 web files in the manifest and `app/src/paperSnapshot.json`. On that tree the full Python suite passed (6,791 passed, 72 skipped) and so did the app's (183 passed). Publication needed no manual preparation beyond these steps.

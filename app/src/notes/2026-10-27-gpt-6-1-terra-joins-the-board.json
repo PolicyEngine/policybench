@@ -1,0 +1,77 @@
+{
+  "slug": "2026-10-27-gpt-6-1-terra-joins-the-board",
+  "date": "2026-10-27",
+  "title": "OpenAI's GPT-6.1 Terra joins the board at #3 as the references move to policyengine-us 2.60.0",
+  "paragraphs": [
+    "OpenAI's GPT-6.1 Terra joined the board on {releaseDate}, the day after OpenAI released it, bringing the board to {nModels} models. It gets {terraExact}% of answers within $1, weighted by household impact, #{terraRank} of {nModels}. Only GPT-6 Sol ({solExact}%) and Claude Opus 5.5 ({opusExact}%) score higher, and GPT-5.6 Sol, which also rounds to {sol56Exact}%, is less than a tenth of a point behind. On the bounded score, which gives partial credit for amounts close to the reference, GPT-6.1 Terra ranks #{terraBoundedRank}. GPT-6.1 Sol, which OpenAI released on September 29, gets {sol61Exact}% (#{sol61Rank}).",
+    "PolicyBench runs GPT-6.1 Terra as it runs GPT-6.1 Sol, on OpenAI's Responses API with the board's forced answer tool at OpenAI's default reasoning effort, and it returned reasoning tokens on all {households} households. At OpenAI's price of $1 per million input tokens and $5 per million output tokens, the {households} households cost ${terraCost}, against ${sol61Cost} for GPT-6.1 Sol and ${solCost} for GPT-6 Sol. GPT-5.6 Terra, the Terra model before it, gets {terra56Exact}% (#{terra56Rank}) and cost ${terra56Cost}.",
+    "The release also moves PolicyBench's references from policyengine-us {previousEngine} to {engineVersion}, the newest release when PolicyBench began recomputing them on October 23. The move changes {changed:words} scored references, each for law in force before the references were frozen. An elderly Californian who lives alone, whose SNAP was $0, now gets the ${snapMonthly} monthly minimum, ${snap031} a year: California's categorical eligibility for CalFresh applies no net income test, even to a household with an elderly member, and the previous version applied one (policyengine-us #10036). Three households in Pennsylvania and Arkansas have too much income for free or reduced-price school lunch, but those states give students at covered schools a free breakfast, so the output asking whether PolicyEngine returns free school meal support is now yes for each (policyengine-us #10238). The new version models both breakfast laws for a student at a covered school and leaves out their conditions: Pennsylvania reimburses schools for them to the extent funds are available, and Arkansas serves them on request.",
+    "Nothing is newly excluded, and no excluded output returns to scoring, so every model is still scored on {scoredOutputs} of its {totalOutputs} requested outputs. The newest policyengine-us release, {checkedEngine}, gives the same value as {engineVersion} for all {scoredOutputs}; it moves {excludedMoved:words} excluded output, which keeps the value it was decided on.",
+    "Against the previous release, the exact rates of {fallers:words} of the {incumbents} earlier models fall, by {fallMin} to {fallMax} points, and {risers:words} rise by {rise}. No model answers yes for any of the three households' school meals, and only {snapMatch:words} give the Californian's new SNAP: GPT-5.5, GPT-6 Astra and GPT-6.1 Sol, the three that rise. Claude Sonnet 5.5 falls from #{sonnetThen} to #{sonnetNow}, behind GPT-6.1 Terra and GPT-6 Astra."
+  ],
+  "facts": {
+    "releaseDate": "2026-10-27",
+    "nModels": 51,
+    "terraExact": 93.1,
+    "terraRank": 3,
+    "solExact": 95.2,
+    "opusExact": 94.1,
+    "sol56Exact": 93.1,
+    "terraBoundedRank": 5,
+    "sol61Exact": 90.2,
+    "sol61Rank": 10,
+    "households": 100,
+    "terraCost": "1.25",
+    "sol61Cost": "2.30",
+    "solCost": "2.71",
+    "terra56Exact": 87.6,
+    "terra56Rank": 18,
+    "terra56Cost": "3.89",
+    "previousEngine": "2.41.0",
+    "engineVersion": "2.60.0",
+    "changed": 4,
+    "snapMonthly": 24,
+    "snap031": 288,
+    "scoredOutputs": 1935,
+    "totalOutputs": 1984,
+    "checkedEngine": "2.74.2",
+    "excludedMoved": 1,
+    "incumbents": 50,
+    "fallers": 47,
+    "fallMin": 0.03,
+    "fallMax": 0.07,
+    "risers": 3,
+    "rise": 0.02,
+    "snapMatch": 3,
+    "sonnetThen": 4,
+    "sonnetNow": 6
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261027"
+    },
+    {
+      "label": "Release design note",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/terra/design.md"
+    },
+    {
+      "label": "Engine upgrade record",
+      "href": "https://github.com/PolicyEngine/policybench/tree/main/reference_audit/2026-10-22-engine-upgrade"
+    },
+    {
+      "label": "Publication check against policyengine-us 2.74.2",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_74_2.csv"
+    },
+    {
+      "label": "GPT-6.1 Terra model page",
+      "href": "/model/gpt-6.1-terra"
+    },
+    {
+      "label": "Previous release note (October 14)",
+      "href": "/notes/2026-10-14-gemini-4-argon-joins-the-board"
+    }
+  ],
+  "boardSnapshot": "2026-10-27",
+  "release": "dashboard-data-20261027"
+}

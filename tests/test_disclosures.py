@@ -288,14 +288,16 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # adds Claude Haiku 5.5's rows and moves the scored outputs. Release
     # 20261014 adds Gemini 4 Argon's and Muse Spark 1.3's rows (262 annotated
     # misses, 111 unannotated rows below full bounded score) on unchanged
-    # references and exclusions. The app's summarizeAuditUniverse recomputes
-    # the same counts from the payload (app/tests/auditUniverse.test.ts).
+    # references and exclusions. Release 20261027 adds GPT-6.1 Terra's rows
+    # and moves four scored references (9,050 annotated, 9,046 exact misses,
+    # 2,407 unannotated). The app's summarizeAuditUniverse recomputes the same
+    # counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_765,
-        "exact_misses": 8_761,
-        "annotated_exact_misses": 8_761,
+        "annotated": 9_050,
+        "exact_misses": 9_046,
+        "annotated_exact_misses": 9_046,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_329,
+        "unannotated_below_full_bounded_score": 2_407,
     }
 
     for path in (
@@ -831,10 +833,10 @@ def test_newest_engine_claims_are_anchored_to_a_time():
             assert any(phrase in window for phrase in anchored), (path.name, window)
 
 
-# The timing record of the move to the current engine (the 2026-10-12 audit's;
-# the 2026-10-09 audit timed the move to 2.38.6 that preceded it).
+# The timing record of the move to the current engine (the 2026-10-22 audit's;
+# the 2026-10-12 audit timed the move to 2.41.0 that preceded it).
 OCTOBER_TIMING = (
-    ROOT / "reference_audit/2026-10-12-engine-upgrade/verification/sweep_timing.json"
+    ROOT / "reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json"
 )
 
 
@@ -1013,30 +1015,51 @@ def test_card_counts_follow_the_frozen_records():
     assert f"moves {count_word(new)} Indiana households' local income tax" in (
         october_10
     )
-    # The October 13 move to the current engine: it restores outputs earlier
-    # releases excluded, none of them still scored, and changes nothing else.
+    # The October 13 move to 2.41.0: it restores outputs earlier releases
+    # excluded, none of them still scored, and changes nothing else.
+    v12 = r.upgrade_view("2.41.0")
     october = card[card.index("On 2026-10-13 PolicyBench moved the references") :]
-    october = october[: october.index("## ")]
-    assert (
-        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
-        in (october)
-    )
-    assert r.engine_upgrade_restored_ruled_count == 0
+    october = october[: october.index("On 2026-10-23 PolicyBench moved")]
+    assert f"from {v12.previous_policyengine_us_version} to 2.41.0" in october
+    assert v12.engine_upgrade_restored_ruled_count == 0
     assert (
         "The new version fixes the defects behind "
-        f"{count_word(r.engine_upgrade_restored_count)} outputs. Earlier releases "
-        "excluded them, and they return to scoring."
+        f"{count_word(v12.engine_upgrade_restored_count)} outputs. Earlier "
+        "releases excluded them, and they return to scoring."
     ) in october
-    for label, count, prs in r.engine_upgrade_restored_fixes:
+    for label, count, prs in v12.engine_upgrade_restored_fixes:
         assert label in october, label
         assert all(f"#{pr}" in october for pr in prs), (label, prs)
         if count > 1:
             assert f"{count_word(count)} outputs)" in october, label
-    assert r.engine_upgrade_change_summary_sentence == (
+    assert v12.engine_upgrade_change_summary_sentence == (
         "The move changes no scored reference, by any amount, and removes no "
         "output from scoring."
     )
-    assert r.engine_upgrade_change_summary_sentence in october
+    assert v12.engine_upgrade_change_summary_sentence in october
+    # The October 23 move to the current engine: it restores and removes
+    # nothing, and changes four scored references for law in force before the
+    # freeze, each cause named with its pull request.
+    current = card[card.index("On 2026-10-23 PolicyBench moved the references") :]
+    current = current[: current.index("## ")]
+    assert (
+        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
+        in current
+    )
+    assert r.engine_upgrade_restored_count == r.engine_upgrade_new_exclusion_count == 0
+    assert (
+        "The move returns no excluded output to scoring and removes none from scoring."
+    ) in current
+    assert (
+        f"It changes {count_word(r.engine_upgrade_scored_change_count)} scored "
+        "references, each for law in force before the freeze."
+    ) in current
+    prs = re.findall(r"#(\d+)", r.engine_upgrade_scored_change_sentence)
+    assert prs and all(f"#{pr}" in current for pr in prs), prs
+    assert (
+        f"re-reviewed the {r.engine_upgrade_rechecked_count} excluded outputs "
+        f"whose values move on {r.policyengine_us_version}; all stay excluded."
+    ) in current
     # The exclusion breakdown.
     assert (
         f"{_sentence_number(r.excluded_output_count)} outputs in "

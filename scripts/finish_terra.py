@@ -4923,12 +4923,20 @@ def load_build(
         == REFERENCE_BUILD["builder_sha256"],
         "the builder is off its pin",
     )
+    # The audit's publication check (sweep_timing.py check) records the build's
+    # engine while it is still the newest release, and after a newer release the
+    # comparison on it; a newer release that moves a scored output stops the
+    # release (design.md), so its record never passes here.
     timing = json.loads((audit / "verification/sweep_timing.json").read_text())[
         "publication_check"
     ]
     recorded = timing["build_sha256"]
+    checked = ENGINE_PREFIX + str(timing.get("engine"))
     require(
-        timing["engine"] == engine.removeprefix(ENGINE_PREFIX)
+        (
+            checked == engine
+            or (engine_older(engine, checked) and timing.get("scored_differ") == [])
+        )
         and all(
             recorded[name] == REFERENCE_BUILD["sha256"][name] for name in UPGRADED_FILES
         )

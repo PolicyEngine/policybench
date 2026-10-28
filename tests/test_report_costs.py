@@ -25,12 +25,12 @@ def test_frozen_report_discloses_recorded_subtotal_and_published_total():
     fallbacks = sorted(set(costs) - set(recorded["model"]))
     # Release 20260929's 42 of 45, $448.339 and $512.418, plus GPT-6.1 Sol's
     # recorded $2.300, Claude Haiku 5.5's recorded $0.130, Muse Wonder's
-    # recorded $7.864, Gemini 4 Argon's recorded $2.789 and Muse Spark 1.3's
-    # recorded $2.059.
-    assert len(recorded) == 47
-    assert len(costs) == 50
-    assert subtotal == pytest.approx(463.4808, abs=0.0005)
-    assert total == pytest.approx(527.5602, abs=0.0005)
+    # recorded $7.864, Gemini 4 Argon's recorded $2.789, Muse Spark 1.3's
+    # recorded $2.059 and GPT-6.1 Terra's recorded $1.253.
+    assert len(recorded) == 48
+    assert len(costs) == 51
+    assert subtotal == pytest.approx(464.7340, abs=0.0005)
+    assert total == pytest.approx(528.8134, abs=0.0005)
     assert fallbacks == ["claude-fable-5", "gemini-3.6-flash", "grok-build-0.1"]
     report = (run / "analysis/report.md").read_text()
     assert (

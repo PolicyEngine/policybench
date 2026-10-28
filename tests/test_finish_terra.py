@@ -5325,6 +5325,39 @@ def test_a_re_pinned_unchanged_build_still_passes(semantic_build):
 
 
 @pytest.mark.parametrize(
+    "check, passes",
+    [
+        # The build's engine, still the newest release when PyPI was read.
+        ({"engine": "2.60.0"}, True),
+        # A newer release that gives every scored output the same value.
+        ({"engine": "2.74.2", "scored_differ": []}, True),
+        # MOCK: a newer release that moves a scored output, an older one, and
+        # a newer one whose record holds no scored comparison.
+        ({"engine": "2.74.2", "scored_differ": ["scenario_031|snap"]}, False),
+        ({"engine": "2.59.0", "scored_differ": []}, False),
+        ({"engine": "2.74.2"}, False),
+    ],
+)
+def test_the_publication_record_passes_only_an_engine_that_moves_no_scored_output(
+    semantic_build, check, passes
+):
+    """The audit's publication record names the build's engine, or a newer
+    release with no scored move (sweep_timing.py check); any other record is
+    refused even when its build pins match."""
+    path = Path(driver.REFERENCE_BUILD["directory"]) / "verification/sweep_timing.json"
+    timing = _json(path)
+    record = timing["publication_check"]
+    record.pop("scored_differ", None)
+    record.update(check)
+    path.write_text(json.dumps(timing, indent=2) + "\n")
+    if passes:
+        assert set(semantic_build.load().changed) == set(MOVED)
+    else:
+        with pytest.raises(SystemExit, match="audit publication record disagrees"):
+            semantic_build.load()
+
+
+@pytest.mark.parametrize(
     "repinned, problem",
     [
         ({"csv": False}, "does not pin the built reference CSV"),

@@ -68,16 +68,18 @@ be described as faithful reasoning traces.
 ## Reference outputs
 
 PolicyBench computes each scored US reference by running
-`policyengine_us.Simulation` from policyengine-us 2.41.0, the newest release
-when PolicyBench began sweeping the references on 2026-10-13 (uploaded 01:44
-UTC). policyengine-us 2.42.4, the newest release when PolicyBench checked PyPI
-on 2026-10-14 at 04:03 UTC, gives the same value as 2.41.0 for all 1,984
-outputs under the same conventions and adapter. The 49 excluded outputs keep
-the values they were decided on (29 computed with policyengine-us 1.755.4, 18
-with 2.15.17, 2 with 2.38.6), and PolicyBench re-reviewed the 12 of them that
-move on 2.41.0; all 12 stay excluded. The manifest also records policyengine.py
-6.1.2 for provenance. Its certified US bundle carries policyengine-us 2.2.1, and
-policyengine.py does not load beside 2.41.0.
+`policyengine_us.Simulation` from policyengine-us 2.60.0, the newest release
+when PolicyBench began sweeping the references on 2026-10-23 (uploaded
+2026-10-22 at 22:47 UTC). policyengine-us 2.74.2, the newest release when
+PolicyBench checked PyPI on 2026-10-28 at 04:44 UTC, gives the same value as
+2.60.0 for all 1,935 scored outputs under the same conventions and adapter; it
+moves one excluded output, a federal income tax output, by $10.98. The 49
+excluded outputs keep the values they were decided on (29 computed with
+policyengine-us 1.755.4, 18 with 2.15.17, 2 with 2.38.6), and PolicyBench
+re-reviewed the 16 of them that move on 2.60.0; all 16 stay excluded. The
+manifest also records policyengine.py 6.1.2 for provenance. Its certified US
+bundle carries policyengine-us 2.2.1, and policyengine.py does not load beside
+2.60.0.
 
 Federal income tax references apply the section 1 rate schedule to taxable
 income, to the cent, at every income, and not the IRS Tax Table, which the Form
@@ -171,19 +173,40 @@ treats differently. The move changes no scored reference, by any amount, and
 removes no output from scoring. `reference_audit/2026-10-12-engine-upgrade/` holds the
 builder, its evidence and the reviewed actions.
 
+On 2026-10-23 PolicyBench moved the references a fourth time, from 2.41.0 to
+2.60.0, the newest release when it began sweeping the references, and
+recomputed every output under the same conventions and adapter. The move
+returns no excluded output to scoring and removes none from scoring. It
+changes four scored references, each for law in force before the freeze. An
+elderly Californian who lives alone, whose SNAP was $0, now gets the $24
+monthly minimum, $288 a year: California's modified categorical eligibility
+for CalFresh applies no net income test, even to a household with an elderly
+or disabled member, and the previous version applied one (#10036). Three
+households in Pennsylvania and Arkansas have too much income for free or
+reduced-price school lunch, but those states give students at covered schools
+a free breakfast (Pennsylvania's Act 33 of 2023 and Arkansas's Act 123 of
+2025), so the output asking whether PolicyEngine returns free school meal
+support is now yes for each (#10238). policyengine-us models both breakfast
+laws for a student at a covered school without their conditions: Pennsylvania
+reimburses schools to the extent funds are available, and Arkansas serves the
+breakfast on request. PolicyBench re-reviewed the 16 excluded outputs whose
+values move on 2.60.0; all stay excluded.
+`reference_audit/2026-10-22-engine-upgrade/` holds the builder, its evidence
+and the reviewed actions.
+
 ## Audit scope
 
-The frozen US annotations cover 8,765 scored rows selected because their
-legacy threshold score is below 1 (1,915 further annotated rows sit on the 49
+The frozen US annotations cover 9,050 scored rows selected because their
+legacy threshold score is below 1 (1,949 further annotated rows sit on the 49
 excluded outputs and are description, not audit). This audit universe contains
-8,761 of the snapshot's 8,761 exact-match misses and four exact hits. Another
-2,329 scored rows have a bounded score below 100 but fall outside the
+9,046 of the snapshot's 9,046 exact-match misses and four exact hits. Another
+2,407 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
 CLI for 264 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 322 cases: those the September 22, September 29, September 30, October 9,
-October 13 and October 14 additions joined or a reference revision changed, and five whose
+5.5 for 325 cases: those the September 22, September 29, September 30, October 9,
+October 13, October 14 and October 27 additions joined or a reference revision changed, and five whose
 earlier verdicts an audit of the judges' transcripts could not show came from a
 judge that saw only its prompt
 (docs/judge_isolation_2026-09-30/REPORT.md); the
@@ -220,7 +243,7 @@ Forty-nine outputs in 37 households are excluded from scoring for every model
 manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
 output a defect not fixed upstream moved by more than a dollar. Of those
-records, 5 remain as engine-defect exclusions. policyengine-us 2.41.0 computes
+records, 5 remain as engine-defect exclusions. policyengine-us 2.60.0 computes
 all five at their corrected values; they stay excluded because each also moves
 under an input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
@@ -394,7 +417,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-14 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-27 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should

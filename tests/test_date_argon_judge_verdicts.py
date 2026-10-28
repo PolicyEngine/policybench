@@ -12,7 +12,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 import sys
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -28,10 +30,35 @@ import finish_argon as driver  # noqa: E402
 DAY = "2026-10-14"
 # The committed spec, read once: the tests patch driver.load_spec.
 REAL_SPEC = driver.load_spec()
+# The squash merge of #221, which committed this release's evidence. Release
+# 20261027 later commits the triage wave in the working tree's copy
+# (scripts/date_terra_judge_verdicts.py), which this script would refuse.
+RELEASE_20261014_COMMIT = "bf845cbe4e92de495150c8660c35ea357d996a8c"
+
+
+@cache
+def _evidence_text() -> str:
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{RELEASE_20261014_COMMIT}:{dating.EVIDENCE.relative_to(ROOT)}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, (
+        f"the evidence at {RELEASE_20261014_COMMIT[:12]} needs git history; "
+        "fetch full history. " + shown.stderr
+    )
+    return shown.stdout
 
 
 def _evidence() -> dict:
-    return json.loads(dating.EVIDENCE.read_text())
+    """The evidence as release 20261014's commit holds it."""
+    return json.loads(_evidence_text())
 
 
 def _spec(**changes) -> dict:
