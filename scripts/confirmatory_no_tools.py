@@ -89,7 +89,7 @@ def read_record(path: Path) -> dict:
         if not math.isfinite(cost) or cost < 0:
             raise ValueError("attempt cost must be finite and nonnegative")
         return record
-    except (OSError, ValueError, TypeError, AttributeError) as error:
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError) as error:
         raise StateError(f"{path}: {error}") from error
 
 
@@ -262,6 +262,7 @@ class Stage:
             run_household if run_household is not None else pilot.run_household
         )
         self._lock_file = None
+        baseline_path = None
         try:
             baseline = design["baseline_exclusions"]
             if not isinstance(baseline, dict) or not isinstance(
@@ -289,8 +290,11 @@ class Stage:
                 cells.append((exclusion["scenario_id"], exclusion["variable"]))
             if len(cells) != len(set(cells)):
                 raise StateError("baseline exclusions repeat a cell")
-        except (OSError, KeyError, TypeError, ValueError) as error:
-            raise StateError(f"baseline exclusions: {error}") from error
+        except (OSError, KeyError, TypeError, ValueError, RecursionError) as error:
+            at = "baseline exclusions"
+            if baseline_path is not None:
+                at += f" ({baseline_path})"
+            raise StateError(f"{at}: {error}") from error
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock_file = (self.root / ".confirmatory-no-tools.lock").open("a")
         try:
@@ -750,7 +754,13 @@ def main(argv=None) -> int:
     run.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     try:
-        with Stage(json.loads(args.design.read_text()), models=args.model) as stage:
+        try:
+            design = json.loads(args.design.read_text())
+            if not isinstance(design, dict):
+                raise ValueError("design is not a JSON object")
+        except (OSError, ValueError, RecursionError) as error:
+            raise StateError(f"{args.design}: {error}") from error
+        with Stage(design, models=args.model) as stage:
             return stage.dry_run() if args.dry_run else stage.execute()
     except (StateError, OSError, ValueError, KeyError, TypeError) as error:
         print(f"The no-tools stage cannot start: {error}")

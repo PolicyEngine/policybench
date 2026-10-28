@@ -910,6 +910,74 @@ def test_baseline_schema_is_usable_before_any_provider_call(setup, payload):
         assert provider.calls == [], "R5: schema checks precede provider calls"
 
 
+@pytest.mark.parametrize("reader", ["final", "archive", "baseline", "design"])
+@pytest.mark.parametrize("fault", ["nested", "non-object", "invalid-utf8"])
+def test_undecodable_stage_file_refuses_with_path(setup, tmp_path, reader, fault):
+    """Every file reader names its refusal; deep decoding stays in a child."""
+    run_no_tools_probe(
+        setup,
+        tmp_path,
+        f"decode_{reader}_{fault}",
+        f"        reader, fault = {reader!r}, {fault!r}\n"
+        + r"""
+        from contextlib import redirect_stdout
+        from pathlib import Path
+
+        if fault == "nested":
+            payload = (
+                b'{"attempts": [], "exclusions": [], "nested": '
+                + b"[" * 20000 + b"0" + b"]" * 20000 + b"}"
+            )
+        elif fault == "non-object":
+            payload = b"[]"
+        else:
+            payload = (
+                b'{"scenario_id": "h2", "status": "provider_error", '
+                b'"error": "APIConnectionError", "attempts": [], '
+                b'"exclusions": [], "note": "\xff"}'
+            )
+
+        provider = Provider()
+        root = Path(setup["design"]["no_tools"]["runs"])
+        if reader in ("final", "archive"):
+            path = root / nt.CHEAP[0] / "none/confirmatory/households"
+            path /= "h2.json" if reader == "final" else "attempts/h2-1.json"
+        elif reader == "baseline":
+            path = Path(setup["design"]["baseline_exclusions"]["path"])
+        else:
+            path = root.parent / "design.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+        if reader == "design":
+            def unexpected_stage(*args, **kwargs):
+                pytest.fail("an undecodable design must refuse before Stage")
+
+            monkeypatch.setattr(nt, "Stage", unexpected_stage)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                assert nt.main(["run", str(path), "--dry-run"]) == 1
+            assert "The no-tools stage cannot start:" in output.getvalue()
+            assert str(path) in output.getvalue()
+        else:
+            if reader == "baseline":
+                setup["design"]["baseline_exclusions"]["sha256"] = (
+                    nt.sha256_file(path)
+                )
+            with pytest.raises(nt.StateError) as caught:
+                with stage(setup, provider):
+                    pytest.fail("an undecodable file must refuse before execution")
+            assert str(path) in str(caught.value)
+            if fault == "invalid-utf8":
+                assert isinstance(caught.value.__cause__, UnicodeDecodeError)
+            if reader in ("final", "archive"):
+                problems = nt.stage_problems(setup["design"])
+                assert any(str(path) in problem for problem in problems), problems
+        assert provider.calls == []
+        """,
+    )
+
+
 def run_no_tools_probe(setup, tmp_path, name, body):
     """Bound a signal or worker-shutdown regression to its own process."""
     import textwrap
