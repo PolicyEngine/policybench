@@ -5,7 +5,8 @@
   "base_sha256": "22db9a9c052545371687f6afa3551896336abbd15c76f767ebb777a77f6d2268",
   "rulings": {
     "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'. Install the reviewed 2026-10-22 audit's build on policyengine-us 2.60.0, dated 2026-10-23 UTC in its sidecar, and rerun its publication check before publication.",
-    "r24": "PR #242 keeps scenario_002 and scenario_107 federal income tax and scenario_121 federal and state income tax excluded at their decided $0 values. The 2.60.0 engine's employer-paid disability-coverage default reaches their alternative values, while the prompt still leaves who paid for the coverage unstated. Max's d1878 remains pending; deciding that reference reading is outside this release."
+    "r24": "PR #242 keeps scenario_002 and scenario_107 federal income tax and scenario_121 federal and state income tax excluded at their decided $0 values. The 2.60.0 engine's employer-paid disability-coverage default reaches their alternative values, while the prompt still leaves who paid for the coverage unstated. Max's d1878 remains pending; deciding that reference reading is outside this release.",
+    "crp": "Scenario_122's Minnesota state_refundable_credits stays scored at its built $0. The reference rests on mn_renters_credit_qualifying_crp, a Certificate of Rent Paid input the prompt never states and policyengine-us defaults to false; with a qualifying CRP the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp). The prompt tells models to treat an unlisted boolean as false, and the reference follows that instruction; the exclusion rule would remove an output whose reference rests on an unstated input. Release review r2 raised it after the 2026-10-22 build's review, and excluding it here would reopen that build. Max's d2180 decides it for the next release."
   },
   "proposals": [],
   "adjudications": [],

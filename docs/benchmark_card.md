@@ -100,9 +100,7 @@ on 2026-09-29, to policyengine-us 2.15.17, the newest release when it began
 sweeping the references that day (uploaded 00:23 UTC). policyengine-us 2.15.17
 counts Maryland county income tax in its state income tax; an adapter takes it
 out again, because PolicyBench's state income tax output leaves local tax out,
-and every later build keeps the adapter. policyengine-us 2.17.0, the newest
-release when PolicyBench checked PyPI on 2026-09-29 at 14:58 UTC, gave the same
-value as 2.15.17 for all 1,984 outputs under the same conventions and adapter.
+and every later build keeps the adapter.
 
 Four changes between policyengine-us 1.755.4 and 2.15.17 each moved one scored
 reference: New Jersey's child tax credit schedule for 2026 to 2028 (P.L.2026,

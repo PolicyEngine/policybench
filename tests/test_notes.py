@@ -5966,7 +5966,11 @@ def _release_20261027_facts() -> dict:
         for change in r.last_engine_upgrade.partition["scored_changes"]
         if (change["scenario_id"], change["variable"]) == TERRA_SNAP
     ]
-    check = _load_json(TERRA_CHECK / "sweep_timing.json")["publication_check"]
+    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    check = timing["publication_check"]
+    # The check's engine was PyPI's newest when the release read PyPI; the
+    # note dates that read, since newer releases follow within days.
+    assert timing["pypi"]["newest_at_read"] == check["engine"]
 
     def one(value: float) -> float:
         return float(f"{value:.1f}")
@@ -5999,6 +6003,7 @@ def _release_20261027_facts() -> dict:
         "snap031": round(snap["regenerated"]),
         "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
         "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "checkedOn": timing["pypi"]["read_at_utc"][:10],
         "checkedEngine": check["engine"],
         "excludedMoved": len(check["excluded_differ"]),
         "incumbents": len(then),

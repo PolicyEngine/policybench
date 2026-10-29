@@ -1,0 +1,27 @@
+{
+  "scenario": "scenario_122",
+  "engine": "policyengine-us 2.60.0",
+  "policyengine_core": "3.32.29",
+  "computed_at_utc": "2026-10-29T14:41:58Z",
+  "conventions": "reference_audit/2026-09-28/fixes/latest_final.py",
+  "max_credit_last_positive_threshold": 77070.0,
+  "max_credit_first_zero_threshold": 79330.0,
+  "as_built": {
+    "mn_renters_credit_qualifying_crp": false,
+    "mn_renters_credit_household_income": 65346.18,
+    "mn_rent_constituting_property_taxes": 4800.0,
+    "mn_renters_credit_property_tax_exempt": false,
+    "mn_renters_credit_eligible": false,
+    "mn_renters_credit": 0.0,
+    "mn_refundable_credits": 0.0
+  },
+  "with_qualifying_crp": {
+    "mn_renters_credit_qualifying_crp": true,
+    "mn_renters_credit_household_income": 65346.18,
+    "mn_rent_constituting_property_taxes": 4800.0,
+    "mn_renters_credit_property_tax_exempt": false,
+    "mn_renters_credit_eligible": true,
+    "mn_renters_credit": 1921.0,
+    "mn_refundable_credits": 1921.0
+  }
+}
