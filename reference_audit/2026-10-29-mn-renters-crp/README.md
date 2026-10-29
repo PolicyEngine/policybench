@@ -25,7 +25,7 @@ The prompt lists "pre-subsidy rent: $28,235" and no CRP. It tells models to trea
 
 ## The ruling
 
-The output stays scored in this release (`docs/terra/spec.json`, ruling `crp`). The exclusion rule would remove an output whose reference rests on an unstated input, while the prompt's instruction for unlisted booleans gives the reference's reading. Max's d2180 decides it for the next release.
+The output stays scored in this release (`docs/terra/design.md`, under the exclusion records). The exclusion rule would remove an output whose reference rests on an unstated input, while the prompt's instruction for unlisted booleans gives the reference's reading. Max's d2180 decides it for the next release.
 
 ## Rerunning
 
