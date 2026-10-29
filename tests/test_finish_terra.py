@@ -4969,6 +4969,26 @@ def test_cli_export_promotes_triage_outputs_and_their_receipt_together(cli_expor
     assert pd.read_csv(s.stage / "unresolved-rows.csv").empty
 
 
+def test_cli_export_promotes_a_record_triage_amended(cli_exporting, monkeypatch):
+    # Triage applies the listed reasoning amendments to the adjudication record
+    # in the stage copy; the receipt binds the amended bytes, so the stage must
+    # receive them too, or the freeze refuses the staged evidence.
+    s = cli_exporting
+    amended = '{"adjudications": [], "amended": true}\n'
+
+    def amend(path, *args, **kwargs):
+        path.write_text(amended)
+        return []
+
+    monkeypatch.setattr(driver, "stage_adjudications", amend)
+    driver.main(["--stage-dir", str(s.stage), "--step", "export"])
+    record = s.exporting.bundle / "annotations" / driver.ADJUDICATIONS
+    assert record.read_text() == amended
+    receipt = json.loads((s.stage / "release-ready.json").read_text())
+    for relative, expected in receipt["files"].items():
+        assert sha(s.stage / relative) == expected
+
+
 # --- Semantic build mutations (ported from test_finish_musewonder.py) ------------
 #
 # The exact-build pins refuse any changed byte before a semantic gate runs (the

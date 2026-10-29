@@ -5883,10 +5883,25 @@ def export_stage(args, bundle: Path) -> None:
             candidate_bundle / "annotations/us_audit_row_annotations.csv",
             candidate_bundle / "annotations/us_case_notes.csv",
             *sorted((candidate_bundle / "us/analysis").rglob("*")),
-            # The receipt describes the accepted annotation and payload bytes.
-            # Keep it last when promoting the complete validated output set.
-            working / "release-ready.json",
         ]
+        # Triage also rewrites stage files the receipt binds, such as the
+        # adjudication record when it applies the listed reasoning amendments.
+        # Promote every bound file whose accepted bytes differ from the stage's,
+        # so the stage holds exactly the bytes the receipt names.
+        accepted = working / "release-ready.json"
+        bound = json.loads(accepted.read_text())["files"] if accepted.is_file() else {}
+        generated += [
+            working / name
+            for name in sorted(bound)
+            if working / name not in generated
+            and (
+                not (stage / name).is_file()
+                or digest(stage / name) != digest(working / name)
+            )
+        ]
+        # The receipt describes the accepted annotation and payload bytes.
+        # Keep it last when promoting the complete validated output set.
+        generated.append(accepted)
         for source in generated:
             if source.is_file():
                 destination = stage / source.relative_to(working)
