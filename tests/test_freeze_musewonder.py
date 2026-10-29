@@ -90,9 +90,9 @@ _HEAD_BLOB = driver.head_blob
 # is pinned.
 RUNS = {SLUG: f"musewonder-runs/{SLUG}"}
 
-# The squash merge of #217, which froze Muse Wonder's release
-# (dashboard-data-20261013) with the 2026-10-12 engine upgrade as its last
-# reference revision. Later releases move the committed snapshot on.
+# The squash merge of #217, which froze Muse Wonder's release with the
+# 2026-10-12 engine upgrade as its last reference revision. Later releases move
+# the committed snapshot on.
 RELEASE_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
 # The 2026-10-12 builder's note, the one Muse Wonder's builds record. Later
 # releases append their own builders to freezer.UPGRADE_BUILDERS, so its last

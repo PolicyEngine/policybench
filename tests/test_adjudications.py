@@ -1746,7 +1746,10 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
     (docs/terra/judge_verdicts_20261027.json), with release 20261014's verdict
     appended to judge_previous. The move regenerates no record and newly
     excludes no output, so no decision is dropped or added, and every decision
-    and its reasoning is release 20261014's."""
+    is release 20261014's. Its reasoning is release 20261014's with this
+    release's listed reasoning amendments applied (the items
+    us_wording-amendments.json appends after release 20261014's), each on a
+    re-opened case."""
     evidence = json.loads(EVIDENCE_20261027.read_text())
     assert evidence["release"] == "dashboard-data-20261027"
     assert evidence["base_commit"] == RELEASE_20261014_COMMIT
@@ -1778,7 +1781,29 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
         ]
     }
     assert set(verdicts) == set(entries) & reopened
-    replaced = 0
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{RELEASE_20261014_COMMIT}:annotations/{RUN_LABEL}/us_wording-amendments.json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, shown.stderr
+    earlier = json.loads(shown.stdout)["amendments"]
+    listed = json.loads((ANNOTATIONS / "us_wording-amendments.json").read_text())[
+        "amendments"
+    ]
+    assert listed[: len(earlier)] == earlier
+    reasoning: dict[str, list[dict]] = {}
+    for item in listed[len(earlier) :]:
+        if item["field"] == "reasoning":
+            reasoning.setdefault(item["case_id"], []).append(item)
+    assert reasoning and set(reasoning) <= set(verdicts)
+    replaced = amended = 0
     for case, entry in entries.items():
         before = base[case]
         decision = {
@@ -1791,7 +1816,12 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
             for k, v in before.items()
             if not k.startswith("judge") and k != "reasoning"
         }, case
-        assert entry["reasoning"] == before["reasoning"], case
+        expected = before["reasoning"]
+        for item in reasoning.get(case, []):
+            assert expected.count(item["old"]) == 1, case
+            expected = expected.replace(item["old"], item["new"])
+        assert entry["reasoning"] == expected, case
+        amended += entry["reasoning"] != before["reasoning"]
         current = verdicts.get(case)
         if current is None:
             assert entry == before, case
@@ -1823,8 +1853,10 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
             before.get("judge_rejudged_on") or before.get("judged_on_utc"),
         ), case
         replaced += 1
-    # 42 restated decisions, each replacing release 20261014's verdict.
+    # 42 restated decisions, each replacing release 20261014's verdict; each
+    # listed reasoning amendment changes its decision's text.
     assert replaced == len(verdicts) == 42
+    assert amended == len(reasoning)
 
 
 FLAG = st.fixed_dictionaries(
