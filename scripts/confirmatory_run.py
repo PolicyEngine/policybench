@@ -1558,14 +1558,21 @@ class Lanes:
         }
 
     def summary(self) -> dict:
+        from confirmatory_no_tools import _board_input, saved_exists, saved_json_paths
+
         records = []
         for label, folder in self.households_dir.items():
-            for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
-                records.append(json.loads(path.read_text()))
+            for path in saved_json_paths(folder):
+                records.append(_board_input(path, lambda: json.loads(path.read_text())))
         lines = []
         path = self.folder / "run-log.jsonl"
-        if path.exists():
-            lines = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+        if saved_exists(path):
+            lines = _board_input(
+                path,
+                lambda: [
+                    json.loads(x) for x in path.read_text().splitlines() if x.strip()
+                ],
+            )
         attempts = [x for x in lines if "event" not in x]
         count: dict[str, int] = {}
         for x in attempts:
@@ -2162,7 +2169,15 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     if missing:
         return [f"the design has no {', '.join(missing)}"]
     problems = []
-    from confirmatory_no_tools import stage_problems
+    from confirmatory_no_tools import (
+        BOARD_INPUT_ERRORS,
+        _board_input,
+        saved_children,
+        saved_exists,
+        saved_is_dir,
+        saved_json_paths,
+        stage_problems,
+    )
 
     problems.extend(stage_problems(design))
     try:
@@ -2172,7 +2187,7 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
             calculator_root
         ) or calculator_root.is_relative_to(no_tools_root):
             problems.append("the no-tools and calculator runs roots overlap")
-    except (KeyError, TypeError, OSError, ValueError) as error:
+    except (KeyError, TypeError, OSError, ValueError, RuntimeError) as error:
         problems.append(f"the no-tools runs root is invalid: {error}")
     command = design["anchor_command"]
     if (
@@ -2183,19 +2198,31 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         problems.append(f"the anchor command {command!r} is not a command here")
     if design.get("stated_engine_overrides"):
         problems.append("the confirmatory run states the board's engine: no overrides")
-    if sha256_file(Path(design["preregistration"])) != design["frozen_sha256"]:
-        problems.append("the frozen copy does not hash to frozen_sha256")
-    pool = design["eligible_pool"]
-    if sha256_file(Path(pool["path"])) != pool["sha256"]:
-        problems.append("the eligible pool does not hash as frozen")
-    else:
-        ids = [e["id"] for e in json.loads(Path(pool["path"]).read_text())]
-        if draw(master_seed(design["frozen_sha256"]), ids) != list(
-            design["draw_order"]
+    preregistration = Path(design["preregistration"])
+    try:
+        if (
+            _board_input(preregistration, lambda: sha256_file(preregistration))
+            != design["frozen_sha256"]
         ):
-            problems.append(
-                "the draw, recomputed from the stream 'draw', is not the design's"
-            )
+            problems.append("the frozen copy does not hash to frozen_sha256")
+    except ValueError as error:
+        problems.append(str(error))
+    pool = design["eligible_pool"]
+    pool_path = Path(pool["path"])
+    try:
+        pool_bytes = pool_path.read_bytes()
+        if sha256_bytes(pool_bytes) != pool["sha256"]:
+            problems.append(f"{pool_path}: the eligible pool does not hash as frozen")
+        else:
+            ids = [e["id"] for e in json.loads(pool_bytes.decode("utf-8"))]
+            if draw(master_seed(design["frozen_sha256"]), ids) != list(
+                design["draw_order"]
+            ):
+                problems.append(
+                    "the draw, recomputed from the stream 'draw', is not the design's"
+                )
+    except BOARD_INPUT_ERRORS as error:
+        problems.append(f"{pool_path}: cannot read the eligible pool: {error}")
     head, dirty = pilot._git("rev-parse", "HEAD"), pilot._git("status", "--porcelain")
     if head != design["run_commit"] or dirty:
         problems.append(
@@ -2235,14 +2262,21 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
             f"not {TREATMENT_COMMIT[:12]}"
         )
     board = Path(design["board"])
-    engine = pilot.board_engine(board)
-    if f"policyengine-us {engine}" != design["engine"]:
+    try:
+        engine = pilot.board_engine(board)
+    except BOARD_INPUT_ERRORS as error:
         problems.append(
-            f"the board's engine {engine} is not the design's {design['engine']}"
+            f"{board / 'reference_outputs.csv.meta.json'}: "
+            f"cannot read the board's engine: {error}"
         )
-    installed = pilot._versions()["policyengine-us"]
-    if installed != engine:
-        problems.append(f"policyengine-us {installed} is installed, not {engine}")
+    else:
+        if f"policyengine-us {engine}" != design["engine"]:
+            problems.append(
+                f"the board's engine {engine} is not the design's {design['engine']}"
+            )
+        installed = pilot._versions()["policyengine-us"]
+        if installed != engine:
+            problems.append(f"policyengine-us {installed} is installed, not {engine}")
     if set(design["arms"]) != set(ARMS) or set(design["frontier_arms"]) != set(
         FRONTIER_ARMS
     ):
@@ -2262,12 +2296,27 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         if not os.environ.get(key):
             problems.append(f"{model}: {key} is not set")
         folder = Path(design["runs"]) / model
-        if (folder / "run-log.jsonl").exists() or any(
-            folder.glob("*/*/households/*.json")
-        ):
-            problems.append(f"{folder} already holds records; a run is never resumed")
-    if (Path(design["runs"]) / "host" / "host-log.jsonl").exists():
-        problems.append("the runs folder already holds a host log")
+        try:
+            holds_records = saved_exists(folder / "run-log.jsonl")
+            if not holds_records:
+                holds_records = any(
+                    saved_json_paths(stage / "households")
+                    for arm in saved_children(folder)
+                    if saved_is_dir(arm)
+                    for stage in saved_children(arm)
+                    if saved_is_dir(stage)
+                )
+            if holds_records:
+                problems.append(
+                    f"{folder} already holds records; a run is never resumed"
+                )
+        except ValueError as error:
+            problems.append(str(error))
+    try:
+        if saved_exists(Path(design["runs"]) / "host" / "host-log.jsonl"):
+            problems.append("the runs folder already holds a host log")
+    except ValueError as error:
+        problems.append(str(error))
     ac, lid = host_power()
     if not (ac and lid):
         problems.append(
@@ -2304,7 +2353,16 @@ def main(argv=None) -> int:
         return 1
     models = CHEAP + FRONTIER
     problems = preflight(design, models)
-    pilot._require_engine(Path(design["board"]))
+    from confirmatory_no_tools import BOARD_INPUT_ERRORS
+
+    board = Path(design["board"])
+    try:
+        pilot._require_engine(board)
+    except BOARD_INPUT_ERRORS as error:
+        problems.append(
+            f"{board / 'reference_outputs.csv.meta.json'}: "
+            f"the board's engine check failed: {error}"
+        )
     if problems:
         print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
         return 1

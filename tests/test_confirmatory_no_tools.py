@@ -1232,16 +1232,16 @@ def test_board_exclusions_exists_failure_refuses_with_path(
     write_board_fixture(setup, directory)
     exclusions = directory / "reference_exclusions.json"
     error = PermissionError(13, "synthetic unreadable board parent", str(exclusions))
-    exists = Path.exists
+    stat = Path.stat
     checks = []
 
-    def fail_exclusions_exists(path):
+    def fail_exclusions_stat(path, *args, **kwargs):
         if path == exclusions:
             checks.append(path)
             raise error
-        return exists(path)
+        return stat(path, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "exists", fail_exclusions_exists)
+    monkeypatch.setattr(Path, "stat", fail_exclusions_stat)
     provider = Provider()
     try:
         with pytest.raises(nt.StateError) as caught:

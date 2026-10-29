@@ -40,6 +40,7 @@ import math
 import os
 import re
 import signal
+import stat
 import sys
 import threading
 import time
@@ -132,6 +133,51 @@ def _board_input(path: Path | str, read):
         raise StateError(f"{path}: {error}") from error
 
 
+def saved_stat(path: Path):
+    """Only a missing path means absent evidence; other stat failures refuse."""
+
+    def read():
+        try:
+            return path.stat()
+        except FileNotFoundError:
+            return None
+
+    return _board_input(path, read)
+
+
+def saved_exists(path: Path) -> bool:
+    return saved_stat(path) is not None
+
+
+def saved_is_dir(path: Path) -> bool:
+    metadata = saved_stat(path)
+    return metadata is not None and stat.S_ISDIR(metadata.st_mode)
+
+
+def saved_children(folder: Path) -> list[Path]:
+    """Enumerate explicitly so a failed scan cannot silently erase evidence."""
+    metadata = saved_stat(folder)
+    if metadata is None:
+        return []
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise StateError(f"{folder}: evidence folder is not a directory")
+
+    def read():
+        try:
+            with os.scandir(folder) as entries:
+                return [folder / entry.name for entry in entries]
+        except FileNotFoundError:
+            return []
+
+    return _board_input(folder, read)
+
+
+def saved_json_paths(folder: Path) -> list[Path]:
+    return sorted(
+        path for path in saved_children(folder) if path.name.endswith(".json")
+    )
+
+
 def load_board(path: Path, engine: str) -> dict:
     """Check board inputs locally, then use the harness's unchanged loader."""
     from policybench.reference_exclusions import (
@@ -176,7 +222,7 @@ def load_board(path: Path, engine: str) -> dict:
     reference_path = path / "reference_outputs.csv"
     reference = _board_input(reference_path, lambda: csv_frame(reference_path))
     exclusions_path = path / "reference_exclusions.json"
-    if _board_input(exclusions_path, exclusions_path.exists):
+    if saved_exists(exclusions_path):
         _board_input(
             exclusions_path,
             lambda: object_json(checked_bytes(exclusions_path).decode("utf-8")),
@@ -390,12 +436,12 @@ def _attempts_agree(listed: list, entries: list) -> bool:
 def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], float]:
     """Validate a model's histories, including an interrupted archive, and sum spend."""
     archives: dict[str, list[tuple[int, Path]]] = {}
-    for path in sorted((folder / "attempts").glob("*.json")):
+    for path in saved_json_paths(folder / "attempts"):
         match = re.fullmatch(r"(.+)-([1-9][0-9]*)\.json", path.name)
         if not match:
             raise StateError(f"{path}: invalid attempt number")
         archives.setdefault(match[1], []).append((int(match[2]), path))
-    finals = {path.stem: path for path in sorted(folder.glob("*.json"))}
+    finals = {path.stem: path for path in saved_json_paths(folder)}
     states, spent = {}, 0.0
     for sid in sorted(set(finals) | set(archives)):
         paths = sorted(archives.get(sid, []))
@@ -471,8 +517,7 @@ def stage_problems(design: dict) -> list[str]:
         folder, stage = component(spec["folder"]), component(spec["stage"])
         draw_order = [component(sid) for sid in design["draw_order"]]
         models = set(CHEAP)
-        if root.is_dir():
-            models.update(path.name for path in root.iterdir() if path.is_dir())
+        models.update(path.name for path in saved_children(root) if saved_is_dir(path))
     except (OSError, KeyError, TypeError, ValueError) as error:
         return [f"no-tools stage: {error}"]
     board = None
@@ -590,9 +635,10 @@ class Stage:
             ):
                 raise StateError("baseline exclusions need path and sha256")
             baseline_path = Path(baseline["path"])
-            if sha256_file(baseline_path) != baseline.get("sha256"):
+            baseline_bytes = baseline_path.read_bytes()
+            if hashlib.sha256(baseline_bytes).hexdigest() != baseline.get("sha256"):
                 raise StateError("baseline exclusions do not hash as declared")
-            payload = json.loads(baseline_path.read_text())
+            payload = json.loads(baseline_bytes.decode("utf-8"))
             exclusions = (
                 payload.get("exclusions") if isinstance(payload, dict) else None
             )
@@ -644,11 +690,7 @@ class Stage:
             )
         self.histories = {}
         spent = 0.0
-        folders = (
-            {p.name for p in self.root.iterdir() if p.is_dir()}
-            if self.root.is_dir()
-            else set()
-        )
+        folders = {p.name for p in saved_children(self.root) if saved_is_dir(p)}
         for model in sorted(folders | set(self.models)):
             states, cost = history(
                 self.households(model),
@@ -753,7 +795,7 @@ class Stage:
         source = folder / f"{sid}.json"
         target = folder / "attempts" / f"{sid}-{n}.json"
         target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists():
+        if saved_exists(target):
             raise StateError(f"{target}: would overwrite an archived attempt")
         link = entry(source, record, n)
         link["file"] = f"attempts/{target.name}"
