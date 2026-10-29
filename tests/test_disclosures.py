@@ -919,8 +919,10 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"on ({groups}), and PolicyBench re-reviewed the {recheck} of them that "
         f"move on {engine}; all {recheck} stay excluded."
     ) in card
-    # The 2026-09-29 move: the timing record's upload time of its engine, and
-    # when PolicyBench read PyPI for that publication check.
+    # The 2026-09-29 move: the timing record's upload time of its engine. That
+    # day's later PyPI check stays in its audit record, which must still name
+    # the release it checked; the card, like the paper, leaves that chronology
+    # out (release reviews r1 and r2).
     with (ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv").open(
         newline=""
     ) as source:
@@ -931,7 +933,6 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
     )
     september = timing["reference_sweep"]["engine"]
     uploaded = timing["pypi"]["wheel_uploaded_at_utc"][september]
-    read_at = timing["pypi"]["read_at_utc"]
     assert timing["pypi"]["newest_at_read"] == check
     assert (
         f"on {timing['reference_sweep']['first_output_at_utc'][:10]}, to "
@@ -939,11 +940,9 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"the references that day (uploaded {uploaded[11:16]} UTC)."
     ) in card
     assert (
-        f"policyengine-us {check}, the newest release when PolicyBench checked "
-        f"PyPI on {read_at[:10]} at {read_at[11:16]} UTC, gave the same value as "
-        f"{september} for all {len(rows):,} outputs under the same conventions and "
-        "adapter."
-    ) in card
+        f"policyengine-us {check}, the newest release when PolicyBench checked"
+        not in card
+    )
     # The move to the current engine: its sweep's timing record, checked last
     # so that a missing record does not hide the checks above.
     assert OCTOBER_TIMING.is_file(), (
@@ -966,7 +965,6 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
     assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
         {
             f"{uploaded[11:16]} UTC",
-            f"{read_at[11:16]} UTC",
             f"{uploaded_now[11:16]} UTC",
             f"{october_read[11:16]} UTC",
         }
