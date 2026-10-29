@@ -83,9 +83,11 @@ def component(value: str) -> str:
     return value
 
 
-def read_record(path: Path) -> dict:
+def read_record(path: Path) -> tuple[dict, str]:
+    """Decode a saved record and hash the same bytes, so its link names them."""
     try:
-        record = json.loads(path.read_text())
+        data = path.read_bytes()
+        record = json.loads(data.decode("utf-8"))
         if not isinstance(record, dict):
             raise ValueError("record is not a JSON object")
         if "prior_attempts" in record:
@@ -101,7 +103,7 @@ def read_record(path: Path) -> dict:
         cost = float(raw_cost)
         if not math.isfinite(cost) or cost < 0:
             raise ValueError("attempt cost must be finite and nonnegative")
-        return record
+        return record, hashlib.sha256(data).hexdigest()
     except (
         OSError,
         ValueError,
@@ -149,9 +151,10 @@ def saved_exists(path: Path) -> bool:
     return saved_stat(path) is not None
 
 
-def saved_is_dir(path: Path) -> bool:
-    metadata = saved_stat(path)
-    return metadata is not None and stat.S_ISDIR(metadata.st_mode)
+def listed_is_dir(path: Path) -> bool:
+    """A listing returned this entry, so every stat failure refuses, even ENOENT
+    (a dangling link, or an entry removed since the listing)."""
+    return stat.S_ISDIR(_board_input(path, path.stat).st_mode)
 
 
 def saved_children(folder: Path) -> list[Path]:
@@ -411,12 +414,13 @@ def validate_treatment(path, record, model, board, engine):
         raise StateError(f"{path}: " + "; ".join(problems))
 
 
-def entry(path: Path, record: dict, n: int) -> dict:
+def entry(path: Path, record: dict, n: int, sha256: str) -> dict:
+    """Link an archive by the digest of the bytes its record came from."""
     cls, reason = classify(record, 0.0, 0.0, None)
     return {
         "n": n,
         "file": f"attempts/{path.name}",
-        "sha256": sha256_file(path),
+        "sha256": sha256,
         "status": record.get("status"),
         "class": cls,
         "reason": reason,
@@ -435,13 +439,15 @@ def _attempts_agree(listed: list, entries: list) -> bool:
 
 def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], float]:
     """Validate a model's histories, including an interrupted archive, and sum spend."""
+    # Finals first, as the report lists them: an unlistable households folder
+    # is named before the attempts folder inside it.
+    finals = {path.stem: path for path in saved_json_paths(folder)}
     archives: dict[str, list[tuple[int, Path]]] = {}
     for path in saved_json_paths(folder / "attempts"):
         match = re.fullmatch(r"(.+)-([1-9][0-9]*)\.json", path.name)
         if not match:
             raise StateError(f"{path}: invalid attempt number")
         archives.setdefault(match[1], []).append((int(match[2]), path))
-    finals = {path.stem: path for path in saved_json_paths(folder)}
     states, spent = {}, 0.0
     for sid in sorted(set(finals) | set(archives)):
         paths = sorted(archives.get(sid, []))
@@ -455,7 +461,7 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
             raise StateError(f"{folder}: {sid} exceeds {MAX_RERUNS} reruns")
         entries = []
         for n, path in paths:
-            record = read_record(path)
+            record, digest = read_record(path)
             if record.get("scenario_id") != sid:
                 raise StateError(f"{path}: household differs from archive name {sid}")
             if validate is not None:
@@ -470,12 +476,12 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
                 ) from error
             if action(cls, n) not in ("rerun", "pause-rerun"):
                 raise StateError(f"{path}: archived attempt was ineligible for rerun")
-            entries = record["attempts"] + [entry(path, record, n)]
+            entries = record["attempts"] + [entry(path, record, n, digest)]
             spent += attempt_cost(record)
-        final = None
+        final = final_sha256 = None
         if sid in finals:
             path = finals[sid]
-            final = read_record(path)
+            final, final_sha256 = read_record(path)
             if drawn is not None:
                 if sid not in drawn:
                     raise StateError(f"{path}: cheap-model final is outside the draw")
@@ -504,7 +510,7 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
                 ) from error
             entries = final["attempts"]
             spent += attempt_cost(final)
-        states[sid] = {"entries": entries, "final": final}
+        states[sid] = {"entries": entries, "final": final, "final_sha256": final_sha256}
     return states, spent
 
 
@@ -517,7 +523,7 @@ def stage_problems(design: dict) -> list[str]:
         folder, stage = component(spec["folder"]), component(spec["stage"])
         draw_order = [component(sid) for sid in design["draw_order"]]
         models = set(CHEAP)
-        models.update(path.name for path in saved_children(root) if saved_is_dir(path))
+        models.update(path.name for path in saved_children(root) if listed_is_dir(path))
     except (OSError, KeyError, TypeError, ValueError) as error:
         return [f"no-tools stage: {error}"]
     board = None
@@ -690,7 +696,7 @@ class Stage:
             )
         self.histories = {}
         spent = 0.0
-        folders = {p.name for p in saved_children(self.root) if saved_is_dir(p)}
+        folders = {p.name for p in saved_children(self.root) if listed_is_dir(p)}
         for model in sorted(folders | set(self.models)):
             states, cost = history(
                 self.households(model),
@@ -797,7 +803,9 @@ class Stage:
         target.parent.mkdir(parents=True, exist_ok=True)
         if saved_exists(target):
             raise StateError(f"{target}: would overwrite an archived attempt")
-        link = entry(source, record, n)
+        if _board_input(source, lambda: sha256_file(source)) != state["final_sha256"]:
+            raise StateError(f"{source}: final changed after it was read or written")
+        link = entry(source, record, n, state["final_sha256"])
         link["file"] = f"attempts/{target.name}"
         with self._admission_lock:
             if self.interrupted.is_set():
@@ -821,7 +829,7 @@ class Stage:
                     self.states[model] = "interrupted"
                     return
                 state = self.histories[model].setdefault(
-                    sid, {"entries": [], "final": None}
+                    sid, {"entries": [], "final": None, "final_sha256": None}
                 )
                 while True:
                     if self.interrupted.is_set():
@@ -878,8 +886,8 @@ class Stage:
                         )
                         record["totals"]["cost_usd"] = spend.spent_usd
                     record["attempts"] = list(state["entries"])
-                    write_json(self.households(model) / f"{sid}.json", record)
-                    state["final"] = record
+                    digest = write_json(self.households(model) / f"{sid}.json", record)
+                    state["final"], state["final_sha256"] = record, digest
                     n = len(state["entries"]) + 1
                     cls, _ = classify(record, 0.0, 0.0, None)
                     outcome = action(cls, n)

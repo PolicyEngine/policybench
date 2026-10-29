@@ -4,6 +4,7 @@ import errno
 import io
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,108 @@ def test_model_inventory_failure_refuses(
         with state_for_loading(setup) as plan:
             with pytest.raises(nt.StateError, match=str(target)):
                 plan._load_state(setup["board"])
+    else:
+        assert str(target) in "\n".join(cr.preflight(design, (cr.CHEAP[0],)))
+        assert not w.provider.count
+    assert provider.calls == []
+
+
+def vanish(monkeypatch, target):
+    """A listing returned target, but its metadata read finds it gone."""
+    original = os.stat
+
+    def gone(path, *args, **kwargs):
+        if not isinstance(path, int) and Path(path) == target:
+            raise FileNotFoundError(errno.ENOENT, "synthetic vanished entry", str(path))
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", gone)
+
+
+def plant_listed_entry(monkeypatch, target, fault, tmp_path):
+    if fault == "dangling":
+        # A model folder symlinked to an unmounted volume.
+        target.symlink_to(tmp_path / "unmounted-volume")
+    else:
+        target.mkdir()
+        vanish(monkeypatch, target)
+
+
+@pytest.mark.parametrize("fault", ["dangling", "vanished"])
+@pytest.mark.parametrize("boundary", ["startup", "preflight"])
+def test_listed_model_entry_without_metadata_refuses(
+    setup, world, tmp_path, monkeypatch, fault, boundary
+):
+    provider = Provider()
+    if boundary == "startup":
+        design = setup["design"]
+    else:
+        w = world(models=(cr.CHEAP[0],))
+        design = complete_preflight_design(w, tmp_path)
+        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
+    root = Path(design["no_tools"]["runs"])
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / "ghost-model"
+    plant_listed_entry(monkeypatch, target, fault, tmp_path)
+    if boundary == "startup":
+        with pytest.raises(nt.StateError, match=re.escape(str(target))):
+            with stage(setup, provider):
+                pass
+    else:
+        problems = cr.preflight(design, (cr.CHEAP[0],))
+        assert any(
+            problem.startswith(f"no-tools stage: {target}:") for problem in problems
+        ), problems
+        assert not w.provider.count
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize("fault", ["dangling", "vanished"])
+@pytest.mark.parametrize("level", ["arm", "stage"])
+def test_preflight_listed_calculator_entry_without_metadata_refuses(
+    world, tmp_path, monkeypatch, fault, level
+):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
+    folder = Path(design["runs"]) / cr.CHEAP[0]
+    parent = folder if level == "arm" else folder / "pe"
+    parent.mkdir(parents=True, exist_ok=True)
+    target = parent / "ghost"
+    plant_listed_entry(monkeypatch, target, fault, tmp_path)
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert any(problem.startswith(f"{target}:") for problem in problems), problems
+    assert not w.provider.count
+
+
+@pytest.mark.parametrize("fault", ["file", "stat"])
+@pytest.mark.parametrize("which", ["finals", "attempts"])
+@pytest.mark.parametrize("boundary", ["startup", "preflight"])
+def test_broken_optional_history_folder_refuses(
+    setup, world, tmp_path, monkeypatch, fault, which, boundary
+):
+    provider = Provider()
+    if boundary == "startup":
+        design = setup["design"]
+    else:
+        w = world(models=(cr.CHEAP[0],))
+        design = complete_preflight_design(w, tmp_path)
+        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
+    spec = design["no_tools"]
+    folder = (
+        Path(spec["runs"]) / "gpt-6-sol" / spec["folder"] / spec["stage"] / "households"
+    )
+    target = folder if which == "finals" else folder / "attempts"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if fault == "file":
+        target.write_text("{}")
+    else:
+        target.mkdir()
+        deny_stat(monkeypatch, target)
+    if boundary == "startup":
+        with pytest.raises(nt.StateError, match=re.escape(str(target))):
+            with stage(setup, provider):
+                pass
     else:
         assert str(target) in "\n".join(cr.preflight(design, (cr.CHEAP[0],)))
         assert not w.provider.count
@@ -229,7 +332,11 @@ def test_archive_target_stat_failure_refuses(setup, monkeypatch):
             "totals": {"cost_usd": 0.1},
         }
         (folder / f"{sid}.json").write_text(json.dumps(payload))
-        plan.histories[model][sid] = {"final": payload, "entries": []}
+        plan.histories[model][sid] = {
+            "final": payload,
+            "entries": [],
+            "final_sha256": nt.sha256_file(folder / f"{sid}.json"),
+        }
         target = folder / "attempts" / f"{sid}-1.json"
         deny_stat(monkeypatch, target)
         with pytest.raises(nt.StateError, match=str(target)):

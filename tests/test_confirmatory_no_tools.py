@@ -1475,7 +1475,7 @@ def test_valid_saved_numeric_cost_preserves_spend(setup, cost):
     prior["attempts"] = []
     archive.write_text(json.dumps(prior))
     saved = record("h2", profile, cost=cost)
-    saved["attempts"] = [nt.entry(archive, prior, 1)]
+    saved["attempts"] = [nt.entry(archive, prior, 1, nt.sha256_file(archive))]
     (folder / "h2.json").write_text(json.dumps(saved))
     provider = Provider()
     with stage(setup, provider) as plan:

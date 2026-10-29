@@ -2172,9 +2172,9 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     from confirmatory_no_tools import (
         BOARD_INPUT_ERRORS,
         _board_input,
+        listed_is_dir,
         saved_children,
         saved_exists,
-        saved_is_dir,
         saved_json_paths,
         stage_problems,
     )
@@ -2308,9 +2308,9 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
                 holds_records = any(
                     household_paths(stage)
                     for arm in saved_children(folder)
-                    if saved_is_dir(arm)
+                    if listed_is_dir(arm)
                     for stage in saved_children(arm)
-                    if saved_is_dir(stage)
+                    if listed_is_dir(stage)
                 )
             if holds_records:
                 problems.append(

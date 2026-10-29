@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import io
+import json
 import os
+import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from tests.test_confirmatory_no_tools import Provider, nt
+from tests.test_confirmatory_no_tools import Provider, nt, record, stage
 from tests.test_confirmatory_no_tools import setup as _setup_fixture
 from tests.test_confirmatory_no_tools_records import (
     assert_boundary,
@@ -89,6 +93,112 @@ def test_baseline_hash_and_decoder_share_one_valid_buffer(setup, monkeypatch):
         assert plan.spend.spent_usd == 0
     assert reads == [("bytes", data)]
     assert provider.calls == []
+
+
+def saved_history(setup, archive_cost=0.3, final_cost=0.1):
+    """Save one rerun-eligible archive and the final that links it."""
+    root = Path(setup["design"]["no_tools"]["runs"])
+    folder = root / nt.CHEAP[0] / "none/confirmatory/households"
+    profile = SimpleNamespace(name=nt.CHEAP[0], arm="none", model_id="synthetic")
+    archive = folder / "attempts/h2-1.json"
+    archive.parent.mkdir(parents=True)
+    prior = record(
+        "h2",
+        profile,
+        status="provider_error",
+        error="APIConnectionError",
+        cost=archive_cost,
+    )
+    prior["attempts"] = []
+    archive.write_text(json.dumps(prior))
+    saved = record("h2", profile, cost=final_cost)
+    saved["attempts"] = [
+        {
+            "n": 1,
+            "file": "attempts/h2-1.json",
+            "sha256": nt.sha256_file(archive),
+            "status": "provider_error",
+            "class": "provider",
+            "reason": "APIConnectionError",
+        }
+    ]
+    (folder / "h2.json").write_text(json.dumps(saved))
+    return {"archive": archive, "final": folder / "h2.json"}, prior, saved
+
+
+@pytest.mark.parametrize("which", ["archive", "final"])
+def test_saved_record_hash_and_decoder_share_one_buffer(setup, monkeypatch, which):
+    paths, prior, saved = saved_history(setup)
+    path = paths[which]
+    data = path.read_bytes()
+    # A second read would see a cheaper record than the hashed bytes hold.
+    replaced = dict(prior if which == "archive" else saved, totals={"cost_usd": 0.2})
+    reads = replace_text_read(monkeypatch, path, json.dumps(replaced))
+    provider = Provider()
+    with stage(setup, provider, models=[nt.CHEAP[0]]) as plan:
+        assert plan.spend.spent_usd == pytest.approx(0.4)
+        state = plan.histories[nt.CHEAP[0]]["h2"]
+        assert state["entries"][0]["sha256"] == nt.sha256_file(paths["archive"])
+        assert state["final_sha256"] == nt.sha256_file(paths["final"])
+    assert reads == [("bytes", data)]
+    assert provider.calls == []
+
+
+def test_archive_links_the_digest_its_final_was_read_from(setup):
+    paths, _, saved = saved_history(setup)
+    saved["status"], saved["error"] = "provider_error", "APIConnectionError"
+    paths["final"].write_text(json.dumps(saved))
+    data = paths["final"].read_bytes()
+    provider = Provider()
+    with stage(setup, provider, models=[nt.CHEAP[0]]) as plan:
+        assert plan.archive(nt.CHEAP[0], "h2")
+        link = plan.histories[nt.CHEAP[0]]["h2"]["entries"][-1]
+    assert link["n"] == 2 and link["file"] == "attempts/h2-2.json"
+    assert link["sha256"] == hashlib.sha256(data).hexdigest()
+    assert (paths["archive"].parent / "h2-2.json").read_bytes() == data
+    assert provider.calls == []
+
+
+def test_archive_refuses_a_final_changed_after_it_was_read(setup):
+    paths, _, saved = saved_history(setup)
+    saved["status"], saved["error"] = "provider_error", "APIConnectionError"
+    paths["final"].write_text(json.dumps(saved))
+    provider = Provider()
+    with stage(setup, provider, models=[nt.CHEAP[0]]) as plan:
+        changed = dict(saved, totals={"cost_usd": 0.2})
+        paths["final"].write_text(json.dumps(changed))
+        with pytest.raises(nt.StateError, match=re.escape(str(paths["final"]))):
+            plan.archive(nt.CHEAP[0], "h2")
+        assert len(plan.histories[nt.CHEAP[0]]["h2"]["entries"]) == 1
+    assert json.loads(paths["final"].read_text()) == changed
+    assert not (paths["archive"].parent / "h2-2.json").exists()
+    assert provider.calls == []
+
+
+def test_archive_refuses_a_final_changed_after_the_runner_wrote_it(setup, monkeypatch):
+    provider = Provider(
+        {
+            (nt.CHEAP[0], "h2", 1): {
+                "status": "provider_error",
+                "error": "APIConnectionError",
+            }
+        }
+    )
+    original = nt.write_json
+
+    def write_then_change(path, payload, *args, **kwargs):
+        digest = original(path, payload, *args, **kwargs)
+        path.write_bytes(path.read_bytes() + b" ")
+        return digest
+
+    monkeypatch.setattr(nt, "write_json", write_then_change)
+    plan = stage(setup, provider, models=[nt.CHEAP[0]])
+    assert plan.execute() == 1
+    assert plan.states[nt.CHEAP[0]] == "error"
+    assert provider.calls == [(nt.CHEAP[0], "h2", 1)]
+    folder = plan.households(nt.CHEAP[0])
+    assert json.loads((folder / "h2.json").read_text())["status"] == "provider_error"
+    assert not (folder / "attempts").exists()
 
 
 def pool_design(tmp_path, monkeypatch):

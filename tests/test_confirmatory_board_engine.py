@@ -62,7 +62,16 @@ def test_engine_metadata_refuses_full_calculator_start(
     w, design, metadata = engine_fault(world, tmp_path, monkeypatch, fault)
     if entrypoint == "preflight":
         problems = cr.preflight(design, (cr.CHEAP[0],))
-        assert str(metadata) in "\n".join(problems)
+        # The preflight's own guard, beside the saved-treatment lines it keeps.
+        guard = f"{metadata}: cannot read the board's engine: "
+        assert sum(problem.startswith(guard) for problem in problems) == 1, problems
+        for model in cr.CHEAP:
+            assert any(
+                problem.startswith(f"no-tools {model}: ")
+                and "cannot check saved no-tools treatment" in problem
+                and str(metadata) in problem
+                for problem in problems
+            ), problems
     else:
         design_path = tmp_path / "design.json"
         design_path.write_text(json.dumps(design))

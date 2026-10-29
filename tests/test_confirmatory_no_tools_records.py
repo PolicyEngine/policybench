@@ -85,7 +85,7 @@ def save_records(saved, change_link=None):
         path = saved.folder / "attempts" / f"h2-{n}.json"
         save(path, payload)
         try:
-            link = nt.entry(path, payload, n)
+            link = nt.entry(path, payload, n, nt.sha256_file(path))
         except (AttributeError, TypeError, ValueError, KeyError):
             # Malformed turn evidence must reach the startup reader, rather
             # than fail while this fixture refreshes otherwise valid links.
@@ -450,5 +450,7 @@ def test_real_treatment_resume_preserves_attempts_and_spend(saved_records, histo
     assert not second.exists()
     payload = json.loads(final.read_text())
     assert payload["status"] == "complete"
-    assert payload["attempts"] == [nt.entry(first, saved.archives[0], 1)]
+    assert payload["attempts"] == [
+        nt.entry(first, saved.archives[0], 1, nt.sha256_file(first))
+    ]
     assert nt.stage_problems(saved.design) == []
