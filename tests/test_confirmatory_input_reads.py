@@ -134,7 +134,7 @@ def report_module():
             "set CONFIRMATORY_REPORT for the separate report's acceptance control"
         )
     path = Path(configured)
-    name = "confirmatory_report_r15_variables_control"
+    name = "confirmatory_report_variables_control"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     with pytest.MonkeyPatch.context() as patch:
