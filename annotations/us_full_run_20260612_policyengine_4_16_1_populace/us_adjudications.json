@@ -566,7 +566,7 @@
       "unlisted_input": "meets_ssi_disability_criteria",
       "adjudicated_on": "2026-09-05",
       "adjudicator": "developer",
-      "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 11928.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. Under the alternative reading fourteen of the eighteen models that paid SSI land within 10% of the $11,928 federal benefit (ten exactly); deepseek-v4-pro, deepseek-v4-pro-0813 and inkling also applied a one-third in-kind reduction the facts do not support.",
+      "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 11928.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. Under the alternative reading, fourteen of the eighteen models that paid SSI on the 51-model board of 2026-10-27 land within 10% of the $11,928 federal benefit (ten exactly); deepseek-v4-pro, deepseek-v4-pro-0813 and inkling also applied a one-third in-kind reduction the facts do not support.",
       "judge_reference_suspect": false,
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [
@@ -700,7 +700,7 @@
       "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 106,505.90; the recorded correction is 107,198.34 under the refund-excluded reading. The frozen engine omitted the IRA active-participant phase-out. Policyengine-us 2.60.0 applies that phase-out and includes the refund, giving 108,525.58. The output remains excluded because NIIT inclusion remains unresolved.",
+      "reasoning": "The frozen reference is 106,505.90; the recorded correction is 107,198.34 under the refund-excluded reading. The frozen engine omitted the IRA active-participant phase-out. The policyengine-us 2.60.0 engine applies that phase-out and includes the refund, giving 108,525.58. The output remains excluded because refund taxation, excess-deferral allocation and NIIT inclusion remain unresolved.",
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [
         {
@@ -830,7 +830,7 @@
       "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 104,211.41; the corrected value is 104,225.26. The frozen reference deducted traditional IRA contributions without the active-participant phase-out. Policyengine-us 2.60.0 applies that phaseout; the output remains excluded because NIIT's inclusion in the requested output remains unresolved.",
+      "reasoning": "The frozen reference is 104,211.41; the corrected value is 104,225.26. The frozen reference deducted traditional IRA contributions without the active-participant phase-out. The policyengine-us 2.60.0 engine applies that phaseout; the output remains excluded because NIIT's inclusion in the requested output remains unresolved.",
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [
         {
@@ -1184,7 +1184,7 @@
       "judge_reference_suspect": true,
       "reference_verdict": "engine_defect",
       "reference_basis": "M.G.L. c. 62 sec. 2(b), 2(c)(2)(a), 2(c)(4), 2(f); DOR TIR 02-21",
-      "reasoning": "The frozen reference is 8,238.41; the corrected value is 8,232.90. The frozen reference reflects an earlier engine defect that taxed Massachusetts Part A dividends gross without applying the short-term capital loss offset. PolicyEngine 2.60.0 applies that offset and returns 8,232.90. The output remains excluded because the interest source is unstated.",
+      "reasoning": "The frozen reference is 8,238.41; the corrected value is 8,232.90. The frozen reference reflects an earlier engine defect that taxed Massachusetts Part A dividends gross without applying the short-term capital loss offset. The policyengine-us 2.60.0 engine applies that offset and returns 8,232.90. The output remains excluded because the interest source is unstated.",
       "judge_reference_suspect_source": "claude-opus-5-5 judge run adjudicated 2026-09-22",
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [

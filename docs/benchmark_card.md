@@ -70,8 +70,8 @@ be described as faithful reasoning traces.
 PolicyBench computes each scored US reference by running
 `policyengine_us.Simulation` from policyengine-us 2.60.0, the newest release
 when PolicyBench began sweeping the references on 2026-10-23 (uploaded
-2026-10-22 at 22:47 UTC). policyengine-us 2.76.0, the newest release when
-PolicyBench checked PyPI on 2026-10-29 at 08:22 UTC, gives the same value as
+2026-10-22 at 22:47 UTC). policyengine-us 2.78.0, the newest release when
+PolicyBench checked PyPI on 2026-10-29 at 16:52 UTC, gives the same value as
 2.60.0 for all 1,935 scored outputs under the same conventions and adapter; it
 moves one excluded output, a federal income tax output, by $10.98. The 49
 excluded outputs keep the values they were decided on (29 computed with

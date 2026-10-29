@@ -1,5 +1,5 @@
 {
- "note": "Wording-only amendments of published text for cases GPT-6.1 Sol re-opened (finish_gpt61sol.py load_amendments): each replaces its old text, found exactly once, with the new text. None changes a class, an exclusion or a score. Triage applies them; export binds this file; the freeze commits it beside the adjudication record. The last 462 (after the first 394) are for cases Muse Wonder re-opened (finish_musewonder.py load_amendments). Wording amendments to the cases the Muse Wonder release re-opened (dashboard-data-20261013). These cases' new Opus 5.5 verdicts replaced text earlier releases had corrected (us_wording-amendments.json, docs/release_20261006/annotation_rewrites.json and reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json). A GPT-6.1 Sol reviewer read each of the 26 cases' new text against the record and proposed corrections; a second GPT-6.1 Sol reviewer checked each one adversarially, keeping 444, refining the wording of 20 and dropping 80; 2 more that would have rewritten the generated adjudication sentence, which restates the record, were left out. Each corrects a statement the record contradicts; none changes a score or a decision. The last 14 (after the first 856) are for the five cases release dashboard-data-20261013b re-judged (scripts/release_20261013b.py load_amendments). Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine, and a review of the release's pull request found three more of scenario_015's Medicaid texts that the household's calculation contradicts and a misstated EITC end point in scenario_014 (docs/release_20261013b/design.md). Each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score. The last 1522 (after the first 870) are for cases a new model re-opened (finish_terra.py load_amendments). Each of this release's amendments corrects a statement in the published wording of a case the release re-judged that the record or the engine contradicts. For each of the 130 re-judged cases, one reviewer (GPT-6.1 Sol for 91 cases, Claude Opus 5.5 for 39) read the case's record and the policyengine-us 2.60.0 source and proposed corrections, and a second reviewer verified each proposal, keeping, fixing or dropping it; statements a verifier found missing went through further rounds of proposal and verification. That left 1,522 amendments in 117 cases. Each of those cases then had an independent audit by the model family that had not verified it, and 84 had audits by both GPT-6.1 Sol and Claude Opus 5.5. Auditors ruled 50 amendments wrong. Claude Opus 5.5 settled each against the record and the engine source: 47 took corrected text and 3 kept the verified amendment. GPT-6.1 Sol then checked every corrected text. Where it found an error, its correction replaced the settled text in 8 amendments, and in one the engine source supported the settled text.",
+ "note": "Wording-only amendments of published text for cases GPT-6.1 Sol re-opened (finish_gpt61sol.py load_amendments): each replaces its old text, found exactly once, with the new text. None changes a class, an exclusion or a score. Triage applies them; export binds this file; the freeze commits it beside the adjudication record. The last 462 (after the first 394) are for cases Muse Wonder re-opened (finish_musewonder.py load_amendments). Wording amendments to the cases the Muse Wonder release re-opened (dashboard-data-20261013). These cases' new Opus 5.5 verdicts replaced text earlier releases had corrected (us_wording-amendments.json, docs/release_20261006/annotation_rewrites.json and reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json). A GPT-6.1 Sol reviewer read each of the 26 cases' new text against the record and proposed corrections; a second GPT-6.1 Sol reviewer checked each one adversarially, keeping 444, refining the wording of 20 and dropping 80; 2 more that would have rewritten the generated adjudication sentence, which restates the record, were left out. Each corrects a statement the record contradicts; none changes a score or a decision. The last 14 (after the first 856) are for the five cases release dashboard-data-20261013b re-judged (scripts/release_20261013b.py load_amendments). Each corrects a statement in a new verdict's text that the case's prompt or policyengine-us 2.41.0 contradicts. Two independent reviewers (Claude Opus 5.5 and GPT-6.1 Sol, neither part of the release) read all 26 new texts against each case's prompt and the engine, and a review of the release's pull request found three more of scenario_015's Medicaid texts that the household's calculation contradicts and a misstated EITC end point in scenario_014 (docs/release_20261013b/design.md). Each correction here was then checked against the engine's code and parameters, and for scenario_015's Medicaid pathway against a calculation of that household. None changes a class, a flag, an exclusion or a score. The last 1573 (after the first 870) are for cases a new model re-opened (finish_terra.py load_amendments). Each of this release's amendments corrects a statement in the published wording of a case the release re-judged that the record or the engine contradicts. For each of the 130 re-judged cases, one reviewer (GPT-6.1 Sol for 91 cases, Claude Opus 5.5 for 39) read the case's record and the policyengine-us 2.60.0 source and proposed corrections, and a second reviewer verified each proposal, keeping, fixing or dropping it; statements a verifier found missing went through further rounds of proposal and verification. That left 1,522 amendments in 117 cases. Each of those cases then had an independent audit by the model family that had not verified it, and 84 had audits by both GPT-6.1 Sol and Claude Opus 5.5. Auditors ruled 50 amendments wrong. Claude Opus 5.5 settled each against the record and the engine source: 47 took corrected text and 3 kept the verified amendment. GPT-6.1 Sol then checked every corrected text. Where it found an error, its correction replaced the settled text in 8 amendments, and in one the engine source supported the settled text. Claude Opus 5.5 appended 51 more in seven of those cases after the release's second review (2026-10-29), each answering one of its findings, checked against the record, the policyengine-us 2.60.0 source and, for scenario_122, the traces in reference_audit/2026-10-29-mn-renters-crp. They name the unlisted Certificate of Rent Paid input as the cause of scenario_122's $0 Minnesota refundable credits, attribute scenario_120's state tax refund to the model, list scenario_005's three open questions, date scenario_064's counts and spell the policyengine-us package.",
  "amendments": [
   {
    "case_id": "us__scenario_008__state_refundable_credits",
@@ -18967,6 +18967,405 @@
    "old": "PA allows no deductions",
    "new": "PA allows no standard deduction, personal exemptions, or itemized deductions for charity or property tax",
    "reason": "The model identified these specific restrictions, and pa_tax_deductions permits a 529 contribution deduction, contradicting the blanket claim."
+  },
+  {
+   "case_id": "us__scenario_064__ssi",
+   "field": "reasoning",
+   "old": "Under the alternative reading fourteen of the eighteen models that paid SSI land within",
+   "new": "Under the alternative reading, fourteen of the eighteen models that paid SSI on the 51-model board of 2026-10-27 land within",
+   "reason": "Release review r2: the counts describe this release's 51-model board, which the 2026-09-05 decision never saw, so the sentence dates them."
+  },
+  {
+   "case_id": "us__scenario_005__federal_income_tax_before_refundable_credits",
+   "field": "reasoning",
+   "old": "The output remains excluded because NIIT inclusion remains unresolved.",
+   "new": "The output remains excluded because refund taxation, excess-deferral allocation and NIIT inclusion remain unresolved.",
+   "reason": "Release review r2: revision 17 of the reference build's record (reference_outputs.csv.meta.json) leaves the state refund's taxation and the 402(g) excess-deferral allocation open beside NIIT, as the case note says."
+  },
+  {
+   "case_id": "us__scenario_005__federal_income_tax_before_refundable_credits",
+   "field": "reasoning",
+   "old": "Policyengine-us 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_052__federal_income_tax_before_refundable_credits",
+   "field": "reasoning",
+   "old": "Policyengine-us 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_081__state_income_tax_before_refundable_credits",
+   "field": "reasoning",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_005__federal_income_tax_before_refundable_credits",
+   "field": "case_annotation",
+   "old": "Policyengine-us 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_081__state_income_tax_before_refundable_credits",
+   "field": "case_annotation",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_120__federal_income_tax_before_refundable_credits",
+   "field": "case_annotation",
+   "old": "Policyengine-us 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "case_annotation",
+   "old": "Every model that supplied a value awarded Minnesota's renter's credit. The engine uses federal AGI and a $5,300 age-based subtraction for this filer, giving renter's-credit household income of $65,346, below the 2026 schedule ceiling of $79,330. The credit requires a qualifying Certificate of Rent Paid (CRP), whose unlisted input defaults to false, so mn_refundable_credits is $0. The household also has no earned income for the Working Family Credit and no children for the MN Child Tax Credit. Every model that answered treated the household as still inside the schedule and paid out part of the 17%-of-rent amount. None applied the income cutoff.",
+   "new": "Eight models awarded Minnesota's renter's credit, and kimi-k2.6 returned no value. The engine uses federal AGI and a $5,300 age-based subtraction for this filer, giving renter's-credit household income of $65,346, below the 2026 schedule ceiling of $79,330. The credit also requires a qualifying Certificate of Rent Paid (CRP), an input the prompt does not list and the engine defaults to false, so mn_refundable_credits is $0; with a qualifying CRP the engine pays $1,921. The household also has no earned income for the Working Family Credit and no children for the MN Child Tax Credit. The eight models computed a credit from the 17%-of-rent amount, and none addressed the CRP requirement. The prompt tells models to treat an unlisted boolean as false, which gives the engine's reading.",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json). Eight models answered a positive credit and kimi-k2.6 none, and no explanation mentions a CRP, so the note limits its claims to those models and names the CRP default as the cause."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-fable-5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-fable-5.1",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-haiku-4.5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-haiku-5.5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-opus-4.7",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-opus-4.8",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-sonnet-4.6",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "claude-sonnet-5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "deepseek-v4-flash-0731",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "deepseek-v4-pro",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gemini-3-flash-preview",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gemini-3.1-flash-lite-preview",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gemini-3.5-flash-lite",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gemini-3.7-flash",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "glm-5.2",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "glm-5.3",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-5.4-mini",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-5.5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-5.6-luna",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-5.6-sol",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-5.6-terra",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-6-astra",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-6-luna",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-6-sol",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-6.1-sol",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "gpt-6.1-terra",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "grok-4.5",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "grok-4.7",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "grok-build-0.1",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "inkling",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "kimi-k2.6",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "kimi-k3",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "muse-spark-1.3",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "muse-wonder",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "ox-alpha",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_112__snap",
+   "field": "annotation",
+   "model": "qwen3.8-max",
+   "old": "PolicyEngine 2.60.0",
+   "new": "The policyengine-us 2.60.0 engine",
+   "reason": "Release review r2: the package is policyengine-us; a sentence that opens with it now starts with 'The', so the name keeps its lowercase form."
+  },
+  {
+   "case_id": "us__scenario_120__federal_income_tax_before_refundable_credits",
+   "field": "annotation",
+   "model": "gpt-6-sol",
+   "old": "The frozen trace used $196,918 and added $163.40 of NIIT. It included the $1,750 refund in AGI.",
+   "new": "The model included the $1,750 refund in AGI. The frozen trace left it out, used $196,918 of taxable income and added $163.40 of NIIT.",
+   "reason": "Release review r2: the model's $234,414 of AGI includes the $1,750 refund and the frozen trace's $232,635.12 leaves it out (the 2.15.17 recheck reaches 40,021.82 only with the refund at zero), so the sentence names the model."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "annotation",
+   "model": "claude-fable-5",
+   "old": "The model computed household income at about $77,500 and noted it was 'near the income limit'. The engine requires a qualifying Certificate of Rent Paid (CRP), whose unlisted input defaults to false, so the renter's credit is $0. It then gave $2,265, which is more than its own $1,470 estimate even though it said the credit would be reduced.",
+   "new": "The model computed household income at about $77,500, noted it was 'near the income limit' and gave $2,265, more than its own $1,470 estimate. The engine puts renter's-credit household income at $65,346, inside the schedule, but requires a qualifying Certificate of Rent Paid (CRP), whose unlisted input defaults to false, so the renter's credit is $0.",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json). The row's 'It then gave' followed the engine sentence, so 'It' named the engine."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "annotation",
+   "model": "deepseek-v4.1-flash",
+   "old": "The engine uses federal AGI with an age-based subtraction for this filer. The engine requires",
+   "new": "The engine uses federal AGI with an age-based subtraction for this filer, giving $65,346, inside the schedule, but requires",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json)."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "annotation",
+   "model": "gpt-5.5",
+   "old": "Above the renter's credit maximum household income, nothing is paid. The engine requires",
+   "new": "The engine puts renter's-credit household income at $65,346, inside the schedule, but requires",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json). The household's income sits below the schedule's maximum, so the row no longer says the credit stops there."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "annotation",
+   "model": "gpt-5.6-sol",
+   "old": "The model assumed a senior/disabled adjustment kept the household inside the renter's credit schedule and gave $2,228, close to the maximum credit. The engine applies an age-based household-income subtraction for this filer. It also requires",
+   "new": "The model applied a senior/disabled adjustment, placed the household inside the renter's credit schedule and gave $2,228. The engine also applies an age-based household-income subtraction and places the household inside the schedule, but it requires",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json). The model's placement inside the schedule matches the engine's; the row no longer calls it an error."
+  },
+  {
+   "case_id": "us__scenario_122__state_refundable_credits",
+   "field": "annotation",
+   "model": "gpt-6.1-terra",
+   "old": "The model gave a small $300 renter's credit, which means it treated the household as near the end of the phase-out range.",
+   "new": "The model gave a $300 renter's credit from rent, household income and the senior income adjustment.",
+   "reason": "Release review r2: the engine puts renter's-credit household income at $65,346, inside the 2026 schedule, which pays nothing from $79,330, and only the unlisted mn_renters_credit_qualifying_crp input, which defaults to false, makes the credit $0; with it set to true the engine pays $1,921 (reference_audit/2026-10-29-mn-renters-crp, trace_122_2_60_0.json). The model's explanation names rent, household income and the senior income adjustment and says nothing about a phase-out."
   }
  ]
 }
