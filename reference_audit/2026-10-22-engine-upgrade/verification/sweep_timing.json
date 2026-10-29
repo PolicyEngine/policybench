@@ -2,8 +2,8 @@
   "note": "When PolicyBench began sweeping the references for the 2026-10-22 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
   "pypi": {
     "source": "https://pypi.org/pypi/policyengine-us/json",
-    "read_at_utc": "2026-10-28T04:44:16Z",
-    "newest_at_read": "2.74.2",
+    "read_at_utc": "2026-10-29T08:22:24Z",
+    "newest_at_read": "2.76.0",
     "wheel_uploaded_at_utc": {
       "2.60.0": "2026-10-22T22:47:49.733557Z",
       "2.60.1": "2026-10-23T03:30:37.442064Z",
@@ -47,7 +47,10 @@
       "2.73.2": "2026-10-27T23:03:52.976777Z",
       "2.74.0": "2026-10-28T00:29:19.307712Z",
       "2.74.1": "2026-10-28T00:58:10.242290Z",
-      "2.74.2": "2026-10-28T01:08:25.515876Z"
+      "2.74.2": "2026-10-28T01:08:25.515876Z",
+      "2.75.0": "2026-10-28T09:46:49.624120Z",
+      "2.75.1": "2026-10-28T15:02:18.695383Z",
+      "2.76.0": "2026-10-28T20:42:26.289739Z"
     },
     "yanked_newer": {}
   },
@@ -68,10 +71,10 @@
     "first_output_sha256": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008"
   },
   "publication_check": {
-    "engine": "2.74.2",
-    "engine_installed_at_utc": "2026-10-28T04:07:16Z",
-    "engine_installed_evidence": "results/local/terra/publication-check-venv/lib/python3.12/site-packages/policyengine_us-2.74.2.dist-info",
-    "check_computed": "results/local/check-sweep-2.74.2-bn0a116d/sweep/computed.csv",
+    "engine": "2.76.0",
+    "engine_installed_at_utc": "2026-10-29T08:22:14Z",
+    "engine_installed_evidence": "results/local/terra/publication-check-venv/lib/python3.12/site-packages/policyengine_us-2.76.0.dist-info",
+    "check_computed": "results/local/check-sweep-2.76.0-q6xiw4nb/sweep/computed.csv",
     "check_computed_sha256": "48e18d66fd19e17503edad2747a7382e625cbc8b5d6db7967a3dcb269835027d",
     "check_sweep": {
       "builder_sha256": "d4b00204390c6ada97bdf91358dc3d60ae3307d101062b8982fa62923cc9c645",
@@ -79,16 +82,16 @@
       "command": "build_references_upgrade.py --actions <empty> --allow-draft",
       "exit_code": 1,
       "engine_install": {
-        "version": "2.74.2",
-        "files_verified": 20137,
+        "version": "2.76.0",
+        "files_verified": 20199,
         "editable": false,
         "imported_from_package": true,
         "fresh_bytecode_cache": true
       }
     },
-    "output_at_utc": "2026-10-28T04:54:53Z",
-    "output": "reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_74_2.csv",
-    "output_sha256": "80f23ea076b10eb7ac30eb6ecbea1e35000eaff203b3f5f30a214631313590d1",
+    "output_at_utc": "2026-10-29T08:24:54Z",
+    "output": "reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_76_0.csv",
+    "output_sha256": "59a342bea782f828800c672685ebe021cd8d68121b3aa2656f8b656d81ec1588",
     "build": "reference_audit/2026-10-22-engine-upgrade/reference-build",
     "build_sha256": {
       "computed.csv": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008",

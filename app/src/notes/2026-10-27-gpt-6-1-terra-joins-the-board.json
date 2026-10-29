@@ -34,7 +34,7 @@
     "snap031": 288,
     "scoredOutputs": 1935,
     "totalOutputs": 1984,
-    "checkedEngine": "2.74.2",
+    "checkedEngine": "2.76.0",
     "excludedMoved": 1,
     "incumbents": 50,
     "fallers": 47,
@@ -60,8 +60,8 @@
       "href": "https://github.com/PolicyEngine/policybench/tree/main/reference_audit/2026-10-22-engine-upgrade"
     },
     {
-      "label": "Publication check against policyengine-us 2.74.2",
-      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_74_2.csv"
+      "label": "Publication check against policyengine-us 2.76.0",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_76_0.csv"
     },
     {
       "label": "GPT-6.1 Terra model page",
