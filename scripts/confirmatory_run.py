@@ -2284,6 +2284,12 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     for name in ("arms", "frontier_arms"):
         if len(set(design[name].values())) != len(design[name]):
             problems.append(f"two {name} share a folder")
+
+    def household_paths(stage):
+        # Check the parent inventory even when its next component is literal.
+        saved_children(stage)
+        return saved_json_paths(stage / "households")
+
     for model in models:
         if model not in design["caps"] or model not in design["reserves"]:
             problems.append(f"{model}: no cap or reserve")
@@ -2300,7 +2306,7 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
             holds_records = saved_exists(folder / "run-log.jsonl")
             if not holds_records:
                 holds_records = any(
-                    saved_json_paths(stage / "households")
+                    household_paths(stage)
                     for arm in saved_children(folder)
                     if saved_is_dir(arm)
                     for stage in saved_children(arm)
