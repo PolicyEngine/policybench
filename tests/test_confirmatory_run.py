@@ -2174,7 +2174,32 @@ def test_the_preflight_names_a_missing_field():
 
 
 def complete_preflight_design(w, tmp_path):
-    """Each calculator preflight starts after synthetic standing no-tools finals."""
+    """Each calculator preflight starts after standing no-tools finals that pass
+    the no-tools script's treatment checks: built through the harness from the
+    fake board, whose files that script's loader checks before it calls the
+    patched harness loader."""
+    import csv
+
+    from policybench.scenarios import scenario_to_dict
+    from tests.test_confirmatory_no_tools_records import full_record
+
+    board = Path(w.design["board"])
+    (board / "reference_outputs.csv.meta.json").write_text(
+        json.dumps(
+            {
+                "programs": ["snap"],
+                "revisions": [
+                    {"kind": "engine_upgrade", "engine_version": w.design["engine"]}
+                ],
+            }
+        )
+    )
+    with (board / "scenarios.csv").open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["scenario_json"])
+        writer.writerows(
+            [json.dumps(scenario_to_dict(w.board["scenarios"][sid]))] for sid in POOL
+        )
     pool = tmp_path / "pool.json"
     pool.write_text(json.dumps([{"id": s} for s in POOL]))
     design = dict(
@@ -2190,18 +2215,15 @@ def complete_preflight_design(w, tmp_path):
     )
     for model in cr.CHEAP:
         for sid in design["draw_order"]:
+            final = full_record(w.board, model, design["engine"], sid)
+            final["predictions"] = {v: 1.0 for v in w.board["variables"][sid]}
+            final["totals"] = {"cost_usd": 0.0}
             cr.write_json(
                 Path(design["no_tools"]["runs"])
                 / model
                 / "none/confirm/households"
                 / f"{sid}.json",
-                {
-                    "scenario_id": sid,
-                    "status": "complete",
-                    "turns": [{}],
-                    "totals": {"cost_usd": 0.0},
-                    "attempts": [],
-                },
+                final,
             )
     return design
 
@@ -2260,9 +2282,15 @@ def test_preflight_refuses_an_unfinished_no_tools_stage(
         if fault == "history":
             payload.pop("attempts")
         else:
+            # A failed call leaves no reply: no answer and no prompt evidence.
+            from tests.test_confirmatory_no_tools_records import OPTIONAL_EVIDENCE
+
+            for key in OPTIONAL_EVIDENCE:
+                payload.pop(key)
             payload.update(
                 status="budget_stop" if fault == "ceiling" else "provider_error",
                 error="BadRequestError" if fault == "harness" else None,
+                predictions={v: None for v in payload["variables"]},
                 turns=[],
             )
         path.write_text(json.dumps(payload))
