@@ -800,11 +800,13 @@ class Stage:
         folder = self.households(model)
         source = folder / f"{sid}.json"
         target = folder / "attempts" / f"{sid}-{n}.json"
-        target.parent.mkdir(parents=True, exist_ok=True)
+        # Both refusals come before the folder exists, so a refused move
+        # leaves the history as it was.
         if saved_exists(target):
             raise StateError(f"{target}: would overwrite an archived attempt")
         if _board_input(source, lambda: sha256_file(source)) != state["final_sha256"]:
             raise StateError(f"{source}: final changed after it was read or written")
+        target.parent.mkdir(parents=True, exist_ok=True)
         link = entry(source, record, n, state["final_sha256"])
         link["file"] = f"attempts/{target.name}"
         with self._admission_lock:

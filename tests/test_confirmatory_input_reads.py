@@ -131,6 +131,9 @@ def test_saved_record_hash_and_decoder_share_one_buffer(setup, monkeypatch, whic
     paths, prior, saved = saved_history(setup)
     path = paths[which]
     data = path.read_bytes()
+    # Hashed before the reads are counted, so the count is the runner's alone.
+    archive_sha256 = nt.sha256_file(paths["archive"])
+    final_sha256 = nt.sha256_file(paths["final"])
     # A second read would see a cheaper record than the hashed bytes hold.
     replaced = dict(prior if which == "archive" else saved, totals={"cost_usd": 0.2})
     reads = replace_text_read(monkeypatch, path, json.dumps(replaced))
@@ -138,8 +141,8 @@ def test_saved_record_hash_and_decoder_share_one_buffer(setup, monkeypatch, whic
     with stage(setup, provider, models=[nt.CHEAP[0]]) as plan:
         assert plan.spend.spent_usd == pytest.approx(0.4)
         state = plan.histories[nt.CHEAP[0]]["h2"]
-        assert state["entries"][0]["sha256"] == nt.sha256_file(paths["archive"])
-        assert state["final_sha256"] == nt.sha256_file(paths["final"])
+        assert state["entries"][0]["sha256"] == archive_sha256
+        assert state["final_sha256"] == final_sha256
     assert reads == [("bytes", data)]
     assert provider.calls == []
 
