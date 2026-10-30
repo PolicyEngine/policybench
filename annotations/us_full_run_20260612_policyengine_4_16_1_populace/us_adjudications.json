@@ -566,7 +566,7 @@
       "unlisted_input": "meets_ssi_disability_criteria",
       "adjudicated_on": "2026-09-05",
       "adjudicator": "developer",
-      "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 11928.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. Under the alternative reading, fourteen of the eighteen models that paid SSI on the 51-model board of 2026-10-27 land within 10% of the $11,928 federal benefit (ten exactly); deepseek-v4-pro, deepseek-v4-pro-0813 and inkling also applied a one-third in-kind reduction the facts do not support.",
+      "reasoning": "The output is removed from scoring for every model: its reference depends on an engine input the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way. Recomputed with policyengine-us 1.755.4 (the version that produced the references) the reference moves from 0.0 to 11928.0 under the alternative reading. Neither reading is established by the facts; rows that matched the frozen value leave the score along with rows that did not. Judge diagnoses are retained as description; the class prompt_ambiguity records that the reference, not the model, is indeterminate here. Under the alternative reading, fourteen of the eighteen models that paid SSI on the 51-model board of 2026-10-27 land within 10% of the $11,928 federal benefit (ten exactly); the other four applied an in-kind support reduction the facts do not support: one-third for deepseek-v4-pro, deepseek-v4-pro-0813 and inkling, and $350.33 a month for deepseek-v4.1-flash.",
       "judge_reference_suspect": false,
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [
@@ -1464,7 +1464,7 @@
       "judge_reference_suspect": false,
       "reference_verdict": "engine_defect",
       "reference_basis": "26 U.S.C. 219(g); IRS Notice 2025-67 (2026 ranges)",
-      "reasoning": "The frozen reference is 40,021.82; the corrected value is 40,028.32. PolicyEngine deducts traditional IRA contributions without the active-participant phase-out.",
+      "reasoning": "The frozen reference is 40,021.82; the corrected value is 40,028.32. The frozen engine deducted traditional IRA contributions without the active-participant phase-out.",
       "judge_rejudged_on": "2026-10-27",
       "judge_previous": [
         {
