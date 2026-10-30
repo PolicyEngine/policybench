@@ -649,7 +649,8 @@ class FakePool:
 class FakeProvider:
     """Conversations a test plants. specs[(model, label, household, n)] holds a
     record's `status` and `error`, `turns` (default 1), `cost` per turn,
-    `sleep` per turn, `calls` (tool arguments, one call each, per turn),
+    `sleep` per turn, `hold` (an event each turn after the first waits for),
+    `calls` (tool arguments, one call each, per turn),
     `pressure` (high pressure during the attempt), `stall` (a host-log stall,
     seconds), `guard` (a guard pause over the attempt), `resume_after`
     (seconds after which the operator resumes), `raise` (the conversation
@@ -694,6 +695,8 @@ class FakeProvider:
                 rec["status"] = "budget_stop"
                 break
             started = time.time()
+            if i and spec.get("hold"):
+                assert spec["hold"].wait(30)
             time.sleep(spec.get("sleep", 0.0))
             completed = time.time()
             cost = spec.get("cost", COST)
@@ -1905,16 +1908,26 @@ def test_an_attempt_past_its_deadline_is_abandoned_and_stops_the_model(
     """The conversation runs on in its own thread; at the deadline its record
     is a harness error with the spend so far, the model stops, and the
     conversation ends `budget_stop` at its next turn. Its spend after the
-    deadline is a late-cost event."""
-    monkeypatch.setattr(cr, "ATTEMPT_DEADLINE", 0.3)
+    deadline is a late-cost event. The second turn waits for the abandon, so
+    the split does not depend on when the waiting thread wakes."""
+    monkeypatch.setattr(cr, "ATTEMPT_DEADLINE", 1.0)
+    abandoned = threading.Event()
+    abandon = cr.AttemptSpend.abandon
+
+    def abandon_then_release(spend):
+        spent = abandon(spend)
+        abandoned.set()
+        return spent
+
+    monkeypatch.setattr(cr.AttemptSpend, "abandon", abandon_then_release)
     model = "gpt-6-luna"
     w = world(models=(model, "claude-haiku-5.5"))
     sid = w.draw_order[0]
     first = w.run.lanes[model].orders[sid][0]
     w.provider.specs = {
-        (model, first, sid, 1): {"turns": 4, "cost": 0.01, "sleep": 0.2},
+        (model, first, sid, 1): {"turns": 4, "cost": 0.01, "hold": abandoned},
         **{
-            ("claude-haiku-5.5", label, s, 1): {"sleep": 0.05}
+            ("claude-haiku-5.5", label, s, 1): {"sleep": 0.2}
             for label in cr.ARMS
             for s in w.draw_order[:2]
         },
