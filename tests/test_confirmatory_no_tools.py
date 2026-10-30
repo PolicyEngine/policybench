@@ -32,6 +32,7 @@ def setup(tmp_path, monkeypatch):
             "board": "synthetic.csv",
             "engine": "policyengine-us 2.60.4",
             "draw_order": draw,
+            "spent_before": nt.NO_TOOLS_CAP,
             "baseline_exclusions": {
                 "path": str(baseline),
                 "sha256": nt.sha256_file(baseline),

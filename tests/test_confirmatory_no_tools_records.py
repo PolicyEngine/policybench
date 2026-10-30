@@ -110,6 +110,7 @@ def treatment_templates(tmp_path_factory):
     baseline.write_text('{"exclusions": []}\n')
     design = {
         "draw_order": ["h2", "outside"],
+        "spent_before": nt.NO_TOOLS_CAP,
         "baseline_exclusions": {
             "path": str(baseline),
             "sha256": nt.sha256_file(baseline),

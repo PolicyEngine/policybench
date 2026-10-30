@@ -446,6 +446,86 @@ def test_archive_refuses_a_final_replaced_by_a_fifo_at_once(setup):
     assert provider.calls == []
 
 
+def test_archive_refuses_a_target_replaced_by_a_fifo_after_its_rename(
+    setup, monkeypatch
+):
+    provider = Provider()
+    with stage(setup, provider) as plan:
+        folder, source, _ = prepared_final(plan)
+        target = folder / "attempts" / "h2-1.json"
+        original = nt.os.replace
+
+        def rename_then_replace(old, new):
+            original(old, new)
+            Path(new).unlink()
+            os.mkfifo(new)
+
+        monkeypatch.setattr(nt.os, "replace", rename_then_replace)
+        start = time.monotonic()
+        with fifo_released_after(target):
+            with pytest.raises(
+                nt.StateError, match="expected a regular file, found FIFO"
+            ):
+                plan.archive(nt.CHEAP[0], "h2")
+        assert time.monotonic() - start < 5, "the second hash may not block on a FIFO"
+        assert not source.exists()
+        assert plan.histories[nt.CHEAP[0]]["h2"]["entries"] == []
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize("fault", ["second-read", "move-back"])
+def test_a_failed_archive_stops_one_model_and_startup_recovers_it(setup, fault):
+    """The second hash or the move back fails: that model errors, the others
+    finish, the invocation releases its lock, and the archive stays with no
+    final and no link. Startup then rebuilds the link from the bytes present,
+    changed or not, which is the limit the draft states."""
+    model = nt.CHEAP[0]
+    provider = Provider(
+        {(model, "h2", 1): {"status": "provider_error", "error": "APIConnectionError"}}
+    )
+    plan = stage(setup, provider)
+    folder = plan.households(model)
+    source, target = folder / "h2.json", folder / "attempts" / "h2-1.json"
+    with pytest.MonkeyPatch.context() as patch:
+        if fault == "second-read":
+            read = nt.read_regular
+
+            def unreadable(path):
+                if Path(path) == target:
+                    raise PermissionError(errno.EACCES, "synthetic denied", str(path))
+                return read(path)
+
+            patch.setattr(nt, "read_regular", unreadable)
+        else:
+            replace = os.replace
+
+            def failed_move_back(old, new):
+                if Path(old) == source:
+                    Path(old).write_bytes(Path(old).read_bytes() + b" ")
+                elif Path(old) == target:
+                    raise OSError(errno.EIO, "synthetic failed move", str(old))
+                replace(old, new)
+
+            patch.setattr(os, "replace", failed_move_back)
+        assert plan.execute() == 1
+    assert plan.states[model] == "error"
+    assert str(target) in plan.out.getvalue()
+    assert all(plan.states[other] == "complete" for other in nt.CHEAP[1:])
+    assert all(
+        plan.standing(other, sid) for other in nt.CHEAP[1:] for sid in ("h2", "h1")
+    )
+    assert [call for call in provider.calls if call[0] == model] == [(model, "h2", 1)]
+    assert target.exists() and not source.exists()
+    digest = nt.sha256_file(target)
+    again = Provider()
+    resumed = stage(setup, again, models=[model])  # raises if the lock survived
+    assert resumed.histories[model]["h2"]["entries"][0]["sha256"] == digest
+    assert resumed.execute() == 0
+    assert again.calls == [(model, "h2", 1), (model, "h1", 1)]
+    assert json.loads(source.read_text())["attempts"][0]["sha256"] == digest
+    assert nt.stage_problems(setup["design"]) == []
+
+
 def test_archive_target_stat_failure_refuses(setup, monkeypatch):
     provider = Provider()
     with stage(setup, provider) as plan:

@@ -62,6 +62,7 @@ from confirmatory_run import (
 )
 
 NO_TOOLS_CAP = 5.0
+MONEY_TOLERANCE = 1e-6  # dollars, as the report compares spent_before with records
 START_GRACE_SECONDS = 10
 NO_TOOLS_WORDING_SHA256 = (
     "43b13e4e64463f4ee1654e9546672899f80ca5e1ce18e93cf2eb04091b3a2699"
@@ -546,14 +547,54 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
     return states, spent
 
 
-def stage_problems(design: dict) -> list[str]:
-    """Check saved histories, treatment and standing without a provider.
+def check_baseline(design: dict) -> None:
+    """Refuse a baseline inventory that fails its hash or schema, from one read."""
+    baseline_path = None
+    try:
+        baseline = design["baseline_exclusions"]
+        if not isinstance(baseline, dict) or not isinstance(baseline.get("path"), str):
+            raise StateError("baseline exclusions need path and sha256")
+        baseline_path = Path(baseline["path"])
+        baseline_bytes = baseline_path.read_bytes()
+        if hashlib.sha256(baseline_bytes).hexdigest() != baseline.get("sha256"):
+            raise StateError("baseline exclusions do not hash as declared")
+        payload = json.loads(baseline_bytes.decode("utf-8"))
+        exclusions = payload.get("exclusions") if isinstance(payload, dict) else None
+        if not isinstance(exclusions, list):
+            raise StateError("baseline exclusions must contain an exclusions list")
+        cells = []
+        for exclusion in exclusions:
+            if not isinstance(exclusion, dict) or any(
+                not isinstance(exclusion.get(key), str) or not exclusion[key]
+                for key in ("scenario_id", "variable")
+            ):
+                raise StateError(
+                    "baseline exclusion needs household and output strings"
+                )
+            cells.append((exclusion["scenario_id"], exclusion["variable"]))
+        if len(cells) != len(set(cells)):
+            raise StateError("baseline exclusions repeat a cell")
+    except (OSError, KeyError, TypeError, ValueError, RecursionError) as error:
+        at = "baseline exclusions"
+        if baseline_path is not None:
+            at += f" ({baseline_path})"
+        raise StateError(f"{at}: {error}") from error
 
-    As the report does, refuse any model's archive that no final lists and any
-    final that owes a rerun, optional models included; each drawn cheap-model
-    household also needs a final that stands. Startup recovery still resumes
-    both unfinished states."""
+
+def stage_problems(design: dict) -> list[str]:
+    """Check the baseline, saved histories, treatment, standing and spend
+    without a provider.
+
+    As the report does, refuse a baseline that fails its hash or schema, any
+    model's archive that no final lists, any final that owes a rerun, optional
+    models included, and a spent_before below the saved records' spend; each
+    drawn cheap-model household also needs a final that stands. Startup
+    recovery still accepts both unfinished states."""
     problems = []
+    try:
+        check_baseline(design)
+    except StateError as error:
+        problems.append(str(error))
     try:
         spec = design["no_tools"]
         root = Path(spec["runs"])
@@ -562,8 +603,9 @@ def stage_problems(design: dict) -> list[str]:
         models = set(CHEAP)
         models.update(path.name for path in saved_children(root) if listed_is_dir(path))
     except (OSError, KeyError, TypeError, ValueError) as error:
-        return [f"no-tools stage: {error}"]
+        return [*problems, f"no-tools stage: {error}"]
     board = None
+    spent = 0.0
 
     def checked_board():
         nonlocal board
@@ -573,13 +615,14 @@ def stage_problems(design: dict) -> list[str]:
 
     for model in sorted(models):
         try:
-            states, _ = history(
+            states, cost = history(
                 root / model / folder / stage / "households",
                 validate=lambda path, record: validate_treatment(
                     path, record, model, checked_board, design["engine"]
                 ),
                 drawn=set(draw_order) if model in CHEAP else None,
             )
+            spent += cost
             drawn = draw_order if model in CHEAP else []
             for sid in drawn + sorted(set(states) - set(drawn)):
                 state = states.get(sid)
@@ -602,6 +645,20 @@ def stage_problems(design: dict) -> list[str]:
                     )
         except (OSError, TypeError, ValueError, AttributeError, KeyError) as error:
             problems.append(f"no-tools {model}: {error}")
+    try:
+        declared = float(design.get("spent_before"))
+    except (TypeError, ValueError, OverflowError):
+        declared = math.nan
+    if not 0 <= declared < math.inf:
+        problems.append(
+            "no-tools spend: spent_before must be a finite, nonnegative number, "
+            f"not {design.get('spent_before')!r}"
+        )
+    elif declared < spent - MONEY_TOLERANCE:
+        problems.append(
+            f"no-tools spend: spent_before ${declared:.4f} is less than "
+            f"the saved records' ${spent:.4f}"
+        )
     return problems
 
 
@@ -675,40 +732,7 @@ class Stage:
             run_household if run_household is not None else pilot.run_household
         )
         self._lock_file = None
-        baseline_path = None
-        try:
-            baseline = design["baseline_exclusions"]
-            if not isinstance(baseline, dict) or not isinstance(
-                baseline.get("path"), str
-            ):
-                raise StateError("baseline exclusions need path and sha256")
-            baseline_path = Path(baseline["path"])
-            baseline_bytes = baseline_path.read_bytes()
-            if hashlib.sha256(baseline_bytes).hexdigest() != baseline.get("sha256"):
-                raise StateError("baseline exclusions do not hash as declared")
-            payload = json.loads(baseline_bytes.decode("utf-8"))
-            exclusions = (
-                payload.get("exclusions") if isinstance(payload, dict) else None
-            )
-            if not isinstance(exclusions, list):
-                raise StateError("baseline exclusions must contain an exclusions list")
-            cells = []
-            for exclusion in exclusions:
-                if not isinstance(exclusion, dict) or any(
-                    not isinstance(exclusion.get(key), str) or not exclusion[key]
-                    for key in ("scenario_id", "variable")
-                ):
-                    raise StateError(
-                        "baseline exclusion needs household and output strings"
-                    )
-                cells.append((exclusion["scenario_id"], exclusion["variable"]))
-            if len(cells) != len(set(cells)):
-                raise StateError("baseline exclusions repeat a cell")
-        except (OSError, KeyError, TypeError, ValueError, RecursionError) as error:
-            at = "baseline exclusions"
-            if baseline_path is not None:
-                at += f" ({baseline_path})"
-            raise StateError(f"{at}: {error}") from error
+        check_baseline(design)
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock_file = (self.root / ".confirmatory-no-tools.lock").open("a")
         try:
@@ -838,8 +862,10 @@ class Stage:
         refusal leaves the disk history unchanged. After the rename it hashes
         the moved bytes again; if a write landed between the first hash and
         the rename, it moves them back and refuses. It cannot see a write to
-        the same inode during either hash or after the second; every later
-        reader hashes each archive against its link and refuses a mismatch."""
+        the same inode during either hash or after the second. Later readers
+        refuse an archive that differs from a surviving link; a saved record
+        holds that link only once the next attempt's final lands, so startup
+        rebuilds the last archive's digest from its bytes after an interrupt."""
         state = self.histories[model][sid]
         record, entries = state["final"], state["entries"]
         n = len(entries) + 1

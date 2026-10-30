@@ -1561,7 +1561,11 @@ def test_a_model_that_decides_nothing_still_has_both_logs(world):
     admit = held.admit
 
     def late(sid, lane):
-        time.sleep(0.3)
+        # A sleep here would race haiku's attempt on a loaded host.
+        deadline = time.monotonic() + 30
+        while not w.run.ceiling.exhausted():
+            assert time.monotonic() < deadline, "haiku never crossed the ceiling"
+            time.sleep(0.01)
         return admit(sid, lane)
 
     held.admit = late
@@ -1909,10 +1913,19 @@ def test_an_attempt_past_its_deadline_is_abandoned_and_stops_the_model(
     is a harness error with the spend so far, the model stops, and the
     conversation ends `budget_stop` at its next turn. Its spend after the
     deadline is a late-cost event. The second turn waits for the abandon, so
-    the split does not depend on when the waiting thread wakes."""
+    the split does not depend on when the waiting thread wakes, and the join's
+    own timeout pins the deadline, because that wait hides when the abandon came."""
     monkeypatch.setattr(cr, "ATTEMPT_DEADLINE", 1.0)
     abandoned = threading.Event()
     abandon = cr.AttemptSpend.abandon
+    join = threading.Thread.join
+    waits = {}
+
+    def recorded_join(thread, timeout=None):
+        waits.setdefault(thread.name, timeout)
+        return join(thread, timeout)
+
+    monkeypatch.setattr(threading.Thread, "join", recorded_join)
 
     def abandon_then_release(spend):
         spent = abandon(spend)
@@ -1933,6 +1946,7 @@ def test_an_attempt_past_its_deadline_is_abandoned_and_stops_the_model(
         },
     }
     w.execute()
+    assert waits[f"{model}-{sid}-{first}-1"] == 1.0
     line = next(
         x for x in w.attempts(model) if x["household"] == sid and x["arm"] == first
     )
@@ -2215,9 +2229,12 @@ def complete_preflight_design(w, tmp_path):
         )
     pool = tmp_path / "pool.json"
     pool.write_text(json.dumps([{"id": s} for s in POOL]))
+    baseline = tmp_path / "baseline-exclusions.json"
+    baseline.write_text('{"exclusions": []}\n')
     design = dict(
         w.design,
         eligible_pool={"path": str(pool), "sha256": cr.sha256_file(pool)},
+        baseline_exclusions={"path": str(baseline), "sha256": cr.sha256_file(baseline)},
         treatment_harness=str(cr.ROOT),
         run_commit="0" * 40,
         no_tools={
