@@ -61,7 +61,9 @@ def main(argv=None) -> int:
     """Push a whole snapshot only while exclusively extending the clone's file."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--repo", type=Path, required=True, help="the anchors clone")
-    parser.add_argument("anchors", type=Path, help="a snapshot of the run's anchors.jsonl")
+    parser.add_argument(
+        "anchors", type=Path, help="a snapshot of the run's anchors.jsonl"
+    )
     args = parser.parse_args(argv)
     repo = args.repo.expanduser()
     target = repo / "anchors.jsonl"

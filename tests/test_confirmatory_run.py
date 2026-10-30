@@ -2511,9 +2511,9 @@ def test_the_runner_sends_the_treatment_conversation(
     assert record["api"] == treatment["api"] == api
     assert record["contract"] == treatment["contract"] == contract
     assert record["status"] == treatment["status"] == "complete"
-    assert record["predictions"] == treatment["predictions"] == {
-        v: 0.0 for v in VARIABLES
-    }
+    assert (
+        record["predictions"] == treatment["predictions"] == {v: 0.0 for v in VARIABLES}
+    )
     assert len(sent) == len(requests) == 2
     assert sent == requests and called == calculations and len(called) == 1
     assert record["messages"] == treatment["messages"]
@@ -3151,8 +3151,7 @@ def test_each_final_push_retry_waits_from_the_previous_try_s_end(world, monkeypa
     assert [p["outcome"] for p in pushes] == ["failed"] * 3
     assert [p["ended"] - p["started"] for p in pushes] == [7.0, 11.0, 5.0]
     assert all(
-        b["started"] >= a["ended"] + cr.ANCHOR_RETRY
-        for a, b in zip(pushes, pushes[1:])
+        b["started"] >= a["ended"] + cr.ANCHOR_RETRY for a, b in zip(pushes, pushes[1:])
     )
 
 
@@ -3182,8 +3181,9 @@ def test_a_first_signal_during_final_push_retries_is_logged_and_anchored(
     assert [row["outcome"] for row in pushes] == ["failed", "success", "success"]
     for model in w.models:
         assert [row["cause"] for row in w.events(model, "stop")] == ["interrupt"]
-        assert anchors[-1]["models"][model]["run-log.jsonl"] == (
-            w.run.lanes[model].heads()["run-log.jsonl"]
+        assert (
+            anchors[-1]["models"][model]["run-log.jsonl"]
+            == (w.run.lanes[model].heads()["run-log.jsonl"])
         )
         assert anchors[-2]["models"][model]["run-log.jsonl"]["lines"] == (
             len(w.lines(model)) - 1

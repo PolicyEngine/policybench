@@ -987,7 +987,9 @@ def test_finish_abandons_pipes_held_by_a_descendant_outside_the_push_group(
         for line in (tmp_path / "anchor-pushes.jsonl").read_text().splitlines()
     ]
     assert len(rows) == 1 and rows[0]["outcome"] == "timeout"
-    assert "pipes" in rows[0]["output"] and "held open after the kill" in rows[0]["output"]
+    assert (
+        "pipes" in rows[0]["output"] and "held open after the kill" in rows[0]["output"]
+    )
 
 
 def test_finish_records_a_stuck_push_once_even_if_its_thread_later_ends(
@@ -1051,7 +1053,9 @@ def test_finish_records_a_stuck_push_once_even_if_its_thread_later_ends(
     live = (tmp_path / "anchors.jsonl").read_bytes()
     assert len(copies[Path(calls[0][-1])].splitlines()) == 1
     assert len(copies[Path(calls[1][-1])].splitlines()) == 2
-    assert all(copy.endswith(b"\n") and live.startswith(copy) for copy in copies.values())
+    assert all(
+        copy.endswith(b"\n") and live.startswith(copy) for copy in copies.values()
+    )
 
 
 def test_a_retired_command_cannot_shrink_the_remote_after_the_final_push(
@@ -1074,9 +1078,7 @@ def test_a_retired_command_cannot_shrink_the_remote_after_the_final_push(
     ready_read, ready_write = os.pipe()
     release_read, release_write = os.pipe()
     real_popen, children, waits = subprocess.Popen, [], []
-    run = bare_finish_run(
-        folder, [sys.executable, str(SCRIPT), "--repo", str(repo)]
-    )
+    run = bare_finish_run(folder, [sys.executable, str(SCRIPT), "--repo", str(repo)])
 
     def popen(command, **kwargs):
         """Delay only the first real helper, before it can acquire the clone lock."""

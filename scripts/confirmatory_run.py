@@ -1771,8 +1771,10 @@ class Run:
                         "ended": clock(),
                         "outcome": "error",
                         "returncode": None,
-                        "output": "the anchor push thread did not end after its time limit; "
-                        "its command may still be running",
+                        "output": (
+                            "the anchor push thread did not end after its "
+                            "time limit; its command may still be running"
+                        ),
                     }
                 )
         self._check_push_error()
@@ -1788,9 +1790,7 @@ class Run:
             self._push_pending = None
             self._last_push_outcome = line["outcome"]
             if line["outcome"] != "success":
-                self._next_anchor = min(
-                    self._next_anchor, line["ended"] + ANCHOR_RETRY
-                )
+                self._next_anchor = min(self._next_anchor, line["ended"] + ANCHOR_RETRY)
             try:
                 path = Path(self.design["runs"]) / "anchor-pushes.jsonl"
                 with path.open("a") as handle:
