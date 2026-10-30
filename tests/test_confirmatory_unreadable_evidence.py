@@ -1,10 +1,13 @@
 """File and folder failures must remain named refusals before providers."""
 
+import contextlib
 import errno
 import io
 import json
 import os
 import re
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -317,6 +320,115 @@ def test_preflight_unreadable_preregistration_refuses(world, tmp_path, monkeypat
     assert not w.provider.count
 
 
+@contextlib.contextmanager
+def fifo_released_after(path, seconds=5.0):
+    """Bound a reader that blocks on the FIFO: after `seconds`, open and close a
+    writer every 50 ms, so each blocked open sees end of file instead of hanging."""
+    done = threading.Event()
+
+    def release():
+        if done.wait(seconds):
+            return
+        while not done.is_set():
+            with contextlib.suppress(OSError):  # ENXIO while no reader waits
+                os.close(os.open(path, os.O_WRONLY | os.O_NONBLOCK))
+            done.wait(0.05)
+
+    thread = threading.Thread(target=release, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        done.set()
+        thread.join()
+
+
+@pytest.mark.parametrize("kind", ["fifo", "device"])
+@pytest.mark.parametrize("which", ["final", "archive"])
+@pytest.mark.parametrize("boundary", ["startup", "preflight"])
+def test_saved_record_that_is_not_a_regular_file_refuses_at_once(
+    setup, boundary, which, kind
+):
+    spec = setup["design"]["no_tools"]
+    folder = (
+        Path(spec["runs"]) / nt.CHEAP[0] / spec["folder"] / spec["stage"] / "households"
+    )
+    target = folder / ("h2.json" if which == "final" else "attempts/h2-1.json")
+    target.parent.mkdir(parents=True)
+    if kind == "fifo":
+        os.mkfifo(target)
+    else:
+        target.symlink_to("/dev/null")
+    provider = Provider()
+    start = time.monotonic()
+    with fifo_released_after(target) if kind == "fifo" else contextlib.nullcontext():
+        if boundary == "startup":
+            with pytest.raises(nt.StateError) as caught:
+                with stage(setup, provider):
+                    pytest.fail("a special file must refuse before execution")
+            message = str(caught.value)
+        else:
+            message = "\n".join(nt.stage_problems(setup["design"]))
+    found = "FIFO" if kind == "fifo" else "character device"
+    assert str(target) in message
+    assert f"expected a regular file, found {found}" in message
+    assert time.monotonic() - start < 5, "no read may block on the special file"
+    assert provider.calls == []
+
+
+def prepared_final(plan, model=nt.CHEAP[0], sid="h2"):
+    """Save a rerun-eligible final and its history, with no attempts folder."""
+    folder = plan.households(model)
+    folder.mkdir(parents=True)
+    payload = {
+        "scenario_id": sid,
+        "status": "provider_error",
+        "error": "APIConnectionError",
+        "turns": [],
+        "attempts": [],
+        "totals": {"cost_usd": 0.1},
+    }
+    source = folder / f"{sid}.json"
+    source.write_text(json.dumps(payload))
+    plan.histories[model][sid] = {
+        "final": payload,
+        "entries": [],
+        "final_sha256": nt.sha256_file(source),
+    }
+    return folder, source, payload
+
+
+def test_archive_refuses_an_existing_target_and_keeps_both_files(setup):
+    provider = Provider()
+    with stage(setup, provider) as plan:
+        folder, source, payload = prepared_final(plan)
+        target = folder / "attempts" / "h2-1.json"
+        target.parent.mkdir()
+        target.write_text('{"synthetic": "an earlier archive"}')
+        with pytest.raises(
+            nt.StateError, match=re.escape(f"{target}: would overwrite")
+        ):
+            plan.archive(nt.CHEAP[0], "h2")
+        assert source.read_text() == json.dumps(payload)
+        assert target.read_text() == '{"synthetic": "an earlier archive"}'
+        assert sorted(p.name for p in target.parent.iterdir()) == ["h2-1.json"]
+        assert plan.histories[nt.CHEAP[0]]["h2"]["entries"] == []
+    assert provider.calls == []
+
+
+def test_archive_digest_refusal_leaves_no_attempts_folder(setup):
+    provider = Provider()
+    with stage(setup, provider) as plan:
+        folder, source, payload = prepared_final(plan)
+        source.write_text(json.dumps(dict(payload, totals={"cost_usd": 0.2})))
+        with pytest.raises(nt.StateError, match=re.escape(f"{source}: final changed")):
+            plan.archive(nt.CHEAP[0], "h2")
+        assert json.loads(source.read_text())["totals"] == {"cost_usd": 0.2}
+        assert not (folder / "attempts").exists()
+        assert plan.histories[nt.CHEAP[0]]["h2"]["entries"] == []
+    assert provider.calls == []
+
+
 def test_archive_target_stat_failure_refuses(setup, monkeypatch):
     provider = Provider()
     with stage(setup, provider) as plan:
@@ -342,6 +454,7 @@ def test_archive_target_stat_failure_refuses(setup, monkeypatch):
         with pytest.raises(nt.StateError, match=str(target)):
             plan.archive(model, sid)
         assert (folder / f"{sid}.json").read_text() == json.dumps(payload)
+        assert not (folder / "attempts").exists()
     assert provider.calls == []
 
 

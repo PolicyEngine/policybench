@@ -83,10 +83,37 @@ def component(value: str) -> str:
     return value
 
 
+def read_regular(path: Path) -> bytes:
+    """Read saved bytes as the report does: open with O_NONBLOCK, refuse a
+    descriptor that is not a regular file, then read through that descriptor.
+    A FIFO or device refuses at once, before any read can block under the
+    invocation lock. It follows file symlinks; a link to nothing refuses."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            kind = {
+                stat.S_IFIFO: "FIFO",
+                stat.S_IFDIR: "directory",
+                stat.S_IFSOCK: "socket",
+                stat.S_IFCHR: "character device",
+                stat.S_IFBLK: "block device",
+                stat.S_IFLNK: "symlink",
+            }.get(stat.S_IFMT(metadata.st_mode), "unknown file type")
+            raise ValueError(f"expected a regular file, found {kind}")
+        os.set_blocking(descriptor, True)
+        chunks = []
+        while chunk := os.read(descriptor, 1024 * 1024):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
 def read_record(path: Path) -> tuple[dict, str]:
     """Decode a saved record and hash the same bytes, so its link names them."""
     try:
-        data = path.read_bytes()
+        data = read_regular(path)
         record = json.loads(data.decode("utf-8"))
         if not isinstance(record, dict):
             raise ValueError("record is not a JSON object")
@@ -149,6 +176,11 @@ def saved_stat(path: Path):
 
 def saved_exists(path: Path) -> bool:
     return saved_stat(path) is not None
+
+
+def saved_sha256(path: Path) -> str:
+    """Hash a saved file through the same guard, naming it on failure."""
+    return _board_input(path, lambda: hashlib.sha256(read_regular(path)).hexdigest())
 
 
 def listed_is_dir(path: Path) -> bool:
@@ -515,7 +547,12 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
 
 
 def stage_problems(design: dict) -> list[str]:
-    """Check saved histories, treatment and standing without a provider."""
+    """Check saved histories, treatment and standing without a provider.
+
+    As the report does, refuse any model's archive that no final lists and any
+    final that owes a rerun, optional models included; each drawn cheap-model
+    household also needs a final that stands. Startup recovery still resumes
+    both unfinished states."""
     problems = []
     try:
         spec = design["no_tools"]
@@ -543,18 +580,23 @@ def stage_problems(design: dict) -> list[str]:
                 ),
                 drawn=set(draw_order) if model in CHEAP else None,
             )
-            if model not in CHEAP:
-                continue
-            for sid in draw_order:
+            drawn = draw_order if model in CHEAP else []
+            for sid in drawn + sorted(set(states) - set(drawn)):
                 state = states.get(sid)
                 if state is None or state["final"] is None:
-                    problems.append(f"no-tools {model}/{sid}: missing standing final")
+                    problems.append(
+                        f"no-tools {model}/{sid}: missing standing final"
+                        if sid in drawn
+                        else f"no-tools {model}/{sid}: archived attempts lack a final"
+                    )
                     continue
                 outcome = action(
                     classify(state["final"], 0.0, 0.0, None)[0],
                     len(state["entries"]) + 1,
                 )
-                if outcome != "stands":
+                if outcome in ("rerun", "pause-rerun") or (
+                    sid in drawn and outcome != "stands"
+                ):
                     problems.append(
                         f"no-tools {model}/{sid}: final action is {outcome}"
                     )
@@ -790,7 +832,14 @@ class Stage:
         )
 
     def archive(self, model: str, sid: str) -> bool:
-        """Atomically admit a prepared archive move, then extend its links."""
+        """Atomically admit a prepared archive move, then extend its links.
+
+        The target-exists and digest checks precede folder creation; either
+        refusal leaves the disk history unchanged. After the rename it hashes
+        the moved bytes again; if a write landed between the first hash and
+        the rename, it moves them back and refuses. It cannot see a write to
+        the same inode during either hash or after the second; every later
+        reader hashes each archive against its link and refuses a mismatch."""
         state = self.histories[model][sid]
         record, entries = state["final"], state["entries"]
         n = len(entries) + 1
@@ -800,11 +849,9 @@ class Stage:
         folder = self.households(model)
         source = folder / f"{sid}.json"
         target = folder / "attempts" / f"{sid}-{n}.json"
-        # Both refusals come before the folder exists, so a refused move
-        # leaves the history as it was.
         if saved_exists(target):
             raise StateError(f"{target}: would overwrite an archived attempt")
-        if _board_input(source, lambda: sha256_file(source)) != state["final_sha256"]:
+        if saved_sha256(source) != state["final_sha256"]:
             raise StateError(f"{source}: final changed after it was read or written")
         target.parent.mkdir(parents=True, exist_ok=True)
         link = entry(source, record, n, state["final_sha256"])
@@ -814,6 +861,13 @@ class Stage:
                 return False
             os.replace(source, target)
             state["final"] = None
+        if saved_sha256(target) != state["final_sha256"]:
+            os.replace(target, source)
+            state["final"] = record
+            raise StateError(
+                f"{source}: final changed during its archive move; "
+                f"the runner moved it back from {target}"
+            )
         entries.append(link)
         return True
 

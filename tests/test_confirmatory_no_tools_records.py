@@ -364,9 +364,57 @@ def test_absent_predictions_without_reply_remain_accepted(
     no_reply(payload)
     payload.pop("predictions")
     save_records(saved)
+    if reader == "optional" and boundary == "preflight":
+        # Absent predictions raise nothing; the unanswered final still owes a
+        # rerun, which the report refuses for every model.
+        assert nt.stage_problems(saved.design) == [
+            "no-tools gpt-6-sol/h2: final action is rerun"
+        ]
+        return
     assert_boundary(
         saved, boundary, None, expected_spend=0.6 if reader == "optional" else 0.5
     )
+
+
+UNFINISHED = {
+    "optional-rerun": ("gpt-6-sol", "h2", "final action is rerun"),
+    "optional-pause": ("gpt-6-sol", "h2", "final action is pause-rerun"),
+    "optional-archive": ("gpt-6-sol", "h2", "archived attempts lack a final"),
+    "cheap-archive-outside-draw": (
+        nt.CHEAP[1],
+        "outside",
+        "archived attempts lack a final",
+    ),
+}
+
+
+@pytest.mark.parametrize("unfinished", UNFINISHED)
+def test_preflight_refuses_unfinished_histories_that_startup_resumes(
+    saved_records, unfinished
+):
+    saved = saved_records
+    model, sid, needle = UNFINISHED[unfinished]
+    board = (
+        add_board_household(saved, sid)
+        if sid == "outside"
+        else nt.pilot.load_board(Path(saved.design["board"]))
+    )
+    payload = full_record(board, model, saved.design["engine"], sid)
+    error = (
+        "AuthenticationError"
+        if unfinished == "optional-pause"
+        else "APIConnectionError"
+    )
+    payload.update(status="provider_error", error=error)
+    households = saved.root / model / "none/confirmatory/households"
+    path = households / (
+        f"{sid}.json"
+        if unfinished.endswith(("rerun", "pause"))
+        else f"attempts/{sid}-1.json"
+    )
+    write_fixture_json(path, payload)
+    assert nt.stage_problems(saved.design) == [f"no-tools {model}/{sid}: {needle}"]
+    assert_boundary(saved, "startup", None, expected_spend=0.6)
 
 
 @pytest.mark.parametrize("reader", ["final", "archive"])

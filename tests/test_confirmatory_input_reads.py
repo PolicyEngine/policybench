@@ -34,8 +34,12 @@ treatment_templates = _treatment_templates_fixture
 
 
 def replace_text_read(monkeypatch, path, replacement):
-    """Simulate replacement after the first byte read, without changing disk."""
+    """Simulate replacement after the first byte read, without changing disk.
+    Count both byte readers: Path.read_bytes, and the descriptor-guarded
+    read_regular that saved records go through (when the runner has it, so the
+    same cases run against an older runner)."""
     original_bytes, original_text = Path.read_bytes, Path.read_text
+    original_regular = getattr(nt, "read_regular", None)
     reads = []
 
     def read_bytes(source):
@@ -43,6 +47,15 @@ def replace_text_read(monkeypatch, path, replacement):
         if source == path:
             reads.append(("bytes", data))
         return data
+
+    def read_regular(source):
+        data = original_regular(source)
+        if Path(source) == path:
+            reads.append(("bytes", data))
+        return data
+
+    if original_regular is not None:
+        monkeypatch.setattr(nt, "read_regular", read_regular)
 
     def read_text(source, *args, **kwargs):
         if source == path:
@@ -178,6 +191,34 @@ def test_archive_refuses_a_final_changed_after_it_was_read(setup):
     assert provider.calls == []
 
 
+def test_archive_moves_back_a_final_changed_before_its_rename(setup, monkeypatch):
+    paths, _, saved = saved_history(setup)
+    saved["status"], saved["error"] = "provider_error", "APIConnectionError"
+    paths["final"].write_text(json.dumps(saved))
+    changed = dict(saved, totals={"cost_usd": 0.2})
+    original = nt.os.replace
+
+    def change_then_rename(source, target):
+        # The write lands after the digest check and before the rename.
+        if Path(source) == paths["final"]:
+            Path(source).write_text(json.dumps(changed))
+        original(source, target)
+
+    provider = Provider()
+    with stage(setup, provider, models=[nt.CHEAP[0]]) as plan:
+        monkeypatch.setattr(nt.os, "replace", change_then_rename)
+        with pytest.raises(
+            nt.StateError,
+            match=re.escape(f"{paths['final']}: final changed during its archive move"),
+        ):
+            plan.archive(nt.CHEAP[0], "h2")
+        state = plan.histories[nt.CHEAP[0]]["h2"]
+        assert len(state["entries"]) == 1 and state["final"] == saved
+    assert json.loads(paths["final"].read_text()) == changed
+    assert sorted(p.name for p in paths["archive"].parent.iterdir()) == ["h2-1.json"]
+    assert provider.calls == []
+
+
 def test_archive_refuses_a_final_changed_after_the_runner_wrote_it(setup, monkeypatch):
     provider = Provider(
         {
@@ -191,14 +232,22 @@ def test_archive_refuses_a_final_changed_after_the_runner_wrote_it(setup, monkey
 
     def write_then_change(path, payload, *args, **kwargs):
         digest = original(path, payload, *args, **kwargs)
-        path.write_bytes(path.read_bytes() + b" ")
+        if nt.CHEAP[0] in Path(path).parts:
+            path.write_bytes(path.read_bytes() + b" ")
         return digest
 
     monkeypatch.setattr(nt, "write_json", write_then_change)
-    plan = stage(setup, provider, models=[nt.CHEAP[0]])
+    plan = stage(setup, provider)
     assert plan.execute() == 1
     assert plan.states[nt.CHEAP[0]] == "error"
-    assert provider.calls == [(nt.CHEAP[0], "h2", 1)]
+    # The other models continue through both households.
+    assert all(plan.states[model] == "complete" for model in nt.CHEAP[1:])
+    assert all(
+        plan.standing(model, sid) for model in nt.CHEAP[1:] for sid in ("h2", "h1")
+    )
+    assert [call for call in provider.calls if call[0] == nt.CHEAP[0]] == [
+        (nt.CHEAP[0], "h2", 1)
+    ]
     folder = plan.households(nt.CHEAP[0])
     assert json.loads((folder / "h2.json").read_text())["status"] == "provider_error"
     assert not (folder / "attempts").exists()
