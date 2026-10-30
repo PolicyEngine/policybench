@@ -429,6 +429,23 @@ def test_archive_digest_refusal_leaves_no_attempts_folder(setup):
     assert provider.calls == []
 
 
+def test_archive_refuses_a_final_replaced_by_a_fifo_at_once(setup):
+    provider = Provider()
+    with stage(setup, provider) as plan:
+        folder, source, _ = prepared_final(plan)
+        source.unlink()
+        os.mkfifo(source)
+        start = time.monotonic()
+        with fifo_released_after(source):
+            with pytest.raises(
+                nt.StateError, match="expected a regular file, found FIFO"
+            ):
+                plan.archive(nt.CHEAP[0], "h2")
+        assert time.monotonic() - start < 5, "no digest read may block on a FIFO"
+        assert not (folder / "attempts").exists()
+    assert provider.calls == []
+
+
 def test_archive_target_stat_failure_refuses(setup, monkeypatch):
     provider = Provider()
     with stage(setup, provider) as plan:
