@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import io
+import itertools
 import json
+import math
 import os
 import re
 import sys
@@ -295,9 +297,9 @@ def no_tools_households(design, model):
     return Path(spec["runs"]) / model / spec["folder"] / spec["stage"] / "households"
 
 
-def saved_spend(world, design):
-    """Save $0.20 in a cheap model's final, $0.10 in the archive it replaced and
-    $0.05 in an optional model's final. Return their sum."""
+def saved_spend(world, design, final_cost=0.2, archive_cost=0.1, optional_cost=0.05):
+    """Save a cost in a cheap model's final, one in the archive it replaced and
+    one in an optional model's final. Return their sum."""
     model, sid = cr.CHEAP[0], design["draw_order"][0]
     folder = no_tools_households(design, model)
     final = json.loads((folder / f"{sid}.json").read_text())
@@ -309,18 +311,19 @@ def saved_spend(world, design):
         error="APIConnectionError",
         predictions={variable: None for variable in final["variables"]},
         turns=[],
-        totals={"cost_usd": 0.1},
+        totals={"cost_usd": archive_cost},
     )
     archive = folder / "attempts" / f"{sid}-1.json"
     digest = cr.write_json(archive, failed)
     final.update(
-        attempts=[nt.entry(archive, failed, 1, digest)], totals={"cost_usd": 0.2}
+        attempts=[nt.entry(archive, failed, 1, digest)],
+        totals={"cost_usd": final_cost},
     )
     cr.write_json(folder / f"{sid}.json", final)
     optional = full_record(world.board, "gpt-6-sol", design["engine"], sid)
-    optional["totals"] = {"cost_usd": 0.05}
+    optional["totals"] = {"cost_usd": optional_cost}
     cr.write_json(no_tools_households(design, "gpt-6-sol") / f"{sid}.json", optional)
-    return 0.35
+    return final_cost + archive_cost + optional_cost
 
 
 @pytest.mark.parametrize(
@@ -361,6 +364,47 @@ def test_preflight_compares_spent_before_with_all_saved_spend(
 
 
 @pytest.mark.parametrize(
+    "costs",
+    sorted(
+        {
+            *itertools.permutations((0.1, 0.1, 0.4)),
+            *itertools.permutations((0.1, 0.2, 0.3)),
+        }
+    ),
+)
+def test_preflight_sums_saved_spend_exactly_in_any_order(tmp_path, monkeypatch, costs):
+    """Added one at a time, these costs land on either side of the tolerance
+    with their order; the report's exact total does not move."""
+    world, design = pool_design(tmp_path, monkeypatch)
+    saved_spend(world, design, *costs)
+    design["spent_before"] = 0.599999
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    refused = 0.599999 < math.fsum(costs) - nt.MONEY_TOLERANCE
+    assert any(p.startswith("no-tools spend") for p in problems) is refused, problems
+
+
+@pytest.mark.parametrize(
+    "declared, refused", [(1e16, True), (1e16 + 2, False)], ids=["short", "exact"]
+)
+def test_preflight_keeps_costs_a_running_total_rounds_away(
+    tmp_path, monkeypatch, declared, refused
+):
+    world, design = pool_design(tmp_path, monkeypatch)
+    saved_spend(world, design, 1e16, 1.0, 1.0)
+    design["spent_before"] = declared
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert any(p.startswith("no-tools spend") for p in problems) is refused, problems
+
+
+def test_preflight_refuses_a_saved_total_past_every_float(tmp_path, monkeypatch):
+    world, design = pool_design(tmp_path, monkeypatch)
+    saved_spend(world, design, 1.5e308, 0.0, 1.5e308)
+    design["spent_before"] = 1e308
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert any("the saved records' $inf" in problem for problem in problems), problems
+
+
+@pytest.mark.parametrize(
     "value",
     [float("nan"), float("inf"), None, "unknown", -1e-7, 10**400],
     ids=["nan", "infinite", "null", "text", "negative", "overflow"],
@@ -371,6 +415,31 @@ def test_preflight_refuses_an_unusable_spent_before(tmp_path, monkeypatch, value
     problems = cr.preflight(design, (cr.CHEAP[0],))
     assert any("finite, nonnegative" in problem for problem in problems), problems
     assert world.provider.count == {}
+
+
+def test_preflight_refuses_a_design_without_spent_before(tmp_path, monkeypatch):
+    world, design = pool_design(tmp_path, monkeypatch)
+    del design["spent_before"]
+    assert "the design has no spent_before" in cr.preflight(design, (cr.CHEAP[0],))
+    assert any("finite, nonnegative" in p for p in nt.stage_problems(design))
+    assert world.provider.count == {}
+
+
+@pytest.mark.parametrize(
+    "declared, refused",
+    [("1", False), ("0.1", True), (True, False), (False, True)],
+    ids=["text-enough", "text-short", "true", "false"],
+)
+def test_preflight_counts_numeric_text_and_booleans_as_numbers(
+    tmp_path, monkeypatch, declared, refused
+):
+    """As the report does: float() decides what a spent_before is worth."""
+    world, design = pool_design(tmp_path, monkeypatch)
+    saved_spend(world, design)
+    design["spent_before"] = declared
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert any(p.startswith("no-tools spend") for p in problems) is refused, problems
+    assert not any("finite, nonnegative" in p for p in problems), problems
 
 
 @pytest.mark.parametrize(

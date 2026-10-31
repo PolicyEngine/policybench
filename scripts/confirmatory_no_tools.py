@@ -470,8 +470,11 @@ def _attempts_agree(listed: list, entries: list) -> bool:
     )
 
 
-def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], float]:
-    """Validate a model's histories, including an interrupted archive, and sum spend."""
+def history(
+    folder: Path, validate=None, drawn=None
+) -> tuple[dict[str, dict], list[float]]:
+    """Validate a model's histories, including an interrupted archive, and list
+    each saved cost."""
     # Finals first, as the report lists them: an unlistable households folder
     # is named before the attempts folder inside it.
     finals = {path.stem: path for path in saved_json_paths(folder)}
@@ -481,7 +484,7 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
         if not match:
             raise StateError(f"{path}: invalid attempt number")
         archives.setdefault(match[1], []).append((int(match[2]), path))
-    states, spent = {}, 0.0
+    states, costs = {}, []
     for sid in sorted(set(finals) | set(archives)):
         paths = sorted(archives.get(sid, []))
         numbers = [n for n, _ in paths]
@@ -510,7 +513,7 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
             if action(cls, n) not in ("rerun", "pause-rerun"):
                 raise StateError(f"{path}: archived attempt was ineligible for rerun")
             entries = record["attempts"] + [entry(path, record, n, digest)]
-            spent += attempt_cost(record)
+            costs.append(attempt_cost(record))
         final = final_sha256 = None
         if sid in finals:
             path = finals[sid]
@@ -542,9 +545,19 @@ def history(folder: Path, validate=None, drawn=None) -> tuple[dict[str, dict], f
                     f"{path}: cannot classify saved final: {error}"
                 ) from error
             entries = final["attempts"]
-            spent += attempt_cost(final)
+            costs.append(attempt_cost(final))
         states[sid] = {"entries": entries, "final": final, "final_sha256": final_sha256}
-    return states, spent
+    return states, costs
+
+
+def exact_spend(costs: list[float]) -> float:
+    """The correctly rounded sum of saved costs, the same in any order and
+    grouping, so that this reaches the report's total. Its intermediate overflow
+    means a total past every float."""
+    try:
+        return math.fsum(costs)
+    except OverflowError:
+        return math.inf
 
 
 def check_baseline(design: dict) -> None:
@@ -587,8 +600,8 @@ def stage_problems(design: dict) -> list[str]:
 
     As the report does, refuse a baseline that fails its hash or schema, any
     model's archive that no final lists, any final that owes a rerun, optional
-    models included, and a spent_before below the saved records' spend; each
-    drawn cheap-model household also needs a final that stands. Startup
+    models included, and a spent_before below the saved records' exact total;
+    each drawn cheap-model household also needs a final that stands. Startup
     recovery still accepts both unfinished states."""
     problems = []
     try:
@@ -605,7 +618,7 @@ def stage_problems(design: dict) -> list[str]:
     except (OSError, KeyError, TypeError, ValueError) as error:
         return [*problems, f"no-tools stage: {error}"]
     board = None
-    spent = 0.0
+    costs = []
 
     def checked_board():
         nonlocal board
@@ -615,14 +628,14 @@ def stage_problems(design: dict) -> list[str]:
 
     for model in sorted(models):
         try:
-            states, cost = history(
+            states, saved = history(
                 root / model / folder / stage / "households",
                 validate=lambda path, record: validate_treatment(
                     path, record, model, checked_board, design["engine"]
                 ),
                 drawn=set(draw_order) if model in CHEAP else None,
             )
-            spent += cost
+            costs += saved
             drawn = draw_order if model in CHEAP else []
             for sid in drawn + sorted(set(states) - set(drawn)):
                 state = states.get(sid)
@@ -645,6 +658,7 @@ def stage_problems(design: dict) -> list[str]:
                     )
         except (OSError, TypeError, ValueError, AttributeError, KeyError) as error:
             problems.append(f"no-tools {model}: {error}")
+    spent = exact_spend(costs)
     try:
         declared = float(design.get("spent_before"))
     except (TypeError, ValueError, OverflowError):
@@ -761,10 +775,10 @@ class Stage:
                 f"drawn households missing from the board: {sorted(missing)}"
             )
         self.histories = {}
-        spent = 0.0
+        costs = []
         folders = {p.name for p in saved_children(self.root) if listed_is_dir(p)}
         for model in sorted(folders | set(self.models)):
-            states, cost = history(
+            states, saved = history(
                 self.households(model),
                 validate=lambda path, record: validate_treatment(
                     path, record, model, self.board, design["engine"]
@@ -772,7 +786,7 @@ class Stage:
                 drawn=set(self.draw_order) if model in CHEAP else None,
             )
             self.histories[model] = states
-            spent += cost
+            costs += saved
             # A saved ceiling failure is a stage-wide stop on every invocation.
             if any(
                 state["final"] is not None
@@ -784,7 +798,7 @@ class Stage:
                 for state in states.values()
             ):
                 self.stopped.set()
-        self.spend = Spend(spent, self.stopped)
+        self.spend = Spend(exact_spend(costs), self.stopped)
         self.states = {model: "pending" for model in self.models}
 
     def close(self) -> None:
