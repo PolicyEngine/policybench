@@ -72,7 +72,6 @@ def test_unlistable_optional_history_refuses(
     else:
         w = world(models=(cr.CHEAP[0],))
         design = complete_preflight_design(w, tmp_path)
-        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     spec = design["no_tools"]
     folder = (
         Path(spec["runs"]) / "gpt-6-sol" / spec["folder"] / spec["stage"] / "households"
@@ -101,7 +100,6 @@ def test_model_inventory_failure_refuses(
     else:
         w = world(models=(cr.CHEAP[0],))
         design = complete_preflight_design(w, tmp_path)
-        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     root = Path(design["no_tools"]["runs"])
     (root / "gpt-6-sol").mkdir(parents=True, exist_ok=True)
     target = root / "gpt-6-sol" if which == "model-stat" else root
@@ -148,7 +146,6 @@ def test_listed_model_entry_without_metadata_refuses(
     else:
         w = world(models=(cr.CHEAP[0],))
         design = complete_preflight_design(w, tmp_path)
-        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     root = Path(design["no_tools"]["runs"])
     root.mkdir(parents=True, exist_ok=True)
     target = root / "ghost-model"
@@ -173,7 +170,6 @@ def test_preflight_listed_calculator_entry_without_metadata_refuses(
 ):
     w = world(models=(cr.CHEAP[0],))
     design = complete_preflight_design(w, tmp_path)
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     folder = Path(design["runs"]) / cr.CHEAP[0]
     parent = folder if level == "arm" else folder / "pe"
     parent.mkdir(parents=True, exist_ok=True)
@@ -196,7 +192,6 @@ def test_broken_optional_history_folder_refuses(
     else:
         w = world(models=(cr.CHEAP[0],))
         design = complete_preflight_design(w, tmp_path)
-        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     spec = design["no_tools"]
     folder = (
         Path(spec["runs"]) / "gpt-6-sol" / spec["folder"] / spec["stage"] / "households"
@@ -259,7 +254,6 @@ def test_calculator_preflight_inventory_failure_refuses(
 ):
     w = world(models=(cr.CHEAP[0],))
     design = complete_preflight_design(w, tmp_path)
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     folder = Path(design["runs"]) / cr.CHEAP[0]
     targets = {
         "model": folder,
@@ -286,7 +280,6 @@ def test_calculator_preflight_directory_stat_failure_refuses(
 ):
     w = world(models=(cr.CHEAP[0],))
     design = complete_preflight_design(w, tmp_path)
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     folder = Path(design["runs"]) / cr.CHEAP[0]
     target = (
         folder
@@ -315,7 +308,6 @@ def test_preflight_unreadable_preregistration_refuses(world, tmp_path, monkeypat
         return original(path)
 
     monkeypatch.setattr(Path, "read_bytes", denied)
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     assert str(target) in "\n".join(cr.preflight(design, (cr.CHEAP[0],)))
     assert not w.provider.count
 

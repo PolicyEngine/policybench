@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from tests.test_confirmatory_run import (
-    ENGINE,
     complete_preflight_design,
     cr,
     pilot,
@@ -32,8 +31,6 @@ def engine_fault(world, tmp_path, monkeypatch, fault):
     design = complete_preflight_design(w, tmp_path)
     metadata = Path(design["board"]) / "reference_outputs.csv.meta.json"
     monkeypatch.setattr(pilot, "board_engine", REAL_BOARD_ENGINE)
-    monkeypatch.setattr(pilot, "_versions", lambda: {"policyengine-us": ENGINE})
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
 
     def no_run(*args, **kwargs):
         pytest.fail("a refused preflight must not construct or call a provider")

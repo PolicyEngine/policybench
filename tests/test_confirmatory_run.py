@@ -789,6 +789,9 @@ class World:
         }
         monkeypatch.setattr(pilot, "load_board", lambda path: self.board)
         monkeypatch.setattr(pilot, "board_engine", lambda path=None: ENGINE)
+        installed = {**pilot._versions(), "policyengine-us": ENGINE}
+        monkeypatch.setattr(pilot, "_versions", lambda: installed)
+        monkeypatch.setattr(cr, "host_power", lambda: (True, True))
         monkeypatch.setitem(
             pilot._STATED_ENGINE, "version", pilot._STATED_ENGINE["version"]
         )

@@ -259,7 +259,6 @@ def test_archive_refuses_a_final_changed_after_the_runner_wrote_it(setup, monkey
 
 def pool_design(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "HOUSEHOLDS", N_DRAW)
-    monkeypatch.setattr(cr, "host_power", lambda: (True, True))
     world = World(tmp_path, monkeypatch, models=(cr.CHEAP[0],))
     return world, complete_preflight_design(world, tmp_path)
 
