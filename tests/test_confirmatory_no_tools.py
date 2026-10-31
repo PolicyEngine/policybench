@@ -1491,9 +1491,9 @@ def test_valid_saved_numeric_cost_preserves_spend(setup, cost):
     assert provider.calls == []
 
 
-def require_a_stop_at_the_cap(setup, saved):
+def require_a_stop_at_the_cap(setup, saved, spent=nt.NO_TOOLS_CAP):
     """Save these (model, household, cost) finals, and require that startup's sum
-    reaches the cap, no owed attempt starts, and another open takes the lock."""
+    reaches `spent`, no owed attempt starts, and another open takes the lock."""
     root = Path(setup["design"]["no_tools"]["runs"])
     for model, sid, cost in saved:
         folder = root / model / "none/confirmatory/households"
@@ -1503,7 +1503,7 @@ def require_a_stop_at_the_cap(setup, saved):
         (folder / f"{sid}.json").write_text(json.dumps(payload))
     provider = Provider()
     plan = stage(setup, provider)
-    assert plan.spend.spent_usd == nt.NO_TOOLS_CAP
+    assert plan.spend.spent_usd == spent
     assert plan.stopped.is_set()
     assert plan.execute() == 1
     assert provider.calls == []
@@ -1542,6 +1542,19 @@ def test_startup_spend_sums_every_model_at_once_at_the_stage_cap(setup):
             (nt.CHEAP[0], "h2", first[1]),
             (nt.CHEAP[1], "h2", second[0]),
         ],
+    )
+
+
+def test_startup_spend_stops_on_costs_whose_sum_overflows(setup):
+    """Each cost fits a float and `math.fsum` overflows on the pair, so startup
+    takes infinity for the total and stops."""
+    costs = [1.5e308, 1.5e308]
+    with pytest.raises(OverflowError):
+        math.fsum(costs)
+    require_a_stop_at_the_cap(
+        setup,
+        [(nt.CHEAP[0], "h1", costs[0]), (nt.CHEAP[1], "h1", costs[1])],
+        spent=math.inf,
     )
 
 
