@@ -47,6 +47,7 @@ from policybench.reference_adversary import (
     prepare_adversary,
     render_stage1_prompt,
     render_stage2_prompt,
+    searched_for,
     sha256_text,
     write_stage2_prompt,
 )
@@ -1339,6 +1340,57 @@ def test_codex_audit_catches_contamination(item, problem):
     assert problems and any(problem in p for p in problems), problems
 
 
+# The query GPT-6.1 Sol sent on 2026-10-22 (rehearsal case us__rh_000__snap):
+# the prompt asks a judge to exclude the blocked domains on every search, and
+# Codex's search tool takes no blocked_domains, so it excludes them by operator.
+_EXCLUDING = (
+    "site:fns.usda.gov SNAP fiscal year 2026 cost living adjustments "
+    + " ".join(f"-site:{domain}" for domain in BLOCKED_DOMAINS)
+)
+
+
+def test_codex_audit_accepts_a_search_that_excludes_the_blocked_domains():
+    item = {
+        "id": "1",
+        "type": "web_search",
+        "query": _EXCLUDING,
+        "action": {"type": "search", "queries": [_EXCLUDING, '"7 CFR 273.10" minimum']},
+    }
+    problems, activity = codex_events_audit(_events(item))
+    assert problems == []
+    assert _EXCLUDING in activity["searches"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "policyengine snap 2026 -site:policyengine.org",
+        "site:policyengine.org snap",
+        "snap -site:policyengine.org.example.com",
+        "snap -site:notpolicyengine.org",
+        "snap -inurl:policybench",
+        "snap -site:policybench.org policybench answers",
+    ],
+)
+def test_codex_audit_still_catches_a_search_for_the_engine_beside_exclusions(query):
+    problems, _ = codex_events_audit(
+        _events({"id": "1", "type": "web_search", "query": query})
+    )
+    assert any("a web search names" in p for p in problems), problems
+
+
+@given(
+    st.lists(st.sampled_from(BLOCKED_DOMAINS), max_size=6),
+    st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789 .:", max_size=40),
+)
+def test_searched_for_drops_only_blocked_domain_exclusions(domains, text):
+    query = " ".join([text, *(f"-site:{d}" for d in domains)])
+    remaining = searched_for(query).lower()
+    assert all(f"-site:{d}" not in remaining.split() for d in domains)
+    # Everything else the judge typed survives.
+    assert all(word in remaining.split() for word in text.lower().split())
+
+
 def test_codex_audit_greps_lines_that_are_not_events():
     problems, _ = codex_events_audit("warning: read /x/data.json\n")
     assert problems == ["line 1: non-event output names 'data.json'"]
@@ -1396,6 +1448,16 @@ def test_claude_audit_passes_web_research_and_returns_the_accepted_answer():
         "denied_fetches": [],
     }
     assert accepted == [_stage1()]
+
+
+def test_claude_audit_takes_an_excluding_search_as_law_research():
+    excluding = _use("1", "WebSearch", query=_EXCLUDING)
+    problems, activity, _ = claude_transcript_audit(_transcript("p", excluding), "p")
+    assert problems == []
+    assert activity["searches"] == [_EXCLUDING]
+    seeking = _use("1", "WebSearch", query="policyengine snap -site:policyengine.org")
+    problems, _, _ = claude_transcript_audit(_transcript("p", seeking), "p")
+    assert any("searched for the engine" in p for p in problems), problems
 
 
 def test_claude_audit_records_a_fetch_the_deny_rule_refused():
@@ -1549,6 +1611,57 @@ def test_check_login_mirrors_the_audit_runner_rule(tmp_path: Path):
         check_login(lane, desktop, token=True, declared="claude:", **common)
     assert check_login(lane, desktop, token=True, declared="lane@x", **common)
     assert check_login(lane, desktop, token=True, declared="claude:lane@x", **common)
+
+
+def test_check_login_takes_an_api_key_only_as_declared_in_the_runs_own_directory(
+    tmp_path: Path,
+):
+    own = tmp_path / "own"
+    own.mkdir()
+    other = tmp_path / "other"
+    other.mkdir()
+
+    def status(**fields):
+        return json.dumps(
+            {
+                "loggedIn": True,
+                "authMethod": "api_key",
+                "apiProvider": "firstParty",
+                "apiKeySource": "ANTHROPIC_API_KEY",
+                "configDirectory": str(own),
+                **fields,
+            }
+        )
+
+    common = {"token": False, "declared": "", "config_dir": str(own)}
+    assert check_login(
+        status(), "", desktop_opt_in=False, api_key_secret="KEY", **common
+    ) == {"method": "api_key", "account": None, "org": None, "secret": "KEY"}
+    # Without the declaration an API key is still refused.
+    with pytest.raises(ValueError, match="not a subscription"):
+        check_login(status(), "", desktop_opt_in=False, **common)
+    refusals = [
+        (status(authMethod="claude.ai"), "logs in by 'claude.ai'"),
+        (status(apiKeySource="/login managed key"), "not ANTHROPIC_API_KEY"),
+        (status(configDirectory=str(other)), "not the run's own"),
+        (status(apiProvider="bedrock"), "not a first-party"),
+        (status(loggedIn=False), "no login"),
+    ]
+    for text, message in refusals:
+        with pytest.raises(ValueError, match=message):
+            check_login(text, "", desktop_opt_in=False, api_key_secret="KEY", **common)
+    with pytest.raises(ValueError, match="no lane token and no desktop opt-in"):
+        check_login(status(), "", desktop_opt_in=True, api_key_secret="KEY", **common)
+    with pytest.raises(ValueError, match="no lane token and no desktop opt-in"):
+        check_login(
+            status(),
+            "",
+            token=True,
+            declared="",
+            config_dir=str(own),
+            desktop_opt_in=False,
+            api_key_secret="KEY",
+        )
 
 
 # --- Command line ----------------------------------------------------------------

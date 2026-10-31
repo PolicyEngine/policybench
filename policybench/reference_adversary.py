@@ -73,6 +73,11 @@ REFERENCE_FREEZE = "2026-07-03"
 REFERENCE_FREEZES = {"us": REFERENCE_FREEZE, "uk": "2026-10-10"}
 UK_FISCAL_YEAR = f"{TAX_YEAR}-{str(TAX_YEAR + 1)[-2:]}"
 
+# How the stage headers say the consensus models answered. A payload's
+# ``answerCondition`` replaces it, for clusters of tool-using arms (the tool
+# pilot's web arms); the default renders the headers byte for byte as before.
+DEFAULT_ANSWER_CONDITION = "answering from memory, without tools"
+
 VERDICTS = (
     "reference_holds",
     "reference_wrong",
@@ -457,6 +462,7 @@ class AdversaryCase:
     metric_type: str = "amount"
     state: str = ""
     trigger: tuple[str, ...] = ()
+    answer_condition: str = DEFAULT_ANSWER_CONDITION
 
     def to_manifest_row(self) -> dict:
         """The case as a ``cases.jsonl`` row, without the derivation."""
@@ -465,6 +471,8 @@ class AdversaryCase:
         row["consensus"] = [dict(cluster) for cluster in self.consensus]
         row["trigger"] = list(self.trigger)
         row["derivation_sha256"] = sha256_text(derivation) if derivation else None
+        if self.answer_condition == DEFAULT_ANSWER_CONDITION:
+            row.pop("answer_condition")
         return row
 
     @classmethod
@@ -486,6 +494,9 @@ class AdversaryCase:
             metric_type=str(row.get("metric_type", "amount")),
             state=str(row.get("state", "") or ""),
             trigger=tuple(row.get("trigger", ())),
+            answer_condition=str(
+                row.get("answer_condition") or DEFAULT_ANSWER_CONDITION
+            ),
         )
 
 
@@ -600,6 +611,10 @@ def build_adversary_cases(
     country = str(payload.get("country") or "us")
     scenarios = payload.get("scenarios") or {}
     predictions = payload.get("scenarioPredictions") or {}
+    # A payload may state the definitions its models saw (the tool pilot's
+    # v2-pilot wording) and the condition they answered under.
+    definitions = payload.get("outputDefinitions") or {}
+    condition = answer_condition_of(payload)
     cases: list[AdversaryCase] = []
     seen: set[tuple[str, str]] = set()
     for flag in flags:
@@ -673,7 +688,8 @@ def build_adversary_cases(
                 country=country,
                 scenario_id=scenario_id,
                 variable=variable,
-                definition=get_variable_description(variable, country=country),
+                definition=_clean(definitions.get(variable))
+                or get_variable_description(variable, country=country),
                 household_prompt=household_prompt,
                 reference_value=reference,
                 consensus=tuple(clusters),
@@ -684,9 +700,31 @@ def build_adversary_cases(
                 metric_type=metric_type_for_output(variable),
                 state=_clean(flag.get("state") or scenario.get("state")),
                 trigger=tuple(str(t) for t in flag.get("trigger", ())),
+                answer_condition=condition,
             )
         )
     return cases
+
+
+def answer_condition_of(payload: dict) -> str:
+    """The payload's ``answerCondition``, checked, or the default."""
+    condition = payload.get("answerCondition")
+    if condition is None:
+        return DEFAULT_ANSWER_CONDITION
+    if not isinstance(condition, str) or not condition.startswith("answering "):
+        raise ValueError(
+            f"answerCondition must be a phrase starting 'answering ': {condition!r}"
+        )
+    return condition
+
+
+def _with_condition(header: str, case: AdversaryCase) -> str:
+    """A stage header stating the case's answer condition."""
+    if case.answer_condition == DEFAULT_ANSWER_CONDITION:
+        return header
+    if header.count(DEFAULT_ANSWER_CONDITION) != 1:
+        raise ValueError(f"{case.country} header does not state the answer condition")
+    return header.replace(DEFAULT_ANSWER_CONDITION, case.answer_condition)
 
 
 # --- Prompts -------------------------------------------------------------------
@@ -1022,7 +1060,7 @@ def _case_sections(case: AdversaryCase) -> list[str]:
 
 def render_stage1_prompt(case: AdversaryCase) -> str:
     """The law-first prompt: everything about the case except the derivation."""
-    header = _country_template(_STAGE1_HEADERS, case.country)
+    header = _with_condition(_country_template(_STAGE1_HEADERS, case.country), case)
     return "\n".join([header, "", *_case_sections(case)])
 
 
@@ -1036,7 +1074,7 @@ def render_stage2_prompt(case: AdversaryCase, stage1: dict, stage1_sha256: str) 
     derivation = case.derivation or "(no derivation was recorded for this case)"
     return "\n".join(
         [
-            _country_template(_STAGE2_HEADERS, case.country),
+            _with_condition(_country_template(_STAGE2_HEADERS, case.country), case),
             "",
             *_case_sections(case),
             "",
@@ -1646,6 +1684,24 @@ def _markers_in(text: str) -> list[str]:
     return [marker for marker in DERIVATION_MARKERS if marker in lowered]
 
 
+# An exclusion of a blocked domain in a search query ("-site:policyengine.org"):
+# how a judge whose search tool takes no blocked_domains (Codex) follows the
+# prompt's rule to exclude those domains on every search. It keeps a domain
+# out; it does not search for it.
+_EXCLUDED_DOMAIN = re.compile(
+    r"(?<!\S)-site:[\"']?("
+    + "|".join(re.escape(d) for d in BLOCKED_DOMAINS)
+    + r")[\"']?(?!\S)",
+    re.IGNORECASE,
+)
+
+
+def searched_for(query: str) -> str:
+    """A search query without its exclusions of blocked domains: what the
+    judge searched for, for the contamination check."""
+    return _EXCLUDED_DOMAIN.sub(" ", str(query or ""))
+
+
 def codex_events_audit(events_text: str) -> tuple[list[str], dict]:
     """Audit a ``codex exec --json`` event log for contamination.
 
@@ -1714,7 +1770,7 @@ def codex_events_audit(events_text: str) -> tuple[list[str], dict]:
             ]
             url = str(action.get("url") or "")
             for text in [str(item.get("query") or ""), *searched]:
-                for marker in _markers_in(text):
+                for marker in _markers_in(searched_for(text)):
                     problems.append(f"line {number}: a web search names {marker!r}")
             for marker in _markers_in(str(action.get("pattern") or "")):
                 problems.append(f"line {number}: an in-page search names {marker!r}")
@@ -1819,7 +1875,7 @@ def claude_transcript_audit(
                 query = str(payload.get("query") or "")
                 activity["searches"].append(query)
                 searches.append((str(part.get("id")), query))
-                if any(n in query.lower() for n in BLOCKED_NAMES):
+                if any(n in searched_for(query).lower() for n in BLOCKED_NAMES):
                     problems.append(f"the judge searched for the engine: {query}")
             else:
                 problems.append(f"the judge called a tool it was not given: {name}")
@@ -2064,6 +2120,7 @@ def check_login(
     declared: str,
     config_dir: str,
     desktop_opt_in: bool,
+    api_key_secret: str = "",
 ) -> dict:
     """The Claude login a runner may judge with, or ``ValueError`` saying why not.
 
@@ -2073,6 +2130,12 @@ def check_login(
     in which case it must be exactly the desktop's own claude.ai login. Unlike
     that script, it also refuses a token lane whose declared account
     (AUDIT_ACCOUNT) is the desktop login's.
+
+    With ``api_key_secret`` (the runner's JUDGE_API_KEY_SECRET, Max
+    2026-10-22) the judges bill that API key instead: the CLI must report a
+    first-party ``api_key`` login from ``ANTHROPIC_API_KEY`` in exactly
+    ``config_dir`` (the runner's fresh, empty one), with no lane token and no
+    desktop opt-in.
     """
 
     def parse(text: str) -> dict:
@@ -2092,6 +2155,31 @@ def check_login(
             f"the login is through {status.get('apiProvider')!r}, not a "
             "first-party subscription"
         )
+    if api_key_secret:
+        if token or desktop_opt_in:
+            raise ValueError(
+                "an API key judge takes no lane token and no desktop opt-in"
+            )
+        if method != "api_key" or status.get("apiKeySource") != "ANTHROPIC_API_KEY":
+            raise ValueError(
+                f"JUDGE_API_KEY_SECRET is set but the CLI logs in by {method!r} "
+                f"from {status.get('apiKeySource')!r}, not ANTHROPIC_API_KEY"
+            )
+        if not (
+            isinstance(reported, str)
+            and os.path.isdir(reported)
+            and os.path.samefile(reported, config_dir)
+        ):
+            raise ValueError(
+                f"the CLI reports config directory {reported!r}, not the run's "
+                f"own {config_dir}"
+            )
+        return {
+            "method": "api_key",
+            "account": None,
+            "org": None,
+            "secret": api_key_secret,
+        }
     if method not in ("oauth_token", "claude.ai"):
         raise ValueError(f"the login method {method!r} is not a subscription login")
     same_account = bool(
@@ -2188,6 +2276,7 @@ def main(argv: list[str] | None = None) -> int:
     login.add_argument("--declared", default="")
     login.add_argument("--config-dir", required=True)
     login.add_argument("--desktop-opt-in", choices=["0", "1"], default="0")
+    login.add_argument("--api-key-secret", default="")
     args = parser.parse_args(argv)
 
     if args.command == "render-stage2":
@@ -2226,6 +2315,7 @@ def main(argv: list[str] | None = None) -> int:
             declared=args.declared,
             config_dir=args.config_dir,
             desktop_opt_in=args.desktop_opt_in == "1",
+            api_key_secret=args.api_key_secret,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
