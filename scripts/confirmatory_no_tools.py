@@ -552,8 +552,8 @@ def history(
 
 def exact_spend(costs: list[float]) -> float:
     """The correctly rounded sum of saved costs, the same in any order and
-    grouping, so that this reaches the report's total. Its intermediate overflow
-    means a total past every float."""
+    grouping, so that this reaches the report's total. An OverflowError gives
+    infinity, which every finite `spent_before` falls short of."""
     try:
         return math.fsum(costs)
     except OverflowError:

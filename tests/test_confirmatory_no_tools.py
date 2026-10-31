@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import functools
 import io
 import json
+import math
+import operator
 import os
 import signal
 import sys
@@ -1485,6 +1488,33 @@ def test_valid_saved_numeric_cost_preserves_spend(setup, cost):
         str(folder) in problem for problem in nt.stage_problems(setup["design"])
     )
     assert provider.calls == []
+
+
+def test_startup_spend_takes_the_exact_sum_at_the_stage_cap(setup):
+    """A running total of these costs stays under the cap and their exact sum
+    reaches it, so no owed attempt starts and the invocation lock comes free."""
+    costs = [math.nextafter(nt.NO_TOOLS_CAP, 0.0), 2**-52, 2**-52, 2**-52]
+    assert functools.reduce(operator.add, costs) < nt.NO_TOOLS_CAP
+    root = Path(setup["design"]["no_tools"]["runs"])
+    saved = [
+        (nt.CHEAP[0], "h2"),
+        (nt.CHEAP[0], "h1"),
+        (nt.CHEAP[1], "h2"),
+        (nt.CHEAP[2], "h2"),
+    ]
+    for (model, sid), cost in zip(saved, costs):
+        folder = root / model / "none/confirmatory/households"
+        folder.mkdir(parents=True, exist_ok=True)
+        profile = SimpleNamespace(name=model, arm="none", model_id="synthetic")
+        payload = dict(record(sid, profile, cost=cost), attempts=[])
+        (folder / f"{sid}.json").write_text(json.dumps(payload))
+    provider = Provider()
+    plan = stage(setup, provider)
+    assert plan.spend.spent_usd == nt.NO_TOOLS_CAP
+    assert plan.stopped.is_set()
+    assert plan.execute() == 1
+    assert provider.calls == []
+    assert plan._lock_file is None
 
 
 def run_no_tools_probe(setup, tmp_path, name, body):
