@@ -5979,7 +5979,7 @@ def _release_20261027_facts() -> dict:
         return f"{by_model[model]['costUsd']:.2f}"
 
     return {
-        "releaseDate": r.manifest["snapshot_date"],
+        "snapshotDate": r.manifest["snapshot_date"],
         "nModels": len(board),
         "terraExact": one(by_model[TERRA]["exact"]),
         "terraRank": ranks[TERRA],
@@ -6025,7 +6025,8 @@ def test_release_20261027_note() -> None:
     if not _recompute_against_frozen_snapshot(note):
         return
     assert note["release"] == RELEASE_20261027
-    assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
+    # The public board gained Terra on publication, after the snapshot's date.
+    assert note["boardSnapshot"] == facts["snapshotDate"] < note["date"]
     assert note["slug"].startswith(note["date"])
     assert facts["engineVersion"] in note["title"]
     assert f"#{facts['terraRank']}" in note["title"]
@@ -6052,11 +6053,11 @@ def test_release_20261027_note_claims() -> None:
     then_root = _release_root(RELEASE_20261014)
     then = _no_tools_exact(_payload_at(then_root))
     then_names = sorted(then, key=then.get, reverse=True)
-    # One new row on the previous board, released the day before this one.
+    # One new row on the previous board, released the day before the snapshot.
     assert set(names) == set(then) | {TERRA}
     assert facts["nModels"] == len(then) + 1 == facts["incumbents"] + 1
     released = date.fromisoformat(MODEL_RELEASE_DATES[TERRA])
-    assert (date.fromisoformat(note["date"]) - released).days == 1
+    assert (date.fromisoformat(note["boardSnapshot"]) - released).days == 1
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
     # "Only GPT-6 Sol and Claude Opus 5.5 score higher", and GPT-5.6 Sol, at
     # the same rounded rate, is less than a tenth of a point behind.

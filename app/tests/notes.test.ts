@@ -100,7 +100,7 @@ describe("notes", () => {
 
   test("the newest note is the frozen release's, ahead of the October 14 ones", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toBe("2026-10-27-gpt-6-1-terra-joins-the-board");
+    expect(notes[0].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
@@ -131,13 +131,13 @@ describe("notes", () => {
 
   test("the GPT-6.1 Terra note renders its figures", () => {
     const note = notes.find(
-      (n) => n.slug === "2026-10-27-gpt-6-1-terra-joins-the-board",
+      (n) => n.slug === "2026-10-31-gpt-6-1-terra-joins-the-board",
     )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "OpenAI&#x27;s GPT-6.1 Terra joined the board on 2026-10-27, the day after OpenAI released it, bringing the board to 51 models.",
+      "PolicyBench added OpenAI&#x27;s GPT-6.1 Terra to its 2026-10-27 snapshot, the day after OpenAI released it, bringing the board to 51 models.",
     );
     // Board rates keep one decimal.
     expect(markup).toContain(
