@@ -92,8 +92,8 @@ export default function ExclusionNote({
             {exclusion.alternativeReading} Applying that rule gives{" "}
             <span className="font-[family-name:var(--font-mono)]">
               {formatValue(exclusion.alternativeValue, isBinary, currencySymbol)}
-            </span>{" "}
-            rather than the frozen{" "}
+            </span>
+            ; the frozen value is{" "}
             <span className="font-[family-name:var(--font-mono)]">
               {formatValue(exclusion.frozenValue, isBinary, currencySymbol)}
             </span>
@@ -114,8 +114,8 @@ export default function ExclusionNote({
             {exclusion.alternativeReading} Under that reading the reference is{" "}
             <span className="font-[family-name:var(--font-mono)]">
               {formatValue(exclusion.alternativeValue, isBinary, currencySymbol)}
-            </span>{" "}
-            rather than the frozen{" "}
+            </span>
+            ; the frozen value is{" "}
             <span className="font-[family-name:var(--font-mono)]">
               {formatValue(exclusion.frozenValue, isBinary, currencySymbol)}
             </span>

@@ -38,10 +38,10 @@
       "committed_on": "2026-10-10"
     },
     "2026-10-14": {
-      "commit": null,
+      "commit": "bf845cbe4e92de495150c8660c35ea357d996a8c",
       "release": "dashboard-data-20261014",
-      "pull_request": null,
-      "adjudications_written_on": "2026-10-14"
+      "pull_request": 221,
+      "committed_on": "2026-10-14"
     }
   },
   "cases": {
@@ -933,6 +933,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-09-23T00:27:11.981428+00:00",
         "verdict_sha256": "0ae103e79bef21843fef6e173d865f26761c33ed1648a8d6d9fe1877c0d11408"
+      },
+      "published": {
+        "release": "dashboard-data-20261014",
+        "commit": "bf845cbe4e92de495150c8660c35ea357d996a8c",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "state_local_rule",
+        "judged_on_utc": "2026-10-14"
       }
     },
     "us__scenario_066__snap": {
@@ -2128,6 +2136,14 @@
         "reference_suspect": false,
         "judged_at_utc": "2026-10-13T19:09:37.041751+00:00",
         "verdict_sha256": "72a05641e920398bbc9226f62c6218c8c7e7d3c85cb61ede2e8ed7bf04ee6636"
+      },
+      "published": {
+        "release": "dashboard-data-20261014",
+        "commit": "bf845cbe4e92de495150c8660c35ea357d996a8c",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "judged_on_utc": "2026-10-13"
       }
     }
   }

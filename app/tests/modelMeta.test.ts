@@ -21,6 +21,7 @@ describe("model metadata", () => {
   test.each([
     ["gpt-5.6-sol", "GPT-5.6 Sol", "openai"],
     ["gpt-5.6-terra", "GPT-5.6 Terra", "openai"],
+    ["gpt-6.1-terra", "GPT-6.1 Terra", "openai"],
     ["gpt-5.6-luna", "GPT-5.6 Luna", "openai"],
     ["kimi-k3", "Kimi K3", "moonshot"],
     ["kimi-k2.6", "Kimi K2.6", "moonshot"],
@@ -62,6 +63,7 @@ describe("model metadata", () => {
     expect(FRONTIER_MODELS).not.toContain("gpt-5.6-sol");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.5");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.6-terra");
+    expect(FRONTIER_MODELS).not.toContain("gpt-6.1-terra");
     expect(FRONTIER_MODELS).not.toContain("gpt-5.6-luna");
   });
 

@@ -23,6 +23,7 @@ import hashlib
 import json
 import re
 import shutil
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -100,15 +101,18 @@ def _case_id(country: str, scenario_id: str, variable: str) -> str:
 def build_audit_cases(
     country_dir: Path,
     grounding_lookup: dict[tuple[str, str], str] | None = None,
+    *,
+    prediction_reader: Callable[[Path], pd.DataFrame] | None = None,
 ) -> list[AuditCase]:
     """Assemble one :class:`AuditCase` per wrong ``(scenario_id, variable)``.
 
     ``grounding_lookup`` optionally maps ``(scenario_id, variable)`` to a block
     of authoritative engine facts (e.g. the Medicaid eligibility category from
     the reference trace) rendered into the case prompt.
+    ``prediction_reader`` lets release callers read only their bound CSV.
     """
     country = country_dir.name
-    wrong = wrong_prediction_rows(country_dir)
+    wrong = wrong_prediction_rows(country_dir, prediction_reader=prediction_reader)
     if wrong.empty:
         return []
 
@@ -332,6 +336,7 @@ def prepare_audit(
     grounding_lookup: dict[tuple[str, str], str] | None = None,
     *,
     template_version: int,
+    prediction_reader: Callable[[Path], pd.DataFrame] | None = None,
 ) -> list[AuditCase]:
     """Write per-case prompts, the shared output schema, and a manifest.
 
@@ -356,9 +361,16 @@ def prepare_audit(
     or the caller, never from prompt.md: a prompt that begins with another
     version's header is not adopted. Prompts are written as UTF-8 bytes, with
     no newline translation.
+
+    ``prediction_reader`` is forwarded to case assembly so release callers
+    can use their bound CSV without discovering or rewriting predictions.
     """
     template_header(template_version)
-    cases = build_audit_cases(country_dir, grounding_lookup=grounding_lookup)
+    cases = build_audit_cases(
+        country_dir,
+        grounding_lookup=grounding_lookup,
+        prediction_reader=prediction_reader,
+    )
     audit_dir.mkdir(parents=True, exist_ok=True)
     (audit_dir / "schema.json").write_text(json.dumps(AUDIT_OUTPUT_SCHEMA, indent=2))
     cases_root = audit_dir / "cases"

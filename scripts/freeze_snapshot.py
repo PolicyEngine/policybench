@@ -248,6 +248,8 @@ def codex_log_describes_verdict(
 def audit_judge_provenance(
     cases_dir: Path = AUDIT_CASES_DIR,
     log_tolerance: float = LOG_FALLBACK_TOLERANCE_SECONDS,
+    *,
+    case_ids: tuple[str, ...] | None = None,
 ) -> dict:
     """Tally which judge model produced each case verdict in the audit tree.
 
@@ -258,12 +260,20 @@ def audit_judge_provenance(
     read from the log's ``model:`` line. Anything else, including a stale or
     hash-less sidecar beside an unrelated log, is counted under ``unknown``
     so the manifest cannot silently claim provenance it does not have.
+
+    A release driver may provide its validated, receipt-bound manifest case
+    IDs. The default retains the historical whole-tree tally unchanged.
     """
     if not cases_dir.is_dir():
         raise SystemExit(f"Audit case tree not found: {cases_dir}")
     by_judge: dict[str, dict] = {}
     judged = 0
-    for case_dir in sorted(cases_dir.iterdir()):
+    directories = (
+        sorted(cases_dir.iterdir())
+        if case_ids is None
+        else [cases_dir / case for case in sorted(case_ids)]
+    )
+    for case_dir in directories:
         if not (case_dir / "verdict.json").is_file():
             continue
         judged += 1
@@ -1512,17 +1522,21 @@ UPGRADE_MODULE_PATHS = {
         "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
     ),
 }
-# Each later builder's note, oldest first: the 2026-10-10 upgrade's, then the
-# 2026-10-12 one's. Both build households as the 2026-09-29 upgrade did and pin
-# the same inherited setup; a sidecar keeps every upgrade's revision, so each
-# note must still read as a later builder's.
+# Each later builder's note, oldest first: the 2026-10-10 upgrade's, the
+# 2026-10-12 one's, then the 2026-10-22 one's. Each builds households as the
+# 2026-09-29 upgrade did and pins the same inherited setup; a sidecar keeps
+# every upgrade's revision, so each note must still read as a later builder's.
 UPGRADE_BUILDERS = tuple(
     f"reference_audit/{folder}/scripts/"
     "build_references_upgrade.py; households from "
     "policybench.scenarios.Scenario.to_pe_household through "
     "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
     "2026-09-29 upgrade"
-    for folder in ("2026-10-09-engine-upgrade", "2026-10-12-engine-upgrade")
+    for folder in (
+        "2026-10-09-engine-upgrade",
+        "2026-10-12-engine-upgrade",
+        "2026-10-22-engine-upgrade",
+    )
 )
 UPGRADE_BUILDER = UPGRADE_BUILDERS[-1]
 

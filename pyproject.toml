@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=2.0",
     "numpy>=1.25",  # Generator.spawn (policybench.uk_audit)
     "policyengine==6.1.2",
-    "policyengine-us==2.41.0",
+    "policyengine-us==2.60.0",
     "policyengine-uk==2.126.7",
     "anthropic>=0.115.1",
     "google-genai>=2.10.0",

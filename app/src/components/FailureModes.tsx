@@ -138,7 +138,7 @@ function ErrorReadPatterns({
                     </div>
                     <p className="mt-1 text-sm leading-relaxed text-text-secondary">
                       {explainer?.summary ??
-                        "This target combines multiple policy rules, and errors usually come from positive cases rather than zero cases."}
+                        "This target combines multiple policy rules, and errors usually come from positive cases."}
                     </p>
                   </div>
                 </div>

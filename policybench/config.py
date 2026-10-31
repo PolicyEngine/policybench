@@ -156,8 +156,9 @@ MODELS = {
 # id. The frozen row's cost is its recorded per-call cost: reconstructed from
 # token counts at the list price configured at request time, or the
 # provider-reported charge where no reconstruction was available (see
-# eval_no_tools usage accounting). List-price overrides apply at request time, not
-# retroactively to recorded costs. Analysis preserves each recorded total.
+# eval_no_tools usage accounting). A list-price override applies to
+# requests made after it is set and leaves recorded costs unchanged. Analysis
+# preserves each recorded total.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
     # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).

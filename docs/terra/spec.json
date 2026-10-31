@@ -1,0 +1,16 @@
+{
+  "note": "Inputs of the release after dashboard-data-20261014, read by scripts/finish_terra.py. The release adds GPT-6.1 Terra and installs reference_audit/2026-10-22-engine-upgrade/reference-build/, moving the references from policyengine-us 2.41.0 to 2.60.0. Its four approved scored moves are scenario_031 SNAP and scenario_028, scenario_117 and scenario_123 free school meals. All 49 exclusion records remain, sixteen are rechecked, and none is regenerated or newly excluded. Every model remains scored on 1,935 outputs. This spec starts with no proposals, ruled adjudications or triage decisions; a later developer triage decision must follow the driver's existing record and date gates.",
+  "release_tag": "dashboard-data-20261027",
+  "base_tag": "dashboard-data-20261014",
+  "base_sha256": "22db9a9c052545371687f6afa3551896336abbd15c76f767ebb777a77f6d2268",
+  "rulings": {
+    "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'. Install the reviewed 2026-10-22 audit's build on policyengine-us 2.60.0, dated 2026-10-23 UTC in its sidecar, and rerun its publication check before publication.",
+    "r24": "PR #242 keeps scenario_002 and scenario_107 federal income tax and scenario_121 federal and state income tax excluded at their decided $0 values. The 2.60.0 engine's employer-paid disability-coverage default reaches their alternative values, while the prompt still leaves who paid for the coverage unstated. Max's d1878 remains pending; deciding that reference reading is outside this release."
+  },
+  "proposals": [],
+  "adjudications": [],
+  "restated_adjudications": [],
+  "upgrade_adjudications": [],
+  "triage_adjudications": [],
+  "snapshot_date": "2026-10-27"
+}

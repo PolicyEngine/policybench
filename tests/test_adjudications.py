@@ -54,7 +54,14 @@ RELEASE_20261013_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
 # outputs scored. The squash merge of #218.
 RELEASE_20261013B_COMMIT = "2cb77a17739abeace3ff32391f902a39127843c0"
 (EVIDENCE_20261014,) = sorted((ROOT / "docs/argon").glob("judge_verdicts_*.json"))
-# This release's own wave: its triage decisions, not yet committed.
+# The squash merge of #221, which froze release dashboard-data-20261014 and
+# committed its 2026-10-14 triage wave. Release 20261027 (GPT-6.1 Terra, with
+# the references on policyengine-us 2.60.0) builds on it: it restates the
+# decisions on the cases GPT-6.1 Terra or the engine upgrade re-opened
+# (docs/terra/judge_verdicts_20261027.json), and drops and adds none.
+RELEASE_20261014_COMMIT = "bf845cbe4e92de495150c8660c35ea357d996a8c"
+(EVIDENCE_20261027,) = sorted((ROOT / "docs/terra").glob("judge_verdicts_*.json"))
+# Release 20261014's triage wave, the last wave any release decided.
 TRIAGE_WAVE = "2026-10-14"
 TRIAGE_CASES = {
     "us__scenario_009__federal_income_tax_before_refundable_credits",
@@ -367,12 +374,19 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         for e in entries
         if (e["scenario_id"], e["variable"]) == ("scenario_064", "ssi")
     )
-    # GPT-6.1 Sol re-opened 064 SSI; its 2026-09-30 verdict calls it an LLM
-    # error, and the verdict release 20260929 recorded (prompt ambiguity) is
-    # the last judge_previous item. The decision itself is unchanged.
-    assert opus["judge_failure_source"] == "llm_error"
-    assert opus["judge_rejudged_on"] == "2026-09-30"
-    assert opus["judge_previous"][-1]["judge_failure_source"] == "prompt_ambiguity"
+    # GPT-6.1 Sol re-opened 064 SSI; its 2026-09-30 verdict called it an LLM
+    # error over the prompt ambiguity release 20260929 recorded. GPT-6.1 Terra
+    # re-opened it again: its 2026-10-27 verdict calls it prompt ambiguity, and
+    # the 2026-09-30 verdict is the last judge_previous item. The decision
+    # itself is unchanged.
+    assert opus["judge_failure_source"] == "prompt_ambiguity"
+    assert opus["judge_rejudged_on"] == "2026-10-27"
+    assert [item["judge_failure_source"] for item in opus["judge_previous"]] == [
+        "prompt_ambiguity",
+        "prompt_ambiguity",
+        "llm_error",
+    ]
+    assert opus["judge_previous"][-1]["judged_on"] == "2026-09-30"
     rejudged = next(
         e
         for e in entries
@@ -404,12 +418,18 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     # one each of reference_data_issue_fixed, reference_engine_defect and
     # reference_later_law). Release 20261014's Opus 5.5 verdicts on the cases
     # its new models re-opened move three decisions' judge classes, and its
-    # two triage decisions are on cases the judge called LLM errors.
+    # two triage decisions are on cases the judge called LLM errors (llm_error
+    # 51, reference_engine_defect 2, reference_model_issue_fixed 2). Release
+    # 20261027's verdicts on the cases GPT-6.1 Terra re-opened move seven:
+    # two LLM errors to reference_model_issue_fixed, two
+    # reference_model_issue_fixed and one LLM error to
+    # reference_engine_defect, one LLM error to prompt_ambiguity, and one
+    # reference_engine_defect to an LLM error.
     assert block["by_judge_verdict"] == {
-        "llm_error": 51,
-        "prompt_ambiguity": 6,
+        "llm_error": 48,
+        "prompt_ambiguity": 7,
         "reference_data_issue_fixed": 1,
-        "reference_engine_defect": 2,
+        "reference_engine_defect": 4,
         "reference_later_law": 1,
         "reference_model_issue_fixed": 2,
     }
@@ -454,24 +474,34 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
         == ("scenario_005", "federal_income_tax_before_refundable_credits")
     )
     assert defect["reference_verdict"] == "engine_defect"
-    assert defect["judge_reference_suspect"] is False
-    assert defect["judge_previous"][-1]["judge_reference_suspect"] is True
+    # Release 20261014's re-judge left it unflagged after release 20261013's
+    # flagged it; release 20261027's flags it again.
+    assert [item["judge_reference_suspect"] for item in defect["judge_previous"]][
+        -2:
+    ] == [True, False]
+    assert defect["judge_reference_suspect"] is True
+    assert defect["judge_rejudged_on"] == "2026-10-27"
     # When the 2026-10-05 wave decided them, the judge had flagged none of its
     # references: every verdict a decision kept from before release 20261014
     # is unflagged. Release 20261014's re-judge of scenario_114's federal
-    # income tax flags its reference, on the inputs the decision's
-    # unlisted-input exclusion already names.
-    flagged = [e for e in new_wave if e["judge_reference_suspect"]]
-    assert [_case(e) for e in flagged] == [
-        "us__scenario_114__federal_income_tax_before_refundable_credits"
-    ]
-    assert flagged[0]["judge_rejudged_on"] == "2026-10-14"
-    assert flagged[0]["reference_verdict"] == "unlisted_input"
-    assert not any(
-        item["judge_reference_suspect"]
+    # income tax flagged its reference, on the inputs the decision's
+    # unlisted-input exclusion already names; release 20261027's re-judge
+    # does not, so that flag is the one judge_previous item flagged.
+    assert not any(e["judge_reference_suspect"] for e in new_wave)
+    assert [
+        (_case(e), item["judged_on"])
         for e in new_wave
         for item in e.get("judge_previous", [])
-    )
+        if item["judge_reference_suspect"]
+    ] == [
+        (
+            "us__scenario_114__federal_income_tax_before_refundable_credits",
+            "2026-10-14",
+        )
+    ]
+    unlisted = next(e for e in new_wave if e["scenario_id"] == "scenario_114")
+    assert unlisted["reference_verdict"] == "unlisted_input"
+    assert judge_ever_flagged(unlisted)
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
     assert manifest["reference_exclusions"]["outputs"] == 49
 
@@ -638,8 +668,10 @@ def test_judge_dates_follow_each_judge_release_and_each_other():
     # restatements of the cases Claude Haiku 5.5 re-opened gave 12 more
     # theirs: 56. Release 20261013 drops the decisions on the nine records its
     # engine upgrade regenerated and restates those on the cases Muse Wonder
-    # re-opened: 57.
-    assert rejudged == 57
+    # re-opened: 57. Release 20261027's restatements on the cases GPT-6.1
+    # Terra re-opened give one more its first: the 2026-10-14 triage decision
+    # on 064 Wisconsin income tax (58).
+    assert rejudged == 58
 
 
 def _write_case(root: Path, case: str, verdict: dict, meta: dict) -> None:
@@ -917,8 +949,9 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     """adjudicated_on names the audit wave (date_conventions). A committed
     wave's decisions were written up to the day its release was committed; a
     wave whose release has no commit yet records the day its adjudications
-    were written (release 20261013 adds no wave, so every wave is committed).
-    So the verdict each decision reviewed -- adjudicated_verdict where a later
+    were written (release 20261027 adds no wave and commits release
+    20261014's, so every wave is committed). So the verdict each decision
+    reviewed -- adjudicated_verdict where a later
     wave replaced it, otherwise the earliest verdict the entry keeps -- is
     dated on or before that day, and a committed wave's decision reviewed the
     verdict its release published.
@@ -952,11 +985,13 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     waves = list(released)
     assert waves == sorted(waves)
     # Release 20261010 committed its two waves (#208); releases 20261013 and
-    # 20261013b add none; release 20261014's triage wave has no commit yet.
-    assert uncommitted == [TRIAGE_WAVE]
+    # 20261013b add none; release 20261014 committed its triage wave (#221);
+    # release 20261027 adds none.
+    assert uncommitted == []
     assert waves[-3:] == ["2026-10-06", UPGRADE_WAVE, TRIAGE_WAVE]
+    assert evidence["wave_releases"][TRIAGE_WAVE]["commit"] == RELEASE_20261014_COMMIT
     committed = [wave for wave in waves if wave not in uncommitted]
-    assert len(committed) == 6
+    assert len(committed) == 7
     # The record's decisions come from exactly these waves.
     assert {e["adjudicated_on"] for e in record["adjudications"]} == set(waves)
     # The record's date conventions name the waves and state the same days.
@@ -1091,14 +1126,17 @@ def test_published_verdicts_in_the_evidence_match_each_wave_release():
         for case in published
         if case in record and record[case]["adjudicated_on"] in uncommitted
     }
-    # Release 20261014's triage wave is uncommitted. scenario_064 Wisconsin
-    # income tax had a 2026-09-22 engine-defect decision, published in release
-    # 20260922, which release 20261013 dropped when its engine upgrade
-    # regenerated the reference; the triage wave decides the case anew, so its
-    # evidence names the verdict the new decision reviewed. scenario_051's
+    # Every wave is committed, so no decision waits on an unpublished one.
+    # scenario_064 Wisconsin income tax had a 2026-09-22 engine-defect
+    # decision, published in release 20260922, which release 20261013 dropped
+    # when its engine upgrade regenerated the reference; release 20261014's
+    # triage wave decided the case anew, and that release published it, so its
+    # evidence is compared with release 20261014's publication. scenario_051's
     # decision, which release 20261010's 2026-10-06 wave restated in place, is
     # compared with that release's publication.
-    assert restated == {"us__scenario_064__state_income_tax_before_refundable_credits"}
+    assert restated == set()
+    wisconsin = "us__scenario_064__state_income_tax_before_refundable_credits"
+    assert published[wisconsin][0] == "dashboard-data-20261014"
     louisiana = "us__scenario_051__state_income_tax_before_refundable_credits"
     assert published[louisiana][0] == "dashboard-data-20261010"
     compared = 0
@@ -1586,8 +1624,13 @@ def test_release_20261013_restates_only_the_cases_muse_wonder_reopened(tmp_path)
             / "reference_outputs.csv.meta.json"
         ).read_text()
     )
-    upgrade = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"][-1]
-    assert upgrade["engine_version"] == "policyengine-us 2.41.0"
+    # Release 20261013's move, to 2.41.0 (later releases add later moves).
+    (upgrade,) = [
+        r
+        for r in sidecar["revisions"]
+        if r["kind"] == "engine_upgrade"
+        and r["engine_version"] == "policyengine-us 2.41.0"
+    ]
     regenerated = {
         f"us__{item['scenario_id']}__{item['variable']}"
         for item in upgrade["regenerated_exclusions"]
@@ -1645,9 +1688,9 @@ def test_release_20261014_restates_only_the_reopened_cases_and_adds_its_wave(
     assert evidence["base_commit"] == RELEASE_20261013B_COMMIT
     verdicts = evidence["cases"]
     base = {_case(e): e for e in _entries_at(RELEASE_20261013B_COMMIT, tmp_path)}
-    entries = {
-        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    }
+    # Release 20261014's record as its commit holds it (later releases change
+    # the working tree's).
+    entries = {_case(e): e for e in _entries_at(RELEASE_20261014_COMMIT, tmp_path)}
     assert set(entries) - set(base) == TRIAGE_CASES
     assert set(base) <= set(entries)
     assert TRIAGE_CASES <= set(verdicts) <= set(entries)
@@ -1694,6 +1737,126 @@ def test_release_20261014_restates_only_the_reopened_cases_and_adds_its_wave(
             replaced += 1
     # 51 restated decisions, each replacing release 20261013b's verdict.
     assert replaced == len(verdicts) - len(TRIAGE_CASES) == 51
+
+
+def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
+    """Release 20261027 changes release 20261014's record in one way: each
+    decision on a case GPT-6.1 Terra or the move to policyengine-us 2.60.0
+    re-opened (docs/terra/judge_provenance.json) names that case's new verdict
+    (docs/terra/judge_verdicts_20261027.json), with release 20261014's verdict
+    appended to judge_previous. The move regenerates no record and newly
+    excludes no output, so no decision is dropped or added, and every decision
+    is release 20261014's. Its reasoning is release 20261014's with this
+    release's listed reasoning amendments applied (the items
+    us_wording-amendments.json appends after release 20261014's), each on a
+    re-opened case."""
+    evidence = json.loads(EVIDENCE_20261027.read_text())
+    assert evidence["release"] == "dashboard-data-20261027"
+    assert evidence["base_commit"] == RELEASE_20261014_COMMIT
+    verdicts = evidence["cases"]
+    sidecar = json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / RUN_LABEL
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
+    )
+    (upgrade,) = [
+        r
+        for r in sidecar["revisions"]
+        if r["kind"] == "engine_upgrade"
+        and r["engine_version"] == "policyengine-us 2.60.0"
+    ]
+    assert upgrade["regenerated_exclusions"] == upgrade["new_exclusions"] == []
+    base = {_case(e): e for e in _entries_at(RELEASE_20261014_COMMIT, tmp_path)}
+    entries = {
+        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    }
+    assert set(entries) == set(base)
+    reopened = {
+        v["case_id"]
+        for v in json.loads((ROOT / "docs/terra/judge_provenance.json").read_text())[
+            "verdicts"
+        ]
+    }
+    assert set(verdicts) == set(entries) & reopened
+    shown = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(ROOT),
+            "show",
+            f"{RELEASE_20261014_COMMIT}:annotations/{RUN_LABEL}/us_wording-amendments.json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, shown.stderr
+    earlier = json.loads(shown.stdout)["amendments"]
+    listed = json.loads((ANNOTATIONS / "us_wording-amendments.json").read_text())[
+        "amendments"
+    ]
+    assert listed[: len(earlier)] == earlier
+    reasoning: dict[str, list[dict]] = {}
+    for item in listed[len(earlier) :]:
+        if item["field"] == "reasoning":
+            reasoning.setdefault(item["case_id"], []).append(item)
+    assert reasoning and set(reasoning) <= set(verdicts)
+    replaced = amended = 0
+    for case, entry in entries.items():
+        before = base[case]
+        decision = {
+            k: v
+            for k, v in entry.items()
+            if not k.startswith("judge") and k != "reasoning"
+        }
+        assert decision == {
+            k: v
+            for k, v in before.items()
+            if not k.startswith("judge") and k != "reasoning"
+        }, case
+        expected = before["reasoning"]
+        for item in reasoning.get(case, []):
+            assert expected.count(item["old"]) == 1, case
+            expected = expected.replace(item["old"], item["new"])
+        assert entry["reasoning"] == expected, case
+        amended += entry["reasoning"] != before["reasoning"]
+        current = verdicts.get(case)
+        if current is None:
+            assert entry == before, case
+            continue
+        assert (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+        ) == (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+            current["judged_at_utc"][:10],
+        ), case
+        assert current["judged_at_utc"][:10] == "2026-10-27", case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
+        history = entry["judge_previous"]
+        assert history[:-1] == before.get("judge_previous", []), case
+        assert (
+            history[-1]["judge_model"],
+            history[-1]["judge_failure_source"],
+            history[-1]["judge_failure_subtype"],
+            history[-1]["judged_on"],
+        ) == (
+            before["judge_model"],
+            before["judge_failure_source"],
+            before["judge_failure_subtype"],
+            before.get("judge_rejudged_on") or before.get("judged_on_utc"),
+        ), case
+        replaced += 1
+    # 42 restated decisions, each replacing release 20261014's verdict; each
+    # listed reasoning amendment changes its decision's text.
+    assert replaced == len(verdicts) == 42
+    assert amended == len(reasoning)
 
 
 FLAG = st.fixed_dictionaries(

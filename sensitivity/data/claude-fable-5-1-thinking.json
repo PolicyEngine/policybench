@@ -3,37 +3,37 @@
   "sensitivity_model_id": "claude-fable-5.1-thinking",
   "condition": "answer tool declared, tool_choice auto (POLICYBENCH_CONTRACT_OVERRIDE=tool POLICYBENCH_TOOL_CHOICE=auto), whole scenario",
   "run_date": "2026-09-01",
-  "release": "dashboard-data-20261014",
+  "release": "dashboard-data-20261027",
   "assets": {
     "sensitivity-claude-fable-5-1-thinking-predictions.csv.gz": {
       "sha256": "452bf5165540462561748ea75dcfa71f5a023ef0281f303aeac7c7ea39c1f1bd",
       "bytes": 183014
     },
     "sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz": {
-      "sha256": "4d7a9ebb217ef0e5f188d9ecb9305bb9d0c1225b2c153b9e85f2c05de57fcff4",
-      "bytes": 814
+      "sha256": "68cbf058c5e335f804bf76f2c6505831ad5bad5dae88102cd6848b24e4a19146",
+      "bytes": 811
     }
   },
   "board": {
-    "exact": 90.91,
-    "within1pct": 92.477,
-    "score": 96.781,
+    "exact": 90.84,
+    "within1pct": 92.407,
+    "score": 96.711,
     "cost_per_household": 0.257,
     "latency_seconds": 49.12,
     "n_parsed": 1935,
     "n": 1935
   },
   "sensitivity": {
-    "exact": 91.748,
-    "would_rank": 4,
-    "within1pct": 93.764,
-    "score": 97.429,
+    "exact": 91.679,
+    "would_rank": 6,
+    "within1pct": 93.694,
+    "score": 97.36,
     "cost_per_household": 0.3481,
     "cost_usd": 34.81,
     "latency_seconds": 52.54,
     "n_parsed": 1984,
     "n": 1984
   },
-  "delta_exact": 0.838,
-  "scored_against": "the frozen 50-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
+  "delta_exact": 0.839,
+  "scored_against": "the frozen 51-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe. The fold used results/local/fable51/predictions32.csv as the incumbent base"
 }

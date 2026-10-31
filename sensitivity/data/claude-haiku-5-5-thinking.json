@@ -3,7 +3,7 @@
   "sensitivity_model_id": "claude-haiku-5.5-thinking",
   "condition": "answer tool declared, tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto), whole scenario; the board row forces the tool, which leaves Claude's extended thinking off",
   "run_date": "2026-10-08",
-  "release": "dashboard-data-20261014",
+  "release": "dashboard-data-20261027",
   "source": "results/local/haiku55-stage/auto-run (run_state treatment_fingerprint: answer_contract tool, tool_choice_mode auto, thinking provider_default); the model column renamed claude-haiku-5.5-thinking",
   "assets": {
     "sensitivity-claude-haiku-5-5-thinking-predictions.csv.gz": {
@@ -11,27 +11,27 @@
       "bytes": 171655
     },
     "sensitivity-claude-haiku-5-5-thinking-by-variable.csv.gz": {
-      "sha256": "8e9710dd41f74ec5619803e20b936f9084e3dd262c4a0e08e76322f884b5d947",
-      "bytes": 892
+      "sha256": "9bba36acc3f49a96e169fce9bdf78418d95f22acb5965687869b595671710e01",
+      "bytes": 889
     }
   },
   "board": {
-    "exact": 79.264,
-    "within1pct": 80.337,
-    "score": 85.959,
+    "exact": 79.194,
+    "within1pct": 80.267,
+    "score": 85.889,
     "n": 1935,
     "n_parsed": 1935
   },
   "sensitivity": {
-    "exact": 88.82,
-    "within1pct": 90.376,
-    "score": 94.459,
-    "would_rank": 11,
+    "exact": 88.75,
+    "within1pct": 90.306,
+    "score": 94.389,
+    "would_rank": 12,
     "n": 1984,
     "n_parsed": 1984,
     "cost_usd": 0.2702,
     "cost_per_household": 0.002702
   },
   "delta_exact": 9.556,
-  "scored_against": "the frozen 50-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe"
+  "scored_against": "the frozen 51-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); exact, within-1% and the bounded score all on that universe"
 }

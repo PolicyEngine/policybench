@@ -660,18 +660,24 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # errors since both rows parsed every answer, and 111 more unannotated
     # rows below full bounded score; release 20261013: 8,503 annotated,
     # 10,721 below full bounded score, llm_error 7,834).
+    # Release 20261027: GPT-6.1 Terra's rows join (96 annotated misses, all
+    # LLM errors since it parsed every answer), and the move to
+    # policyengine-us 2.60.0 changes four scored references, which adds 189
+    # incumbent misses (192 on the four outputs, less 3 that now match);
+    # release 20261014: 8,765 annotated, 11,094 below full bounded score,
+    # llm_error 8,096.
     expected_audit_counts = {
         "us": {
-            "annotated": 8_765,
-            "exact_misses": 8_761,
-            "annotated_exact_misses": 8_761,
+            "annotated": 9_050,
+            "exact_misses": 9_046,
+            "annotated_exact_misses": 9_046,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 11_094,
-            "unannotated_below_full_bounded_score": 2_329,
+            "below_full_bounded_score": 11_457,
+            "unannotated_below_full_bounded_score": 2_407,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 8_096, "parse_contract_failure": 669},
+        "us": {"llm_error": 8_381, "parse_contract_failure": 669},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

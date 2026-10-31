@@ -18,17 +18,17 @@ describe("audit universe", () => {
     expect(AUDIT_SELECTION_RULE).toBe(
       "rows whose legacy threshold score is below 1",
     );
-    // Release 20261014: the counts tests/test_disclosures.py recomputes
-    // from the frozen annotations and payload (50 models; Gemini 4 Argon's
-    // and Muse Spark 1.3's rows join on release 20261013's references and
-    // exclusions).
+    // Release 20261027: the counts tests/test_disclosures.py recomputes
+    // from the frozen annotations and payload (51 models; GPT-6.1 Terra's
+    // rows join, and the move to policyengine-us 2.60.0 changes four scored
+    // references; release 20261014: 8,765 annotated, 2,329 unannotated).
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 8_765,
-      legacyThresholdRowCount: 8_765,
-      exactMissCount: 8_761,
-      annotatedExactMissCount: 8_761,
+      annotatedRowCount: 9_050,
+      legacyThresholdRowCount: 9_050,
+      exactMissCount: 9_046,
+      annotatedExactMissCount: 9_046,
       annotatedExactHitCount: 4,
-      unannotatedBelowFullBoundedScoreCount: 2_329,
+      unannotatedBelowFullBoundedScoreCount: 2_407,
     });
   });
 });
