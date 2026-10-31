@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.test_confirmatory_run import (
+    ENGINE,
     complete_preflight_design,
     cr,
     pilot,
@@ -93,4 +94,49 @@ def test_main_names_engine_reread_failure_and_preserves_all_problems(
     assert "The run cannot start" in output
     assert "earlier preflight problem" in output
     assert str(metadata) in output
+    assert not w.provider.count
+
+
+def installed_elsewhere(world, tmp_path, monkeypatch):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    monkeypatch.setattr(pilot, "_versions", lambda: {"policyengine-us": "2.41.0"})
+
+    def no_run(*args, **kwargs):
+        pytest.fail("a refused preflight must not construct or call a provider")
+
+    monkeypatch.setattr(cr, "Run", no_run)
+    monkeypatch.setattr(pilot, "run_household", no_run)
+    return w, design
+
+
+def test_preflight_refuses_an_installed_engine_other_than_the_boards(
+    world, tmp_path, monkeypatch
+):
+    w, design = installed_elsewhere(world, tmp_path, monkeypatch)
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert f"policyengine-us 2.41.0 is installed, not {ENGINE}" in problems
+    for model in cr.CHEAP:
+        assert any(
+            problem.startswith(f"no-tools {model}: ")
+            and f"policyengine-us 2.41.0 is installed; the pilot pins {ENGINE}"
+            in problem
+            for problem in problems
+        ), problems
+    assert not w.provider.count
+
+
+def test_main_rechecks_the_installed_engine_and_preserves_all_problems(
+    world, tmp_path, monkeypatch, capsys
+):
+    w, design = installed_elsewhere(world, tmp_path, monkeypatch)
+    # Isolate main's final engine check, which must retain preflight's problems.
+    monkeypatch.setattr(cr, "preflight", lambda *_: ["earlier preflight problem"])
+    design_path = tmp_path / "design.json"
+    design_path.write_text(json.dumps(design))
+    assert cr.main(["run", str(design_path)]) == 1
+    output = capsys.readouterr().out
+    assert "The run cannot start" in output
+    assert "earlier preflight problem" in output
+    assert "the board's engine check failed: policyengine-us 2.41.0" in output
     assert not w.provider.count

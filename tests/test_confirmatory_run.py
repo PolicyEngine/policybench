@@ -2280,6 +2280,28 @@ def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
     )
 
 
+@pytest.mark.parametrize(
+    "drawing, clamshell, expected",
+    [
+        ("AC Power", "No", (True, True)),
+        ("Battery Power", "No", (False, True)),
+        ("AC Power", "Yes", (True, False)),
+        ("Battery Power", "Yes", (False, False)),
+    ],
+)
+def test_host_power_reads_pmset_and_ioreg(monkeypatch, drawing, clamshell, expected):
+    output = {
+        "pmset": f"Now drawing from '{drawing}'\n",
+        "ioreg": f'      "AppleClamshellState" = {clamshell}\n',
+    }
+
+    def run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout=output[command[0]])
+
+    monkeypatch.setattr(cr.subprocess, "run", run)
+    assert cr.host_power() == expected
+
+
 def test_the_preflight_refuses_a_runs_folder_with_records(world, tmp_path):
     w = world(models=("gpt-6-luna",)).execute()
     design = complete_preflight_design(w, tmp_path)
