@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import fcntl
 import functools
 import io
 import json
@@ -1490,19 +1491,11 @@ def test_valid_saved_numeric_cost_preserves_spend(setup, cost):
     assert provider.calls == []
 
 
-def test_startup_spend_takes_the_exact_sum_at_the_stage_cap(setup):
-    """A running total of these costs stays under the cap and their exact sum
-    reaches it, so no owed attempt starts and the invocation lock comes free."""
-    costs = [math.nextafter(nt.NO_TOOLS_CAP, 0.0), 2**-52, 2**-52, 2**-52]
-    assert functools.reduce(operator.add, costs) < nt.NO_TOOLS_CAP
+def require_a_stop_at_the_cap(setup, saved):
+    """Save these (model, household, cost) finals, and require that startup's sum
+    reaches the cap, no owed attempt starts, and another open takes the lock."""
     root = Path(setup["design"]["no_tools"]["runs"])
-    saved = [
-        (nt.CHEAP[0], "h2"),
-        (nt.CHEAP[0], "h1"),
-        (nt.CHEAP[1], "h2"),
-        (nt.CHEAP[2], "h2"),
-    ]
-    for (model, sid), cost in zip(saved, costs):
+    for model, sid, cost in saved:
         folder = root / model / "none/confirmatory/households"
         folder.mkdir(parents=True, exist_ok=True)
         profile = SimpleNamespace(name=model, arm="none", model_id="synthetic")
@@ -1514,7 +1507,42 @@ def test_startup_spend_takes_the_exact_sum_at_the_stage_cap(setup):
     assert plan.stopped.is_set()
     assert plan.execute() == 1
     assert provider.calls == []
-    assert plan._lock_file is None
+    with (root / ".confirmatory-no-tools.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            pytest.fail(f"the invocation lock stayed held: {error}")
+
+
+def test_startup_spend_takes_the_exact_sum_at_the_stage_cap(setup):
+    """A running total of these costs stays under the cap and their exact sum
+    reaches it."""
+    costs = [math.nextafter(nt.NO_TOOLS_CAP, 0.0), 2**-52, 2**-52, 2**-52]
+    assert functools.reduce(operator.add, costs) < nt.NO_TOOLS_CAP
+    places = [
+        (nt.CHEAP[0], "h2"),
+        (nt.CHEAP[0], "h1"),
+        (nt.CHEAP[1], "h2"),
+        (nt.CHEAP[2], "h2"),
+    ]
+    require_a_stop_at_the_cap(setup, [(*p, c) for p, c in zip(places, costs)])
+
+
+def test_startup_spend_sums_every_model_at_once_at_the_stage_cap(setup):
+    """Rounding each model's costs first falls one float under the cap, and the
+    exact sum of all three reaches it."""
+    first = [3 * 2**-53, math.nextafter(nt.NO_TOOLS_CAP, 0.0)]
+    second = [2**-52]
+    subtotals = [nt.exact_spend(first), nt.exact_spend(second)]
+    assert nt.exact_spend(subtotals) < nt.NO_TOOLS_CAP
+    require_a_stop_at_the_cap(
+        setup,
+        [
+            (nt.CHEAP[0], "h1", first[0]),
+            (nt.CHEAP[0], "h2", first[1]),
+            (nt.CHEAP[1], "h2", second[0]),
+        ],
+    )
 
 
 def run_no_tools_probe(setup, tmp_path, name, body):
