@@ -65,7 +65,7 @@ NO_TOOLS_CAP = 5.0
 MONEY_TOLERANCE = 1e-6  # dollars, as the report compares spent_before with records
 START_GRACE_SECONDS = 10
 NO_TOOLS_WORDING_SHA256 = (
-    "43b13e4e64463f4ee1654e9546672899f80ca5e1ce18e93cf2eb04091b3a2699"
+    "4d88071833a181f55f09a75da716f63ec661d8d24e159ca2274688c921bc61b5"
 )
 
 

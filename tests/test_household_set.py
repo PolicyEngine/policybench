@@ -9,6 +9,7 @@ writes must equal the frozen ones on the frozen engine (policyengine-us
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.metadata
 import json
 import sys
@@ -290,6 +291,102 @@ def test_stated_filing_status_is_read_from_the_tax_unit_table(tmp_path):
     not_h5 = tmp_path / "x.h5"
     not_h5.write_bytes(b"placeholder")
     assert hs.stated_filing_status(not_h5) is None
+
+
+def test_a_reference_situation_states_citizenship_and_ssn():
+    scenario = hs.load_scenarios(hs.FROZEN_BOARD)[0]
+    people = hs.situation_for(scenario)["people"]
+    assert people
+    for person in people.values():
+        assert person["immigration_status"] == {"2026": "CITIZEN"}
+        assert person["ssn_card_type"] == {"2026": "CITIZEN"}
+
+
+def test_a_stated_status_outranks_the_default():
+    scenario = hs.load_scenarios(hs.FROZEN_BOARD)[0]
+    head = scenario.adults[0]
+    stated = dataclasses.replace(
+        scenario,
+        adults=[
+            dataclasses.replace(head, inputs={**head.inputs, "ssn_card_type": "NONE"}),
+            *scenario.adults[1:],
+        ],
+    )
+    assert hs.situation_for(stated)["people"][head.name]["ssn_card_type"] == {
+        "2026": "NONE"
+    }
+
+
+def test_the_stated_statuses_are_the_engine_defaults():
+    """d1970 keeps every reference, so stating them must change none."""
+    from policyengine_us.variables.household.demographic.person import (
+        immigration_status,
+        ssn_card_type,
+    )
+
+    assert hs.STATED_STATUSES == {
+        "immigration_status": immigration_status.immigration_status.default_value.name,
+        "ssn_card_type": ssn_card_type.ssn_card_type.default_value.name,
+    }
+
+
+def test_the_build_filters_the_draw_and_rounds_before_the_references(
+    tmp_path, monkeypatch
+):
+    import policybench.policyengine_runtime as runtime
+    import policybench.scenarios as scenarios_module
+
+    version = importlib.metadata.version("policyengine-us")
+    dataset = tmp_path / "d.h5"
+    dataset.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        runtime, "materialize_certified_us_dataset", lambda: str(dataset)
+    )
+    monkeypatch.setattr(
+        runtime,
+        "policyengine_bundles_for_countries",
+        lambda countries: {
+            "us": {
+                "certified_data_artifact_sha256": hs.sha256_file(dataset),
+                "bundled_model_version": version,
+                "model_version": version,
+            }
+        },
+    )
+    drawn = {}
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:1]
+
+    def draw(**kwargs):
+        drawn.update(kwargs)
+        return sampled
+
+    seen = []
+
+    def references(scenarios, programs, system):
+        seen.extend(scenarios)
+        return pd.DataFrame(
+            columns=["scenario_id", "variable", "value", "impact_weight"]
+        )
+
+    monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: None)
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
+    monkeypatch.setattr(hs, "filing_status_mismatches", lambda scenarios, stated: [])
+    monkeypatch.setattr(hs, "fix_module_pins", lambda fix_module: [])
+    out = tmp_path / "set"
+    hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
+    assert drawn["head_spouse_returns_only"] is True
+    (scenario,) = seen
+    amounts = [
+        value
+        for person in (*scenario.adults, *scenario.children)
+        for value in (person.employment_income, *person.inputs.values())
+        if not isinstance(value, bool | str)
+    ]
+    assert amounts and all(float(amount).is_integer() for amount in amounts)
+    meta = json.loads((out / "scenarios.csv.meta.json").read_text())
+    assert meta["household_filter"] == hs.HOUSEHOLD_FILTER
 
 
 def test_a_dataset_is_named_by_repo_file_and_tag_together(tmp_path):

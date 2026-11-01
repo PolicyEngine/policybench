@@ -9,16 +9,23 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import policybench.scenarios as scenarios_module
+from policybench.prompts import _format_input_line, describe_household
 from policybench.scenarios import (
+    DEPENDENT_RETURN_INCOME_FIELDS,
+    NON_RETURN_INCOME_FIELDS,
     SUPPORTED_FILING_STATUSES,
     Person,
     Scenario,
     _eligible_uk_households,
+    _households_with_dependent_return_income,
     _is_geographic_defined_for,
+    _prepare_cps_frame,
+    canonical_us_scenario,
     generate_scenarios,
     get_promptable_input_specs,
     load_excluded_household_ids,
     load_scenarios_from_manifest,
+    round_us_prompt_amount,
     scenario_manifest,
     scenarios_from_cps_frame,
     scenarios_from_uk_frames,
@@ -920,6 +927,229 @@ def test_scenarios_from_cps_frame_can_exclude_households(sample_person_frame):
     household_ids = {scenario.metadata["household_id"] for scenario in scenarios}
     assert 102 not in household_ids
     assert len(household_ids) == 2
+
+
+AMOUNTS = st.floats(min_value=-1e9, max_value=1e9, allow_nan=False)
+
+
+@given(AMOUNTS)
+def test_a_rounded_amount_is_the_whole_number_the_prompt_prints(amount):
+    rounded = round_us_prompt_amount(amount)
+    assert rounded.is_integer()
+    assert abs(rounded - amount) <= 0.5
+    assert round_us_prompt_amount(rounded) == rounded
+    shown = _format_input_line("rental_income", amount)
+    assert _format_input_line("rental_income", rounded) == shown.replace("$-0", "$0")
+    assert not (rounded == 0 and np.signbit(rounded))
+
+
+@given(AMOUNTS, AMOUNTS, AMOUNTS)
+def test_canonical_amounts_keep_every_line_of_the_us_prompt(wage, rent, interest):
+    scenario = Scenario(
+        id="t",
+        state="NJ",
+        filing_status="single",
+        adults=[
+            Person(
+                name="head",
+                age=40,
+                employment_income=wage,
+                inputs={"pre_subsidy_rent": rent, "taxable_interest_income": interest},
+            )
+        ],
+        tax_unit_inputs={"health_savings_account_ald": interest},
+        spm_unit_inputs={"spm_unit_energy_subsidy": rent},
+        household_inputs={"auto_loan_interest": interest},
+    )
+    canonical = canonical_us_scenario(scenario)
+    assert describe_household(canonical) == describe_household(scenario).replace(
+        "$-0", "$0"
+    )
+    assert canonical_us_scenario(canonical) == canonical
+
+
+def test_canonical_amounts_change_only_amounts():
+    scenario = Scenario(
+        id="t",
+        state="NJ",
+        filing_status="joint",
+        adults=[
+            Person(
+                name="head",
+                age=40,
+                employment_income=35_493.67,
+                inputs={
+                    "is_disabled": True,
+                    "taxable_interest_income": 131.8,
+                    "hours_worked_last_week": 37.5,
+                },
+            )
+        ],
+        children=[Person(name="child1", age=4, employment_income=0.4)],
+        tax_unit_inputs={"selected_marketplace_plan_benchmark_ratio": 1.2345678},
+        metadata={"household_id": 7},
+    )
+    canonical = canonical_us_scenario(scenario)
+    assert canonical.adults[0].employment_income == 35_494
+    assert canonical.adults[0].age == 40
+    assert canonical.adults[0].inputs == {
+        "is_disabled": True,
+        "taxable_interest_income": 132,
+        "hours_worked_last_week": 38,
+    }
+    # A wage under 50 cents prints as $0 and an unlisted amount is 0.
+    assert canonical.children[0].employment_income == 0
+    # The prompt describes the ratio in words, so no dollar rounding applies.
+    assert canonical.tax_unit_inputs == scenario.tax_unit_inputs
+    assert (canonical.id, canonical.state, canonical.metadata) == (
+        "t",
+        "NJ",
+        {"household_id": 7},
+    )
+
+
+def test_canonical_amounts_are_a_us_step():
+    scenario = Scenario(
+        id="t",
+        state="LONDON",
+        filing_status="single",
+        adults=[Person(name="head", age=40, employment_income=1.5)],
+        country="uk",
+    )
+    with pytest.raises(ValueError, match="US scenario"):
+        canonical_us_scenario(scenario)
+
+
+def _household_rows(household_id, dependent_inputs=None, weight=1.0, **head_inputs):
+    """A head and one dependent; each row a person in a one-unit household."""
+    common = {
+        "household_id": household_id,
+        "tax_unit_id": household_id,
+        "spm_unit_id": household_id,
+        "family_id": household_id,
+        "marital_unit_id": household_id,
+        "household_weight": weight,
+        "state_code": "PA",
+        "filing_status": "HEAD_OF_HOUSEHOLD",
+    }
+    return [
+        {
+            **common,
+            "person_id": household_id * 10,
+            "age": 40,
+            "employment_income": 30_000.0,
+            "is_tax_unit_head": True,
+            **head_inputs,
+        },
+        {
+            **common,
+            "person_id": household_id * 10 + 1,
+            "age": 16,
+            "employment_income": 0.0,
+            **(dependent_inputs or {}),
+        },
+    ]
+
+
+def _frame(*households):
+    rows = [row for household in households for row in household]
+    return pd.DataFrame(rows).assign(
+        is_tax_unit_head=lambda df: df["is_tax_unit_head"].fillna(False).astype(bool)
+    )
+
+
+def _drawn(frame, n, **kwargs):
+    return {
+        scenario.metadata["household_id"]
+        for scenario in scenarios_from_cps_frame(frame, n=n, seed=1, **kwargs)
+    }
+
+
+def test_a_dependent_with_return_income_drops_the_household():
+    frame = _frame(
+        _household_rows(1),
+        _household_rows(2, {"employment_income": 10_233.0}),
+        _household_rows(3, {"self_employment_income": 2_000.0}),
+        # Pennsylvania taxes this: its threshold is $33.
+        _household_rows(4, {"taxable_interest_income": 40.0}),
+    )
+    assert _drawn(frame, 1, head_spouse_returns_only=True) == {1}
+    with pytest.raises(ValueError, match="only 1 eligible"):
+        _drawn(frame, 2, head_spouse_returns_only=True)
+
+
+def test_transfers_to_a_dependent_keep_the_household():
+    frame = _frame(
+        _household_rows(1, {"social_security_survivors": 8_000.0}),
+        _household_rows(2, {"child_support_received": 3_000.0}),
+        # The head's income never counts, however large.
+        _household_rows(3, taxable_interest_income=90_000.0),
+    )
+    assert _drawn(frame, 3, head_spouse_returns_only=True) == {1, 2, 3}
+
+
+def test_the_v1_draw_keeps_every_household_by_default():
+    frame = _frame(
+        _household_rows(1), _household_rows(2, {"employment_income": 10_233.0})
+    )
+    assert _drawn(frame, 2) == {1, 2}
+
+
+RETURN_INCOME = sorted(
+    DEPENDENT_RETURN_INCOME_FIELDS
+    - {"employment_income", "partnership_s_corp_income", "partnership_se_income"}
+)
+
+
+@settings(deadline=None, max_examples=25)
+@given(
+    st.lists(
+        st.one_of(
+            st.none(),
+            st.tuples(
+                st.sampled_from(RETURN_INCOME), st.floats(min_value=0.01, max_value=1e6)
+            ),
+        ),
+        min_size=1,
+        max_size=6,
+    ),
+    st.integers(min_value=0, max_value=2**31),
+)
+def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed):
+    """Invariant: the filter removes exactly the households with such a
+    dependent, so every draw from the rest holds none."""
+    households = [
+        _household_rows(index, None if entry is None else {entry[0]: entry[1]})
+        for index, entry in enumerate(dependents, start=1)
+    ] + [_household_rows(99)]
+    frame = _frame(*households)
+    flagged = _households_with_dependent_return_income(_prepare_cps_frame(frame))
+    assert flagged == {
+        index for index, entry in enumerate(dependents, start=1) if entry is not None
+    }
+    clean = len(dependents) + 1 - len(flagged)
+    drawn = scenarios_from_cps_frame(
+        frame, n=clean, seed=seed, head_spouse_returns_only=True
+    )
+    assert {s.metadata["household_id"] for s in drawn}.isdisjoint(flagged)
+    assert len(drawn) == clean
+
+
+def test_every_taxable_input_counts_as_return_income():
+    promptable = {
+        spec.output_name
+        for spec in get_promptable_input_specs()
+        if spec.entity == "person" and spec.value_type == "float"
+    }
+    taxable = {n for n in promptable if n.startswith("taxable_")}
+    assert taxable - {"taxable_estate_value"} <= DEPENDENT_RETURN_INCOME_FIELDS
+    assert not DEPENDENT_RETURN_INCOME_FIELDS & NON_RETURN_INCOME_FIELDS
+    assert not {n for n in DEPENDENT_RETURN_INCOME_FIELDS if "tax_exempt" in n}
+
+
+def test_the_head_spouse_filter_is_a_us_filter():
+    with pytest.raises(ValueError, match="US filter"):
+        generate_scenarios(n=1, seed=1, country="uk", head_spouse_returns_only=True)
 
 
 def test_load_excluded_household_ids_from_manifest_json(tmp_path):

@@ -467,6 +467,21 @@ V2_PILOT_DEFINITIONS = (
         "count as 1)",
     ),
 )
+# d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
+# return only. The reference has no second tax unit, so a dependent's own return
+# is in no reference, and household sets drop households where a dependent has
+# income (policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS).
+HEAD_SPOUSE_RETURN = (
+    "Cover only the return of the head and spouse, not any return a dependent files"
+)
+# d1971 (Max, 2026-11-01): the EITC comes from 26 USC 32's formula, as d1263 kept
+# the rate schedule over the Tax Table. 32(f) prescribes the IRS table, which
+# differs by a few dollars ($3,183 against $3,179.76 for one pilot household).
+STATE_USES_EITC_FORMULA = (
+    "Where a state amount depends on the federal EITC, use the EITC from the "
+    "formula in 26 U.S.C. 32"
+)
+
 # d1263 (Max, 2026-10-13): keep the section 1 rate schedule for federal income
 # tax, and state that convention in the v2 prompt. A web arm finds the IRS Tax
 # Table: in the 2026-10-21 trial GPT-6 Sol answered scenario_000 from it, $1.45
@@ -482,7 +497,7 @@ V2_PILOT_CONVENTIONS = (
         ),
         "{who}. Compute regular income tax from the section 1 tax rate schedules, "
         "to the cent, even where the Form 1040 instructions would use the Tax "
-        "Table",
+        f"Table. {HEAD_SPOUSE_RETURN}",
     ),
     (
         # The refundable CTC depends on the tax liability, so the schedule
@@ -493,7 +508,9 @@ V2_PILOT_CONVENTIONS = (
             r"applicable; exclude the ACA Premium Tax Credit)"
         ),
         "{who}. Where a credit depends on income tax liability, compute that "
-        "liability from the section 1 tax rate schedules, not the Tax Table",
+        "liability from the section 1 tax rate schedules, not the Tax Table. "
+        "Compute the EITC from the formula in 26 U.S.C. 32, to the cent, not from "
+        f"the IRS EIC table. {HEAD_SPOUSE_RETURN}",
     ),
     (
         # policyengine-us 2.41.0's state_income_tax_before_refundable_credits
@@ -504,7 +521,12 @@ V2_PILOT_CONVENTIONS = (
             r"(state individual income tax after nonrefundable credits and before "
             r"refundable credits, excluding local income and payroll taxes)"
         ),
-        "{who}; include Idaho's $10 permanent building fund tax where it applies",
+        "{who}; include Idaho's $10 permanent building fund tax where it applies. "
+        f"{STATE_USES_EITC_FORMULA}. {HEAD_SPOUSE_RETURN}",
+    ),
+    (
+        re.compile(r"(total refundable state individual income tax credits)"),
+        f"{{who}}. {STATE_USES_EITC_FORMULA}. {HEAD_SPOUSE_RETURN}",
     ),
     (
         # The reference rule (reference sidecar, quoted in each
@@ -519,6 +541,19 @@ V2_PILOT_CONVENTIONS = (
         # the poverty guideline", so income limits move to the 2026 guideline in
         # October. Web arms had applied SNAP's FY2027 schedule, published in
         # August 2026 (GPT-6 Sol, scenarios 008 and 012).
+        #
+        # d1972(4) (Max, 2026-11-01): Louisiana is the one amount stated outright.
+        # policyengine-us 2.60.4 carries RIB 26-019's $12,838 and $25,676, from
+        # 2026-09-28; before the freeze LDR published only the provisional
+        # $12,875 and $25,750 (reference_audit/2026-10-05-louisiana). The fallback
+        # would send a careful reader to those, as d994 foresaw; the 20-household
+        # pilot's models answered from $25,750 (mt_004).
+        #
+        # Session call (judge triage Pattern B): engine defaults make rental,
+        # farm rent, partnership and S corporation income qualified business
+        # income, and the `_would_be_qualified` flags are never prompted, so the
+        # convention is stated. Setting the flags false instead would part the
+        # references from what a calculator call returns on the same facts.
         re.compile(
             r"(Do not infer unlisted income, expenses, assets, benefit receipt, "
             r"rent, or health coverage\.)"
@@ -529,7 +564,63 @@ V2_PILOT_CONVENTIONS = (
         "inflation-adjusted amounts, or the IRS's 2025 optional sales tax "
         "tables). For SNAP, keep the fiscal year 2026 allotments, deductions, "
         "utility allowances and asset limits through December 2026; the income "
-        "limits use the 2026 HHS poverty guidelines from October 2026.",
+        "limits use the 2026 HHS poverty guidelines from October 2026. Louisiana's "
+        "2026 standard deduction is $12,838 for single and separate filers and "
+        "$25,676 for all other filers, not the provisional $12,875 and $25,750 in "
+        "its withholding tables and estimated-tax worksheet; an amount an agency "
+        "labels provisional or estimated is not a published return amount. Treat "
+        "rental, farm rent, partnership and S corporation income as qualified "
+        "business income under section 199A.",
+    ),
+    (
+        # d1970 (Max, 2026-11-01): policyengine-us defaults immigration_status
+        # and ssn_card_type to CITIZEN, and the prompt's rule makes unlisted
+        # statuses false. The references keep the default and set it explicitly
+        # (household_set.situation_for). 5 of the 14 disputed verdicts in the
+        # 20-household pilot turned on this.
+        re.compile(r"(fact, boolean, or status input as false\.)"),
+        "{who} Everyone listed is a U.S. citizen with a valid Social Security "
+        "number issued before the return's due date, unless stated otherwise.",
+    ),
+    (
+        # d1972(2) (Max, 2026-11-01): a period for every amount. Read as monthly,
+        # mt_017's $1,920 rent moved DC SNAP from $1,284 to $3,576.
+        re.compile(
+            r"Gross wage and salary amounts are annual totals, including any "
+            r"overtime pay;"
+        ),
+        "Every dollar amount is an annual total, including rent and other "
+        "expenses, except asset and vehicle values, loan balances and the basis of "
+        "business property; gross wages and salaries include any overtime pay;",
+    ),
+    (
+        # d1972(3) (Max, 2026-11-01): each income's tax character. Partnership
+        # income: the ruled label read "(Schedule E; no self-employment
+        # earnings)". partnership_self_employment_net_earnings "is not an
+        # additional gross income source separate from partnership_income"
+        # (policyengine-us 2.60.4), and two pilot people carry that line, so the
+        # label yields to it and the second label says the amount is a part.
+        re.compile(r"(?m)^- partnership income: "),
+        "- partnership income (Schedule E; no self-employment earnings unless a "
+        "separate line states them): ",
+    ),
+    (
+        re.compile(r"(?m)^- partnership self employment net earnings: "),
+        "- partnership net earnings from self-employment (part of partnership "
+        "income, not added to it): ",
+    ),
+    (
+        # educational_assistance feeds no gross-income source in policyengine-us
+        # 2.60.4, so the reference treats all of it as tax-free. Read as taxable,
+        # mt_019's $10,000 moved federal tax by $1,200.
+        re.compile(r"(?m)^- educational assistance: "),
+        "- educational assistance (tax-free scholarships and grants): ",
+    ),
+    (
+        # "Memo component of long_term_capital_gains -- already included there"
+        # (policyengine-us 2.60.4). The judge and the consensus added it twice.
+        re.compile(r"(?m)^- schedule d capital gain distributions: "),
+        "- capital gain distributions (already included in long-term capital gains): ",
     ),
     (
         # policyengine-us documents employer_sponsored_insurance_premiums as
@@ -2488,6 +2579,9 @@ def build_initial_request(
     )
 
     profile = profile or model_profile()
+    if profile.prompt_version == "v2-pilot" and scenario.country != "us":
+        # The rewrites state US law; TASK_PREFACE, which they edit, is shared.
+        raise ValueError("the v2-pilot wording covers US scenarios only")
     if profile.api == "responses":
         messages, kwargs = _responses_request_kwargs(
             scenario, variables, profile.model_id

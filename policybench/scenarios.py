@@ -5,7 +5,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -261,6 +261,47 @@ MONETARY_INCOME_FIELDS = {
     "veterans_benefits",
     "workers_compensation",
     "long_term_capital_gains",
+}
+
+# d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
+# return. A dependent with any of this income may owe a return of their own
+# (Pennsylvania's threshold is $33), which no reference holds, so household sets
+# drop those households. Transfers and tax-exempt interest do not by themselves
+# require a return.
+NON_RETURN_INCOME_FIELDS = {
+    "child_support_received",
+    "disability_benefits",
+    "social_security_dependents",
+    "social_security_disability",
+    "social_security_retirement",
+    "social_security_survivors",
+    "ssi_reported",
+    "tax_exempt_interest_income",
+    "veterans_benefits",
+    "workers_compensation",
+}
+DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIELDS) | {
+    "csrs_retirement_pay",
+    "gambling_winnings",
+    "keogh_distributions",
+    "military_basic_pay",
+    "military_retirement_pay",
+    "military_service_income",
+    "non_sch_d_capital_gains",
+    "partnership_income",
+    "pension_survivors",
+    "pfml_benefits",
+    "qualified_bdc_income",
+    "qualified_reit_and_ptp_income",
+    "s_corp_income",
+    "sstb_self_employment_income_before_lsr",
+    "state_or_federal_salary",
+    "strike_benefits",
+    "taxable_403b_distributions",
+    "taxable_federal_pension_income",
+    "taxable_public_pension_income",
+    "taxable_roth_conversions",
+    "tip_income",
 }
 
 BASE_PERSON_COLUMNS = {
@@ -784,6 +825,53 @@ def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
         else:
             canonical[key] = round_uk_prompt_number(value)
     return canonical
+
+
+def round_us_prompt_amount(value: float) -> float:
+    """The whole number the prompt prints for an amount (``,.0f``), so the
+    prompt's rounding and this one agree; never negative zero."""
+    return float(f"{float(value):.0f}") + 0.0
+
+
+def _canonical_us_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Each amount as the prompt shows it. Rates and ratios stay as they are:
+    the prompt shows them as fractions or, for the Marketplace plan ratio, in
+    words."""
+    return {
+        key: (
+            value
+            if isinstance(value, (bool, np.bool_, str))
+            or value is None
+            or key.endswith(RATE_OR_RATIO_FIELD_SUFFIXES)
+            else round_us_prompt_amount(value)
+        )
+        for key, value in inputs.items()
+    }
+
+
+def canonical_us_scenario(scenario: "Scenario") -> "Scenario":
+    """A US scenario holding the amounts its prompt shows, for references that
+    compute from the prompt's facts (d1972, Max 2026-11-01). The board's v1
+    references hold cents; only household sets start from this."""
+    if scenario.country != "us":
+        raise ValueError("canonical_us_scenario takes a US scenario")
+
+    def canonical(person: Person) -> Person:
+        return Person(
+            name=person.name,
+            age=person.age,
+            employment_income=round_us_prompt_amount(person.employment_income),
+            inputs=_canonical_us_inputs(person.inputs),
+        )
+
+    return replace(
+        scenario,
+        adults=[canonical(person) for person in scenario.adults],
+        children=[canonical(person) for person in scenario.children],
+        tax_unit_inputs=_canonical_us_inputs(scenario.tax_unit_inputs),
+        spm_unit_inputs=_canonical_us_inputs(scenario.spm_unit_inputs),
+        household_inputs=_canonical_us_inputs(scenario.household_inputs),
+    )
 
 
 def canonical_uk_person(person: Person) -> Person:
@@ -1378,6 +1466,16 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
+def _households_with_dependent_return_income(person_df: pd.DataFrame) -> set[int]:
+    """Households where someone other than the head or spouse has income that
+    could require a return of their own."""
+    dependents = person_df[
+        ~(person_df["is_tax_unit_head"] | person_df["is_tax_unit_spouse"])
+    ]
+    fields = sorted(DEPENDENT_RETURN_INCOME_FIELDS & set(person_df.columns))
+    return set(dependents.loc[(dependents[fields] > 0).any(axis=1), "household_id"])
+
+
 def _sample_household_ids(
     eligible_households: pd.DataFrame,
     n: int,
@@ -1550,6 +1648,7 @@ def scenarios_from_cps_frame(
     dataset_year: int | None = None,
     dataset_label: str | None = None,
     excluded_household_ids: set[int] | None = None,
+    head_spouse_returns_only: bool = False,
 ) -> list[Scenario]:
     """Sample benchmark scenarios from a person-level US source frame.
 
@@ -1557,12 +1656,21 @@ def scenarios_from_cps_frame(
     (e.g. ``populace_us_2024``); when provided it is recorded verbatim as each
     scenario's ``source_dataset``. When omitted, a neutral populace default is
     used so generated scenarios are never mislabeled.
+
+    ``head_spouse_returns_only`` leaves out households whose dependents have
+    income of their own (d1029). The board's v1 draw predates it.
     """
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
     if excluded_household_ids:
         eligible_households = eligible_households[
             ~eligible_households["household_id"].isin(excluded_household_ids)
+        ].copy()
+    if head_spouse_returns_only:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(
+                _households_with_dependent_return_income(df)
+            )
         ].copy()
     sampled_household_ids = _sample_household_ids(eligible_households, n=n, seed=seed)
 
@@ -1834,14 +1942,19 @@ def generate_scenarios(
     country: str = DEFAULT_COUNTRY,
     dataset: str | None = None,
     dataset_label: str | None = None,
+    head_spouse_returns_only: bool = False,
 ) -> list[Scenario]:
     """Generate benchmark scenarios for a country.
 
     ``dataset`` and ``dataset_label`` replace the certified US dataset (see
     :func:`load_certified_us_person_frame`); test household sets only.
+    ``head_spouse_returns_only`` applies :func:`scenarios_from_cps_frame`'s
+    filter, US only.
     """
     if dataset is not None and country != "us":
         raise ValueError("an explicit dataset is supported for the US only")
+    if head_spouse_returns_only and country != "us":
+        raise ValueError("head_spouse_returns_only is a US filter")
     if country == "us":
         person_df, dataset_year, dataset_label = (
             load_certified_us_person_frame()
@@ -1856,6 +1969,7 @@ def generate_scenarios(
             dataset_year=dataset_year,
             dataset_label=dataset_label,
             excluded_household_ids=excluded_household_ids,
+            head_spouse_returns_only=head_spouse_returns_only,
         )
     if country == "uk":
         person_df, household_df, dataset_year = load_uk_transfer_frames()

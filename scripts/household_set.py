@@ -63,6 +63,15 @@ YEAR = 2026
 # frozen households still carry the old name (reference_audit/2026-09-28/
 # scripts/sweep.py build_situation). Harmless for a household without it.
 RENAME = {"partnership_se_income": "partnership_self_employment_net_earnings"}
+# d1970 (Max, 2026-11-01): the v2 prompt says everyone is a citizen with an SSN
+# unless stated otherwise. policyengine-us defaults both to CITIZEN; the
+# references state them, as canonical_uk_person states the UK's.
+STATED_STATUSES = {"immigration_status": "CITIZEN", "ssn_card_type": "CITIZEN"}
+HOUSEHOLD_FILTER = (
+    "Households where a dependent has income that could require a return of "
+    "their own are left out of the draw (d1029; "
+    "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS)."
+)
 EXCLUSIONS_RULE = (
     "An output is excluded from scoring for every model when review finds its "
     "reference wrong in law or undetermined by the stated facts. A fresh household "
@@ -146,6 +155,8 @@ def situation_for(scenario) -> dict:
         for old, new in RENAME.items():
             if old in person:
                 person[new] = person.pop(old)
+        for name, value in STATED_STATUSES.items():
+            person.setdefault(name, {str(scenario.year): value})
     return situation
 
 
@@ -311,7 +322,11 @@ def command_build(args) -> None:
         materialize_certified_us_dataset,
         policyengine_bundles_for_countries,
     )
-    from policybench.scenarios import generate_scenarios, scenario_manifest
+    from policybench.scenarios import (
+        canonical_us_scenario,
+        generate_scenarios,
+        scenario_manifest,
+    )
 
     out = Path(args.out)
     if out.exists() and any(out.iterdir()):
@@ -360,8 +375,12 @@ def command_build(args) -> None:
         country="us",
         dataset=str(dataset_path) if all(named) else None,
         dataset_label=dataset_label,
+        head_spouse_returns_only=True,
     )
-    scenarios = rename_scenarios(sampled, args.id_prefix)
+    scenarios = [
+        canonical_us_scenario(scenario)
+        for scenario in rename_scenarios(sampled, args.id_prefix)
+    ]
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
     references = compute_references(
         scenarios, programs, reference_system(Path(args.fix_module))
@@ -399,6 +418,7 @@ def command_build(args) -> None:
         "requested_num_scenarios": args.n,
         "seed": args.seed,
         "id_prefix": args.id_prefix,
+        "household_filter": HOUSEHOLD_FILTER,
         "program_set": "headline",
         "programs": programs,
         "policyengine_bundles": bundles,
