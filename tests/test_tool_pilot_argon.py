@@ -3502,7 +3502,7 @@ def test_louisianas_stated_amounts_are_the_engines():
         if status
         in {"SINGLE", "SEPARATE", "JOINT", "HEAD_OF_HOUSEHOLD", "SURVIVING_SPOUSE"}
     }
-    if max(max(amounts["SINGLE"]), key=str).year != 2026:
+    if max(amounts["SINGLE"]).year != 2026:
         pytest.skip("this engine has no 2026 Louisiana amount")
     text = pilot.v2_pilot_text(
         "Do not infer unlisted income, expenses, assets, "
