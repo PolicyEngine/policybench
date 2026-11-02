@@ -191,6 +191,7 @@ def main() -> None:
     parser.add_argument("--period", default=str(YEAR))
     parser.add_argument("--out")
     args = parser.parse_args()
+    pass_inputs.require_engine()
 
     run = Path(tempfile.mkdtemp(prefix="engine_probe_inputs_"))
     atexit.register(shutil.rmtree, run, True)

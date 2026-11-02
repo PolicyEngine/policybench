@@ -276,6 +276,25 @@ def test_the_committed_evidence_records_the_pins():
     assert flags["source_sha256"] == pins.RUN_SHA256["data.json.gz"]
 
 
+def test_the_engine_pin_is_the_engine_the_pass_recorded():
+    """Differential: require_engine's version is the one the frozen run's references
+    and the committed conformance record name."""
+    meta = json.loads(
+        pins.git_bytes(
+            pins.PASS_COMMIT,
+            f"{pins.RUN_PATH}/reference_outputs.csv.meta.json",
+            pins.RUN_SHA256["reference_outputs.csv.meta.json"],
+        )
+    )
+    bundle = meta["policyengine_bundles"]["us"]
+    assert (bundle["model_package"], bundle["model_version"]) == (
+        pins.ENGINE_PACKAGE,
+        pins.ENGINE_VERSION,
+    )
+    run = json.loads((VERIFICATION / "definition_conformance.json").read_text())["run"]
+    assert run["policyengine_us"] == pins.ENGINE_VERSION
+
+
 def test_later_commits_hold_other_bytes_than_the_pins():
     """Why the pins exist: #202 rewrote the run's payload and exclusion record and
     #204 a convention module, so reading those commits' copies is refused."""
@@ -518,6 +537,7 @@ def test_a_mismatched_input_stops_the_script_before_it_computes_or_writes(
 ):
     """Pointed at #202's run, each script refuses before any engine work or write."""
     module = SCRIPT_MODULES[script]
+    _pass_engine(monkeypatch)
     monkeypatch.setattr(pins, "PASS_COMMIT", RELEASE_20261006_COMMIT)
     for name in ENGINE_ENTRY_POINTS:
         if hasattr(module, name):
@@ -546,6 +566,12 @@ def _bad_pin(monkeypatch, which: str) -> None:
         monkeypatch.setattr(pins, "SPECS_SHA256", "0" * 64)
 
 
+def _pass_engine(monkeypatch) -> None:
+    """Report the pass's engine as installed, so a main gets past require_engine
+    under whatever policyengine-us this environment has."""
+    monkeypatch.setattr(pins, "engine_version", lambda: pins.ENGINE_VERSION)
+
+
 def _no_engine(monkeypatch) -> None:
     """Any import of the engine from here on fails with ImportError."""
     for name in ("policyengine_us", "policyengine_core"):
@@ -562,6 +588,7 @@ def test_a_late_staged_input_stops_each_main_before_the_engine(
     """The reference system's inputs are staged last. A wrong pin there still stops
     the script before it imports the engine, hooks it, starts a worker or writes."""
     module = SCRIPT_MODULES[script]
+    _pass_engine(monkeypatch)
     _bad_pin(monkeypatch, which)
     _no_engine(monkeypatch)
     for name in ("_system", "install_build_hooks", "install_recording", "worker_pool"):
@@ -578,6 +605,27 @@ def test_a_late_staged_input_stops_each_main_before_the_engine(
     out = tmp_path / "out"
     monkeypatch.setattr(sys, "argv", _argv(script, out))
     with pytest.raises(SystemExit, match=f"not the pinned {'0' * 64}"):
+        module.main()
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    "script", ["definition_conformance", "publication_sources", "engine_probe"]
+)
+def test_another_engine_stops_each_main_before_it_stages(script, tmp_path, monkeypatch):
+    """This checkout's uv.lock installs a later policyengine-us, which computes some
+    of the pass's references differently, so each engine-side main stops first."""
+    module = SCRIPT_MODULES[script]
+    monkeypatch.setattr(pins, "engine_version", lambda: "2.60.0")
+    monkeypatch.setattr(pins, "git_bytes", _never("git_bytes"))
+    for name in ("stage_inputs", *ENGINE_ENTRY_POINTS):
+        if hasattr(module, name):
+            monkeypatch.setattr(module, name, _never(name))
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", _argv(script, out))
+    with pytest.raises(
+        SystemExit, match=re.escape("policyengine-us 2.15.17, not 2.60.0")
+    ):
         module.main()
     assert not out.exists()
 
@@ -702,9 +750,12 @@ def test_build_proposals_never_writes_the_committed_records(
 
 
 def test_build_proposals_writes_only_a_new_file(tmp_path, monkeypatch, capsys):
-    """A hard link to the committed records, another checkout's copy and a dangling
-    symlink are existing paths, and no existing path is written."""
-    committed = AUDIT / "proposed_changes.json"
+    """A hard link, another checkout's copy and a dangling symlink are existing
+    paths, and no existing path is written. The link goes to a copy of the committed
+    records, so a regression cannot write through it into the checkout."""
+    committed = tmp_path / "committed" / "proposed_changes.json"
+    committed.parent.mkdir()
+    committed.write_bytes((AUDIT / "proposed_changes.json").read_bytes())
     before = committed.read_bytes()
     monkeypatch.setattr(proposals, "build", _never("build"))
     hard = tmp_path / "hard.json"
@@ -725,8 +776,11 @@ def test_build_proposals_writes_only_a_new_file(tmp_path, monkeypatch, capsys):
 
 def test_build_proposals_creates_its_output_exclusively(tmp_path, monkeypatch):
     """A file that appears at --out after the check is not written through: here
-    it is a hard link to the committed records, created while the script builds."""
-    committed = AUDIT / "proposed_changes.json"
+    it is a hard link to a copy of the committed records, created while the script
+    builds."""
+    committed = tmp_path / "committed" / "proposed_changes.json"
+    committed.parent.mkdir()
+    committed.write_bytes((AUDIT / "proposed_changes.json").read_bytes())
     before = committed.read_bytes()
     out = tmp_path / "proposed_changes.json"
 
@@ -929,6 +983,7 @@ def test_engine_probe_scores_the_pass_cells_not_202s(tmp_path, monkeypatch):
         REPRODUCE_TOLERANCE=conformance.REPRODUCE_TOLERANCE,
     )
     monkeypatch.setattr(probe, "_conformance", lambda: engine)
+    _pass_engine(monkeypatch)
     out = tmp_path / "probe.json"
     monkeypatch.setattr(
         sys, "argv", ["engine_probe", "scenario_043", "--out", str(out)]

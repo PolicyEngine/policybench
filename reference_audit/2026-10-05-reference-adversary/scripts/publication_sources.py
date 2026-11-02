@@ -809,6 +809,7 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=6)
     parser.add_argument("--facts-out", help="also write the unclassified facts here")
     args = parser.parse_args()
+    pass_inputs.require_engine()
 
     started = time.time()
     # Every input is staged and checked before anything else: before policybench

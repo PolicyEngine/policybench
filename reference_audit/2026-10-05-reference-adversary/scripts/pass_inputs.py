@@ -9,9 +9,10 @@ run's payload and exclusion record, and #204 rewrote
 these inputs only through ``git_input``: ``git show <commit>:<path>`` into scratch,
 refused (SystemExit) unless the bytes match the pinned sha256, and read only from the
 staged copy. A script stages everything it reads before it computes or writes
-anything, and before it imports the engine. The code (this checkout's ``policybench``
-package and the installed engine) is not pinned here; each script's own reproduction
-check covers it.
+anything, and before it imports the engine. The scripts pin no code: they run this
+checkout's ``policybench`` package and the installed engine. The engine-side scripts
+first check the engine's version (``require_engine``), and each script's own
+reproduction check covers the rest.
 
 ``policybench`` loads its output definitions (``benchmark_specs.json``) itself, once
 per process: first at import of ``policybench.scenarios``, and every spec lookup then
@@ -32,6 +33,7 @@ import json
 import shutil
 import subprocess
 from collections.abc import Iterable
+from importlib import metadata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -129,6 +131,12 @@ FIXES_SHA256 = {
     ),
 }
 
+# The engine the pass built its reference system on, as the frozen run's
+# reference_outputs.csv.meta.json records it. This checkout's uv.lock installs a later
+# release, which computes some of the pass's references differently.
+ENGINE_PACKAGE = "policyengine-us"
+ENGINE_VERSION = "2.15.17"
+
 # PolicyEngine/policybench#194's cited classification of state paid-leave programs.
 LAW_COMMIT = "049f4f091397e9c3ec2d9b21f3acbeb9c07c9764"
 LAW_PATH = "reference_audit/2026-10-05-payroll/program_classification.json"
@@ -147,6 +155,26 @@ CONFORMANCE_SHA256 = "05e503f1b291c505b90182395c4afb88844dcb45fb2952c004ca09d427
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def engine_version() -> str:
+    """The installed engine's version, from its package metadata."""
+    return metadata.version(ENGINE_PACKAGE)
+
+
+def require_engine() -> None:
+    """Stop unless the installed engine is the one the pass ran on.
+
+    The engine-side scripts call this before they stage anything. The README's
+    Reproduce section builds the pass's environment.
+    """
+    found = engine_version()
+    if found != ENGINE_VERSION:
+        raise SystemExit(
+            f"the pass's reference system is {ENGINE_PACKAGE} {ENGINE_VERSION}, "
+            f"not {found}; build its environment as the README's Reproduce section "
+            "says"
+        )
 
 
 def git_bytes(commit: str, path: str, pinned: str) -> bytes:

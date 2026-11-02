@@ -537,19 +537,22 @@ uv run python reference_audit/2026-10-05-reference-adversary/scripts/search_expo
 
 Preparing `runs/claude` today reproduces its `cases.jsonl` and derivations byte for byte. Each stage-1 prompt then differs from the committed one in one line, because the source rule now asks for `blocked_domains`. The re-judge's preparation reproduces `runs/claude-rejudge`'s inputs byte for byte.
 
-`definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need the policyengine-us 2.15.17 environment, which `uv sync --locked --extra dev --python 3.12` provides. Write their output to scratch and compare it with the committed files:
+`definition_conformance.py`, `publication_sources.py`, `engine_probe.py` and `leaderboard_impact.py` need policyengine-us 2.15.17. This checkout's `uv.lock` installs a later release, so build that environment from the lock at `4db91b5f` (#200, pinned as `RECORDS_COMMIT`) and run this checkout's scripts with its Python. The first three stop under any other policyengine-us. Write their output to scratch and compare it with the committed files:
 
 ```bash
+git worktree add <scratch>/pe21517 4db91b5f
+(cd <scratch>/pe21517 && uv sync --locked --extra dev --python 3.12)
+py=<scratch>/pe21517/.venv/bin/python  # the 2.15.17 venv
 a=reference_audit/2026-10-05-reference-adversary
 export OPENBLAS_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.
-uv run python $a/scripts/definition_conformance.py --out-dir <scratch>
-uv run python $a/scripts/publication_sources.py --out-dir <scratch>
-uv run python $a/scripts/engine_probe.py scenario_043 \
+$py $a/scripts/definition_conformance.py --out-dir <scratch>
+$py $a/scripts/publication_sources.py --out-dir <scratch>
+$py $a/scripts/engine_probe.py scenario_043 \
   --variables co_sales_tax_refund co_refundable_credits co_eitc co_tabor_cash_back state_refundable_credits \
   --parameters gov.states.co.tax.income.credits.sales_tax_refund.amount.flat_amount_enabled \
     gov.states.co.tax.income.credits.sales_tax_refund.amount.amount \
   --out <scratch>/co_sales_tax_refund_scenario_043.json
-uv run python $a/scripts/leaderboard_impact.py --scratch <scratch> --out-dir <scratch>/impact
+$py $a/scripts/leaderboard_impact.py --scratch <scratch> --out-dir <scratch>/impact
 uv run python $a/scripts/build_proposals.py --out <scratch>/proposed_changes.json
 ```
 
@@ -563,8 +566,10 @@ The tests regenerate every one of these outputs into scratch and require the com
 - `engine_probe.py`: all 8 probes, from the arguments each records.
 - `leaderboard_impact.py`: all 23 `verification/leaderboard_impact*` files.
 
-The engine-side regenerations took 21 to 27 minutes on a heavily loaded machine, so they are marked slow and CI deselects them:
+The tests compare bytes exactly. On Linux x86_64, some floats in `definition_conformance.json` and the `leaderboard_impact*` files differ from the committed ones in their last digit, so those two slow tests fail there.
+
+The engine-side regenerations took 21 to 27 minutes on a heavily loaded machine, so we mark them slow and CI deselects them. Run them with the 2.15.17 venv's Python:
 
 ```bash
-OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_adversary_inputs.py tests/test_reference_adversary_impact.py
+OPENBLAS_NUM_THREADS=1 PYTHONPATH=. $py -m pytest -m slow tests/test_reference_adversary_inputs.py tests/test_reference_adversary_impact.py
 ```
