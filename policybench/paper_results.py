@@ -396,7 +396,7 @@ def restored_split_sentence(restored: int, ruled: int, ruling_date: str) -> str:
     values, and ``ruled`` that rulings on ``ruling_date`` decided while they
     were still scored stay scored at them."""
     if not 0 <= ruled <= restored:
-        raise ValueError(f"{ruled} ruled of {restored} restored outputs")
+        raise ValueError(f"{ruled} ruled of {restored} fixed outputs")
     if not restored:
         return ""
     returned = restored - ruled
@@ -473,6 +473,15 @@ def restored_split_clause(restored: int, ruled: int, ruling_date: str) -> str:
     if ruled > 1:
         kept = f"the {ruled} ruled on {ruling_date} while still scored stay"
     return f"{lead} ({back} to scoring at the new version's values; {kept} scored)"
+
+
+def fixed_or_restored(ruled: int) -> str:
+    """What the sentence naming an upgrade's fixes calls its outputs: "fixed"
+    once rulings decided any of them while still scored, since those never
+    left scoring, and "restored" when every one returns to scoring."""
+    if ruled < 0:
+        raise ValueError(f"{ruled} ruled outputs")
+    return "fixed" if ruled else "restored"
 
 
 def _key(entry: dict) -> tuple[str, str]:
@@ -2346,7 +2355,7 @@ class PaperResults:
         phrase = self.engine_upgrade_restored_fix_phrase
         if not phrase:
             return ""
-        kind = "fixed" if self.engine_upgrade_restored_ruled_count else "restored"
+        kind = fixed_or_restored(self.engine_upgrade_restored_ruled_count)
         return f"The {kind} outputs take the upstream fixes for {phrase}."
 
     @property

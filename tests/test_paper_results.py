@@ -1756,6 +1756,29 @@ def _MOCK_fix_modules_target(entry: dict, engine: str = "policyengine-us 9.9.9")
 RESTORING_MOVE = "2.41.0"
 
 
+def test_one_ruled_output_makes_the_fix_sentence_say_fixed(monkeypatch):
+    """The fix sentence says "fixed" from the first output the rulings decided
+    while still scored. No frozen move has exactly one, so this gives the
+    October 13 move (nine fixed, none ruled) a MOCK ruled count of one (#209
+    review r2, finding 1)."""
+    from policybench.paper_results import PaperResults
+
+    view = r.upgrade_view(RESTORING_MOVE)
+    assert (
+        view.engine_upgrade_restored_count,
+        view.engine_upgrade_restored_ruled_count,
+    ) == (9, 0)
+    assert view.engine_upgrade_restored_sentence.startswith(
+        "The restored outputs take "
+    )
+    monkeypatch.setattr(
+        PaperResults,
+        "engine_upgrade_restored_ruled_count",
+        property(lambda self: 1),  # MOCK
+    )
+    assert view.engine_upgrade_restored_sentence.startswith("The fixed outputs take ")
+
+
 def _native_fix_modules() -> tuple[set[int], str]:
     """The frozen sidecar's fixed-output entries already held to fix modules, and
     the engine a MOCK target must name to sit beside them (the sentence names
@@ -1887,16 +1910,25 @@ def test_the_split_clause_counts_both_kinds(restored, data):
     with a matching noun, says "return" only when some outputs return and
     "stay" only when some stay (as the split sentence does), agrees each verb
     with its count, and never prints "the 0", "the 1" or a lone "1" in the
-    split (round-2 final review nit 1)."""
-    from policybench.paper_results import restored_split_clause, restored_split_sentence
+    split (round-2 final review nit 1). The fix sentence calls the outputs
+    "fixed" from the first ruled one (#209 review r2)."""
+    from policybench.paper_results import (
+        fixed_or_restored,
+        restored_split_clause,
+        restored_split_sentence,
+    )
 
     ruled = data.draw(st.integers(0, restored))
-    clause = restored_split_clause(restored, ruled, "2026-10-06")
-    sentence = restored_split_sentence(restored, ruled, "2026-10-06")
+    date = data.draw(st.sampled_from(["2026-10-06", "2027-01-02"]))
+    clause = restored_split_clause(restored, ruled, date)
+    sentence = restored_split_sentence(restored, ruled, date)
     with pytest.raises(ValueError):
-        restored_split_clause(restored, restored + 1, "2026-10-06")
+        restored_split_clause(restored, restored + 1, date)
     with pytest.raises(ValueError):
-        restored_split_clause(restored, -1, "2026-10-06")
+        restored_split_clause(restored, -1, date)
+    assert fixed_or_restored(ruled) == ("fixed" if ruled > 0 else "restored")
+    with pytest.raises(ValueError):
+        fixed_or_restored(-1)
     if not restored:
         # As the table row for a move that fixes nothing has always said it.
         assert clause == "returns no excluded output to scoring"
@@ -1912,7 +1944,7 @@ def test_the_split_clause_counts_both_kinds(restored, data):
         assert (kind in clause) == (kind in sentence)
     assert ("return" in split) == (returned > 0)
     assert ("stay" in split) == (ruled > 0)
-    assert ("2026-10-06" in split) == (ruled > 0)
+    assert (date in split) == (ruled > 0)
     if returned and ruled:
         back = (
             "one that earlier releases excluded returns to scoring"
@@ -1920,9 +1952,9 @@ def test_the_split_clause_counts_both_kinds(restored, data):
             else f"{returned} that earlier releases excluded return to scoring"
         )
         kept = (
-            "the one ruled on 2026-10-06 while still scored stays scored"
+            f"the one ruled on {date} while still scored stays scored"
             if ruled == 1
-            else f"the {ruled} ruled on 2026-10-06 while still scored stay scored"
+            else f"the {ruled} ruled on {date} while still scored stay scored"
         )
         assert split.startswith(back) and split.endswith(kept)
     elif returned:
