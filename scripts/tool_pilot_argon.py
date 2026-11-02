@@ -433,7 +433,14 @@ MAX_PAUSE_CONTINUATIONS = 3
 # The litellm releases whose Gemini search-tool handling
 # allow_gemini_search_with_functions was checked against. It was written against
 # 1.88.1; 1.88.6's litellm/llms/vertex_ai/gemini/ is byte-identical to 1.88.1's.
-GEMINI_SEARCH_PATCH_LITELLM = frozenset({"1.88.1", "1.88.6"})
+# 1.95.0 only rewraps the lines of both patched methods (their syntax trees match
+# 1.88.6's), and it keeps googleSearch beside functions by itself when
+# include_server_side_tool_invocations is set. On a continuation turn it returns
+# each server-side search part's thoughtSignature on the part Gemini put it on,
+# where 1.88.x sent one signature on both parts. It also counts
+# toolUsePromptTokenCount in prompt tokens when a response carries no search
+# grounding. Each run's manifest records the litellm it ran on.
+GEMINI_SEARCH_PATCH_LITELLM = frozenset({"1.88.1", "1.88.6", "1.95.0"})
 
 CALCULATE_DESCRIPTION = (
     "Run PolicyEngine US (policyengine-us 2.41.0) on one household and return "
@@ -1230,8 +1237,10 @@ def allow_gemini_search_with_functions() -> None:
     ``completion`` keyword reaches it later, as a provider extra, after the
     search tool is gone. Gemini 3 and 4 models take both together with the flag
     (ai.google.dev/gemini-api/docs/tool-combination), and the web arms always
-    send it, so both of litellm's drops are skipped. Refuses any other litellm,
-    whose code this was not checked against.
+    send it, so both of litellm's drops are skipped. litellm 1.95.0 reads the
+    flag before it maps the tools and keeps the search tool by itself, so there
+    the patch changes nothing. Refuses any other litellm, whose code this was
+    not checked against.
     """
     version = importlib.metadata.version("litellm")
     if version not in GEMINI_SEARCH_PATCH_LITELLM:
@@ -1467,11 +1476,11 @@ class ChatConversation:
 
         When Claude calls a server tool beside a client tool, the API runs the
         server tool on the next request, and that response begins with its
-        result, without the call. litellm 1.88.x re-sends a server result only
-        beside its call in the same message, so left in place the result drops
-        out of later requests, and the API refuses the call that lacks it (a
-        live probe got that 400 on the third request). The result joins its
-        call, the only place litellm sends it from.
+        result, without the call. litellm 1.88.x and 1.95.0 re-send a server
+        result only beside its call in the same message, so left in place the
+        result drops out of later requests, and the API refuses the call that
+        lacks it (a live probe got that 400 on the third request). The result
+        joins its call, the only place litellm sends it from.
         """
         fields = message.get("provider_specific_fields")
         if not isinstance(fields, dict):

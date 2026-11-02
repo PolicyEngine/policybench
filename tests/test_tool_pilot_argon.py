@@ -2746,6 +2746,19 @@ def _keep_litellm_gemini_config(monkeypatch):
         monkeypatch.setattr(VertexGeminiConfig, name, VertexGeminiConfig.__dict__[name])
 
 
+# The tools each checked litellm keeps, unpatched, when a web arm sends the
+# search tool beside functions with include_server_side_tool_invocations set.
+UNPATCHED_GEMINI_TOOLS = {
+    "1.88.1": ["function_declarations"],
+    "1.88.6": ["function_declarations"],
+    "1.95.0": ["function_declarations", "googleSearch"],
+}
+
+
+def test_each_checked_litellm_records_what_it_does_unpatched():
+    assert set(UNPATCHED_GEMINI_TOOLS) == pilot.GEMINI_SEARCH_PATCH_LITELLM
+
+
 def test_the_gemini_patch_keeps_search_beside_functions(monkeypatch):
     from litellm.utils import get_optional_params
 
@@ -2764,11 +2777,147 @@ def test_the_gemini_patch_keeps_search_beside_functions(monkeypatch):
 
     # Installed from the lock, litellm is a release the patch was checked
     # against (the lock test below), so this runs rather than skips.
-    assert importlib.metadata.version("litellm") in pilot.GEMINI_SEARCH_PATCH_LITELLM
-    assert tool_keys() == ["function_declarations"]  # litellm drops search
+    version = importlib.metadata.version("litellm")
+    assert version in pilot.GEMINI_SEARCH_PATCH_LITELLM
+    assert tool_keys() == UNPATCHED_GEMINI_TOOLS[version]
     pilot.allow_gemini_search_with_functions()
     assert tool_keys() == ["function_declarations", "googleSearch"]
     assert calculate_tool["function"]["name"] == pilot.TOOL_NAME
+
+
+# The thoughtSignatures each checked litellm sends back on the toolCall and
+# toolResponse parts of a server-side search: 1.88.x merges the two parts'
+# signatures into one, the call's, and 1.95.0 returns each on its own part, as
+# ai.google.dev/gemini-api/docs/thought-signatures asks.
+RESENT_SEARCH_SIGNATURES = {
+    "1.88.1": ("SIG_CALL", "SIG_CALL"),
+    "1.88.6": ("SIG_CALL", "SIG_CALL"),
+    "1.95.0": ("SIG_CALL", "SIG_RESP"),
+}
+
+
+def test_each_checked_litellm_records_the_signatures_it_resends():
+    assert set(RESENT_SEARCH_SIGNATURES) == pilot.GEMINI_SEARCH_PATCH_LITELLM
+
+
+def _fill(schema):
+    kind = schema.get("type")
+    if kind == "object":
+        return {k: _fill(v) for k, v in schema.get("properties", {}).items()}
+    if kind in ("number", "integer"):
+        return 0
+    if kind == "boolean":
+        return False
+    if kind == "array":
+        return []
+    return "Computed value = 0"
+
+
+def test_the_gemini_web_and_tool_arm_runs_through_the_locked_litellm(monkeypatch):
+    """Drives the web+pe arm's conversation through litellm's own Gemini
+    request and response code, with canned generateContent replies in place of
+    the network. The first reply searches and calls the calculator; the next
+    answers through the submit tool."""
+    import httpx
+    from litellm import completion
+
+    _keep_litellm_gemini_config(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    pilot.allow_gemini_search_with_functions()
+    search = {"id": "srv-1", "toolType": "GOOGLE_SEARCH_WEB"}
+    sent = []
+
+    def reply(request_body):
+        if not sent[1:]:
+            parts = [
+                {"thought": True, "text": "plan", "thoughtSignature": "SIG_THOUGHT"},
+                {
+                    "toolCall": {**search, "args": {"queries": ["colorado snap"]}},
+                    "thoughtSignature": "SIG_CALL",
+                },
+                {
+                    "toolResponse": {
+                        **search,
+                        "response": {"results": [{"url": "https://cdhs.colorado.gov"}]},
+                    },
+                    "thoughtSignature": "SIG_RESP",
+                },
+                {
+                    "functionCall": {
+                        "name": pilot.TOOL_NAME,
+                        "args": {"situation": {}, "variables": ["snap"]},
+                    },
+                    "thoughtSignature": "SIG_FN",
+                },
+            ]
+        else:
+            (submit,) = [
+                d
+                for t in request_body["tools"]
+                for d in t.get("function_declarations", [])
+                if d["name"] != pilot.TOOL_NAME
+            ]
+            parts = [
+                {
+                    "functionCall": {
+                        "name": submit["name"],
+                        "args": _fill(submit["parameters"]),
+                    },
+                    "thoughtSignature": "SIG_ANSWER",
+                }
+            ]
+        return {
+            "candidates": [
+                {
+                    "content": {"role": "model", "parts": parts},
+                    "finishReason": "STOP",
+                    "index": 0,
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 1000,
+                "candidatesTokenCount": 100,
+                "thoughtsTokenCount": 50,
+                "totalTokenCount": 1150,
+            },
+            "modelVersion": "gemini-4-argon",
+        }
+
+    def send(self, request, **kwargs):
+        body = json.loads(request.content)
+        sent.append(body)
+        return httpx.Response(200, json=reply(body), request=request)
+
+    monkeypatch.setattr(httpx.Client, "send", send)
+    record = pilot.run_household(
+        make_scenario(),
+        VARIABLES,
+        lambda arguments: ({"values": {"snap": 1234.0}}, 0.01),
+        completion,
+        pilot.Spend(10.0),
+        profile=pilot.model_profile(pilot.MODEL_NAME, "web+pe"),
+    )
+
+    assert record["status"] == "complete" and len(sent) == 2
+    first, second = sent
+    assert sorted(k for t in first["tools"] for k in t) == [
+        "function_declarations",
+        "googleSearch",
+    ]
+    assert first["toolConfig"]["includeServerSideToolInvocations"] is True
+    (model_turn,) = [c for c in second["contents"] if c["role"] == "model"]
+    signatures = {
+        key: part.get("thoughtSignature")
+        for part in model_turn["parts"]
+        for key in ("toolCall", "toolResponse", "function_call")
+        if key in part
+    }
+    version = importlib.metadata.version("litellm")
+    assert (
+        signatures["toolCall"],
+        signatures["toolResponse"],
+    ) == RESENT_SEARCH_SIGNATURES[version]
+    assert signatures["function_call"] == "SIG_FN"
 
 
 def test_the_locked_litellm_is_one_the_gemini_patch_was_checked_against():
