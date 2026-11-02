@@ -318,11 +318,13 @@ def plan_landed(
     ``after`` must be on ``ref``'s first-parent line. A tag counts when a
     first-parent commit after ``after`` names it. A tag that ``after``'s own
     history names belongs to an earlier release, and its tag is re-pointed by
-    hand. When main points back at such a release, it is passed over. When
-    main names such a tag with bytes it did not name by ``after``, the plan has
-    no board and says so, so the caller reports it instead of moving it, until
-    someone seals the tag by hand at the board for the release's current bytes.
-    Any other plan with no board also stays in, for the caller to report.
+    hand. When main points back at such a release with the bytes it named by
+    ``after``, and the tag still names a commit in ``after``'s history, it is
+    passed over. Otherwise the release's name was reused or its asset replaced,
+    and unless the tag already names the board for the release's current
+    bytes, the plan has no board and says why, so the caller reports it instead
+    of moving it until someone seals the tag by hand. Any other plan with no
+    board also stays in, for the caller to report.
     """
     history = pointer_history(ref, root=root)
     start = _git(root, "rev-parse", "--verify", f"{after}^{{commit}}").strip()
@@ -336,33 +338,39 @@ def plan_landed(
     before = pointer_history(start, root=root)
     earlier_tags = {e.tag for e in before}
     earlier_pairs = {(e.tag, e.sha256) for e in before}
+    named = {(e.tag, e.sha256) for e in history if e.commit in landed}
+    reachable_from_start = None
     plans = []
     for tag in dict.fromkeys(e.tag for e in history if e.commit in landed):
+        current = remote_tag_commit(repo, tag)
+        plan = plan_tag(tag, current, fetch_release(repo, tag), history)
         if tag not in earlier_tags:
-            plans.append(
-                plan_tag(
-                    tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
-                )
+            plans.append(plan)
+            continue
+        if plan.action == "sealed":
+            continue
+        if any(pair[0] == tag and pair not in earlier_pairs for pair in named):
+            why = "main now names other bytes under it"
+        else:
+            if reachable_from_start is None:
+                reachable_from_start = set(_git(root, "rev-list", start).split())
+            if current in reachable_from_start:
+                continue
+            why = (
+                "its tag now names a commit after that"
+                if current
+                else "its tag no longer exists"
             )
-            continue
-        named = {(e.tag, e.sha256) for e in history if e.commit in landed}
-        if not any(pair[0] == tag and pair not in earlier_pairs for pair in named):
-            continue
-        plan = plan_tag(
-            tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+        plans.append(
+            TagPlan(
+                tag,
+                None,
+                None,
+                None,
+                f"main named this tag before sealing began, and {why}; check the "
+                "release and seal it by hand with seal-release --tag",
+            )
         )
-        if plan.action != "sealed":
-            plans.append(
-                TagPlan(
-                    tag,
-                    None,
-                    None,
-                    None,
-                    "main named this tag before sealing began and now names "
-                    "other bytes under it; check the release and seal it by "
-                    "hand with seal-release --tag",
-                )
-            )
     return plans
 
 

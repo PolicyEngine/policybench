@@ -2,22 +2,22 @@ name: Seal release
 
 # A release's tag is created before its PR merges: CI's app job and Vercel
 # download the asset the PR's pointer names, so the release must exist first,
-# and GitHub puts its tag on main as it stood then. When main's pointer
-# changes, this moves the tag of every release that has landed since sealing
-# began (policybench.release_tags.SEALING_STARTS_AFTER) to the commit that
-# holds its board, and marks Latest the release main serves. See
-# docs/runbook.md, section 9.
+# and GitHub puts its tag on main as it stood then. On each push to main,
+# this moves the tag of every release that has landed since sealing began
+# (policybench.release_tags.SEALING_STARTS_AFTER) to the commit that holds its
+# board, and marks Latest the release main serves. It runs on every push, not
+# only on pointer changes, because a push can name a release and then restore
+# the earlier pointer. See docs/runbook.md, section 9.
 on:
   push:
     branches: [main]
-    paths:
-      - app/src/data.artifact.json
 
 permissions:
   contents: write
 
 # GitHub cancels a pending run when a newer one queues. Each run seals every
-# release landed so far, so the newer run covers the cancelled one.
+# release landed so far, so the newer run covers the cancelled one, and the
+# run for the last push marks Latest the release main serves after it.
 concurrency:
   group: seal-release
   cancel-in-progress: false

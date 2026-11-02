@@ -533,15 +533,59 @@ def test_every_release_landed_since_sealing_began_is_sealed_in_one_run(scratch, 
 
 
 def test_an_older_release_main_points_back_at_is_left_alone(scratch, github):
+    root = git(scratch.root, "rev-parse", "HEAD")
     old_board = scratch.release(T1, SHAS["a"])
     start = scratch.release(T2, SHAS["b"])
     scratch.release(T1, SHAS["a"])  # main points back at T1 after sealing began
-    github.tags = {T1: "1" * 40, T2: old_board}
+    github.tags = {T1: root, T2: old_board}  # T1's tag predates its board
     github.release(T1, SHAS["a"], release_id=1)
     github.release(T2, SHAS["b"], release_id=2)
     assert rt.plan_landed(start, **where(scratch)) == []
     assert rt.apply_plans(rt.plan_landed(start, **where(scratch))) == ([], {})
-    assert github.writes == [] and github.tags[T1] == "1" * 40
+    assert github.writes == [] and github.tags[T1] == root
+
+
+def test_an_earlier_name_recreated_with_its_old_bytes_is_reported_not_moved(
+    scratch, github, monkeypatch
+):
+    # Delete T1's tag after sealing began, create a new release under the name
+    # with the bytes main named before, and land that pointer. GitHub puts the
+    # new tag on main as it stands, after the start. The run moves nothing and
+    # reports T1 until it is sealed by hand.
+    old_board = scratch.release(T1, SHAS["a"])
+    start = scratch.release(T2, SHAS["b"])
+    published = scratch.other()
+    scratch.release(T1, SHAS["a"])
+    github.tags = {T1: published, T2: old_board}
+    github.release(T1, SHAS["a"], release_id=3)
+    github.release(T2, SHAS["b"], release_id=2)
+    (plan,) = rt.plan_landed(start, **where(scratch))
+    assert (plan.tag, plan.action) == (T1, "leave")
+    assert "names a commit after that" in plan.reason
+    monkeypatch.chdir(scratch.root)
+    argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
+    with pytest.raises(SystemExit, match=f"cannot seal {T1}: .*seal it by hand"):
+        rt.main(argv)
+    assert github.writes == []
+    rt.main(["seal-release", "--tag", T1, "--ref", "main", "--apply"])
+    assert github.tags[T1] == old_board
+    assert rt.plan_landed(start, **where(scratch)) == []
+
+
+def test_an_earlier_release_whose_tag_is_gone_is_reported(scratch, github):
+    old_board = scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    second = scratch.release(T2, SHAS["b"])
+    scratch.release(T1, SHAS["a"])  # main points back at T1, whose tag is gone
+    github.tags = {T2: old_board}
+    github.release(T1, SHAS["a"], release_id=1)
+    github.release(T2, SHAS["b"], release_id=2)
+    plans = rt.plan_landed(start, **where(scratch))
+    assert [(p.tag, p.action, p.board) for p in plans] == [
+        (T2, "move", second),
+        (T1, "leave", None),
+    ]
+    assert "its tag no longer exists" in plans[1].reason
 
 
 def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
@@ -891,7 +935,9 @@ def test_the_workflow_seals_the_landed_releases_against_main_as_it_is_now():
         (ROOT / ".github/workflows/seal-release.yml").read_text(encoding="utf-8")
     )
     trigger = workflow.get("on", workflow.get(True))
-    assert trigger == {"push": {"branches": ["main"], "paths": [rt.POINTER_PATH]}}
+    # Every push: a push can name a release and then restore the earlier
+    # pointer, leaving no pointer change between its endpoints.
+    assert trigger == {"push": {"branches": ["main"]}}
     assert workflow["permissions"] == {"contents": "write"}
     assert workflow["concurrency"]["cancel-in-progress"] is False
     (job,) = workflow["jobs"].values()

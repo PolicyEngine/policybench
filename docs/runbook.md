@@ -539,22 +539,25 @@ PR's merge commit when the PR merges.
    on an up-to-date main.
 7. Check prod on policybench.org.
 
-Each run of the workflow reads main as it is when the run starts, not the
-commit of the push that started it. It seals every release that a
-first-parent commit of main names after `SEALING_STARTS_AFTER` in
-`policybench/release_tags.py` (the merge of release 20261027), so a run
+The workflow runs on every push to main. Each run reads main as it is when
+the run starts, not the commit of the push that started it. It seals every
+release that a first-parent commit of main names after `SEALING_STARTS_AFTER`
+in `policybench/release_tags.py` (the merge of release 20261027), so a run
 GitHub cancels in favour of a newer one loses nothing. The run refuses to
 start if that commit is not on main's first-parent line. It never moves the
 tag of a release main named by then. When main points back at one of those
-releases, the run passes over it. When main names one of those tags with
-bytes it did not name by then, the run moves nothing for it and fails, naming
-the tag; check the release and seal it by hand with
+releases with the bytes it named by then, and the release's tag still names a
+commit from before sealing began, the run passes over it. Otherwise someone
+reused the release's name or replaced its asset: the run moves nothing for it
+and fails, naming the tag. Check the release and seal it by hand with
 `uv run policybench seal-release --tag <tag> --apply`, and later runs pass
-over it. Before and after each
-move the run reads the release's asset digest again, and it refuses the move,
-or reports it, when the asset changed. A move GitHub refuses does not stop the
+over it. Before and after each move the run reads the release's asset digest
+again, and it refuses the move, or reports it, when the asset changed; the
+next run plans that tag again. A move GitHub refuses does not stop the
 others; the run fails after trying them all. It marks Latest the release main
-serves, unless that release's own move failed.
+serves when the run starts, unless that release's own move failed. A release
+that lands during a run gets the run for its own push, which starts after
+this one ends and marks it Latest.
 
 GitHub has been reported to refuse a tag pushed with `GITHUB_TOKEN` when the
 tagged commit's `.github/workflows/` differs from that of every branch head
