@@ -622,7 +622,10 @@ def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
     github.release(T1, SHAS["c"], release_id=1)
     (plan,) = rt.plan_landed(start, **where(scratch))
     assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
-    assert "seal it by hand" in plan.reason
+    assert plan.reason.endswith(
+        "main now names other bytes under it; check the release and seal it by "
+        "hand with seal-release --tag"
+    )
     monkeypatch.chdir(scratch.root)
     argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
     with pytest.raises(SystemExit, match=f"cannot seal {T1}: .*seal it by hand"):
