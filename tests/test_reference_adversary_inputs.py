@@ -829,23 +829,30 @@ def test_definition_conformance_reads_only_staged_inputs(tmp_path):
     assert laws
 
 
-def test_the_reference_system_is_built_from_staged_inputs(package_specs):
+@pytest.mark.parametrize("script", ["definition_conformance", "publication_sources"])
+def test_the_reference_system_is_built_from_staged_inputs(script, package_specs):
     """Conventions and output definitions are staged, and policybench then reads
-    the staged definitions: with the working tree fenced off, its lookups work."""
+    the staged definitions: with the working tree fenced off, its lookups work.
+    Each script starts from the package's own definitions, so neither passes on
+    the other's staging."""
     from policybench.ground_truth import _pe_variable_for_output
 
     expected = {Path(path).name: sha for path, sha in pins.FIXES_SHA256.items()}
     pinned = json.loads(
         pins.git_bytes(pins.PASS_COMMIT, pins.SPECS_PATH, pins.SPECS_SHA256)
     )
-    for module in (conformance, sources):
-        with fenced():
-            fix_dir = module.stage_engine_inputs()
-            assert package_specs._raw_spec_data() == pinned
-            assert _pe_variable_for_output("snap", "us") == "snap"
-        assert {path.name: pins.sha256(path) for path in fix_dir.iterdir()} == expected
-        assert pins.sha256(package_specs._spec_path()) == pins.SPECS_SHA256
-    # definition_conformance records the hashes of what it staged.
+    with fenced():
+        fix_dir = SCRIPT_MODULES[script].stage_engine_inputs()
+        assert package_specs._raw_spec_data() == pinned
+        assert _pe_variable_for_output("snap", "us") == "snap"
+    assert {path.name: pins.sha256(path) for path in fix_dir.iterdir()} == expected
+    # policybench reads the copy this script staged beside its conventions.
+    assert package_specs._spec_path() == fix_dir.parent / Path(pins.SPECS_PATH).name
+    assert pins.sha256(package_specs._spec_path()) == pins.SPECS_SHA256
+
+
+def test_definition_conformance_keeps_the_paths_it_staged(package_specs):
+    """definition_conformance records the hashes of what it staged."""
     assert conformance.stage_engine_inputs() == conformance._FIX_DIR
     assert pins.sha256(conformance._SPECS) == pins.SPECS_SHA256
 
