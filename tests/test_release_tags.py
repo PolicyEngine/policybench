@@ -612,8 +612,8 @@ def test_an_earlier_release_whose_tag_is_gone_is_reported(scratch, github):
 def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
     scratch, github, monkeypatch, capsys
 ):
-    # Replace release T1's asset, or reuse its name for a new release, and land
-    # a pointer naming the new bytes after sealing began. T1 was named before,
+    # Replace release T1's asset and land a pointer naming the new bytes after
+    # sealing began, with T1's tag still on its old board. T1 was named before,
     # so the run moves nothing, names it for a manual seal, and fails.
     old_board = scratch.release(T1, SHAS["a"])
     start = scratch.other()
@@ -622,15 +622,39 @@ def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
     github.release(T1, SHAS["c"], release_id=1)
     (plan,) = rt.plan_landed(start, **where(scratch))
     assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
-    assert plan.reason.endswith(
-        "main now names other bytes under it; check the release and seal it by "
-        "hand with seal-release --tag"
+    assert plan.reason == (
+        "main named this tag before sealing began, and main now names other bytes "
+        "under it; check the release and seal it by hand with seal-release --tag"
     )
     monkeypatch.chdir(scratch.root)
     argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
     with pytest.raises(SystemExit, match=f"cannot seal {T1}: .*seal it by hand"):
         rt.main(argv)
     assert github.writes == [] and github.tags[T1] == old_board
+
+
+def test_an_earlier_name_reused_with_new_bytes_is_reported_not_moved(
+    scratch, github, monkeypatch
+):
+    # Delete T1's release and tag after sealing began and publish a new release
+    # under the name with new bytes. GitHub puts the new tag on main as it
+    # stands, after the start. The run asks only for a hand seal, which clears it.
+    scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    published = scratch.other()
+    new_board = scratch.release(T1, SHAS["c"])
+    github.tags = {T1: published}
+    github.release(T1, SHAS["c"], release_id=3)
+    (plan,) = rt.plan_landed(start, **where(scratch))
+    assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
+    assert plan.reason == (
+        "main named this tag before sealing began, and main now names other bytes "
+        "under it; check the release and seal it by hand with seal-release --tag"
+    )
+    monkeypatch.chdir(scratch.root)
+    rt.main(["seal-release", "--tag", T1, "--ref", "main", "--apply"])
+    assert github.tags[T1] == new_board
+    assert rt.plan_landed(start, **where(scratch)) == []
 
 
 def test_an_earlier_release_with_new_bytes_and_no_tag_asks_for_the_tag_first(
@@ -646,10 +670,10 @@ def test_an_earlier_release_with_new_bytes_and_no_tag_asks_for_the_tag_first(
     github.release(T1, SHAS["c"], release_id=1)
     (plan,) = rt.plan_landed(start, **where(scratch))
     assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
-    assert plan.reason.endswith(
-        "main now names other bytes under it and its tag no longer exists; push "
-        "it back at the commit it named, then check the release and seal it by "
-        "hand with seal-release --tag"
+    assert plan.reason == (
+        "main named this tag before sealing began, and main now names other bytes "
+        "under it and its tag no longer exists; push it back at the commit it "
+        "named, then check the release and seal it by hand with seal-release --tag"
     )
     github.tags[T1] = old_board
     monkeypatch.chdir(scratch.root)
