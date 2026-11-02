@@ -15,37 +15,80 @@ The records are a proposal. They change published scores, so they wait for Max's
 ruling; ``decided_on`` is the date the proposal was drafted and a release sets it to
 the ruling's date.
 
+Reads the pass's inputs from git, never from the working tree: the frozen run's
+predictions and exclusions and the dashboard's model labels as PASS_COMMIT (release
+dashboard-data-20260930, #187) holds them, and this audit's sweep and copy of #191's
+records as AUDIT_COMMIT (#202, which merged this audit) holds them. Each must match
+its pinned sha256 in INPUTS, or the script stops before writing anything. Release
+dashboard-data-20261006 (#202) excluded both scenario_114 outputs, so on its run the
+script stops on already-excluded outputs.
+
   PYTHONPATH=<checkout> <triage>/.venv-pe21517/bin/python \\
     reference_audit/2026-10-05-medicare-part-b/scripts/propose_exclusions.py
+
+``--out-dir`` writes proposed_exclusions.json and verification/model_answers.csv under
+another directory; tests/test_reference_audit_pins.py regenerates them that way and
+requires the committed ones byte for byte.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import io
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pandas as pd
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+OUT_DIR = HERE
+OUT = "proposed_exclusions.json"
+ANSWERS = "verification/model_answers.csv"
+# The pass's inputs, pinned by commit and sha256.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+AUDIT_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+RUN_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
 )
-SUMMARY = HERE / "verification/sweep_part_b_summary.json"
-HOUSEHOLDS = HERE / "verification/sweep_part_b_households.json"
-OUT = HERE / "proposed_exclusions.json"
-ANSWERS = HERE / "verification/model_answers.csv"
-MODEL_META = ROOT / "app/src/modelMeta.ts"
+AUDIT_PATH = "reference_audit/2026-10-05-medicare-part-b"
+SUMMARY_PATH = f"{AUDIT_PATH}/verification/sweep_part_b_summary.json"
+HOUSEHOLDS_PATH = f"{AUDIT_PATH}/verification/sweep_part_b_households.json"
+MODEL_META_PATH = "app/src/modelMeta.ts"
 # PolicyEngine/policybench#191 at the head this audit read.
 SALT_PR = "PolicyEngine/policybench#191"
 SALT_HEAD = "8af912a062dd7ae1373de4c043ae2727d3406930"
 # reference_audit/2026-10-05/proposed_exclusions.json at SALT_HEAD, kept here so the
 # script does not depend on #191's branch.
-SALT_COPY = HERE / "verification/inputs/pr191_proposed_exclusions.json"
+SALT_COPY_PATH = f"{AUDIT_PATH}/verification/inputs/pr191_proposed_exclusions.json"
 SALT_SHA256 = "3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272"
+# Every file the script reads from the repository: path -> (commit, sha256).
+INPUTS = {
+    f"{RUN_PATH}/predictions.csv.gz": (
+        PASS_COMMIT,
+        "ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12",
+    ),
+    f"{RUN_PATH}/reference_exclusions.json": (
+        PASS_COMMIT,
+        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2",
+    ),
+    MODEL_META_PATH: (
+        PASS_COMMIT,
+        "c2f39f6f891ed93f564534283800bd15e51504ea179097c2a77a9278d0157a00",
+    ),
+    SUMMARY_PATH: (
+        AUDIT_COMMIT,
+        "f294a7952ee8a3e6b4e570cba403d84df6ddd8f6ae295fb31e976aaa381526a4",
+    ),
+    HOUSEHOLDS_PATH: (
+        AUDIT_COMMIT,
+        "c34bee0320747cba71f33e9a8e00f5c28a6b82473542ce966352d9041554e1aa",
+    ),
+    SALT_COPY_PATH: (AUDIT_COMMIT, SALT_SHA256),
+}
 SALT_DECISION = "d963"
 DRAFTED_ON = "2026-10-05"
 ENGINE = "policyengine-us 2.15.17"
@@ -79,20 +122,48 @@ def listed(value: float) -> str:
 
 def model_labels() -> dict[str, str]:
     """The dashboard's display names (app/src/modelMeta.ts MODEL_LABELS)."""
-    text = MODEL_META.read_text()
+    text = pass_input(MODEL_META_PATH).decode()
     block = text.split("export const MODEL_LABELS", 1)[1].split("};", 1)[0]
     return dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', block))
 
 
+def git_bytes(commit: str, path: str, pinned: str) -> bytes:
+    """``path`` as ``commit`` holds it, refusing any other bytes."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            f"cannot read {path} at {commit[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    digest = hashlib.sha256(result.stdout).hexdigest()
+    if digest != pinned:
+        raise SystemExit(
+            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
+        )
+    return result.stdout
+
+
+def pass_input(path: str) -> bytes:
+    """The input at ``path``, as INPUTS pins it."""
+    commit, pinned = INPUTS[path]
+    return git_bytes(commit, path, pinned)
+
+
 def salt_proposal() -> dict:
-    if hashlib.sha256(SALT_COPY.read_bytes()).hexdigest() != SALT_SHA256:
-        raise SystemExit(f"{SALT_COPY} does not match #191's file at {SALT_HEAD}")
-    return json.loads(SALT_COPY.read_text())
+    """#191's proposal at SALT_HEAD, from this audit's copy (SALT_SHA256 pins it)."""
+    return json.loads(pass_input(SALT_COPY_PATH))
 
 
 def model_answers(rows: list[dict], household: dict) -> pd.DataFrame:
     """Every model's answer on each moved output, tagged with the readings it matches."""
-    predictions = pd.read_csv(RUN / "predictions.csv.gz", low_memory=False)
+    predictions = pd.read_csv(
+        io.BytesIO(pass_input(f"{RUN_PATH}/predictions.csv.gz")),
+        compression="gzip",
+        low_memory=False,
+    )
     out = []
     for row in rows:
         sid, variable = row["scenario_id"], row["variable"]
@@ -294,13 +365,26 @@ def record(row: dict, household: dict, summary: dict, answers: pd.DataFrame) -> 
 
 
 def main() -> None:
-    summary = json.loads(SUMMARY.read_text())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT_DIR),
+        help=f"where to write {OUT} and {ANSWERS} (default: %(default)s)",
+    )
+    out_dir = Path(parser.parse_args().out_dir)
+    # Check every pin before reading anything, so a refused input writes nothing.
+    for path in INPUTS:
+        pass_input(path)
+    summary = json.loads(pass_input(SUMMARY_PATH))
     households = {
-        h["scenario_id"]: h for h in json.loads(HOUSEHOLDS.read_text())["households"]
+        h["scenario_id"]: h
+        for h in json.loads(pass_input(HOUSEHOLDS_PATH))["households"]
     }
     if summary["scored_reference_mismatches"]:
         raise SystemExit("the sweep's baseline does not reproduce the references")
-    frozen = json.loads((RUN / "reference_exclusions.json").read_text())["exclusions"]
+    frozen = json.loads(pass_input(f"{RUN_PATH}/reference_exclusions.json"))[
+        "exclusions"
+    ]
     frozen_keys = {(e["scenario_id"], e["variable"]) for e in frozen}
     salt = salt_proposal()
     salt_keys = {(e["scenario_id"], e["variable"]): e for e in salt["exclusions"]}
@@ -311,7 +395,8 @@ def main() -> None:
         if other != {(m["scenario_id"], m["variable"]) for m in moved}:
             raise SystemExit(f"{reading} moves a different set of outputs")
     answers = model_answers(moved, households)
-    answers.to_csv(ANSWERS, index=False)
+    (out_dir / ANSWERS).parent.mkdir(parents=True, exist_ok=True)
+    answers.to_csv(out_dir / ANSWERS, index=False)
 
     exclusions, conditional, already = [], [], []
     for row in moved:
@@ -382,7 +467,7 @@ def main() -> None:
             "irmaa_from_2026_income",
         ],
     }
-    OUT.write_text(json.dumps(payload, indent=1) + "\n")
+    (out_dir / OUT).write_text(json.dumps(payload, indent=1) + "\n")
     print(json.dumps(payload, indent=1))
     print(answers.to_string(index=False))
 

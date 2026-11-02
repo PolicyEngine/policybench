@@ -13,10 +13,10 @@ requires-python = ">=3.11"
 dependencies = [
     "litellm[caching]>=1.30",
     "pandas>=2.0",
-    "numpy>=1.24",
+    "numpy>=1.25",  # Generator.spawn (policybench.uk_audit)
     "policyengine==6.1.2",
-    "policyengine-us==2.15.17",
-    "policyengine-uk==2.89.0",
+    "policyengine-us==2.60.0",
+    "policyengine-uk==2.126.7",
     "anthropic>=0.115.1",
     "google-genai>=2.10.0",
 ]
@@ -28,9 +28,12 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+# The paper render environment (paper/render_paper.py, .github/workflows/paper.yml):
+# the Jupyter kernel and notebook runner that Quarto's Jupyter engine drives.
+# jupyter-book, which builds the docs/ site, stays out of uv.lock on purpose:
+# docs/requirements.txt declares it (README.md, "Paper and documentation site").
 docs = [
     "ipykernel>=6.0",
-    "jupyter-book>=2.0",
     "nbformat>=5.0",
     "nbclient>=0.10",
 ]
@@ -42,18 +45,20 @@ policybench = "policybench.cli:main"
 include = ["policybench*"]
 
 [tool.setuptools.package-data]
-policybench = ["benchmark_specs.json", "population_weights.json"]
+policybench = ["benchmark_specs.json", "population_weights.json", "uk_audit_councils.csv"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
 # reference_audit/ holds byte-exact records of the audit's sandbox modules: the
 # reference sidecar pins their sha256, so they are never reformatted.
-# docs/adds0928/review_evidence/ keeps a review's probe scripts as they ran.
+# docs/adds0928/review_evidence/ keeps a review's probe scripts as they ran, and
+# docs/judge_isolation_2026-09-30/ the judge-isolation audit's scripts.
 extend-exclude = [
     "app/public/paper/web/index.out.ipynb",
     "reference_audit",
     "docs/adds0928/review_evidence",
+    "docs/judge_isolation_2026-09-30",
 ]
 
 [tool.ruff.lint]

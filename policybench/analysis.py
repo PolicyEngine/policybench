@@ -1411,6 +1411,32 @@ def usage_summary_by_model(predictions: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+# A household whose recorded request time sums to under this is a disk-cache
+# replay, not a provider call: in the frozen US run every replayed household
+# sums to under 0.12 s, and the fastest live one takes 1.75 s
+# (docs/latency_replay_audit.md).
+REPLAYED_HOUSEHOLD_SECONDS = 1.0
+
+
+def household_latency_seconds(predictions: pd.DataFrame) -> pd.Series:
+    """Each household's recorded request time, indexed by (model, scenario_id).
+
+    A row's ``elapsed_seconds`` is its household's request time divided among
+    the household's rows, so the household's time is the sum over its rows,
+    not the max. A household whose rows carry no time is NaN rather than zero.
+    A response the disk cache replays records the lookup's time, a few
+    hundredths of a second, as if it were a provider call.
+    """
+    if predictions.empty or "elapsed_seconds" not in predictions.columns:
+        return pd.Series(
+            dtype=float,
+            index=pd.MultiIndex.from_tuples([], names=["model", "scenario_id"]),
+        )
+    return predictions.groupby(["model", "scenario_id"])["elapsed_seconds"].sum(
+        min_count=1
+    )
+
+
 def model_cost_latency(
     predictions: pd.DataFrame,
     price_overrides: dict[str, dict[str, float]] | None = None,
@@ -1422,7 +1448,11 @@ def model_cost_latency(
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When a
     model's reconstructed cost is missing (a provider preview model not yet in
-    litellm's price map), it is filled from ``price_overrides``.
+    litellm's price map), it is filled from ``price_overrides`` by pricing the
+    rows that recorded both prompt and completion token counts. A row missing
+    either count adds nothing, as ``eval_no_tools._reconstruct_token_cost``
+    prices no such row, and a model with no row to price (Claude Fable 5's
+    frozen board rows record no usage) gets no cost, not $0.
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}
@@ -1431,25 +1461,32 @@ def model_cost_latency(
     latency_median = pd.Series(dtype=float)
     if "elapsed_seconds" in predictions.columns:
         latency_median = (
-            predictions.groupby(["model", "scenario_id"])["elapsed_seconds"]
-            .sum(min_count=1)
-            .groupby("model")
-            .median()
+            household_latency_seconds(predictions).groupby("model").median()
         )
     overrides = price_overrides or {}
+    token_columns = ["prompt_tokens", "completion_tokens"]
+    priceable = pd.DataFrame(columns=token_columns)
+    if set(token_columns) <= set(predictions.columns):
+        priceable = (
+            predictions.dropna(subset=token_columns)
+            .groupby("model")[token_columns]
+            .sum()
+        )
     out: dict[str, dict[str, float]] = {}
     for _, row in usage.iterrows():
         model = str(row["model"])
         cost = row.get("total_cost_usd")
-        if (cost is None or pd.isna(cost)) and model in overrides:
+        if (
+            (cost is None or pd.isna(cost))
+            and model in overrides
+            and row["model"] in priceable.index
+        ):
             price = overrides[model]
-            prompt = row.get("prompt_tokens")
-            completion = row.get("completion_tokens")
-            prompt = 0.0 if prompt is None or pd.isna(prompt) else float(prompt)
-            completion = (
-                0.0 if completion is None or pd.isna(completion) else float(completion)
+            prompt, completion = priceable.loc[row["model"], token_columns]
+            cost = (
+                float(prompt) * price["input"] / 1e6
+                + float(completion) * price["output"] / 1e6
             )
-            cost = prompt * price["input"] / 1e6 + completion * price["output"] / 1e6
         entry: dict[str, float] = {}
         if cost is not None and not pd.isna(cost):
             entry["costUsd"] = _clean_json_number(float(cost))

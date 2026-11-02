@@ -1,0 +1,2446 @@
+{
+ "seed|us__scenario_000__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_000__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_001__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_001__snap": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_001__spouse_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_002__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_002__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_003__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_003__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_003__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_004__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_004__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_004__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_004__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_007__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child1_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child1_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child2_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child2_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child3_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child3_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child4_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child4_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child4_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child5_early_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child5_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child6_early_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child6_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__child6_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__free_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__head_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__reduced_price_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__self_employment_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_008__spouse_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_009__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_009__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_009__spouse_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__child1_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__child1_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__child1_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__head_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__reduced_price_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__spouse_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_012__spouse_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_013__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_014__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_018__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_020__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_021__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_021__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_021__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_021__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_022__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_023__federal_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_023__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_023__head_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_023__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_023__ssi": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_025__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_026__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_026__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_027__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_027__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child3_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_028__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_029__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_030__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_030__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_030__head_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_030__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_030__tanf": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_031__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_031__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__child1_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_032__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_033__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_033__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_036__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_036__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_037__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_037__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_038__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_039__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_040__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_042__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_042__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_043__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_043__ssi": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_044__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_044__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_044__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_045__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_046__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_046__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_046__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_048__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_048__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_048__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_048__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_049__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_049__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_051__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_051__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_051__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_052__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_052__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_053__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_053__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__child1_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_054__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_056__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_056__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_056__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_056__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_057__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_057__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_059__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_060__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_060__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_060__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_062__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_066__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_067__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_067__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_068__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_068__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_068__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_070__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_070__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_070__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_070__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_071__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_071__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_072__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_072__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_072__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_073__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_073__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_074__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_075__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_075__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_076__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_076__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_076__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_077__federal_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_077__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_077__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_077__snap": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_077__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_078__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_080__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_080__ssi": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_080__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_080__state_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_082__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_082__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_082__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_083__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_084__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_085__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_086__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_086__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_086__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_086__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_088__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_088__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_089__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_090__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_090__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_090__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_090__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_091__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_092__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_092__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_092__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_093__dependent1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_095__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_095__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_095__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_095__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_095__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_098__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_098__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_098__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_098__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_099__child2_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_099__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_099__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child2_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_100__ssi": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_101__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_101__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_102__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_102__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_102__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_102__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_104__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_104__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_107__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_107__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_107__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_107__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_108__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_108__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_108__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child3_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child3_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child3_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_109__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_111__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_111__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_111__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_111__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_111__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_112__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_112__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_112__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_112__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_114__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_114__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_115__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_115__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_116__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_116__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_117__child3_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_117__child3_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_117__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_117__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_117__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_118__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_118__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_120__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_121__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_121__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "seed|us__scenario_122__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_122__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_123__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_123__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "seed|us__scenario_123__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_000__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_000__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_001__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_001__snap": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_001__spouse_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_002__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_002__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_003__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_003__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_003__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_004__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_004__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_004__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_004__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_007__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child1_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child1_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child2_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child2_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child3_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child3_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child4_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child4_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child4_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child5_early_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child5_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child5_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child6_early_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child6_head_start_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__child6_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__free_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__head_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__reduced_price_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__self_employment_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_008__spouse_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_009__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_009__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_009__spouse_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__child1_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__child1_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__child1_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__free_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__head_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__reduced_price_school_meals_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__spouse_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_012__spouse_wic_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_013__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_013__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_014__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_015__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_018__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_020__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_021__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_021__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_021__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_021__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_022__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_023__federal_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_023__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_023__head_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_023__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_023__ssi": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_025__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_026__child1_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_026__child2_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_026__child3_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_026__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_026__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_027__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_027__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_027__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child3_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_028__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_029__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_030__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_030__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_030__head_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_030__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_030__tanf": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_031__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_031__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__child1_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_032__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_033__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_033__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_036__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_036__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_037__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_037__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__free_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_038__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_039__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_040__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_042__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_042__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_043__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_043__ssi": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_044__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_044__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_044__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_044__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_045__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_046__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_046__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_046__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_048__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_048__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_048__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_048__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_049__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_049__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_051__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_051__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_051__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_052__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_052__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_053__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_053__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__child1_chip_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_054__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_056__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_056__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_056__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_056__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_057__spouse_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_057__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_059__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_060__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_060__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_060__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_062__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_066__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_067__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_067__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_068__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_068__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_068__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_070__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_070__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_070__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_070__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_071__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_071__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_071__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_072__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_072__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_072__spouse_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_073__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_073__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_074__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_075__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_075__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_076__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_076__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_076__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_077__federal_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_077__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_077__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_077__snap": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_077__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_078__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_080__head_medicare_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_080__ssi": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_080__state_income_tax_before_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_080__state_refundable_credits": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_082__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_082__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_082__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_083__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_084__head_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_085__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_086__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_086__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_086__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_086__state_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_088__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_088__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_089__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_090__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_090__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_090__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_090__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_091__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_092__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_092__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_092__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_093__dependent1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_095__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_095__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_095__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_095__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_095__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_098__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_098__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_098__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_098__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_099__child2_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_099__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_099__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child1_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child1_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child1_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child2_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child2_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_100__ssi": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_101__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_101__state_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_102__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_102__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_102__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_102__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_104__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_104__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_107__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_107__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_107__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_107__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_108__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_108__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_108__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child1_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child2_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child2_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child2_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child3_chip_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child3_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child3_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__reduced_price_school_meals_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_109__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_111__federal_income_tax_before_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_111__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_111__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_111__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_111__spouse_medicaid_eligible": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_112__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_112__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_112__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_112__self_employment_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_114__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_114__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_115__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_115__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_116__snap": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_116__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_117__child3_early_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_117__child3_head_start_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_117__child3_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_117__head_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_117__spouse_wic_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_118__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_118__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_120__head_medicare_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_121__federal_refundable_credits": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_121__payroll_tax": {
+  "class": "identical",
+  "other_diff": []
+ },
+ "unified|us__scenario_122__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_122__payroll_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_123__head_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_123__local_income_tax": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ },
+ "unified|us__scenario_123__spouse_medicaid_eligible": {
+  "class": "only the budget_exhausted_at_ceiling definition added",
+  "other_diff": []
+ }
+}

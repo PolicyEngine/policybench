@@ -1,6 +1,18 @@
 """Score the frozen run as published, with the proposed exclusions, and with regenerated references.
 
-Copies the frozen run (predictions, references, scenarios, exclusions) to scratch
+Reads the pass's inputs from git, never from the working tree: the frozen run
+(payload, predictions, references, scenarios, exclusions) as PASS_COMMIT (release
+dashboard-data-20260930, #187) holds it, and this audit's proposals and #191's
+records as AUDIT_COMMIT (#202, which merged both audits) holds them. Later releases
+rewrite the working tree's run: dashboard-data-20261006 (#202) installed the four
+proposed exclusions and #191's three, so a copy of today's run with them appended
+carries duplicate exclusions, which the analyze CLI refuses. Each input in INPUTS is
+staged under ``<scratch>/pass_inputs`` and must match its pinned sha256, or the script
+stops before scoring anything. The scoring code is the checkout's; the ``published``
+check below stops the script if that code no longer scores the pinned run as the
+pinned payload records.
+
+Copies the staged run (predictions, references, scenarios, exclusions) to scratch
 directories and never writes the snapshot. Three copies are scored with
 ``python -m policybench.cli analyze``, the command the freeze runs:
 
@@ -17,12 +29,19 @@ directories and never writes the snapshot. Three copies are scored with
 Sensitivity: the open state income tax withholding proposal (PolicyEngine/policybench#191,
 decision d963) excludes three federal outputs and may land in the same release. With
 ``--with-salt`` the script also scores that proposal alone (``salt``) and each option on
-top of it (``exclude+salt``, ``regenerate+salt``), reading its records from the pinned
-commit ``SALT_COMMIT``; the ``*+salt`` deltas are measured against ``salt``.
+top of it (``exclude+salt``, ``regenerate+salt``), with its records as #191's head
+``SALT_COMMIT`` holds them; the ``*+salt`` deltas are measured against ``salt``.
+#202 merged that file unchanged (SALT_SHA256), so the script reads it from
+AUDIT_COMMIT and does not need #191's closed branch.
 
   PYTHONPATH=<checkout> <policybench venv>/bin/python \\
     reference_audit/2026-10-05-payroll/scripts/leaderboard_impact.py --scratch <dir> \\
     [--with-salt]
+
+The checkout needs PASS_COMMIT and AUDIT_COMMIT in its history (a shallow clone needs
+``git fetch --unshallow``). ``--out-dir`` writes the verification files elsewhere;
+tests/test_reference_audit_pins.py regenerates them that way and requires the
+committed ones byte for byte.
 """
 
 from __future__ import annotations
@@ -41,13 +60,63 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
-EXCLUSIONS = HERE / "proposed_exclusions.json"
-REGENERATIONS = HERE / "proposed_regenerations.json"
 OUT_DIR = HERE / "verification"
+# The pass's inputs, pinned by commit and sha256.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+AUDIT_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+RUN_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+)
+AUDIT_PATH = "reference_audit/2026-10-05-payroll"
+EXCLUSIONS_PATH = f"{AUDIT_PATH}/proposed_exclusions.json"
+REGENERATIONS_PATH = f"{AUDIT_PATH}/proposed_regenerations.json"
+# #191's records: its reference_audit/2026-10-05/proposed_exclusions.json at its head
+# SALT_COMMIT, which leaderboard_impact.json records; #202 merged the same bytes.
+SALT_COMMIT = "8af912a062dd7ae1373de4c043ae2727d3406930"
+SALT_RECORDS = "reference_audit/2026-10-05/proposed_exclusions.json"
+SALT_SHA256 = "3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272"
+# Every file the script reads from the repository: path -> (commit, sha256).
+# pass_inputs() stages each at the same path under its target.
+INPUTS = {
+    f"{RUN_PATH}/data.json.gz": (
+        PASS_COMMIT,
+        "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18",
+    ),
+    f"{RUN_PATH}/predictions.csv.gz": (
+        PASS_COMMIT,
+        "ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12",
+    ),
+    f"{RUN_PATH}/reference_outputs.csv": (
+        PASS_COMMIT,
+        "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
+    ),
+    f"{RUN_PATH}/reference_outputs.csv.meta.json": (
+        PASS_COMMIT,
+        "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b",
+    ),
+    f"{RUN_PATH}/reference_exclusions.json": (
+        PASS_COMMIT,
+        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2",
+    ),
+    f"{RUN_PATH}/scenarios.csv": (
+        PASS_COMMIT,
+        "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+    ),
+    f"{RUN_PATH}/scenarios.csv.meta.json": (
+        PASS_COMMIT,
+        "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb",
+    ),
+    EXCLUSIONS_PATH: (
+        AUDIT_COMMIT,
+        "f23088c2d76ce2a0f1c535529952e579798920450c0ca47a9e975f3fe3c44157",
+    ),
+    REGENERATIONS_PATH: (
+        AUDIT_COMMIT,
+        "58386f369f6164cc9d63cc4dcc4423495e214e45948fb2e2479910fc8165efef",
+    ),
+    SALT_RECORDS: (AUDIT_COMMIT, SALT_SHA256),
+}
+# Copied into each copy and scored; data.json.gz is only compared against.
 RUN_FILES = (
     "predictions.csv.gz",
     "reference_outputs.csv",
@@ -70,24 +139,73 @@ EXACT_PAYLOAD_KEYS = ("programStats", "heatmap", "globalWeights", "failureModes"
 RANKED = ("exact", "within1pct", "score")
 VARIANTS = ("exclude", "regenerate")
 OUTPUT = "payroll_tax"
-SALT_COMMIT = "8af912a062dd7ae1373de4c043ae2727d3406930"
-SALT_RECORDS = "reference_audit/2026-10-05/proposed_exclusions.json"
 
 
-def salt_exclusions() -> list[dict]:
-    """The #191 proposal's records, read from its pinned commit."""
-    shown = subprocess.run(
-        ["git", "show", f"{SALT_COMMIT}:{SALT_RECORDS}"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads(shown.stdout)["exclusions"]
+def overlaps(scratch: Path, root: Path) -> bool:
+    """Whether ``scratch`` and ``root`` are one directory or one holds the other.
+
+    Judged by filesystem identity (device and inode), not spelling, so case on a
+    case-insensitive filesystem or a link cannot hide an overlap. ``scratch`` need
+    not exist yet; its nearest existing ancestors decide.
+    """
+
+    def identities(path: Path) -> set[tuple[int, int]]:
+        found = set()
+        for part in (path, *path.parents):
+            try:
+                status = part.stat()
+            except OSError:
+                continue
+            found.add((status.st_dev, status.st_ino))
+        return found
+
+    root_status = root.stat()
+    if (root_status.st_dev, root_status.st_ino) in identities(scratch):
+        return True
+    try:
+        scratch_status = scratch.stat()
+    except OSError:
+        return False
+    return (scratch_status.st_dev, scratch_status.st_ino) in identities(root)
 
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def git_input(commit: str, path: str, pinned: str, target: Path) -> Path:
+    """Write ``path`` as ``commit`` holds it to ``target``, refusing any other bytes."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            f"cannot read {path} at {commit[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    digest = hashlib.sha256(result.stdout).hexdigest()
+    if digest != pinned:
+        raise SystemExit(
+            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(result.stdout)
+    return target
+
+
+def pass_inputs(target: Path) -> Path:
+    """Stage every input in INPUTS at its repository path under ``target``."""
+    if target.exists():
+        shutil.rmtree(target)
+    for path, (commit, pinned) in INPUTS.items():
+        git_input(commit, path, pinned, target / path)
+    return target
+
+
+def salt_exclusions(inputs: Path) -> list[dict]:
+    """The #191 proposal's records, from the inputs staged under ``inputs``."""
+    return json.loads((inputs / SALT_RECORDS).read_text())["exclusions"]
 
 
 def always_zero(run_dir: Path) -> dict[str, float]:
@@ -120,18 +238,20 @@ def always_zero(run_dir: Path) -> dict[str, float]:
     }
 
 
-def stage(target: Path, variant: str | None) -> Path:
+def stage(inputs: Path, target: Path, variant: str | None) -> Path:
+    """Copy the run staged under ``inputs`` to ``target`` and apply ``variant``."""
+    source = inputs / RUN_PATH
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
     for name in RUN_FILES:
-        shutil.copy2(RUN / name, target / name)
+        shutil.copy2(source / name, target / name)
     parts = set((variant or "").split("+")) - {""}
     extra = []
     if "exclude" in parts:
-        extra += json.loads(EXCLUSIONS.read_text())["exclusions"]
+        extra += json.loads((inputs / EXCLUSIONS_PATH).read_text())["exclusions"]
     if "salt" in parts:
-        extra += salt_exclusions()
+        extra += salt_exclusions(inputs)
     if extra:
         record = json.loads((target / "reference_exclusions.json").read_text())
         record["exclusions"].extend(extra)
@@ -139,7 +259,7 @@ def stage(target: Path, variant: str | None) -> Path:
             json.dumps(record, indent=2) + "\n"
         )
     if "regenerate" in parts:
-        changes = json.loads(REGENERATIONS.read_text())["regenerated"]
+        changes = json.loads((inputs / REGENERATIONS_PATH).read_text())["regenerated"]
         reference = pd.read_csv(target / "reference_outputs.csv", dtype={"value": str})
         index = reference.set_index(["scenario_id", "variable"]).index
         for change in changes:
@@ -149,7 +269,7 @@ def stage(target: Path, variant: str | None) -> Path:
                 raise SystemExit(f"{key}: frozen value differs from the reference CSV")
             reference.at[row, "value"] = repr(float(change["regenerated_value"]))
         reference.to_csv(target / "reference_outputs.csv", index=False)
-        before = (RUN / "reference_outputs.csv").read_text().splitlines()
+        before = (source / "reference_outputs.csv").read_text().splitlines()
         after = (target / "reference_outputs.csv").read_text().splitlines()
         changed = [i for i, (a, b) in enumerate(zip(before, after)) if a != b]
         if len(before) != len(after) or len(changed) != len(changes):
@@ -195,8 +315,9 @@ def analyze(run_dir: Path) -> dict:
     return payload["countries"]["us"]
 
 
-def check_reproduces_published(base: dict) -> None:
-    published = json.loads(gzip.decompress((RUN / "data.json.gz").read_bytes()))
+def check_reproduces_published(base: dict, source: Path) -> None:
+    """Stop unless ``base`` scores as the staged ``source/data.json.gz`` does."""
+    published = json.loads(gzip.decompress((source / "data.json.gz").read_bytes()))
     for key in EXACT_PAYLOAD_KEYS:
         if published[key] != base[key]:
             raise SystemExit(f"unchanged copy does not reproduce published {key}")
@@ -326,43 +447,56 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scratch", required=True)
     parser.add_argument("--with-salt", action="store_true")
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT_DIR),
+        help="where to write the verification files (default: %(default)s)",
+    )
     args = parser.parse_args()
-    scratch = Path(args.scratch)
+    scratch = Path(args.scratch).resolve()
+    out_dir = Path(args.out_dir)
+    # stage() and pass_inputs() delete and rewrite scratch/<name>, so scratch and
+    # the repository must not overlap: neither may lie inside the other.
+    if overlaps(scratch, ROOT):
+        parser.error(f"--scratch must not overlap the repository ({ROOT})")
+    inputs = pass_inputs(scratch / "pass_inputs")
 
-    base_dir = stage(scratch / "published", None)
+    base_dir = stage(inputs, scratch / "published", None)
     base = analyze(base_dir)
-    check_reproduces_published(base)
+    check_reproduces_published(base, inputs / RUN_PATH)
     zero_published = always_zero(base_dir)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     summary = {"published_reproduced": True}
     plan = [(variant, base, zero_published) for variant in VARIANTS]
     if args.with_salt:
-        salt_dir = stage(scratch / "salt", "salt")
+        salt_dir = stage(inputs, scratch / "salt", "salt")
         salt = analyze(salt_dir)
         salt_zero = always_zero(salt_dir)
         plan.insert(0, ("salt", base, zero_published))
         plan += [(f"{variant}+salt", salt, salt_zero) for variant in VARIANTS]
         summary["salt_commit"] = SALT_COMMIT
     for variant, reference_payload, reference_zero in plan:
-        run_dir = stage(scratch / variant, variant)
+        run_dir = stage(inputs, scratch / variant, variant)
         other = analyze(run_dir)
         models = compare(reference_payload, other)
         programs = program_rows(reference_payload, other)
         zero = {"published": reference_zero, "proposed": always_zero(run_dir)}
         records = []
         if "exclude" in variant:
-            records += json.loads(EXCLUSIONS.read_text())["exclusions"]
+            records += json.loads((inputs / EXCLUSIONS_PATH).read_text())["exclusions"]
         if "regenerate" in variant:
-            records += json.loads(REGENERATIONS.read_text())["regenerated"]
+            records += json.loads((inputs / REGENERATIONS_PATH).read_text())[
+                "regenerated"
+            ]
         if variant == "salt":
-            records += salt_exclusions()
+            records += salt_exclusions(inputs)
         changed = [f"{r['scenario_id']}/{r['variable']}" for r in records]
         models.to_csv(
-            OUT_DIR / f"leaderboard_impact_{variant.replace('+', '_plus_')}_models.csv"
+            out_dir / f"leaderboard_impact_{variant.replace('+', '_plus_')}_models.csv"
         )
         programs.to_csv(
-            OUT_DIR
+            out_dir
             / f"leaderboard_impact_{variant.replace('+', '_plus_')}_programs.csv"
         )
         summary[variant] = summarize(
@@ -391,7 +525,7 @@ def main() -> None:
                 ].round(4)
             )
             print(programs.round(4))
-    (OUT_DIR / "leaderboard_impact.json").write_text(
+    (out_dir / "leaderboard_impact.json").write_text(
         json.dumps(summary, indent=2) + "\n"
     )
     print(json.dumps(summary, indent=2))

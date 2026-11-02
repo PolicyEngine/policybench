@@ -55,13 +55,13 @@ scenario_114's prompt has no premium or coverage line. It lists a single head, a
 
    For each household with a Medicare-eligible person it records each person's Medicare variables and a propagation trace. The trace lists every engine variable, at every 2026 period the simulation computed, whose value differs between the reference and the `no_part_b` or `not_enrolled` simulation. Households where an output moves also run on a grid: the Part B readings crossed with the four readings of the state income tax in SALT from #191 (withholding estimate, liability at a fixed point, none paid, none paid without the local sales tax estimate). Outputs: `verification/sweep_part_b.csv` (every output and impact weight under every reading), `verification/sweep_part_b_summary.json`, `verification/sweep_part_b_households.json` and `verification/sweep_part_b.log`.
 2. **Explain.** `scripts/explain_households.py` writes `verification/part_b_households.csv`. Each of the 33 Medicare households gets a row with the premium, the federal itemization election and medical deduction with and without it, its federal, state and SNAP outputs, and the state variables its trace shows moving.
-3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`. It holds a `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output that `no_part_b` moves by more than the $1 exact-match tolerance. An output #191 already proposes to exclude gets a standalone record under `conditional_on_salt_decision` instead, to install only if #191's record is not adopted. The script also writes `verification/model_answers.csv`, which tags every model's answer on the moved outputs with the readings it lands within $1 of. It reads #191's records from `verification/inputs/pr191_proposed_exclusions.json`, a copy of #191's `reference_audit/2026-10-05/proposed_exclusions.json` at head 8af912a0 that the script checks against its sha256, so this directory does not depend on #191's branch.
-4. **Impact.** `scripts/leaderboard_impact.py` copies the frozen run to scratch directories and never writes the snapshot. It scores each copy with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy reproduces every compared value of the published payload. It then scores three cases:
+3. **Propose.** `scripts/propose_exclusions.py` writes `proposed_exclusions.json`, from the run, the sweep and the dashboard's model labels as git holds them at the pass's commits ([Pinned inputs](#pinned-inputs)). It holds a `reference_depends_on_unlisted_input` record, in the format of the frozen run's `reference_exclusions.json`, for every scored output that `no_part_b` moves by more than the $1 exact-match tolerance. An output #191 already proposes to exclude gets a standalone record under `conditional_on_salt_decision` instead, to install only if #191's record is not adopted. The script also writes `verification/model_answers.csv`, which tags every model's answer on the moved outputs with the readings it lands within $1 of. It reads #191's records from `verification/inputs/pr191_proposed_exclusions.json`, a copy of #191's `reference_audit/2026-10-05/proposed_exclusions.json` at head 8af912a0 that the script checks against its sha256, so this directory does not depend on #191's branch.
+4. **Impact.** `scripts/leaderboard_impact.py` copies the frozen run to scratch directories and never writes the snapshot. It reads the run, this audit's records and sweep, and #191's records from git at the pass's commits, not from the working tree ([Pinned inputs](#pinned-inputs)). It scores each copy with `python -m policybench.cli analyze`, the command the freeze runs. The unchanged copy reproduces every compared value of the published payload. It then scores three cases:
    - this audit's two records alone, as if #191 is not adopted;
    - #191's three records alone, which reproduces #191's figures exactly;
    - #191's three plus this audit's Virginia record.
 
-   Each case also recomputes the legacy household impact summary, `impact_summary_by_model.csv`. The freeze writes it beside the analyze output with `scripts/freeze_snapshot.household_impact_summary_by_model`, and the snapshot manifest pins it. The unchanged copy reproduces the frozen file. Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv`, `leaderboard_impact_marginal.csv` and `leaderboard_impact.log`.
+   Each case also recomputes the legacy household impact summary, `impact_summary_by_model.csv`. The freeze writes it beside the analyze output with `scripts/freeze_snapshot.household_impact_summary_by_model`, and the snapshot manifest pins it. The unchanged copy reproduces the frozen file. Outputs: `verification/leaderboard_impact.json`, `leaderboard_impact_models.csv` and `leaderboard_impact_marginal.csv`.
 5. **Verify.** Four independent reviewers checked the work in a Claude Code workflow on 2026-10-05, each in its own scratch directory:
    - **Mechanism.** One read the engine source, built a static graph of every reader of the premium, recomputed scenario_114 to the cent from engine intermediates, and reran all 100 households.
    - **Differential.** One reran the no-premium sweep two other ways: a parameter reform setting the 2026 base premium to 0, and a structural reform cutting `medical_expense_health_insurance_premiums` to its non-Medicare branch. Both were bit-identical to `no_part_b` on all 1,984 outputs.
@@ -128,7 +128,7 @@ No model answered within $1 of either frozen reference. Model answers land on th
 
 ## Leaderboard impact
 
-From `verification/leaderboard_impact.json`. Scored outputs per model are 1,928 today.
+From `verification/leaderboard_impact.json`. Scored outputs per model are 1,928 in release dashboard-data-20260930, the release this audit scored.
 
 | Case | Records added | Scored outputs | Exact-rate change, all models | GPT-6 Sol exact | Always-zero exact |
 |---|---:|---:|---|---:|---:|
@@ -196,3 +196,55 @@ Two sets of counts follow, one if d963 adopts #191's three records and one if it
 
 4. **Paper.** Add the Medicare enrollment and Part B premium input to the paper's unlisted-input list and sweep narrative, and re-render the abstract and tables.
 5. **Legacy impact summary.** The freeze regenerates `impact_summary_by_model.csv` from the scored reference; its pin in the snapshot manifest changes with the records (see "Leaderboard impact").
+
+## Pinned inputs
+
+This audit's passes read release dashboard-data-20260930's run, as #187 committed it at `8b4c0ca1`, and this directory's inputs as #202 merged them at `9ce4ade8`. Every committed file the scripts below write regenerates byte for byte from those inputs. Release dashboard-data-20261006 (#202) then installed #191's three records and this audit's Virginia record. It also rewrote the run's payload, exclusion record and legacy impact summary. On that working tree the unpinned impact script stopped at the first case: its appended records duplicated #202's, and the analyze CLI refuses a duplicate exclusion. The unpinned `propose_exclusions.py` stopped too, because both scenario_114 outputs were already excluded.
+
+Each script below now takes every file it reads from git with `git show <commit>:<path>`. It stops before scoring or writing anything unless each file's sha256 matches its pin, and it never reads the working tree. `<run>` is `paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace`.
+
+### `scripts/leaderboard_impact.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/data.json.gz` | `8b4c0ca1` | `1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18` |
+| `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` |
+| `<run>/reference_outputs.csv` | `8b4c0ca1` | `e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466` |
+| `<run>/reference_outputs.csv.meta.json` | `8b4c0ca1` | `816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b` |
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `<run>/scenarios.csv` | `8b4c0ca1` | `71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a` |
+| `<run>/scenarios.csv.meta.json` | `8b4c0ca1` | `03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb` |
+| `<run>/analysis/impact_summary_by_model.csv` | `8b4c0ca1` | `e6e034adee408cc798897bc0825ace9740055ab20e528ce842bd06e2c81e0922` |
+| `proposed_exclusions.json` | `9ce4ade8` | `fee2523738a2da96876e6cd3141325cb5939e0140a357c0b59b0f39d5b37eb76` |
+| `verification/sweep_part_b.csv` | `9ce4ade8` | `a0f7820ca0b5b64118509dc39ae5469ecbde89e5f843065761d429b81458681b` |
+| `verification/inputs/pr191_proposed_exclusions.json` | `9ce4ade8` | `3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272` |
+
+It stages each file under `<scratch>/pass_inputs/<path>` and reads only that copy. `verification/inputs/pr191_proposed_exclusions.json` is #191's `reference_audit/2026-10-05/proposed_exclusions.json` at its head `8af912a0`, byte for byte. `verification/sweep_part_b.csv` is read only with `--weights-check`. The legacy impact summary comes from `scripts/freeze_snapshot.py` in the checkout.
+
+### `scripts/propose_exclusions.py`
+
+| Input | Commit | sha256 |
+|---|---|---|
+| `<run>/predictions.csv.gz` | `8b4c0ca1` | `ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12` |
+| `<run>/reference_exclusions.json` | `8b4c0ca1` | `bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2` |
+| `app/src/modelMeta.ts` | `8b4c0ca1` | `c2f39f6f891ed93f564534283800bd15e51504ea179097c2a77a9278d0157a00` |
+| `verification/sweep_part_b_summary.json` | `9ce4ade8` | `f294a7952ee8a3e6b4e570cba403d84df6ddd8f6ae295fb31e976aaa381526a4` |
+| `verification/sweep_part_b_households.json` | `9ce4ade8` | `c34bee0320747cba71f33e9a8e00f5c28a6b82473542ce966352d9041554e1aa` |
+| `verification/inputs/pr191_proposed_exclusions.json` | `9ce4ade8` | `3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272` |
+
+`app/src/modelMeta.ts` supplies the dashboard's model labels.
+
+### Reproduce
+
+The scoring code is the checkout's. The impact script's check on its unchanged copy stops it if that code no longer scores the pinned run as the pinned payload records. The scripts run from any checkout that has both commits in its history; a shallow clone needs `git fetch --unshallow` first:
+
+```bash
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05-medicare-part-b/scripts/leaderboard_impact.py --scratch <dir outside the repository> --weights-check
+PYTHONPATH=$PWD uv run python reference_audit/2026-10-05-medicare-part-b/scripts/propose_exclusions.py
+```
+
+`--out-dir <dir>` writes the files elsewhere. `tests/test_reference_audit_pins.py` checks the pins, that a changed byte in any input is refused, and that no script reads the working tree. It reruns `propose_exclusions.py` from a checkout whose working tree is junk and requires the committed `proposed_exclusions.json` and `verification/model_answers.csv` byte for byte. Its slow test regenerates `leaderboard_impact.json`, `leaderboard_impact_models.csv` and `leaderboard_impact_marginal.csv` (with `--weights-check`) from this checkout, whose run #202 rewrote, and requires the committed files byte for byte. The slow test takes one to two minutes per audit, so CI deselects it:
+
+```bash
+OPENBLAS_NUM_THREADS=1 uv run pytest -m slow tests/test_reference_audit_pins.py
+```
