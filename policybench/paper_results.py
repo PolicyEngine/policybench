@@ -2251,10 +2251,11 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
-        """The defects behind the outputs the last upgrade returned to scoring:
-        each one's name, how many outputs it restores and the upstream pull
-        requests its regenerated_exclusions entries name (not the related
-        ones), in the sidecar's order. A record with several root causes names
+        """The defects the last upgrade fixes behind its fixed outputs (those
+        that return to scoring and any still scored alike): each one's name,
+        how many outputs it fixes and the upstream pull requests its
+        regenerated_exclusions entries name (not the related ones), in the
+        sidecar's order. A record with several root causes names
         each, and so does a fix-modules target whose modules correct a cause
         the record does not name (scenario_099's educator expense addback,
         policyengine-us#10052). Outputs whose causes are the same or one
