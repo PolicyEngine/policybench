@@ -30,6 +30,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import multiprocessing
 import os
 import re
 import shutil
@@ -645,9 +646,17 @@ def test_a_worker_stages_its_inputs_before_it_imports_the_engine(which, monkeypa
         sources._init_worker()
 
 
-def test_workers_are_spawned_and_stage_their_own_inputs():
+def test_workers_are_spawned_and_stage_their_own_inputs(monkeypatch):
     """Never forked: a forked worker would inherit the main process's system and
-    policybench state instead of staging its own. Each worker's initializer stages."""
+    policybench state instead of staging its own. Each worker's initializer stages.
+    The test makes fork the default start method, as Linux's is before Python 3.14,
+    so a pool that leaves the method to the platform fails on any system."""
+    get_context = multiprocessing.get_context
+    monkeypatch.setattr(
+        multiprocessing,
+        "get_context",
+        lambda method=None: get_context("fork" if method is None else method),
+    )
     for module, initializer in (
         (conformance, conformance.stage_engine_inputs),
         (sources, sources._init_worker),
