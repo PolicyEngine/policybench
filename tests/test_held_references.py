@@ -1115,6 +1115,22 @@ def test_the_records_carry_their_write_up_dissent_and_open_decision():
     assert (ROOT / earlier).is_file()
 
 
+def test_the_standing_list_records_the_d1252_ruling():
+    """The archived records say d1252 was not ruled when they were written;
+    the standing list carries the ruling of 2026-10-13: keep scoring both."""
+    standing = {
+        _cell(record): record
+        for record in load_held_references(
+            ROOT / "reference_audit/held_references.json"
+        )
+    }
+    for cell in (VA_039, OH_025):
+        decision = standing[cell]["open_decision"]
+        assert "d1252" in decision
+        assert "ruled on 2026-10-13: keep scoring it" in decision
+        assert "not ruled" not in decision
+
+
 def test_the_standing_list_is_valid_and_agrees_with_the_write_ups_it_cites():
     """The standing list as it is today, whatever it has come to hold: every
     record points at a write-up, and a record that still cites this check

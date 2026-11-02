@@ -66,6 +66,19 @@ FALSE_CLAIMS = (
 )
 
 PAPER_FALSE_CLAIM_PATTERNS = (
+    # No board model logged submission times: GPT-5.5's batch rows log none,
+    # and the sub-second medians are cache replays of synchronous calls.
+    # Claude Fable 5 ran synchronously, and its usage was recorded per call
+    # (docs/latency_replay_audit.md).
+    r"batch\s+or\s+asynchronous\s+dispatch",
+    r"reflect\s+submission\s+rather\s+than\s+generation",
+    r"recorded\s+at\s+the\s+run\s+level",
+    r"Anthropic\s+batch\s+adapter",
+    r"not\s+measured\s+per\s+call",
+    # The harness restarts its timer on each retry and times only the attempt
+    # that succeeded; a replayed row's cost is recomputed when it is written.
+    r"spans\s+any\s+provider-side\s+retry",
+    r"keeps\s+the\s+cost\s+recorded\s+when\s+it\s+was\s+generated",
     # Exclusion covers what the audits found, not every defect or unstated
     # input: an output a fix or reading not run on the reference engine would
     # move can still be scored (the paper's limitations say so).
@@ -272,15 +285,19 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
     # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
     # below full bounded score (7,527, 7,523 and 2,072). Release 20261010
-    # adds Claude Haiku 5.5's rows and moves the scored outputs. The app's
-    # summarizeAuditUniverse recomputes the same counts from the payload
-    # (app/tests/auditUniverse.test.ts).
+    # adds Claude Haiku 5.5's rows and moves the scored outputs. Release
+    # 20261014 adds Gemini 4 Argon's and Muse Spark 1.3's rows (262 annotated
+    # misses, 111 unannotated rows below full bounded score) on unchanged
+    # references and exclusions. Release 20261027 adds GPT-6.1 Terra's rows
+    # and moves four scored references (9,050 annotated, 9,046 exact misses,
+    # 2,407 unannotated). The app's summarizeAuditUniverse recomputes the same
+    # counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 8_503,
-        "exact_misses": 8_499,
-        "annotated_exact_misses": 8_499,
+        "annotated": 9_050,
+        "exact_misses": 9_046,
+        "annotated_exact_misses": 9_046,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_218,
+        "unannotated_below_full_bounded_score": 2_407,
     }
 
     for path in (
@@ -598,20 +615,20 @@ def test_rendered_pdf_prints_dollar_amounts_without_escapes():
 
 
 def _paper_engine_times() -> tuple[str, str]:
-    """The paper's engine sentences, as the timing record dates them."""
-    timing = json.loads(
-        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
-    )
-    # The record is the 2026-09-29 move's, whatever upgrades follow it.
-    engine = r.september_upgrade.engine_version
-    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][engine]
-    read_at = timing["pypi"]["read_at_utc"]
+    """The paper's engine sentences for the current references, as the timing
+    record of the move to the current engine dates them. Earlier moves' times
+    stay in their audit records."""
+    from policybench.paper_results import uploaded_phrase
+
+    timing = json.loads(OCTOBER_TIMING.read_text())
+    engine = r.policyengine_us_version
+    assert timing["reference_sweep"]["engine"] == engine
+    began = timing["reference_sweep"]["first_output_at_utc"][:10]
+    uploaded = uploaded_phrase(timing["pypi"]["wheel_uploaded_at_utc"][engine], began)
     return (
-        "the newest release when it began sweeping the references that day "
-        f"(uploaded {uploaded[11:16]} UTC)",
-        f"policyengine-us {timing['pypi']['newest_at_read']}, the newest release "
-        f"when PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC, "
-        f"gives the same value as {engine}",
+        f"policyengine-us {engine} was the newest release when PolicyBench began "
+        f"sweeping the references on {began} ({uploaded}).",
+        _publication_check_sentence(timing, engine),
     )
 
 
@@ -682,21 +699,46 @@ def test_pdf_running_text_joins_a_sentence_across_a_page_break(monkeypatch):
 
 
 def test_paper_takes_its_engine_times_from_the_timing_record():
-    """The paper renders both clock times from sweep_timing.json through
-    paper_results; its source hard-codes none."""
+    """The paper renders the current engine's clock times from its move's
+    sweep_timing.json through paper_results; its source hard-codes none, and
+    it states no earlier move's times, which would describe engines the
+    references have left."""
     source = PAPER.read_text()
     assert re.search(r"\d\d:\d\d UTC", source) is None
-    assert "r.reference_engine_uploaded_utc" in source
-    assert "r.publication_check_pypi_read_utc" in source
+    assert "r.engine_upgrade_timing_sentence" in source
+    for stale in (
+        "r.reference_engine_uploaded_utc",
+        "r.publication_check_pypi_read_utc",
+        "r.publication_check_policyengine_us_version",
+        "r10.engine_upgrade_timing_sentence",
+        "r12.engine_upgrade_timing_sentence",
+    ):
+        assert stale not in source, stale
     text = _html_text()
     for sentence in _paper_engine_times():
         assert sentence in text, sentence
 
 
+def _across_page_breaks(sentence: str) -> re.Pattern:
+    """The sentence as extracted PDF text can carry it: a page break may put
+    the page number between any two of its words."""
+    words = [re.escape(word) for word in sentence.split()]
+    return re.compile(r" (?:\d{1,3} )?".join(words))
+
+
+def test_across_page_breaks_tolerates_only_a_page_number():
+    pattern = _across_page_breaks("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 26 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 at 04:45 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-29 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 later at 04:44 UTC")
+
+
 def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
     text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
     for sentence in _paper_engine_times():
-        assert sentence in text, sentence
+        assert _across_page_breaks(sentence).search(text), sentence
 
 
 def _engine_groups(exclusions) -> list[tuple[str, int]]:
@@ -816,10 +858,10 @@ def test_newest_engine_claims_are_anchored_to_a_time():
             assert any(phrase in window for phrase in anchored), (path.name, window)
 
 
-# The timing record of the move to the current engine (the 2026-10-12 audit's;
-# the 2026-10-09 audit timed the move to 2.38.6 that preceded it).
+# The timing record of the move to the current engine (the 2026-10-22 audit's;
+# the 2026-10-12 audit timed the move to 2.41.0 that preceded it).
 OCTOBER_TIMING = (
-    ROOT / "reference_audit/2026-10-12-engine-upgrade/verification/sweep_timing.json"
+    ROOT / "reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json"
 )
 
 
@@ -877,8 +919,10 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"on ({groups}), and PolicyBench re-reviewed the {recheck} of them that "
         f"move on {engine}; all {recheck} stay excluded."
     ) in card
-    # The 2026-09-29 move: the timing record's upload time of its engine, and
-    # when PolicyBench read PyPI for that publication check.
+    # The 2026-09-29 move: the timing record's upload time of its engine. That
+    # day's later PyPI check stays in its audit record, which must still name
+    # the release it checked; the card, like the paper, leaves that chronology
+    # out (release reviews r1 and r2).
     with (ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv").open(
         newline=""
     ) as source:
@@ -889,7 +933,6 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
     )
     september = timing["reference_sweep"]["engine"]
     uploaded = timing["pypi"]["wheel_uploaded_at_utc"][september]
-    read_at = timing["pypi"]["read_at_utc"]
     assert timing["pypi"]["newest_at_read"] == check
     assert (
         f"on {timing['reference_sweep']['first_output_at_utc'][:10]}, to "
@@ -897,11 +940,9 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
         f"the references that day (uploaded {uploaded[11:16]} UTC)."
     ) in card
     assert (
-        f"policyengine-us {check}, the newest release when PolicyBench checked "
-        f"PyPI on {read_at[:10]} at {read_at[11:16]} UTC, gave the same value as "
-        f"{september} for all {len(rows):,} outputs under the same conventions and "
-        "adapter."
-    ) in card
+        f"policyengine-us {check}, the newest release when PolicyBench checked"
+        not in card
+    )
     # The move to the current engine: its sweep's timing record, checked last
     # so that a missing record does not hide the checks above.
     assert OCTOBER_TIMING.is_file(), (
@@ -924,7 +965,6 @@ def test_card_states_the_engines_behind_scored_and_excluded_references():
     assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
         {
             f"{uploaded[11:16]} UTC",
-            f"{read_at[11:16]} UTC",
             f"{uploaded_now[11:16]} UTC",
             f"{october_read[11:16]} UTC",
         }
@@ -998,30 +1038,51 @@ def test_card_counts_follow_the_frozen_records():
     assert f"moves {count_word(new)} Indiana households' local income tax" in (
         october_10
     )
-    # The October 13 move to the current engine: it restores outputs earlier
-    # releases excluded, none of them still scored, and changes nothing else.
+    # The October 13 move to 2.41.0: it restores outputs earlier releases
+    # excluded, none of them still scored, and changes nothing else.
+    v12 = r.upgrade_view("2.41.0")
     october = card[card.index("On 2026-10-13 PolicyBench moved the references") :]
-    october = october[: october.index("## ")]
-    assert (
-        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
-        in (october)
-    )
-    assert r.engine_upgrade_restored_ruled_count == 0
+    october = october[: october.index("On 2026-10-23 PolicyBench moved")]
+    assert f"from {v12.previous_policyengine_us_version} to 2.41.0" in october
+    assert v12.engine_upgrade_restored_ruled_count == 0
     assert (
         "The new version fixes the defects behind "
-        f"{count_word(r.engine_upgrade_restored_count)} outputs. Earlier releases "
-        "excluded them, and they return to scoring."
+        f"{count_word(v12.engine_upgrade_restored_count)} outputs. Earlier "
+        "releases excluded them, and they return to scoring."
     ) in october
-    for label, count, prs in r.engine_upgrade_restored_fixes:
+    for label, count, prs in v12.engine_upgrade_restored_fixes:
         assert label in october, label
         assert all(f"#{pr}" in october for pr in prs), (label, prs)
         if count > 1:
             assert f"{count_word(count)} outputs)" in october, label
-    assert r.engine_upgrade_change_summary_sentence == (
+    assert v12.engine_upgrade_change_summary_sentence == (
         "The move changes no scored reference, by any amount, and removes no "
         "output from scoring."
     )
-    assert r.engine_upgrade_change_summary_sentence in october
+    assert v12.engine_upgrade_change_summary_sentence in october
+    # The October 23 move to the current engine: it restores and removes
+    # nothing, and changes four scored references for law in force before the
+    # freeze, each cause named with its pull request.
+    current = card[card.index("On 2026-10-23 PolicyBench moved the references") :]
+    current = current[: current.index("## ")]
+    assert (
+        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
+        in current
+    )
+    assert r.engine_upgrade_restored_count == r.engine_upgrade_new_exclusion_count == 0
+    assert (
+        "The move returns no excluded output to scoring and removes none from scoring."
+    ) in current
+    assert (
+        f"It changes {count_word(r.engine_upgrade_scored_change_count)} scored "
+        "references, each for law in force before the freeze."
+    ) in current
+    prs = re.findall(r"#(\d+)", r.engine_upgrade_scored_change_sentence)
+    assert prs and all(f"#{pr}" in current for pr in prs), prs
+    assert (
+        f"re-reviewed the {r.engine_upgrade_rechecked_count} excluded outputs "
+        f"whose values move on {r.policyengine_us_version}; all stay excluded."
+    ) in current
     # The exclusion breakdown.
     assert (
         f"{_sentence_number(r.excluded_output_count)} outputs in "
@@ -1161,3 +1222,56 @@ def test_json_transport_rows_are_attributed_as_their_cards_record():
         assert names(model, note_choice), model
     assert "older Gemini rows" in note_choice
     assert sorted(m for m in serving if names(m, note_choice)) == sorted(card_choice)
+
+
+# The benchmark card's cache-replay accounting ("Latency basis"), checked
+# against the frozen predictions; tests/test_latency_replay_audit.py checks the
+# audit's household list itself.
+def test_card_latency_basis_matches_the_frozen_households():
+    """Every count the card states is the frozen data's: the sub-second
+    households, the traced and untraced ones, the per-model replays, and the
+    largest median shift."""
+    from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+    text = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    latency = r.household_latencies
+    subsecond = latency[latency < REPLAYED_HOUSEHOLD_SECONDS]
+    audit = r.latency_replay_audit
+    full = audit[audit["replay"] == "full"].groupby("model").size()
+    partial = audit[audit["replay"] == "partial"].groupby("model").size()
+
+    assert "a household's latency is the sum over its rows" in text
+    assert f"{len(subsecond)} households sum to under a second" in text
+    assert f"traces {int(full.sum())} of them" in text
+    assert f"Another {int(partial.sum())} households replay their first" in text
+    untraced = audit[audit["replay"] == "untraced"]
+    assert sorted(zip(untraced["model"], untraced["scenario_id"])) == [
+        ("claude-haiku-4.5", "scenario_009"),
+        ("grok-4.3", "scenario_000"),
+    ]
+    assert "(Grok 4.3's scenario_000 and Claude Haiku 4.5's scenario_009)" in text
+    for model, label in (
+        ("qwen-3.7-max", "Qwen3.7-max"),
+        ("glm-5.2", "GLM-5.2"),
+        ("kimi-k2.6", "Kimi K2.6"),
+        ("minimax-m3", "MiniMax M3"),
+        ("claude-sonnet-5", "Claude Sonnet 5"),
+        ("muse-spark-1.3", "Muse Spark 1.3"),
+    ):
+        assert f"{label} ({int(full[model])}" in text, model
+    for model in ("muse-wonder", "claude-opus-5.5", "claude-haiku-5.5"):
+        assert int(full[model]) == 2, model
+    for model in ("deepseek-v4-pro", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"):
+        assert int(full[model]) == 2, model
+    for model, label in (
+        ("glm-5.3", "GLM-5.3"),
+        ("ox-alpha", "GLM-5.3-Flash (preview)"),
+    ):
+        assert f"{label} ({int(partial[model])})" in text, model
+    assert (
+        f"no published median by more than {r.subsecond_median_shift_fmt} seconds"
+        in text
+    )
+    published = {row["model"]: row.get("latencySeconds") for row in r.model_stats}
+    replayed = [published[m] for m in r.replayed_latency_models]
+    assert f"{min(replayed):.3f} to {max(replayed):.3f} seconds" in text

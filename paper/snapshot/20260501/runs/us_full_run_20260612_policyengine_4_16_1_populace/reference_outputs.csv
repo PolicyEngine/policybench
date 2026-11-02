@@ -491,7 +491,7 @@ scenario_028,child3_head_start_eligible,0.0,0.0
 scenario_028,child1_early_head_start_eligible,0.0,0.0
 scenario_028,child2_early_head_start_eligible,0.0,0.0
 scenario_028,child3_early_head_start_eligible,0.0,0.0
-scenario_028,free_school_meals_eligible,0.0,0.0
+scenario_028,free_school_meals_eligible,1.0,0.0
 scenario_028,reduced_price_school_meals_eligible,0.0,3009.81884765625
 scenario_029,federal_income_tax_before_refundable_credits,0.0,
 scenario_029,federal_refundable_credits,0.0,
@@ -532,7 +532,7 @@ scenario_031,self_employment_tax,0.0,
 scenario_031,state_income_tax_before_refundable_credits,0.0,
 scenario_031,state_refundable_credits,0.0,
 scenario_031,local_income_tax,0.0,
-scenario_031,snap,0.0,
+scenario_031,snap,288.0,
 scenario_031,ssi,0.0,
 scenario_031,tanf,0.0,
 scenario_031,head_wic_eligible,0.0,0.0
@@ -1863,7 +1863,7 @@ scenario_117,child3_head_start_eligible,0.0,0.0
 scenario_117,child1_early_head_start_eligible,0.0,0.0
 scenario_117,child2_early_head_start_eligible,0.0,0.0
 scenario_117,child3_early_head_start_eligible,0.0,0.0
-scenario_117,free_school_meals_eligible,0.0,0.0
+scenario_117,free_school_meals_eligible,1.0,0.0
 scenario_117,reduced_price_school_meals_eligible,0.0,0.0
 scenario_118,federal_income_tax_before_refundable_credits,0.0,
 scenario_118,federal_refundable_credits,0.0,
@@ -1981,5 +1981,5 @@ scenario_123,spouse_medicare_eligible,0.0,0.0
 scenario_123,child1_medicare_eligible,0.0,0.0
 scenario_123,child1_head_start_eligible,0.0,0.0
 scenario_123,child1_early_head_start_eligible,0.0,0.0
-scenario_123,free_school_meals_eligible,0.0,0.0
+scenario_123,free_school_meals_eligible,1.0,0.0
 scenario_123,reduced_price_school_meals_eligible,0.0,0.0

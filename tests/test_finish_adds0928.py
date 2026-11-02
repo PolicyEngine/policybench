@@ -546,7 +546,7 @@ def test_strict_export_recombines_to_freeze_bytes_and_binds_evidence(
         for model in driver.MODELS.values()
     ]
     for field in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
-        stats[41][field] = None
+        del stats[41][field]
     payload = {"countries": {"us": {"modelStats": stats}}}
     live = {"countries": {"us": {"modelStats": incumbents}}}
     gate_calls = []

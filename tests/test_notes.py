@@ -169,24 +169,52 @@ SUPERSEDED_RELEASES = {
     # facts are still recomputed, from the snapshot its commit holds
     # (RELEASE_20261010_COMMIT).
     "dashboard-data-20261010": "2026-10-10",
+    # Superseded by dashboard-data-20261013b, which re-judged five audit
+    # verdicts on the same board: no model, answer, reference or exclusion
+    # changed, and every payload section but the five cases' audit text is
+    # release 20261013's (tests/test_release_20261013b.py). The Muse Wonder
+    # note's facts are recomputed from release 20261013's commit
+    # (RELEASE_20261013_COMMIT).
+    "dashboard-data-20261013": "2026-10-13",
+    # Superseded by dashboard-data-20261014, which adds Gemini 4 Argon and
+    # Muse Spark 1.3 on the same references and exclusions. Release 20261013b
+    # has no note of its own.
+    "dashboard-data-20261013b": "2026-10-13",
+    # Superseded by dashboard-data-20261027, which adds GPT-6.1 Terra and moves
+    # the references to policyengine-us 2.60.0. The facts of its three notes
+    # (October 14, 19 and 20) are still recomputed, from the snapshot its
+    # commit holds (RELEASE_20261014_COMMIT).
+    "dashboard-data-20261014": "2026-10-14",
 }
 # The frozen release's board snapshot is its manifest's snapshot date.
 CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
     "snapshot_date"
 ]
 # The commit that froze each superseded release whose notes' facts are
-# recomputed from git: the merges of #182, #187, #202 and #208.
+# recomputed from git: the merges of #182, #187, #202, #208, #217 and #221.
 RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 RELEASE_20260930 = "dashboard-data-20260930"
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
 RELEASE_20261006_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
 RELEASE_20261010 = "dashboard-data-20261010"
 RELEASE_20261010_COMMIT = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
+RELEASE_20261013 = "dashboard-data-20261013"
+# The squash merge of #217, which froze release dashboard-data-20261013.
+RELEASE_20261013_COMMIT = "bc305793c527531e7b3573dc789a436a7bc883d5"
+# Release 20261013b: release 20261013's numbers with five audit verdicts
+# re-judged (scripts/release_20261013b.py).
+RELEASE_20261013B = "dashboard-data-20261013b"
+RELEASE_20261014 = "dashboard-data-20261014"
+# The squash merge of #221, which froze release dashboard-data-20261014 (#228
+# later re-rendered the paper on it; no answer, reference or exclusion moved).
+RELEASE_20261014_COMMIT = "bf845cbe4e92de495150c8660c35ea357d996a8c"
 RELEASE_COMMITS = {
     "dashboard-data-20260929": RELEASE_20260929_COMMIT,
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
     "dashboard-data-20261006": RELEASE_20261006_COMMIT,
     RELEASE_20261010: RELEASE_20261010_COMMIT,
+    RELEASE_20261013: RELEASE_20261013_COMMIT,
+    RELEASE_20261014: RELEASE_20261014_COMMIT,
 }
 
 
@@ -5117,14 +5145,14 @@ def _release_20261013_scoring() -> dict:
     exact on each (``matched``)."""
     import pandas as pd
 
-    from policybench.paper_results import PaperResults
     from policybench.scorer_vectors import canonical_filtered_scores
     from policybench.spec import output_group_id
 
-    payload = _dashboard()
-    reference = pd.read_csv(REFERENCES_PATH)
-    excluded = _excluded_at(ROOT)
-    restored = sorted(PaperResults().last_engine_upgrade.restored)
+    root = _release_root(RELEASE_20261013)
+    payload = _payload_at(root)
+    reference = pd.read_csv(_in(root, REFERENCES_PATH))
+    excluded = _excluded_at(root)
+    restored = sorted(_results_at(RELEASE_20261013).last_engine_upgrade.restored)
     assert not set(restored) & excluded
     predictions = pd.DataFrame(
         [
@@ -5164,12 +5192,10 @@ def _release_20261013_scoring() -> dict:
 
 
 def _release_20261013_facts() -> dict:
-    """The Muse Wonder release note's facts, recomputed from the frozen
-    release's payload, sidecar and exclusion record and from release 20261010's
-    payload at its commit."""
-    from policybench.paper_results import PaperResults
-
-    r = PaperResults()
+    """The Muse Wonder release note's facts, recomputed from release 20261013's
+    payload, sidecar and exclusion record at its commit and from release
+    20261010's payload at its commit."""
+    r = _results_at(RELEASE_20261013)
     board = r.model_stats
     by_model = {row["model"]: row for row in board}
     ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
@@ -5215,14 +5241,17 @@ def _release_20261013_facts() -> dict:
 
 
 def test_release_20261013_note() -> None:
-    """The Muse Wonder release note's facts are the frozen release's,
-    recomputed from its payload, sidecar and exclusion record and from release
-    20261010 at its commit; and the direction its last paragraph states (every
-    earlier model's rate falls) holds. test_release_20261013_note_claims checks
-    the rest of what its sentences say."""
+    """The Muse Wonder release note's facts are release 20261013's,
+    recomputed from its payload, sidecar and exclusion record at its commit
+    and from release 20261010 at its commit; and the direction its last
+    paragraph states (every earlier model's rate falls) holds.
+    test_release_20261013_note_claims checks the rest of what its sentences
+    say."""
     note = _note(MUSE_NOTE)
     facts = note["facts"]
-    assert note["release"] == _frozen_release()
+    # Releases 20261013b and 20261014 superseded the note's release.
+    assert note["release"] == RELEASE_20261013
+    assert _frozen_release() != RELEASE_20261013
     assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
     assert note["slug"].startswith(note["date"])
     assert facts["engineVersion"] in note["title"]
@@ -5235,11 +5264,12 @@ def test_release_20261013_note_claims() -> None:
     release, checked on the facts recomputed from it."""
     from policybench.analysis import metric_type_for_output, row_hit_scores
     from policybench.model_cards import card_for
-    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+    from policybench.paper_results import MODEL_RELEASE_DATES
 
     note = _note(MUSE_NOTE)
     facts = _release_20261013_facts()
-    r = PaperResults()
+    root = _release_root(RELEASE_20261013)
+    r = _results_at(RELEASE_20261013)
     board = r.model_stats
     then_payload = _payload_at(_release_root(RELEASE_20261010))
     then = _no_tools_exact(then_payload)
@@ -5248,7 +5278,9 @@ def test_release_20261013_note_claims() -> None:
     assert set(then) | {MUSE} == {row["model"] for row in board}
     released = date.fromisoformat(MODEL_RELEASE_DATES[MUSE])
     assert (date.fromisoformat(note["date"]) - released).days == 1
-    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    serving = _load_json(_in(root, SNAPSHOT_DIR / "model_serving_config.json"))[
+        "models"
+    ]
     meta = [
         m for m, t in serving.items() if t["provider_id"].startswith("openrouter/meta/")
     ]
@@ -5307,10 +5339,10 @@ def test_release_20261013_note_claims() -> None:
     assert not partition["new_exclusions"]
     then_root = _release_root(RELEASE_20261010)
     then_excluded = _excluded_at(then_root)
-    assert _excluded_at(ROOT) <= then_excluded
+    assert _excluded_at(root) <= then_excluded
     references = {
         (row["scenario_id"], row["variable"]): row["value"]
-        for row in _read_csv(REFERENCES_PATH)
+        for row in _read_csv(_in(root, REFERENCES_PATH))
     }
     for row in _read_csv(_in(then_root, REFERENCES_PATH)):
         key = (row["scenario_id"], row["variable"])
@@ -5358,7 +5390,7 @@ def test_release_20261013_note_claims() -> None:
     assert [(i["scenario_id"], i["variable"]) for i in landed] == [
         ("scenario_080", "snap")
     ]
-    assert ("scenario_080", "snap") in _excluded_at(ROOT)
+    assert ("scenario_080", "snap") in _excluded_at(root)
     assert (
         "#10033" in landed[0]["reason"]
         or "policyengine-us#10033" in (landed[0]["reason"])
@@ -5372,3 +5404,759 @@ def test_release_20261013_note_claims() -> None:
     text = " ".join(note["paragraphs"])
     assert "{restoredFixes}" in text
     assert "newest" not in text
+
+
+# --- Release dashboard-data-20261014: Gemini 4 Argon and Muse Spark 1.3 --------
+
+(ARGON_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-gemini-4-argon-joins-the-board.json")
+)
+ARGON = "gemini-4-argon"
+SPARK = "muse-spark-1.3"
+PUBLICATION_CHECK = ROOT / "reference_audit/2026-10-12-engine-upgrade/verification"
+
+
+def _board_reasoning_households(model: str, root: Path = ROOT) -> int:
+    """How many of the predictions' households returned reasoning tokens for
+    ``model``, in the snapshot under ``root`` (this checkout by default)."""
+    import pandas as pd
+
+    predictions = pd.read_csv(
+        _in(root, PREDICTIONS_PATH),
+        usecols=["model", "scenario_id", "reasoning_tokens"],
+    )
+    rows = predictions[predictions["model"] == model]
+    by_household = rows.groupby("scenario_id")["reasoning_tokens"].sum()
+    return int((by_household > 0).sum())
+
+
+def _release_20261014_facts() -> dict:
+    """The Gemini 4 Argon release note's facts, recomputed from release
+    20261014 at its commit, the publication check and the model card."""
+    r = _results_at(RELEASE_20261014)
+    board = r.model_stats
+    by_model = {row["model"]: row for row in board}
+    ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
+    by_score = sorted(board, key=lambda row: row["score"], reverse=True)
+    timing = _load_json(PUBLICATION_CHECK / "sweep_timing.json")
+
+    def one(value: float) -> float:
+        return float(f"{value:.1f}")
+
+    return {
+        "releaseDate": r.manifest["snapshot_date"],
+        "nModels": len(board),
+        "argonExact": one(by_model[ARGON]["exact"]),
+        "argonRank": ranks[ARGON],
+        "flashExact": one(by_model["gemini-3.8-flash"]["exact"]),
+        "flashRank": ranks["gemini-3.8-flash"],
+        "sparkExact": one(by_model[SPARK]["exact"]),
+        "sparkRank": ranks[SPARK],
+        "museExact": one(by_model[MUSE]["exact"]),
+        "museRank": ranks[MUSE],
+        "sparkBoundedRank": [row["model"] for row in by_score].index(SPARK) + 1,
+        "solExact": one(by_model["gpt-6-sol"]["exact"]),
+        "opusExact": one(by_model["claude-opus-5.5"]["exact"]),
+        "sol56Exact": one(by_model["gpt-5.6-sol"]["exact"]),
+        "households": len(r.dashboard["scenarioPredictions"]),
+        # The first forced run and the auto run are onboarding evidence, not
+        # on the board; the model card records their counts (checked below).
+        "forcedReasoning": 80,
+        "boardReasoning": _board_reasoning_households(
+            ARGON, _release_root(RELEASE_20261014)
+        ),
+        "autoReasoning": 82,
+        "argonCost": f"{by_model[ARGON]['costUsd']:.2f}",
+        "checkedEngine": timing["pypi"]["newest_at_read"],
+        "engineVersion": r.policyengine_us_version,
+        "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
+        "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "incumbents": len(board) - 2,
+    }
+
+
+def test_release_20261014_note() -> None:
+    """The Gemini 4 Argon release note's facts are release 20261014's,
+    recomputed at its commit."""
+    note = _note(ARGON_NOTE)
+    facts = note["facts"]
+    # Release 20261027 superseded the note's release.
+    assert _frozen_release() != RELEASE_20261014
+    assert note["release"] == RELEASE_20261014
+    assert note["boardSnapshot"] == facts["releaseDate"] == note["date"]
+    assert note["slug"].startswith(note["date"])
+    assert facts == _release_20261014_facts()
+
+
+def test_release_20261014_note_claims() -> None:
+    """What the Gemini 4 Argon release note's sentences claim holds on release
+    20261014 and release 20261013 at their commits (release 20261013b keeps
+    the latter's numbers, tests/test_release_20261013b.py) and the model
+    cards."""
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+    from policybench.model_cards import card_for
+    from policybench.paper_results import MODEL_RELEASE_DATES
+
+    note = _note(ARGON_NOTE)
+    facts = note["facts"]
+    root = _release_root(RELEASE_20261014)
+    r = _results_at(RELEASE_20261014)
+    board = r.model_stats
+    names = [row["model"] for row in board]
+    then_root = _release_root(RELEASE_20261013)
+    then = _no_tools_exact(_payload_at(then_root))
+    # Two new rows on the previous board.
+    assert set(names) == set(then) | {ARGON, SPARK}
+    assert facts["nModels"] == len(then) + 2 == facts["incumbents"] + 2
+    # Gemini 4 Argon reached the public API the day before the release, and
+    # is the best Gemini row; Gemini 3.8 Flash was the best before it.
+    released = date.fromisoformat(MODEL_RELEASE_DATES[ARGON])
+    assert (date.fromisoformat(note["date"]) - released).days == 1
+    gemini = [m for m in names if m.startswith("gemini")]
+    assert gemini[0] == ARGON and gemini[1] == "gemini-3.8-flash"
+    assert max((e, m) for m, e in then.items() if m.startswith("gemini"))[1] == (
+        "gemini-3.8-flash"
+    )
+    # Muse Spark 1.3 is Meta's second row, behind Muse Wonder on answers
+    # within $1, and Meta released it on September 2.
+    serving = _load_json(_in(root, SNAPSHOT_DIR / "model_serving_config.json"))[
+        "models"
+    ]
+    meta = sorted(
+        m for m, t in serving.items() if t["provider_id"].startswith("openrouter/meta/")
+    )
+    assert meta == sorted([MUSE, SPARK])
+    assert names.index(MUSE) < names.index(SPARK)
+    assert MODEL_RELEASE_DATES[SPARK] == "2026-09-02"
+    # The leaders are unchanged: GPT-6 Sol, Claude Opus 5.5, GPT-5.6 Sol.
+    assert names[:3] == ["gpt-6-sol", "claude-opus-5.5", "gpt-5.6-sol"]
+    # Gemini 4 Argon runs on the Gemini API like every Gemini row, on the
+    # forced tool, with no reasoning parameter (Google's default).
+    for model in gemini:
+        assert serving[model]["provider_id"].startswith("gemini/"), model
+    argon = card_for(serving[ARGON]["provider_id"])
+    assert serving[ARGON]["answer_contract"] == argon.answer_contract == "tool"
+    assert "The harness sends no thinkingConfig" in argon.notes
+    assert "default thinking_level of medium" in argon.notes
+    # The reasoning test: 80 forced against 82 auto, no significant
+    # reduction; the board's own run reasoned on 85 (recomputed above from
+    # the frozen predictions).
+    assert (
+        f"returned reasoning tokens on {facts['forcedReasoning']} and a "
+        f"tool_choice auto run on {facts['autoReasoning']} (Fisher exact p = 0.86"
+    ) in argon.notes
+    assert f"reasoned on {facts['boardReasoning']}" in argon.notes
+    assert "no statistically significant reduction" in argon.notes
+    assert facts["households"] == 100
+    # A forced tool suppresses Claude Opus 5's thinking.
+    august = (ROOT / "sensitivity/claude-thinking-2026-08.md").read_text()
+    assert "Forcing the tool suppresses Claude's thinking in practice" in august
+    assert "Claude Opus 5 request three ways" in august
+    # The introductory price, doubling on December 1.
+    assert PRICE_OVERRIDES_PER_1M[ARGON]["input"] == 2.0
+    assert PRICE_OVERRIDES_PER_1M[ARGON]["output"] == 10.0
+    config = (ROOT / "policybench/config.py").read_text()
+    assert "from 2026-12-01 they double to" in config
+    # Muse Spark 1.3: one OpenRouter endpoint, Meta's own; forced tools
+    # rejected; the JSON contract at Meta's default reasoning.
+    spark = card_for(serving[SPARK]["provider_id"])
+    assert serving[SPARK]["answer_contract"] == spark.answer_contract == "json"
+    assert "OpenRouter lists one endpoint, Meta's own" in spark.notes
+    assert "Meta rejects forced tool choices" in spark.notes
+    assert "reasons at the provider default" in spark.notes
+    # "Nothing else on the board moves": the references and exclusions are
+    # release 20261013's, and every earlier model keeps its exact rate and
+    # bounded score.
+    assert _read_csv(_in(root, REFERENCES_PATH)) == _read_csv(
+        _in(then_root, REFERENCES_PATH)
+    )
+    assert _excluded_at(root) == _excluded_at(then_root)
+    then_stats = {
+        row["model"]: row
+        for row in _payload_at(then_root)["modelStats"]
+        if row["condition"] == "no_tools"
+    }
+    for row in board:
+        if row["model"] in then_stats:
+            assert row["exact"] == then_stats[row["model"]]["exact"], row["model"]
+            assert row["score"] == then_stats[row["model"]]["score"], row["model"]
+    # The publication check: the newest release gives 2.41.0's value for all
+    # 1,984 outputs.
+    # The latest check, the one sweep_timing.json records.
+    timing = _load_json(PUBLICATION_CHECK / "sweep_timing.json")
+    check = _read_csv(ROOT / timing["publication_check"]["output"])
+    assert timing["publication_check"]["engine"] == facts["checkedEngine"]
+    assert len(check) == facts["totalOutputs"]
+    assert all(row["same"] == "True" and float(row["delta"]) == 0.0 for row in check)
+    assert {(row["reference_engine"], row["engine"]) for row in check} == {
+        (facts["engineVersion"], facts["checkedEngine"])
+    }
+    assert facts["scoredOutputs"] == facts["totalOutputs"] - r.excluded_output_count
+    # Links resolve to committed paths.
+    for entry in note["data"]:
+        href = entry["href"]
+        prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+        if href.startswith(prefix):
+            assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+AGOV_NOTE = "2026-10-19-america-gov-scores-level-with-gpt-5-5"
+AGOV_ROWS_PATH = ROOT / "notes/data/america_gov_20261019.csv"
+
+
+def _america_gov():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import america_gov_note
+
+    return america_gov_note
+
+
+def _at_release_20261014(monkeypatch, module) -> dict:
+    """Release 20261014's payload, with the note script ``module`` reading that
+    release's run directory (its references, exclusions and scenarios) at its
+    commit: the October 19 and 20 notes' facts were computed on it."""
+    root = _release_root(RELEASE_20261014)
+    monkeypatch.setattr(module, "RUN_DIR", _in(root, RUN_DIR))
+    return _payload_at(root)
+
+
+def test_america_gov_note_facts(monkeypatch) -> None:
+    """The America.gov note's facts recompute from its committed replies and
+    release 20261014: the board's scoring of the first and retried views, the
+    refusals, and the outputs whose v1 definitions name PolicyEngine."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    assert note["release"] == RELEASE_20261014
+    payload = _at_release_20261014(monkeypatch, agov)
+    meta = _load_json(agov.META_PATH)
+    assert meta["release"] == note["release"]
+    assert hashlib.sha256(AGOV_ROWS_PATH.read_bytes()).hexdigest() == meta["sha256"]
+    rows = agov.load_rows()
+    assert len(rows) == meta["rows"]
+    assert agov.facts(payload, rows, meta) == note["facts"]
+
+
+def test_america_gov_split_units_partition_the_prompt() -> None:
+    """Each over-limit prompt went in as two halves that ask for its requested
+    outputs exactly once, in order."""
+    agov = _america_gov()
+    meta = _load_json(agov.META_PATH)
+    payload = _payload_at(_release_root(RELEASE_20261014))
+    assert len(meta["split_units"]) == 6
+    for sid, halves in meta["split_units"].items():
+        prompt = payload["scenarios"][sid]["prompt"]["json"]
+        assert len(prompt) > meta["message_limit_characters"]
+        assert halves["a"] + halves["b"] == agov.requested(prompt)
+
+
+def test_america_gov_note_quotes_are_verbatim() -> None:
+    """The note's quote of America.gov's refusal to the Virginia household
+    (scenario_119) is its first reply, verbatim. (Its quotes of America.gov's
+    pages are checked against the data's metadata in
+    test_america_gov_note_predicates.)"""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    text = " ".join(note["paragraphs"])
+    refusal = (
+        "I cannot estimate or calculate federal or state tax, credit, payroll, "
+        "or benefit amounts"
+    )
+    assert refusal in text
+    first = [
+        r
+        for r in agov.load_rows()
+        if r["unit"] == "scenario_119" and r["attempt"] == "1"
+    ]
+    assert len(first) == 1 and first[0]["outcome"] == "refused"
+    assert first[0]["refusal_text"].startswith(refusal)
+
+
+def test_america_gov_note_predicates(monkeypatch) -> None:
+    """The America.gov note's claims beyond its numeric facts: who leads, the
+    households it describes, the heaviest output, the over-limit prompts, the
+    repeated refusals, and its quotes of America.gov's own pages as the data's
+    metadata records them (fetched 2026-10-19)."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    text = " ".join(note["paragraphs"])
+    payload = _at_release_20261014(monkeypatch, agov)
+    meta = _load_json(agov.META_PATH)
+    ref, _ = agov.references()
+    board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+
+    # "GPT-6 Sol leads".
+    assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    # "the output that carries the most weight".
+    weights = payload["globalWeights"]["household"]
+    assert max(weights, key=weights.get) == "person_medicaid_eligible"
+
+    # The households the note describes.
+    def household(sid: str) -> tuple:
+        s = payload["scenarios"][sid]
+        return s["state"], s["numAdults"], s["numChildren"]
+
+    assert household("scenario_119") == ("VA", 1, 2)  # a single parent of two
+    assert household("scenario_072") == ("MI", 2, 0)  # a couple
+    assert household("scenario_004") == ("NY", 2, 0)  # a couple
+    assert ref[("scenario_072", "snap")] == 0
+    for adult in ("head", "spouse"):
+        assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
+
+    # "the reference and 49 of the 50 models say $0" / "say neither is": exactly 0.
+    def exact_zeros(sid: str, variable: str) -> int:
+        rows = payload["scenarioPredictions"][sid][variable].values()
+        return sum(r.get("parsed") and r.get("prediction") == 0 for r in rows)
+
+    assert exact_zeros("scenario_072", "snap") == note["facts"]["snap072Models"]
+    for adult in ("head", "spouse"):
+        assert (
+            exact_zeros("scenario_004", f"{adult}_medicaid_eligible")
+            == note["facts"]["medicaid004Models"]
+        )
+
+    # "Six prompts run past the 8,000 characters": exactly these six.
+    limit = meta["message_limit_characters"]
+    over = sorted(
+        sid
+        for sid, s in payload["scenarios"].items()
+        if len(s["prompt"]["json"]) > limit
+    )
+    assert over == sorted(meta["split_units"])
+
+    # "came back word for word the same": the three units refused at every attempt.
+    by_unit = agov.units(agov.load_rows())
+    refused_every_time = [
+        u
+        for u, attempts in by_unit.items()
+        if len(attempts) == 3 and all(not agov.answered(attempts[a]) for a in attempts)
+    ]
+    assert len(refused_every_time) == note["facts"]["refusedThrice"]
+    for unit in refused_every_time:
+        texts = {by_unit[unit][a][0]["refusal_text"] for a in (1, 2, 3)}
+        assert len(texts) == 1
+
+    # "At least two ... cited PolicyEngine": two complete refusals do; the one
+    # refusal cut off in capture does not in the text that was kept.
+    truncated = set(meta["truncated_refusals"])
+    first_refusals = [u for u, a in by_unit.items() if not agov.answered(a[1])]
+    citing = [
+        u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
+    ]
+    assert len(citing) == note["facts"]["peRefusals"]
+    assert truncated <= set(first_refusals) and not truncated & set(citing)
+
+    # America.gov's own words, as quoted.
+    quotes = meta["site_quotes"]
+    assert (
+        "Super Intelligence (SI) to find and explain information from official "
+        "government sources" in text
+    )
+    assert quotes["how_it_works"]["quote"] == (
+        "Super Intelligence (SI) to find and explain information from official "
+        "government sources"
+    )
+    assert "can be incomplete or wrong" in text
+    assert quotes["terms"]["quote"].endswith("They can be incomplete or wrong")
+    assert f"{limit:,} characters" in quotes["message_limit"]["quote"]
+
+    # The data links resolve to files in this repository.
+    prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for link in note["data"]:
+        if link["href"].startswith(prefix):
+            assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
+
+
+TOOL_NOTE = "2026-10-20-given-a-policyengine-tool-three-models-score-above-99"
+
+
+def _tool_pilot():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tool_pilot_note
+
+    return tool_pilot_note
+
+
+def test_tool_pilot_note_facts(monkeypatch) -> None:
+    """The tool-pilot note's facts recompute from its committed rows and
+    release 20261014: both arms scored the board's way, the nonzero amounts, the
+    remaining misses, costs, and the prompt labels that are engine variable names."""
+    tool = _tool_pilot()
+    note = _note(TOOL_NOTE)
+    assert note["release"] == RELEASE_20261014
+    payload = _at_release_20261014(monkeypatch, tool)
+    meta = _load_json(tool.META_PATH)
+    assert meta["release"] == note["release"]
+    for path in (tool.ROWS_PATH, tool.HOUSEHOLDS_PATH, tool.MISSES_PATH):
+        recorded = meta["files"][path.name]
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == recorded["sha256"]
+        with path.open(encoding="utf-8", newline="") as source:
+            assert sum(1 for _ in csv.DictReader(source)) == recorded["rows"]
+    assert tool.facts(payload) == note["facts"]
+
+
+def test_tool_pilot_note_predicates(monkeypatch) -> None:
+    """The tool-pilot note's claims beyond its numbers, on release 20261014."""
+    tool = _tool_pilot()
+    note = _note(TOOL_NOTE)
+    payload = _at_release_20261014(monkeypatch, tool)
+    ref = tool.references()
+    board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+    # "GPT-6 Sol, which leads the board".
+    assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    facts = note["facts"]
+    by_model = {r["model"]: r for r in board}
+    for model, short in (
+        ("gpt-6-sol", "sol"),
+        ("claude-opus-5.5", "opus"),
+        ("gemini-4-argon", "argon"),
+    ):
+        # The no-tool scores are the board's published ones.
+        assert facts[f"{short}BoardExact"] == _display_one_decimal(
+            by_model[model]["exact"]
+        )
+        # The title's "above 99%", and "The tool costs more".
+        assert facts[f"{short}ToolExact"] > 99
+        assert float(facts[f"{short}ToolCost"]) > float(facts[f"{short}BoardCost"])
+    rows = tool._read(tool.ROWS_PATH)
+    misses = tool._read(tool.MISSES_PATH)
+    for model in tool.RUNS:
+        # Every scored output has a tool answer, and the misses file lists exactly
+        # the scored outputs the tool arm got wrong.
+        answers = tool.tool_predictions(rows, model)
+        assert set(answers) <= set(ref) and len(answers) == len(ref)
+        wrong = {k for k in ref if not tool.hit(ref, k, answers.get(k))}
+        assert wrong == {
+            (r["scenario_id"], r["variable"]) for r in misses if r["model"] == model
+        }
+        # "Most of the answers the tool fixes are dollar amounts that are not zero."
+        fixed, fixed_nonzero = tool.fixes(payload, model)
+        assert fixed_nonzero > fixed / 2
+    # "GPT-6 Sol is the only model that turned right answers wrong".
+    assert tool.right_to_wrong("gpt-6-sol") == note["facts"]["solFlips"] > 0
+    assert tool.right_to_wrong("claude-opus-5.5") == 0
+    assert tool.right_to_wrong("gemini-4-argon") == 0
+    # Every remaining miss is one of the three kinds the note names.
+    assert {r["kind"] for r in misses} <= set(tool.MISS_KINDS.values())
+    # "Prompt labels share the blame for two": each named label is in that
+    # household's prompt.
+    text = " ".join(note["paragraphs"])
+    labelled = [r for r in misses if r["prompt_label_note"]]
+    assert len(labelled) == note["facts"]["labelMisses"]
+    for r, label in zip(
+        sorted(labelled, key=lambda r: r["model"]),
+        ("employer sponsored insurance premiums", "disability benefits"),
+    ):
+        assert f'"{label}"' in text and f'"{label}"' in r["prompt_label_note"]
+        prompt = payload["scenarios"][r["scenario_id"]]["prompt"]["json"]
+        assert f"- {label}:" in prompt
+    # "all eight calculation turns the pilot allows" is the runner's cap.
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import tool_pilot_argon
+
+    meta = _load_json(tool.META_PATH)
+    assert (
+        tool_pilot_argon.TOOL_TURN_CAP == meta["turn_cap"] == note["facts"]["turnCap"]
+    )
+    # "a model that describes a household exactly as the reference does gets the
+    # reference's answer": the recorded oracle check through the tool path.
+    oracle = {o["engine"]: o for o in meta["oracle"]}["reference_engine"]
+    assert (
+        oracle["reproduced_through_tool_path"] == oracle["scored_outputs"] == len(ref)
+    )
+    # The data links resolve to files in this repository.
+    prefix = "https://github.com/PolicyEngine/policybench/blob/main/"
+    for link in note["data"]:
+        if link["href"].startswith(prefix):
+            assert (ROOT / link["href"][len(prefix) :]).exists(), link["href"]
+
+
+def test_no_board_model_declined_a_household_over_policyengine() -> None:
+    """The America.gov note says no board model declined a household on PolicyEngine
+    grounds, though some models' recorded reasoning notes they cannot run
+    PolicyEngine. No board model left a household fully unanswered with text in its
+    response, so none declined one on any ground; the households some models left
+    fully unanswered hold no response text at all."""
+    agov = _america_gov()
+    note = _note(AGOV_NOTE)
+    # The board the note describes: release 20261014's.
+    predictions = _in(_release_root(RELEASE_20261014), PREDICTIONS_PATH)
+    declined_in_words, no_text = agov.board_declined_households(predictions)
+    assert declined_in_words == []
+    assert no_text  # the check reaches the fully unanswered households
+    text = " ".join(note["paragraphs"])
+    assert "no model on the board declined a household on that ground" in text
+    # A floor: the pairs whose recorded reasoning says so, from more than one model.
+    cannot = set(agov.board_cannot_run_policyengine(predictions))
+    assert {
+        ("grok-4.6", "scenario_007"),
+        ("kimi-k2.6", "scenario_053"),
+        ("kimi-k2.6", "scenario_119"),
+        ("qwen3.8-max", "scenario_121"),
+    } <= cannot
+    assert len({model for model, _ in cannot}) >= 2
+    assert "some models' recorded reasoning notes that they cannot run" in text
+
+
+def test_methodology_quotes_the_policyengine_named_definitions() -> None:
+    """The methodology card quotes the US output definitions that name
+    PolicyEngine; it must change when they do."""
+    specs = _load_json(ROOT / "policybench/benchmark_specs.json")
+    us_prompts = [
+        output["prompt"]
+        for output in specs["specs"]["policybench"]["countries"]["us"]
+        if "prompt" in output
+    ]
+    naming = [p for p in us_prompts if "PolicyEngine" in p]
+    assert len(naming) == 4
+    assert sum("under PolicyEngine rules" in p for p in naming) == 2
+    assert sum("PolicyEngine returns" in p for p in naming) == 2
+    methodology = " ".join(
+        (ROOT / "app/src/components/Methodology.tsx").read_text().split()
+    )
+    assert "Four output definitions in the current US prompts name" in methodology
+    assert "&ldquo;under PolicyEngine rules,&rdquo;" in methodology
+    assert "&ldquo;PolicyEngine returns&rdquo;" in methodology
+
+
+# --- Release dashboard-data-20261027: GPT-6.1 Terra and the move to 2.60.0 ---
+
+(TERRA_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-gpt-6-1-terra-joins-the-board.json")
+)
+TERRA = "gpt-6.1-terra"
+RELEASE_20261027 = "dashboard-data-20261027"
+TERRA_CHECK = ROOT / "reference_audit/2026-10-22-engine-upgrade/verification"
+# The October 23 move's scored changes: one SNAP amount and three school-meal
+# flags (reference_audit/2026-10-22-engine-upgrade/README.md).
+TERRA_SNAP = ("scenario_031", "snap")
+TERRA_MEALS = [
+    ("scenario_028", "free_school_meals_eligible"),
+    ("scenario_117", "free_school_meals_eligible"),
+    ("scenario_123", "free_school_meals_eligible"),
+]
+
+
+def _exact_models(payload: dict, key: tuple[str, str]) -> set[str]:
+    """The models whose answer the payload marks exact on output ``key``."""
+    by_model = payload["scenarioPredictions"][key[0]][key[1]]
+    return {model for model, entry in by_model.items() if entry.get("exact") == 100.0}
+
+
+def _release_20261027_facts() -> dict:
+    """The GPT-6.1 Terra release note's facts, recomputed from the frozen
+    release, release 20261014 at its commit and the publication check."""
+    from policybench.paper_results import PaperResults
+
+    r = PaperResults()
+    board = r.model_stats
+    by_model = {row["model"]: row for row in board}
+    ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
+    by_score = sorted(board, key=lambda row: row["score"], reverse=True)
+    then_board = [
+        row["model"]
+        for row in _payload_at(_release_root(RELEASE_20261014))["modelStats"]
+        if row["condition"] == "no_tools"
+    ]
+    then = _no_tools_exact(_payload_at(_release_root(RELEASE_20261014)))
+    move = [by_model[model]["exact"] - exact for model, exact in then.items()]
+    falls = [-delta for delta in move if delta < 0]
+    rises = [delta for delta in move if delta > 0]
+    (snap,) = [
+        change
+        for change in r.last_engine_upgrade.partition["scored_changes"]
+        if (change["scenario_id"], change["variable"]) == TERRA_SNAP
+    ]
+    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    check = timing["publication_check"]
+    # The check's engine was PyPI's newest when the release read PyPI; the
+    # note dates that read, since newer releases follow within days.
+    assert timing["pypi"]["newest_at_read"] == check["engine"]
+
+    def one(value: float) -> float:
+        return float(f"{value:.1f}")
+
+    def cost(model: str) -> str:
+        return f"{by_model[model]['costUsd']:.2f}"
+
+    return {
+        "snapshotDate": r.manifest["snapshot_date"],
+        "nModels": len(board),
+        "terraExact": one(by_model[TERRA]["exact"]),
+        "terraRank": ranks[TERRA],
+        "solExact": one(by_model["gpt-6-sol"]["exact"]),
+        "opusExact": one(by_model["claude-opus-5.5"]["exact"]),
+        "sol56Exact": one(by_model["gpt-5.6-sol"]["exact"]),
+        "terraBoundedRank": [row["model"] for row in by_score].index(TERRA) + 1,
+        "sol61Exact": one(by_model["gpt-6.1-sol"]["exact"]),
+        "sol61Rank": ranks["gpt-6.1-sol"],
+        "households": len(r.dashboard["scenarioPredictions"]),
+        "terraCost": cost(TERRA),
+        "sol61Cost": cost("gpt-6.1-sol"),
+        "solCost": cost("gpt-6-sol"),
+        "terra56Exact": one(by_model["gpt-5.6-terra"]["exact"]),
+        "terra56Rank": ranks["gpt-5.6-terra"],
+        "terra56Cost": cost("gpt-5.6-terra"),
+        "previousEngine": r.previous_policyengine_us_version,
+        "engineVersion": r.policyengine_us_version,
+        "changed": r.engine_upgrade_scored_change_count,
+        "snapMonthly": round(snap["regenerated"] / 12),
+        "snap031": round(snap["regenerated"]),
+        "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
+        "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "checkedOn": timing["pypi"]["read_at_utc"][:10],
+        "checkedEngine": check["engine"],
+        "excludedMoved": len(check["excluded_differ"]),
+        "incumbents": len(then),
+        "fallers": len(falls),
+        "fallMin": round(min(falls), 2),
+        "fallMax": round(max(falls), 2),
+        "risers": len(rises),
+        "rise": round(max(rises), 2),
+        "snapMatch": len(_exact_models(r.dashboard, TERRA_SNAP)),
+        "sonnetThen": then_board.index("claude-sonnet-5.5") + 1,
+        "sonnetNow": ranks["claude-sonnet-5.5"],
+    }
+
+
+def test_release_20261027_note() -> None:
+    """The GPT-6.1 Terra release note's facts are the frozen release's."""
+    note = _note(TERRA_NOTE)
+    facts = note["facts"]
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    assert note["release"] == RELEASE_20261027
+    # The public board gained Terra on publication, after the snapshot's date.
+    assert note["boardSnapshot"] == facts["snapshotDate"] < note["date"]
+    assert note["slug"].startswith(note["date"])
+    assert facts["engineVersion"] in note["title"]
+    assert f"#{facts['terraRank']}" in note["title"]
+    assert facts == _release_20261027_facts()
+
+
+def test_release_20261027_note_claims() -> None:
+    """What the GPT-6.1 Terra release note's sentences claim holds on the
+    frozen release, release 20261014 at its commit, the October 23 move's
+    sidecar revision, the publication check and the model cards."""
+    from policybench.config import GPT_RESPONSES_MODELS, PRICE_OVERRIDES_PER_1M
+    from policybench.model_cards import card_for
+    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+
+    note = _note(TERRA_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    facts = note["facts"]
+    text = " ".join(note["paragraphs"])
+    r = PaperResults()
+    board = r.model_stats
+    names = [row["model"] for row in board]
+    exact = {row["model"]: row["exact"] for row in board}
+    then_root = _release_root(RELEASE_20261014)
+    then = _no_tools_exact(_payload_at(then_root))
+    then_names = sorted(then, key=then.get, reverse=True)
+    # One new row on the previous board, released the day before the snapshot.
+    assert set(names) == set(then) | {TERRA}
+    assert facts["nModels"] == len(then) + 1 == facts["incumbents"] + 1
+    released = date.fromisoformat(MODEL_RELEASE_DATES[TERRA])
+    assert (date.fromisoformat(note["boardSnapshot"]) - released).days == 1
+    assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
+    # "Only GPT-6 Sol and Claude Opus 5.5 score higher", and GPT-5.6 Sol, at
+    # the same rounded rate, is less than a tenth of a point behind.
+    assert names[:4] == ["gpt-6-sol", "claude-opus-5.5", TERRA, "gpt-5.6-sol"]
+    assert facts["sol56Exact"] == facts["terraExact"]
+    assert 0 < exact[TERRA] - exact["gpt-5.6-sol"] < 0.1
+    # GPT-5.6 Terra is the only other Terra row.
+    assert [m for m in names if "terra" in m] == [TERRA, "gpt-5.6-terra"]
+    # Run as GPT-6.1 Sol is: the Responses API, the forced tool, the
+    # provider's default reasoning; reasoning on every household.
+    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    for model in (TERRA, "gpt-6.1-sol"):
+        card = card_for(serving[model]["provider_id"])
+        assert model in GPT_RESPONSES_MODELS
+        assert serving[model]["answer_contract"] == card.answer_contract == "tool"
+        assert "on the Responses API with provider-default reasoning" in card.notes
+    assert _board_reasoning_households(TERRA) == facts["households"] == 100
+    assert PRICE_OVERRIDES_PER_1M[TERRA]["input"] == 1.0
+    assert PRICE_OVERRIDES_PER_1M[TERRA]["output"] == 5.0
+    # The October 23 move: begun on the newest release, four scored changes
+    # and nothing else; each change rests on law published before the freeze.
+    last = r.last_engine_upgrade
+    assert last.date == r.engine_upgrade_date == "2026-10-23"
+    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    assert timing["reference_sweep"]["engine"] == facts["engineVersion"]
+    assert timing["reference_sweep"]["first_output_at_utc"].startswith("2026-10-23")
+    assert (
+        "law published before the 2026-07-03 reference freeze"
+        in (last.revision["rule"])
+    )
+    changes = {
+        (change["scenario_id"], change["variable"]): change
+        for change in last.partition["scored_changes"]
+    }
+    assert set(changes) == {TERRA_SNAP, *TERRA_MEALS}
+    assert r.engine_upgrade_within_tolerance_count == 0
+    assert r.engine_upgrade_new_exclusion_count == 0
+    assert r.engine_upgrade_restored_count == 0
+    # The Californian: elderly, living alone, $0 before, the $24 minimum now.
+    snap = changes[TERRA_SNAP]
+    assert (snap["previous"], snap["regenerated"]) == (0.0, 288.0)
+    assert "this one-person household, an elderly member" in snap["basis"]
+    assert "receives $24 a month (snap_min_allotment)" in snap["basis"]
+    assert "applied the net income test to MCE households" in snap["basis"]
+    assert "policyengine-us#10036" in snap["basis"]
+    # The three households: two in Pennsylvania, one in Arkansas; lunch in the
+    # paid tier, a free breakfast now; the laws' conditions not modeled.
+    states = []
+    for key in TERRA_MEALS:
+        change = changes[key]
+        assert (change["previous"], change["regenerated"]) == (0.0, 1.0)
+        assert "lunch stays in the paid tier" in change["basis"]
+        assert "policyengine-us#10238" in change["basis"]
+        states.append(change["basis"].split(" Act ")[0])
+        if states[-1] == "Pennsylvania":
+            assert "reimbursed to the extent funds are available" in change["basis"]
+            assert "without the funding condition" in change["basis"]
+        else:
+            assert "upon request" in change["basis"]
+            assert "without the request condition" in change["basis"]
+    assert sorted(states) == ["Arkansas", "Pennsylvania", "Pennsylvania"]
+    # "Nothing is newly excluded, and no excluded output returns to scoring."
+    assert _excluded_at(ROOT) == _excluded_at(then_root)
+    assert facts["scoredOutputs"] == facts["totalOutputs"] - r.excluded_output_count
+    # The publication check: every scored output the same, one excluded moved.
+    check = timing["publication_check"]
+    rows = _read_csv(ROOT / check["output"])
+    assert len(rows) == facts["totalOutputs"] == check["outputs"]
+    assert check["scored_same"] == check["scored_outputs"] == facts["scoredOutputs"]
+    assert check["scored_differ"] == []
+    assert {(row["reference_engine"], row["engine"]) for row in rows} == {
+        (facts["engineVersion"], facts["checkedEngine"])
+    }
+    excluded = _excluded_at(ROOT)
+    moved = {
+        (row["scenario_id"], row["variable"]) for row in rows if row["same"] != "True"
+    }
+    assert len(moved) == facts["excludedMoved"] and moved <= excluded
+    # The earlier models: the three that rise are the three that give the
+    # Californian's new SNAP, and no model is exact on any school-meal flag.
+    rises = {m for m, e in then.items() if exact[m] > e}
+    assert len({round(exact[m] - then[m], 2) for m in rises}) == 1
+    assert rises == _exact_models(r.dashboard, TERRA_SNAP)
+    assert rises == {"gpt-5.5", "gpt-6-astra", "gpt-6.1-sol"}
+    assert all(not _exact_models(r.dashboard, key) for key in TERRA_MEALS)
+    assert TERRA not in _exact_models(r.dashboard, TERRA_SNAP)
+    assert facts["fallers"] + facts["risers"] == facts["incumbents"]
+    assert 0 < facts["fallMin"] <= facts["fallMax"]
+    # Claude Sonnet 5.5 falls behind GPT-6.1 Terra and GPT-6 Astra.
+    assert then_names.index("claude-sonnet-5.5") < then_names.index("gpt-6-astra")
+    assert names.index(TERRA) < names.index("gpt-6-astra")
+    assert names.index("gpt-6-astra") + 1 == names.index("claude-sonnet-5.5")
+    assert "GPT-5.5, GPT-6 Astra and GPT-6.1 Sol, the three that rise" in text
+    # Links resolve to committed paths.
+    for entry in note["data"]:
+        href = entry["href"]
+        for prefix in (
+            "https://github.com/PolicyEngine/policybench/blob/main/",
+            "https://github.com/PolicyEngine/policybench/tree/main/",
+        ):
+            if href.startswith(prefix):
+                assert (ROOT / href.removeprefix(prefix)).exists(), href

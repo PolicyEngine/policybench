@@ -25,6 +25,8 @@ little scoring difference. The paper documents the asymmetry.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from policybench.completion_budget import MAX_ESCALATED_COMPLETION_TOKENS
@@ -110,6 +112,22 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "provider-default reasoning (effort medium, per the model page), "
             "like GPT-6 Sol. Probed before its card existed, it got the "
             "384-token non-thinking budget and stopped incomplete."
+        ),
+    ),
+    "gpt-6.1-terra": ModelCard(
+        litellm_id="gpt-6.1-terra",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.01,
+        notes=(
+            "Onboarded 2026-10-26, the day OpenAI announced it: forced tool "
+            "contract passed 3/3 (881 completion tokens) and 16/16 "
+            "whole-scenario (1,414 tokens) on the Responses API with "
+            "provider-default reasoning (effort medium, per the model page), "
+            "like GPT-6.1 Sol. Probed before its card existed, it got the "
+            "384-token non-thinking budget and stopped incomplete. A "
+            "two-household smoke parsed all 36 outputs for $0.02, with "
+            "reasoning tokens on every request."
         ),
     ),
     "gpt-6-luna": ModelCard(
@@ -749,6 +767,28 @@ MODEL_CARDS: dict[str, ModelCard] = {
 
 def card_for(model_id: str) -> ModelCard | None:
     return MODEL_CARDS.get(model_id)
+
+
+@contextmanager
+def provisional_card(card: ModelCard) -> Iterator[ModelCard]:
+    """Serve ``card`` from ``card_for`` inside the block if its model has none.
+
+    Yields the card in effect for ``card.litellm_id``: the model's own card
+    when it has one (``card`` is then unused), otherwise ``card``, which is
+    removed on exit, even when the block raises, so ``MODEL_CARDS`` is left
+    as it was. The onboarding gauntlet probes a new model this way under the
+    card it would derive. Not thread-safe: other threads calling
+    ``card_for`` for the same id see ``card`` while the block runs.
+    """
+    existing = card_for(card.litellm_id)
+    if existing is not None:
+        yield existing
+        return
+    MODEL_CARDS[card.litellm_id] = card
+    try:
+        yield card
+    finally:
+        MODEL_CARDS.pop(card.litellm_id, None)
 
 
 def completion_budget_ceiling_for(model_id: str) -> int:

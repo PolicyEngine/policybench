@@ -40,8 +40,27 @@ describe("notes", () => {
     }
   });
 
-  test("the notes page renders every title without unresolved placeholders", () => {
+  test("the notes index lists every note and links its page", () => {
     const markup = renderToStaticMarkup(createElement(NotesPageContent));
+    for (const note of notes) {
+      expect(markup).toContain(`href="/notes/${note.slug}"`);
+      expect(markup).toContain(`release ${note.release}`);
+    }
+    // Each card's excerpt is the note's first paragraph, as plain text.
+    expect(markup).toContain(
+      "Most models answer $0 for households that qualify for SNAP under their states&#x27; higher income limits",
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the notes render every title without unresolved placeholders", () => {
+    const markup = notes
+      .map((note) =>
+        renderToStaticMarkup(
+          createElement(NoteArticle, { note, titleLevel: "h1" }),
+        ),
+      )
+      .join("");
     expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
     expect(markup).toContain("release dashboard-data-20260905c");
     // Whole-number board rates keep one decimal.
@@ -79,23 +98,183 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 10 one", () => {
+  test("the newest note is the frozen release's, ahead of the October 14 ones", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toContain("muse-wonder-joins-the-board");
+    expect(notes[0].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
-    // The October 10 note keeps its own release and board snapshot.
-    expect(notes[1].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[1].release).toBe("dashboard-data-20261010");
-    expect(notes[1].boardSnapshot).toBe("2026-10-10");
-    expect(notes[2].slug).toBe(
+    // The October 20 tool-pilot note, the October 19 America.gov note and the
+    // October 14 release note keep release 20261014 and its board snapshot.
+    expect(notes[1].slug).toBe(
+      "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
+    );
+    expect(notes[2].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
+    expect(notes[3].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
+    for (const note of notes.slice(1, 4)) {
+      expect(note.release).toBe("dashboard-data-20261014");
+      expect(note.boardSnapshot).toBe("2026-10-14");
+      expect(note.slug.startsWith(note.date)).toBe(true);
+    }
+    // The October 13 and October 10 notes keep their own releases and board
+    // snapshots.
+    expect(notes[4].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[4].release).toBe("dashboard-data-20261013");
+    expect(notes[4].boardSnapshot).toBe("2026-10-13");
+    expect(notes[5].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[5].release).toBe("dashboard-data-20261010");
+    expect(notes[5].boardSnapshot).toBe("2026-10-10");
+    expect(notes[6].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
   });
 
+  test("the GPT-6.1 Terra note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-31-gpt-6-1-terra-joins-the-board",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "PolicyBench added OpenAI&#x27;s GPT-6.1 Terra to its 2026-10-27 snapshot, the day after OpenAI released it, bringing the board to 51 models.",
+    );
+    // Board rates keep one decimal.
+    expect(markup).toContain(
+      "It gets 93.1% of answers within $1, weighted by household impact, #3 of 51.",
+    );
+    expect(markup).toContain("GPT-6.1 Terra ranks #5.");
+    expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
+    // Costs keep their cents.
+    expect(markup).toContain(
+      "the 100 households cost $1.25, against $2.30 for GPT-6.1 Sol and $2.71 for GPT-6 Sol.",
+    );
+    expect(markup).toContain("The move changes four scored references");
+    expect(markup).toContain("now gets the $24 monthly minimum, $288 a year");
+    expect(markup).toContain(
+      "every model is still scored on 1,935 of its 1,984 requested outputs.",
+    );
+    expect(markup).toContain(
+      "gives the same value as 2.60.0 for all 1,935; it moves one excluded output",
+    );
+    expect(markup).toContain(
+      "the exact rates of 47 of the 50 earlier models fall, by 0.03 to 0.07 points, and three rise by 0.02.",
+    );
+    expect(markup).toContain("only three give the Californian&#x27;s new SNAP");
+    expect(markup).toContain('href="/model/gpt-6.1-terra"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261027"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the tool-pilot note renders its figures", () => {
+    const note = notes.find(
+      (n) =>
+        n.slug === "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "GPT-6 Sol, which leads the board at 95.2% of answers within $1, weighted by household impact, gets 99.2% with the tool.",
+    );
+    expect(markup).toContain(
+      "Claude Opus 5.5 goes from 94.1% to 99.8%, and Gemini 4 Argon from 88.7% to 99.9%.",
+    );
+    expect(markup).toContain(
+      "Of the 187 nonzero amounts, GPT-6 Sol gets 67.4% within $1 on its own and 96.8% with the tool",
+    );
+    // Whole numbers under ten are spelled out; costs keep their cents.
+    expect(markup).toContain(
+      "With the tool, 12 answers are wrong across the three runs: nine of GPT-6 Sol&#x27;s, two of Claude Opus 5.5&#x27;s and one of Gemini 4 Argon&#x27;s.",
+    );
+    expect(markup).toContain("GPT-6 Sol costs $5.63 with it and $2.71 without");
+    expect(markup).toContain(
+      "In five of GPT-6 Sol&#x27;s, it had used all eight calculation turns the pilot allows.",
+    );
+    expect(markup).toContain(
+      "not board rows, since the board scores models answering alone, and the result is circular",
+    );
+    expect(markup).toContain(
+      "1,065 of the 1,632 facts the prompts state, not counting ages and wages",
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/notes/data/tool_pilot_20261015.csv"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the America.gov note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-19-america-gov-scores-level-with-gpt-5-5",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "gets 87.9% of PolicyBench answers within $1, weighted by household impact.",
+    );
+    expect(markup).toContain(
+      "On the board it would rank #14 of 51, level with GPT-5.5 (87.9%); GPT-6 Sol leads at 95.2%.",
+    );
+    // Whole numbers under ten are spelled out; thousands get separators.
+    expect(markup).toContain("America.gov&#x27;s first replies included five refusals.");
+    expect(markup).toContain("Six prompts run past the 8,000 characters");
+    expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
+    expect(markup).toContain(
+      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board declined a household on that ground, though some models&#x27; recorded reasoning notes that they cannot run PolicyEngine.",
+    );
+    expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
+    expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
+    expect(markup).toContain(
+      "never more than 0.8 points below the median model on those four outputs, and without them it would rank #13 of 51.",
+    );
+    expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/notes/data/america_gov_20261019.csv"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the Gemini 4 Argon note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-10-14-gemini-4-argon-joins-the-board",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "Google&#x27;s Gemini 4 Argon joined the board on 2026-10-14, the day after Google opened it to the public Gemini API, and Meta&#x27;s Muse Spark 1.3 joined with it, bringing the board to 50 models.",
+    );
+    // Board rates keep one decimal.
+    expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers within $1");
+    expect(markup).toContain("#12 of 50 and the highest of any Gemini model");
+    expect(markup).toContain("Gemini 3.8 Flash, the previous best, gets 85.6% (#21)");
+    expect(markup).toContain(
+      "Muse Spark 1.3 gets 87.2% (#18), behind Meta&#x27;s Muse Wonder (90.1%, #10)",
+    );
+    expect(markup).toContain("it ranks #6.");
+    expect(markup).toContain(
+      "With the forced tool Gemini 4 Argon returned reasoning tokens on 80 of them, and on 85 in the board&#x27;s own run; with an automatic tool choice, on 82.",
+    );
+    // A cost keeps its cents.
+    expect(markup).toContain("the 100 households cost $2.79.");
+    expect(markup).toContain(
+      "every model is still scored on 1,935 of its 1,984 requested outputs. Each of the 48 earlier models keeps its score.",
+    );
+    expect(markup).toContain('href="/model/gemini-4-argon"');
+    expect(markup).toContain('href="/model/muse-spark-1.3"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261014"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
   test("the Muse Wonder note renders its figures", () => {
-    const note = notes[0];
+    const note = notes.find(
+      (n) => n.slug === "2026-10-13-muse-wonder-joins-the-board",
+    )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );

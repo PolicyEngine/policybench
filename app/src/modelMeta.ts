@@ -24,6 +24,7 @@ export const MODEL_ORDER = [
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",
+  "gpt-6.1-terra",
   "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
@@ -31,6 +32,7 @@ export const MODEL_ORDER = [
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
+  "gemini-4-argon",
   "gemini-3.1-pro-preview",
   "gemini-3.6-flash",
   "gemini-3.8-flash",
@@ -53,6 +55,7 @@ export const MODEL_ORDER = [
   "qwen3.8-max",
   "qwen-3.7-max",
   "muse-wonder",
+  "muse-spark-1.3",
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
@@ -76,6 +79,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "gpt-6-astra": "GPT-6 Astra",
   "gpt-6-sol": "GPT-6 Sol",
   "gpt-6.1-sol": "GPT-6.1 Sol",
+  "gpt-6.1-terra": "GPT-6.1 Terra",
   "gpt-6-luna": "GPT-6 Luna",
   "gpt-5.6-sol": "GPT-5.6 Sol",
   "gpt-5.6-terra": "GPT-5.6 Terra",
@@ -105,6 +109,8 @@ export const MODEL_LABELS: Record<string, string> = {
   "qwen3.8-max": "Qwen 3.8 Max",
   inkling: "Inkling",
   "muse-wonder": "Muse Wonder",
+  "muse-spark-1.3": "Muse Spark 1.3",
+  "gemini-4-argon": "Gemini 4 Argon",
 };
 
 export type ProviderKey =
@@ -150,6 +156,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "gpt-6-astra": "2026-09-04",
   "gpt-6-sol": "2026-09-22",
   "gpt-6.1-sol": "2026-09-29",
+  "gpt-6.1-terra": "2026-10-26",
   "gpt-6-luna": "2026-09-22",
   "gpt-5.6-sol": "2026-07-09",
   "gpt-5.6-terra": "2026-07-09",
@@ -227,7 +234,7 @@ const FRONTIER_MODEL_GROUPS = [
   ["claude-fable-5.1", "claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
   ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
   ["grok-4.5", "grok-4.3"],
-  ["gemini-3.1-pro-preview"],
+  ["gemini-4-argon", "gemini-3.1-pro-preview"],
   ["deepseek-v4-pro-0813", "deepseek-v4-pro"],
   ["kimi-k3", "kimi-k2.6"],
   ["glm-5.3", "glm-5.2"],

@@ -54,6 +54,21 @@ from policybench.spend_ledger import (
 
 logger = logging.getLogger(__name__)
 
+# Where the responses behind a row came from. ``live_calls`` counts the
+# responses the provider answered and ``cache_hit_calls`` the ones the LiteLLM
+# disk cache (policybench/cache.py) replayed, over the request group whose time
+# the row's ``elapsed_seconds`` apportions. Every row of one group repeats the
+# counts, so they are never summed across rows. ``live_elapsed_seconds`` is the
+# live calls' share of ``elapsed_seconds``, apportioned the same way; a replay
+# contributes its cache lookup to ``elapsed_seconds`` and nothing here. Failed
+# attempts appear only in the spend ledger. Rows written before these columns
+# existed leave all three empty (docs/runbook.md, "Call provenance").
+NO_TOOLS_CALL_PROVENANCE_COLUMNS = (
+    "live_calls",
+    "cache_hit_calls",
+    "live_elapsed_seconds",
+)
+
 # Canonical columns emitted by both no-tools result writers. ``run_id`` is
 # added only by repeated runs. Keep the worker-schema parity test in sync.
 NO_TOOLS_RESULT_COLUMNS = (
@@ -83,6 +98,7 @@ NO_TOOLS_RESULT_COLUMNS = (
     "provider_response_id",
     "provider_system_fingerprint",
     "provider_resolved_model",
+    *NO_TOOLS_CALL_PROVENANCE_COLUMNS,
 )
 
 # litellm resolves an unprefixed model's provider (and prices it) through its
@@ -125,6 +141,22 @@ for _display_id in _LOCAL_CLAUDE_MODELS:
         }
     )
 
+
+def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
+    """Per-token cache read and write rates of a Responses-API GPT model.
+
+    The default is the GPT-5.6 line's structure: cache reads at a tenth of
+    input and cache writes at 1.25x. GPT-6.1 Sol and GPT-6.1 Terra list cache
+    reads at a twentieth (their ``PRICE_OVERRIDES_PER_1M`` entries), so an
+    override's own ``cache_read`` or ``cache_write`` rate replaces the
+    default. The caller doubles both above 272k prompt tokens, as it does
+    input.
+    """
+    read = prices.get("cache_read", prices["input"] * 0.1) / 1_000_000
+    write = prices.get("cache_write", prices["input"] * 1.25) / 1_000_000
+    return read, write
+
+
 # LiteLLM's bundled model map predates the GPT-5.6 release. Without a
 # local entry it cannot infer that the unprefixed public API ids belong to
 # OpenAI, so requests fail before reaching the provider. Keep these entries
@@ -136,6 +168,7 @@ for _model_id in GPT_RESPONSES_MODELS.values():
     _prices = PRICE_OVERRIDES_PER_1M[_model_id]
     _input_cost = _prices["input"] / 1_000_000
     _output_cost = _prices["output"] / 1_000_000
+    _cache_read_cost, _cache_write_cost = _gpt_responses_cache_rates(_prices)
     litellm.register_model(
         {
             _model_id: {
@@ -144,10 +177,10 @@ for _model_id in GPT_RESPONSES_MODELS.values():
                 "max_output_tokens": 128000,
                 "input_cost_per_token": _input_cost,
                 "output_cost_per_token": _output_cost,
-                "cache_read_input_token_cost": _input_cost * 0.1,
-                "cache_creation_input_token_cost": _input_cost * 1.25,
+                "cache_read_input_token_cost": _cache_read_cost,
+                "cache_creation_input_token_cost": _cache_write_cost,
                 "input_cost_per_token_above_272k_tokens": _input_cost * 2,
-                "cache_read_input_token_cost_above_272k_tokens": (_input_cost * 0.2),
+                "cache_read_input_token_cost_above_272k_tokens": _cache_read_cost * 2,
                 "output_cost_per_token_above_272k_tokens": _output_cost * 1.5,
                 "litellm_provider": "openai",
                 "mode": "chat",
@@ -269,6 +302,9 @@ class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
 
 
+WALL_TIMEOUT_MESSAGE = "Provider request exceeded {seconds}s wall-clock timeout"
+
+
 class SensitivityKnobError(ValueError):
     """Raised when a serving sensitivity knob is unsupported by a transport."""
 
@@ -379,6 +415,33 @@ def is_infrastructure_error_text(error: str | None) -> bool:
     return is_retryable_provider_error_text(error)
 
 
+# What a provider request timeout leaves in a worker's log (its stdout and
+# stderr). litellm.Timeout's str and repr both begin "litellm.Timeout: ", so
+# it survives the 60-character "Retry" line as well as the ERROR line and
+# the traceback; litellm raises it for a client-side timeout and for a
+# provider's HTTP 408 or 504. The SIGALRM wall timeout usually fires inside a
+# socket read, where httpcore re-raises it as ReadTimeout and litellm then as
+# litellm.Timeout; elsewhere it surfaces under its own class name. Its message
+# is kept in the traceback either way. Deliberately not a bare "Timeout" or
+# "timed out": every worker's `import litellm` logs "Failed to fetch remote
+# model cost map from <url>: timed out" (or "504 Gateway Timeout") when that
+# fetch fails, and no request timed out.
+REQUEST_TIMEOUT_LOG_PATTERN = re.compile(
+    "|".join(
+        (
+            r"\blitellm\.Timeout: ",
+            rf"\b{RequestWallTimeoutError.__name__}\b",
+            re.escape(WALL_TIMEOUT_MESSAGE).replace(re.escape("{seconds}"), r"\S+"),
+        )
+    )
+)
+
+
+def log_shows_request_timeout(text: str) -> bool:
+    """Return whether a worker log records a provider request that timed out."""
+    return REQUEST_TIMEOUT_LOG_PATTERN.search(text) is not None
+
+
 def _is_retryable_provider_error(error: Exception) -> bool:
     if _is_model_fatal_error(error):
         return False
@@ -433,10 +496,10 @@ def _reconstruct_token_cost(
 
     PolicyBench's explicit prices are authoritative. LiteLLM's mutable model
     map is used only when no override exists, and that fallback is marked as
-    estimated. GPT-5.6 overrides include their documented cache and
-    long-context pricing. Other overrides can declare cache-read and
-    cache-write rates; overrides without them apply their standard rate to
-    the inclusive prompt-token count.
+    estimated. Responses-API GPT overrides take their documented cache and
+    long-context pricing (``_gpt_responses_cache_rates``). Other overrides
+    can declare cache-read and cache-write rates; overrides without them
+    apply their standard rate to the inclusive prompt-token count.
     """
     if prompt_tokens is None or completion_tokens is None:
         return ReconstructedCost(None, None)
@@ -452,14 +515,17 @@ def _reconstruct_token_cost(
         input_rate = rates["input"] / 1_000_000
         output_rate = rates["output"] / 1_000_000
         if override_name in GPT_RESPONSES_MODELS:
+            cache_read_rate, cache_write_rate = _gpt_responses_cache_rates(rates)
             if prompt_tokens > 272_000:
                 input_rate *= 2
+                cache_read_rate *= 2
+                cache_write_rate *= 2
                 output_rate *= 1.5
             uncached = int(prompt_tokens) - cached - cache_write
             cost = (
                 uncached * input_rate
-                + cached * input_rate * 0.1
-                + cache_write * input_rate * 1.25
+                + cached * cache_read_rate
+                + cache_write * cache_write_rate
                 + int(completion_tokens) * output_rate
             )
         elif "cache_read" in rates or "cache_write" in rates:
@@ -513,6 +579,37 @@ def _response_cache_hit(response) -> bool:
         else getattr(response, "_hidden_params", None)
     )
     return isinstance(hidden, dict) and hidden.get("cache_hit") is True
+
+
+def _request_call_provenance(elapsed_seconds: float, cache_hit: bool) -> dict:
+    """Provenance of one answered request: a provider call or a cache replay."""
+    return {
+        "live_calls": 0 if cache_hit else 1,
+        "cache_hit_calls": 1 if cache_hit else 0,
+        "live_elapsed_seconds": 0.0 if cache_hit else elapsed_seconds,
+    }
+
+
+def _aggregate_call_provenance(results: list[dict]) -> dict:
+    """Sum request provenance over the responses a row's time is summed from.
+
+    No responses means zero calls of either kind and no live time, matching
+    ``elapsed_seconds``, which is then empty too. A result without provenance
+    (one built before the fields existed) makes the whole aggregate unknown
+    rather than undercounting it.
+    """
+    if any(
+        result.get("live_calls") is None or result.get("cache_hit_calls") is None
+        for result in results
+    ):
+        return dict.fromkeys(NO_TOOLS_CALL_PROVENANCE_COLUMNS)
+    return {
+        "live_calls": sum(int(result["live_calls"]) for result in results),
+        "cache_hit_calls": sum(int(result["cache_hit_calls"]) for result in results),
+        "live_elapsed_seconds": _sum_optional_numbers(
+            result.get("live_elapsed_seconds") for result in results
+        ),
+    }
 
 
 def _extract_usage_metadata(
@@ -964,7 +1061,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
     def _raise_timeout(_signum, _frame):
         raise RequestWallTimeoutError(
-            f"Provider request exceeded {wall_timeout_seconds}s wall-clock timeout"
+            WALL_TIMEOUT_MESSAGE.format(seconds=wall_timeout_seconds)
         )
 
     signal.signal(signal.SIGALRM, _raise_timeout)
@@ -1382,6 +1479,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
             "provider_response_id": None,
             "provider_system_fingerprint": None,
             "provider_resolved_model": None,
+            **_aggregate_call_provenance([]),
         }
 
     return {
@@ -1437,6 +1535,7 @@ def _aggregate_request_results(results: list[dict]) -> dict:
         "provider_resolved_model": _first_non_null(
             result.get("provider_resolved_model") for result in results
         ),
+        **_aggregate_call_provenance(results),
     }
 
 
@@ -1678,6 +1777,51 @@ def _merge_repair_cells(
             repair_value,
         )
     return merged
+
+
+def _nonblank_explanations(explanations: dict) -> dict:
+    return {
+        variable: (
+            explanation
+            if isinstance(explanation, str) and explanation.strip()
+            else None
+        )
+        for variable, explanation in explanations.items()
+    }
+
+
+def _merge_repair_response(
+    predictions: dict[str, float | None],
+    explanations: dict[str, str | None],
+    response_predictions: dict[str, float | None],
+    response_explanations: dict[str, str | None],
+    *,
+    disagreements: list[dict],
+) -> tuple[dict[str, float | None], dict[str, str | None]]:
+    """Merge one repair response into the cells earlier responses produced.
+
+    Sync's value and explanation repair rounds and the batch runner both merge
+    through this, so the two harnesses keep the same cells for the same
+    responses. (Sync's explanation-only pass merges its explanations with
+    ``_merge_repair_cells`` directly.) Each field merges
+    independently via ``_merge_repair_cells``: a present value is never replaced,
+    a missing one is filled from the response, and a missing response value
+    changes nothing. A blank explanation counts as missing, as it does in
+    ``_missing_explanations``.
+    """
+    merged_predictions = _merge_repair_cells(
+        predictions,
+        response_predictions,
+        field="prediction",
+        disagreements=disagreements,
+    )
+    merged_explanations = _merge_repair_cells(
+        _nonblank_explanations(explanations),
+        _nonblank_explanations(response_explanations),
+        field="explanation",
+        disagreements=disagreements,
+    )
+    return merged_predictions, merged_explanations
 
 
 def _enforce_explanation_value_contract(
@@ -2140,6 +2284,7 @@ def _request_explanations_once(
             if not _numeric_values_match(explanation_value, float(answer)):
                 explanations[variable] = None
         usage = _extract_usage_metadata(response, model_id, messages, content or "")
+        cache_hit = _response_cache_hit(response)
         spend_record = _spend_ledger_record(
             call_key=call_key,
             phase="explanation_repair",
@@ -2156,7 +2301,7 @@ def _request_explanations_once(
             request_completed_at=request_completed_at,
             elapsed_seconds=elapsed_seconds,
             usage=usage,
-            cache_hit=_response_cache_hit(response),
+            cache_hit=cache_hit,
             completion_budget_tokens=request_completion_budget,
             escalated_from_budget_tokens=escalated_from_budget_tokens,
         )
@@ -2170,6 +2315,7 @@ def _request_explanations_once(
             "finish_reason": finish_reason,
             "completion_budget": request_completion_budget,
             **usage,
+            **_request_call_provenance(elapsed_seconds, cache_hit),
             "spend_ledger": [spend_record],
         }
     except SensitivityKnobError:
@@ -2386,6 +2532,7 @@ def _request_predictions_once(
                 messages,
                 raw_response or content,
             )
+            cache_hit = _response_cache_hit(response)
             has_parse_error = any(
                 predictions.get(variable) is None for variable in variables
             ) or (
@@ -2408,7 +2555,7 @@ def _request_predictions_once(
                     request_completed_at=request_completed_at,
                     elapsed_seconds=elapsed_seconds,
                     usage=usage,
-                    cache_hit=_response_cache_hit(response),
+                    cache_hit=cache_hit,
                     completion_budget_tokens=request_completion_budget,
                     escalated_from_budget_tokens=(
                         escalated_from_budget_tokens if attempt == 0 else None
@@ -2429,6 +2576,7 @@ def _request_predictions_once(
                     escalated_from_budget_tokens is not None
                 ),
                 **usage,
+                **_request_call_provenance(elapsed_seconds, cache_hit),
                 "spend_ledger": spend_records,
             }
         except SensitivityKnobError:
@@ -2524,16 +2672,11 @@ def _request_predictions_with_budget_escalation(
             raise
 
         request_results.append(result)
-        predictions = _merge_repair_cells(
+        predictions, explanations = _merge_repair_response(
             predictions,
-            result["predictions"],
-            field="prediction",
-            disagreements=repair_disagreements,
-        )
-        explanations = _merge_repair_cells(
             explanations,
+            result["predictions"],
             result.get("explanations", {}),
-            field="explanation",
             disagreements=repair_disagreements,
         )
 
@@ -2704,6 +2847,7 @@ def run_single_no_tools(
             "provider_resolved_model": _first_non_null(
                 result.get("provider_resolved_model") for result in chunk_results
             ),
+            **_aggregate_call_provenance(chunk_results),
             "repair_disagreements": [
                 disagreement
                 for result in chunk_results
@@ -3471,6 +3615,7 @@ def run_no_tools_eval(
                     "total_cost_usd": None,
                     "cost_is_estimated": None,
                     "estimated_cost_usd": None,
+                    **_aggregate_call_provenance([]),
                     "failure_sources": {},
                     "budget_escalation_count": 0,
                 }
@@ -3491,6 +3636,7 @@ def run_no_tools_eval(
             total_cost_usd = result.get("total_cost_usd")
             cost_is_estimated = result.get("cost_is_estimated")
             estimated_cost_usd = result.get("estimated_cost_usd")
+            live_elapsed_seconds = result.get("live_elapsed_seconds")
             for variable in scenario_programs:
                 prediction = result["predictions"].get(variable)
                 explanation = result.get("explanations", {}).get(variable)
@@ -3575,6 +3721,16 @@ def run_no_tools_eval(
                         ),
                         "provider_resolved_model": result.get(
                             "provider_resolved_model"
+                        ),
+                        # Counts cover the household's whole request group,
+                        # so every row repeats them; live time splits like
+                        # elapsed_seconds.
+                        "live_calls": result.get("live_calls"),
+                        "cache_hit_calls": result.get("cache_hit_calls"),
+                        "live_elapsed_seconds": (
+                            live_elapsed_seconds / batch_size
+                            if live_elapsed_seconds is not None
+                            else None
                         ),
                     }
                 )
@@ -3723,6 +3879,7 @@ def run_no_tools_single_output_eval(
                         "provider_response_id": None,
                         "provider_system_fingerprint": None,
                         "provider_resolved_model": None,
+                        **_aggregate_call_provenance([]),
                         "failure_sources": {},
                         "budget_escalation_count": 0,
                     }
@@ -3773,6 +3930,9 @@ def run_no_tools_single_output_eval(
                         "provider_resolved_model": result.get(
                             "provider_resolved_model"
                         ),
+                        "live_calls": result.get("live_calls"),
+                        "cache_hit_calls": result.get("cache_hit_calls"),
+                        "live_elapsed_seconds": result.get("live_elapsed_seconds"),
                     }
                 )
 

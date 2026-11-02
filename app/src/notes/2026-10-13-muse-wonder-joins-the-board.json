@@ -38,7 +38,7 @@
     },
     {
       "label": "Engine upgrade record",
-      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-12-engine-upgrade"
+      "href": "https://github.com/PolicyEngine/policybench/tree/main/reference_audit/2026-10-12-engine-upgrade"
     },
     {
       "label": "Reference sidecar with every change",

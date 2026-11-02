@@ -655,18 +655,29 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # 2026-10-06 rulings and the engine upgrade exclude leave the universe
     # while the ones it regenerates return (release 20261006: annotated 7,527,
     # below full bounded score 9,599, llm_error 6,883, parse failures 644).
+    # Release 20261014: Gemini 4 Argon's and Muse Spark 1.3's rows join on
+    # unchanged references and exclusions (262 annotated misses, all LLM
+    # errors since both rows parsed every answer, and 111 more unannotated
+    # rows below full bounded score; release 20261013: 8,503 annotated,
+    # 10,721 below full bounded score, llm_error 7,834).
+    # Release 20261027: GPT-6.1 Terra's rows join (96 annotated misses, all
+    # LLM errors since it parsed every answer), and the move to
+    # policyengine-us 2.60.0 changes four scored references, which adds 189
+    # incumbent misses (192 on the four outputs, less 3 that now match);
+    # release 20261014: 8,765 annotated, 11,094 below full bounded score,
+    # llm_error 8,096.
     expected_audit_counts = {
         "us": {
-            "annotated": 8_503,
-            "exact_misses": 8_499,
-            "annotated_exact_misses": 8_499,
+            "annotated": 9_050,
+            "exact_misses": 9_046,
+            "annotated_exact_misses": 9_046,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 10_721,
-            "unannotated_below_full_bounded_score": 2_218,
+            "below_full_bounded_score": 11_457,
+            "unannotated_below_full_bounded_score": 2_407,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_834, "parse_contract_failure": 669},
+        "us": {"llm_error": 8_381, "parse_contract_failure": 669},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

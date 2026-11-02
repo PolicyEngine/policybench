@@ -36,10 +36,14 @@ GPT_56_MODELS = {
 # announced and available 2026-09-22) share the GPT-5.6 line's
 # Responses-API transport and pricing structure (cache reads at a tenth,
 # cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
+# GPT-6.1 Sol (2026-09-29) and GPT-6.1 Terra (announced and available
+# 2026-10-26) share it too, with cache reads at a twentieth of input; their
+# overrides' cache_read rates carry that (eval_no_tools._gpt_responses_cache_rates).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
     "gpt-6-sol": "gpt-6-sol",
     "gpt-6.1-sol": "gpt-6.1-sol",
+    "gpt-6.1-terra": "gpt-6.1-terra",
     "gpt-6-luna": "gpt-6-luna",
 }
 GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
@@ -83,8 +87,8 @@ MODELS = {
     # answers were requested on 2026-08-18, before Gemini 3.8 Flash was
     # released (2026-09-02), so they are Gemini 3.7 Flash, and this name can
     # no longer re-run them. A synchronous run, which row repairs also use,
-    # would not show either re-route: litellm 1.88.1 sets the response model
-    # to the requested name and never reads Gemini's modelVersion, so
+    # would not show either re-route: litellm (1.88.x, 1.95.0) sets the response
+    # model to the requested name and never reads Gemini's modelVersion, so
     # provider_resolved_model records gemini-3.7-flash or gemini-3.5-flash.
     # The Gemini batch path (google-genai) does record modelVersion. GET
     # models/<name> still returns each retired model's own version string.
@@ -152,8 +156,9 @@ MODELS = {
 # id. The frozen row's cost is its recorded per-call cost: reconstructed from
 # token counts at the list price configured at request time, or the
 # provider-reported charge where no reconstruction was available (see
-# eval_no_tools usage accounting). List-price overrides apply at request time, not
-# retroactively to recorded costs. Analysis preserves each recorded total.
+# eval_no_tools usage accounting). A list-price override applies to
+# requests made after it is set and leaves recorded costs unchanged. Analysis
+# preserves each recorded total.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
     # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).
@@ -174,6 +179,12 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # day OpenAI announced it at DevDay; the Models API lists the id with
     # created 2026-09-27T23:47Z).
     "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    # gpt-6.1-terra: $1 / $5 per 1M input/output, $0.05 cached input, $1.25
+    # cache writes (30-minute retention); 2x input and cache and 1.5x output
+    # above 272k input tokens (developers.openai.com/api/docs/models/
+    # gpt-6.1-terra, read 2026-10-26, the day OpenAI announced it; the Models
+    # API lists the id with created 2026-10-13T16:26Z).
+    "gpt-6.1-terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05},
     "gpt-6-luna": {"input": 0.10, "output": 0.50},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},

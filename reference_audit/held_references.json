@@ -29,7 +29,7 @@
       ],
       "independent_review": "GPT-6.1 Sol, 2026-10-10 (reference_audit/2026-10-10-held-references/reviews/review_va039.md): reproduces $8,596.03 and $5,145.11, and puts single as the filing status of a widow with no qualifying child above 99%.",
       "reviewer_dissent": "The reviewer's verdict is \"Scenario ambiguous\", on a ground the consensus does not raise: \"estate income\" states no character, and read as qualified dividends or long-term gain the same $25,950 gives $6,259.99 (75% confidence in excluding). The check did not adopt it: the preface sets unlisted numeric inputs to 0, and qualified dividends and capital gains are separate inputs.",
-      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground is Max's call, queued as cos decision d1252 on 2026-10-10 and not ruled when this record was written. This record does not act on it."
+      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground was Max's call, queued as cos decision d1252 on 2026-10-10. He ruled on 2026-10-13: keep scoring it, and fix the label the reviewer found ambiguous in the v2 prompt (#165)."
     },
     {
       "scenario_id": "scenario_025",
@@ -61,7 +61,7 @@
       ],
       "independent_review": "GPT-6.1 Sol, 2026-10-10 (reference_audit/2026-10-10-held-references/reviews/review_oh025.md): reproduces $1,916.60 and $1,589.56, and finds the $332.00, the $26,050 threshold and the frozen exemptions settled in the reference's favor.",
       "reviewer_dissent": "The reviewer's verdict is \"Scenario ambiguous\", on a ground the consensus does not raise: \"employer sponsored insurance premiums: $21,208\" does not say who paid. Read as paid by the head after tax it gives $1,319.65, or $1,145.86 if the plan is also unsubsidized. The check did not adopt it: the prompt gives the head's premiums as $6,500 in total, and the 2026-10-06 verification weighed this reading (its R4) and rejected it.",
-      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground is Max's call, queued as cos decision d1252 on 2026-10-10 and not ruled when this record was written. This record does not act on it."
+      "open_decision": "Whether to keep scoring this output or exclude it on the reviewer's ground was Max's call, queued as cos decision d1252 on 2026-10-10. He ruled on 2026-10-13: keep scoring it, and fix the label the reviewer found ambiguous in the v2 prompt (#165)."
     }
   ]
 }
