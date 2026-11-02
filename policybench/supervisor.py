@@ -22,7 +22,7 @@ computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
 ``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it reads package metadata
 and policyengine.py's bundled release manifest and imports no PolicyEngine
-module (about 0.15 CPU-seconds). Until 2026-09-30 it imported policyengine
+module (about 0.15 CPU-seconds). Before PR #186 it imported policyengine
 whenever a country's installed model package was the exact version
 policyengine.py pins; under policyengine.py 4.16.1 with
 ``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset, that built the US and UK

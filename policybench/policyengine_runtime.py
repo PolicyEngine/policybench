@@ -248,7 +248,8 @@ def _with_dataset_overlays(
     """Merge ``dataset_overlays`` in as policyengine 6.x does.
 
     Overlays only add datasets. One that names the default dataset or a certified
-    dataset makes the bundle invalid, and policyengine raises, so this does too.
+    dataset makes the bundle invalid, and policyengine raises, so this does too,
+    whether or not the installed model matches the bundle.
     """
     overlays = (bundle.get("dataset_overlays") or {}).get(country) or {}
     if not overlays:
