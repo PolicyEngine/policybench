@@ -548,9 +548,11 @@ start if that commit is not on main's first-parent line. It never moves the
 tag of a release main named by then. When main points back at one of those
 releases with the bytes it named by then, and the release's tag still names a
 commit from before sealing began, the run passes over it. Otherwise someone
-reused the release's name or replaced its asset: the run moves nothing for it
-and fails, naming the tag. Check the release and seal it by hand with
-`uv run policybench seal-release --tag <tag> --apply`, and later runs pass
+reused the release's name, replaced its asset or deleted its tag: the run
+moves nothing for it and fails, naming the tag. Check the release. If someone
+deleted its tag, push the tag back at the commit it named
+(`git push origin <commit>:refs/tags/<tag>`); otherwise seal it by hand with
+`uv run policybench seal-release --tag <tag> --apply`. Later runs then pass
 over it. Before and after each move the run reads the release's asset digest
 again, and it refuses the move, or reports it, when the asset changed; the
 next run plans that tag again. A move GitHub refuses does not stop the

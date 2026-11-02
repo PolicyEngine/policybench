@@ -545,13 +545,30 @@ def test_an_older_release_main_points_back_at_is_left_alone(scratch, github):
     assert github.writes == [] and github.tags[T1] == root
 
 
+def test_an_older_release_tagged_on_a_merged_side_branch_is_left_alone(scratch, github):
+    # T1's tag names a commit from a side branch merged before sealing began:
+    # in the start's history, though not on main's first-parent line.
+    old_board = scratch.release(T1, SHAS["a"])
+    scratch.merge([("other",)])
+    side = git(scratch.root, "rev-parse", "HEAD^2")
+    start = scratch.release(T2, SHAS["b"])
+    scratch.release(T1, SHAS["a"])  # main points back at T1 after sealing began
+    github.tags = {T1: side, T2: old_board}
+    github.release(T1, SHAS["a"], release_id=1)
+    github.release(T2, SHAS["b"], release_id=2)
+    assert rt.plan_landed(start, **where(scratch)) == []
+    assert github.writes == [] and github.tags[T1] == side
+
+
 def test_an_earlier_name_recreated_with_its_old_bytes_is_reported_not_moved(
     scratch, github, monkeypatch
 ):
     # Delete T1's tag after sealing began, create a new release under the name
     # with the bytes main named before, and land that pointer. GitHub puts the
     # new tag on main as it stands, after the start. The run moves nothing and
-    # reports T1 until it is sealed by hand.
+    # reports T1 until it is sealed by hand. (A recreation whose --target names
+    # a commit from before sealing began is passed over instead, like any tag
+    # main named by then; the runbook's publish step never passes one.)
     old_board = scratch.release(T1, SHAS["a"])
     start = scratch.release(T2, SHAS["b"])
     published = scratch.other()
@@ -573,6 +590,7 @@ def test_an_earlier_name_recreated_with_its_old_bytes_is_reported_not_moved(
 
 
 def test_an_earlier_release_whose_tag_is_gone_is_reported(scratch, github):
+    root = git(scratch.root, "rev-parse", "HEAD")
     old_board = scratch.release(T1, SHAS["a"])
     start = scratch.other()
     second = scratch.release(T2, SHAS["b"])
@@ -586,6 +604,9 @@ def test_an_earlier_release_whose_tag_is_gone_is_reported(scratch, github):
         (T1, "leave", None),
     ]
     assert "its tag no longer exists" in plans[1].reason
+    assert "push it back at the commit it named" in plans[1].reason
+    github.tags[T1] = root  # pushed back at the pre-sealing commit it named
+    assert [p.tag for p in rt.plan_landed(start, **where(scratch))] == [T2]
 
 
 def test_an_earlier_release_with_new_bytes_is_reported_not_moved(

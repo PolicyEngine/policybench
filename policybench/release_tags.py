@@ -320,11 +320,12 @@ def plan_landed(
     history names belongs to an earlier release, and its tag is re-pointed by
     hand. When main points back at such a release with the bytes it named by
     ``after``, and the tag still names a commit in ``after``'s history, it is
-    passed over. Otherwise the release's name was reused or its asset replaced,
-    and unless the tag already names the board for the release's current
-    bytes, the plan has no board and says why, so the caller reports it instead
-    of moving it until someone seals the tag by hand. Any other plan with no
-    board also stays in, for the caller to report.
+    passed over. Otherwise someone reused the release's name, replaced its asset
+    or deleted its tag. Unless the tag already names the board for the
+    release's current bytes, the plan then has no board, and its reason says
+    what clears it (push a deleted tag back, or seal the tag by hand), so the
+    caller reports the tag instead of moving it. Any other plan with no board
+    also stays in, for the caller to report.
     """
     history = pointer_history(ref, root=root)
     start = _git(root, "rev-parse", "--verify", f"{after}^{{commit}}").strip()
@@ -349,6 +350,7 @@ def plan_landed(
             continue
         if plan.action == "sealed":
             continue
+        fix = "check the release and seal it by hand with seal-release --tag"
         if any(pair[0] == tag and pair not in earlier_pairs for pair in named):
             why = "main now names other bytes under it"
         else:
@@ -356,19 +358,18 @@ def plan_landed(
                 reachable_from_start = set(_git(root, "rev-list", start).split())
             if current in reachable_from_start:
                 continue
-            why = (
-                "its tag now names a commit after that"
-                if current
-                else "its tag no longer exists"
-            )
+            if current:
+                why = "its tag now names a commit after that"
+            else:
+                why = "its tag no longer exists"
+                fix = "push it back at the commit it named"
         plans.append(
             TagPlan(
                 tag,
                 None,
                 None,
                 None,
-                f"main named this tag before sealing began, and {why}; check the "
-                "release and seal it by hand with seal-release --tag",
+                f"main named this tag before sealing began, and {why}; {fix}",
             )
         )
     return plans
