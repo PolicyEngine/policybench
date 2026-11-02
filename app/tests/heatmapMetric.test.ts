@@ -36,11 +36,11 @@ describe("program heatmap metric", () => {
 
   test("exact and bounded rates differ where partial credit is large", () => {
     const federal = fable51("federal_income_tax_before_refundable_credits");
-    expect(Math.round(heatmapValue(federal, "exact"))).toBe(76);
-    expect(Math.round(heatmapValue(federal, "score"))).toBe(94);
+    expect(Math.round(heatmapValue(federal, "exact"))).toBe(80);
+    expect(Math.round(heatmapValue(federal, "score"))).toBe(96);
     const stateTax = fable51("state_income_tax_before_refundable_credits");
-    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(73);
-    expect(Math.round(heatmapValue(stateTax, "score"))).toBe(94);
+    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(69);
+    expect(Math.round(heatmapValue(stateTax, "score"))).toBe(92);
   });
 
   test("the rendered heatmap shows exact-match cells and says so", () => {
@@ -78,7 +78,7 @@ describe("program heatmap metric", () => {
     const boundedRates = entries.map((e) => Math.round(e.score)).sort((a, b) => a - b);
     expect(cells).toEqual(exactRates);
     expect(cells).not.toEqual(boundedRates);
-    expect(cells).toContain(76);
+    expect(cells).toContain(80);
     expect(html).toContain('aria-pressed="true"');
   });
 

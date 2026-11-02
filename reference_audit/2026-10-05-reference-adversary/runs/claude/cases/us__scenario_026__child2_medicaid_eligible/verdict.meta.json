@@ -1,0 +1,80 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.8153703999999997,
+  "duration_ms": 372384,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:57:59.770476+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "716444dce8c426950b31c70f4dcdabf917548246c38185264e7c566911ec42dd",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "a29b4ab74297a16ca1a4107be92b67d8deff693ba8e3ebb8cd766a3570e8af92",
+  "session_id": "bdd22432-94e3-46f4-8e98-506623c8a40d",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "7a076f0216c1a23a931387f5cfe62182987e66e638af01d45834552d6ef268ce",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.nctreasurer.gov/documents/files/slgfdcompliancesupplements/93767-2026/open",
+      "https://policies.ncdhhs.gov/wp-content/uploads/03-23.pdf",
+      "https://ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-70.21.html",
+      "https://www.nctreasurer.gov/documents/files/slgfdcompliancesupplements/93767-2024/open",
+      "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086",
+      "https://www.medicaid.gov/medicaid/spa/downloads/NC-23-0009.pdf",
+      "https://policies.ncdhhs.gov/wp-content/uploads/MA3230.pdf",
+      "https://medicaid.ncdhhs.gov/nc-health-choice-move-medicaid",
+      "https://www.medicaid.gov/CHIP/Downloads/NC-23-0008-0010.pdf",
+      "https://www.medicaid.gov/chip-spa/2023-09-18/153066",
+      "https://medicaid.ncdhhs.gov/eligibility",
+      "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels",
+      "https://medicaid.ncdhhs.gov/23-0009-proposed-amendment-cms-mchip-expansion/download",
+      "https://www.law.cornell.edu/cfr/text/42/435.4",
+      "https://www.law.cornell.edu/cfr/text/42/435.118",
+      "https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-C/part-435/subpart-A/section-435.4",
+      "https://www.law.cornell.edu/cfr/text/42/435.4",
+      "https://www.law.cornell.edu/uscode/text/42/1396d",
+      "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    ],
+    "searches": [
+      "NC Medicaid children 133% 211% FPL other health insurance not eligible NC Health Choice transition uninsured",
+      "NC Medicaid eligibility manual MIC \"211%\" children \"health insurance\" MA-3000 2023 NC Health Choice moved",
+      "\"MIC-1\" Medicaid North Carolina children \"health insurance\" uninsured requirement 133% 211%",
+      "North Carolina \"optional targeted low-income children\" Medicaid 2023 NC Health Choice \"other health insurance\" children 211",
+      "policies.ncdhhs.gov MA-3230 \"Medicaid for Infants and Children\" MIC uninsured \"health insurance\" coverage requirement",
+      "NC Health Choice move to Medicaid FAQ children private insurance eligible Medicaid 2023 \"211\" NCDHHS",
+      "\"NC-23-0009\" Medicaid SPA \"Optional Targeted Low Income Children\" OR \"S32\" OR \"435.229\"",
+      "North Carolina CHIP SPA NC-23-0008 transition separate CHIP Medicaid expansion summary medicaid.gov",
+      "\"93.767\" 2026 North Carolina compliance supplement \"MCHIP\" \"uninsured\" children 133% 211% eligibility Medicaid",
+      "\"MCHIP\" North Carolina \"be uninsured\" OR \"must be uninsured\" OR \"not covered under any private or employer-sponsored\" children Medicaid 2024 OR 2025 OR 2026",
+      "NC Medicaid change notice 2023 \"NC Health Choice\" removed MA-3230 MCHIP children ages 6 through 18 \"other health insurance\" eligible \"133%\""
+    ]
+  }
+}

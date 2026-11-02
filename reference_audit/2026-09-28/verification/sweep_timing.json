@@ -1,0 +1,44 @@
+{
+  "note": "When PolicyBench began sweeping the references, and which policyengine-us release was the newest then and at publication. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the sweep times are the filesystem birth times (stat -f %SB) of the files the sweep wrote in results/local/adds202609/triage, and the pin commit's committer date is in git. The sweep began after the script was written and before its first output.",
+  "pypi": {
+    "source": "https://pypi.org/pypi/policyengine-us/json",
+    "read_at_utc": "2026-09-29T14:58:39Z",
+    "newest_at_read": "2.17.0",
+    "wheel_uploaded_at_utc": {
+      "2.15.16": "2026-09-28T19:05:41.033997Z",
+      "2.15.17": "2026-09-29T00:23:56.685108Z",
+      "2.16.0": "2026-09-29T04:10:00.290696Z",
+      "2.17.0": "2026-09-29T12:21:14.049966Z"
+    }
+  },
+  "reference_sweep": {
+    "engine": "2.15.17",
+    "engine_installed_at_utc": "2026-09-29T01:41:34Z",
+    "engine_installed_evidence": "triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us-2.15.17.dist-info",
+    "script_written_at_utc": "2026-09-29T01:41:52Z",
+    "script": "triage/sweep/sweep_latest.py (committed as reference_audit/2026-09-28/scripts/sweep_latest.py)",
+    "first_output_at_utc": "2026-09-29T01:42:18Z",
+    "first_output": "triage/sweep/out/latest_2_15_17_check.csv",
+    "pin_commit": {
+      "commit": "be90e543d1164efc2b959846ecbcfb2a3b5e819d",
+      "committed_at_utc": "2026-09-29T01:58:29Z",
+      "subject": "Pin policyengine.py 6.1.2 and policyengine-us 2.15.17"
+    }
+  },
+  "publication_check": {
+    "engine": "2.17.0",
+    "engine_installed_at_utc": "2026-09-29T13:24:07Z",
+    "engine_installed_evidence": "triage/.venv-pe2170/lib/python3.13/site-packages/policyengine_us-2.17.0.dist-info",
+    "output_at_utc": "2026-09-29T13:25:31Z",
+    "output": "triage/sweep/out/latest_final_2170.csv (committed as verification/latest_final_2170.csv)"
+  },
+  "later_checks": [
+    {
+      "read_at_utc": "2026-09-29T18:28:04Z",
+      "source": "https://pypi.org/pypi/policyengine-us/json",
+      "newest_at_read": "2.17.1",
+      "wheel_uploaded_at_utc": "2026-09-29T17:24:17.953926Z",
+      "result": "policyengine-us 2.17.1 (policyengine-core 3.32.10, policyengine 6.1.2) gives the same value as 2.15.17 for all 1,984 outputs under latest_final (verification/latest_final_2171.csv, sha256 0536eff572262063c0c62f82dc5a30be48b3e59fcb6d4a315cee2d16a3c3bab3)"
+    }
+  ]
+}

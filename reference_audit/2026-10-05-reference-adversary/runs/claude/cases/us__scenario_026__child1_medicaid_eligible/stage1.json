@@ -1,0 +1,74 @@
+{
+  "ambiguity": "The answer depends on whether having ESI blocks NC's 211% coverage for ages 6\u201318. The second reading follows NC's statute, G.S. 108A-54.3A(3), and the NCDHHS eligibility chart, both of which set the 211% limit for all children through age 18 with no condition about being uninsured. On that reading, MAGI of $82,301 is 212.8% of the 2026 FPL; after the 5-point disregard it is 207.8%, within 211%, so the answer is 1 (the reference), at least from April 2026. For January\u2013March, NC's 2025 FPL ($37,650) puts income above even the 216% line. The definition's 'under PolicyEngine rules' could also matter: if the engine checks only income against 211% plus the disregard and ignores the child's ESI, it returns 1. I could not read verbatim the SPA text naming the new group as 42 CFR 435.229. I am relying on CMS's summary ('a new Medicaid eligibility group for certain children') and on the federal definition of that group, so the uninsured requirement is an inference about which group NC uses, not something quoted from the SPA.",
+  "citations": [
+    {
+      "pinpoint": "2026 guidelines table, 48 contiguous states, household of 5",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "5 | $38,680",
+      "source": "HHS ASPE, 2026 Poverty Guidelines (Annual Update of the HHS Poverty Guidelines, 91 FR, Jan. 2026)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "Children ages 0 through 18 income chart, family size 5",
+      "pre_freeze": null,
+      "published": "2026 (page last modified 2026-09-17; figures based on 2026 FPL)",
+      "quote": "A child ages 0 through 18 may be eligible if the family income is $2,807/month or less ... Family size 5: $6,802/month",
+      "source": "NC Medicaid (NCDHHS), Eligibility page",
+      "url": "https://medicaid.ncdhhs.gov/eligibility"
+    },
+    {
+      "pinpoint": "(3)",
+      "pre_freeze": true,
+      "published": "as amended through S.L. 2026-1",
+      "quote": "Children through the age of 18 with family incomes equal to or less than two hundred eleven percent (211%) of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "SPA description; effective 2023-04-01, approved 2023-07-28",
+      "pre_freeze": true,
+      "published": "2023-07-28",
+      "quote": "adopt a new Medicaid eligibility group for certain children under age 19 ... align the income standard for all children under age 19 at 211 percent of the federal poverty level",
+      "source": "CMS, Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    },
+    {
+      "pinpoint": "\u00a7 435.229(b)",
+      "pre_freeze": true,
+      "published": "2016-11-30",
+      "quote": "The agency may provide Medicaid to individuals under age 19 ... who meet the definition of an optional targeted low-income child in \u00a7 435.4",
+      "source": "42 CFR 435.229 Optional targeted low-income children",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.229"
+    },
+    {
+      "pinpoint": "\u00a7 457.310(b)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current eCFR",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act",
+      "source": "42 CFR 457.310 Targeted low-income child (incorporated by 42 CFR 435.4 definition of optional targeted low-income child)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "\u00a7 435.603(d)(4)",
+      "pre_freeze": true,
+      "published": "current eCFR",
+      "quote": "a state must subtract an amount equivalent to 5 percentage points of the Federal poverty level for the applicable family size only to determine the eligibility of an individual for medical assistance under the eligibility group with the highest income standard",
+      "source": "42 CFR 435.603 Application of MAGI-based methodologies",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "North Carolina row, Medicaid ages 6-18",
+      "pre_freeze": true,
+      "published": "table as of 2023-12-01",
+      "quote": "Children Medicaid Ages 6-18 | 211% ... Children Separate CHIP | N/A",
+      "source": "CMS, Medicaid, CHIP & BHP Eligibility Levels table",
+      "url": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels"
+    }
+  ],
+  "computation": "Steps:\n1. Household MAGI. Under 42 CFR 435.603(f), Child 1 is a tax dependent, so the household is the parents' five-person household. The only income is the spouse's gross wages of $85,209. The $2,778 traditional 401(k) deferral is excluded from wages (IRC 402(g)). The $130 traditional IRA contribution is deductible above the line under \u00a7219, because AGI is far below the phase-out for a spouse covered by a workplace plan. AGI and MAGI = 85,209 \u2212 2,778 \u2212 130 = $82,301. Roth contributions don't reduce MAGI. The overtime deduction is below the line, so it doesn't change AGI. Nothing says the head's $21,208 ESI premium was paid pre-tax out of wages, and the prompt says not to infer it, so it isn't deducted.\n2. FPL. The 2026 HHS guideline for a household of 5 is $38,680 (published January 2026, before the freeze). MAGI is 82,301 / 38,680 = 212.8% FPL, or $6,858/month.\n3. NC income limit. NC covers children through age 18 up to 211% FPL: $6,802/month for a household of 5, which is 2.11 \u00d7 38,680 / 12. Income is above that line. Under 42 CFR 435.603(d)(4), a 5-point FPL disregard ($1,934) applies, but only for the eligibility group with the highest income standard the child can qualify for. 212.8% \u2212 5 = 207.8%, which is within 211%. So on income alone, an uninsured child would qualify. That is how the reference value of 1 comes out.\n   - Timing caveat: NC switches to the new FPL on April 1. For January\u2013March 2026 the 2025 FPL ($37,650) applies; 216% of that is $81,324, which is below $82,301. So even an uninsured child would be eligible only from April.\n4. Which group covers ages 6\u201318 between 133% and 211%. This band is the former NC Health Choice population, moved to Medicaid on April 1, 2023 under SPA NC-23-0009. CMS describes that SPA as adopting \"a new Medicaid eligibility group for certain children under age 19\". That matches the optional targeted low-income children group (42 CFR 435.229), which I could not read verbatim in the SPA PDF. That group covers only children who meet the 435.4 definition, which brings in 457.310(b)(2): the child must not be \"Covered under a group health plan or under health insurance coverage.\" Child 1 has employer-sponsored insurance all year, so Child 1 is not in this group.\n5. The highest group left for an insured 11-year-old is the mandatory 435.118 group for ages 6\u201318 at 133% FPL (138% with the disregard). Income of about 208\u2013213% FPL is above that.\n6. Result: Child 1 is not eligible for NC Medicaid, so the answer is 0. Most models reached 0 by applying a 133% limit to the whole 6\u201318 age group, which is wrong for an uninsured child. The answer is still right here because Child 1 has ESI.\nAll 2026 amounts used (FPL $38,680 and NC's $6,802/month) were published before 2026-07-03.",
+  "confidence": "medium",
+  "definition_reading": "The flag asks whether Child 1 (age 11, NC) is eligible for Medicaid during 2026, not whether Child 1 is enrolled. Eligibility depends on the parents' five-person MAGI household and on Child 1's stated health coverage. The prompt says Child 1 has employer-sponsored insurance and that coverage facts hold all year, so Child 1 is covered by a group health plan for the whole year. That rules out NC's 133\u2013211% Medicaid-expansion CHIP group for ages 6\u201318, which is limited to uninsured optional targeted low-income children. The 133% group is the only one left, and income of about 208\u2013213% FPL is above it.",
+  "independent_answer": 0,
+  "law_supports": "consensus"
+}

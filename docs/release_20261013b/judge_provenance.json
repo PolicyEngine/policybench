@@ -1,0 +1,78 @@
+{
+ "counts": {
+  "isolated: setup-token 2": 5
+ },
+ "note": "Provenance of the five judge verdicts release dashboard-data-20261013b replaces: the carried-over verdicts the 2026-09-30 judge-isolation audit could not clear (docs/judge_isolation_2026-09-30/REPORT.md). Each was re-judged by Claude Opus 5.5 on judge template v2 through scripts/run_audit_claude.sh, from an empty directory outside the repo, with no tools, an allowlisted environment, no user settings and a token login; each transcript passes the runner's checks. Counts are by group. Scores do not depend on judge verdicts.",
+ "verdicts": [
+  {
+   "case_id": "us__scenario_014__federal_refundable_credits",
+   "group": "isolated: setup-token 2",
+   "isolated": true,
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judge_template_version": 2,
+   "judged_at_utc": "2026-10-13T17:25:13.068743+00:00",
+   "prompt_sha256": "3ac15585244fdbd27fb4bacabb031ecdcfcd919ad52e4cb544403330f4983604",
+   "verdict_sha256": "2275e0cf471908c7b5fa66c1b5cf62067c1c8f2dc5e868c77f53d8efa3ad6c95"
+  },
+  {
+   "case_id": "us__scenario_015__federal_refundable_credits",
+   "group": "isolated: setup-token 2",
+   "isolated": true,
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judge_template_version": 2,
+   "judged_at_utc": "2026-10-13T17:25:26.562165+00:00",
+   "prompt_sha256": "2674854fb6c568384466c8385c282851014472a30435c25572f4d49c132abfcb",
+   "verdict_sha256": "112ff460cd4b26477b0b291086d0a7cd4820de581de988f86594324c1a1b81f7"
+  },
+  {
+   "case_id": "us__scenario_015__head_medicaid_eligible",
+   "group": "isolated: setup-token 2",
+   "isolated": true,
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judge_template_version": 2,
+   "judged_at_utc": "2026-10-13T17:25:43.602071+00:00",
+   "prompt_sha256": "76d10036408c8b5c32cdaa603f130a0d9c9a771bb292464ce8480702dc8ec62d",
+   "verdict_sha256": "871078da6e685b5495939601860dc3c4cd599c3eb5781402e41ee42e9265dab5"
+  },
+  {
+   "case_id": "us__scenario_045__snap",
+   "group": "isolated: setup-token 2",
+   "isolated": true,
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judge_template_version": 2,
+   "judged_at_utc": "2026-10-13T17:26:04.392723+00:00",
+   "prompt_sha256": "269399c8edeba5aad88437966e1ddede28d37460cfc1888947febe053c8ccba9",
+   "verdict_sha256": "4753cadb243c49ab2b7fad0d81985753305e040a423fe768ac0934b2982c742c"
+  },
+  {
+   "case_id": "us__scenario_086__federal_refundable_credits",
+   "group": "isolated: setup-token 2",
+   "isolated": true,
+   "judge_account_declared": "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30",
+   "judge_effort": "xhigh",
+   "judge_model_reported": [
+    "claude-opus-5-5"
+   ],
+   "judge_template_version": 2,
+   "judged_at_utc": "2026-10-13T17:26:44.766255+00:00",
+   "prompt_sha256": "ed62d338867995739a77e5299741d133b3e7ae31e920aaa533b80764043d8bbf",
+   "verdict_sha256": "44be441538a79d6f2c083bd204789b421ecc35eab699a63a20d215aba0b1e4fe"
+  }
+ ]
+}

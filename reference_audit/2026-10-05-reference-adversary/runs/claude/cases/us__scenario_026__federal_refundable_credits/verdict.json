@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Child tax credit section (\u00a7 24(a), \u00a7 24(d)(1)(A) amounts)",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "the maximum amount of the credit allowed under \u00a7 24(a) is $2,200 ... the amount used in \u00a7 24(d)(1)(A) to determine the amount of the credit under \u00a7 24 that may be refundable is $1,700",
+      "source": "Rev. Proc. 2025-32, Internal Revenue Bulletin 2025-45",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "EITC table, Completed Phaseout Amount (Married Filing Jointly), three or more qualifying children",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Completed Phaseout Amount (Married Filing Jointly) ... $70,244",
+      "source": "Rev. Proc. 2025-32, Internal Revenue Bulletin 2025-45",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "Standard deduction; tax rates paragraph",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "For tax year 2026, the standard deduction increases to $32,200 for married couples filing jointly.",
+      "source": "IRS News Release IR-2025-103, IRS releases tax inflation adjustments for tax year 2026",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "\u00a7 24(d)(1)(A)-(B)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "the lesser of\u2014(A) the credit which would be allowed under this section without regard to this subsection and the limitation under section 26(a) or (B) the amount by which the aggregate amount of credits allowed by this subpart ... would increase if the limitation imposed by section 26(a) were increased by",
+      "source": "26 U.S.C. \u00a7 24(d)(1)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/24"
+    },
+    {
+      "pinpoint": "\u00a7 225(a)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "There shall be allowed as a deduction an amount equal to the qualified overtime compensation received during the taxable year",
+      "source": "26 U.S.C. \u00a7 225 (Qualified overtime compensation), added by Pub. L. 119-21",
+      "url": "https://www.law.cornell.edu/uscode/text/26/225"
+    },
+    {
+      "pinpoint": "\u00a7 163(h)(4) definition of qualified passenger vehicle loan interest",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "indebtedness incurred by the taxpayer after December 31, 2024, for the purchase of, and that is secured by a first lien on, an applicable passenger vehicle for personal use",
+      "source": "26 U.S.C. \u00a7 163(h)(4)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/163"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 2013.4,
+  "reference_value": 2013.49,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under 2026 law the couple files jointly with three children under 17, and their AGI is $82,301 ($85,209 in wages, minus $2,778 in traditional 401(k) deferrals, minus a $130 IRA deduction). Taxable income is $42,355: AGI minus the $32,200 standard deduction and the $7,746 \u00a7225 overtime deduction. Tax on that is $4,586.60, which is less than the $6,600 CTC, so $2,013.40 is refundable as ACTC (under both the $5,100 cap and the 15% earned-income limit). The EITC is $0 because AGI is above the $70,244 phase-out end. The engine got $2,013.49, all of it refundable CTC, and the $0.09 gap with stage 1 is immaterial rounding. Cluster 1's $0 leaves out the overtime deduction and/or uses the pre-OBBBA CTC. Cluster 2's $2,058.76 deducts the $378 of car-loan interest under \u00a7163(h)(4), but the facts that deduction requires (new vehicle, US final assembly, loan taken after 2024) are not listed, so the prompt treats them as false.",
+  "verdict": "reference_holds"
+}

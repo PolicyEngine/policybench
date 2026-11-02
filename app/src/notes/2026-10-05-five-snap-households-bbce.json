@@ -1,0 +1,170 @@
+{
+  "slug": "2026-10-05-five-snap-households-bbce",
+  "date": "2026-10-05",
+  "title": "Most models answer $0 for households that qualify for SNAP under their states' higher income limits",
+  "paragraphs": [
+    "For each of {householdCount:words} households that qualify for SNAP food benefits, most of the {nModels} models on PolicyBench answer $0. SNAP pays every eligible household of one or two people at least a minimum benefit, which in these households' states is ${minimumMonthly} a month through September 2026 and ${minimumFromOctober} from October. Each of the {householdCount:words} has one or two people, so an answer of $0 says the household does not qualify, and that answer could keep someone who qualifies from applying. Of the {answers} answers PolicyBench requests for these households, {zeroAnswers} come to $0 and {hits:words} match the reference.",
+    "PolicyBench grades answers against references from PolicyEngine, the open-source tax and benefit model, and the references follow law published before PolicyBench's July 3 reference freeze. USDA published the ${minimumFromOctober} minimum on August 21, so the references keep ${minimumMonthly} through December and put each household at that minimum for each month it qualifies: ${referenceAmount} for 2026 for {fullYearCount:words} households, and ${azReference} for an Arizona resident who qualifies from March.",
+    "Each household qualifies only through broad-based categorical eligibility (BBCE). Ordinarily, SNAP tests a household's gross income against {snapGrossLimit}% of the federal poverty guideline, its net income after deductions for costs such as housing, and its savings. Under BBCE, a state extends SNAP to households that receive a non-cash benefit funded by Temporary Assistance for Needy Families (TANF), or that the state has authorized to receive one. Arizona, Connecticut, Michigan, and Wisconsin open that benefit, and with it SNAP, to households with gross income up to {bbceGrossLimitHigh}% of the guideline, and Texas opens it to those up to {bbceGrossLimitTx}%. Arizona raised its limit from {azLimitBefore}% to {bbceGrossLimitHigh}% starting with benefit month March 2026. None of these states tests net income for the non-cash benefit, and only Texas keeps an asset limit for it.",
+    "All {householdCount:words} households have gross income above {snapGrossLimit}% of the guideline, but SNAP exempts households with an elderly or disabled member from its ordinary gross income test. Four of the {householdCount:words} have such a member: a Connecticut couple on Social Security disability income, a disabled Michigan resident living alone, an {wiAge}-year-old surviving spouse in Wisconsin, and an {azAge}-year-old Arizona resident on Social Security and a pension. The fifth, a {txAge}-year-old Texas resident with wages and ${financialAssistance} of financial assistance, fails that test. The four exempt households fail SNAP's ordinary net income test instead, and the Connecticut couple and the Arizona resident also hold ${ctSavings} and ${azSavings} in savings, above SNAP's asset limit. Each household's gross income is under its state's BBCE limit, the Arizona resident's from March. BBCE leaves SNAP's benefit formula in place, and at these incomes the formula pays nothing, so each household gets the minimum.",
+    "The Michigan resident's prompt lists employer-sponsored insurance premiums, and PolicyEngine treats the employer as paying them. Had the resident paid them, SNAP would count them as a medical expense, and the household would pass the net income test and get the same minimum without BBCE. GPT-5.5 gets the Michigan resident's amount right by that route: its explanation deducts medical premiums, puts net income below the net income limit, and applies the minimum.",
+    "No prompt mentions the non-cash benefit, and each mentions TANF only to ask for the household's TANF amount. Every prompt tells the model to treat any unlisted household fact or status \"as false\", to assume \"program take-up when required\", and not to infer unlisted \"benefit receipt\". The rules on unlisted statuses and benefit receipt tell a model the household lacks the non-cash benefit, while the take-up rule can tell it the household takes that benefit up. PolicyEngine applies BBCE to any household eligible for the non-cash benefit, without checking whether the household receives it or holds the state's authorization to receive it. A model that requires receipt or authorization falls back on SNAP's ordinary tests, and each of the {householdCount:words} fails at least one. Among the explanations for the {zeroAnswers} answers of $0, TANF appears in {zeroTanfMentions:words}: Claude Sonnet 4.6 writes that Texas has no BBCE and that the Texas resident receives neither TANF nor Supplemental Security Income.",
+    "When savings rather than income hold a household back, most models answer above $0. PolicyBench also asks models about households in New Jersey, North Carolina, Virginia, and Pennsylvania that pass SNAP's income tests but hold savings above its asset limit, which BBCE removes in those states. Of the answers models give for those {assetOnlyCount:words} households, {assetOnlyAbove0Share}% come in above $0, against {incomeAbove0Share}% for the {householdCount:words} held back by income. Of the {nModels} models, {splitModels} answer above $0 for each household held back by savings and $0 for each of the {householdCount:words} held back by income, among them GPT-5.6 Sol and GPT-6 Luna, #{sol56Rank} and #{lunaRank} on PolicyBench. PolicyBench does not score the Pennsylvania household's SNAP amount, because PolicyEngine grants it the heat-and-eat utility allowance, which a 2025 law narrowed. With or without that allowance, the household qualifies for a benefit.",
+    "PolicyBench asks each model to explain every answer, and the explanations mention BBCE less often for the households held back by income. For the households held back by savings, {assetOnlyBbceMentions} of {assetOnlyExplanations} explanations mention BBCE, by name or as categorical eligibility, and {assetOnlyBbceAssets} of those also mention assets. For the {householdCount:words} held back by income, {incomeBbceMentions} of {explanations} explanations mention BBCE, and {incomeBbceZeros} of those still end at $0. Of those {incomeBbceZeros}, {incomeBbceZeroOverLimit:words} write that the household's income exceeds its state's BBCE limit: {overLimitAz:words} for the Arizona resident and {overLimitTx:words} for the Texas resident. PolicyEngine puts both households under their states' limits, the Arizona resident from March. Another {netLimitOnly:words} cite a net income limit or test, though none of these households' states applies one under BBCE. The last {formulaOnly:words}, from Gemini 3 Flash Preview and Gemini 3.1 Pro Preview, write that the Connecticut couple meets BBCE, then answer $0 because the benefit formula pays nothing, and neither applies the minimum. Of the {incomeBbceAbove0} that mention BBCE and answer above $0, {incomeBbceHits:words} match the reference, and {staleMinimum:words} apply the minimum at its amount through September 2025, ${fy2025Minimum} a month, and answer ${fy2025MinimumAnnual}.",
+    "GPT-6 Astra gets {astraHits:words} of the {householdCount:words} households right, more than any other model, and cites the state's BBCE limit of {bbceGrossLimitHigh}% of the guideline each time. It answers $0 for the Texas resident, the one household that fails SNAP's ordinary gross income test, and for the Arizona resident. GPT-6.1 Sol gets {sol61Hits:words} right, the Michigan and Wisconsin households, citing each state's categorical eligibility limit. Claude Opus 5.5 answers ${opusOn108} for the Wisconsin surviving spouse, citing Wisconsin's BBCE and its {bbceGrossLimitHigh}% limit. For the Connecticut couple, the disabled Michigan resident, and the Arizona resident, it answers $0, citing SNAP's ordinary net income test, which BBCE removes in all three states. GPT-6 Sol, which leads PolicyBench overall, answers $0 for {sol6ZeroCount:words} of the {householdCount:words} and mentions BBCE in {sol6BbceMentions:words} of its SNAP explanations for PolicyBench's {boardHouseholds} households.",
+    "GPT-6 Sol, Claude Opus 5.5, and Claude Sonnet 5.5 miss the Texas resident's amount because they count less income than PolicyEngine does. GPT-6 Sol answers ${sol6On030}, and Claude Opus 5.5 and Claude Sonnet 5.5 each answer ${opusOn030}. All three compute an ordinary benefit from wages alone. PolicyEngine also counts the ${financialAssistance} of financial assistance as income, which puts the household above SNAP's ordinary limits and leaves BBCE as its only route. The prompt labels that money only \"financial assistance\", without naming its source, and SNAP counts some kinds of assistance as income but excludes others, such as educational assistance.",
+    "All {nModels} models answer $0 for the Arizona resident, whose gross income falls between Arizona's old and new BBCE limits. PolicyBench's references use policyengine-us {engineVersion}, which encodes the raise. GPT-6 Astra, GPT-6.1 Sol, Gemini 3.5 Flash, and Gemini 3.8 Flash write that the resident's income exceeds Arizona's categorical eligibility limit; Gemini 3.5 Flash and Gemini 3.8 Flash, along with Gemini 3 Flash Preview, give Arizona's limit as {azLimitBefore}%, the limit before March.",
+    "This note corrects PolicyBench's September 3 note. That note counted {sept3HouseholdCount:words} households, {fullYearCount:words} of them among the {householdCount:words} here, at ${sept3Reference} each, an amount PolicyBench computed from PolicyEngine's unrounded minimum. SNAP rounds the minimum to the nearest dollar, and so does PolicyEngine (policyengine-us #9162). One of the {sept3HouseholdCount:words}, a Michigan worker who pays child support, does not qualify. Michigan counts that child support in gross income and deducts it when computing net income, which puts the worker's gross income above Michigan's {bbceGrossLimitHigh}% BBCE limit; PolicyEngine subtracted it from gross income until policyengine-us #9586. The version of this note published September 23 counted the worker among its households. PolicyBench no longer scores another of the {sept3HouseholdCount:words}, a second Texas household, whose reference assumed {assumedHours} hours of work a week that the prompt does not list. At 0 hours, as the prompt's rule for unlisted numbers reads, PolicyEngine gives that household $0, the answer GPT-5.6 Sol, Claude Fable 5.1, and Kimi K3 gave in the September 3 note. The September 3 note also says SNAP excludes that household's farm rent, but SNAP counts rent, farm rent included, net of the costs of doing business: as unearned income under 7 CFR 273.9(b)(2)(ii), or as earned income under 273.9(b)(1)(ii) when a household member averages at least 20 hours a week managing the property. PolicyEngine counts farm rent from policyengine-us #9671, which postdates the references' engine, {engineVersion}. The September 3 note described BBCE as covering households that receive the non-cash benefit, but PolicyEngine computed that note's amounts by applying BBCE to every household eligible for that benefit. It also said Connecticut, Michigan, Texas, and Wisconsin waive the asset test, but Texas keeps a ${bbceAssetLimitTx} asset limit.",
+    "A later release, dashboard-data-20261006, stops scoring {laterExclusions:words} tax outputs and changes no SNAP reference or answer. On it, GPT-6 Luna is #{laterLunaRank} on PolicyBench, below Claude Sonnet 5.5, and every other figure in this note stays the same."
+  ],
+  "facts": {
+    "householdCount": 5,
+    "nModels": 46,
+    "minimumMonthly": 24,
+    "minimumFromOctober": 25,
+    "referenceAmount": 288,
+    "fullYearCount": 4,
+    "azReference": 240,
+    "answers": 230,
+    "zeroAnswers": 190,
+    "hits": 7,
+    "snapGrossLimit": 130,
+    "bbceGrossLimitHigh": 200,
+    "bbceGrossLimitTx": 165,
+    "azLimitBefore": 185,
+    "wiAge": 85,
+    "azAge": 80,
+    "txAge": 23,
+    "financialAssistance": 12000,
+    "ctSavings": 48000,
+    "azSavings": 58700,
+    "zeroTanfMentions": 1,
+    "assetOnlyCount": 4,
+    "assetOnlyAbove0Share": 77,
+    "incomeAbove0Share": 17,
+    "splitModels": 12,
+    "sol56Rank": 3,
+    "lunaRank": 4,
+    "assetOnlyBbceMentions": 62,
+    "assetOnlyExplanations": 182,
+    "assetOnlyBbceAssets": 54,
+    "incomeBbceMentions": 29,
+    "explanations": 228,
+    "incomeBbceZeros": 13,
+    "incomeBbceZeroOverLimit": 6,
+    "overLimitAz": 4,
+    "overLimitTx": 2,
+    "netLimitOnly": 5,
+    "formulaOnly": 2,
+    "incomeBbceAbove0": 16,
+    "incomeBbceHits": 6,
+    "staleMinimum": 7,
+    "fy2025Minimum": 23,
+    "fy2025MinimumAnnual": 276,
+    "astraHits": 3,
+    "sol61Hits": 2,
+    "opusOn108": 288,
+    "sol6ZeroCount": 4,
+    "sol6BbceMentions": 1,
+    "boardHouseholds": 100,
+    "sol6On030": "1,208.40",
+    "opusOn030": 1208,
+    "engineVersion": "2.15.17",
+    "sept3HouseholdCount": 6,
+    "sept3Reference": "287.68",
+    "assumedHours": 40,
+    "bbceAssetLimitTx": 5000,
+    "laterExclusions": 8,
+    "laterLunaRank": 5
+  },
+  "mentionRegexes": {
+    "bbce": "broad-based|\\bbbce\\b|categorical(?:ly)?[- ]eligib|expanded categorical",
+    "tanf": "tanf",
+    "assets": "asset|resource",
+    "netLimit": "\\bnet[- ](?:income[- ])?(?:limit|test|screen|threshold|ceiling|rule)|(?<![\\d.])100(?:\\.0+)?\\s*%[^.;]{0,20}?(?:fpl|fpg|poverty)"
+  },
+  "data": [
+    {
+      "label": "Texas resident",
+      "href": "/?country=us&scenario=scenario_030#scenarios"
+    },
+    {
+      "label": "Connecticut couple",
+      "href": "/?country=us&scenario=scenario_027#scenarios"
+    },
+    {
+      "label": "Disabled Michigan resident",
+      "href": "/?country=us&scenario=scenario_073#scenarios"
+    },
+    {
+      "label": "Wisconsin surviving spouse",
+      "href": "/?country=us&scenario=scenario_108#scenarios"
+    },
+    {
+      "label": "Arizona resident",
+      "href": "/?country=us&scenario=scenario_013#scenarios"
+    },
+    {
+      "label": "Every model's answer for the five households held back by income",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/bbce_households_20260930.csv"
+    },
+    {
+      "label": "Every model's answer for the four households held back by savings",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/bbce_asset_households_20260930.csv"
+    },
+    {
+      "label": "SNAP pathways under the release's references",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/notes/data/snap_pathways_20260930.csv"
+    },
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260930"
+    },
+    {
+      "label": "Later release dashboard-data-20261006",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261006"
+    },
+    {
+      "label": "Six SNAP households note (September 3)",
+      "href": "/notes/2026-09-03-six-snap-households"
+    },
+    {
+      "label": "Reference audit note (September 22)",
+      "href": "/notes/2026-09-22-reference-audit"
+    },
+    {
+      "label": "Release note for dashboard-data-20260929 (September 29)",
+      "href": "/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth"
+    },
+    {
+      "label": "Release note for dashboard-data-20261006 (October 6)",
+      "href": "/notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs"
+    },
+    {
+      "label": "Reference upgrade record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-09-28/README.md"
+    },
+    {
+      "label": "Exclusion record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "Prompt preface",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/policybench/prompts.py"
+    },
+    {
+      "label": "policyengine-us #9162 (SNAP minimum rounding)",
+      "href": "https://github.com/PolicyEngine/policyengine-us/pull/9162"
+    },
+    {
+      "label": "policyengine-us #9586 (SNAP child support treatment)",
+      "href": "https://github.com/PolicyEngine/policyengine-us/pull/9586"
+    },
+    {
+      "label": "policyengine-us #9671 (SNAP farm rent)",
+      "href": "https://github.com/PolicyEngine/policyengine-us/pull/9671"
+    }
+  ],
+  "boardSnapshot": "2026-09-30",
+  "release": "dashboard-data-20260930"
+}

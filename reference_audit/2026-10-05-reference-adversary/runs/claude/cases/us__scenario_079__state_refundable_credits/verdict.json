@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Subsection A(1) income limit; credit amount subsection; refund provision",
+      "pre_freeze": true,
+      "published": "Current ARS text (in force for taxable years beginning after 2000-12-31)",
+      "quote": "The amount of the credit shall not exceed twenty-five dollars for each person ... but not more than one hundred dollars for all persons in the taxpayer's household.",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.01, Credit for increased excise taxes paid",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Refund provision",
+      "pre_freeze": true,
+      "published": "Current ARS text",
+      "quote": "If the allowable amount of the credit exceeds the income taxes otherwise due on the claimant's income, the amount of the claim not used as an offset against income taxes shall be paid in the same manner as a refund granted under section 42-1118.",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.01, Credit for increased excise taxes paid",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection A(1) income threshold",
+      "pre_freeze": true,
+      "published": "Current ARS text",
+      "quote": "Twenty-five thousand dollars or less for a married couple or a single person who is a head of a household.",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.01, Credit for increased excise taxes paid",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "\u00a7 86(c)(1)(B)",
+      "pre_freeze": true,
+      "published": "Current USC text",
+      "quote": "$32,000 in the case of a joint return",
+      "source": "26 U.S.C. \u00a7 86, Social security and tier 1 railroad retirement benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 50,
+  "reference_value": 50,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under A.R.S. \u00a7 43-1072.01, the credit for increased excise taxes is $25 for each resident person with an exemption, up to $100 per household. A married couple qualifies with federal AGI of $25,000 or less, and the statute refunds any amount above tax due. This couple's only income is $7,560 of SSDI, which is not taxable under IRC \u00a7 86, so AGI is $0 and they get 2 \u00d7 $25 = $50, all refunded. The engine credited exactly that $50 for a joint return with 2 people, so the reference holds. The $0 consensus wrongly assumes a refundable credit needs earned income or tax liability, and stage 1 stands.",
+  "verdict": "reference_holds"
+}

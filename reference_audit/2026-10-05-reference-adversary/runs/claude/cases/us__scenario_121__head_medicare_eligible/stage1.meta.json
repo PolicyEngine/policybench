@@ -1,0 +1,62 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.41280160000000005,
+  "duration_ms": 83072,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:57:54.701059+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "2d352a2ae9662571e6eb3da687d6e21fb25dbfe9dede52f46eb6208e1c391ff0",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "f71a5287ae0a2d68bec8ae6ff0d4ef2346824447e330a36b80d0992d9fbfe0d2",
+  "session_id": "2ef93ed0-ae70-4326-ba14-aaf62c11e1f2",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/uscode/text/42/426",
+      "https://www.ssa.gov/oact/cola/sga.html",
+      "https://uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title42-section426&num=0&edition=prelim",
+      "https://www.ssa.gov/redbook/newfor2026.htm",
+      "https://www.ssa.gov/OP_Home/ssact/title18/1811.htm",
+      "https://www.law.cornell.edu/cfr/text/42/406.12",
+      "https://www.law.cornell.edu/uscode/text/42/1395c",
+      "https://www.law.cornell.edu/uscode/text/42/1395o",
+      "https://www.medicare.gov/basics/get-started-with-medicare/sign-up/when-does-medicare-coverage-start",
+      "https://www.federalregister.gov/documents/2025/11/03/2025-19763/cost-of-living-increase-and-other-determinations-for-2026",
+      "https://public-inspection.federalregister.gov/2025-19763.pdf",
+      "https://www.govinfo.gov/content/pkg/FR-2025-11-03/html/2025-19763.htm"
+    ],
+    "searches": [
+      "SSA 2026 COLA fact sheet substantial gainful activity non-blind monthly $1,690",
+      "Federal Register \"Cost-of-Living Increase and Other Determinations for 2026\" substantial gainful activity"
+    ]
+  }
+}

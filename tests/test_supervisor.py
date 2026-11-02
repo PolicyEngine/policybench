@@ -16,8 +16,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import MODELS, PROGRAMS, get_programs
 from policybench.eval_no_tools import (
+    NO_TOOLS_CALL_PROVENANCE_COLUMNS,
     NO_TOOLS_RESULT_COLUMNS,
     _build_resume_metadata,
     run_no_tools_eval,
@@ -461,6 +462,19 @@ def test_scenario_completion_requires_full_worker_schema(
 
     with pytest.raises(ValueError, match=f"missing columns.*{missing_column}"):
         supervisor._scenario_complete(0)
+
+
+def test_scenario_written_before_call_provenance_is_still_complete(manifest, tmp_path):
+    """A supervised run resumed across the change keeps its finished
+    scenarios: their rows predate the call-provenance columns and stay
+    empty. Only a file with some but not all of them is stale (the
+    parametrized test above)."""
+    supervisor = make_supervisor(manifest, tmp_path)
+    path, _ = write_current_worker_output(supervisor, 0)
+    frame = pd.read_csv(path).drop(columns=list(NO_TOOLS_CALL_PROVENANCE_COLUMNS))
+    frame.to_csv(path, index=False)
+
+    assert supervisor._scenario_complete(0) is True
 
 
 @pytest.mark.parametrize(
@@ -1308,16 +1322,25 @@ DIRECT_PROVENANCE = (
     "from policybench.policyengine_runtime import policyengine_bundles_for_countries\n"
     "bundles = policyengine_bundles_for_countries({'us'})\n"
     "open(sys.argv[1], 'w').write(json.dumps(bundles))\n"
+    "heavy = {'policyengine', 'policyengine_core', 'policyengine_uk',\n"
+    "         'policyengine_us', 'h5py'}\n"
+    "loaded = sorted(m for m in sys.modules if m.split('.')[0] in heavy)\n"
+    "open(sys.argv[2], 'w').write(json.dumps(loaded))\n"
 )
+# A hooked process that imports PolicyEngine on purpose, so the probe is shown
+# to detect it whether or not computing provenance needs PolicyEngine: with
+# policyengine.py 6.x's bundle manifest it reads package metadata only.
+PROBE_CONTROL = "import policyengine_core\n"
 
 
 def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
     """End to end through `policybench run` with real worker subprocesses.
 
-    Only the one-shot provenance writer imports PolicyEngine (which also shows
-    the probe detects it); the supervisor and every worker never do. Each
-    sidecar records exactly the bundles a fresh worker computing them itself
-    would have recorded.
+    Only the one-shot provenance writer may import PolicyEngine, and it loads
+    exactly what a fresh interpreter computing provenance directly loads; the
+    supervisor and every worker never do. A control process shows the probe
+    detects a PolicyEngine import. Each sidecar records exactly the bundles a
+    fresh worker computing them itself would have recorded.
     """
     scenarios = [
         Scenario(
@@ -1339,8 +1362,15 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
     ).to_csv(manifest, index=False)
     probed_env, probe_dir = probe_environment(tmp_path)
     direct_path = tmp_path / "direct_bundles.json"
+    direct_loaded_path = tmp_path / "direct_loaded.json"
     direct = subprocess.Popen(
-        [sys.executable, "-c", DIRECT_PROVENANCE, str(direct_path)],
+        [
+            sys.executable,
+            "-c",
+            DIRECT_PROVENANCE,
+            str(direct_path),
+            str(direct_loaded_path),
+        ],
         env=clean_environment(),
         cwd=tmp_path,
     )
@@ -1368,15 +1398,31 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
         text=True,
         timeout=900,
     )
+    control = subprocess.run(
+        [sys.executable, "-c", PROBE_CONTROL, "probe-control"],
+        env=probed_env,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
     assert direct.wait(timeout=900) == 0
     assert run.returncode == 0, run.stdout + run.stderr
+    assert control.returncode == 0, control.stdout + control.stderr
 
     records = probe_records(probe_dir)
     supervisors = [r for r in records if r["argv"][1:2] == ["run"]]
-    writers = [r for r in records if r["argv"][0] == "-c"]
+    writers = [
+        r
+        for r in records
+        if r["argv"][0] == "-c" and r["argv"][1:2] != ["probe-control"]
+    ]
+    controls = [r for r in records if r["argv"][1:2] == ["probe-control"]]
     workers = [r for r in records if "eval-no-tools" in r["argv"]]
+    assert len(controls) == 1 and "policyengine_core" in controls[0]["at_exit"]
     assert len(supervisors) == 1 and supervisors[0]["at_exit"] == []
-    assert len(writers) == 1 and "policyengine_us" in writers[0]["at_exit"]
+    direct_loaded = json.loads(direct_loaded_path.read_text())
+    assert len(writers) == 1 and writers[0]["at_exit"] == direct_loaded
     assert len(workers) == 2
     for worker in workers:
         assert worker["requests"], "the worker never reached its LLM request"
@@ -1395,3 +1441,96 @@ def test_supervised_run_keeps_policyengine_out_of_workers(tmp_path):
         (run_dir / POLICYENGINE_PROVENANCE_FILENAME).resolve()
     )
     assert heartbeat["policyengine_provenance_recomputed"] == 0
+
+
+@pytest.fixture
+def uk_manifest(tmp_path: Path) -> Path:
+    path = tmp_path / "uk_scenarios.csv"
+    scenarios = [
+        Scenario(
+            id=f"scenario_{i:03d}",
+            country="uk",
+            state="WALES",
+            filing_status=None,
+            adults=[Person(name="adult1", age=35, employment_income=20_000)],
+            source_dataset="uk_calibrated_transfer_2025",
+        )
+        for i in range(N_SCENARIOS)
+    ]
+    pd.DataFrame(
+        {
+            "scenario_id": [scenario.id for scenario in scenarios],
+            "scenario_json": [
+                json.dumps(scenario_to_dict(scenario)) for scenario in scenarios
+            ],
+        }
+    ).to_csv(path, index=False)
+    return path
+
+
+def test_uk_workers_request_the_uk_country_and_output_set(
+    uk_manifest, tmp_path, monkeypatch
+):
+    supervisor = make_supervisor(uk_manifest, tmp_path)
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+
+    (cmd,) = launched
+    assert cmd[cmd.index("--country") + 1] == "uk"
+    assert supervisor._expected_outputs_for_scenario(0) == get_programs("uk")
+    assert supervisor.initial_request_variables == get_programs("uk")
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256(
+            "\n".join(sorted(get_programs("uk"))).encode("utf-8")
+        ).hexdigest()
+    )
+
+
+def test_workers_request_a_named_output_set(uk_manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(uk_manifest, tmp_path, program_set="uk_audit")
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+
+    (cmd,) = launched
+    assert cmd[cmd.index("--program-set") + 1] == "uk_audit"
+    audit = get_programs("uk", "uk_audit")
+    assert supervisor._expected_outputs_for_scenario(0) == audit
+    assert supervisor.initial_request_variables == audit
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256("\n".join(sorted(audit)).encode("utf-8")).hexdigest()
+    )
+
+
+def test_default_output_set_adds_no_worker_flag(uk_manifest, tmp_path, monkeypatch):
+    supervisor = make_supervisor(uk_manifest, tmp_path)
+    launched = []
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            launched.append(cmd)
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    supervisor._spawn(0)
+    assert "--program-set" not in launched[0]
+
+
+def test_us_workload_fingerprint_is_unchanged_by_country_awareness(manifest, tmp_path):
+    supervisor = make_supervisor(manifest, tmp_path)
+    assert (
+        supervisor.workload["output_set_sha256"]
+        == hashlib.sha256("\n".join(sorted(PROGRAMS)).encode("utf-8")).hexdigest()
+    )

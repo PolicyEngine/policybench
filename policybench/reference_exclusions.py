@@ -21,10 +21,11 @@ model gains or loses from it:
 
 ``reference_law_published_after_freeze``
     The reference depends on a law or official parameter published after the
-    references were frozen, so the frozen value is the engine's projection
-    and no model could have known the governing figure when it answered. The
-    entry names what was published and when, and records the frozen
-    projection beside the value under the published figure.
+    references were frozen, so the frozen value is the engine's own figure (a
+    projection, or a computation no government stated before the freeze) and
+    no model could have known the governing figure when it answered. The
+    entry names what was published and when, and records the frozen value
+    beside the value under the published figure.
 
 The record lives beside the reference CSV as ``reference_exclusions.json`` and
 travels with the run into the frozen snapshot, where the manifest pins it.

@@ -1,0 +1,850 @@
+{
+ "date": "2026-10-05",
+ "reviewed_commit": "8714770979394463b193caddb366de8d18f54dc8",
+ "method": "Claude Code workflow wf_b0ed54d5-a21 (run after an account switch interrupted the first launch): eight agents, each in its own scratch directory, none changing the checkout. Scratch paths are not kept.",
+ "differential_impact": {
+  "agrees": true,
+  "compared": "2,438 values across the two required variants, all within tolerance: 0 mismatches. For each of the 46 models, under exclude and under regenerate: exact, within1pct and score, both `*_proposed` and `*_published`, computed two independent ways (path A and path B, described under method). Also n_proposed, n_published, payroll_exact_proposed, payroll_exact_published and payroll_exact_delta. Separately, the audit's published exact, within1pct, score and n columns against the payload `data.json.gz` modelStats, and my own published values against the payload. The largest absolute difference on any rate was 2.84e-14 (tolerance 1e-9). Every integer matched exactly.\n\nPayroll exact counts came from my own hit computation over scored payroll_tax rows. That is 99 rows per model for published and regenerate and 95 for exclude, with missing predictions counted as misses (66 missing under published). They match the audit CSVs, and the published counts also match the published payload's scenarioPredictions (`scored` and `exact==100`) for all 46 models.\n\nBeyond scope, also checked with 0 mismatches:\n- **SALT variants:** salt, exclude+salt and regenerate+salt, 966 more comparisons against the `*_plus_salt` and `salt` CSVs, with #191's records read via `git show 8af912a0`.\n- **Always-zero baseline:** 69.97959457368849 published, 70.52527771951148 exclude, 69.97959457368849 regenerate, equal to `leaderboard_impact.json`.\n- **Rank changes:** the rank-change sets for exact, within1pct and score equal the json in both variants.\n- **README figures:** every cell of the 13-row README table (published, exclude and regenerate exact to two decimals, both ranks, and the three payroll exact counts) is correct. The delta ranges (exclude -0.0667 to +0.6197, regenerate -0.6880 to +0.6880) and the five exclude and ten regenerate adjacent swaps on exact (the same pairs the README names) are correct. On regenerate, Claude Opus 5.5 leads within1pct (95.5763). Payroll exact across models goes 78.502% to 81.007% (exclude) and 79.534% (regenerate). The GPT-6 Sol vs Claude Opus 5.5 gap goes 1.3060 to 0.2431, and the lead over always-zero goes 25.02 to 24.57 (exclude) and 24.65 (regenerate).",
+  "mismatches": [],
+  "method": "I did not use the CLI, the staged scratch copies or the dashboard payload. All inputs were loaded in memory from the frozen run: reference_outputs.csv, reference_exclusions.json (56 records), predictions.csv.gz (91,264 rows, no duplicate model/scenario/variable keys) and scenarios.csv.\n\n- **Exclude:** I appended the 4 records from `proposed_exclusions.json` to the base list in memory and called `policybench.reference_exclusions.split_reference`. That gives 1,924 scored rows.\n- **Regenerate:** I set the 4 rows' float values to `regenerated_value` in the DataFrame. I asserted each frozen value first, and did not write the CSV and re-parse a `repr` string as the audit does. That gives 1,928 scored rows.\n- **Path A (library functions called directly, not `analyze_no_tools`):** exact and within1pct are `weighted_hit_rate_scores_by_model` × 100. Score is the mean of `bounded_household_scores` × 100. n is `summary_by_model(compute_metrics(...)).total_n`. I read `cli.py`'s analyze branch and `analysis.build_dashboard_payload` this session and confirmed that modelStats exact, within1pct, score and n map to these.\n- **Path B (hand-rolled):** the only library pieces reused are the output-group population weights (`bounded_global_variable_weights`, which I confirmed comes from the committed `population_weights.json` covering all 18 groups, so it does not depend on reference values) and `metric_type_for_output`/`BINARY_PROGRAMS`. Everything else is my own vectorized numpy code:\n  - Rows split their group's weight equally within the household and are renormalized to sum to 1 per household; households with zero total weight are dropped.\n  - Exact is |p−t|≤1. Within1pct is |p−t|/|t|≤0.01, or |p|≤1 when t=0. Binary outputs compare 0/1 flags.\n  - Score is max(0, 1−|p−t|/|t|), with t=0 scoring 1 only when p==0.\n  - Each model's rate is the equal-household mean; n is the number of scored reference rows.\n- **Payroll exact counts:** my own count of path-B exact hits on scored payroll_tax rows.",
+  "commands_run": [
+   "git log -1; git status --porcelain (checkout clean before and after)",
+   "cat CLAUDE.md, reference_audit/2026-10-05-payroll/README.md, scripts/leaderboard_impact.py, proposed_exclusions.json, proposed_regenerations.json",
+   "sed -n policybench/cli.py (analyze parser 750-800, analyze branch 1401-1520)",
+   "sed -n policybench/analysis.py (60-245 row scoring, 291-630 weights and household scoring, 1051-1312 detail rows/compute_metrics/summary_by_model, 1468-1590 analyze_no_tools, 2176-2345 build_dashboard_payload modelStats)",
+   "cat policybench/reference_exclusions.py; sed policybench/population_weights.py",
+   "PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> /Users/maxghenis/PolicyEngine/policybench/.venv/bin/python <scratch>/review/differential-impact/recompute.py <scratch>/review/differential-impact  -> 2438 comparisons, 0 mismatches",
+   "same venv: derived.py (weight source, combined-exclusion validation, always-zero baseline, rank changes, adjacent swaps, README table, gaps)",
+   "same venv: salt_and_payload.py (payload scenarioPredictions payroll counts; salt, exclude+salt, regenerate+salt vs audit CSVs, 966 comparisons, 0 mismatches)",
+   "git show 8af912a0:reference_audit/2026-10-05/{proposed_exclusions.json,README.md,verification/leaderboard_impact_models.csv} (read-only)"
+  ],
+  "other_findings": [
+   "Rounding error in the README's SALT figure. Line 140 says the #191 records alone give 'GPT-6 Sol 95.62%', and #191's own README at 8af912a0 says the same (line 95: 'GPT-6 Sol moves from 95.00% to 95.62%'). But the computed value is 95.61458515870082 in my recomputation, in this audit's leaderboard_impact_salt_models.csv and in #191's own leaderboard_impact_models.csv. That rounds to 95.61%, not 95.62%. The delta is +0.6110860229821071. The figure is wrong in both READMEs.",
+   "Combined exclusion record is valid. The 56 base plus 4 proposed records pass `load_reference_exclusions` (required fields, no duplicates, frozen != alternative) and the `split_reference` frozen-value check. None of the 4 proposed keys overlaps a base exclusion, and none of the 4 regenerated keys is already excluded.",
+   "The regenerated values equal the exclusion records' alternative_value exactly for all 4 outputs. frozen minus regenerated is 127.6001 (MN), 17.9879 (CO), 805.0098 (MA) and 443.1099 (NY), against the `removed` amounts recorded as 127.6, 17.99, 805.01 and 443.11. The gaps of up to 0.0098 are float32 rounding in the reference CSV. They are far below the $1 exact tolerance, and no score I computed depends on them.",
+   "Other SALT-combined claims check out: SALT alone has Claude Sonnet 5.5 at 92.64 vs GPT-6 Luna at 92.61, so Sonnet passes Luna. Exclude+salt gives GPT-6 Sol 95.75 and Claude Opus 5.5 94.97 with exactly three adjacent exact swaps vs salt (#12/#13, #29/#30, #35/#36). Regenerate+salt gives 95.19 and 95.00 (94.9965).",
+   "No file in the checkout was modified (`git status --porcelain` empty). My scratch scripts, logs and per-variant CSVs are in /private/tmp/claude-501/-Users-maxghenis-Library-Application-Support-Claude-scratch-workspaces-ee3763f4-e7ea-4177-bcaf-1362266768c1-4457aa9d-2dc0-4bcf-a128-e50adae6be25-scratch-2026-09-22-c3da5e/224fe5b6-f6e8-4204-af8f-2508970193bc/scratchpad/review/differential-impact/."
+  ]
+ },
+ "differential_sweep": {
+  "agrees": true,
+  "compared": "All 1,984 outputs (100 households, 1,928 scored and 56 excluded). (1) My zeroed-input values against the audit CSV's 'scoped' column: 1,984 of 1,984 within 1e-3 and 0 mismatches. They are bitwise equal on all 1,984 once the CSV is parsed with float_precision='round_trip'. With pandas' default parser, 4 differ by at most 5.7e-14 (CSV parse artifact): scenario_023 state_refundable_credits, scenario_042 state_income_tax_before_refundable_credits, scenario_112 federal_refundable_credits, scenario_112 payroll_tax. (2) My baseline (latest_final, no zero inputs) against the audit's 'final' column: 1,984 of 1,984, bitwise equal under round-trip parsing. (3) Outputs where 'scoped' != 'final': exactly 4, all payroll_tax, the same 4 where my zeroed run differs from my baseline. They are scenario_032 MN (2346.10009765625 to 2218.5), scenario_043 CO (330.7310791015625 to 312.74322509765625), scenario_081 MA (14192.662109375 to 13387.65234375) and scenario_082 NY (8108.02734375 to 7664.91748046875). The audit's moved_any count is also 4. (4) Audit 'final' against the published reference_outputs.csv (sha256 e8bbba8f..., equal to the sidecar's reference_csv_sha256): all 1,928 scored outputs exact. My own baseline also matches all 1,928. The CSV's excluded flag agrees with reference_exclusions.json on every row. Of the 56 excluded outputs, 19 differ from the reference, and each equals the sidecar's excluded_outputs_rechecked value_on_2_15_17 (19 entries, same set). (5) Additional checks: (a) employee_state_payroll_tax per household, baseline and zeroed, against sweep_payroll_scope_households.json: 100 of 100 within 1e-3. (b) proposed_regenerations.json and proposed_exclusions.json: frozen_value equals my baseline and regenerated_value/alternative_value equals my zeroed value, bitwise, for all 4.",
+  "mismatches": [],
+  "method": "The audit removes the five optional contributions from the employee_state_payroll_tax adds list through a Reform adapter (fixes/payroll_mandatory_scope.py) composed with latest_final. I used no adapter and no reform beyond latest_final, which I loaded from a scratch copy of reference_audit/2026-09-28/fixes/*.py with r19_irs_sales_tax_2025.json beside it; the module hashes match the sidecar's fix_modules. Instead, I set co_employee_famli_contribution, ma_employee_paid_leave_contribution, mn_employee_paid_leave_contribution, ny_employee_disability_benefits_contribution and ny_employee_paid_family_leave_contribution to {\"2026\": 0.0} as situation inputs on every person. Households were built with scenario_from_dict(...).to_pe_household(), with partnership_se_income renamed to partnership_self_employment_net_earnings. I used one CountryTaxBenefitSystem(reform=latest_final.reform) per worker and two Simulations per household (baseline and zeroed), on policyengine-us 2.15.17 / policyengine-core 3.32.8 with a 12-process pool. Outputs came from expand_programs_for_scenario(sidecar programs, scenario) with no filtering against the reference index; the resulting key set equals the reference CSV's and the audit CSV's 1,984 keys exactly. Values came from _pe_variable_for_output and _extract_person_value. Before relying on this, I grepped the 2.15.17 package (py and yaml, tests excluded): the only non-test readers of the five variables are the co/ma/mn/ny state aggregates, so zeroing them as inputs and removing them from the list should be equivalent, and the run confirms it. I also checked one property beyond the audit: in each household, the payroll_tax change equals minus the sum of the five baseline contributions, within 1e-3. The values are -127.6001 vs 127.6000, -17.9879 vs 17.9878, -805.0098 vs 805.0092 and -443.1099 vs 443.1100 (float32 rounding). Only those 4 households have any of the five contributions above 0. Scratch files are in /private/tmp/claude-501/-Users-maxghenis-Library-Application-Support-Claude-scratch-workspaces-ee3763f4-e7ea-4177-bcaf-1362266768c1-4457aa9d-2dc0-4bcf-a128-e50adae6be25-scratch-2026-09-22-c3da5e/224fe5b6-f6e8-4204-af8f-2508970193bc/scratchpad/review/differential-sweep/ (diff_sweep.py, diff_sweep_results.json, compare.py, compare.log, compare.csv).",
+  "commands_run": [
+   "git -C <checkout> log -1; git status --porcelain (HEAD 8714770979394463b193caddb366de8d18f54dc8, clean)",
+   "shasum -a 256 reference_audit/2026-09-28/fixes/*.py (match sidecar fix_modules) and fixes/payroll_mandatory_scope.py (74200522... = households json adapter_sha256)",
+   "grep -rn -E '<five contribution names>' --include='*.py' --include='*.yaml' <pe-us 2.15.17 site-packages> (only the state aggregates read them)",
+   "cp reference_audit/2026-09-28/fixes/*.py reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json <scratch>/fixes/",
+   "PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> <triage>/.venv-pe21517/bin/python diff_sweep.py (100 households, exit 0)",
+   "PYTHONPATH=<checkout> /Users/maxghenis/PolicyEngine/policybench/.venv/bin/python compare.py",
+   "python: re-parse sweep_payroll_scope.csv with float_precision='round_trip' (0 non-bitwise-equal values in scoped and final)",
+   "python: bitwise check of proposed_regenerations.json and proposed_exclusions.json values against the independent run",
+   "git diff --stat 8b4c0ca1 HEAD -- <run dir> reference_audit/2026-09-28 reference_audit/2026-09-22 policybench (empty)"
+  ],
+  "other_findings": [
+   "Read with pandas' default C float parser, sweep_payroll_scope.csv gives 4 values that are off by up to 5.7e-14 (8 cells, the same 4 outputs in both 'final' and 'scoped'): scenario_023 state_refundable_credits 95.15400695800781 read as 95.1540069580078, scenario_042 state_income_tax_before_refundable_credits 464.18280029296875 read as 464.1828002929687, and scenario_112 federal_refundable_credits and payroll_tax 453.09600830078125 read as 453.0960083007813. The values written are exact; with float_precision='round_trip' all 1,984 are bitwise equal to my run. This is harmless at the 1e-3 tolerance, but any consumer that tests the CSV with exact == should use round-trip parsing.",
+   "The audit's sweep filters expanded outputs by membership in the reference index. That filter removes nothing: expand_programs_for_scenario with the sidecar's 18 programs gives exactly the 1,984 reference keys.",
+   "The branch leaves the frozen run directory, reference_audit/2026-09-28, reference_audit/2026-09-22 and the policybench package unchanged relative to base 8b4c0ca1. The diff is 29 added files and 16,990 insertions, all new."
+  ]
+ },
+ "mechanism": {
+  "agrees": true,
+  "compared": "Hand-computed numbers: for all 12 outputs in the README table (scenario_005, 022, 023, 099, 028, 123, 120, 008, 032, 043, 081, 082) I computed the federal part (6.2% Social Security up to $184,500, 1.45% Medicare, 0.9% Additional Medicare Tax over $250k joint or $200k otherwise), the state part and the total from the scenarios.csv facts. That is 36 values, compared with verification/payroll_decomposition.csv (federal_total, employee_state_payroll_tax, reference) and reference_outputs.csv. Largest gap: $0.00033, which is float32 storage. All 16 per-program state amounts match the decomposition's state_programs. The 4 regenerated values match proposed_regenerations.json and the exclusions' alternative_value: hand 2218.5000, 312.7432, 13387.6530, 7664.9175 against audit 2218.5, 312.74322509765625, 13387.65234375, 7664.91748046875 (largest gap $0.00066). Mechanism, run separately: I re-swept all 164 outputs of the 9 households in MN, CO, MA and NY with my own code. Exactly the same 4 payroll_tax outputs move, to the same float values. Every other baseline value equals the published reference, except 2 excluded outputs (scenario_082 federal_income_tax_before_refundable_credits 9577.90 vs 9563.05; scenario_118 snap 2868.0 vs 2903.94); both equal the sidecar's excluded_outputs_rechecked values. Of the README's 'How the reference is built' section and the docstrings, these are confirmed against source: payroll_tax -> spm_unit_payroll_tax (benchmark_specs.json us[2]) -> sum_contained_tax_units('employee_payroll_tax'); employee_payroll_tax adds the 4 components; employee_state_payroll_tax adds 14 state aggregates and its documentation quote is accurate; the 18 leaves listed in decompose_payroll.STATE_PROGRAMS match the engine; the 'maximum permitted employee share' wording appears in exactly DE, MA, ME, MN and VT, and not in CO, NY, WA or anything else; latest_final has nine conventions plus the MD adapter and touches no payroll variable.",
+  "mismatches": [
+   {
+    "item": "claim (README 'How the reference is built', last bullet): readers of the contributions and of employee_payroll_tax",
+    "audit_value": "Nothing else in the engine reads these contributions except through employee_payroll_tax, which also feeds spm_unit_paycheck_withholdings and household_tax_before_refundable_credits",
+    "your_value": "Not true for every contribution: ca_employee_state_disability_insurance_contribution is read directly by parameters/gov/local/ca/scc/general_assistance/countable_income/earned_deductions/person_sources.yaml (Santa Clara GA). The reader list is also incomplete. employee_payroll_tax is also read by parameters/gov/states/al/tax/income/deductions/itemized/sources.yaml (al_itemized_deductions), variables/contrib/taxsim/taxsim_tfica.py, variables/household/fica_marginal_tax_rate.py and reforms/federal/abolish_payroll_tax.py. spm_unit_payroll_tax feeds spm_unit_taxes and then spm_unit_net_income. spm_unit_paycheck_withholdings feeds the CA Marin and LA general relief programs.",
+    "note": "A text claim, not a computed value. The five optional leaves do have no direct reader, and none of the extra readers moves any benchmark output: my re-sweep of every MN, CO, MA and NY household moves only the 4 payroll_tax outputs. Fix the wording, e.g. 'the five optional contributions are read only through ...', and list every reader or say 'among others'."
+   },
+   {
+    "item": "claim (README line 43; program_classification.json programs_without_a_benchmark_household.note): no household in Washington",
+    "audit_value": "no benchmark household lives in Delaware, Maine, Oregon, Rhode Island, Vermont or Washington / No benchmark household lives in these states",
+    "your_value": "scenarios.csv has 2 WA households: scenario_002 (joint, ages 77/75) and scenario_111 (joint, ages 72/49). Both have employment_income 0 and a payroll_tax reference of 0.0, and the payroll_tax for both is scored (excluded=False).",
+    "note": "False for WA as written. The true statement is that no wage-earning household lives there, which is what README line 60 ('no benchmark household reaches') already gets right. No number changes."
+   },
+   {
+    "item": "claim (README 'Related findings', Engine): no employer-size input",
+    "audit_value": "policyengine-us has no input for the employer's deduction choice, employer size (except Massachusetts' employer side) or a private plan",
+    "your_value": "variables/input/employer_payroll.py defines employer_headcount (Person, int, default_value 100). It is read by ma_employer_paid_leave_contribution, co_employer_famli_contribution, me_employer_paid_leave_contribution, or_employer_paid_leave_contribution, wa_employer_paid_leave_contribution, ny_mctmt_employer_quarterly_payroll_expense and employer_total_additional_state_payroll_tax. It is also read by de_paid_leave_contribution_rate, which sets the DE employee contribution (rate 0 under small_employer_threshold, parental only under full_coverage_threshold).",
+    "note": "The employer-size part is false. The deduction-choice part holds: I found no input for it. I did not check the private-plan part. No benchmark number is affected."
+   }
+  ],
+  "method": "I computed independently from law values in exact Python Decimal: SS base 184,500; CA SDI 1.3% uncapped; PA UC 0.07%; CT 0.5% to the SS base; NJ TDI 0.19% and FLI 0.23%; MN 0.44% to 185,000; CO 0.44% to the SS base; MA 0.18% + 0.4×0.70% = 0.46% to the SS base; NY PFL 0.432% capped at $411.91 and DBL 0.5% capped at $31.20. Inputs were the employment_income and self_employment_income values in each scenario_json. I first confirmed in the engine source that FICA wages are employment_income minus fica_pre_tax_contributions (pre_tax_health_insurance_premiums and HSA payroll contributions). Both are pure inputs that no scenario sets and that PE_INPUT_ALIASES does not map, so FICA wages equal employment_income here. The audit instead uses engine Simulation output (float32). For mechanism, I read policyengine_us/system.py and core's tax_benefit_system.py, simulation.py and variable.py, plus spm.py's _prepare_spm_system and share_spm_policy. I then built both systems in the 2.15.17 venv with an instrumented wrapper. The adapter is applied exactly twice: system.py line 136, 'if reform: self.apply_reform_set(reform)', and line 153, after 'reform = (reform, structural_reform)'. Core TaxBenefitSystem.__init__ does not apply it, because parameters_dir is None for US, and core Simulation built with tax_benefit_system= and no reform does not re-apply it. Call 1 rewrites the list from 14 state aggregates to 13 leaves; call 2 is a no-op, and a manual third call leaves the same object in place. Against the latest_final system, the only differing attribute of employee_state_payroll_tax is adds. Entity tax_unit, label, documentation, unit, defined_for=None and formulas={} are all the same. set_input, calculate_output and defined_for are not inherited by core's Variable, but the original declares none of them. Ignoring memory addresses, every other variable's fingerprint is identical, and all 102,807 parameter leaves are identical. Flattening keeps state gating because each of the 18 leaves carries the same defined_for StateCode as its aggregate, and core's adds path sums Person values to the TaxUnit with map_to in both versions. I did not run the audit's own scripts.",
+  "commands_run": [
+   "git log -1; git status --porcelain (clean, HEAD 8714770979394463b193caddb366de8d18f54dc8)",
+   "cat CLAUDE.md, reference_audit/2026-10-05-payroll/README.md, fixes/payroll_mandatory_scope.py, scripts/{decompose_payroll,sweep_payroll_scope,propose_changes,model_answers}.py, head of scripts/leaderboard_impact.py",
+   "cat engine: spm_unit_payroll_tax.py, employee_payroll_tax.py, employee_state_payroll_tax.py, all 14 <st>_employee_state_payroll_tax.py, all 18 leaf contribution files, taxable-wage variables, federal payroll variables, fica_pre_tax_contributions(.yaml), 2026 rate/cap parameter YAMLs",
+   "grep -rn -i 'maximum permitted' policyengine_us (5 hits: de, ma, me, mn, vt)",
+   "grep -rnw employee_payroll_tax / employee_state_payroll_tax / each state aggregate / each leaf across policyengine_us (excluding tests)",
+   "read policyengine_us/system.py lines 77-260, spm.py _prepare_spm_system/share_spm_policy, core tax_benefit_system.py 60-265, core simulation.py 144-294 and _run_formula adds path, core variable.py __init__/set/set_formulas",
+   "PYTHONDONTWRITEBYTECODE=1 OPENBLAS_NUM_THREADS=1 PYTHONPATH=<checkout> .venv-pe21517/bin/python scratchpad/review/mechanism/diff_systems.py (application count, attribute diff, all-variable and all-parameter diff)",
+   "... diff_others.py (variable diff with addresses stripped: 0 differ)",
+   "python3 scratchpad/review/mechanism/hand_compute.py (12 outputs + 4 regenerations vs decomposition CSV, reference CSV, proposals)",
+   "... .venv-pe21517/bin/python scratchpad/review/mechanism/resweep.py (164 outputs in 9 MN/CO/MA/NY households, base vs scoped)",
+   "python3 summaries of payroll_decomposition.csv and sweep_payroll_scope.csv; scenarios.csv state counts; WA household inspection",
+   "shasum -a 256 fixes/payroll_mandatory_scope.py (74200522b823...3529, equal to proposals and sweep sidecar)",
+   "grep employer_headcount readers; cat de_paid_leave_contribution_rate.py; WA PFML and abolish_payroll_tax parameter YAMLs; latest_conventions PARTS (9)"
+  ],
+  "other_findings": [
+   "Confirmed: CountryTaxBenefitSystem applies the reform exactly twice (system.py:136 and :153), and the adapter's second-pass guard makes it idempotent. A third application is also a no-op. Wording nit: README method step 3 says the system 'applies a reform twice ..., so the adapter is idempotent'. The causality is backwards: the adapter is written to be idempotent because of the double application.",
+   "Confirmed: the adapter changes nothing but the adds list of employee_state_payroll_tax. Before: 14 aggregates. After: the 13 leaves ca_sdi, ct, de, me, nj_tdi, nj_fli, or_pl, or_transit, pa_uc, ri_tdi, vt, wa_pl, wa_ltc. No formula, rate, parameter or other variable changes.",
+   "Scope caveat on the adapter docstring and DESCRIPTION ('Exclude employee shares the employer may but need not deduct'; 'This module removes those programs'). It drops only the five reviewed leaves. It keeps de_employee_paid_leave_contribution, me_employee_paid_leave_contribution and vt_employee_child_care_contribution, which the README and program_classification.json call optional pass-throughs, and wa_employee_paid_leave_contribution, classed as mixed. No benchmark effect, since no wage earners live in those states and program_classification.json says the adapter does not touch them. But used as an upstream fix it would not fully match its own definition.",
+   "README: 'employee_payroll_tax adds ...' leaves out the formula's branch that returns 0 when gov.contrib.ubi_center.flat_tax.abolish_payroll_tax is true. That parameter defaults to false, so there is no effect.",
+   "proposed_regenerations.json 'removed' amounts are cent-rounded strings taken from the decomposition CSV (CO 17.99 vs engine 17.98785; MA 805.01 vs 805.00922), not engine amounts. propose_changes.py's $0.01 check absorbs the difference. Cosmetic.",
+   "scenario_120's CT state part, shown as 827.98, is a float32 artifact. Exact 0.5% x 165,597 = 827.985, which rounds half-up to 827.99. Reference total 13,496.1552734 vs exact 13,496.1555. Not a mismatch.",
+   "Engine observation outside the audit's claims, with no effect on these outputs. additional_medicare_tax sums payroll_tax_gross_wages and taxable_self_employment_income over the whole tax unit, dependents included (scenario_123's 16-year-old has $45,000 of wages), and counts SE income inside payroll_tax. Every case here is far below the threshold.",
+   "Check counts all reproduce: payroll_decomposition.csv has 100/100 matches_reference, parts_add_up and leaves_add_up; 12 outputs with a state component, 11 scored; scenario_008 is excluded as reference_engine_defect; no household in a program state has wages and no state part. sweep_payroll_scope.csv has 1,984 rows, 1,928 scored, 1,965 final matches, and moved_any on exactly the 4 payroll_tax rows. The adapter sha256 74200522b823abf237a00a5cd6c61038cf1a8015b12bd505c536c743c3713529 matches the proposals and the sweep sidecar."
+  ]
+ },
+ "recommendation": {
+  "advocate_briefs": [
+   {
+    "option": "keep",
+    "strongest_case": "The four references follow from the stated facts under the prompt's own conventions. Each statute defines an employee share and treats the employer paying it as the employer's election: Minnesota employers pay at least half and employees \"must pay the remaining portion\"; Colorado deems an employer that deducts less to have \"elected to pay\" the employee share; Massachusetts' rule covers an employer that \"opts to deduct a lower percentage\", and its agency says employers \"must withhold\"; New York's regulator says employers \"shall collect\" PFL contributions, priced to fund the whole premium. The prompt says to treat unlisted facts as false and not to infer unlisted income, and Minnesota's agency calls an employer pickup \"additional compensation\" taxed as wages. With no election stated, the engine's amounts are the no-election amounts, not an arbitrary cap.\n\nThe exclusion rule needs a careful reader who could take the facts the other way. Of 184 answers on these outputs, one cites optional withholding (Grok 4.7, Minnesota), and the same model calls Colorado's and Massachusetts' optional shares mandatory. The federal-only answers behind the gains are guesses about the engine: Claude Opus 5.5 dropped Massachusetts \"on the assumption the model does not include it\" and Connecticut's mandatory contribution on the same ground. These items test program knowledge as the scored Pennsylvania, Connecticut and California items do, and the judges who annotated all 149 wrong answers raised no reference flag.\n\nExclusion is symmetric in rule, not in effect. It gives Claude Opus 5.5 90% of regeneration's gain, cuts GPT-6 Sol's lead over it from 1.31 to 0.78 points, drops GPT-6.1 Sol (right on all four) a place, and moves the average model's headline more than regeneration does (mean absolute change 0.44 vs 0.33 points). Keep, and state the convention in the next prompt version.",
+    "points": [
+     {
+      "claim": "In all four states the law and the agencies name an employee share and describe the employer paying it as an election, so the default is the share the engine counts. Minnesota: the employer pays at least 50% and employees \"must pay the remaining portion, if any\", through deductions the employer \"must make\". Colorado: an employer that deducts less \"is considered to have elected to pay\" the employee share. Massachusetts: the rule covers an employer that \"opts to deduct a lower percentage\", and DFML says employers \"must withhold PFML contributions\". New York: DFS says \"Employers shall collect employee contributions consistent with this Decision\", and PFL is rated so that employees fund the whole premium.",
+      "evidence": "reference_audit/2026-10-05-payroll/verification/law_research.json: MN research.caveats and statute verdict (subd. 3, subd. 5a(b)(2)); CO research.can_employer_elect_to_pay_employee_share (7 CCR 1107-1 s. 1.4(6)(A)); MA statute and administration verdicts, citation_problems (DFML overview \"must withhold\", subtitle \"Most Massachusetts employers must make payroll withholdings\"); NY agency_guidance (DFS 2026 decision) and NY caveats (\"PFL is designed to be paid entirely by employees ... DFS sets the rate to cover the full premium\")"
+     },
+     {
+      "claim": "The prompt's own conventions settle the employer choice it leaves unstated. Unlisted facts are false and no unlisted income may be inferred, and that wording was in the prompt before the run. An employer election to pay the employee share is an unlisted fact. In Minnesota it would also be unlisted income: DEED says that when the employer pays more than its minimum share, the excess is additional compensation taxed as wages.",
+      "evidence": "policybench/prompts.py:19-22 (TASK_PREFACE: \"Treat any unlisted numeric input as 0 and any other unlisted household fact, boolean, or status input as false ... Do not infer unlisted income\"), present since commit 1f0f7cb0 (2026-05-01), before the 2026-06-12 run; law_research.json MN guidance, pl.mn.gov/employers/taxes-and-paid-leave: \"If an employer pays more than the required minimum share of the premium, this is additional compensation to the employee and is included in the employee's federal gross income as wages.\""
+     },
+     {
+      "claim": "Minnesota has the structure the README uses to call California mandatory. In California an employer may pay the worker's SDI instead of deducting it, the payment counts as wages, and the contribution stays the worker's. DEED treats a Minnesota employer pickup the same way: as wages, with the 0.44% still the employee's for tax purposes.",
+      "evidence": "README.md line 67 (California bullet); law_research.json MN administration verdict reasoning: \"for federal tax purposes, an employer pickup is still treated as the employee's 0.44%, paid through extra wages\" (DEED taxes page modified 2026-05-08, before the freeze)"
+     },
+     {
+      "claim": "Each engine amount is what the household owes when no election is made, not an arbitrary maximum. Minnesota: a 0.88% premium less the employer's 50% floor leaves $127.60 on $29,000. Colorado: 0.44% gives $17.99. Massachusetts: 0.46% gives $805.01. New York: PFL $411.91 plus DBL $31.20. Every reviewer re-ran the engine and got these figures.",
+      "evidence": "program_classification.json engine_amounts; law_research.json MN administration rate_or_amount_issues (\"Large employer: 0.88% x 29,000 = $255.20 total, with an employer minimum of 50%, which is $127.60\"); CO, MA and NY verdict rate_or_amount_issues"
+     },
+     {
+      "claim": "In practice almost no model reads the facts the other way for the legal reason. Of 184 answers, two are classed as leaving the program out as optional or employer-paid. Grok 4.7 on Minnesota says \"paid-leave withholding is optional\", yet it calls Colorado's FAMLI share 0.44% and Massachusetts' PFML \"Mandatory ... at 0.46%\", though both are optional by the audit's own classification. Claude Sonnet 5 on Massachusetts calls PFML \"employer-side\" and submits 12,318.65, which matches neither reading. No model applies the optional reading consistently.",
+      "evidence": "verification/explanations.json counts excluded_as_optional_or_employer_paid = 1, 0, 1, 0 on scenario_032/043/081/082; predictions.csv.gz grok-4.7 rows for scenario_032 (2218.5), scenario_043 (330.72) and scenario_081 (14192.66); explanations.json claude-sonnet-5 on scenario_081 (12318.65)"
+     },
+     {
+      "claim": "The leading federal-only answers are guesses about what the engine models, not readings of the law. Claude Opus 5.5 drops Connecticut's mandatory contribution on the same ground it gives for Massachusetts, and it misses both Pennsylvania mandatory items.",
+      "evidence": "predictions.csv.gz claude-opus-5.5: scenario_081 \"excluded on the assumption the model does not include it\"; scenario_120 (CT, mandatory) \"not included, on the assumption that PolicyEngine does not model it\"; scenario_082 \"no mandatory NY employee payroll tax is modeled\". claude-fable-5.1 scenario_032 \"no modeled mandatory MN employee payroll tax\"; explanations.json claude-sonnet-5.5 on scenario_028 \"No PA employee state payroll tax is modeled\". model_answers.csv: claude-opus-5.5 is not exact on scenario_028, 120 or 123"
+     },
+     {
+      "claim": "These four outputs test program knowledge the same way the scored mandatory outputs do. Removing them drops working test items rather than fixing faulty ones.",
+      "evidence": "README.md lines 82-99 explanation tables: MN has 19 'no state tax' and 16 silent; PA scenario_028 has 17 and 15, scenario_123 16 and 11; CT has 11 and 9. model_answers_summary.json exact on the frozen reference: MN 6, CO 16, MA 9, NY 4, against PA scenario_028 10"
+     },
+     {
+      "claim": "The repository's own review process never flagged these references, and their values have not changed since the first run. The judges annotated every wrong answer on the four outputs, 149 rows, and none marked the reference as suspect. The September 22 audit flagged only New Jersey's payroll output, and its r05 fix added more of New Jersey's employee contributions to payroll_tax.",
+      "evidence": "annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_audit_row_annotations.csv: 149 rows (38+2, 30, 36+1, 41+1), all reference_suspect False; us_case_notes.csv reference_suspect False for all four; reference_audit/2026-09-28/verification/flagged_sept22_wave.json lists only scenario_008:payroll_tax; reference_audit/2026-09-22/root_causes.json r05_nj_worker_ui; README.md line 43 (values since 2026-06-15)"
+     },
+     {
+      "claim": "Exclusion's rule is symmetric but its effect is not. It gives the models that answered federal tax alone on all four most of what regeneration would give them, and the one model right on all four is the only model whose headline falls.",
+      "evidence": "verification/leaderboard_impact_exclude_models.csv and _regenerate_models.csv, exact_delta under exclude vs regenerate: claude-opus-5.5 +0.620 vs +0.688 (90%); ox-alpha +0.594 vs +0.688 (86%); gemini-3.8-flash +0.586 vs +0.688 (85%); claude-fable-5.1 +0.555 vs +0.688 (81%); gpt-6.1-sol -0.067 under exclusion (rank 8 to 9), the only negative delta. GPT-6 Sol's lead over Claude Opus 5.5 goes from 1.306 to 0.776 points; on within-1% from 0.972 to 0.460"
+     },
+     {
+      "claim": "On several measures exclusion moves the board more than regeneration. It moves less only on rank swaps. Keep moves nothing.",
+      "evidence": "Computed from leaderboard_impact_{exclude,regenerate}_models.csv: mean |exact delta| 0.439 vs 0.325; mean exact delta +0.437 vs +0.169; score-rank changes 4 vs 2; headline rank swaps 5 pairs vs 10. leaderboard_impact.json leader_margin_over_always_zero_exact: 25.02 to 24.57 under exclusion vs 24.65 under regeneration"
+     },
+     {
+      "claim": "The Maryland precedent the audit borrows supports keeping the scope as published. That adapter undid an engine change made after the freeze, and the prompt explicitly excluded the item it removed. The payroll prompt names no paid-leave exclusion, and these four values have held across every engine version the board used.",
+      "evidence": "reference_audit/2026-09-28/README.md:21 (rule 3, \"The benchmark's output definitions hold\"; the adapter \"restores that scope\"); reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py docstring (state output prompt says \"excluding local income and payroll taxes\"; 1.755.4 had no local entry); policybench/benchmark_specs.json payroll_tax prompt (no paid-leave exclusion); README.md line 43"
+     },
+     {
+      "claim": "The proposed records' basis requires an engine input the prompt never listed, and the README says no such input exists. Precedent has already stretched this rule: the 'who paid for the coverage' and NIIT exclusions named no engine input. So this is a mismatch with the docstring wording, not a bar to exclusion.",
+      "evidence": "proposed_exclusions.json \"basis\" (\"depends on an engine input the prompt never listed\"); policybench/reference_exclusions.py:10 docstring; README.md line 170 (\"policyengine-us has no input for the employer's deduction choice\"); frozen reference_exclusions.json records for scenario_002/107/121 and scenario_020"
+     },
+     {
+      "claim": "For Massachusetts, the amounts published before the freeze support $805.01. After Acts 2026 c. 101 was approved on 2026-06-12, DFML's 2026 rates page still showed a 0.46% employee maximum. The act's own s. 43(a) refers to impacts in calendar year 2027. The statute reviewer found that a literal sequential reading of ss. 25-26 gives small employers an incoherent 40%/40% split. Rule 1 prefers amounts published before the freeze.",
+      "evidence": "law_research.json MA agency_guidance, Wayback capture 20260617060228 of the DFML rates page (0.28% medical plus 0.18% family); MA statute verdict rate_or_amount_issues (\"line 33 must be 6(d) ... That would give small employers 40%/40%\"); MA administration verdict (\"The 2026-06-17 copy has the same text\"); reference_audit/2026-09-22/README.md:7 (rule 1)"
+     },
+     {
+      "claim": "Limits of this case, stated plainly. All eight reviews of these four programs found the deduction legally optional, and the law sets the required employee amount at $0. Colorado's statute says \"may deduct\". New York's Workers' Compensation Board says collection is \"allowed, but not required\". Precedent excluded the 'who paid for the coverage' question. Keep rests on the prompt's default rule and on how the law frames the employer's choice, not on a statutory duty to withhold. Massachusetts also carries the open c. 101 question.",
+      "evidence": "law_research.json verdicts: refuted False on all 8 reviews for MN, CO, MA and NY; CO 507(5); NY agency_guidance (WCB employer page); frozen reference_exclusions.json scenario_002 record"
+     },
+     {
+      "claim": "Keep fits the README's own long-term fix. The next prompt version can state that the employee share set by law counts unless the facts say the employer pays it. That aligns the prompt with the existing reference and changes no published score.",
+      "evidence": "README.md line 7 (\"In the next prompt version, state how optional employee shares count\")"
+     }
+    ],
+    "rebuttals_to_readme": [
+     "Line 9, \"16 of 16 independent reviews agree\": this backs a claim about the four states, but only 8 reviews cover MN, CO, MA and NY. The other 8 (CT, CA, PA, NJ) found those programs mandatory. All 16 reviews and the explanation classification came from one Claude Code workflow (wf_cecd10dd-abe, per law_research.json and explanations.json 'method'). The September 22 audit verified its fixes on GPT-6 Astra lanes; this audit has no reviewer outside that workflow. The reviewers judged how to classify each program, not whether the reference fails the repo's rules.",
+     "Line 9, \"the prompt never states the employer's choice ... rests on a fact the prompt does not give\": the README never addresses the prompt's default rules (prompts.py:19-22: unlisted facts are false, and no unlisted income may be inferred). In all four states an employer paying the employee share is framed as an election, and Minnesota's DEED treats it as extra wages.",
+     "Lines 62-67, \"Points that cut the other way\", leave out evidence the reviewers themselves said should be disclosed. Minnesota: DEED says an employer pickup is \"additional compensation ... as wages\". Massachusetts: the DFML subtitle \"Most Massachusetts employers must make payroll withholdings\"; c. 175M s. 1, whose definition of 'Contributions' includes payments by an employee; and s. 4(a)(ii), which requires notice of \"the employee's contribution amount and obligations\". Colorado gets no bullet at all, though its FAQ says an employer is \"required to pay the 0.44% employer's share and collect and remit the 0.44% of the employee's share\" and \"Most Colorado businesses should be deducting\". New York: DFS's \"Employers shall collect\"; 12 NYCRR 380-2.6, under which employees \"shall make regular family leave benefit contributions\"; the WCB's \"fully paid for by employees\"; and the PFL site's \"not optional for eligible employees\" and \"Ensure that you are collecting the employee contributions\".",
+     "Line 67 distinguishes California because an employer's payment counts as wages and the contribution stays the worker's. The law record shows Minnesota works the same way under DEED's guidance. And since California also lets the employer pay instead of deducting (s. 986(a)(2)), California's reference assumes withholding just as much.",
+     "Line 10, \"a careful reader could take the stated facts the other way\": in the evidence, one of 184 answers cites optional withholding. That model, Grok 4.7, calls Colorado's and Massachusetts' optional shares mandatory. The other answer classed as optional or employer-paid (Claude Sonnet 5 on MA) calls PFML \"employer-side\" and submits 12,318.65, which matches neither reading.",
+     "Line 103, \"the readings split by family\", presents guesses about the engine as readings of the law. Claude Opus 5.5 says it leaves MA PFML out \"on the assumption the model does not include it\". It leaves out Connecticut's mandatory contribution \"on the assumption that PolicyEngine does not model it\" and misses both Pennsylvania mandatory items. The README notes that Fable 5.1 and Ox Alpha drop mandatory programs but not Opus 5.5's misses on Connecticut and Pennsylvania.",
+     "Lines 11 and 101, \"take credit from 35 answers that include the program at exactly the engine's amount\": 12 of the 35 are not the engine's amount. Nine Colorado answers of 331.13 used the 2025 rate of 0.45% and are $0.40 off. Three Massachusetts answers of 14,193 are $0.34 off. They count only because of the $1 tolerance.",
+     "Line 11, \"Regenerating would mostly reward answers that never engaged with the program\": exclusion also stops penalizing those same 82 answers. Claude Opus 5.5 gets 90% of its regeneration gain under exclusion, Ox Alpha 86% and Claude Fable 5.1 81%. The README turns this argument only against regeneration.",
+     "Line 12, \"Exclusion is the symmetric remedy and moves the board least\": the rule is symmetric, but the effect is not. GPT-6.1 Sol, exact on all four, is the only model whose headline falls (-0.07, rank 8 to 9). GPT-6 Sol's lead over Claude Opus 5.5 shrinks from 1.31 to 0.78 points; the README reports the narrowed gap for regeneration but not for exclusion. Exclusion moves the board less only on rank swaps. On mean absolute change in the headline rate (0.439 vs 0.325), on score-rank changes (4 vs 2) and on the leader's margin over the always-zero baseline (24.57 vs 24.65) it moves more than regeneration. Keep moves nothing.",
+     "Line 133, \"Payroll exact match across models rises from 78.5% to 81.0%\": this rise comes only from removing 184 rows where most models were wrong. The always-zero baseline rises too, from 69.98% to 70.53%.",
+     "Line 148 cites the Maryland adapter for its form. The substance of that precedent (2026-09-28 rule 3: the benchmark's output definitions hold) restored the published scope after an engine change, and the prompt explicitly excluded the item. Here the prompt has no such exclusion, and the scope has stood since 2026-06-15. The precedent favors keeping these four references.",
+     "proposed_exclusions.json 'basis' requires an engine input the prompt never listed, but README line 170 says no such input exists. The records rest on a looser reading of the rule than the one they quote.",
+     "Line 66 says the c. 101 question \"matters only if the reference is kept\" but leaves out the evidence that resolves it in keep's favor. After c. 101 was approved, DFML's 2026 rates page (Wayback capture of 2026-06-17) still published the 0.46% employee maximum. The act's s. 43(a) refers to 2027. The statute reviewer found that a literal reading gives small employers an incoherent 40%/40% split. Under rule 1's preference for amounts published before the freeze, $805.01 stands.",
+     "Line 169 says \"Both options need them reworded\" about the case notes. Under keep they largely stand. The exception is scenario_032's note, which is already inaccurate under any option. It says \"many\" models called the deduction optional, but explanations.json shows one. It says \"The one model that did include the paid-leave premium\", but seven did.",
+     "The README is incomplete as a decision record. Line 3 has the placeholder 'DECISION_ID', and lines 161 and 165 are the unfilled placeholders 'INDEPENDENT_REVIEW' and 'RELEASE_CHECKLIST'. Its board-impact discussion gives no separate column for keep, which is the published board, and it never states that keep moves no rank."
+    ]
+   },
+   {
+    "option": "regenerate",
+    "strongest_case": "The prompt states the output's scope: \"mandatory employee state payroll taxes. Exclude employer payroll taxes.\" Rule 3 of the 2026-09-28 audit: the benchmark's output definitions hold. Its Maryland precedent restored a stated scope with a list-only adapter and kept the outputs scored, because \"with the adapter the output does not depend on the unlisted county\". The payroll adapter does the same: once the definition is applied, no unlisted fact moves the answer.\n\nThe audit's own law record settles what that covers. All 8 reviews of the Minnesota, Colorado, Massachusetts and New York programs (none refuted) find the premium is the employer's and put the employee's legal floor at $0. They weighed and rejected the \"must\" and \"shall\" passages the README cites. Both clauses of the definition give the federal-only value; the README concedes \"on that wording the frozen value is too high\".\n\nIf \"mandatory\" is read as turning on the employer's election, that election is unlisted, and the run's preface says to treat unlisted numeric inputs as 0 and other unlisted facts as false. Only the frozen value assumes something unstated: that the employer deducts the maximum. The regenerated value survives every caveat in the law record (Acts 2026 c. 101, private plans, collective agreements, employer size), because each moves only the cap.\n\nThe rules pick references by stated facts and law, not by whom they credit. Regeneration keeps all 1,928 outputs scored and the always-zero baseline unchanged, and moves the average headline exact rate less (mean absolute change 0.325 vs 0.439 points). Under the adapter, single earners at the four wage levels reproduce all four values; CA, PA, CT and NJ are unchanged.\n\nAgainst it: the 40-hour precedent excluded rather than applying the zero default, and the adapter keeps Delaware's, Maine's and Vermont's optional shares.",
+    "points": [
+     {
+      "claim": "The output's definition is stated in the prompt and names exactly the two tests that remove these shares: 'mandatory employee state payroll taxes' and 'Exclude employer payroll taxes'. The same text was in force when the frozen run was generated.",
+      "evidence": "policybench/benchmark_specs.json:34; the identical text is present at commit 58b65105, the last commit before the run's scenarios were generated at 2026-06-12T05:15Z (git show 58b65105:policybench/benchmark_specs.json)"
+     },
+     {
+      "claim": "The repo's governing precedent for a stated output definition that the engine's aggregate overshoots is an output-scope adapter that keeps the outputs scored, not exclusion. In the Maryland case the review accepted that adapter because applying the definition removed the dependence on the unlisted fact.",
+      "evidence": "reference_audit/2026-09-28/README.md:21 (rule 3, 'The benchmark's output definitions hold'); reference_audit/2026-09-28/clusters.json:119 ('Pinning Worcester gives the same value, so with the adapter the output does not depend on the unlisted county'); reference_audit/2026-09-28/fixes/latest_md_local_output_scope.py (list-only change, same form as fixes/payroll_mandatory_scope.py); proposed_regenerations.json:6 cites this basis"
+     },
+     {
+      "claim": "The exclusion precedents that turn on wording apply when the definition is silent. Here it speaks.",
+      "evidence": "reference_audit/2026-09-22/root_causes.json: NIIT entry, unlisted_input 'whether federal income tax before refundable credits includes the net investment income tax, which the output's definition does not say'; reference_audit/2026-09-22/README.md:10 (rule 4: 'input or definition the prompt never states')"
+     },
+     {
+      "claim": "The audit's own law record answers what 'mandatory' covers for these four programs. All 8 reviews (statute and administration lens for MN, CO, MA and NY) refuted nothing, classify each as an optional employer pass-through, and put the employee's legal floor at $0. Each researcher rated confidence 'high'.",
+      "evidence": "verification/law_research.json, programs MN/CO/MA/NY verdicts: MN admin 'the mandatory employee amount is $0'; CO statute 'The legally required employee amount for an ordinary private-sector W-2 employee is $0'; CO admin 'The legally mandatory employee amount is $0'; MA statute and admin 'legally mandatory employee amount of $0'; NY statute 'The legal minimum is $0 if the employer chooses not to collect'; NY admin 'ranges from $0 to $443.11'"
+     },
+     {
+      "claim": "The reviewers considered and rejected each 'must' and 'shall' passage the README relies on. The MA 'must withhold' line is agency summary prose that the binding regulation contradicts.",
+      "evidence": "law_research.json MN statute verdict ('If any' expressly contemplates a zero remainder ... It does not require any positive employee amount); MA admin verdict ('The \"must withhold\" overview line is loose summary prose, contradicted by the page's own detailed text and by the regulation'); NY admin verdict ('The manner provided is permissive employer collection under s.209(4)')"
+     },
+     {
+      "claim": "Even if 'mandatory' is read as conditional on the employer's election, the prompt resolves that unlisted fact. The preface tells models to treat unlisted numeric inputs as 0 and other unlisted facts as false, which means no deduction and the regenerated value. The exclusion record itself says the federal-only value follows 'with an employer that does not deduct it'.",
+      "evidence": "policybench/prompts.py:19-20 (also present at commit 58b65105); proposed_exclusions.json alternative_reading for each of the four records"
+     },
+     {
+      "claim": "The regenerated value is the only one that no caveat in the law record moves. Every caveat (Acts 2026 c. 101, private or self-insured plans, collective agreements, employer size, NY's 53 Thursdays) changes the employee cap, not the $0 floor. The frozen value moves with several of them. MA under the literal c. 101 reading would be $1,351.02, not $805.01.",
+      "evidence": "program_classification.json MA rate_2026; law_research.json MN/CO/MA/NY caveats; README.md:66 ('matters only if the reference is kept')"
+     },
+     {
+      "claim": "The exclusion reason code does not fit. reference_depends_on_unlisted_input is defined as dependence on 'an engine input the household facts never carried'. policyengine-us has no input for the employer's choice: the formulas apply the rate to taxable wages unconditionally.",
+      "evidence": "policybench/reference_exclusions.py:14-18; README.md:170; read in the 2.15.17 venv: variables/gov/states/mn/tax/payroll/paid_leave/mn_employee_paid_leave_contribution.py, ma/.../ma_employee_paid_leave_contribution.py, co/.../co_employee_famli_contribution.py (formula = rate * taxable wages)"
+     },
+     {
+      "claim": "I checked the adapter independently on policyengine-us 2.15.17 with single-earner households at each scenario's wages. It gives exactly the four regenerated totals (MN 2,218.50, CO 312.74, MA 13,387.65, NY 7,664.92) and leaves every mandatory program unchanged (CA 4,710.83, PA 4,632.00, CT 13,496.16, NJ 2,162.76). The checked-in sweep also reports that the adapter moves only these four outputs.",
+      "evidence": "scratchpad/review/advocate-regenerate/check_adapter.py output; verification/sweep_payroll_scope.log ('adapter: 4 outputs move at all'); fixes/payroll_mandatory_scope.py sha256 74200522... matches proposed_regenerations.json"
+     },
+     {
+      "claim": "How much each option moves the board depends on the metric. Regeneration moves the average model less on the headline and much less on score. It keeps the always-zero baseline and all 4,554 payroll rows.",
+      "evidence": "Computed from verification/leaderboard_impact_{exclude,regenerate}_models.csv. Headline exact mean |delta|: exclude 0.439, regenerate 0.325. Score max |delta|: 0.248 vs 0.040. outputGroupScore max |delta|: 0.055 vs 0.013. Score-rank changes: 4 vs 2. Payroll program exact: +2.50 vs +1.03 points. Always-zero baseline: 69.98 to 70.53 vs unchanged. Leader margin over the baseline: 24.57 vs 24.65. Payroll rows: n 4,554 to 4,370 vs unchanged (leaderboard_impact_*_programs.csv). Exclusion has fewer headline swaps (5 vs 10 pairs) and a smaller maximum headline |delta| (0.620 vs 0.688)."
+     },
+     {
+      "claim": "Under regeneration the four outputs stay as the benchmark's only test of the mandatory-versus-optional distinction the prompt draws. Exclusion removes them until a new prompt and a fresh run.",
+      "evidence": "README.md:7 (recommendation to restate in the next prompt version); payroll_decomposition.csv (only these 4 scored outputs carry an optional program)"
+     },
+     {
+      "claim": "Honest counter-evidence: an earlier audit excluded instead of applying the preface's zero default, in the weekly-hours case.",
+      "evidence": "reference_audit/2026-09-22/root_causes.json:104 (weekly_hours_worked_before_lsr: 'The prompt lists no hours worked and says to treat unlisted numeric inputs as 0; the reference assumed 40 hours'). It differs here: hours is an engine input, SNAP's output definition says nothing about hours, and the zero-hours alternative was 'not a certified entitlement'."
+     },
+     {
+      "claim": "Honest counter-evidence: one NY reviewer framed the employee share as a range consistent with the prompt's facts. That supports the unlisted-fact framing.",
+      "evidence": "law_research.json NY administration verdict: 'Under NY law the employee share consistent with the prompt's facts ranges from $0 to $443.11'"
+     },
+     {
+      "claim": "Honest counter-evidence: as a definition adapter, the regeneration module is incomplete. It keeps Delaware, Maine and Vermont shares that the same law research classifies as optional pass-throughs, and it leaves Washington PFML (mixed) undecided. No benchmark household is affected.",
+      "evidence": "fixes/payroll_mandatory_scope.py OPTIONAL lists only CO, MA, MN, NY; law_research.json OTHER classifies DE, ME and VT as optional_employer_pass_through; my 2.15.17 run at $50,000 of wages keeps DE 200.00, ME 250.00 and VT 55.00 under the adapter"
+     },
+     {
+      "claim": "Honest counter-evidence: the answers that match the frozen value come from models stronger on the mandatory programs.",
+      "evidence": "Computed from explanations.json and model_answers.csv. On average, the 35 frozen-matching answers come from models that include a mandatory state program on 5.57 of 7 mandatory outputs, against 2.88 for the 82 answers regeneration would credit."
+     }
+    ],
+    "rebuttals_to_readme": [
+     "README.md:9 '16 of 16 independent reviews agree' is attached to a claim about the four optional states, but only 8 reviews cover MN, CO, MA and NY. The other 8 review CT, CA, PA and NJ, which are classified mandatory (law_research.json).",
+     "README.md:9 leaves out that every review of the four programs puts the employee's legal floor at $0, and that six say outright that the mandatory or required employee amount is $0. That finding is the regenerated value, not a reason to exclude.",
+     "README.md:10 calls the readings 'a real split', yet the README's own law section (README.md:62-67) and all 8 reviews resolve each 'must'/'shall' passage against the mandatory reading. The MA 'must withhold' quote is agency overview prose that the MA administration reviewer called 'loose summary prose, contradicted by the page's own detailed text and by the regulation' (458 CMR 2.05(5)(c)). The README quotes it without that judgment.",
+     "README.md:10 concedes 'On that wording the frozen value is too high'. The prompt's wording is what 2026-09-28 rule 3 says must hold, so the concession grants the premise for regeneration.",
+     "README.md:10 treats '22 of 46 models included the Massachusetts and New York contributions' as evidence of ambiguity. It picks the two highest counts: inclusion is 7 (MN), 18 (CO), 22 and 22, or 69 of 184 overall. By the same test, Pennsylvania's mandatory contribution (12 and 15 include; 17 and 16 say none, README.md:97) would be 'a real split', yet it stays scored. The README itself says the explanations 'look the same' where the law requires the contribution, so model splits cannot tell ambiguous outputs from clear ones. Of the 22 MA includers only 9 match, with rates from 0.24% to 0.604% (explanations.json).",
+     "README.md:10 applies the 'careful reader could take the stated facts the other way' test from reference_exclusions.py to a dispute about law, not facts. The stated facts (wages, state) are complete. The one unstated fact, the employer's election, is covered by the preface's default for unlisted facts (prompts.py:19-20), which points to the regenerated value.",
+     "The proposed exclusion uses reason code reference_depends_on_unlisted_input, which reference_exclusions.py:14-18 defines as dependence on 'an engine input the household facts never carried'. README.md:170 itself says policyengine-us has no input for the employer's deduction choice. The class that fits is the 2026-09-28 rule 3 output-scope adapter.",
+     "README.md:11 'Regenerating would mostly reward answers that never engaged with the program' applies a criterion no repo rule contains. The rules choose a reference by stated facts and pre-freeze law, and the scorer reads numbers, not reasons, on every other output too.",
+     "README.md:11 is also overstated on its own terms. Four of the 6 'other' answers it would credit name the program and leave it out: Claude Opus 5.5 on MA ('about $805 at 0.46% ... is excluded'), Claude Sonnet 5.5 on MA, Claude Fable 5 on NY and Claude Opus 4.7 on CO. 66 of the 82 credited answers come from models that include a mandatory state program elsewhere. The README's paraphrase 'say the state has no employee payroll tax' drops the qualifier 'mandatory', which 32 of the 46 such quotes on the four outputs carry. Under the law record that qualified statement is true, although the same phrasing on PA (11 of 17 and 13 of 16) shows it often echoes the prompt.",
+     "README.md:11 and :101 say regeneration 'would take credit from 35 answers that include the program at exactly the engine's amount'. Nine of those 35 are Colorado answers of 331.13 that used the pre-2026 0.45% FAMLI rate ($18.40, not the engine's $17.99) and count as exact only through the $1 tolerance (explanations.json scenario_043). Four of the 35 call the contribution 'mandatory', which the law record says it is not. Exclusion also takes credit from all 35 answers.",
+     "README.md:12 'Exclusion is the symmetric remedy' turns a description of how exclusion works (reference_exclusions.py:35) into a reason to choose it. The rules assign the remedy by cause, and a regenerated reference applies equally to every model.",
+     "README.md:12 'moves the board least' holds only for rank swaps (5 vs 10 headline pairs) and maximum headline |delta| (0.620 vs 0.688). On the other measures exclusion moves the board more. Mean headline |delta| is 0.439 vs 0.325. Score max |delta| is 0.248 vs 0.040. outputGroupScore max |delta| is 0.055 vs 0.013. Payroll program exact rises 2.50 points vs 1.03. Exclusion also raises the always-zero baseline from 69.98 to 70.53 and cuts GPT-6 Sol's margin over it to 24.57, against 24.65 under regeneration (leaderboard_impact_*.csv/json).",
+     "README.md:12 cites 'puts Claude Opus 5.5 first on the within-1% metric' in the recommendation. Rank outcomes are not a criterion in any rule. Opus 5.5 gains nearly as much under exclusion (93.70 to 94.32) as under regeneration (94.39); the difference between the options falls mostly on GPT-6 Sol (95.09 vs 94.63).",
+     "README.md:103 'Claude Fable 5.1 and Ox Alpha leave out every state program, mandatory ones included' is wrong for Ox Alpha. It includes California SDI on scenario_022 ('mandatory California employee SDI at 1.2% = $632') and scenario_023 (explanations.json).",
+     "README.md:103 does not say that Claude Opus 5.5, the model regeneration helps most, matches all four California SDI references at the 2026 1.3% rate (model_answers.csv), so its federal-only answers on the optional programs are not a general failure to know state programs.",
+     "README.md:7 recommends stating in the next prompt version how optional employee shares count. The current prompt already does so through 'mandatory' and 'Exclude employer payroll taxes', and through its default for unlisted facts. Exclusion forfeits the four outputs until a fresh run.",
+     "README.md:66 says the Acts 2026 c. 101 question 'matters only if the reference is kept'. That robustness argues for regeneration: the federal-only value is the only one that no caveat in the law record (c. 101, private plans, collective agreements, employer size) changes.",
+     "The published case notes mark legally correct reasoning as error. scenario_032's note counts 'the paid-leave deduction is optional' as a model mistake, and scenario_081's note calls PFML 'mandatory' (annotations/.../us_case_notes.csv:294, :641). Regeneration lets the reworded notes state what the law record found. Exclusion records the question as one a careful reader could take either way, which contradicts the audit's own unanimous classification.",
+     "The README is incomplete. Placeholders DECISION_ID, INDEPENDENT_REVIEW and RELEASE_CHECKLIST are unfilled (README.md:3, :161, :165)."
+    ]
+   }
+  ],
+  "judge": {
+   "best_supported_option": "exclude",
+   "readme_recommendation_survives": true,
+   "reasons": "Exclusion is the best-supported option, and the README's recommendation survives. Several of the README's supporting arguments are wrong or overstated and need fixing before release.\n\nKEEP FAILS UNDER THE REPO'S OWN TEST. Rule 1 of 2026-09-22 and the reference_exclusions.py docstring say a scored reference must \"follow from the facts the prompt states under the law\".\n- All 8 reviews of MN, CO, MA and NY found the engine amounts to be legal maxima. None refuted the classification. Each put the legally required employee amount at $0.\n- I read the engine source this session. mn_ and ma_employee_paid_leave_contribution state \"assuming the employer withholds the maximum permitted employee share\". co_employee_famli_contribution is rate x taxable wages, with no input for the employer's choice.\n- So the frozen values (MN 127.60, CO 17.99, MA 805.01, NY 443.11) depend on an engine assumption, not on a stated fact.\n- Keep's appeal to the prompt's default (\"unlisted ... fact ... as false\") fails because the regenerate brief applies the same default with the opposite result. The default does not say which state is the \"fact\": the employer deducting, or the employer paying.\n- Keep's reading of the Maryland precedent is also wrong. 2026-09-28 rule 3 says the output definition holds. It does not say the published scope holds.\n\nREGENERATE IS THE STRONG ALTERNATIVE, BUT IT REQUIRES THE STRICT READING OF \"MANDATORY\" AS THE ONLY READING.\n- The law record itself treats the employee amount as depending on the employer's choice:\n  - MN research caveat: \"Under a strict reading of the benchmark's 'mandatory employee state payroll taxes', the mandatory Minnesota employee amount is $0\".\n  - MA summary: \"$0, unless one adopts the engine's assumption that the employer deducts the maximum\".\n  - NY administration verdict: \"the employee share consistent with the prompt's facts ranges from $0 to $443.11\".\n- MN subd. 3 (\"Employees ... must pay the remaining portion, if any\") and NY WCL 209(1) (\"shall contribute\") place statutory duties on the employee. Once the employer withholds, the employee cannot opt out.\n- A careful reader could therefore count the statutory employee share as a \"mandatory employee state payroll tax\". That makes this a reference that turns on a fact or definition the prompt does not state. 2026-09-22 rule 4 (\"input or definition the prompt never states\") and 2026-09-28 rule 4 send that case to exclusion.\n\nTHE CLOSEST PRECEDENTS ALL EXCLUDED.\n- r24 (scenario_002, 107 and 121): who paid for the coverage, which is an employer-arrangement fact that decides the tax.\n- r25 NIIT (scenario_020): definition ambiguity.\n- r14 (scenario_056 and 112): the reference assumed 40 hours where the zero default arguably applied. The repo excluded rather than regenerating to the default.\n- The Maryland adapter, which the regenerate brief relies on, differs in two ways. Its definition was explicit (\"excluding local income and payroll taxes\"). And it reproduced the board's published values (scenario_068 equal; scenario_078 +0.539). Here regeneration would change values that have stood since 2026-06-15, by $17.99 to $805.01.\n- \"How the records follow\" #3 in 2026-09-22 prescribes exclusion with an alternative value for an unlisted-input reading, which is what proposed_exclusions.json does.\n\nREGENERATE'S REAL STRENGTHS. The README must answer them, not dismiss them:\n- The README concedes \"On that wording the frozen value is too high\".\n- The $0 floor is unchanged by every caveat in the law record (c.101, private plans, collective agreements, employer size).\n- The scope adapter is clean: the checked-in sweep log says the adapter moves 4 outputs and nothing else.\n\nTHE BOARD-IMPACT AND MODEL-BEHAVIOUR ARGUMENTS ON ALL SIDES ARE NOT RULE CRITERIA AND DO NOT DECIDE THIS.\n- Model inclusion rates are the same on mandatory programs: PA 12 and 15 include, CT 20.\n- Exclusion moves the board less on some metrics and more on others. Headline swaps are 5 vs 10 pairs, but mean |delta| is 0.439 vs 0.325 and score max |delta| is 0.248 vs 0.040.\n- The asymmetry argument cuts both ways. GPT-6.1 Sol, exact on all four, falls 0.067 under exclusion but 0.688 under regeneration.\n\nWHAT THE RECORD NEEDS BEFORE RELEASE.\n- The basis line in proposed_exclusions.json cites \"an engine input the prompt never listed\". README line 170 says no such input exists. The line should cite 2026-09-22 rule 4 and 2026-09-28 rule 4, and the r24 and r25 precedents.\n- The placeholders DECISION_ID, INDEPENDENT_REVIEW and RELEASE_CHECKLIST must be filled.\n- All 16 reviews ran in one Claude Code workflow (wf_cecd10dd-abe). The 2026-09-22 fixes were checked on GPT-6 Astra lanes; this audit has no outside-workflow review yet.\n\nI modified nothing in the checkout. My scratch files are in /private/tmp/claude-501/-Users-maxghenis-Library-Application-Support-Claude-scratch-workspaces-ee3763f4-e7ea-4177-bcaf-1362266768c1-4457aa9d-2dc0-4bcf-a128-e50adae6be25-scratch-2026-09-22-c3da5e/224fe5b6-f6e8-4204-af8f-2508970193bc/scratchpad/review/judge/ (stats.py, law_dump.txt).",
+   "readme_errors_or_overstatements": [
+    "Line 9, \"16 of 16 independent reviews agree\": the claim is about the four optional states, but only 8 reviews cover MN, CO, MA and NY. The other 8 confirm CT, CA, PA and NJ as mandatory_employee_withholding. All 16 ran in one Claude Code workflow (law_research.json method: wf_cecd10dd-abe), so \"independent\" means separate agents in that workflow, not reviewers outside it.",
+    "Line 10, \"22 of 46 models included the Massachusetts and New York contributions. That is the case the exclusion rule covers\": model inclusion is not evidence of a careful reader's split. Line 89 itself says the explanations \"look the same\" where the law requires the contribution: PA 12 and 15 include, CT 20. Across the four outputs inclusion is 7, 18, 22 and 22 (69 of 184). Of the 22 MA includers only 9 are exact.",
+    "Line 10 cites MN \"must pay\", NY \"shall contribute\" and MA \"must withhold\" as making the split \"real\". It does not report that every reviewer weighed these passages and rejected them as setting any required amount. The MA administration reviewer called \"must withhold\" \"loose summary prose, contradicted by the page's own detailed text and by the regulation\". The defensible ground is narrower: the legal floor is $0, but the benchmark's word \"mandatory\" can be read as the statutory employee share the employer withholds by default, or as the legal floor. The README should say that, not imply the law itself is split.",
+    "Line 10 concedes \"On that wording the frozen value is too high\" and moves on. Unexplained, that concession grants the premise of 2026-09-28 rule 3 (output definitions hold) and supports regeneration.",
+    "Lines 11 and 101, \"35 answers that include the program at exactly the engine's amount\": 9 of the 35 are Colorado answers of 331.13 at the stale 0.45% rate ($18.40, not $17.99). They count as exact only through the $1 tolerance (explanations.json scenario_043). The 3 MA answers of 14,193 are whole-dollar roundings at the right 0.46% rate.",
+    "Lines 11 and 101, \"Regenerating would mostly reward answers that never engaged with the program\": no repo rule makes that a criterion. It is also overstated:\n- 4 of the 6 \"other\" answers name the program and leave it out (Claude Opus 5.5 MA, Claude Sonnet 5.5 MA, Claude Fable 5 NY, Claude Opus 4.7 CO).\n- 66 of the 82 newly credited answers come from models that include a mandatory state program elsewhere.\n- 25 of the 36 \"no state tax\" answers say \"no mandatory\", which is literally true under the law record. The README's paraphrase drops the qualifier.\n- Exclusion also stops penalizing the same answers: Claude Opus 5.5 gets 90% of its regeneration gain under exclusion (+0.620 vs +0.688), Ox Alpha 86%, Gemini 3.8 Flash 85%, Claude Fable 5.1 81%.",
+    "Line 12, \"moves the board least\": this holds only for headline rank swaps (5 vs 10 pairs) and max |delta| (0.620 vs 0.688). Exclusion moves more on:\n- mean |exact delta|: 0.439 vs 0.325\n- mean exact delta: +0.437 vs +0.169\n- score max |delta|: 0.248 vs 0.040\n- outputGroupScore max |delta|: 0.055 vs 0.013\n- score-rank changes: 4 vs 2\n- the always-zero baseline: 69.98 to 70.53, vs unchanged\n- GPT-6 Sol's margin over that baseline: 24.57 vs 24.65\nKeep moves nothing. Board movement is not a rule criterion either way.",
+    "Line 12 puts \"Claude Opus 5.5 first on the within-1% metric\" in the recommendation. Rank outcomes are not a rule criterion, and listing them invites a reading that the choice is outcome-driven. The README also omits that exclusion narrows the GPT-6 Sol lead over Claude Opus 5.5 from 1.306 to 0.776 points on exact match, and from 0.972 to 0.460 on within-1%. It reports the narrowed gap only for regeneration.",
+    "Line 103, \"Claude Fable 5.1 and Ox Alpha leave out every state program, mandatory ones included\": wrong for Ox Alpha. It includes CA SDI on scenario_022 (4,658, \"mandatory California employee SDI at 1.2% = $632\") and scenario_023 (1,544).",
+    "Line 103, \"the readings split by family\": this presents engine guesses as legal readings. Claude Opus 5.5 leaves out MA PFML \"on the assumption the model does not include it\", and CT's mandatory contribution \"on the assumption that PolicyEngine does not model it\". It also misses PA scenario_028 and scenario_123, while matching all four CA SDI references. The README notes the mandatory misses of Fable 5.1 and Ox Alpha but not those of Opus 5.5.",
+    "Lines 62-67, \"Points that cut the other way\", leave out counter-evidence the reviewers said should be disclosed:\n- MN: DEED's taxes page says an employer pickup is \"additional compensation ... as wages\", and the employee may deduct the amount \"that the employer pays on their behalf\".\n- CO: no bullet at all, despite the FAQ's \"required to pay the 0.44% employer's share and collect and remit the 0.44% of the employee's share\" and \"Most Colorado businesses should be deducting\".\n- MA: the subtitle \"Most Massachusetts employers must make payroll withholdings\"; c.175M s.1 (Contributions include employee payments); s.4(a)(ii) notice of \"the employee's contribution amount and obligations\".\n- NY: DFS \"Employers shall collect employee contributions\"; 12 NYCRR 380-2.6 \"shall make regular family leave benefit contributions\"; the PFL site's \"Ensure that you are collecting\"; WCB \"fully paid for by employees\".",
+    "Line 62, \"each engine amount equals the law's largest employee share to the cent\": overstated for NY DBL. The cap is $0.60 a week, and 2026 has 53 Thursdays, so a Thursday payroll's legal maximum is $31.80, not the engine's $31.20 (within $1). It is also overstated for MA under the literal c.101 reading ($1,351.02), though the README discloses that one.",
+    "Line 66 describes the c.101 question without the pre-freeze evidence for 0.46%:\n- DFML's rates page captured 2026-06-17, after c.101's approval, still shows the 0.46% maximum.\n- The act's s.43(a) refers to calendar year 2027.\n- The statute reviewer found that a literal sequential reading of ss.25-26 gives small employers 40%/40%.\nThis matters only to keep, but the record should be complete.",
+    "Line 169, \"Both options need them reworded\": understated. The scenario_032 note is already wrong under every option. It says \"The one model that did include the paid-leave premium used 0.35%\", but explanations.json has 7 includers and 6 exact matches at 2,346.10. The scenario_081 note's \"mandatory\" contradicts the law record whichever option is adopted.",
+    "proposed_exclusions.json \"basis\" says the reference \"depends on an engine input the prompt never listed\". README line 170 and the engine source (co_employee_famli_contribution is rate x co_famli_taxable_wages) show that no such input exists. The basis should cite 2026-09-22 rule 4 (\"input or definition the prompt never states\") and 2026-09-28 rule 4, and the r24 and r25 precedents. Those used reference_depends_on_unlisted_input with no engine input.",
+    "The decision record is incomplete. DECISION_ID (line 3), INDEPENDENT_REVIEW (line 161) and RELEASE_CHECKLIST (line 165) are unfilled placeholders. The README also never cites the closest precedent for its own recommendation: r24, \"who paid for the coverage\", an employer-arrangement fact the prompt omits, which was excluded."
+   ],
+   "arguments_readme_must_answer": [
+    "Regenerate brief, rule 3: \"The benchmark's output definitions hold\" (2026-09-28). The README concedes the frozen value is too high on the prompt's wording, and all 8 reviews put the legally required employee amount at $0. The README must explain why this is a two-reading case under rule 4 and not a definition case under rule 3. It should also say why the Maryland adapter does not govern: that definition was explicit, and the adapter preserved the published values (scenario_068 equal, scenario_078 +0.539), where regeneration would change values that have stood since 2026-06-15.",
+    "Regenerate brief: the regenerated value is the only one no caveat in the law record moves (c.101, private and self-insured plans, collective agreements, employer size, NY's 53 Thursdays), because each caveat changes only the cap and not the $0 floor.",
+    "Regenerate brief and keep brief, mirror images: each says the preface (\"Treat ... any other unlisted household fact ... as false\"; \"Do not infer unlisted income\") resolves the employer's choice in its favor. The README never addresses the preface. Its best answer is that the default is indeterminate here: whether the deduction or the pickup is the \"fact\" depends on each statute's framing. That is the 40-hour precedent (r14), which excluded instead of applying the zero default.",
+    "Both briefs: the reason code reference_depends_on_unlisted_input is defined in reference_exclusions.py as dependence on \"an engine input the household facts never carried\", and README line 170 says no such input exists. The README must cite the precedents that used this code for a definition or arrangement question without an engine input (r25 NIIT scenario_020; r24 scenario_002, 107 and 121), or reword the basis.",
+    "Keep brief: the statutes frame the employer paying the employee share as an election. CO 7 CCR 1107-1 s.1.4(6)(A): \"considered to have elected to pay\". MN DEED: employers \"may choose to pay more than their required portion\". MA 458 CMR 2.05(5)(c): \"opts to deduct a lower percentage\". On that framing the no-election default is the maximum deduction.",
+    "Keep brief: DEED treats a Minnesota employer pickup as additional wages, with the 0.44% still the employee's for federal tax. That parallels the structure the README uses at line 67 to call California mandatory. The README's distinction has to rest on state law: California's worker contribution is still owed when the employer pays (s.986(a)(2), DE 231Q gross-up), while Minnesota's employee owes only \"the remaining portion, if any\".",
+    "Keep brief: exclusion's effect is not neutral. GPT-6.1 Sol, exact on all four, is the only model whose headline falls under exclusion (-0.067, rank 8 to 9). The README should report that, together with the exclusion-case narrowing of the GPT-6 Sol over Claude Opus 5.5 gap (1.306 to 0.776 exact; 0.972 to 0.460 within-1%). It should also note that regeneration costs GPT-6.1 Sol more (-0.688).",
+    "Regenerate brief: on the metrics listed above, exclusion moves the board more than regeneration on everything except headline rank swaps and max |delta|. The README must either drop \"moves the board least\" or qualify it.",
+    "Regenerate brief: the inclusion counts cannot separate ambiguous outputs from clear ones. The PA mandatory pattern (17 and 16 say there is no state tax) matches the optional outputs, so the \"22 of 46\" argument for a real split must be replaced with the definitional argument.",
+    "Regenerate brief: under exclusion the four outputs stop testing the mandatory-versus-optional distinction until a new prompt version and a fresh run. The README should state that cost and commit to the prompt change on line 7.",
+    "Regenerate brief: the published case notes count legally correct reasoning as model error. scenario_032 treats \"the paid-leave deduction is optional\" as a mistake, and scenario_081 calls PFML \"mandatory\". The README should say how the notes for excluded outputs will be reworded.",
+    "Keep brief: the judges annotated all 149 wrong answers on the four outputs and flagged no reference (reference_suspect False on every row). The README should note this, and note that the judges were not asked to research the employer-deduction law, so the lack of a flag is weak evidence.",
+    "Keep brief: pre-freeze evidence supports the 0.46% Massachusetts cap: the 2026-06-17 DFML capture, c.101 s.43(a), and the 40%/40% incoherence of the literal reading. This should be recorded even though it matters only to keep."
+   ]
+  }
+ },
+ "release_checklist": {
+  "exclude": [
+   {
+    "item": "Before installing anything, record Max's ruling. Set decided_on on the four records to the ruling date. Fill the README placeholders DECISION_ID, INDEPENDENT_REVIEW and RELEASE_CHECKLIST, which are still literal tokens at this commit.",
+    "where": "reference_audit/2026-10-05-payroll/proposed_exclusions.json:3 (status), README.md:5 and the INDEPENDENT_REVIEW / RELEASE_CHECKLIST lines"
+   },
+   {
+    "item": "Insert the four records into reference_exclusions.json BEFORE the trailing scenario_023 head_medicaid_eligible record and write with json.dumps(indent=2)+'\\n'. The test requires the list's tail to equal final_actions.json audit_exclusions. Appending at the end fails it; observed on a scratch clone: tail [...'2026-10-05'] != [...'2026-09-29'].",
+    "where": "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json; tests/test_reference_upgrade.py:221-223, 229-232"
+   },
+   {
+    "item": "Put any new 'derivation' text BEFORE the 'On 2026-09-29 the references moved to policyengine-us 2.15.17' marker. Otherwise change the test, which requires derivation == base + exclusion_derivation(...).",
+    "where": "tests/test_reference_upgrade.py:224-228; reference_audit/2026-09-28/scripts/build_references_latest.py:173-198"
+   },
+   {
+    "item": "Decide whether to give the four records one shared unlisted_input string. As drafted they add four separate keys of count 1 each to the manifest's by_unlisted_input tally and to paper_results.excluded_outputs_by_input. #191 uses one shared string for its three.",
+    "where": "scripts/freeze_snapshot.py:330-337; policybench/paper_results.py:1125-1133"
+   },
+   {
+    "item": "Add four developer adjudications to us_adjudications.json. Each needs every REQUIRED_FIELD plus: judge_model claude-opus-5-5, judge_failure_source llm_error, judge_failure_subtype state_local_rule, judge_reference_suspect false, adjudicated_failure_source prompt_ambiguity, excluded_from_scoring true, and reference_verdict unlisted_input with a reference_basis. The freeze refuses the run unless the adjudication set equals the exclusion set and the judge fields match each case's verdict.json.",
+    "where": "annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json; policybench/adjudications.py:26-38, 84-121; scripts/freeze_snapshot.py:315-328, 358-403"
+   },
+   {
+    "item": "Take judged_on_utc from the published audit tree: 2026-09-29 for 032, 081 and 082, and 2026-09-22 for 043. Point the freeze's AUDIT_CASES_DIR at results/local/gpt61sol-stage/gpt61sol-v1/audit/cases. The default unified_audit tree holds older verdicts for 032, 081 and 082 (dated 2026-09-22/23; sha a5c2b9ca, e4da4b03, 37043eaf, against the published 354482e6, b29fd367, b7a89645). The classes are the same, but the dates and judge-provenance tallies would come from a stale tree.",
+    "where": "scripts/freeze_snapshot.py:175, 237-313, 406-410"
+   },
+   {
+    "item": "Add the new adjudication wave. Extend date_conventions, which names only 2026-09-05, 2026-09-22 and 2026-09-29. Add a wave_releases entry and four case entries to the judge evidence, or give the wave its own evidence file. Update the test, which raises KeyError '2026-10-05' (observed), looks up evidence['cases'][case] at :763, and asserts wave == '2026-09-29' at :766. While there, fill the 2026-09-29 wave's commit: it is still null although d616e67c merged.",
+    "where": "us_adjudications.json date_conventions; reference_audit/2026-09-28/verification/judge_verdicts.json; tests/test_adjudications.py:694-784"
+   },
+   {
+    "item": "Scope the restatement test to release 20260929's cases. It asserts the current record's cases equal that release's exactly, so any added entry fails it (observed).",
+    "where": "tests/test_adjudications.py:639"
+   },
+   {
+    "item": "Apply the adjudications with scripts/apply_adjudications.py. This relabels 145 llm_error rows to prompt_ambiguity: 38 on 032, 30 on 043, 36 on 081 and 41 on 082. 43 of them also change subtype to state_local_rule (27 thresholds_rates, 13 payroll_tax_base, 3 other). The 4 parse_contract_failure rows stay: glm-5.2 and kimi-k2.6 on 032, kimi-k2.6 on 081 and on 082. The four case notes take prompt_ambiguity and the appended adjudication sentence.",
+    "where": "annotations/.../us_audit_row_annotations.csv, us_case_notes.csv; policybench/adjudications.py:206-264, 267-354; tests/test_paper_results.py:364-380"
+   },
+   {
+    "item": "Reword case note 032. It counts the optional reading as a model error: 'many said outright that Minnesota has no mandatory employee payroll tax or that the paid-leave deduction is optional'. It also lists 'Minnesota's Paid Leave employee contribution of $127.60' as a fixed piece of the reference.",
+    "where": "us_case_notes.csv scenario_032 payroll_tax"
+   },
+   {
+    "item": "Reword case note 043. It says 'Colorado's FAMLI program charges employees half of a 0.88% premium' and treats 'dropped FAMLI on purpose' as an error. It also gives FICA as $312.75 in one sentence and $312.73 in the next; the engine's federal part is $312.74.",
+    "where": "us_case_notes.csv scenario_043 payroll_tax"
+   },
+   {
+    "item": "Reword case note 081, which says 'the mandatory Massachusetts Paid Family and Medical Leave (PFML) employee contribution' and treats 'treated it as employer-only' as an error.",
+    "where": "us_case_notes.csv scenario_081 payroll_tax"
+   },
+   {
+    "item": "Reword case note 082, which says 'The requested payroll_tax output includes mandatory employee state payroll taxes. In New York those are Paid Family Leave (PFL) and disability benefits (DBL) contributions.'",
+    "where": "us_case_notes.csv scenario_082 payroll_tax"
+   },
+   {
+    "item": "Reword the row annotations that state the program is mandatory. A regex finds at least 47 of the 149 (032: 8, 043: 14, 081: 9, 082: 16), for example grok-4.7 on 032: 'Minnesota Paid Leave premiums are mandatory from 2026'. Others call the claim that a state has no mandatory employee tax 'wrong', for example claude-opus-4.8 on 082.",
+    "where": "annotations/.../us_audit_row_annotations.csv (149 rows on the four outputs)"
+   },
+   {
+    "item": "Optionally fix scenario_032's frozen narrative. It calls the premium a 'contribution requirement' and names mn_paid_leave_contribution, which does not exist in policyengine-us 2.15.17 (the variable is mn_employee_paid_leave_contribution). The r33 exclusion set the precedent of rewriting a misstated frozen narrative.",
+    "where": "annotations/.../us_case_reference_explanations.csv; tests/test_reference_audit.py:382-401"
+   },
+   {
+    "item": "Extend the record-date rule in the reference-audit test so records decided after the 2026-09-22 wave carry their own date. The filter excludes only 2026-09-05 and 2026-09-29, so the new records fail it (observed: '2026-10-05' == '2026-09-22').",
+    "where": "tests/test_reference_audit.py:288-300"
+   },
+   {
+    "item": "Let the sweep-table test accept exclusions decided after the upgrade. sweep_moves.csv marks the four outputs excluded=False, and the test requires that column to match the record (observed failure on scenario_032).",
+    "where": "tests/test_reference_upgrade.py:94-108; reference_audit/2026-09-28/sweep_moves.csv rows 558, 714, 1304, 1326"
+   },
+   {
+    "item": "Change len(scored) == 1928 and its comment to 1,924, or 1,921 with #191.",
+    "where": "tests/test_reference_upgrade.py:358-360"
+   },
+   {
+    "item": "Retire or re-scope the committed-snapshot test in the gpt61sol suite. It pins release 20260929's reference_exclusions.json sha bf4e6a24..., BASE_EXCLUSIONS 56, the 28/28 reason split and BASE_SCORED (observed: 'does not match its pin'). Read the base files from git at BASE_COMMIT instead.",
+    "where": "tests/test_finish_gpt61sol.py:400-418; scripts/finish_gpt61sol.py:133-150"
+   },
+   {
+    "item": "Build a release driver. freeze_gpt61sol.py refuses any change to the exclusions ('this release has no reference revision') and any incumbent drift. freeze_snapshot.py's SOURCE_RUN, PUBLISHED_DASHBOARD_SOURCE and PUBLISHED_DASHBOARD_ARTIFACT still name the 42-model 20260922c bundle, so do not run its main() as-is. Precedent: 20260922b (ba886b4c) edited those constants directly; 20260930 overrode them in-process.",
+    "where": "scripts/freeze_gpt61sol.py:205-232, 600-617; scripts/finish_gpt61sol.py:564-571; scripts/freeze_snapshot.py:101-129, 1760-1785"
+   },
+   {
+    "item": "Refreeze the payload, the analysis CSVs and the manifest. This sets scored=false on 184 rows; n becomes 1,924 and every modelStats row moves by -0.07 to +0.62 points. The freeze re-pins the hashes the snapshot tests check (observed failing before refreeze: manifest source-run and annotation hashes, bootstrap estimates, impact summaries, and test_manuscript_views.py:71).",
+    "where": "paper/snapshot/20260501/manifest.json and runs/.../data.json.gz, analysis/*; tests/test_snapshot_artifacts.py:32-151, 1028, 1048; tests/test_manuscript_views.py:71"
+   },
+   {
+    "item": "Update the release pointers: app/src/data.artifact.json, PUBLISHED_DASHBOARD_ARTIFACT, and app/src/paperSnapshot.json after re-rendering. Rewrite data.versions.json's description: 'the 56 excluded outputs ... 52 from policyengine-us 1.755.4, 4 from 2.15.17' becomes 60 (52, 8), or 63 (52, 11) with #191. Keep snapshotLabel 'Snapshot 2026-09-30', since the models and answers are unchanged (20260922b precedent). Uploading the release asset is a publish step that needs Max.",
+    "where": "app/src/data.versions.json; app/src/data.artifact.json; tests/test_disclosures.py:690 (observed failing)"
+   },
+   {
+    "item": "Change the expand page's leader pin from 95.003 to 95.093 and the copy from '95.0%' to '95.1%'. With #191 the values are 95.749 and '95.7%'.",
+    "where": "app/tests/expandPage.test.ts:73-83"
+   },
+   {
+    "item": "Rescore the sensitivity evidence with scripts/sensitivity_by_variable.py and then scripts/rescore_sensitivity_summaries.py --release <tag>. Fable 5.1 auto goes from 91.728 to 92.349 and Fable 5 thinking from 91.521 to 92.129 (observed). Update n 1928, 'fifty-six' and the doc's table, and copy the new autoExact values into servingSensitivity.ts.",
+    "where": "sensitivity/data/claude-fable-5-1-thinking.json:23-24,38; sensitivity/data/claude-thinking-2026-08.json; sensitivity/claude-thinking-2026-08.md:50,59,89,150; app/src/lib/servingSensitivity.ts:38-61; tests/test_sensitivity_evidence.py:127,217,239"
+   },
+   {
+    "item": "Revise paper/index.qmd in three places. Add the employer-deduction reading to 'The unlisted inputs behind the unlisted-input exclusions...' (line 1087). Extend 'moved on 1.755.4 or, for the state and local tax refund reading, on 2.15.17' to cover the paid-leave sweep on 2.15.17. Add a reference-review table row for the October payroll audit beside 'US payroll and overtime' (line 888). Then re-render and run freeze_snapshot.py --rendered-only. The abstract sentence is generated: 'the 28 ... and the 32 whose references depend on an input' (35 with #191).",
+    "where": "paper/index.qmd:886-893, 970, 1087; tests/test_disclosures.py:617-634 (observed failing on the stale render)"
+   },
+   {
+    "item": "Update the benchmark card: line 73 (56 → 60; '4 with 2.15.17' → 8), 105-109 (audit counts), 122 (69 → 73), 144 ('Fifty-six outputs in 39 households' → 'Sixty outputs in 41 households'), 156 ('Twenty-eight' → 'Thirty-two', and add the paid-leave reading to the list), 173 (1,928 → 1,924) and 175 ('55 answers that never parsed' → 59).",
+    "where": "docs/benchmark_card.md:73-74,105-109,122,144,156-160,173,175; tests/test_disclosures.py:767 (observed failing)"
+   },
+   {
+    "item": "Update the paper guide's audit counts and its exclusion and scored counts.",
+    "where": "docs/paper.md:70-71, 77-78"
+   },
+   {
+    "item": "Notes: no note carries dashboard-data-20260930, so SUPERSEDED_RELEASES and CURRENT_RELEASE_SNAPSHOT change only if a release note is added. Decide whether the 2026-09-29 Sonnet note, which says Sonnet is #5 and GPT-6 Luna #4, gets a later-release sentence as cb312fd7 added to superseded notes. Under exclusion Sonnet passes Luna, 92.52 to 92.34.",
+    "where": "tests/test_notes.py:78-96; app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth.json"
+   },
+   {
+    "item": "If #191 lands in the same release, reword its scenario_081 record. It says the household's 'Massachusetts paid family and medical leave contributions ($805.01)' are left out of SALT as deductible taxes, but this audit classifies that share as an optional employer pass-through: up to $805.01, and only if the employer deducts it.",
+    "where": "git show 8af912a0:reference_audit/2026-10-05/proposed_exclusions.json (scenario_081 alternative_reading); 8af912a0 README 'Related engine issues'"
+   },
+   {
+    "item": "Optionally add a later-revision line to the 2026-09-28 README, which states '1,928 scored outputs and 56 exclusions'. The 09-22 README set the precedent for recording later revisions.",
+    "where": "reference_audit/2026-09-28/README.md:13"
+   }
+  ],
+  "regenerate": [
+   {
+    "item": "Before installing anything, record Max's ruling. Set the revision date to the ruling date and fill the README placeholders DECISION_ID, INDEPENDENT_REVIEW and RELEASE_CHECKLIST.",
+    "where": "reference_audit/2026-10-05-payroll/proposed_regenerations.json:3; README.md"
+   },
+   {
+    "item": "Write the four values (2218.5, 312.74322509765625, 13387.65234375, 7664.91748046875) into BOTH reference CSVs. The top-level copy must equal the run copy.",
+    "where": "paper/snapshot/20260501/runs/.../reference_outputs.csv; paper/snapshot/20260501/us_reference_outputs.csv; tests/test_snapshot_artifacts.py:629-642"
+   },
+   {
+    "item": "Fix propose_changes.py's docstring. It says a release 'adds one output_scope revision to the reference sidecar, as the Maryland adapter was recorded', which is false. The sidecar has no output_scope kind; the Maryland adapter is a fix_modules entry inside the single engine_upgrade revision.",
+    "where": "reference_audit/2026-10-05-payroll/scripts/propose_changes.py:7-11; runs/.../reference_outputs.csv.meta.json (engine_upgrade fix_modules)"
+   },
+   {
+    "item": "Choose how to record the revision. Option (a): a trailing revision of a new kind. That needs read_reference_engine_setup and the upgrade-test helper relaxed, since both require the single engine_upgrade revision to be the last one. On a scratch clone that helper broke 8 tests by itself. Option (b): add the adapter to the engine_upgrade revision. That rewrites the 2026-09-29 record, whose modules must live in reference_audit/2026-09-28/fixes.",
+    "where": "scripts/freeze_snapshot.py:1414-1442; tests/test_reference_upgrade.py:46-51, 88-91"
+   },
+   {
+    "item": "Update reference_csv_sha256 in the sidecar. Give the revision a convention or root_cause key; regenerated_references_by_source keys on those and would key on None otherwise. Add a paper_results accessor if the paper reports this regeneration, because regenerated_reference_keys counts only convention and upstream_fix revisions.",
+    "where": "runs/.../reference_outputs.csv.meta.json; policybench/paper_results.py:1290-1302, 1530-1537"
+   },
+   {
+    "item": "Decide whether to advance regenerated_at_utc. The freeze dates the references by it, the test pins it to 2026-09-29, and the paper prints r.reference_rebuilt_date.",
+    "where": "scripts/freeze_snapshot.py:1360-1385; tests/test_reference_upgrade.py:403-405; tests/test_snapshot_artifacts.py (refresh-date test); tests/test_reference_provenance.py:191 (observed failing)"
+   },
+   {
+    "item": "Add payroll_mandatory_scope.py to OUTPUT_SCOPE_ADAPTERS and to the module check, and rewrite the reproducibility note 'the Maryland output-scope adapter'. The test pins the module set {latest_conventions.py, latest_md_local_output_scope.py} and both sentences verbatim.",
+    "where": "scripts/freeze_snapshot.py:1408, 1434, 1541-1543; tests/test_snapshot_artifacts.py:897-935; docs/paper.md:59-62"
+   },
+   {
+    "item": "Re-run the publication check on the newest policyengine-us at release with latest_final plus payroll_mandatory_scope, and commit the sweep and log. latest_final_2170.csv has no payroll adapter, so the test that 'recomputes every scored reference' fails for the four outputs (observed). The engine_upgrade rule says that at publication PolicyBench checks the newest release gives the same values.",
+    "where": "reference_audit/2026-09-28/verification/latest_final_2170.csv; tests/test_reference_upgrade.py:347-379"
+   },
+   {
+    "item": "Scope two upgrade tests to outputs outside the new revision. The sweep-table test compares sweep_moves.csv reference/final values to the CSV (observed failure). The changed-reference test requires the outputs that differ from the 20260922c board to equal the engine_upgrade revision's 'changed' list.",
+    "where": "tests/test_reference_upgrade.py:94-108, 111-130"
+   },
+   {
+    "item": "Add a test for the new revision, modeled on the 09-22 one. Check that the module is committed with sha 74200522..., that sweep_payroll_scope.csv moves exactly the four outputs, that the CSV holds the regenerated values, and that none of the four is excluded.",
+    "where": "tests/test_reference_audit.py:141-181 (pattern); reference_audit/2026-10-05-payroll/verification/sweep_payroll_scope.csv"
+   },
+   {
+    "item": "Rewrite the four reference narratives (reference_value and explanation) as federal-only derivations. Add them to a REGENERATED_NARRATIVES-style table with required figures and test it.",
+    "where": "annotations/.../us_case_reference_explanations.csv; tests/test_reference_audit.py:404-438 (pattern)"
+   },
+   {
+    "item": "Re-derive the audit rows. Delete the 82 annotations that become exact (032: 33, 043: 26, 081: 9, 082: 14). Annotate the 35 new misses: 032 deepseek-v4.1-flash, gpt-5.5, gpt-5.6-sol, gpt-6-astra, gpt-6.1-sol, kimi-k3; 043 sixteen models; 081 nine; 082 gpt-6-luna, gpt-6-sol, gpt-6.1-sol, kimi-k3. Set wrong_model_count from 40/30/37/42 to 13/20/37/32. Both auditUniverse.ts and paper_results.audit_selection_rule raise when the annotated rows differ from the legacy-threshold rows.",
+    "where": "annotations/.../us_audit_row_annotations.csv, us_case_notes.csv; app/src/lib/auditUniverse.ts; policybench/paper_results.py:1624-1630; tests/test_snapshot_artifacts.py:717, 803 (observed failing)"
+   },
+   {
+    "item": "Re-judge the four cases on the new reference and narrative with claude-opus-5-5, through scripts/run_audit_claude.sh as 20260922b did. Rewrite all four case notes from the new verdicts. Refresh judge_provenance: the dates change, and by_judge stays 298/116/260 only if Opus 5.5 judges. Add an adjudication only if a verdict comes back non-final or flagged.",
+    "where": "results/local/<release audit tree>/cases/us__scenario_0{32,43,81,82}__payroll_tax; tests/test_paper_results.py:303-311; tests/test_judge_provenance.py"
+   },
+   {
+    "item": "Retire or re-scope the gpt61sol committed-reference pin test. It pins release 20260929's CSV sha e8bbba8f... and sidecar sha 816fef53... (observed failing).",
+    "where": "tests/test_finish_gpt61sol.py:400-418; scripts/finish_gpt61sol.py:133-150"
+   },
+   {
+    "item": "Build a release driver that accepts the reference revision and incumbent drift. Every modelStats row moves by -0.69 to +0.69 points, and n stays 1,928. freeze_gpt61sol.py and finish_gpt61sol.py refuse both. finish_adds0928.py accepted only an engine_upgrade revision.",
+    "where": "scripts/finish_gpt61sol.py:201-209; scripts/freeze_gpt61sol.py:226-245; scripts/finish_adds0928.py"
+   },
+   {
+    "item": "Refreeze the payload, the analysis CSVs and the manifest, and update the pointers, data.versions.json and paperSnapshot.json. Uploading the release asset is Max's step.",
+    "where": "paper/snapshot/20260501/manifest.json; app/src/data.artifact.json; app/src/data.versions.json; tests/test_snapshot_artifacts.py:32-151, 1028, 1048 (observed failing)"
+   },
+   {
+    "item": "Change the expand page's leader pin from 95.003 to 94.629 and the copy from '95.0%' to '94.6%'. With #191 the value is 95.192 and the copy '95.2%'.",
+    "where": "app/tests/expandPage.test.ts:73-83"
+   },
+   {
+    "item": "Rescore the sensitivity evidence. Fable 5.1 auto goes from 91.728 to 92.416 and Fable 5 thinking from 91.521 to 92.209 (observed); n is unchanged. Copy the new autoExact values into servingSensitivity.ts.",
+    "where": "sensitivity/data/*.json; sensitivity/claude-thinking-2026-08.md; app/src/lib/servingSensitivity.ts:38-61; tests/test_sensitivity_evidence.py:127,217,239"
+   },
+   {
+    "item": "Revise the paper. Add the payroll adapter to the reference-construction paragraph ('an adapter restores that scope'). Fix the publication-check sentence 'gives the same value ... for all 1,984 outputs under the same conventions and adapter'. Add a reference-review table row. Then re-render and re-pin.",
+    "where": "paper/index.qmd:886-893, 1083; tests/test_disclosures.py:487-511 (observed failing)"
+   },
+   {
+    "item": "Update the benchmark card's adapter and publication-check paragraph and its audit counts. The board grid on the leaderboard is 7,813 / 7,809 / 4 / 2,125.",
+    "where": "docs/benchmark_card.md:84-90, 105-109; docs/paper.md:59-62, 70-71"
+   },
+   {
+    "item": "Leave the exclusion record and the adjudication count (69) unchanged, but note one inconsistency if #191 also lands. #191's 081 record treats the $805.01 MA PFML share as paid, while the regenerated payroll reference says it is not employee tax. Reword that record.",
+    "where": "git show 8af912a0:reference_audit/2026-10-05/proposed_exclusions.json"
+   }
+  ],
+  "pinned_counts": [
+   {
+    "name": "Excluded outputs",
+    "now": "56",
+    "exclude": "60",
+    "exclude_with_salt": "63",
+    "regenerate": "56",
+    "where": "tests/test_paper_results.py:327,328('56 outputs'),414; tests/test_reference_exclusions.py:156; tests/test_adjudications.py:231,298; tests/test_finish_gpt61sol.py:411; docs/benchmark_card.md:73,106,144; docs/paper.md:77; app/src/data.versions.json; sensitivity md:50 and data JSON 'fifty-six'"
+   },
+   {
+    "name": "Unlisted-input exclusions",
+    "now": "28",
+    "exclude": "32",
+    "exclude_with_salt": "35",
+    "regenerate": "28",
+    "where": "tests/test_paper_results.py:330; tests/test_reference_exclusions.py:158-160; tests/test_finish_gpt61sol.py:414; docs/benchmark_card.md:156; paper abstract via r (tests/test_disclosures.py:617-634)"
+   },
+   {
+    "name": "Households with an exclusion",
+    "now": "39",
+    "exclude": "41 (+032, 043)",
+    "exclude_with_salt": "42 (+114)",
+    "regenerate": "39",
+    "where": "tests/test_paper_results.py:329; docs/benchmark_card.md:144; unlisted-input households 22 -> 26/28 (paper_results.excluded_output_households_by_reason, unpinned)"
+   },
+   {
+    "name": "Scored outputs per model",
+    "now": "1,928",
+    "exclude": "1,924",
+    "exclude_with_salt": "1,921",
+    "regenerate": "1,928",
+    "where": "tests/test_paper_results.py:358,382; tests/test_reference_upgrade.py:360; tests/test_finish_gpt61sol.py:418; docs/benchmark_card.md:173; docs/paper.md:77; sensitivity md:50,59,89,150; sensitivity/data/*.json n; comment test_paper_results.py:80-81 (88,688 -> 88,504 / 88,366)"
+   },
+   {
+    "name": "Exclusions decided on 2.15.17 (by engine)",
+    "now": "{1.755.4: 52, 2.15.17: 4}",
+    "exclude": "{52, 8}",
+    "exclude_with_salt": "{52, 11}",
+    "regenerate": "{52, 4}",
+    "where": "tests/test_paper_results.py:411,413; docs/benchmark_card.md:73-74; app/src/data.versions.json; tests/test_disclosures.py:690,767 derive the sentence"
+   },
+   {
+    "name": "Developer adjudications",
+    "now": "69",
+    "exclude": "73",
+    "exclude_with_salt": "76",
+    "regenerate": "69 (unless a re-judge needs one)",
+    "where": "tests/test_adjudications.py:221,276; docs/benchmark_card.md:122; manifest developer_adjudications.cases"
+   },
+   {
+    "name": "Adjudications to prompt_ambiguity / judge llm_error",
+    "now": "28 / 59",
+    "exclude": "32 / 63",
+    "exclude_with_salt": "35 / 66",
+    "regenerate": "28 / 59",
+    "where": "tests/test_adjudications.py:222-224, 285-290"
+   },
+   {
+    "name": "Audited rows (legacy-threshold universe)",
+    "now": "7,860",
+    "exclude": "7,711",
+    "exclude_with_salt": "7,573",
+    "regenerate": "7,813",
+    "where": "tests/test_paper_results.py:87-88; tests/test_snapshot_artifacts.py:651; tests/test_disclosures.py:268; app/tests/auditUniverse.test.ts:22-23; docs/benchmark_card.md:105; docs/paper.md:70"
+   },
+   {
+    "name": "Exact-match misses (= annotated misses)",
+    "now": "7,856",
+    "exclude": "7,707",
+    "exclude_with_salt": "7,569",
+    "regenerate": "7,809",
+    "where": "tests/test_paper_results.py:90-93; tests/test_snapshot_artifacts.py:652-653; tests/test_disclosures.py:270-271; app/tests/auditUniverse.test.ts:24-25; docs/benchmark_card.md:108; docs/paper.md:71"
+   },
+   {
+    "name": "Annotated exact hits",
+    "now": "4",
+    "exclude": "4",
+    "exclude_with_salt": "4",
+    "regenerate": "4",
+    "where": "tests/test_paper_results.py:94-95 (unchanged)"
+   },
+   {
+    "name": "Unannotated scored rows below full bounded score",
+    "now": "2,107",
+    "exclude": "2,072",
+    "exclude_with_salt": "2,072",
+    "regenerate": "2,125",
+    "where": "tests/test_paper_results.py:96-97; tests/test_snapshot_artifacts.py:656; tests/test_disclosures.py:273; app/tests/auditUniverse.test.ts:27; docs/benchmark_card.md:109; docs/paper.md:71"
+   },
+   {
+    "name": "Scored rows below full bounded score",
+    "now": "9,967",
+    "exclude": "9,783",
+    "exclude_with_salt": "9,645",
+    "regenerate": "9,938",
+    "where": "tests/test_snapshot_artifacts.py:655"
+   },
+   {
+    "name": "Scored annotation sources llm_error / parse_contract_failure",
+    "now": "7,208 / 652",
+    "exclude": "7,063 / 648",
+    "exclude_with_salt": "6,928 / 645",
+    "regenerate": "7,161 / 652",
+    "where": "tests/test_snapshot_artifacts.py:658-660"
+   },
+   {
+    "name": "Parse-contract failures (scored)",
+    "now": "652 (kimi-k2.6 390, glm-5.2 133, glm-5.3 71, kimi-k3 58)",
+    "exclude": "648 (kimi-k2.6 387, glm-5.2 132)",
+    "exclude_with_salt": "645 (kimi-k2.6 384, glm-5.2 132)",
+    "regenerate": "652",
+    "where": "tests/test_paper_results.py:69-79 (pct stays 0.7)"
+   },
+   {
+    "name": "Contract violations",
+    "now": "712",
+    "exclude": "708",
+    "exclude_with_salt": "705",
+    "regenerate": "712",
+    "where": "tests/test_paper_results.py:110"
+   },
+   {
+    "name": "Annotated rows on excluded outputs",
+    "now": "2,111",
+    "exclude": "2,260",
+    "exclude_with_salt": "2,398",
+    "regenerate": "2,111",
+    "where": "tests/test_paper_results.py:361; docs/benchmark_card.md:106"
+   },
+   {
+    "name": "prompt_ambiguity_row_count",
+    "now": "820",
+    "exclude": "965",
+    "exclude_with_salt": "1,100",
+    "regenerate": "820",
+    "where": "tests/test_paper_results.py:363"
+   },
+   {
+    "name": "Never-parsed rows on excluded outputs",
+    "now": "55",
+    "exclude": "59",
+    "exclude_with_salt": "62",
+    "regenerate": "55",
+    "where": "docs/benchmark_card.md:175"
+   },
+   {
+    "name": "Leader (GPT-6 Sol) weighted exact",
+    "now": "95.003",
+    "exclude": "95.093",
+    "exclude_with_salt": "95.749",
+    "regenerate": "94.629",
+    "where": "app/tests/expandPage.test.ts:74,81-83; tests/test_snapshot_artifacts.py:1028 (bootstrap, via refreeze)"
+   },
+   {
+    "name": "Always-zero exact / leader margin (paper @tbl-baselines)",
+    "now": "70.0 / 25.0",
+    "exclude": "70.5 / 24.6",
+    "exclude_with_salt": "71.0 / 24.7",
+    "regenerate": "70.0 / 24.6",
+    "where": "policybench/paper_results.py:870-936 (rendered, no test pin found)"
+   },
+   {
+    "name": "Payroll exact across models (n)",
+    "now": "78.5% (4,554)",
+    "exclude": "81.0% (4,370)",
+    "exclude_with_salt": "81.0% (4,370)",
+    "regenerate": "79.5% (4,554)",
+    "where": "payload programStats; analysis/summary_by_variable.csv"
+   },
+   {
+    "name": "Sensitivity auto exact: Fable 5.1 / Fable 5 thinking",
+    "now": "91.728 / 91.521",
+    "exclude": "92.349 / 92.129",
+    "exclude_with_salt": "not computed",
+    "regenerate": "92.416 / 92.209",
+    "where": "app/src/lib/servingSensitivity.ts:38,61; sensitivity/data/*.json; tests/test_sensitivity_evidence.py:127,217"
+   },
+   {
+    "name": "wrong_model_count on 032/043/081/082",
+    "now": "40/30/37/42",
+    "exclude": "40/30/37/42",
+    "exclude_with_salt": "40/30/37/42",
+    "regenerate": "13/20/37/32",
+    "where": "annotations/.../us_case_notes.csv; tests/test_snapshot_artifacts.py:803"
+   }
+  ],
+  "notes": [
+   "Verdict: both options are installable, but neither is a records-only change. Either one needs a new release driver, a payload refreeze and changes to tests that pin release 20260929 or 20260930 bytes. Regenerate also needs a new publication-check sweep, four judge re-runs and a decision on how the sidecar records a revision after engine_upgrade.",
+   "How the numbers were produced: counts come from subclassing policybench.paper_results.PaperResults with the extra exclusion records and relabelled rows. The regenerate row sets come from scoring a scratch copy with the audit's own stage() and analyze(). The README's figures reproduce: always-zero 70.53 (exclude), 69.98 (regenerate), 71.03 (exclude with SALT); GPT-6 Sol 95.09 / 94.63 / 95.75.",
+   "Test-run evidence: the 'observed' tags come from scratch shared clones of 8714770 with the records installed mechanically: exclusions appended, adjudications applied, regenerate rows swapped. The payload was not refrozen and the prose was not edited. On the targeted files, the exclude clone gave 27 failed / 245 passed and the regenerate clone 27 failed / 245 passed. On the unmodified clone, the same record and snapshot test files passed in an earlier partial run. The exclude-with-SALT run was stopped at 52%, with the same failures as exclude up to that point. Payload-derived pins (test_disclosures.py:264-274 and 487-511, app auditUniverse) pass on the exclude clone only because nothing was refrozen; they will need the values above after the refreeze.",
+   "Regenerate together with #191: excluded 59, households 40, scored 1,925, adjudications 72, audited rows 7,675, misses 7,671, unannotated below full 2,125, below full bounded 9,800, llm_error/parse 7,026/649, GPT-6 Sol 95.192, always-zero 70.4.",
+   "#191's own checklist (8af912a0 README) misses several things a combined release hits: parse failures fall 652 -> 649 (kimi-k2.6 390 -> 387), contract violations 712 -> 709, and the scored-source counts in tests/test_snapshot_artifacts.py:658-660 change. It also misses tests/test_adjudications.py:639 and the wave logic at 709-784, the exclusion-list tail order at tests/test_reference_upgrade.py:221-223, and tests/test_finish_gpt61sol.py:400-418. Its judged_on_utc for 022, 081 and 114 must be 2026-09-30 from the published tree, not 2026-09-23 from unified_audit.",
+   "proposed_regenerations.json says to apply the adapter together with latest_final on policyengine-us 2.15.17. The engine rule in the sidecar says references come from the newest release when the sweep begins, and that the newest release is checked at publication. A regenerate release in October has to either re-sweep on the newest release or state why 2.15.17 stands.",
+   "There is no release_facts file in the repo at this commit.",
+   "Test environment: lstat on the system TMPDIR (/private/var/folders/.../T) hung on this machine and stalled pytest in uninterruptible state, so the runs used TMPDIR and --basetemp inside the scratch directory. No checkout file was modified. Scratch is under the review/release-checklist/ scratchpad: counts.json, regen_rows.json, *_targeted2.txt and the clones in x/."
+  ]
+ },
+ "claim_audit": {
+  "claims_checked": 131,
+  "problems": [
+   {
+    "readme_text": "no benchmark household lives in Delaware, Maine, Oregon, Rhode Island, Vermont or Washington.",
+    "problem": "Two benchmark households live in Washington: scenario_002 and scenario_111, both WA with $0 employment income (scenarios.csv; payroll_decomposition.csv state column). program_classification.json repeats the error (\"No benchmark household lives in these states\").",
+    "correct": "No household with wages lives in Delaware, Maine, Oregon, Rhode Island, Vermont or Washington. Two Washington households (scenario_002, scenario_111) have no wages, and none lives in DE, ME, OR, RI or VT.",
+    "severity": "error"
+   },
+   {
+    "readme_text": "It would take credit from 35 answers that include the program at exactly the engine's amount. (also in the Recommendation bullet)",
+    "problem": "The 35 answers are those within the $1 exact tolerance of the frozen reference. Only 15 equal it to the cent: MN 2,346.10 x6, MA 14,192.66 x6, NY 8,108.03 x3. The other 20 do not: CO 331.13 x9 (implied state part $18.39 against the engine's $17.99), CO 330.72 x7, MA 14,193 x3, NY 8,107.98 x1. No CO answer equals 330.73.",
+    "correct": "It would take credit from 35 answers that include the program and score as exact (within $1) against the frozen reference. 15 of them match it to the cent.",
+    "severity": "error"
+   },
+   {
+    "readme_text": "Claude Fable 5.1 and Ox Alpha leave out every state program, mandatory ones included.",
+    "problem": "Ox Alpha includes California SDI on scenario_022 (answer 4,658; explanations.json quote \"plus mandatory California employee SDI at 1.2% = $632\") and on scenario_023 (answer 1,544; \"mandatory CA employee SDI 1.2% x $17,443 = $209\"). Both are categorized included_state_component. It also answers 31,084 on scenario_005, which is not the federal-only amount. Only Claude Fable 5.1 answers federal-only on all 11 scored outputs.",
+    "correct": "Claude Fable 5.1 leaves out every state program, mandatory ones included. Ox Alpha leaves out the four optional programs and PA, CT and CA SDI on scenario_099, but includes CA SDI at the 2025 rate of 1.2% on scenario_022 and scenario_023.",
+    "severity": "error"
+   },
+   {
+    "readme_text": "policyengine-us has no input for the employer's deduction choice, employer size (except Massachusetts' employer side) or a private plan.",
+    "problem": "policyengine-us 2.15.17 has an employer-size input, employer_headcount (variables/input/employer_payroll.py, Person, default 100). It is read by co_employer_famli_contribution, ma_employer_paid_leave_contribution, me_employer_paid_leave_contribution, or_employer_paid_leave_contribution, wa_employer_paid_leave_contribution, employer_total_additional_state_payroll_tax and the NY MCTMT payroll-expense proxy. It also feeds de_paid_leave_contribution_rate, which sets Delaware's employee contribution.",
+    "correct": "policyengine-us has an employer_headcount input. It drives the employer side in CO, MA, ME, OR and WA, and Delaware's contribution rate. It reaches none of the four benchmark employee shares (MN, CO, MA, NY). There is no input for the employer's deduction choice or for a private plan.",
+    "severity": "error"
+   },
+   {
+    "readme_text": "Its records alone reproduce #191's figures here (GPT-6 Sol 95.62%; Claude Sonnet 5.5 passes GPT-6 Luna).",
+    "problem": "The reproduction holds: this audit's salt CSV equals #191's leaderboard_impact_models.csv to 0.0 on all 29 shared columns. The printed figure is mis-rounded, though. GPT-6 Sol's exact_proposed is 95.6146 in both files, which rounds to 95.61. The 95.62 comes from #191's README line 95, which carries the same rounding error.",
+    "correct": "GPT-6 Sol 95.61% (95.6146)",
+    "severity": "error"
+   },
+   {
+    "readme_text": "22 of 46 models included the Massachusetts and New York contributions.",
+    "problem": "This reads as one set of 22 models that included both. In explanations.json, 22 models include MA and a different 22 include NY. 17 include both and 27 include at least one. MA only: gemini-3.5-flash-lite, gpt-5.6-sol, gpt-5.6-terra, grok-4.5, grok-4.7. NY only: claude-haiku-4.5, claude-opus-4.7, claude-sonnet-5, gemini-3.6-flash, gpt-6-luna.",
+    "correct": "22 of 46 models included the Massachusetts contribution and 22 the New York one (17 included both).",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Under each state's law the premium is the employer's, and the employee pays only what the employer chooses to deduct, from zero up to a cap (16 of 16 independent reviews agree).",
+    "problem": "Only 8 of the 16 reviews concern MN, CO, MA and NY. The other 8 reviewed CA, CT, PA and NJ and agreed those are mandatory. law_research.json has two verdicts for each of the 8 programs, all refuted=false.",
+    "correct": "(8 of 8 independent reviews of these four programs agree; none of the 16 reviews refuted any classification)",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Exclusion is the symmetric remedy and moves the board least.",
+    "problem": "This holds for rank swaps only: 5 headline pairs against 10, and 9 within-1% rank changes against 22. On levels exclusion moves the board more. Mean headline delta is +0.437 for exclusion against +0.169 for regeneration, and mean absolute delta is 0.439 against 0.325. Exclusion moves 4 bounded-score ranks against 2, and moves the always-zero baseline 69.98 to 70.53 while regeneration leaves it unchanged. GPT-6 Sol's lead over always-zero shrinks more under exclusion (24.57) than under regeneration (24.65).",
+    "correct": "Exclusion swaps fewer headline ranks (5 adjacent pairs against 10) and keeps the within-1% leader, though it shifts rates and the always-zero baseline more than regeneration does.",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Where the law requires the employee contribution, the explanations look the same (mandatory programs, all scored):",
+    "problem": "Only the PA and CT rows resemble the optional programs. On the four CA SDI outputs, 29 to 31 of 46 models include the program and only 10 to 13 say there is no tax or never mention it. On MN the figures are 7 include and 35 no-tax-or-silent; on CO, 18 and 25.",
+    "correct": "On Pennsylvania's and Connecticut's mandatory contributions the explanations look the same. California SDI is included far more often (29 to 31 of 46).",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Nothing else in the engine reads these contributions except through `employee_payroll_tax`, which also feeds `spm_unit_paycheck_withholdings` and `household_tax_before_refundable_credits`.",
+    "problem": "The list of what employee_payroll_tax feeds is incomplete. It is also an Alabama itemized-deduction source (parameters/gov/states/al/tax/income/deductions/itemized/sources.yaml), and it is read by fica_marginal_tax_rate and taxsim_tfica. One contribution is also read directly: ca_employee_state_disability_insurance_contribution appears in the Santa Clara County General Assistance earned-income deductions (parameters/gov/local/ca/scc/general_assistance/countable_income/earned_deductions/person_sources.yaml). The five optional contributions are read only by their state aggregates. No benchmark output moves through these paths: the sweep confirms this for the optional five.",
+    "correct": "The four optional contributions are read only through their state aggregates and employee_payroll_tax. employee_payroll_tax also feeds spm_unit_paycheck_withholdings, household_tax_before_refundable_credits, Alabama's itemized deductions, fica_marginal_tax_rate and taxsim_tfica. California SDI also feeds Santa Clara County General Assistance.",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Every 2026 rate, share and cap above was published before the 2026-07-03 reference freeze, and each engine amount equals the law's largest employee share to the cent.",
+    "problem": "For CT, the law amount is 0.005 x 165,597 = $827.985, which law_research.json shows as $827.99. The engine returns 827.98498 (float32), which shows as $827.98. For MA, the README's own bullet says Acts 2026 c. 101 s. 45 could put the 2026 maximum at $1,351.02. The claim needs both qualifications.",
+    "correct": "each engine amount equals the law's largest employee share within a cent (CT: engine $827.98, law $827.985), with the MA maximum subject to the Acts 2026 c. 101 question below",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "The two reviewers read its scope differently, and its s. 45 applies it to taxable years beginning on or after 2026-01-01 ... If it reached 2026, the most a large employer could deduct for scenario_081 would be $1,351.02 (0.772%) rather than $805.01.",
+    "problem": "$1,351.02 holds only under the administration reviewer's reading, in which ss. 25-26 amend s. 6(c), (d) and (e). The statute reviewer reads both sections as amending only \"line 33\", which is s. 6(d), the remittance rule for small employers. On that reading the large-employer deduction cap in s. 6(c) stays at 0.46% ($805.01) even for 2026.",
+    "correct": "Under the administration reviewer's reading (ss. 25-26 amend s. 6(c)), the 2026 large-employer maximum would be $1,351.02 (0.772%). Under the statute reviewer's reading (only s. 6(d)), it stays $805.01.",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "The four proposed references have had these values since the first run (2026-06-15).",
+    "problem": "2026-06-15 is the date of the commit that added the run (e4563713). The run's reference sidecar at that commit records generated_at_utc 2026-06-12T05:15:20Z, which matches the run name us_full_run_20260612. The values have been unchanged since that commit.",
+    "correct": "since the first run (references generated 2026-06-12, committed 2026-06-15 in e4563713)",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "| NY PFL and DBL | Covered employer provides the coverage and pays its cost beyond what it collects | ... | [N.Y. WCL s. 209](...)(3)-(4), s. 210(1) |",
+    "problem": "The s. 210(1) text in law_research.json says the employer contributes \"the cost of providing disability benefits in excess of the contributions collected\". It covers DBL only. For PFL, s. 209(3)(b) says \"No employer shall be required to fund any portion of the family leave benefit.\" The NY bullet under points that cut the other way leaves out further sources: the DFS 2026 decision (\"Employers shall collect employee contributions consistent with this Decision\") and the WCB press release (\"fully paid for by employees\"). Both are recorded in law_research.json.",
+    "correct": "Covered employer provides the coverage and pays the DBL cost beyond what it collects (s. 210(1)); for PFL no employer is required to fund any portion (s. 209(3)(b)), but it may",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Four scored references count an employee share of a state paid-leave premium that the law lets the employer deduct but does not require.",
+    "problem": "scenario_082 also counts the New York Disability Benefits (DBL) contribution of $31.20, which is a disability program and not a paid-leave premium. The adapter drops five contributions, ny_employee_disability_benefits_contribution among them.",
+    "correct": "an employee share of a state paid-leave or disability premium",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "| MN Paid Leave | Premiums \"accrue and become payable by each employer\"; employer pays at least 50% |",
+    "problem": "The 50% floor in subd. 3 applies to large employers only. For small employers (subd. 5a), the total is 0.66% and the employer minimum is 0.22% of wages, one-third of the premium. The maximum employee share is still 0.44% (law_research.json rate_2026).",
+    "correct": "employer pays at least 50% (small employers: at least 0.22% of a 0.66% premium); employee share at most 0.44% either way",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "But the same laws speak of the employee share in mandatory terms: ... and Massachusetts tells employers they \"must withhold PFML contributions\".",
+    "problem": "The Massachusetts quote is not from the law. It comes from the DFML rates-page overview, an agency web page (law_research.json MA verdicts[0].evidence[12]). The README's own MA bullet attributes it correctly.",
+    "correct": "and Massachusetts's Department of Family and Medical Leave tells employers they \"must withhold PFML contributions\"",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "scenario_032's and scenario_043's count the optional-deduction reasoning as a model error.",
+    "problem": "scenario_032's case note does say \"the paid-leave deduction is optional\". scenario_043's says models \"either said Colorado has no employee payroll tax or dropped FAMLI on purpose\" and never mentions optional deduction. explanations.json records 0 of 46 CO answers giving the optional or employer-paid reason.",
+    "correct": "scenario_032's counts the optional-deduction reasoning as a model error, and scenario_043's counts dropping FAMLI \"on purpose\" as one",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "Model by model, the readings split by family.",
+    "problem": "Only partly supported. The Claude family matches the frozen reference on 1 of 40 optional answers (Sonnet 5.5, once). The GPT family matches on 19 of 40, but GPT-5.6 Terra, GPT-5.4 Mini and GPT-5.4 Nano match on none. The four models the README names as federal-only on all four include Ox Alpha and Gemini 3.8 Flash, which are not Claude models.",
+    "correct": "Claude models almost never answer the frozen reference (1 of 40 answers); the newer GPT models mostly do (GPT-6.1 Sol 4 of 4; GPT-6 Sol, GPT-6 Astra and GPT-5.6 Sol 3 of 4).",
+    "severity": "imprecise"
+   },
+   {
+    "readme_text": "`CountryTaxBenefitSystem` applies a reform twice to the same system, so the adapter is idempotent.",
+    "problem": "The premise is true: policyengine_us/system.py calls apply_reform_set at lines 136 and 153, and a probe reform was applied 2 times. But the sentence states the consequence backwards. Applying the reform twice does not make the adapter idempotent. The adapter was written to be idempotent because the reform is applied twice: its second pass returns early.",
+    "correct": "`CountryTaxBenefitSystem` applies a reform twice to the same system, so the adapter is written to be idempotent (its second pass leaves the already-flattened list unchanged).",
+    "severity": "style"
+   },
+   {
+    "readme_text": "These files hold for policyengine-us 2.15.17, as installed in the reference venv, plus `latest_final`, the system that built the published references.",
+    "problem": "\"These files hold\" does not parse. The bullets that follow describe engine facts, not files.",
+    "correct": "These facts hold for policyengine-us 2.15.17, as installed in the reference venv, plus `latest_final`, the system that built the published references.",
+    "severity": "style"
+   }
+  ]
+ }
+}

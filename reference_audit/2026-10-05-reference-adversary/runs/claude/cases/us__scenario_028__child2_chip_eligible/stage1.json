@@ -1,0 +1,58 @@
+{
+  "ambiguity": "One could read \"has employer-sponsored insurance\" as merely having access to an employer plan, not actual coverage. Pennsylvania considers the availability of employer coverage only for full-cost CHIP, so for a free-CHIP-income child that reading gives 1. This is a strained reading, because \"has ... insurance\" plainly means coverage. A model that looked only at income-based eligibility and ignored the uninsured requirement would also give 1, but the law does not support that. The \"under PolicyEngine rules\" wording does not change the legal result.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 1397jj(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification (in force 2026)",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "Social Security Act Title XXI, 42 U.S. Code \u00a7 1397jj (definition of targeted low-income child)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "\u00a7 457.310(b)(2)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act, unless the plan or health insurance coverage program has been in operation since before July 1, 1997 and is administered by a State that receives no Federal funds",
+      "source": "42 CFR \u00a7 457.310 Targeted low-income child",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "Section 2311(c)(1.1)(ii)",
+      "pre_freeze": true,
+      "published": "2013-10-16",
+      "quote": "Is not covered by a health insurance plan, a self-insurance plan or a self-funded plan, or is not provided access to health care coverage by court order, or is not eligible for or covered by a medical assistance program",
+      "source": "Pennsylvania Act of Oct. 16, 2013, No. 74 (amending The Insurance Company Law of 1921, Article XXIII Children's Health Care)",
+      "url": "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2013/0/0074..HTM"
+    },
+    {
+      "pinpoint": "Eligibility requirements list",
+      "pre_freeze": null,
+      "published": "undated web page (references income chart effective 2026-03-01)",
+      "quote": "Uninsured and not eligible for Medical Assistance",
+      "source": "Pennsylvania Department of Human Services, CHIP Eligibility and Benefits",
+      "url": "https://www.pa.gov/agencies/dhs/resources/chip/eligibility-and-benefits"
+    },
+    {
+      "pinpoint": "2026 guidelines, 48 contiguous states, household of 4",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "4 ... $33,000",
+      "source": "HHS ASPE, Poverty Guidelines",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "Existing insurance",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "CHIP is for uninsured children. If your child is already covered by a private or employer-sponsored plan, they may not qualify.",
+      "source": "Capital Blue Cross, CHIP eligibility in Pennsylvania (PA CHIP contractor summary)",
+      "url": "https://www.capbluecross.com/wps/portal/cap/home/shop/chip/eligibility"
+    }
+  ],
+  "computation": "1) Household MAGI: wages $60,000 + taxable interest $10 = $60,010. Child support received is not included in MAGI (MAGI starts from IRC adjusted gross income). Household size is 4: the head and three children.\n2) 2026 HHS poverty guideline for 4 people in the 48 contiguous states is $33,000 (ASPE; published in the Federal Register on 2026-01-15, before the freeze). $60,010 / $33,000 \u2248 182% FPL.\n3) Pennsylvania's Medical Assistance limit for children aged 6-18 is 133% FPL (about 138% with the 5% disregard), so Child 2 is not Medicaid-eligible on income. Pennsylvania's free-CHIP band runs from above that limit up to 208% FPL, and low-cost and full-cost CHIP cover higher incomes. Child 2 therefore meets CHIP's income and age (under 19) tests.\n4) Coverage condition: under federal law, a targeted low-income child must not be \"covered under a group health plan or under health insurance coverage\" (42 USC 1397jj(b)(1)(C); 42 CFR 457.310(b)(2)). Pennsylvania's statute (Insurance Company Law \u00a72311(c)(1.1)(ii), as amended by Act 74 of 2013) separately requires that the child be \"not covered by a health insurance plan, a self-insurance plan or a self-funded plan.\" DHS lists \"Uninsured and not eligible for Medical Assistance\" as an eligibility requirement.\n5) The prompt states that Child 2 \"has employer-sponsored insurance,\" held constant all year. That is current group health coverage, so the coverage condition fails and Child 2 is not CHIP-eligible (0).\n6) The output definition's \"not whether they are currently enrolled\" refers to enrollment in CHIP. It does not cancel the stated fact that the child has other coverage.",
+  "confidence": "high",
+  "definition_reading": "I read \"eligible for CHIP\" as meeting every eligibility condition in federal Title XXI and Pennsylvania's CHIP statute, given the stated facts. \"Not whether currently enrolled\" means CHIP enrollment is irrelevant. The stated fact that Child 2 has employer-sponsored insurance still counts as a coverage status, and that coverage disqualifies the child because CHIP requires the child to be uninsured. Income (about 182% FPL) and age (10) alone would qualify.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}

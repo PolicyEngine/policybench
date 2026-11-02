@@ -1,0 +1,63 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.7967565999999999,
+  "duration_ms": 144122,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:39:43.997228+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "6d74213542c6112e8342685d5381f652ffde0d5aa001746cb8315c0f980aeba5",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "c028a690f027d0d1a00f1ec159bcd69d3fad4cdb7fbece9310005c73cec9d996",
+  "session_id": "c94b0046-5475-4849-9716-e657a9daeb84",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://www.azleg.gov/ars/43/01072.htm",
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf",
+      "https://azdor.gov/forms/tax-credits-forms/credit-increased-excise-taxes",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140ETi.pdf",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2024_140ETi.pdf",
+      "https://www.azleg.gov/legtext/57leg/2R/bills/HB4168H.pdf",
+      "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm",
+      "https://www.azleg.gov/ars/43/01072-02.htm",
+      "https://www.law.cornell.edu/uscode/text/26/86"
+    ],
+    "searches": [
+      "Arizona Form 140 instructions 2025 increased excise tax credit $25 federal adjusted gross income $25,000",
+      "Arizona Form 140ET 2025 instructions credit for increased excise taxes $25 each exemption",
+      "Arizona 2026 legislation \"excise tax credit\" 43-1072.01 amended",
+      "HB4168 2026 Arizona taxation omnibus fact sheet individual income tax credits"
+    ]
+  }
+}

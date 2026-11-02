@@ -1,0 +1,56 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.31195720000000005,
+  "duration_ms": 99482,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:29:16.960571+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "876fc957c9b35ef3c2dcf94fa8a4feb589455e06de754554d0dd4387aab9ef0a",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "d1c4c572d871c742024aac46d78f01be8390e4b801106af86b14d2afbdd83355",
+  "session_id": "f8695085-fe24-411f-aa08-ab313e2881fc",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "e65a83fe452c2de61da4a0d6cc34903140191ac29b1ca2b1db5041a42bdda378",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-522",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf",
+      "https://www.michigan.gov/taxes/iit/tax-guidance/credits-exemptions/hptc/tax-year-credit-information/2025",
+      "https://www.legislature.mi.gov/publications/TaxpayerGuide.pdf"
+    ],
+    "searches": [
+      "Michigan homestead property tax credit 2025 total household resources $71,500 maximum credit $1,900 renters 23%"
+    ]
+  }
+}

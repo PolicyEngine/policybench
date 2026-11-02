@@ -36,9 +36,14 @@ GPT_56_MODELS = {
 # announced and available 2026-09-22) share the GPT-5.6 line's
 # Responses-API transport and pricing structure (cache reads at a tenth,
 # cache writes at 1.25x, doubled input and 1.5x output above 272k tokens).
+# GPT-6.1 Sol (2026-09-29) and GPT-6.1 Terra (announced and available
+# 2026-10-26) share it too, with cache reads at a twentieth of input; their
+# overrides' cache_read rates carry that (eval_no_tools._gpt_responses_cache_rates).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
     "gpt-6-sol": "gpt-6-sol",
+    "gpt-6.1-sol": "gpt-6.1-sol",
+    "gpt-6.1-terra": "gpt-6.1-terra",
     "gpt-6-luna": "gpt-6-luna",
 }
 GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
@@ -50,12 +55,15 @@ MODELS = {
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
     "claude-opus-4.7": "claude-opus-4-7",
+    "claude-sonnet-5.5": "claude-sonnet-5-5",
     "claude-sonnet-5": "claude-sonnet-5",
     "claude-sonnet-4.6": "claude-sonnet-4-6",
+    "claude-haiku-5.5": "claude-haiku-5-5",
     "claude-haiku-4.5": "claude-haiku-4-5-20251001",
     "grok-4.3": "xai/grok-4.3",
     "grok-4.5": "xai/grok-4.5",
     "grok-4.6": "xai/grok-4.6",
+    "grok-4.7": "xai/grok-4.7",
     "grok-build-0.1": "xai/grok-build-0.1",
     **GPT_6_MODELS,
     **GPT_56_MODELS,
@@ -63,18 +71,62 @@ MODELS = {
     "gpt-5.4-mini": "gpt-5.4-mini",
     "gpt-5.4-nano": "gpt-5.4-nano",
     "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+    # Google deprecated gemini-3.5-flash and gemini-3.7-flash on 2026-10-08
+    # (ai.google.dev/gemini-api/docs/changelog, entry of that date, read
+    # 2026-10-13): both left the AI Studio model picker, and requests under
+    # gemini-3.5-flash now route to gemini-3.6-flash. On 2026-10-13 a
+    # gemini-3.5-flash request answered with modelVersion gemini-3.6-flash.
+    # The row's answers are unchanged since the frozen predictions were first
+    # committed on 2026-06-15, before Gemini 3.6 Flash was released
+    # (2026-07-21), so they are Gemini 3.5 Flash, and this name can no longer
+    # re-run them.
     "gemini-3.5-flash": "gemini/gemini-3.5-flash",
     "gemini-3.6-flash": "gemini/gemini-3.6-flash",
+    # gemini-3.7-flash now routes to gemini-3.8-flash: on 2026-10-13 a request
+    # under that name answered with modelVersion gemini-3.8-flash. The row's
+    # answers were requested on 2026-08-18, before Gemini 3.8 Flash was
+    # released (2026-09-02), so they are Gemini 3.7 Flash, and this name can
+    # no longer re-run them. A synchronous run, which row repairs also use,
+    # would not show either re-route: litellm 1.88.x sets the response model
+    # to the requested name and never reads Gemini's modelVersion, so
+    # provider_resolved_model records gemini-3.7-flash or gemini-3.5-flash.
+    # The Gemini batch path (google-genai) does record modelVersion. GET
+    # models/<name> still returns each retired model's own version string.
     "gemini-3.7-flash": "gemini/gemini-3.7-flash",
     "gemini-3.8-flash": "gemini/gemini-3.8-flash",
     "gemini-3.5-flash-lite": "gemini/gemini-3.5-flash-lite",
+    # Gemini 4 Argon. Google announced it on 2026-09-30 for Fairwind Program
+    # cyber partners only and opened it to the public on 2026-10-13, when the
+    # Gemini API changelog lists gemini-4-argon as generally available
+    # (ai.google.dev/gemini-api/docs/changelog, read 2026-10-13). It runs on
+    # the first-party Gemini API like the other Gemini rows. The id is the
+    # model page's one stable version; Google lists no dated snapshot.
+    "gemini-4-argon": "gemini/gemini-4-argon",
     # Cloaked OpenRouter preview listed 2026-08-20 (free window); Z.ai later
     # identified it as GLM-5.3-Flash. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
     "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
     "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+    # DeepSeek retired V4 Flash when it released V4.1 Flash on 2026-09-10
+    # (api-docs.deepseek.com/news/news260910). The legacy name
+    # deepseek-v4-flash now routes to V4.1 Flash: on 2026-09-28 a request
+    # under that name answered as model "deepseek-flash" with the same system
+    # fingerprint as a deepseek-flash request. Rows recorded under
+    # deepseek-v4-flash before the retirement are V4 Flash, and that name can
+    # no longer re-run them. The same post says deepseek-v4-pro routes to
+    # V4.1 Flash from 2026-09-14 until V4.1 Pro launches, but on 2026-09-28 a
+    # deepseek-v4-pro request still answered as "deepseek-v4-pro" with a
+    # different fingerprint and prompt-token count, and the pricing page
+    # lists it as DeepSeek-V4-Pro-0813. Either way that name no longer
+    # reaches the model the deepseek-v4-pro row ran on: the alias had already
+    # moved to the August release (see the deepseek-v4-pro-0813 model card).
     "deepseek-v4-pro": "deepseek/deepseek-v4-pro",
     "deepseek-v4-flash": "deepseek/deepseek-v4-flash",
+    # deepseek-flash is DeepSeek's current name for V4.1 Flash and is itself
+    # a moving alias: GET /models maps it to DeepSeek-V4.1-Flash, and
+    # responses echo "deepseek-flash" with no version string, so each row's
+    # provider_system_fingerprint is the record of which build answered.
+    "deepseek-v4.1-flash": "deepseek/deepseek-flash",
     "deepseek-v4-pro-0813": "openrouter/deepseek/deepseek-v4-pro-0813",
     "deepseek-v4-flash-0731": "openrouter/deepseek/deepseek-v4-flash-0731",
     "kimi-k2.6": "openrouter/moonshotai/kimi-k2.6",
@@ -85,14 +137,28 @@ MODELS = {
     "qwen-3.7-max": "openrouter/qwen/qwen3.7-max",
     "qwen3.8-max": "openrouter/qwen/qwen3.8-max",
     "inkling": "openrouter/thinkingmachines/inkling",
+    # Meta Muse Wonder (2026-10-12). Meta's own Model API serves it as
+    # muse-wonder-1.0; PolicyBench holds no Meta key, and OpenRouter's one
+    # endpoint for the id is Meta itself (provider "Meta", serving
+    # meta/muse-wonder-20261012; openrouter.ai/api/v1/models/meta/
+    # muse-wonder/endpoints, read 2026-10-12).
+    "muse-wonder": "openrouter/meta/muse-wonder",
+    # Meta Muse Spark 1.3 (2026-09-02). Like Muse Wonder it runs through
+    # OpenRouter, whose one endpoint for the id is Meta itself (provider
+    # "Meta", serving meta/muse-spark-1.3-20260902; openrouter.ai/api/v1/
+    # models/meta/muse-spark-1.3/endpoints, read 2026-10-13). The cheaper
+    # meta/muse-spark-1.3-contributor listing is Meta's contributor mode, a
+    # different endpoint with its own rate card; the board runs standard mode.
+    "muse-spark-1.3": "openrouter/meta/muse-spark-1.3",
 }
 
 # Configured per-1M-token USD list prices, keyed by the predictions.csv.gz model
 # id. The frozen row's cost is its recorded per-call cost: reconstructed from
 # token counts at the list price configured at request time, or the
 # provider-reported charge where no reconstruction was available (see
-# eval_no_tools usage accounting). List-price overrides apply at request time, not
-# retroactively to recorded costs. Analysis preserves each recorded total.
+# eval_no_tools usage accounting). A list-price override applies to
+# requests made after it is set and leaves recorded costs unchanged. Analysis
+# preserves each recorded total.
 PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # GPT-5.6 list prices from OpenAI's general-availability announcement
     # (https://openai.com/index/gpt-5-6/, retrieved 2026-07-09).
@@ -107,12 +173,34 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # gpt-6-sol and /gpt-6-luna, read 2026-09-22, the day OpenAI announced
     # both; the Models API lists each id with created 2026-09-14).
     "gpt-6-sol": {"input": 2.0, "output": 10.0},
+    # gpt-6.1-sol: $2 / $10 per 1M input/output, $0.10 cached input, $2.50 cache
+    # writes; 2x input and cache and 1.5x output above 272k input tokens
+    # (developers.openai.com/api/docs/models/gpt-6.1-sol, read 2026-09-29, the
+    # day OpenAI announced it at DevDay; the Models API lists the id with
+    # created 2026-09-27T23:47Z).
+    "gpt-6.1-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    # gpt-6.1-terra: $1 / $5 per 1M input/output, $0.05 cached input, $1.25
+    # cache writes (30-minute retention); 2x input and cache and 1.5x output
+    # above 272k input tokens (developers.openai.com/api/docs/models/
+    # gpt-6.1-terra, read 2026-10-26, the day OpenAI announced it; the Models
+    # API lists the id with created 2026-10-13T16:26Z).
+    "gpt-6.1-terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05},
     "gpt-6-luna": {"input": 0.10, "output": 0.50},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},
     "gpt-5.6-luna": {"input": 1.0, "output": 6.0},
     # grok-build-0.1: $1 / $2 per 1M input/output tokens (https://x.ai/api).
     "grok-build-0.1": {"input": 1.0, "output": 2.0},
+    # grok-4.7: $2 / $6 per 1M input/output tokens with $0.50 cached input
+    # (docs.x.ai/docs/models/grok-4.7, read 2026-09-28). The live record at
+    # api.x.ai/v1/language-models/grok-4.7 gives 20000 / 60000 / 5000 in its
+    # unit of $0.0001 per 1M tokens, identical to grok-4.6's record, which
+    # litellm's map prices at $2 / $6 with $0.50 cache reads. Doubled rates
+    # above 200k prompt tokens are not modeled; benchmark prompts stay far
+    # below that. On the 2026-09-28 reasoning probe these rates reproduced
+    # xAI's reported charge (cost_in_usd_ticks) exactly. litellm's bundled
+    # map lacks the id, so the override keeps costs off the remote fetch.
+    "grok-4.7": {"input": 2.0, "output": 6.0, "cache_read": 0.50},
     # kimi-k3: $3 / $15 per 1M input/output tokens (OpenRouter model listing,
     # 2026-07-17); litellm's price map does not yet cover the id.
     "kimi-k3": {"input": 3.0, "output": 15.0},
@@ -123,6 +211,18 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # inkling: $1 / $4.05 per 1M input/output tokens (OpenRouter model
     # listing, 2026-08-03); litellm's price map does not yet cover the id.
     "inkling": {"input": 1.0, "output": 4.05},
+    # muse-wonder: $4 / $20 per 1M input/output tokens, $0.20 cached input,
+    # one rate at every prompt length (Meta Model API pricing in Meta's
+    # launch post, dev.meta.ai/resources/blog/build-with-muse-wonder, and
+    # the OpenRouter listing, both read 2026-10-12); litellm's price map
+    # does not yet cover the id.
+    "muse-wonder": {"input": 4.0, "output": 20.0, "cache_read": 0.20},
+    # muse-spark-1.3: $1.25 / $4.25 per 1M input/output tokens, $0.15 cached
+    # input, standard mode, one rate at every prompt length ("No long-context
+    # premium"; Meta's rate card, dev.meta.ai/docs/pricing-rate-limits, and
+    # the OpenRouter endpoint listing, both read 2026-10-13); litellm's price
+    # map is not relied on for the id.
+    "muse-spark-1.3": {"input": 1.25, "output": 4.25, "cache_read": 0.15},
     # gemini-3.6-flash: $1.50 / $7.50 per 1M input/output tokens (Google
     # launch pricing, 2026-07-21); litellm's price map does not yet cover it.
     "gemini-3.6-flash": {"input": 1.5, "output": 7.5},
@@ -133,6 +233,17 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     "gemini-3.8-flash": {"input": 0.75, "output": 3.75},
     # gemini-3.5-flash-lite: $0.30 / $2.50 per 1M (Google list, 2026-09-03).
     "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
+    # gemini-4-argon: $2 / $10 per 1M input/output tokens (output includes
+    # thinking tokens) and $0.10 cached input, the standard-tier rates Google
+    # lists "through November 30, 2026"; from 2026-12-01 they double to
+    # $4 / $20 and $0.20 (ai.google.dev/gemini-api/docs/pricing, last updated
+    # and read 2026-10-13). The row is priced at the rate in force on its run
+    # day, as gemini-3.7-flash and gemini-3.8-flash are at their dated
+    # introductory rates. The page lists one rate at every prompt length and
+    # implicit caching only. litellm's remote price map carries the same
+    # three rates (read 2026-10-13); the override keeps the row priced if the
+    # map is unavailable or changes on 2026-12-01.
+    "gemini-4-argon": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
     "glm-5.3": {"input": 1.40, "output": 4.40},
     # deepseek dated snapshots via OpenRouter (list prices 2026-09-03).
@@ -173,11 +284,56 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
         "cache_write": 5.0,
     },
     "claude-sonnet-5": {"input": 3.0, "output": 15.0},
+    # claude-sonnet-5-5: $2 / $10 per 1M input/output tokens, $2.50
+    # five-minute cache writes (platform.claude.com/docs/en/about-claude
+    # /pricing, read 2026-09-28) and $0.10 cache reads (the same page, read
+    # 2026-10-08: footnote 2 prices Sonnet 5.5 and Opus 5.5 cache hits at 0.05x
+    # base input; the entry read $0.20 until 2026-10-08, and the 2026-09-28
+    # board run billed no cache tokens, so no recorded cost used it). No
+    # footnote marks the row as
+    # introductory, so this is the standard rate. (Footnote 3 on the same page
+    # now makes $2 / $10 Sonnet 5's standard price as well; the claude-sonnet-5
+    # entry above keeps $3 / $15 and is not changed here.) The Models API lists
+    # the id with created_at 2026-09-28. litellm's bundled map lacks the id;
+    # eval_no_tools registers it locally, as for Opus 5.5.
+    "claude-sonnet-5.5": {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.10,
+        "cache_write": 2.50,
+    },
+    # claude-haiku-5-5: $0.10 / $0.50 per 1M input/output tokens, $0.125
+    # five-minute cache writes and $0.01 cache reads: the pricing page's rates
+    # for prompts up to 100,000 tokens (platform.claude.com/docs/en/about-claude
+    # /pricing, read 2026-10-08). Prompts over 100,000 tokens pay $0.50 / $2.50;
+    # every PolicyBench prompt is far below that line. No footnote marks the
+    # row as introductory. The Models API lists the id with created_at
+    # 2026-10-07. litellm's bundled map lacks the id; eval_no_tools registers
+    # it locally, as for Sonnet 5.5.
+    "claude-haiku-5.5": {
+        "input": 0.10,
+        "output": 0.50,
+        "cache_read": 0.01,
+        "cache_write": 0.125,
+    },
     # Open-weight additions, per-1M USD from the OpenRouter live model list
     # (https://openrouter.ai/api/v1/models, retrieved 2026-07-05). DeepSeek
-    # runs on its native API at the same list prices.
+    # runs on its native API at the same list prices. These two rates
+    # predate the 2026-09-10 V4.1 Flash release (see MODELS) and are left
+    # unchanged; neither name can re-run its row.
     "deepseek-v4-pro": {"input": 0.435, "output": 0.87},
     "deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    # deepseek-v4.1-flash (model name deepseek-flash): $0.30 per 1M input on
+    # a cache miss, $0.006 on a cache hit, $1.20 per 1M output
+    # (api-docs.deepseek.com/quick_start/pricing, read 2026-09-28). These are
+    # the peak rates; off-peak rates are half, and a request's rate depends
+    # on the hour it lands (peak is 01:00-04:00 and 06:00-10:00 UTC on
+    # weekdays other than Chinese public holidays). The row is priced at the
+    # peak list rate whenever the run happens, as claude-sonnet-5 is priced
+    # at its standard rather than its introductory rate. DeepSeek lists no
+    # cache-write charge and its usage reports none. litellm's bundled map
+    # lacks the id.
+    "deepseek-v4.1-flash": {"input": 0.30, "output": 1.20, "cache_read": 0.006},
     "kimi-k2.6": {"input": 0.66, "output": 3.41},
     "glm-5.2": {"input": 0.574, "output": 1.804},
     "minimax-m3": {"input": 0.3, "output": 1.2},

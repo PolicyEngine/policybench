@@ -1,0 +1,66 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.7834146,
+  "duration_ms": 431959,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T21:46:02.657520+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "74e76b5f69e470d8f2ab488da59cb25eb45e8758b3c34aeb634960baa276bcac",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "f1e29828e3884778fd846877056db4ad97b5c60f381d0f9dc004cd80c56e47cf",
+  "session_id": "f51eb546-434f-40b5-a4e1-809905d782d2",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "3a05b091251233dc4c6e1fbe5b41339d7d08a21034906c61e544512aa7316cfa",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-1430-snap-allotment-charts",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://health.alaska.gov/media/apzdxrwr/snap-fy-2027-cola-memo.pdf",
+      "https://www.fna.usda.gov/snap/allotment/cola",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1340-income-limits",
+      "https://www.law.cornell.edu/uscode/text/7/2014",
+      "https://www.law.cornell.edu/uscode/text/7/2014",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income",
+      "https://ballotpedia.s3.amazonaws.com/images/c/c4/Snap-cola-fy26memo-Aug13-2025-2.pdf",
+      "https://www.usda.gov/guidance-documents/snap/fns/snap-fy-2026-cost-living-adjustments",
+      "https://pamms.dhs.ga.gov/dfcs/snap/appendix-a-food-stamp-income-limits/"
+    ],
+    "searches": [
+      "Texas SNAP broad-based categorical eligibility 165 percent 2026 change",
+      "SNAP FY 2027 cost-of-living adjustments memo maximum allotment minimum benefit $25 standard deduction",
+      "SNAP Fiscal Year 2026 cost-of-living adjustments memo minimum benefit $24 maximum allotment $298 standard deduction $209"
+    ]
+  }
+}

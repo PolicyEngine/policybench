@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 40-18-14, gross income definition and exclusion for Alabama obligation interest",
+      "pre_freeze": true,
+      "published": "unknown (codified statute in force before 2026)",
+      "quote": "Interest on obligations of the State of Alabama and any county, municipality, or other political subdivision thereof",
+      "source": "Code of Alabama 1975, \u00a7 40-18-14 (gross income; exclusions)",
+      "url": "https://law.onecle.com/alabama/title-40/40-18-14.html"
+    },
+    {
+      "pinpoint": "r. 810-3-14-.02, interest on obligations",
+      "pre_freeze": true,
+      "published": "2000-06-07",
+      "quote": "It should be noted that interest on obligations of other states and political subdivisions thereof is taxable.",
+      "source": "Ala. Admin. Code r. 810-3-14-.02, Exclusions From Gross Income (Alabama Department of Revenue)",
+      "url": "https://www.law.cornell.edu/regulations/alabama/Ala-Admin-Code-r-810-3-14-.02"
+    },
+    {
+      "pinpoint": "list of exempt income",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "Federal Social Security benefits",
+      "source": "Alabama Department of Revenue, Income Exempt from Alabama Income Taxation",
+      "url": "https://www.revenue.alabama.gov/individual-corporate/income-exempt-from-alabama-income-taxation/"
+    },
+    {
+      "pinpoint": "notice text",
+      "pre_freeze": true,
+      "published": "2022-05-05",
+      "quote": "increased the standard deduction for single, head of family, and married filing separately taxpayers by $500",
+      "source": "Alabama Department of Revenue, NOTICE: 2022 Withholding Tax Tables and Instructions Updated (Act 2022-292)",
+      "url": "https://www.revenue.alabama.gov/notice-2022-withholding-tax-tables-and-instructions-updated/"
+    },
+    {
+      "pinpoint": "personal exemption, standard deduction, rates",
+      "pre_freeze": null,
+      "published": "2026",
+      "quote": "Yearly taxable income of up to $500 is taxed at 2%",
+      "source": "Alabama Arise, The Alabama Tax and Budget Handbook 2026 \u2013 Income Tax",
+      "url": "https://alarise.org/resources/the-alabama-tax-and-budget-handbook-2026-income-tax/"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 4.68,
+  "reference_value": 4.68,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Alabama does not tax the $18,708 of Social Security. It does tax federally tax-exempt interest unless the bonds were issued by Alabama or one of its local governments (\u00a7 40-18-14; r. 810-3-14-.02). The prompt names no issuer and says to treat unlisted facts as false, so the $4,734 counts as Alabama income. Alabama taxable income is then $4,734 \u2212 $3,000 standard deduction \u2212 $1,500 personal exemption = $234, taxed at 2%, which gives $4.68. The engine took exactly these steps. It also assumed medical expenses of $2,584.80, apparently by adding Medicare Part B premiums the prompt never listed. That changes nothing, because itemizing (about $2,600) still comes out below the $3,000 standard deduction. Most of the models answering 0 assumed Alabama exempts all federally tax-exempt interest, which is wrong. Stage 1 stands. One of its sources, an Alabama Department of Revenue FAQ, actually covers the financial institution excise tax, but its conclusion rests on the statute and the regulation.",
+  "verdict": "reference_holds"
+}

@@ -1,0 +1,52 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.21713919999999998,
+  "duration_ms": 53133,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:03:53.580830+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "6fe75f76ea756c1baf1a7dc360ac8e8df9829b4f99bda8f6a02b324472bb3eea",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "2bafd30b53f007bcfc3399868b998d644934a266332faca6fbd74d2f25bdb9c1",
+  "session_id": "d7f796bc-d462-479f-90f0-b4f5f6263cae",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "8cb9c5ea33f05701efa349b764c49612b0b5ecad2226a759546ae9066565bcbb",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/uscode/text/42/1397jj",
+      "https://www.pa.gov/agencies/dhs/resources/chip/eligibility-and-benefits",
+      "https://www.law.cornell.edu/cfr/text/42/457.310"
+    ],
+    "searches": []
+  }
+}

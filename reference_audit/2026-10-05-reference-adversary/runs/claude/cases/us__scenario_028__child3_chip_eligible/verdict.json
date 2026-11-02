@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a71397jj(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "Social Security Act \u00a72110(b)(1), 42 U.S.C. \u00a71397jj(b)(1)(C) (via LII)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "\u00a7457.310(b)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current CFR (in force before 2026)",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act, unless the plan or health insurance coverage program has been in operation since before July 1, 1997",
+      "source": "42 CFR \u00a7457.310 Targeted low-income child (via LII)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "Eligibility requirements list",
+      "pre_freeze": null,
+      "published": "page references 2026 CHIP Income Guidelines effective 2026-03-01",
+      "quote": "Uninsured and not eligible for Medical Assistance",
+      "source": "Pennsylvania Department of Human Services, CHIP Eligibility and Benefits",
+      "url": "https://www.pa.gov/agencies/dhs/resources/chip/eligibility-and-benefits"
+    },
+    {
+      "pinpoint": "2026 table, 48 contiguous states, household of 4",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "4 | $33,000",
+      "source": "HHS ASPE, 2026 Poverty Guidelines",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Child 3 is 10. Household MAGI is $60,010, about 182% of the 2026 HHS guideline of $33,000 for a family of four. That is above Pennsylvania's Medicaid limit for children and within its CHIP income limit. The prompt says Child 3 has employer-sponsored insurance all year. Under 42 U.S.C. 1397jj(b)(1)(C) and 42 CFR 457.310(b)(2)(ii), a child covered by a group health plan is not a targeted low-income child, so Child 3 is not CHIP-eligible (0). The engine applied the same test as stage 1. The consensus models that answered 1 checked age and income only and skipped the no-other-coverage condition, which is a condition of eligibility, not of enrollment.",
+  "verdict": "reference_holds"
+}

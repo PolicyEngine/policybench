@@ -20,12 +20,19 @@ For a single-country run (every supervised run in practice), PolicyEngine
 provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
 computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
-``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it imports policyengine,
-which builds the US and UK tax-benefit systems: about 1 GB of peak RSS and
-11-14 CPU-seconds per process when measured on 2026-09-28. A worker that only
-calls an LLM no longer pays that, and neither does the supervisor. Without the
-file (a mixed-country run, or a failed write), workers and the supervisor
-compute provenance themselves, as before.
+``POLICYBENCH_POLICYENGINE_PROVENANCE``. What computing it costs depends on
+the environment. It imports policyengine only when a country's installed
+model package is the exact version policyengine.py pins for it. Under
+policyengine.py 4.16.1, with ``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset,
+that import built the US and UK tax-benefit systems: about 1 GB of peak RSS
+and 11-14 CPU-seconds per process when measured on 2026-09-28. Otherwise it
+reads only package metadata and policyengine.py's bundled release manifest,
+and imports no PolicyEngine module; that was the case on 2026-09-30 for
+policyengine-us 2.15.17, which differs from the 2.2.1 that policyengine.py
+6.1.2 pins. Either way, computing it once per run bounds the cost: a worker
+that only calls an LLM does not pay it, and neither does the supervisor.
+Without the file (a mixed-country run, or a failed write), workers and the
+supervisor compute provenance themselves, as before.
 """
 
 from __future__ import annotations
@@ -44,7 +51,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from policybench.config import MODELS, PROGRAMS
+from policybench.config import MODELS, get_programs
 from policybench.model_cards import (
     PROMPT_CONTRACT_VERSION,
     answer_contract_for,
@@ -124,8 +131,12 @@ class Supervisor:
         max_rounds: int = 4,
         python: str | None = None,
         env: dict | None = None,
+        program_set: str | None = None,
     ):
         self.model = model
+        # None keeps the configured default set, so existing runs' workload
+        # fingerprints and worker commands are unchanged.
+        self.program_set = program_set
         self.litellm_id = MODELS.get(model, model)
         from policybench.eval_no_tools import _reject_sensitivity_knobs_for_responses
 
@@ -172,11 +183,20 @@ class Supervisor:
             raise ValueError("Scenario manifest must contain at least one scenario.")
         return scenarios
 
+    def _programs_for(self, index: int) -> list[str]:
+        """The output set the worker CLI requests for one scenario's country."""
+        return self._programs_for_country(self.scenarios[index].country)
+
+    def _programs_for_country(self, country: str) -> list[str]:
+        if self.program_set is None:
+            return get_programs(country)
+        return get_programs(country, self.program_set)
+
     def _load_initial_request_variables(self) -> list[str]:
         """Expand the first manifest row exactly as the worker CLI will."""
         from policybench.spec import expand_programs_for_scenario
 
-        return expand_programs_for_scenario(PROGRAMS, self.scenarios[0])
+        return expand_programs_for_scenario(self._programs_for(0), self.scenarios[0])
 
     @staticmethod
     def _joined_sha256(values: list[str]) -> str:
@@ -186,7 +206,15 @@ class Supervisor:
         return {
             "manifest_sha256": hashlib.sha256(self.manifest.read_bytes()).hexdigest(),
             "scenario_ids_sha256": self._joined_sha256(self.scenario_ids),
-            "output_set_sha256": self._joined_sha256(sorted(PROGRAMS)),
+            "output_set_sha256": self._joined_sha256(
+                sorted(
+                    {
+                        program
+                        for scenario in self.scenarios
+                        for program in self._programs_for_country(scenario.country)
+                    }
+                )
+            ),
             "prompt_contract_version": PROMPT_CONTRACT_VERSION,
         }
 
@@ -196,10 +224,15 @@ class Supervisor:
     def _expected_outputs_for_scenario(self, index: int) -> list[str]:
         from policybench.spec import expand_programs_for_scenario
 
-        return expand_programs_for_scenario(PROGRAMS, self.scenarios[index])
+        return expand_programs_for_scenario(
+            self._programs_for(index), self.scenarios[index]
+        )
 
     def _scenario_complete(self, index: int) -> bool:
-        from policybench.eval_no_tools import NO_TOOLS_RESULT_COLUMNS
+        from policybench.eval_no_tools import (
+            NO_TOOLS_CALL_PROVENANCE_COLUMNS,
+            NO_TOOLS_RESULT_COLUMNS,
+        )
 
         path = self.scenario_csv(index)
         if not path.exists():
@@ -218,7 +251,16 @@ class Supervisor:
         except Exception as error:
             self._raise_stale_scenario_output(path, f"could not read CSV: {error}")
 
-        missing_columns = sorted(set(NO_TOOLS_RESULT_COLUMNS) - set(frame.columns))
+        # A scenario finished before the call-provenance columns existed is
+        # still complete: its rows predate them and leave them empty. A file
+        # with only some of them was not written by any harness version.
+        provenance = set(NO_TOOLS_CALL_PROVENANCE_COLUMNS)
+        missing_columns = sorted(
+            set(NO_TOOLS_RESULT_COLUMNS) - provenance - set(frame.columns)
+        )
+        present_provenance = provenance & set(frame.columns)
+        if present_provenance and present_provenance != provenance:
+            missing_columns += sorted(provenance - present_provenance)
         if missing_columns:
             self._raise_stale_scenario_output(
                 path,
@@ -295,7 +337,7 @@ class Supervisor:
             task="eval_no_tools_batch",
             scenarios=[self.scenarios[index]],
             models={self.model: self.litellm_id},
-            programs=PROGRAMS,
+            programs=self._programs_for(index),
             run_id=None,
             include_explanations=True,
             env=self.env,
@@ -645,6 +687,8 @@ class Supervisor:
             "-m",
             "policybench.cli",
             "eval-no-tools",
+            "--country",
+            self.scenarios[index].country,
             "--model",
             self.model,
             "--scenario-manifest",
@@ -658,6 +702,8 @@ class Supervisor:
             "-o",
             str(out),
         ]
+        if self.program_set is not None:
+            cmd.extend(["--program-set", self.program_set])
         return subprocess.Popen(
             cmd,
             stdout=open(log, "w"),

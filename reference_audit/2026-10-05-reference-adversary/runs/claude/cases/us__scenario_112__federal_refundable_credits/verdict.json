@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Sec. 4.06 (earned income credit, 2026), no qualifying children; excessive investment income",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Earned Income Amount $8,680 ... Maximum Amount of Credit $664 ... Threshold Phaseout Amount (All other filing statuses) $10,860 ... the earned income tax credit is not allowed under \u00a7 32(i) if the aggregate amount of certain investment income exceeds $12,200.",
+      "source": "Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "\u00a732(a)(1)",
+      "pre_freeze": true,
+      "published": "current code (in force for 2026)",
+      "quote": "an amount equal to the credit percentage of so much of the taxpayer's earned income for the taxable year as does not exceed the earned income amount.",
+      "source": "26 U.S. Code \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a732(b)(1) table (no qualifying children: credit percentage 7.65)",
+      "pre_freeze": true,
+      "published": "current code (in force for 2026)",
+      "quote": "No qualifying children ... 7.65 ... 7.65",
+      "source": "26 U.S. Code \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a732(c)(2)(A)(i)",
+      "pre_freeze": true,
+      "published": "current code (in force for 2026)",
+      "quote": "wages, salaries, tips, and other employee compensation, but only if such amounts are includible in gross income for the taxable year",
+      "source": "26 U.S. Code \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a71211(b)",
+      "pre_freeze": true,
+      "published": "current code (in force for 2026)",
+      "quote": "the lower of\u2014 (1) $3,000 ($1,500 in the case of a married individual filing a separate return), or (2) the excess of such losses over such gains.",
+      "source": "26 U.S. Code \u00a7 1211",
+      "url": "https://www.law.cornell.edu/uscode/text/26/1211"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 453.11,
+  "reference_value": 453.0960083007813,
+  "stage1_error": "Stage 1 stands in substance. One small arithmetic slip: 7.65% \u00d7 $5,923 is $453.11, not $453.10. This does not change the result. The engine's $453.096 comes from the ratio $664/$8,680 and is within about a cent of the statutory figure; the IRS table gives $453.",
+  "suggested_adjudication": "affirmed",
+  "summary": "The Head is 31, files single and has no qualifying children, so the only refundable credit they can claim is the EITC for a worker with no qualifying child. Earned income is the $5,923 of gross wages. AGI is $4,843: wages plus $1,920 of farm rent, less the capital loss limited to $3,000. Disqualified investment income is $1,920, under the $12,200 limit. The larger of AGI and earned income is below the $10,860 phaseout threshold, so the credit is the full phase-in amount: 7.65% \u00d7 $5,923 \u2248 $453.11. The engine's $453.096 uses an effective rate of $664/$8,680 (7.6498%), which differs from the statute by about a cent; the IRS EIC Table gives $453. The 0 cluster wrongly treats the ESI premiums as pre-tax pay reductions or adds nontaxable assistance to AGI. Neither reading fits the stated facts.",
+  "verdict": "reference_holds"
+}

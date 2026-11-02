@@ -2,14 +2,17 @@
 
 The leaderboard's canonical condition sends every model the same household
 facts and requested outputs and forces the answer tool call
-(`tool_choice: {type: "tool", name: "submit_outputs"}`) for every row whose
-model card selects the tool contract, with no reasoning-control parameters
+(`tool_choice: {type: "tool", name: "submit_outputs"}`) for every row on the
+tool contract, with no reasoning-control parameters
 for any provider. Ten models answer in one- or three-output subsets per
-request, and rows on the JSON contract answer as a JSON object, either
-because the provider rejects a forced tool or because the model card selects
-JSON for that family (older Gemini and DeepSeek rows); the per-model
-treatment is the manuscript's serving-configuration table, and Claude Fable
-5.1 is the newest JSON-transport row (see its section below). A
+request. Rows whose model card or its family default selects JSON answer as a
+JSON object. For most of them the card records that the provider rejects a
+forced tool call; the cards of DeepSeek V4 Pro and GLM-5.2 select JSON without
+recording a rejection, and the older Gemini rows answer as JSON by the Gemini
+family default. The per-model treatment is the manuscript's
+serving-configuration table. Claude Fable 5.1, a JSON-transport row, and
+Claude Haiku 5.5, a forced-tool row onboarded in October, each have their own
+re-run (see their sections below). A
 reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
 the other reasoning-by-default providers spent most of their tokens on
 reasoning.
@@ -44,25 +47,32 @@ runs also use the canonical whole-scenario request
 (`POLICYBENCH_CHUNK_OVERRIDE=none`); their deltas therefore combine two
 shape changes, while Claude Opus 5's isolates thinking alone.
 
-All ranks are on the 42-model board (2026-09-22). Scores are on the
-1,932 outputs the board scores; the 52 outputs `reference_exclusions.json`
-lists (engine defects, and references that depend on an input the prompt
-never states) are excluded for every model, sensitivity runs included. On
-all 1,984 outputs the thinking runs scored 87.1, 85.8 and 80.3.
+All ranks are on the 51-model board (2026-10-27). Scores are on the
+1,935 outputs the board scores; the 49 outputs `reference_exclusions.json`
+lists (engine defects, references that depend on an input the prompt never
+states, and references that rest on an amount a state published after the
+freeze) are excluded for every model, sensitivity runs included. On
+all 1,984 outputs the thinking runs scored 87.1, 86.2 and 80.2.
 
 | | board exact | thinking exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5 | 83.5 (#16) | **90.9** | +7.4 | **#6** | $0.541 → $0.323 | 54 | 1,984/1,984 |
-| Claude Opus 5 | 83.4 (#17) | **89.4** | +6.0 | #8 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.4 (#40) | **84.3** | +11.8 | #16 | $0.086 | 64 | 1,928/1,984 |
+| Claude Fable 5 | 83.3 (#25) | **91.4** | +8.1 | **#8** | $0.541 → $0.323 | 54 | 1,984/1,984 |
+| Claude Opus 5 | 83.6 (#24) | **90.0** | +6.4 | #12 | $0.067 → $0.152 | 51 | 1,984/1,984 |
+| Claude Sonnet 5 | 72.4 (#49) | **84.5** | +12.1 | #24 | $0.086 | 64 | 1,928/1,984 |
 
-In this table and the Claude Fable 5.1 table below, deltas are differences of
-the unrounded scores, so a delta can differ by 0.1 from the difference of the
+In this table and the tables below, deltas are differences of the
+unrounded scores, so a delta can differ by 0.1 from the difference of the
 rounded scores shown; the per-program tables subtract the rounded rates.
+Each would-rank places the unrounded score on the board, so a score that
+rounds level with a board row's can rank on either side of it: Claude Opus
+5's 90.039 rounds level with Muse Wonder's 90.050 and ranks below it, and
+Claude Fable 5.1's `auto` score of 91.679, in the section below, rounds level
+with GPT-6 Astra's 91.722 and Claude Sonnet 5.5's 91.668 and ranks between
+them.
 
 Under `auto`, Fable 5 and Opus 5 chose to call the answer tool on every
 response; Sonnet 5 failed to produce a parseable tool call on 56 of its
-1,984 answers; the 55 on scored outputs count as misses inside its 84.3. Fable 5's
+1,984 answers, all on scored outputs, which count as misses inside its 84.5. Fable 5's
 sensitivity run also costs less than its leaderboard run: whole-scenario
 requests drop its per-household spend from $0.541 to $0.323 even with
 thinking on.
@@ -71,7 +81,7 @@ thinking on.
 
 The leaderboard is unchanged: the frozen board holds every model to the
 request shape its model card records, and this run sits beside it as a
-labeled sensitivity, not in it. Each run's predictions are committed under
+labeled sensitivity outside it. Each run's predictions are committed under
 `sensitivity/data/` (and attached to the `dashboard-data-20260805` release)
 as `sensitivity-claude-{fable,opus,sonnet}-5-thinking-predictions.csv.gz`. The
 manuscript's serving-configuration table documents the interaction. The next
@@ -84,34 +94,34 @@ versioned re-run, never an edit to existing scores; the plan is
 
 ## Where thinking helps (Claude Fable 5, per program)
 
-Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,932
+Per-variable within-$1 rates, board (forced) vs `auto`, on the 1,935
 scored outputs. These are unweighted leaf rates from the heatmap; the
-headline weights by dollar magnitude, so these do not average to 90.9.
+headline weights by dollar magnitude, so these do not average to 91.4.
 
 | program | board | auto | delta |
 |---|---|---|---|
-| federal_income_tax_before_refundable_credits | 56.5 | 76.5 | +20.0 |
-| state_income_tax_before_refundable_credits | 62.8 | 74.4 | +11.6 |
-| federal_refundable_credits | 87.8 | 96.9 | +9.1 |
+| federal_income_tax_before_refundable_credits | 57.1 | 78.6 | +21.5 |
+| state_income_tax_before_refundable_credits | 58.1 | 69.9 | +11.8 |
+| federal_refundable_credits | 86.0 | 96.0 | +10.0 |
 | person_medicare_eligible | 91.3 | 99.4 | +8.1 |
-| payroll_tax | 82.8 | 89.9 | +7.1 |
-| state_refundable_credits | 82.7 | 86.7 | +4.0 |
-| snap | 84.9 | 88.2 | +3.3 |
+| payroll_tax | 85.4 | 92.7 | +7.3 |
+| state_refundable_credits | 82.8 | 86.9 | +4.1 |
+| snap | 82.8 | 86.0 | +3.2 |
 | ssi | 96.9 | 100.0 | +3.1 |
 | self_employment_tax | 97.0 | 99.0 | +2.0 |
-| person_medicaid_eligible | 94.8 | 96.0 | +1.2 |
+| person_medicaid_eligible | 94.8 | 96.5 | +1.7 |
 | person_wic_eligible | 99.4 | 100.0 | +0.6 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| reduced_price_school_meals_eligible | 99.0 | 99.0 | +0.0 |
 | tanf | 99.0 | 99.0 | +0.0 |
-| free_school_meals_eligible | 99.0 | 98.0 | -1.0 |
+| free_school_meals_eligible | 96.0 | 95.0 | -1.0 |
 | person_chip_eligible | 98.9 | 97.2 | -1.7 |
-| reduced_price_school_meals_eligible | 100.0 | 98.0 | -2.0 |
 
 Thinking pays off on the hardest arithmetic: the two income-tax lines,
 refundable credits, and payroll tax. Near-ceiling programs stay flat;
-the three small negatives sit at noise scale for n=100-177. Per-variable
+the two small negatives sit at noise scale for n=100-177. Per-variable
 CSVs for all three models are committed under `sensitivity/data/` as
 `sensitivity-claude-*-thinking-by-variable.csv.gz`, regenerated on the
 scored outputs by `scripts/sensitivity_by_variable.py` and pinned in
@@ -130,23 +140,22 @@ and Qwen 3.8 Max already have; under litellm that request carries the
 prompt alone (`response_format: json_object` maps to no Anthropic
 parameter), so the board row reasons at the API default.
 
-The sensitivity run for this model isolates request shape under thinking
-rather than thinking itself: the answer tool declared with `tool_choice:
+The sensitivity run for this model isolates request shape under thinking: the answer tool declared with `tool_choice:
 "auto"` (`POLICYBENCH_CONTRACT_OVERRIDE=tool` together with
 `POLICYBENCH_TOOL_CHOICE=auto`), against the JSON board row. Both rows
-reason. The ranks are on the 42-model board (2026-09-22).
+reason. The ranks are on the 51-model board (2026-10-27).
 
 | | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
 |---|---|---|---|---|---|---|---|
-| Claude Fable 5.1 | 90.2 (#6) | **91.1** | +0.9 | #6 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
+| Claude Fable 5.1 | 90.8 (#8) | **91.7** | +0.8 | #6 | $0.257 → $0.348 | 49 → 53 | 1,984/1,984 |
 
-The two rows sit 0.9 points apart, and no program moves more than three
+The two rows sit 0.8 points apart, and no program moves more than 3.2
 points between them (table below). Read against Claude Fable 5, the
-picture matches August: Fable 5.1's JSON board row (90.2) is 6.7 points
-above Fable 5's forced-tool board row (83.5) and 0.7 below Fable 5's
-`auto` run (90.9); Fable 5.1's own `auto` run (91.1) is 0.2 above Fable
-5's under the identical request. Scores are on the 1,932 scored outputs;
-on all 1,984 the auto run scored 87.9. The model called the answer tool on every
+picture matches August: Fable 5.1's JSON board row (90.8) is 7.6 points
+above Fable 5's forced-tool board row (83.3) and 0.5 below Fable 5's
+`auto` run (91.4); Fable 5.1's own `auto` run (91.7) is 0.3 above Fable
+5's under the identical request. Scores are on the 1,935 scored outputs;
+on all 1,984 the auto run scored 88.1. The model called the answer tool on every
 one of its 1,984 answers under `auto`.
 
 Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
@@ -154,23 +163,23 @@ Per-variable within-$1 rates for Claude Fable 5.1, board (JSON) vs `auto`
 
 | program | board (JSON) | auto (tool declared) | delta |
 |---|---|---|---|
-| state_income_tax_before_refundable_credits | 73.3 | 75.6 | +2.3 |
+| state_income_tax_before_refundable_credits | 68.8 | 72.0 | +3.2 |
 | person_medicare_eligible | 96.5 | 98.3 | +1.8 |
-| federal_income_tax_before_refundable_credits | 76.5 | 77.6 | +1.1 |
-| free_school_meals_eligible | 98.0 | 99.0 | +1.0 |
-| reduced_price_school_meals_eligible | 98.0 | 99.0 | +1.0 |
+| free_school_meals_eligible | 95.0 | 96.0 | +1.0 |
+| reduced_price_school_meals_eligible | 99.0 | 100.0 | +1.0 |
 | ssi | 99.0 | 100.0 | +1.0 |
-| person_medicaid_eligible | 96.6 | 97.1 | +0.5 |
+| person_medicaid_eligible | 97.1 | 97.7 | +0.6 |
+| federal_income_tax_before_refundable_credits | 79.8 | 79.8 | +0.0 |
 | local_income_tax | 100.0 | 100.0 | +0.0 |
-| payroll_tax | 88.9 | 88.9 | +0.0 |
+| payroll_tax | 91.7 | 91.7 | +0.0 |
 | person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_head_start_eligible | 100.0 | 100.0 | +0.0 |
 | person_wic_eligible | 100.0 | 100.0 | +0.0 |
 | self_employment_tax | 100.0 | 100.0 | +0.0 |
-| snap | 89.2 | 89.2 | +0.0 |
+| snap | 87.1 | 87.1 | +0.0 |
 | tanf | 99.0 | 99.0 | +0.0 |
-| federal_refundable_credits | 99.0 | 98.0 | -1.0 |
-| state_refundable_credits | 91.8 | 90.8 | -1.0 |
+| federal_refundable_credits | 98.0 | 97.0 | -1.0 |
+| state_refundable_credits | 90.9 | 89.9 | -1.0 |
 | person_chip_eligible | 97.2 | 96.0 | -1.2 |
 
 The run's predictions and per-variable rates are committed under
@@ -179,6 +188,62 @@ and `sensitivity-claude-fable-5-1-thinking-by-variable.csv.gz` (pinned in
 `claude-fable-5-1-thinking.json`; the rates are on the scored outputs). The
 copies attached to the `dashboard-data-20260901c` release predate the
 exclusion.
+
+## Claude Haiku 5.5 (October 2026)
+
+Claude Haiku 5.5, onboarded on October 8, 2026, the day after its release,
+reasons by default like the Claude 5 models above: a request with no
+thinking parameter returned a thinking block. Unlike Claude Sonnet 5.5 and
+Claude Opus 5.5, its API accepts forced tool use, so its board row takes
+the board's forced answer tool, and the forced-tool probe returned no
+thinking block: the row answers without extended thinking, as Claude Opus
+5's does (its model card's notes). Its sensitivity run is the August
+condition: the answer tool declared with `tool_choice: "auto"`, over the
+whole scenario, as the board row also requests it. The ranks are on the
+51-model board (2026-10-27).
+
+| | board exact | auto exact | delta | would rank | cost/hh | median s/hh | parsed |
+|---|---|---|---|---|---|---|---|
+| Claude Haiku 5.5 | 79.2 (#41) | **88.8** | +9.6 | #12 | $0.0013 → $0.0027 | 5.1 → 17.4 | 1,984/1,984 |
+
+The model called the answer tool on every one of its 1,984 answers under
+`auto`. Its median household used 3,743 completion tokens against the board
+row's 1,199 and took 17.4 seconds against 5.1, as when thinking engages;
+litellm reports no reasoning tokens for Anthropic (above), so the run does
+not count them separately. Scores are on the 1,935 scored outputs; on all
+1,984 the auto run scored 85.2. Among the Claude rows only Claude Sonnet 5
+gains more under `auto`. Most of the gain is in payroll tax and federal
+income tax; SNAP, state refundable credits and CHIP eligibility fall by two
+to three and a half points.
+
+Per-variable within-$1 rates for Claude Haiku 5.5, board (forced tool) vs
+`auto`; unweighted leaf rates on the scored outputs, as above.
+
+| program | board (forced tool) | auto (tool declared) | delta |
+|---|---|---|---|
+| payroll_tax | 67.7 | 92.7 | +25.0 |
+| federal_income_tax_before_refundable_credits | 54.8 | 78.6 | +23.8 |
+| person_head_start_eligible | 89.5 | 94.7 | +5.2 |
+| federal_refundable_credits | 87.0 | 92.0 | +5.0 |
+| self_employment_tax | 96.0 | 100.0 | +4.0 |
+| person_medicaid_eligible | 89.6 | 92.5 | +2.9 |
+| person_medicare_eligible | 97.1 | 100.0 | +2.9 |
+| local_income_tax | 98.0 | 100.0 | +2.0 |
+| person_wic_eligible | 97.7 | 98.9 | +1.2 |
+| ssi | 97.9 | 99.0 | +1.1 |
+| free_school_meals_eligible | 96.0 | 96.0 | +0.0 |
+| person_early_head_start_eligible | 100.0 | 100.0 | +0.0 |
+| reduced_price_school_meals_eligible | 100.0 | 100.0 | +0.0 |
+| state_income_tax_before_refundable_credits | 61.3 | 61.3 | +0.0 |
+| tanf | 99.0 | 99.0 | +0.0 |
+| state_refundable_credits | 81.8 | 79.8 | -2.0 |
+| snap | 84.9 | 82.8 | -2.1 |
+| person_chip_eligible | 98.3 | 94.9 | -3.4 |
+
+The run's predictions and per-variable rates are committed under
+`sensitivity/data/` as `sensitivity-claude-haiku-5-5-thinking-predictions.csv.gz`
+and `sensitivity-claude-haiku-5-5-thinking-by-variable.csv.gz` (pinned in
+`claude-haiku-5-5-thinking.json`; the rates are on the scored outputs).
 
 ## Reproducing
 

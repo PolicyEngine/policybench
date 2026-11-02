@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { NoteArticle, interpolateNoteText } from "../../../components/NotesContent";
+import Link from "next/link";
+
+import {
+  NoteArticle,
+  NoteNeighbors,
+  interpolateNoteText,
+} from "../../../components/NotesContent";
 import SiteHeader from "../../../components/SiteHeader";
 import { getNote, notes } from "../../../notes";
 
@@ -68,8 +74,17 @@ export default async function NotePage({
         ]}
         alwaysExpanded
       />
-      <div className="mx-auto max-w-3xl px-4 pb-20 pt-10 sm:px-6 sm:pt-14">
-        <NoteArticle note={note} titleLevel="h1" />
+      <div className="mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 sm:pt-12">
+        <Link
+          href="/notes"
+          className="mb-8 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted transition-colors hover:text-primary-strong"
+        >
+          <span aria-hidden="true">←</span> All notes
+        </Link>
+        <div className="max-w-4xl">
+          <NoteArticle note={note} titleLevel="h1" />
+          <NoteNeighbors note={note} />
+        </div>
       </div>
     </main>
   );
