@@ -53,7 +53,7 @@ SURFACES = (
 #   command: positionals are a command to run; only --with adds a package.
 # `pip install` also matches inside `uv pip install` and `python -m pip install`.
 # uv pip install reads with pip's table: each option the two share takes a value
-# in both or in neither.
+# in both or in neither, and a test holds their saved help to that.
 INSTALLERS = (
     (re.compile(r"(?<![\w-])pip3?\s+install\b"), "requirements", "pip"),
     (re.compile(r"\bpipx\s+install\b"), "requirements", None),
@@ -69,12 +69,13 @@ INSTALLERS = (
 # Options whose value is a requirement; --from and --spec also name the tool.
 REQUIREMENT_OPTIONS = {"--with", "-w", "--from", "--spec", "--with-executables-from"}
 TOOL_OPTIONS = {"--from", "--spec"}
-# The options that take a value, and those that don't. The pip and uv tables copy
-# the --help of pip 26.2.1 (pip install) and uv 0.11.7 (uv tool install, uv tool
-# run, uv add and uv run); the conda table holds options from conda's install
-# reference. The scan skips an option's value. An option that its installer's
-# table lacks, or lists in both sets (uv add's -m takes a marker; uv run's -m
-# runs a module), may take the next word as its value or leave it as an argument.
+# The options that take a value, and those that don't. Each table copies the
+# --help saved in tests/fixtures/install_help/ for pip 26.2.1 (pip install), uv
+# 0.11.7 (uv tool install, uv tool run, uv add and uv run) or conda 26.9.4 (conda
+# install), and a test holds it to that help. The scan skips an option's value.
+# An option that its installer's table lacks, or lists in both sets (uv add's -m
+# takes a marker; uv run's -m runs a module), may take the next word as its value
+# or leave it as an argument.
 PIP_VALUE = """
 -C -c -e -f -i -r -t --abi --all-releases --build-constraint --cache-dir --cert
 --client-cert --config-settings --constraint --editable --exists-action
@@ -119,12 +120,18 @@ UV_FLAG = """
 --workspace
 """
 CONDA_VALUE = """
--c -f -n -p --channel --file --name --prefix
+-c -f -n -p --channel --console --env-spec --environment-specifier --exclude-newer
+--experimental --file --format --name --prefix --repodata-fn --revision
+--shortcuts-only --solver
 """
 CONDA_FLAG = """
--C -d -h -k -O -q -S -v -y --clobber --dry-run --insecure --json --offline
---override-channels --quiet --satisfied-skip-solve --update-all --update-specs
---use-index-cache --verbose --yes
+-C -d -h -k -O -q -S -v -y --all --clobber --copy --dev --download-only --dry-run
+--force-reinstall --freeze-installed --help --insecure --json --no-channel-priority
+--no-deps --no-lock --no-pin --no-repodata-use-shards --no-repodata-use-zst
+--no-shortcuts --no-update-deps --offline --only-deps --override-channels
+--override-frozen --quiet --repodata-use-shards --repodata-use-zst
+--satisfied-skip-solve --show-channel-urls --strict-channel-priority --update-all
+--update-deps --update-specs --use-index-cache --use-local --verbose --yes
 """
 OPTION_TABLES = {
     "pip": (set(PIP_VALUE.split()), set(PIP_FLAG.split())),
@@ -390,6 +397,7 @@ def surface_installs(path: Path) -> list[str]:
         "uv tool install -n policybench",
         "uv tool install --no-binary policybench",
         "uvx -n policybench --help",
+        "uvx --some-new-flag policybench --help",
         "uv pip install -n policybench",
         "Run conda install -n myenv policybench to add it.",
         "Install it with pip install \u201cpolicybench\u201d.",
@@ -430,6 +438,7 @@ def test_detector_flags_index_installs_of_policybench(text):
         "A plain pip install of policybench fails because it is not on PyPI.",
         "uvx and uv tool install both fetch policybench from GitHub.",
         "`pip install --no-index --find-links dist policybench`",
+        "`uv tool install --offline policybench`",
         "conda install -n policybench uv",
         "uv sync --locked --extra dev",
         "uv run policybench onboard",
@@ -510,3 +519,53 @@ def test_readme_installs_policybench_from_github():
     ]
     assert any(map(_github_source, sources)), code
     assert "policybench --help" in code
+
+
+# The --help output each option table copies, from pip 26.2.1, uv 0.11.7 and
+# conda 26.9.4 (conda-forge's package, with only its built-in plugins). uv pip
+# install has no table of its own, so a test compares its help with pip's.
+HELP = ROOT / "tests" / "fixtures" / "install_help"
+HELP_OPTION = re.compile(r"^ {1,8}(-[\w-]+(?:[ =]\S+)?(?:, -[\w-]+(?:[ =]\S+)?)*)")
+
+
+def _help_options(*files: str) -> tuple[set[str], set[str]]:
+    """The options in saved --help output that take a value, and those that don't."""
+    takes, skips = set(), set()
+    for name in files:
+        for line in (HELP / name).read_text().splitlines():
+            if match := HELP_OPTION.match(line):
+                specs = match.group(1).replace("=", " ").split(", ")
+                flags = {spec.partition(" ")[0] for spec in specs}
+                (takes if any(" " in spec for spec in specs) else skips).update(flags)
+    return takes, skips
+
+
+@pytest.mark.parametrize(
+    ("table", "files"),
+    [
+        ("pip", ["pip-26.2.1-install.txt"]),
+        (
+            "uv",
+            [f"uv-0.11.7-{c}.txt" for c in ("tool_install", "tool_run", "add", "run")],
+        ),
+        ("conda", ["conda-26.9.4-install.txt"]),
+    ],
+)
+def test_option_tables_match_saved_help(table, files):
+    """Each table lists the options in its installer's saved help, on the side
+    the help gives them. The scan reads the values of REQUIREMENT_OPTIONS before
+    it looks at a table, so the tables leave those out."""
+    takes, skips = _help_options(*files)
+    value, flag = OPTION_TABLES[table]
+    assert value == takes - REQUIREMENT_OPTIONS
+    assert flag == skips - REQUIREMENT_OPTIONS
+
+
+def test_pip_and_uv_pip_install_agree_on_shared_options():
+    """The scan reads uv pip install with pip's table, so each option the two
+    commands share must take a value in both or in neither."""
+    pip_takes, pip_skips = _help_options("pip-26.2.1-install.txt")
+    uv_takes, uv_skips = _help_options("uv-0.11.7-pip_install.txt")
+    assert pip_takes & uv_takes and pip_skips & uv_skips
+    assert not pip_takes & uv_skips
+    assert not pip_skips & uv_takes
