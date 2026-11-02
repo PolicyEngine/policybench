@@ -269,7 +269,7 @@ MONETARY_INCOME_FIELDS = {
 # Pennsylvania requires a return from anyone, minors included, with more than
 # $33 of PA-taxable income or a loss from any transaction as an individual,
 # sole proprietor, partner or S corporation shareholder (2025 PA-40
-# instructions, page 3), and it taxes interest on other states' bonds (61 Pa.
+# instructions, page 4), and it taxes interest on other states' bonds (61 Pa.
 # Code 103.16(e)). So the draw drops every household where a dependent has any
 # of this income, or a loss on it, as the prompt prints it, and every household
 # where the engine counts gross income for a dependent, which takes in income

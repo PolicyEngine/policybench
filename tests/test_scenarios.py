@@ -1131,7 +1131,7 @@ def test_the_filter_reads_amounts_as_the_prompt_prints_them():
 def test_a_dependents_loss_drops_the_household():
     """Pennsylvania requires a return from anyone, minors included, with a loss
     from any transaction as an individual, sole proprietor, partner or S
-    corporation shareholder (2025 PA-40 instructions, page 3; Sol review r2)."""
+    corporation shareholder (2025 PA-40 instructions, page 4; Sol review r2)."""
     frame = _frame(
         _household_rows(1),
         _household_rows(2, {"self_employment_income": -5_000.0}),
