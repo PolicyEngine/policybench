@@ -353,6 +353,11 @@ DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIE
     "tip_income",
     "total_disability_payments",
 }
+# The engine gives each Alaska resident the Permanent Fund Dividend as gross
+# income with no input (policyengine-us's ak_permanent_fund_dividend), and no
+# prompt states it, so an Alaska reference holds income the prompt says to treat
+# as 0. A test checks this list against every state.
+STATES_WITH_UNSTATED_INCOME = frozenset({"AK"})
 
 BASE_PERSON_COLUMNS = {
     "person_id": "person_id",
@@ -1736,6 +1741,7 @@ def scenarios_from_cps_frame(
     dataset_label: str | None = None,
     excluded_household_ids: set[int] | None = None,
     head_spouse_returns_only: bool = False,
+    excluded_states: frozenset[str] = frozenset(),
 ) -> list[Scenario]:
     """Sample benchmark scenarios from a person-level US source frame.
 
@@ -1747,6 +1753,9 @@ def scenarios_from_cps_frame(
     ``head_spouse_returns_only`` leaves out households whose dependents have
     income or a loss of their own (d1029); the frame then needs
     ``DEPENDENT_GROSS_INCOME_COLUMN``. The board's v1 draw predates it.
+
+    ``excluded_states`` leaves out every household in those states, as v2's draw
+    does for ``STATES_WITH_UNSTATED_INCOME``.
     """
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
@@ -1758,6 +1767,12 @@ def scenarios_from_cps_frame(
         eligible_households = eligible_households[
             ~eligible_households["household_id"].isin(
                 _households_with_dependent_return_income(df)
+            )
+        ].copy()
+    if excluded_states:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(
+                df.loc[df["state_code"].isin(excluded_states), "household_id"]
             )
         ].copy()
     sampled_household_ids = _sample_household_ids(eligible_households, n=n, seed=seed)
@@ -2031,18 +2046,21 @@ def generate_scenarios(
     dataset: str | None = None,
     dataset_label: str | None = None,
     head_spouse_returns_only: bool = False,
+    excluded_states: frozenset[str] = frozenset(),
 ) -> list[Scenario]:
     """Generate benchmark scenarios for a country.
 
     ``dataset`` and ``dataset_label`` replace the certified US dataset (see
     :func:`load_certified_us_person_frame`); test household sets only.
-    ``head_spouse_returns_only`` applies :func:`scenarios_from_cps_frame`'s
-    filter, US only.
+    ``head_spouse_returns_only`` and ``excluded_states`` apply
+    :func:`scenarios_from_cps_frame`'s filters, US only.
     """
     if dataset is not None and country != "us":
         raise ValueError("an explicit dataset is supported for the US only")
     if head_spouse_returns_only and country != "us":
         raise ValueError("head_spouse_returns_only is a US filter")
+    if excluded_states and country != "us":
+        raise ValueError("excluded_states is a US filter")
     if country == "us":
         person_df, dataset_year, dataset_label = (
             load_certified_us_person_frame()
@@ -2058,6 +2076,7 @@ def generate_scenarios(
             dataset_label=dataset_label,
             excluded_household_ids=excluded_household_ids,
             head_spouse_returns_only=head_spouse_returns_only,
+            excluded_states=excluded_states,
         )
     if country == "uk":
         person_df, household_df, dataset_year = load_uk_transfer_frames()

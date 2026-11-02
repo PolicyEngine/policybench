@@ -70,7 +70,9 @@ STATED_STATUSES = {"immigration_status": "CITIZEN", "ssn_card_type": "CITIZEN"}
 HOUSEHOLD_FILTER = (
     "Households where a dependent has income that could require a return of "
     "their own are left out of the draw (d1029; "
-    "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS)."
+    "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS), and so are households "
+    "in states where the engine gives income with no input "
+    "(policybench.scenarios.STATES_WITH_UNSTATED_INCOME)."
 )
 EXCLUSIONS_RULE = (
     "An output is excluded from scoring for every model when review finds its "
@@ -191,6 +193,33 @@ def dependents_with_return_income(scenarios, system) -> list[str]:
                     found.append(
                         f"{scenario.id} {person} {measure} ${float(amount):,.2f}"
                     )
+    return found
+
+
+def states_with_unstated_income(states, system) -> set[str]:
+    """Each of ``states`` where ``system`` gives an adult or a child gross income
+    with no input at all. No prompt states that income, and each prompt says to
+    treat an unlisted amount as 0, so the draw leaves out
+    STATES_WITH_UNSTATED_INCOME and a build stops if it holds any other."""
+    from policyengine_us import Simulation
+
+    from policybench.scenarios import Person, Scenario
+
+    found = set()
+    for state in states:
+        no_inputs = Scenario(
+            id=state,
+            state=state,
+            filing_status=None,
+            adults=[Person("adult1", 40, 0.0)],
+            children=[Person("child1", 8, 0.0)],
+        )
+        simulation = Simulation(
+            tax_benefit_system=system, situation=situation_for(no_inputs)
+        )
+        for variable in ("irs_gross_income", "dependent_gross_income"):
+            if simulation.calculate(variable, YEAR).any():
+                found.add(state)
     return found
 
 
@@ -357,6 +386,7 @@ def command_build(args) -> None:
         policyengine_bundles_for_countries,
     )
     from policybench.scenarios import (
+        STATES_WITH_UNSTATED_INCOME,
         canonical_us_scenario,
         generate_scenarios,
         scenario_manifest,
@@ -411,6 +441,7 @@ def command_build(args) -> None:
         dataset=str(dataset_path) if all(named) else None,
         dataset_label=dataset_label,
         head_spouse_returns_only=True,
+        excluded_states=STATES_WITH_UNSTATED_INCOME,
     )
     scenarios = [
         canonical_us_scenario(scenario)
@@ -421,6 +452,14 @@ def command_build(args) -> None:
         raise SystemExit(
             "the draw kept dependents with income that can require a return, "
             "which d1029's filter should have dropped: " + "; ".join(with_income)
+        )
+    unstated = states_with_unstated_income(
+        sorted({scenario.state for scenario in scenarios}), system
+    )
+    if unstated:
+        raise SystemExit(
+            "the draw holds states where the engine gives income with no input, "
+            "which no prompt states: " + ", ".join(sorted(unstated))
         )
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
     references = compute_references(scenarios, programs, system)

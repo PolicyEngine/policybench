@@ -16,6 +16,7 @@ from policybench.scenarios import (
     DEPENDENT_SOCIAL_SECURITY_LIMIT,
     NON_RETURN_INCOME_FIELDS,
     SOCIAL_SECURITY_FIELDS,
+    STATES_WITH_UNSTATED_INCOME,
     SUPPORTED_FILING_STATUSES,
     Person,
     Scenario,
@@ -1386,6 +1387,97 @@ def test_no_drawn_household_has_a_dependent_with_return_income(households, seed)
     assert len(drawn) == clean
 
 
+def _in_state(state, rows):
+    return [{**row, "state_code": state} for row in rows]
+
+
+def test_a_left_out_state_leaves_the_draw():
+    """v2's draw leaves out Alaska, whose residents the engine gives income no
+    prompt states. Without the filter, as in the board's v1 draw, Alaska stays."""
+    frame = _frame(
+        _household_rows(1),
+        _in_state("AK", _household_rows(2)),
+        _household_rows(3, {"employment_income": 5_000.0}),
+    )
+    assert _drawn(frame, 3) == {1, 2, 3}
+    assert _drawn(frame, 2, excluded_states=STATES_WITH_UNSTATED_INCOME) == {1, 3}
+    # v2's draw holds both filters.
+    both = {"excluded_states": STATES_WITH_UNSTATED_INCOME}
+    assert _drawn(frame, 1, head_spouse_returns_only=True, **both) == {1}
+    with pytest.raises(ValueError, match="only 1 eligible"):
+        _drawn(frame, 2, head_spouse_returns_only=True, **both)
+
+
+@settings(deadline=None, max_examples=40)
+@given(
+    st.lists(st.sampled_from(["AK", "PA", "TX"]), min_size=1, max_size=8),
+    st.frozensets(st.sampled_from(["AK", "PA", "TX"])),
+    st.integers(min_value=0, max_value=2**31),
+)
+def test_the_draw_holds_every_household_outside_the_left_out_states(
+    states, excluded, seed
+):
+    """Invariant: the state filter removes exactly the households in the named
+    states. Every draw from the rest holds none of them, and a draw of all the
+    rest returns each one. A last Ohio household keeps the rest from emptying."""
+    frame = _frame(
+        *(
+            _in_state(state, _household_rows(index))
+            for index, state in enumerate(states, start=1)
+        ),
+        _in_state("OH", _household_rows(99)),
+    )
+    rest = {
+        index for index, state in enumerate(states, start=1) if state not in excluded
+    } | {99}
+    drawn = scenarios_from_cps_frame(
+        frame, n=len(rest), seed=seed, excluded_states=excluded
+    )
+    assert {s.metadata["household_id"] for s in drawn} == rest
+    assert not {s.state for s in drawn} & excluded
+
+
+@settings(deadline=None, max_examples=20)
+@given(
+    st.lists(st.sampled_from(["PA", "TX"]), min_size=2, max_size=8),
+    st.integers(min_value=0, max_value=2**31),
+)
+def test_a_filter_that_matches_no_household_leaves_the_draw_alone(states, seed):
+    """Invariant: naming a state the frame doesn't hold changes nothing, which
+    is why the filter moves no draw from a frame without Alaska households."""
+    frame = _frame(
+        *(
+            _in_state(state, _household_rows(index))
+            for index, state in enumerate(states, start=1)
+        )
+    )
+    n = len(states) // 2
+
+    def ids(**kwargs):
+        return [
+            scenario.metadata["household_id"]
+            for scenario in scenarios_from_cps_frame(frame, n=n, seed=seed, **kwargs)
+        ]
+
+    assert ids(excluded_states=STATES_WITH_UNSTATED_INCOME) == ids()
+
+
+def test_generate_scenarios_passes_the_state_filter_on(monkeypatch):
+    frame = _frame(_household_rows(1), _in_state("AK", _household_rows(2)))
+    monkeypatch.setattr(
+        "policybench.scenarios.load_certified_us_person_frame",
+        lambda: (frame, 2024, "populace_us_2024"),
+    )
+    assert len(generate_scenarios(n=2, seed=1, country="us")) == 2
+    with pytest.raises(ValueError, match="only 1 eligible"):
+        generate_scenarios(
+            n=2,
+            seed=1,
+            country="us",
+            excluded_states=STATES_WITH_UNSTATED_INCOME,
+        )
+
+
 def test_every_taxable_input_counts_as_return_income():
     promptable = {
         spec.output_name
@@ -1402,6 +1494,13 @@ def test_every_taxable_input_counts_as_return_income():
 def test_the_head_spouse_filter_is_a_us_filter():
     with pytest.raises(ValueError, match="US filter"):
         generate_scenarios(n=1, seed=1, country="uk", head_spouse_returns_only=True)
+
+
+def test_the_state_filter_is_a_us_filter():
+    with pytest.raises(ValueError, match="US filter"):
+        generate_scenarios(
+            n=1, seed=1, country="uk", excluded_states=STATES_WITH_UNSTATED_INCOME
+        )
 
 
 def test_load_excluded_household_ids_from_manifest_json(tmp_path):

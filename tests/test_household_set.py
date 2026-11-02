@@ -361,7 +361,15 @@ def test_the_build_check_names_each_dependent_the_engine_gives_return_income(
         id="tx_head_earns",
         state="TX",
         filing_status=None,
-        adults=[Person("adult1", 40, 0.0, {"self_employment_income": 30_000.0})],
+        adults=[
+            Person("adult1", 40, 0.0, {"self_employment_income": 30_000.0}),
+            Person(
+                "adult2",
+                38,
+                0.0,
+                {"is_tax_unit_spouse": True, "self_employment_income": 20_000.0},
+            ),
+        ],
         children=[Person("child1", 16, 0.0)],
     )
     found = hs.dependents_with_return_income(
@@ -409,6 +417,53 @@ def test_the_build_check_reads_the_engine_it_is_given(monkeypatch):
     )
     assert found == []
     assert engines == ["the reference engine"]
+
+
+def test_alaska_alone_gives_income_with_no_input(engine_system):
+    """The draw's state list checked against the reference engine: an adult and
+    a child with no inputs get gross income in Alaska, from the Permanent Fund
+    Dividend, and nowhere else."""
+    from policybench.scenarios import STATES_WITH_UNSTATED_INCOME, US_STATE_CODES
+
+    assert STATES_WITH_UNSTATED_INCOME == {"AK"}
+    assert (
+        hs.states_with_unstated_income(sorted(US_STATE_CODES), engine_system)
+        == STATES_WITH_UNSTATED_INCOME
+    )
+
+
+@pytest.mark.parametrize(
+    ("variable", "person"),
+    [("irs_gross_income", 0), ("dependent_gross_income", 1)],
+    ids=["head", "dependent"],
+)
+def test_the_state_check_reads_the_head_and_the_dependent(
+    monkeypatch, variable, person
+):
+    """A state counts when the engine gives income to either person on either
+    measure, and the check reads the engine it receives."""
+    import numpy as np
+    import policyengine_us
+
+    engines = []
+
+    class Simulation:
+        def __init__(self, tax_benefit_system=None, situation=None):
+            engines.append(tax_benefit_system)
+            self.state = situation["households"]["household"]["state_code"][
+                str(hs.YEAR)
+            ]
+
+        def calculate(self, name, period):
+            amounts = np.zeros(2)
+            if name == variable and self.state == "NM":
+                amounts[person] = 1.0
+            return amounts
+
+    monkeypatch.setattr(policyengine_us, "Simulation", Simulation)
+    found = hs.states_with_unstated_income(["NM", "TX"], "the reference engine")
+    assert found == {"NM"}
+    assert engines == ["the reference engine"] * 2
 
 
 def test_every_input_the_engine_counts_for_a_dependent_is_listed(engine_system):
@@ -522,10 +577,43 @@ def test_the_build_refuses_a_draw_that_kept_a_dependent_with_return_income(
     assert [s.id for s in scenarios] == ["mc_000"]
 
 
+def test_the_build_refuses_a_draw_in_a_state_with_unstated_income(
+    tmp_path, monkeypatch
+):
+    import policybench.scenarios as scenarios_module
+
+    _certified_build(tmp_path, monkeypatch)
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:2]
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: "system")
+    monkeypatch.setattr(
+        scenarios_module, "generate_scenarios", lambda **kwargs: sampled
+    )
+    checked = []
+
+    def unstated(states, system):
+        checked.append((states, system))
+        return {"NM"}
+
+    def references(scenarios, programs, system):
+        raise AssertionError("the build computed references before the check")
+
+    monkeypatch.setattr(hs, "dependents_with_return_income", lambda *args: [])
+    monkeypatch.setattr(hs, "states_with_unstated_income", unstated)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
+    out = tmp_path / "set"
+    with pytest.raises(SystemExit, match="income with no input.*states: NM"):
+        hs.main(["build", "--n", "2", "--seed", "7", "--out", str(out)])
+    assert not out.exists()
+    # Each drawn state, once.
+    assert checked == [(sorted({s.state for s in sampled}), "system")]
+
+
 def test_the_build_filters_the_draw_and_rounds_before_the_references(
     tmp_path, monkeypatch
 ):
     import policybench.scenarios as scenarios_module
+    from policybench.scenarios import STATES_WITH_UNSTATED_INCOME
 
     _certified_build(tmp_path, monkeypatch)
     drawn = {}
@@ -552,11 +640,13 @@ def test_the_build_filters_the_draw_and_rounds_before_the_references(
         "dependents_with_return_income",
         lambda scenarios, system: checked.extend(scenarios) or [],
     )
+    monkeypatch.setattr(hs, "states_with_unstated_income", lambda states, system: set())
     monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
     monkeypatch.setattr(hs, "filing_status_mismatches", lambda scenarios, stated: [])
     out = tmp_path / "set"
     hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
     assert drawn["head_spouse_returns_only"] is True
+    assert drawn["excluded_states"] == STATES_WITH_UNSTATED_INCOME
 
     def amounts(scenario):
         return [
