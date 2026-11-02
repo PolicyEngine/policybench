@@ -578,7 +578,10 @@ def test_an_earlier_name_recreated_with_its_old_bytes_is_reported_not_moved(
     github.release(T2, SHAS["b"], release_id=2)
     (plan,) = rt.plan_landed(start, **where(scratch))
     assert (plan.tag, plan.action) == (T1, "leave")
-    assert "names a commit after that" in plan.reason
+    assert plan.reason == (
+        "main named this tag before sealing began, and its tag now names a commit "
+        "after that; check the release and seal it by hand with seal-release --tag"
+    )
     monkeypatch.chdir(scratch.root)
     argv = ["seal-release", "--landed-after", start, "--ref", "main", "--apply"]
     with pytest.raises(SystemExit, match=f"cannot seal {T1}: .*seal it by hand"):
@@ -603,8 +606,10 @@ def test_an_earlier_release_whose_tag_is_gone_is_reported(scratch, github):
         (T2, "move", second),
         (T1, "leave", None),
     ]
-    assert "its tag no longer exists" in plans[1].reason
-    assert "push it back at the commit it named" in plans[1].reason
+    assert plans[1].reason == (
+        "main named this tag before sealing began, and its tag no longer exists; "
+        "push it back at the commit it named"
+    )
     github.tags[T1] = root  # pushed back at the pre-sealing commit it named
     assert [p.tag for p in rt.plan_landed(start, **where(scratch))] == [T2]
 
