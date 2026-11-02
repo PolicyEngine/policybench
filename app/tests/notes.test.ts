@@ -213,11 +213,17 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "gets 87.9% of PolicyBench answers within $1, weighted by household impact.",
+      "it scores 87.9% on PolicyBench, which weights each answer by household impact and counts dollar amounts within $1 of PolicyEngine&#x27;s reference and eligibility answers that match it.",
     );
     expect(markup).toContain(
-      "On the board it would rank #14 of 51, level with GPT-5.5 (87.9%); GPT-6 Sol leads at 95.2%.",
+      "GPT-5.5, which OpenAI released in April, matches it at 87.9% with AI alone and no web access, while GPT-6 Sol leads at 95.2%, also with AI alone.",
     );
+    expect(markup).toContain("would rank #14 of 51 but does not join the board");
+    // Rates keep one decimal, so GPT-6 Sol's state income tax rate reads 72.0%.
+    expect(markup).toContain(
+      "exceeding GPT-5.5&#x27;s 70.2% and trailing GPT-6 Sol&#x27;s 90.5%, and 66.7% of state income tax amounts, between their 65.6% and 72.0%.",
+    );
+    expect(interpolateNoteText(note, note.paragraphs[0]).length).toBeLessThan(600);
     // Whole numbers under ten are spelled out; thousands get separators.
     expect(markup).toContain("America.gov&#x27;s first replies included five refusals.");
     expect(markup).toContain("Six prompts run past the 8,000 characters");
@@ -228,7 +234,7 @@ describe("notes", () => {
     expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
     expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
     expect(markup).toContain(
-      "never more than 0.8 points below the median model on those four outputs, and without them it would rank #13 of 51.",
+      "trails GPT-5.5 by at most 1.3 points on those four outputs, and without them it would rank #13 of 51.",
     );
     expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
     expect(markup).toContain(
