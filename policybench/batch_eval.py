@@ -13,10 +13,11 @@ Semantics that differ from sync mode, by design:
   is not model latency. Models evaluated in batch mode show no latency on the
   leaderboard rather than a misleading one. Batch turnaround is recorded in
   the run's ``batches/`` state files.
-- ``live_calls`` counts the batch responses that answered a row's cell (one
-  per answered attempt, summed over repair rounds) and is 0 when none did, and
-  ``cache_hit_calls`` is always 0: batch requests bypass the LiteLLM disk
-  cache. ``live_elapsed_seconds`` is empty, like ``elapsed_seconds``.
+- ``live_calls`` counts the batch entries that came back without an error for
+  the requests covering a row's cell, summed over repair rounds, whether or not
+  an entry held that cell's value. It stays 0 when every entry errored or went
+  missing. ``cache_hit_calls`` is always 0: batch requests bypass the LiteLLM
+  disk cache. ``live_elapsed_seconds`` is empty, like ``elapsed_seconds``.
 - Cost columns are reconstructed from token usage at standard synchronous
   rates (litellm's price map plus ``PRICE_OVERRIDES_PER_1M``), matching the
   leaderboard's comparison basis. Actual spend is ~half of the reported
@@ -35,9 +36,11 @@ Semantics that differ from sync mode, by design:
     when every value is present but some explanations are still missing.
 
 A batch row's ``error`` holds only a provider error or a missing batch entry.
-When a cell still lacks a value or an explanation after the last round, sync
-also writes an "after repair" note there (for example ``Missing explanations
-after repair: eitc``); batch writes none.
+Sync also writes a note into the ``error`` of every row of a scenario whose
+repairs left a cell without a value or an explanation (for example
+``Missing explanations after repair: eitc``, or
+``budget_exhausted_at_ceiling: eitc`` for a cell that hit the budget ceiling);
+batch writes no such note.
 
 xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 """
