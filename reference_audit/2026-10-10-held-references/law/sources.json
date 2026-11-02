@@ -1,0 +1,338 @@
+{
+  "saved_on": "2026-10-10",
+  "saved_by": "the session that wrote report/REPORT.md, under ~/reviews/policybench-cells-039-025/law/ on the maintainer's machine",
+  "committed": "law/excerpts.md only. No whole document is committed: the excerpts are the passages relied on, and each document is public at the address given.",
+  "sources": [
+    {
+      "document": "26 U.S.C. 2",
+      "used_for": "VA 039: surviving spouse defined (decisive)",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/2",
+      "official": "https://www.govinfo.gov/link/uscode/26/2?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_2.html": {
+          "sha256": "7919e900a510b83fa63af171c59b29dc7e67929e020b736c2f379166a6694737",
+          "bytes": 53328
+        },
+        "usc26_2.txt": {
+          "sha256": "df3ddb69174abe3e63e2a8b2c2b200ac41210208e80621c6eb0f77e06edb9820",
+          "bytes": 14509
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 61",
+      "used_for": "VA 039: estate income is gross income",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/61",
+      "official": "https://www.govinfo.gov/link/uscode/26/61?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_61.html": {
+          "sha256": "48cef3604357021a49762b150138fad5ecbda5253418d9f111a247cfdffa684f",
+          "bytes": 61485
+        },
+        "usc26_61.txt": {
+          "sha256": "638bc727cde7a8e7fb958287bb10721f283baa6548c9692a0476322b15c790d4",
+          "bytes": 17411
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 86",
+      "used_for": "VA 039: taxable Social Security benefits",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/86",
+      "official": "https://www.govinfo.gov/link/uscode/26/86?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_86.html": {
+          "sha256": "632865e3337c902624a4991ba02e3d16a01d43ef7631dbc3b1312e489607500c",
+          "bytes": 75207
+        },
+        "usc26_86.txt": {
+          "sha256": "550b32ee602140db34c687822cdfdbcdcdd759fa49dccd7bbed01be7c6bae171",
+          "bytes": 20918
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 199A",
+      "used_for": "VA 039: no QBI deduction on a net loss",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/199A",
+      "official": "https://www.govinfo.gov/link/uscode/26/199A?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_199A.html": {
+          "sha256": "06f20c96b0da69dbdccbe88bd015777b0782fa0985aaaf8aa40266542844df38",
+          "bytes": 135047
+        },
+        "usc26_199A.txt": {
+          "sha256": "40e0a6021f5436593742b54f7bc4293f123926b1a19eccec189b0a42ab9e7fe2",
+          "bytes": 35794
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 22",
+      "used_for": "VA 039: credit for the elderly or disabled is zero",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/22",
+      "official": "https://www.govinfo.gov/link/uscode/26/22?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_22.html": {
+          "sha256": "477bf7f154a5a3edaebbfeb0b9d530d243e497482609bcbbcd561b72abac1585",
+          "bytes": 68867
+        },
+        "usc26_22.txt": {
+          "sha256": "4a691719a1638bec7eee396c5d01d714e07886e177adfa259fa92420411f4c65",
+          "bytes": 22319
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 1411",
+      "used_for": "VA 039: net investment income tax threshold",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/1411",
+      "official": "https://www.govinfo.gov/link/uscode/26/1411?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_1411.html": {
+          "sha256": "e03b34fe5fc07c1be67da272550fdcc115773c2e75f24dffa29f8dccca394cb5",
+          "bytes": 40019
+        },
+        "usc26_1411.txt": {
+          "sha256": "b14854d7ae38bfd2bf4dac4100dfb2e6115a1cb4a372b329c8a04f4de80fd319",
+          "bytes": 5911
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "26 U.S.C. 213",
+      "used_for": "OH 025: medical care includes insurance; over-the-counter drugs excluded",
+      "saved_from": "https://www.law.cornell.edu/uscode/text/26/213",
+      "official": "https://www.govinfo.gov/link/uscode/26/213?type=usc&year=mostrecent&link-type=html",
+      "saved_files": {
+        "usc26_213.html": {
+          "sha256": "39eb071b9831de671daf122d3e91be9c19cbfdf503bf4b9e48c8b7062d00dfd9",
+          "bytes": 85032
+        },
+        "usc26_213.txt": {
+          "sha256": "90ab3ac57332c9a5b597c1b9a35d7d75c298a2fd870644722a5923960446d6e3",
+          "bytes": 29118
+        }
+      },
+      "rechecked": "Every excerpt found in the Government Publishing Office's text of the section (govinfo.gov, most recent edition) on 2026-10-10.",
+      "copyright": "Federal statute text; no copyright (17 U.S.C. 105). The saved page is Cornell LII's rendering, which is not committed."
+    },
+    {
+      "document": "Rev. Proc. 2025-32",
+      "used_for": "VA 039: 2026 rate tables, standard deduction, zero rate amount",
+      "saved_from": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "official": "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "saved_files": {
+        "rp-25-32.pdf": {
+          "sha256": "e9ada115fb43a4af5ea326ca91edd40ab0bf29b9be01d2c13d7b8fa96214635b",
+          "bytes": 260406
+        },
+        "rp-25-32.txt": {
+          "sha256": "2ffb0af82cbb647d6b2f7da5e5a2750cf86b1a3879e3662ff85bcc4718ffead7",
+          "bytes": 67652
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: the PDF's sha256 equals the saved copy's, and pdftotext -layout reproduces the saved text byte for byte.",
+      "copyright": "U.S. government work; no copyright (17 U.S.C. 105)."
+    },
+    {
+      "document": "2025 Form 1040",
+      "used_for": "VA 039: form lines",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/f1040.pdf",
+      "official": "https://www.irs.gov/pub/irs-pdf/f1040.pdf",
+      "saved_files": {
+        "f1040.txt": {
+          "sha256": "ac32f00aed489e0722d0b409c0eb12915801d66f3a2fab05bc8391af61426383",
+          "bytes": 20714
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: pdftotext -layout of the PDF reproduces the saved text byte for byte (the session kept no PDF).",
+      "copyright": "U.S. government work; no copyright (17 U.S.C. 105)."
+    },
+    {
+      "document": "2025 Schedule 1 (Form 1040)",
+      "used_for": "VA 039: form lines",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/f1040s1.pdf",
+      "official": "https://www.irs.gov/pub/irs-pdf/f1040s1.pdf",
+      "saved_files": {
+        "f1040s1.txt": {
+          "sha256": "30004f72691a7078d8720e432e83110aa2bc3852ce9b45867becdb8c28222956",
+          "bytes": 9670
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: pdftotext -layout of the PDF reproduces the saved text byte for byte (the session kept no PDF).",
+      "copyright": "U.S. government work; no copyright (17 U.S.C. 105)."
+    },
+    {
+      "document": "2025 Instructions for Form 1040",
+      "used_for": "VA 039: filing status, Social Security worksheet, Tax Table",
+      "saved_from": "https://www.irs.gov/pub/irs-pdf/i1040gi.pdf",
+      "official": "https://www.irs.gov/pub/irs-pdf/i1040gi.pdf",
+      "saved_files": {
+        "i1040gi.txt": {
+          "sha256": "6024dc94dd1f545ed6e2068a42ea11859be546e8fe18ec3082021259f9b45ff1",
+          "bytes": 992267
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: pdftotext -layout of the PDF reproduces the saved text byte for byte (the session kept no PDF).",
+      "copyright": "U.S. government work; no copyright (17 U.S.C. 105)."
+    },
+    {
+      "document": "Ohio Revised Code 5747.02",
+      "effective": "2025-09-30",
+      "used_for": "OH 025: the 2026 schedule (decisive)",
+      "saved_from": "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+      "official": "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+      "saved_files": {
+        "orc_5747_02.html": {
+          "sha256": "960f9336ebcaf1ab4dbe7f75775224e52642d75f03d0f1afa7c134ff1d6c5c3a",
+          "bytes": 25897
+        },
+        "orc_5747_02.txt": {
+          "sha256": "bab2ca1a5a6345f7eb77c98d890e42d87240b4171ac95dd68709a415cfcd21ee",
+          "bytes": 9855
+        }
+      },
+      "rechecked": "Every excerpt found in the section as codes.ohio.gov served it on 2026-10-10.",
+      "copyright": "Ohio statute text; law is not copyrightable. The saved page carries the site's own markup, which is not committed."
+    },
+    {
+      "document": "Ohio Revised Code 5747.01",
+      "effective": "2026-03-05",
+      "used_for": "OH 025: the medical deduction, division (A)(10)",
+      "saved_from": "https://codes.ohio.gov/ohio-revised-code/section-5747.01",
+      "official": "https://codes.ohio.gov/ohio-revised-code/section-5747.01",
+      "saved_files": {
+        "orc_5747_01.html": {
+          "sha256": "9981a8f73a9c4a1301620fe6cd3df4ecee4de11bacf120caf545a6814ffef276",
+          "bytes": 90953
+        },
+        "orc_5747_01.txt": {
+          "sha256": "6e1d21532f1380dc2b961f2a5d5f5d72538ce9aeea16faf3258dc5c4315e0ab5",
+          "bytes": 67567
+        }
+      },
+      "rechecked": "Every excerpt found in the section as codes.ohio.gov served it on 2026-10-10.",
+      "copyright": "Ohio statute text; law is not copyrightable. The saved page carries the site's own markup, which is not committed."
+    },
+    {
+      "document": "Ohio Revised Code 5747.025",
+      "effective": "2025-09-30",
+      "used_for": "OH 025: personal exemptions",
+      "saved_from": "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+      "official": "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+      "saved_files": {
+        "orc_5747.025.html": {
+          "sha256": "b78f7cf31be013cdab55c2e960f89ecafb3d9aa36f90c6a65eabfa3264252546",
+          "bytes": 18407
+        },
+        "orc_5747.025.txt": {
+          "sha256": "65f3589fbca20d48a5631f464993d4c579c5b25df467faeeac42bddb09eff486",
+          "bytes": 4175
+        }
+      },
+      "rechecked": "Every excerpt found in the section as codes.ohio.gov served it on 2026-10-10.",
+      "copyright": "Ohio statute text; law is not copyrightable. The saved page carries the site's own markup, which is not committed."
+    },
+    {
+      "document": "Ohio Revised Code 5747.055",
+      "effective": "2019-10-17",
+      "used_for": "OH 025: retirement income credit",
+      "saved_from": "https://codes.ohio.gov/ohio-revised-code/section-5747.055",
+      "official": "https://codes.ohio.gov/ohio-revised-code/section-5747.055",
+      "saved_files": {
+        "orc_5747.055.html": {
+          "sha256": "76d9f8ff1a3d1cc893a2e28590362bdd333cb7562f8262882f1683fe7af75f93",
+          "bytes": 23177
+        },
+        "orc_5747.055.txt": {
+          "sha256": "86bdaee8f48c0e0f8b1c98bef2ef80f129fd9afa82e7e57588f073aa0bfa567d",
+          "bytes": 8060
+        }
+      },
+      "rechecked": "Every excerpt found in the section as codes.ohio.gov served it on 2026-10-10.",
+      "copyright": "Ohio statute text; law is not copyrightable. The saved page carries the site's own markup, which is not committed."
+    },
+    {
+      "document": "Ohio Revised Code 5747.05",
+      "effective": "2025-09-30",
+      "used_for": "OH 025: joint filing credit, division (E)",
+      "saved_from": "https://codes.ohio.gov/ohio-revised-code/section-5747.05",
+      "official": "https://codes.ohio.gov/ohio-revised-code/section-5747.05",
+      "saved_files": {
+        "orc_5747.05.html": {
+          "sha256": "3345013bf9e2a7d71ba1cbd9ea26a3bd6b179d363c2b8be793f30186df5af2d5",
+          "bytes": 26042
+        },
+        "orc_5747.05.txt": {
+          "sha256": "b277c02e7a318ab94ac3d5fd5278d28fe14d70abd6e16d15caaf443b29ad42f7",
+          "bytes": 9810
+        }
+      },
+      "rechecked": "Every excerpt found in the section as codes.ohio.gov served it on 2026-10-10.",
+      "copyright": "Ohio statute text; law is not copyrightable. The saved page carries the site's own markup, which is not committed."
+    },
+    {
+      "document": "Am. Sub. H.B. 96, 136th General Assembly, as enrolled: pages 2608-2612 and 3145",
+      "used_for": "OH 025: the act's text of R.C. 5747.02, and Section 757.120(A)",
+      "saved_from": "https://search-prod.lis.state.oh.us/api/v2/general_assembly_136/legislation/hb96/07_EN/pdf/",
+      "official": "https://search-prod.lis.state.oh.us/api/v2/general_assembly_136/legislation/hb96/07_EN/pdf/",
+      "saved_files": {
+        "hb96_enrolled_pages_2608-2612_3145.txt": {
+          "sha256": "81a06910b35a564a617201bbf25aa1167a746050aabfa9ba8d111323875f5dbe",
+          "bytes": 19334
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10 (3,156 pages, sha256 017afcd3fef334845f743dbc6ea0c7a64ef5638b1888f7f94ad48d084ea2cacc): Section 757.120(A) on page 3145 and division (A)(3)(c) on pages 2608-2612 read as excerpted.",
+      "copyright": "Ohio session law; law is not copyrightable."
+    },
+    {
+      "document": "Ohio Legislative Service Commission, H.B. 96 Final Analysis (as enacted)",
+      "used_for": "OH 025: the 2026 table, the indexing suspension, veto marks",
+      "saved_from": "https://www.lsc.ohio.gov/assets/legislation/136/hb96/en0/files/hb96-tax-bill-analysis-as-enacted-136th-general-assembly.pdf",
+      "official": "https://www.lsc.ohio.gov/assets/legislation/136/hb96/en0/files/hb96-tax-bill-analysis-as-enacted-136th-general-assembly.pdf",
+      "saved_files": {
+        "lsc_hb96_tax_analysis_as_enacted.pdf": {
+          "sha256": "9c77dc4fdd2c0cae993f2c000e7f618c922c1713b6f514a0c3d24eb769a5547e",
+          "bytes": 618362
+        },
+        "lsc_hb96_tax_analysis_as_enacted.txt": {
+          "sha256": "4d28d92ee85bc5ff10a5f4d57ae4f33ac5a154a144b2a4e1922e7e1a9127ef30",
+          "bytes": 159894
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: the PDF's sha256 equals the saved copy's, and pdftotext -layout reproduces the saved text byte for byte.",
+      "copyright": "State of Ohio publication, treated as possibly copyrighted: short excerpts only."
+    },
+    {
+      "document": "2025 Ohio IT 1040 / SD 100 instruction booklet",
+      "used_for": "OH 025: exemption amounts (p. 17), medical worksheet (p. 41)",
+      "saved_from": "https://dam.assets.ohio.gov/image/upload/v1767095693/tax.ohio.gov/forms/ohio_individual/individual/2025/it1040-booklet.pdf",
+      "official": "https://dam.assets.ohio.gov/image/upload/v1767095693/tax.ohio.gov/forms/ohio_individual/individual/2025/it1040-booklet.pdf",
+      "saved_files": {
+        "oh_it1040_2025.pdf": {
+          "sha256": "931b21e7484ba96e561cf2346d8a7d2a8005bd990724b5903c9a90acede5f50e",
+          "bytes": 3427251
+        },
+        "oh_it1040_2025.txt": {
+          "sha256": "5f07942cbcc27a407bb56a3019564b72bffbf9e65ce3bf89bf6cfd16738f50fb",
+          "bytes": 283527
+        }
+      },
+      "rechecked": "Downloaded again on 2026-10-10: the PDF's sha256 equals the saved copy's, and pdftotext -layout reproduces the saved text byte for byte.",
+      "copyright": "State of Ohio publication, treated as possibly copyrighted: short excerpts only."
+    }
+  ]
+}

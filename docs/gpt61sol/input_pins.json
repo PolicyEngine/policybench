@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "gpt61sol": {
+      "run": "adds202609/gpt61sol/run",
+      "sha256": {
+        "predictions.csv": "e1e7662d5afa5a886d1b9b39fd0488b9d11941ebf10ddc88d821b24f3861d2aa",
+        "run_state.json": "403a46f419c12985fcb925843d972e2e030222fd2c8e336184d920aff5146f1a"
+      }
+    }
+  },
+  "note": "The sha256 of GPT-6.1 Sol's supervised run files as the run finished, written by scripts/finish_gpt61sol.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}

@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a739-22-2003 (allowance conditioned on excess state revenues)",
+      "pre_freeze": true,
+      "published": "current statute (in force for 2026)",
+      "quote": "if there were excess state revenues for the fiscal year ending in that tax year.",
+      "source": "Colorado Revised Statutes \u00a7 39-22-2003 (State sales tax refund)",
+      "url": "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-2003/"
+    },
+    {
+      "pinpoint": "TABOR outlook",
+      "pre_freeze": true,
+      "published": "2026-06",
+      "quote": "State revenue subject to TABOR is expected to fall short of the Referendum C cap by $424.9 million",
+      "source": "Colorado Legislative Council Staff, Economic & Revenue Forecast, June 2026",
+      "url": "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf"
+    },
+    {
+      "pinpoint": "article body",
+      "pre_freeze": true,
+      "published": "2026-01-05",
+      "quote": "Polis said the state will be about $308 million below the TABOR cap, meaning Coloradans will not receive a refund in 2026.",
+      "source": "Colorado Politics, 'No TABOR refunds this year, as Colorado Gov. Polis warns of tight fiscal outlook'",
+      "url": "https://www.coloradopolitics.com/2026/01/05/no-tabor-refunds-this-year-as-colorado-gov-polis-warns-of-tight-fiscal-outlook/"
+    },
+    {
+      "pinpoint": "\u00a732(c)(1)(A)(ii)(II)",
+      "pre_freeze": true,
+      "published": "current code (in force for 2026)",
+      "quote": "has attained age 25 but not attained age 65 before the close of the taxable year",
+      "source": "26 U.S. Code \u00a7 32 (Earned income)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a739-22-123.5 (credit percentage for 2026 and later)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "twenty-five percent of the federal credit that the resident individual claimed on the resident individual's federal tax return for the same tax year",
+      "source": "Colorado Revised Statutes \u00a7 39-22-123.5 (Earned income tax credit)",
+      "url": "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-123-5/"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "The engine allowed the Colorado sales tax refund ($19, computed from MAGI of $4,625.40) for tax year 2026. It applied the tax year 2025 refund table without the statutory condition that FY 2025-26 revenue exceed the TABOR/Referendum C cap. That condition was not met: it was projected unmet before the freeze and certified unmet in September 2026.",
+  "independent_answer": 0,
+  "reference_value": 19,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "For tax year 2026, Colorado law (C.R.S. 39-22-2003) allows the state sales tax refund only if there were excess state revenues for the fiscal year ending in that tax year, which is FY 2025-26. Every official projection before the freeze, including the June 2026 Legislative Council Staff forecast, had FY 2025-26 revenue $424.9M below the Referendum C cap, with no refund obligation, so that refund is $0. The head is 66 and childless, so no federal EITC means no CO EITC, and there is no CO CTC, FATC, senior housing credit or other refundable credit. The engine's $19 is all sales tax refund. It is the published tax year 2025 lowest-tier single-filer amount carried into 2026, an amount 2026 law does not support. The law gives $0, which matches the consensus.",
+  "verdict": "reference_wrong"
+}

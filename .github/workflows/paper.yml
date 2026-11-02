@@ -22,9 +22,19 @@ on:
       - "uv.lock"
       - ".github/workflows/paper.yml"
 
+# A new push to a pull request supersedes the run on its previous head, so
+# cancel that run instead of letting it wait for, then hold, runners the whole
+# PolicyEngine org shares (60 concurrent jobs on the GitHub Team plan). Pushes
+# to main get a group of their own per run, so they are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   paper:
     runs-on: ubuntu-latest
+    # Slowest of 12 successful runs, 2026-10-05..08: 2.0 minutes.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

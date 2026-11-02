@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Subd. 1c",
+      "pre_freeze": true,
+      "published": "2025 (as amended by 1Sp2025 c 10 art 9 ss 1-4)",
+      "quote": "provide to all students at no cost up to two federally reimbursable meals per school day, with a maximum of one free breakfast and one free lunch.",
+      "source": "Minnesota Statutes \u00a7 124D.111 (2025), School meals policy; free school meals program",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Subd. 1d",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "The state aid equals the difference between the applicable federal reimbursement rate at that school site for a free meal, as determined annually by the United States Department of Agriculture, and the actual federal reimbursement received by the participating school",
+      "source": "Minnesota Statutes \u00a7 124D.111 (2025), Free school meals program aid amount",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Supplementary information",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines (July 1, 2026 - June 30, 2027), Federal Register doc. 2026-06842",
+      "url": "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 1,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The household's income, $42,664, is about 156% of the poverty line. That puts it above the federal 130% free-meal limit, and with no SNP or TANF there is no categorical route, so on the federal tier alone the 6-year-old would get reduced-price meals. Minnesota law settles the question instead. Minn. Stat. \u00a7 124D.111, subd. 1c, requires schools in the National School Lunch Program to join the state free school meals program and to give every student one breakfast and one lunch per school day at no cost. Under subd. 1d, the state pays the gap up to the federal free rate. The engine set the meal tier to free through Minnesota's universal free school meals rule for the one K-12 child. That matches the law, so the reference of 1 holds. The consensus answer of 0 applied only the federal income test and missed the state program.",
+  "verdict": "reference_holds"
+}

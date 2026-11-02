@@ -1,0 +1,59 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.7108658,
+  "duration_ms": 185152,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:53:13.394310+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "123f6c6070e9fefc4184514ae2a4a498b51d5f9218444e3f327c93e5ceeea0e2",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "a62ffde8bb0165beb8863ca4e247e7bcce972cd63904aff86d0cbc9750dafa12",
+  "session_id": "e54877b9-3d83-4949-8f4a-60e5d28927ab",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.irs.gov/irb/2025-45_IRB",
+      "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
+      "https://www.law.cornell.edu/uscode/text/26/225",
+      "https://www.law.cornell.edu/uscode/text/26/63",
+      "https://www.law.cornell.edu/uscode/text/26/163",
+      "https://www.law.cornell.edu/uscode/text/26/24"
+    ],
+    "searches": [
+      "2026 child tax credit $2,200 refundable $1,700 Rev. Proc. 2025-32 additional child tax credit",
+      "Notice 2025-67 2026 saver's credit AGI limit married filing jointly $80,500 IRA deduction phase-out $129,000"
+    ]
+  }
+}

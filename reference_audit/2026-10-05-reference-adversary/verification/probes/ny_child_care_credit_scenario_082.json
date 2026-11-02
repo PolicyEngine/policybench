@@ -1,0 +1,839 @@
+{
+  "scenario_id": "scenario_082",
+  "state": "NY",
+  "reference_system": "policyengine-us 2.15.17 + latest_final (reference_audit/2026-09-28/fixes)",
+  "policyengine_core": "3.32.8",
+  "period": "2026",
+  "people": [
+    "head",
+    "child1"
+  ],
+  "reproduction": {
+    "federal_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "payroll_tax": {
+      "published": 8108.02734375,
+      "recomputed": 8108.027344,
+      "reproduces": true
+    },
+    "self_employment_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_income_tax_before_refundable_credits": {
+      "published": 5598.55224609375,
+      "recomputed": 5598.552246,
+      "reproduces": true
+    },
+    "state_refundable_credits": {
+      "published": 667.0,
+      "recomputed": 667.0,
+      "reproduces": true
+    },
+    "local_income_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "snap": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "ssi": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "tanf": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_early_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "free_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "reduced_price_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    }
+  },
+  "all_scored_reproduce": true,
+  "variables": {
+    "ny_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "NY refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 667.0
+      }
+    },
+    "ny_cdcc": {
+      "entity": "tax_unit",
+      "label": "NY CDCC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 360.0
+      }
+    },
+    "ny_cdcc_rate": {
+      "entity": "tax_unit",
+      "label": "NY CDCC rate",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.6
+      }
+    },
+    "ny_cdcc_max": {
+      "entity": "tax_unit",
+      "label": "Maximum NY CDCC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 3000.0
+      }
+    },
+    "cdcc_rate": {
+      "entity": "tax_unit",
+      "label": "CDCC credit rate",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.2
+      }
+    },
+    "cdcc_relevant_expenses": {
+      "entity": "tax_unit",
+      "label": "CDCC-relevant care expenses",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 3000.0
+      }
+    },
+    "cdcc": {
+      "entity": "tax_unit",
+      "label": "Child/dependent care credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 600.0
+      }
+    },
+    "count_cdcc_eligible": {
+      "entity": "tax_unit",
+      "label": "CDCC qualifying individuals",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 1
+      }
+    },
+    "min_head_spouse_earned": {
+      "entity": "tax_unit",
+      "label": "Lesser of head and spouse's CDCC earned income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 100195.0
+      }
+    },
+    "ny_ctc": {
+      "entity": "tax_unit",
+      "label": "NY CTC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 307.0
+      }
+    },
+    "ny_additional_ctc": {
+      "entity": "tax_unit",
+      "label": "New York additional Empire State Child Credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 76.75
+      }
+    },
+    "ny_eitc": {
+      "entity": "tax_unit",
+      "label": "New York EITC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_supplemental_eitc": {
+      "entity": "tax_unit",
+      "label": "NY Supplemental EITC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_real_property_tax_credit": {
+      "entity": "tax_unit",
+      "label": "NY real property tax credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_college_tuition_credit": {
+      "entity": "tax_unit",
+      "label": "NY college tuition credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_household_credit": {
+      "entity": "tax_unit",
+      "label": "NY household credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_non_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "NY capped non-refundable tax credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "ny_agi": {
+      "entity": "tax_unit",
+      "label": "NY adjusted gross income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 117585.148438
+      }
+    },
+    "adjusted_gross_income": {
+      "entity": "tax_unit",
+      "label": "Adjusted gross income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 117652.648438
+      }
+    },
+    "ny_income_tax_before_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "NY income tax",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 5598.552246
+      }
+    },
+    "ny_income_tax_before_credits": {
+      "entity": "tax_unit",
+      "label": "NY income tax before credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 5598.552246
+      }
+    },
+    "ny_income_tax": {
+      "entity": "tax_unit",
+      "label": "NY income tax",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 4931.552246
+      }
+    },
+    "filing_status": {
+      "entity": "tax_unit",
+      "label": "Filing status for the tax unit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": "HEAD_OF_HOUSEHOLD"
+      }
+    },
+    "state_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "state refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 667.0
+      }
+    },
+    "state_income_tax_before_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "state income tax before refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 5598.552246
+      }
+    },
+    "ny_inflation_refund_credit": {
+      "entity": "tax_unit",
+      "label": "New York inflation refund",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "cdcc_filing_status_eligible": {
+      "entity": "tax_unit",
+      "label": "Filing status eligible for the Child/dependent care credit",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": true
+      }
+    }
+  },
+  "parameters": {
+    "gov.states.ny.tax.income.credits.refundable": {
+      "metadata": {
+        "unit": "list",
+        "period": "year",
+        "label": "New York refundable tax credits"
+      },
+      "description": "New York provides the following refundable tax credits.",
+      "value_2026": [
+        "ny_eitc",
+        "ny_supplemental_eitc",
+        "ny_ctc",
+        "ny_cdcc",
+        "ny_real_property_tax_credit",
+        "ny_college_tuition_credit"
+      ],
+      "history": [
+        {
+          "from": "2026-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        },
+        {
+          "from": "2025-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        },
+        {
+          "from": "2024-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        },
+        {
+          "from": "2023-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit",
+            "ny_additional_ctc",
+            "ny_inflation_refund_credit"
+          ]
+        },
+        {
+          "from": "2022-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        },
+        {
+          "from": "2021-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit",
+            "ny_additional_ctc"
+          ]
+        },
+        {
+          "from": "2019-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        },
+        {
+          "from": "2015-01-01",
+          "value": [
+            "ny_eitc",
+            "ny_supplemental_eitc",
+            "ny_ctc",
+            "ny_cdcc",
+            "ny_real_property_tax_credit",
+            "ny_college_tuition_credit"
+          ]
+        }
+      ]
+    },
+    "gov.states.ny.tax.income.credits.cdcc.max": {
+      "metadata": {
+        "type": "single_amount",
+        "threshold_unit": "dependent",
+        "amount_unit": "currency-USD",
+        "amount_period": "year",
+        "label": "New York CDCC max amount",
+        "reference": [
+          {
+            "title": "New York Instructions for Form IT-201 Line 64",
+            "href": "https://www.tax.ny.gov/pdf/2023/printable-pdfs/inc/it201i-2023.pdf#page=26"
+          },
+          {
+            "title": "Section 606 Credits against tax (c)(1-b)",
+            "href": "https://www.nysenate.gov/legislation/laws/TAX/606"
+          },
+          {
+            "title": "New York Form IT-216",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it216_fill_in.pdf"
+          },
+          {
+            "title": "2025 Form IT-201-I Instructions",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it201i.pdf#page=26"
+          }
+        ]
+      },
+      "description": "New York sets this maximum CDCC based on the number of qualifying dependents.",
+      "value_2026": "  - threshold: 1\n    amount: 3000\n  - threshold: 2\n    amount: 6000\n  - threshold: 3\n    amount: 7500\n  - threshold: 4\n    amount: 8500\n  - threshold: 5\n    amount: 9000"
+    },
+    "gov.states.ny.tax.income.credits.cdcc.percentage.multiplier": {
+      "metadata": {
+        "type": "single_amount",
+        "threshold_unit": "currency-USD",
+        "threshold_period": "year",
+        "amount_unit": "/1",
+        "label": "New York CDCC multiplier",
+        "reference": [
+          {
+            "title": "New York Instructions for Form IT-201 Line 64",
+            "href": "https://www.tax.ny.gov/pdf/2023/printable-pdfs/inc/it201i-2023.pdf#page=26"
+          },
+          {
+            "title": "Section 606 Credits against tax (c)(1-a)",
+            "href": "https://www.nysenate.gov/legislation/laws/TAX/606"
+          },
+          {
+            "title": "2025 Form IT-201-I Instructions",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it201i.pdf#page=26"
+          }
+        ]
+      },
+      "description": "New York CDCC rate is multiplied by this amount, given New York AGI.",
+      "value_2026": "  - threshold: 0\n    amount: 1.0\n  - threshold: 50000\n    amount: 1.1682\n  - threshold: 55000\n    amount: 1.2733\n  - threshold: 60000\n    amount: 2.322\n  - threshold: 65000\n    amount: 3.0\n  - threshold: 150000\n    amount: 1.0"
+    },
+    "gov.states.ny.tax.income.credits.cdcc.percentage.main.base_percentage": {
+      "metadata": {
+        "unit": "/1",
+        "period": "year",
+        "label": "New York CDCC main base percentage",
+        "reference": [
+          {
+            "title": "New York Instructions for Form IT-201 Line 64",
+            "href": "https://www.tax.ny.gov/pdf/2023/printable-pdfs/inc/it201i-2023.pdf#page=26"
+          },
+          {
+            "title": "Section 606 Credits against tax (c)(1)",
+            "href": "https://www.nysenate.gov/legislation/laws/TAX/606"
+          },
+          {
+            "title": "2025 Form IT-201-I Instructions",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it201i.pdf#page=26"
+          }
+        ]
+      },
+      "description": "New York sets this base percentage for the main fraction for the CDCC.",
+      "value_2026": 0.2,
+      "history": [
+        {
+          "from": "2000-01-01",
+          "value": 0.2
+        }
+      ]
+    },
+    "gov.states.ny.tax.income.credits.ctc.post_2024.amount": {
+      "metadata": {
+        "type": "single_amount",
+        "threshold_unit": "year",
+        "amount_unit": "currency-USD",
+        "period": "year",
+        "label": "New York CTC post 2024 amount",
+        "reference": [
+          {
+            "title": "New York Senate Bill S.3009-C, Part C, Section 2, Tax Law Section 606(c-1)(1-a)",
+            "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+          },
+          {
+            "title": "2025 Instructions for Form IT-213",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+          }
+        ]
+      },
+      "description": "New York provides these Child Tax Credit amounts by child age.",
+      "value_2026": "  - threshold: 0\n    amount: 1000\n  - threshold: 4\n    amount: 500\n  - threshold: 17\n    amount: 0"
+    },
+    "gov.states.ny.tax.income.credits.ctc.post_2024.phase_out.threshold": {
+      "metadata": {
+        "propagate_metadata_to_children": true,
+        "unit": "currency-USD",
+        "period": "year",
+        "breakdown": [
+          "filing_status"
+        ],
+        "label": "New York CTC post 2024 phase-out thresholds",
+        "reference": [
+          {
+            "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+            "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+          },
+          {
+            "title": "2025 Instructions for Form IT-213",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+          }
+        ]
+      },
+      "description": "New York applies the Child Tax Credit phase-out above these adjusted gross income thresholds by filing status.",
+      "children": {
+        "SINGLE": {
+          "metadata": {
+            "propagate_metadata_to_children": true,
+            "unit": "currency-USD",
+            "period": "year",
+            "reference": [
+              {
+                "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+                "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+              },
+              {
+                "title": "2025 Instructions for Form IT-213",
+                "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+              }
+            ]
+          },
+          "value_2026": 75000,
+          "history": [
+            {
+              "from": "2028-01-01",
+              "value": 0
+            },
+            {
+              "from": "2025-01-01",
+              "value": 75000
+            },
+            {
+              "from": "2000-01-01",
+              "value": 0
+            }
+          ]
+        },
+        "JOINT": {
+          "metadata": {
+            "propagate_metadata_to_children": true,
+            "unit": "currency-USD",
+            "period": "year",
+            "reference": [
+              {
+                "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+                "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+              },
+              {
+                "title": "2025 Instructions for Form IT-213",
+                "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+              }
+            ]
+          },
+          "value_2026": 110000,
+          "history": [
+            {
+              "from": "2028-01-01",
+              "value": 0
+            },
+            {
+              "from": "2025-01-01",
+              "value": 110000
+            },
+            {
+              "from": "2000-01-01",
+              "value": 0
+            }
+          ]
+        },
+        "HEAD_OF_HOUSEHOLD": {
+          "metadata": {
+            "propagate_metadata_to_children": true,
+            "unit": "currency-USD",
+            "period": "year",
+            "reference": [
+              {
+                "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+                "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+              },
+              {
+                "title": "2025 Instructions for Form IT-213",
+                "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+              }
+            ]
+          },
+          "value_2026": 75000,
+          "history": [
+            {
+              "from": "2028-01-01",
+              "value": 0
+            },
+            {
+              "from": "2025-01-01",
+              "value": 75000
+            },
+            {
+              "from": "2000-01-01",
+              "value": 0
+            }
+          ]
+        },
+        "SEPARATE": {
+          "metadata": {
+            "propagate_metadata_to_children": true,
+            "unit": "currency-USD",
+            "period": "year",
+            "reference": [
+              {
+                "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+                "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+              },
+              {
+                "title": "2025 Instructions for Form IT-213",
+                "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+              }
+            ]
+          },
+          "value_2026": 55000,
+          "history": [
+            {
+              "from": "2028-01-01",
+              "value": 0
+            },
+            {
+              "from": "2025-01-01",
+              "value": 55000
+            },
+            {
+              "from": "2000-01-01",
+              "value": 0
+            }
+          ]
+        },
+        "SURVIVING_SPOUSE": {
+          "metadata": {
+            "propagate_metadata_to_children": true,
+            "unit": "currency-USD",
+            "period": "year",
+            "reference": [
+              {
+                "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+                "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+              },
+              {
+                "title": "2025 Instructions for Form IT-213",
+                "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+              }
+            ]
+          },
+          "value_2026": 75000,
+          "history": [
+            {
+              "from": "2028-01-01",
+              "value": 0
+            },
+            {
+              "from": "2025-01-01",
+              "value": 75000
+            },
+            {
+              "from": "2000-01-01",
+              "value": 0
+            }
+          ]
+        }
+      }
+    },
+    "gov.states.ny.tax.income.credits.ctc.post_2024.phase_out.rate": {
+      "metadata": {
+        "unit": "/1",
+        "period": "year",
+        "label": "New York CTC post 2024 phase-out rate",
+        "reference": [
+          {
+            "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+            "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+          },
+          {
+            "title": "2025 Instructions for Form IT-213",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+          }
+        ]
+      },
+      "description": "New York reduces the Child Tax Credit by this percentage of each increment above the adjusted gross income threshold.",
+      "value_2026": 16.5,
+      "history": [
+        {
+          "from": "2028-01-01",
+          "value": 0
+        },
+        {
+          "from": "2025-01-01",
+          "value": 16.5
+        },
+        {
+          "from": "2000-01-01",
+          "value": 0
+        }
+      ]
+    },
+    "gov.states.ny.tax.income.credits.ctc.post_2024.phase_out.increment": {
+      "metadata": {
+        "unit": "currency-USD",
+        "period": "year",
+        "label": "New York CTC post 2024 phase-out increment",
+        "reference": [
+          {
+            "title": "New York Senate Bill S.3009-C (Chapter 59 of 2025), Part C Section 2, Tax Law Section 606(c-1)(1-a)(C)",
+            "href": "https://assembly.state.ny.us/leg/?Text=Y&bn=S3009&default_fld=&leg_video=&term=2025"
+          },
+          {
+            "title": "2025 Instructions for Form IT-213",
+            "href": "https://www.tax.ny.gov/pdf/current_forms/it/it213i.pdf#page=1"
+          }
+        ]
+      },
+      "description": "New York reduces the Child Tax Credit by a certain amount for each increment by which adjusted gross income exceeds the phase-out thresholds.",
+      "value_2026": 1000,
+      "history": [
+        {
+          "from": "2028-01-01",
+          "value": 1
+        },
+        {
+          "from": "2025-01-01",
+          "value": 1000
+        },
+        {
+          "from": "2000-01-01",
+          "value": 1
+        }
+      ]
+    },
+    "gov.states.ny.tax.income.credits.non_refundable": {
+      "metadata": {
+        "unit": "list",
+        "period": "year",
+        "label": "New York non-refundable tax credits"
+      },
+      "description": "New York provides the following non-refundable tax credits.",
+      "value_2026": [
+        "ny_household_credit",
+        "ny_solar_energy_systems_equipment_credit",
+        "ny_geothermal_energy_system_credit"
+      ],
+      "history": [
+        {
+          "from": "2022-01-01",
+          "value": [
+            "ny_household_credit",
+            "ny_solar_energy_systems_equipment_credit",
+            "ny_geothermal_energy_system_credit"
+          ]
+        },
+        {
+          "from": "2019-01-01",
+          "value": [
+            "ny_household_credit",
+            "ny_solar_energy_systems_equipment_credit"
+          ]
+        },
+        {
+          "from": "2007-01-01",
+          "value": [
+            "ny_household_credit",
+            "ny_solar_energy_systems_equipment_credit"
+          ]
+        }
+      ]
+    }
+  }
+}

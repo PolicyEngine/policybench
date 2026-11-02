@@ -1,0 +1,85 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Background on SPA 23-0009; income standard for the 'Individuals above 133% FPL under Age 65' group",
+      "pre_freeze": true,
+      "published": "2024-09-18",
+      "quote": "As part of SPA 23-0009, NC also elected the 'Individuals above 133% FPL under Age 65' eligibility group. ... The income standard for this eligibility group is: 211.00% FPL",
+      "source": "NC Medicaid, SPA 24-0033 Director's Memo (10-day public notice, 1915(i) income disregard)",
+      "url": "https://medicaid.ncdhhs.gov/spa-24-0033-10-day-public-notice-1915i-income-disregard/download"
+    },
+    {
+      "pinpoint": "(b)(1)(iii)-(iv)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "Have household income that exceeds 133 percent FPL but is at or below the income standard elected by the agency and approved in its Medicaid State plan, for the applicable family size.",
+      "source": "42 CFR 435.218 (Individuals with MAGI-based income above 133 percent FPL)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.218"
+    },
+    {
+      "pinpoint": "paragraph (2), No other coverage",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "An optional targeted low-income child is not covered under a group health plan or health insurance",
+      "source": "42 CFR 435.4 (Definitions: Optional targeted low income child)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.4"
+    },
+    {
+      "pinpoint": "(a)(3); (b)",
+      "pre_freeze": true,
+      "published": "version effective until 2026-10-01",
+      "quote": "Children through the age of 18 with family incomes equal to or less than two hundred eleven percent (211%) of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A (Eligibility categories and income thresholds)",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "(b)",
+      "pre_freeze": true,
+      "published": "version effective until 2026-10-01",
+      "quote": "The applicable federal poverty guidelines for the eligibility categories in subsection (a) of this section shall be updated annually on April 1 immediately following publication of the federal poverty guidelines.",
+      "source": "N.C. Gen. Stat. \u00a7 108A-54.3A",
+      "url": "https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_108A/GS_108A-54.3A.html"
+    },
+    {
+      "pinpoint": "Table, household of 5",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "5 | $38,680",
+      "source": "HHS ASPE, 2026 Poverty Guidelines (48 contiguous states)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    },
+    {
+      "pinpoint": "(d)(4)",
+      "pre_freeze": true,
+      "published": "current CFR",
+      "quote": "a state must subtract an amount equivalent to 5 percentage points of the Federal poverty level for the applicable family size only to determine the eligibility of an individual for medical assistance under the eligibility group with the highest income standard",
+      "source": "42 CFR 435.603 (Application of MAGI-based methodologies)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "Summary",
+      "pre_freeze": true,
+      "published": "2023-07-31",
+      "quote": "adopt a new Medicaid eligibility group for certain children under age 19; and align the income standard for all children under age 19 at 211 percent of the federal poverty level",
+      "source": "CMS, Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    },
+    {
+      "pinpoint": "Eligibility, post-April 2023 Medicaid-CHIP criteria",
+      "pre_freeze": true,
+      "published": "2024-04",
+      "quote": "Be in a family whose family income is above one hundred thirty-three percent (133%) through two hundred percent (211%) of the federal poverty level",
+      "source": "NC Department of State Treasurer, Compliance Supplement 93.767 Children's Health Insurance Program (April 2024)",
+      "url": "https://www.nctreasurer.gov/documents/files/slgfdcompliancesupplements/93767-2024/open"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 1,
+  "reference_value": 1,
+  "stage1_error": "Stage 1 (step 4) assumed the only Medicaid group that reaches 211% FPL for ages 6\u201318 is the Optional Targeted Low-Income Children group (42 CFR 435.229). That group requires no group health coverage, so stage 1 ruled Child 3 out over the employer coverage (step 5). Stage 1 missed that SPA 23-0009 also elected the \"Individuals above 133% FPL under Age 65\" group (42 CFR 435.218, SSA 1902(a)(10)(A)(ii)(XX)), with a 211% income standard. That group has no uninsured requirement, and it expressly picks up people who do not qualify for the other optional groups (435.218(b)(1)(iii)). So an insured 9-year-old at 207.8% FPL after the disregard qualifies, and stage 1's answer of 0 does not follow. Stage 1's income arithmetic was right (MAGI $82,301; 212.8% / 207.8% on the 2026 line), as was its April 1 timing caveat. That caveat leaves the child eligible April\u2013December 2026, not ineligible for the year.",
+  "suggested_adjudication": "affirmed",
+  "summary": "NC's SPA 23-0009 adopted two groups for children above the mandatory 133% standard, up to 211% FPL. One is the Optional Targeted Low-Income Children group, which excludes children with group health coverage. The other is the \"Individuals above 133% FPL under Age 65\" group (42 CFR 435.218), which has no insurance condition. So Child 3's employer coverage does not bar Medicaid. MAGI is $82,301 (wages $85,209, less the $2,778 traditional 401(k) and $130 IRA), which is 212.8% of the 2026 guideline ($38,680 for 5). After the 5% disregard that is 207.8%, within 211%. The engine (2.13x FPL against the 211% children's limit) matches the law, so the reference of 1 holds. One caveat: NC switches to the new guideline on April 1. For January\u2013March, measured against the 2025 line, the child is at 213.6% and fails, so the child is eligible April\u2013December.",
+  "verdict": "reference_holds"
+}

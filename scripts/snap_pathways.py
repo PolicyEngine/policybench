@@ -1,4 +1,12 @@
-"""Recompute SNAP eligibility pathways for the frozen 100-household snapshot."""
+"""Recompute SNAP eligibility pathways for the frozen 100-household snapshot.
+
+The committed output (notes/data/snap_pathways_20260901.csv) was built on
+policyengine-us 1.723.0. Reproduce it with policybench at a commit before
+2026-10-09. Since then the situation builder passes partnership_se_income as
+partnership_self_employment_net_earnings, which policyengine-us 1.728.0 added,
+and leaves out the tax-unit mortgage interest inputs; engines before 1.782.1
+have no person-level fallback for them.
+"""
 
 from __future__ import annotations
 

@@ -1,0 +1,64 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.6338840000000001,
+  "duration_ms": 189588,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:17:04.069629+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "760f7b7ee1f6af0ed1c513ac3213767f324ac9d50b102ae6f8452d3a75fe2b2f",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "f5d806830b7860f0eae04b803e353f9684331153992eef6d9b837aacc6301726",
+  "session_id": "44d67d27-5ee6-4dd6-bfe4-c90b58fe1479",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.revisor.mn.gov/statutes/cite/124D.111",
+      "https://www.federalregister.gov/documents/2026/04/09/2026-06842/child-nutrition-programs-income-eligibility-guidelines",
+      "https://www.revisor.mn.gov/statutes/cite/124D.111",
+      "https://www.fna.usda.gov/schoolmeals/fr-040926",
+      "https://www.education.nh.gov/sites/g/files/ehbemt326/files/inline-documents/2026/july1.2026_june-30.2027_child-nutrition-programs_income-eligibility-guidelines_1.pdf",
+      "https://www.federalregister.gov/api/v1/documents/2026-06842.json",
+      "https://www.federalregister.gov/documents/full_text/text/2026/04/09/2026-06842.txt",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://education.mn.gov/mdeprod/idcplg?IdcService=GET_FILE&dDocName=PROD081146&RevisionSelectionMethod=latestReleased&Rendition=primary",
+      "https://content.govdelivery.com/accounts/MNMDE/bulletins/42447e2",
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-A/part-245/section-245.2",
+      "https://www.law.cornell.edu/cfr/text/7/245.2",
+      "https://www.federalregister.gov/documents/full_text/text/2026/04/09/2026-06842.txt"
+    ],
+    "searches": [
+      "USDA child nutrition programs income eligibility guidelines July 1, 2026 through June 30, 2027 Federal Register",
+      "Minnesota Department of Education Free School Meals Program 2026-27 school year all students no cost",
+      "Minnesota free school meals \"reduced-price\" application still needed federal reimbursement \"household application\" MDE"
+    ]
+  }
+}

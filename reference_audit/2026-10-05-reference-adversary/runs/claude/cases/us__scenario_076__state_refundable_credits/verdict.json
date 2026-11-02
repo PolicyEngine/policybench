@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 63-3024A(1)",
+      "pre_freeze": true,
+      "published": "2025-03",
+      "quote": "For tax year 2025 and each year thereafter, the credit is one hundred fifty-five dollars ($155).",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds (am. 2025, ch. 56, sec. 1)",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1), refund of unused credit",
+      "pre_freeze": true,
+      "published": "2025-03",
+      "quote": "If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "Credit amount",
+      "pre_freeze": true,
+      "published": "2026-02-19",
+      "quote": "For most Idaho residents it's $155 per person or up to $250 if you submit receipts for sales tax paid for food.",
+      "source": "Idaho State Tax Commission, Idaho Food Tax Credit page",
+      "url": "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 465,
+  "reference_value": 465,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The reference of $465 holds. Idaho Code \u00a7 63-3024A, as amended by 2025 ch. 56, sets the food tax (grocery) credit at $155 for each taxpayer, spouse and dependent \"for tax year 2025 and each year thereafter.\" The credit has no income limit, and any unused amount is paid as a refund, so it is refundable. The household has 3 people (the head and 2 dependent children), all eligible for 12 months, which gives 3 \u00d7 $155 = $465. That is exactly what the engine computed. The cluster answer of 0 wrongly assumes the credit is nonrefundable or phases out at high income, and stage 1 correctly reached $465.",
+  "verdict": "reference_holds"
+}

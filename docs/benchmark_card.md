@@ -1,8 +1,8 @@
 ---
-title: Benchmark Card
+title: Benchmark card
 ---
 
-# Benchmark Card
+# Benchmark card
 
 This document fixes the intended interpretation of PolicyBench.
 
@@ -35,7 +35,7 @@ PolicyBench is not:
 - an administrative-record benchmark
 
 PolicyEngine outputs are benchmark reference outputs produced by
-microsimulation, not administrative records.
+microsimulation, and no administrative record stands behind them.
 
 ## Canonical response contract
 
@@ -49,13 +49,15 @@ PolicyBench has one canonical evaluation mode.
 
 Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
-selects the tool transport and the provider accepts a forced call, or the same
-fields returned as a JSON object — because the provider rejects a forced tool
-(Kimi K3, Qwen 3.8 Max, Claude Fable 5.1, Claude Opus 5.5) or because the card
-selects JSON
-for the family (the older Gemini and DeepSeek rows). The per-model transport
-is in the snapshot's `model_serving_config.json`.
-This is an output format, not a capability — nothing executes, no result is
+selects the tool transport, or the same fields returned as a JSON object where
+it selects JSON. For most JSON rows the card records that the provider rejects
+a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
+DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
+K3, Muse Spark 1.3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
+select JSON without recording a rejection, and the older Gemini rows answer as
+JSON by the Gemini family default. The per-model transport is in the
+snapshot's `model_serving_config.json`.
+This is an output format and adds no capability: nothing executes, no result is
 returned to the model, and each response is a single round trip. The benchmark
 remains no-tool in every response transport.
 
@@ -63,26 +65,160 @@ The headline score uses the numeric answers only. Explanations are retained for
 auditing, scenario exploration, and qualitative error analysis; they should not
 be described as faithful reasoning traces.
 
+## Reference outputs
+
+PolicyBench computes each scored US reference by running
+`policyengine_us.Simulation` from policyengine-us 2.60.0, the newest release
+when PolicyBench began sweeping the references on 2026-10-23 (uploaded
+2026-10-22 at 22:47 UTC). policyengine-us 2.78.0, the newest release when
+PolicyBench checked PyPI on 2026-10-29 at 16:52 UTC, gives the same value as
+2.60.0 for all 1,935 scored outputs under the same conventions and adapter; it
+moves one excluded output, a federal income tax output, by $10.98. The 49
+excluded outputs keep the values they were decided on (29 computed with
+policyengine-us 1.755.4, 18 with 2.15.17, 2 with 2.38.6), and PolicyBench
+re-reviewed the 16 of them that move on 2.60.0; all 16 stay excluded. The
+manifest also records policyengine.py 6.1.2 for provenance. Its certified US
+bundle carries policyengine-us 2.2.1, and policyengine.py does not load beside
+2.60.0.
+
+Federal income tax references apply the section 1 rate schedule to taxable
+income, to the cent, at every income, and not the IRS Tax Table, which the Form
+1040 instructions direct filers with taxable income under $100,000 to use. The
+two can differ by a few dollars, so an answer that follows the Tax Table can
+miss the $1 tolerance on those outputs (`reference_audit/2026-10-10-tax-table/`).
+
+A scored reference follows from the stated facts and from law published before
+PolicyBench froze the references on 2026-07-03. Where policyengine-us projects
+a 2026 amount with a price index, or carries one published after the freeze,
+the reference takes the amount published before the freeze or, where none was,
+the last one published. Nine publication conventions set those amounts, and each
+changes parameter values only: SNAP's October to December months, for example,
+hold the FY2026 figures in place of USDA's FY2027 figures of 2026-08-21.
+
+PolicyBench first moved the references off the engine version that froze them
+on 2026-09-29, to policyengine-us 2.15.17, the newest release when it began
+sweeping the references that day (uploaded 00:23 UTC). policyengine-us 2.15.17
+counts Maryland county income tax in its state income tax; an adapter takes it
+out again, because PolicyBench's state income tax output leaves local tax out,
+and every later build keeps the adapter.
+
+Four changes between policyengine-us 1.755.4 and 2.15.17 each moved one scored
+reference: New Jersey's child tax credit schedule for 2026 to 2028 (P.L.2026,
+c.26, approved June 30, 2026), Arizona's broad-based categorical eligibility
+limit for SNAP (200% of the poverty guideline from March 2026, up from 185%),
+child support received counting as income for school meals (7 CFR
+245.6(a)(5)(ii)), and the rounding of New York's Empire State child credit
+phase-out. Three federal income tax outputs left scoring (below), and two state
+income tax references moved by less than $1. The reference sidecar's
+2026-09-29 `engine_upgrade` revision lists every change, and
+`reference_audit/2026-09-28/` records the investigation and the independent
+review behind each.
+
+On 2026-10-10 PolicyBench moved the references again, from 2.15.17 to 2.38.6, a
+release that fixes engine defects behind excluded outputs, and recomputed every
+output under the same conventions and adapter. That version fixes the
+defects behind 18 outputs. Release 20261006 excluded 14 of them, which return to
+scoring; the other four are the 2026-10-06 defects below, which stay scored.
+Each lands within $1 of its audited corrected value, and the sidecar's
+2026-10-10 revision names the upstream fix behind it: the IRA deduction's
+compensation limit and a dependent's contributions (#10032, #9801; three
+outputs), the IRA deduction's active-participant phase-out (#10032; four
+outputs), the IRA deduction's active-participant phase-out and California's
+itemized deduction conformity (#10032, #10034), the IRA deduction's
+active-participant phase-out and estate income in gross income (#10032,
+#10027; two outputs), California's itemized deduction conformity (#10034),
+estate income in gross income (#10027, #9633; two outputs), New Jersey's worker
+unemployment and workforce contributions (#10031), Arizona's standard deduction
+indexing (#9928), Ohio's medical deduction for health insurance premiums
+(#10020), Colorado's 2026 sales tax refund (#9946) and New York's 2026 child and
+dependent care credit (#9948). The move changes one scored reference beyond the
+$1 tolerance: policyengine-us now counts Idaho's $10 permanent building fund
+tax (Idaho Code 63-3082) in state income tax (#9810). It also moves two Indiana
+households' local income tax onto a county the prompt does not state, and
+PolicyBench excluded both outputs. One more output, a California household's
+state income tax, lands on its recorded corrected value but stays excluded: the
+release's judge found that its reference rests on a further defect, California's
+non-conformity to the federal educator expense deduction (FTB Instructions for
+Schedule CA (540), Section C, line 11), which policyengine-us 2.38.6 still
+allows. `reference_audit/2026-10-09-engine-upgrade/` holds the builder, its
+evidence and the reviewed actions.
+
+On 2026-10-13 PolicyBench moved the references a third time, from 2.38.6 to
+2.41.0, the first release with every fix the previous move was waiting on, and
+recomputed every output under the same conventions and adapter. The new version
+fixes the defects behind nine outputs. Earlier releases excluded them, and they
+return to scoring. Each lands within $1 of its audited corrected value, and the
+sidecar's 2026-10-13 revision names the upstream fix behind it: Idaho's
+subtraction for health insurance premiums (#10023; two outputs), Wisconsin's
+retirement income exclusion before refundable credits and Wisconsin's capital
+gain subtraction for distributions (#10026; two outputs), the IRA deduction's
+active-participant phase-out, California's itemized deduction conformity and
+California's educator expense addback (#10032, #10034, #10052) and elective
+deferrals in the earned income behind the EITC and the refundable child tax
+credit (#10030; four outputs). For the two Idaho outputs, the audited value is
+the one the audit's fix modules give on 2.38.6, $10 above the record's, because
+policyengine-us counts Idaho's $10 permanent building fund tax from 2.38.6. For
+the California output, it is the value the fix modules give on 2.38.6 with the
+educator expense addback this audit added, the further defect the previous move
+found behind that output. The new version also fixes the heat-and-eat SNAP
+utility allowance (#10033), and a SNAP output it excluded lands on its corrected
+value, $3,240, but stays excluded: as the 2026-09-29 recheck found, the stated
+facts do not decide it. The prompt calls the head disabled but states no route
+by which 7 U.S.C. 2012(j) makes a member disabled (with one, the allowance would
+stand, at $3,576), and it does not say whether the household's $2,000 energy
+subsidy is a LIHEAP payment or a State-law payment, which 7 U.S.C. 2014(k)(4)
+treats differently. The move changes no scored reference, by any amount, and
+removes no output from scoring. `reference_audit/2026-10-12-engine-upgrade/` holds the
+builder, its evidence and the reviewed actions.
+
+On 2026-10-23 PolicyBench moved the references a fourth time, from 2.41.0 to
+2.60.0, the newest release when it began sweeping the references, and
+recomputed every output under the same conventions and adapter. The move
+returns no excluded output to scoring and removes none from scoring. It
+changes four scored references, each for law in force before the freeze. An
+elderly Californian who lives alone, whose SNAP was $0, now gets the $24
+monthly minimum, $288 a year: California's modified categorical eligibility
+for CalFresh applies no net income test, even to a household with an elderly
+or disabled member, and the previous version applied one (#10036). Three
+households in Pennsylvania and Arkansas have too much income for free or
+reduced-price school lunch, but those states give students at covered schools
+a free breakfast (Pennsylvania's Act 33 of 2023 and Arkansas's Act 123 of
+2025), so the output asking whether PolicyEngine returns free school meal
+support is now yes for each (#10238). policyengine-us models both breakfast
+laws for a student at a covered school without their conditions: Pennsylvania
+reimburses schools to the extent funds are available, and Arkansas serves the
+breakfast on request. PolicyBench re-reviewed the 16 excluded outputs whose
+values move on 2.60.0; all stay excluded.
+`reference_audit/2026-10-22-engine-upgrade/` holds the builder, its evidence
+and the reviewed actions.
+
 ## Audit scope
 
-The frozen US annotations cover 7,545 scored rows selected because their
-legacy threshold score is below 1 (1,793 further annotated rows sit on the 52
-excluded outputs and are description, not audit). This audit universe contains
-7,541 of the snapshot's 7,541 exact-match misses and four exact hits. Another
-1,843 scored rows have a bounded score below 100 but fall outside the
+The frozen US annotations cover 9,050 scored rows selected because their
+legacy threshold score is below 1 (1,949 further annotated rows sit on the 49
+excluded outputs, as description outside the audit). This audit universe contains
+9,046 of the snapshot's 9,046 exact-match misses and four exact hits. Another
+2,407 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 314 cases, Claude Opus 5 through the Claude Code CLI for 183 cases the
-September 5 additions joined, and Claude Opus 5.5 for 171 cases the September
-22 additions joined or a reference revision changed; the manifest's
-audit_annotation_artifacts.judge_provenance block carries the tally. Verdicts
-change no score. A judge verdict outside the final classes, and every
+CLI for 264 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
+the September 5 additions joined that no later judge re-judged, and Claude Opus
+5.5 for 325 cases: those the September 22, September 29, September 30, October 9,
+October 13, October 14 and October 27 additions joined or a reference revision changed, and five whose
+earlier verdicts an audit of the judges' transcripts could not show came from a
+judge that saw only its prompt
+(docs/judge_isolation_2026-09-30/REPORT.md); the
+manifest's audit_annotation_artifacts.judge_provenance block carries the tally.
+Verdicts change no score. A judge verdict outside the final classes, and every
 reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
-kept and says so) beside the decision and the reasoning. This snapshot carries 63: one
-for each excluded output, plus the flagged references the adjudication
-affirmed or replaced with a regenerated reference.
+kept and says so) beside the decision and the reasoning. This snapshot carries
+63: one for each excluded output, one for each flagged reference the
+adjudication affirmed or replaced with a regenerated reference, and three for
+cases whose misses the judge attributed to the reference applying later law;
+the adjudication records them as model errors because that law predates the
+freeze.
 
 The September 22 audit implemented each defect it confirmed in policyengine-us
 1.755.4 as a sandbox fix on that engine version and recomputed every
@@ -92,34 +228,57 @@ after the references were frozen (#8839, #9162, #9301, #9313, #9318, #9363 and
 at adjusted gross income, the engine's SNAP rounding, and the SNAP child
 support option, whose engine values carried the opposite meaning: the engine
 excluded child support paid from gross income in Michigan, which deducts it
-from net income). The scored references they move are regenerated with the
-fix on the same engine version: 15 references. The child support fix merged on
-2026-09-24; release dashboard-data-20260922b excluded the one output it moves
-while the fix was open, and release dashboard-data-20260922c regenerates it.
-An output one of them moves that an unfixed cause also moves stays excluded.
-The capital gain fix as first built also applied Wisconsin's capital gain
-exclusion to the distributions, which the upstream fix does not; that part is
-recorded as its own defect, not fixed upstream.
+from net income). For the September 22 references, PolicyBench applied those
+fixes on 1.755.4 to the 15 scored references they move; policyengine-us 2.15.17
+contains all eight, so the references now take them from the engine. An output
+one of them moves that an unfixed cause also moves stays excluded. The capital
+gain fix as first built also applied Wisconsin's capital gain exclusion to the
+distributions, which the upstream fix did not; that part was recorded as its
+own defect, which policyengine-us fixed later (#10026).
 
-Fifty-two outputs in 36 households are excluded from scoring for every model
+Forty-nine outputs in 37 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
-manifest). Every output a defect not fixed upstream moves by more than a dollar
-is excluded: 28 are recorded as engine-defect exclusions across the eleven such
-root causes (among them the IRA deduction's compensation limit and phase-out,
-estate income, and the heat-and-eat SNAP utility allowance that P.L. 119-21
-ended for households without an elderly or disabled member), and an output
-such a defect moves that was already excluded for an unstated input keeps that
-record. Twenty-four depend on an input the
-prompt never states, such as the SSI disability criterion, months of SSDI
-receipt, weekly hours worked, the type of survivor benefits, who paid for the
-coverage behind a disability benefit, or whether an adult tax dependent is the
-filers' child; each was recomputed under the other reading a careful reader
-could take, and it moved. Exclusion is symmetric: rows that matched the frozen
-reference leave the score with rows that did not, so every model is scored on
-1,932 of its 1,984 requested outputs. The rows on those outputs stay annotated
-as description: each carries its exclusion's class, except the 50 answers that
-never parsed, which stay parse_contract_failure; no scored row carries a
-descriptive class. The prompt states disability as one general fact
+manifest). The September 22 audit recomputed every reference on
+policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
+output a defect not fixed upstream moved by more than a dollar. Of those
+records, 5 remain as engine-defect exclusions. policyengine-us 2.60.0 computes
+all five at their corrected values; they stay excluded because each also moves
+under an input the prompt does not state. An output such a defect moves that was
+already excluded for an unstated input keeps that record. On each later
+engine these outputs keep the value they were decided on: the engine gives the
+same value, or it moved and a re-review found the exclusion still holds.
+Forty-two depend on an input the prompt never states, such as whether a
+person meets SSI's definition of disability, months of SSDI receipt, weekly
+hours worked, the type of survivor benefits, who paid for the coverage behind a
+disability benefit, whether an adult tax dependent is the filers' child,
+whether a listed state and local tax refund counts as income, which turns on
+whether the refunded tax reduced federal tax in the year the household paid it
+(26 U.S.C. 111(a)), the state income tax withheld or paid during 2026, which
+the federal state and local tax deduction takes as its state income tax part
+and policyengine-us estimates from federal adjusted gross income, Medicare
+enrollment and a Part B premium, which policyengine-us assumes for every
+Medicare-eligible person and counts as a medical expense, whether the
+employer deducts the employee share of a state paid-leave or disability
+premium that the law lets it deduct but does not require, whether a household's
+income tax covers only the head and spouse's return or every return its members
+must file, or the county of residence, which decides Indiana's county income
+tax; each was recomputed under the other reading a careful reader could take,
+on the engine version that produced its reference, and it moved. The other two
+are Louisiana households' state income tax, whose reference rests on a standard
+deduction amount Louisiana published after the freeze. One of the forty-two, a California household head's Medicaid eligibility, moved
+only once the engine read SSI's definition of disability where the law does.
+The head's income is above the limit for the adult expansion group, so only a
+disability pathway leads to Medi-Cal, and California's Working Disabled Program
+requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
+2.15.17 tests the general disability flag instead and gives 1 under either
+reading; with the program's test reading SSI's definition of disability, the
+head qualifies only by meeting it.
+Exclusion is symmetric: rows that matched the frozen reference leave the score
+with rows that did not, so every model is scored on 1,935 of its 1,984
+requested outputs. The rows on those outputs stay annotated as description:
+each carries its exclusion's class, except the 38 answers that never parsed,
+which stay parse_contract_failure; no scored row carries a descriptive class.
+The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
 SNAP, Medicare and the tax code each apply their own determination, which no
 benchmark person carries, so a disabled person's references take the
@@ -128,24 +287,65 @@ non-disabled path unless another listed fact establishes the determination
 reference for a disabled under-65 household member as a finding about that
 person's SSI eligibility.
 
-A scored reference follows from the stated facts and from law published before
-the references were frozen on 2026-07-03. Where policyengine-us projected a
-2026 amount with a price index, the reference takes the amount published
-before the freeze or, where none was, the last one published; a convention
-changes parameter values only. With the upstream fixes, 26 references in 24
-households are regenerated on the same engine version: 13 SNAP outputs, whose
-October to December months hold the FY2026 figures and whose allotments apply
-the SNAP rounding fixes (one of them also the child support fix, which puts it
-at $0), and 13 in federal and state income tax and credits.
-The reference sidecar records each regenerated value with the convention or
-fix that produced it.
+On policyengine-us 2.15.17, PolicyBench re-ran four of the September 22 sweeps
+behind these exclusions over every output: the IRA deduction limit fix, the net
+investment income tax definition, and the readings for mortgage residence and
+40 unlisted weekly hours. It ran a new sweep for the state and local tax refund
+reading. Set against the same 2.15.17 calculation without its fix or reading,
+no sweep moves a scored output by more than the $1 exact-match tolerance, and
+three scored outputs move by less. The other ten defect fixes and the other
+readings (SSI's definition of disability, months of SSDI receipt, survivor
+benefits, disability coverage, adult dependents and Massachusetts bank
+interest) ran on 1.755.4 only. The engine-upgrade review covered the outputs
+the upgrade moved, and through them it flagged the California Medicaid output
+above, which the reading of SSI's definition of disability does not move on
+2.15.17 because the engine's Working Disabled Program test reads the general
+disability flag. An output that one of those fixes or readings would move on
+2.15.17, but did not move on 1.755.4, could still be scored.
+
+On 2026-10-05 a review of release dashboard-data-20260930 swept every output on
+policyengine-us 2.15.17 under readings of three inputs no prompt states: the
+state income tax in the federal state and local tax deduction, which
+policyengine-us fills with a formula estimate of withholding on federal
+adjusted gross income (`reference_audit/2026-10-05/`); Medicare enrollment and
+the Part B premium, which policyengine-us assumes for every Medicare-eligible
+person (`reference_audit/2026-10-05-medicare-part-b/`); and whether the
+employer deducts an employee share of a state paid-leave or disability premium
+that the law lets it deduct but does not require
+(`reference_audit/2026-10-05-payroll/`). Each sweep's baseline reproduces all
+1,928 references that release scored. Beyond the $1 tolerance the sweeps move
+eight scored outputs, which PolicyBench excluded: the federal income tax of
+three households, one household's Virginia income tax, and the payroll tax of
+four households in Minnesota, Colorado, Massachusetts and New York. They also
+move two federal income tax outputs that were already excluded, and no output
+that is still scored by any amount. No judge had flagged the eight.
+
+On 2026-10-06 PolicyBench ruled to exclude ten more outputs. Eight came from
+a reference adversary (`reference_audit/2026-10-05-reference-adversary/`), which
+flags the scored outputs where many models, or several of the strongest, agree
+on an answer the reference does not give. A judge that cannot yet see the
+engine's derivation works each flagged output from primary law, and only then
+reconciles its answer with the derivation. The adversary flagged 61 outputs and
+ran 52, the other nine belonging to other audits, and it held 45 references. An
+independent check of its seven other verdicts confirmed four as engine defects
+(Arizona's 2026 standard deduction left unindexed, Ohio's medical deduction for
+health insurance premiums, Colorado's 2026 sales tax refund, and New York's
+2026 child and dependent care credit), refuted two (the Medicaid eligibility of
+two children in a North Carolina household, whose references stand), and found
+the seventh to be a question of definition: where a dependent must file their
+own return, the output definitions do not say whether the household's income
+tax includes it, which reaches four outputs in a Pennsylvania and a Missouri
+household. The other two are the Louisiana outputs above
+(`reference_audit/2026-10-05-louisiana/`). The 2026-10-10 engine move fixed
+the four defects, so those four outputs stay scored; the other six are
+excluded.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
 labeled as ablations and not mixed into leaderboard claims.
 
-CLI default outputs under `results/local/` are scratch artifacts, not canonical
-leaderboard snapshots.
+CLI default outputs under `results/local/` are scratch artifacts. The canonical
+leaderboard snapshots are the frozen ones under `paper/snapshot/`.
 
 Operational paid runs should follow the repository runbook
 ([`docs/runbook.md`](runbook.md)): fixed scenario manifests, Claude models in
@@ -178,7 +378,7 @@ direct tax, credit, benefit, health-support, and coverage outputs that can be
 asked from household facts. It excludes intermediate tax bases, payroll
 subcomponents, outputs needing unavailable history or local market data, and
 outputs that are primarily take-up or imputation assignments. WIC is requested
-as person-level eligibility, not as a dollar amount.
+as person-level eligibility, with no dollar amount.
 
 ## Snapshot policy
 
@@ -215,7 +415,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-09-22 snapshot scores
+- Activation is a snapshot decision: the current 2026-10-27 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
@@ -230,21 +430,78 @@ Discipline for private files:
 
 The benchmark currently has one condition, `no_tools`. That label is attached
 at dashboard-export time (`build_dashboard_payload` in
-`policybench/analysis.py`), not carried through run artifacts: prediction
+`policybench/analysis.py`), and run artifacts do not carry it: prediction
 CSVs have no condition column, and the eval loop does not parameterize it.
 Adding a second condition (web search, tool-assisted) therefore requires
 threading a `condition` field through run storage and analysis before the
-export — tracked as part of the run-store cutover — rather than new UI work;
+export (tracked as part of the run-store cutover). It needs no new UI work:
 the site's types and leaderboard already filter on `condition`.
 
 ## Cost basis
 
 Each frozen row uses its recorded per-call cost: reconstructed from token counts
 at the list price configured at request time, or the provider-reported charge
-where no reconstruction was available. List-price overrides apply at request time, not retroactively to
-recorded costs. Models without per-call costs use the frozen release-metadata
-cost. Published model costs retain these recorded totals rather than repricing
-past calls at today's rates.
+where no reconstruction was available. A list-price override applies to
+requests made after it is set and leaves recorded costs unchanged. Published
+model costs retain these recorded totals, and no past call is repriced at
+today's rates. GPT-5.5 ran
+through OpenAI's batch API, and its costs are reconstructed at standard
+synchronous rates. Claude Fable 5's board rows carry no usage fields: they were
+rebuilt from release dashboard-data-20260701 without them. Its published cost,
+tokens and latency come from the per-call rows of its original run, which that
+release publishes as `claude-fable-5-predictions.csv.gz`.
+
+The harness caches provider responses on disk, keyed on the request and the
+prompt contract version (`policybench/cache.py`). A request identical to an
+earlier one returns the cached response, and its row records that response's
+answers and tokens. Its cost is computed from the replayed response when the
+row is written: its token counts at the list prices then in effect
+(PolicyBench's own price for the model where it sets one, otherwise litellm's
+price table), or the provider's charge embedded in it where no reconstruction
+exists. Each
+household's cost counts its responses once, whether or not the board run paid
+for them, and leaves out spend on attempts that did not reach the board.
+
+## Latency basis
+
+Each prediction row records its household's request time divided among the
+household's rows, so a household's latency is the sum over its rows
+(`analysis.household_latency_seconds`). A household that needs several calls
+(one or three outputs per request, a repair, or a re-request with a larger
+completion budget) makes them one after another and records their sum. A
+request the harness retries after a provider error is timed only on the
+attempt that succeeded. Published `latencySeconds` is the median
+across households. A household with no recorded time is left out of the
+median, so GPT-5.5, whose batch rows record none, has no latency.
+
+A cached response is answered in hundredths of a second, and its row records
+that lookup as the call's latency. In the frozen predictions, 330 households
+sum to under a second, all under 0.12 s; the fastest live household takes
+1.75 s. The audit (`docs/latency_replay_audit.md`, with every household in
+`docs/latency_replay_audit/households.csv`) traces 328 of them to an earlier
+request on the same household. The other two (Grok 4.3's scenario_000 and
+Claude Haiku 4.5's scenario_009) come from runs that predate per-call
+timestamps and left no cache or ledger. Another 33 households replay their
+first recorded call and then reach the provider, so their times leave out that
+call.
+
+- Qwen3.7-max (93 households), GLM-5.2 (80), Kimi K2.6 (75) and MiniMax M3
+  (53) were finished over several passes, each of which replayed the earlier
+  passes' successes. Their published medians, 0.003 to 0.033 seconds, are
+  cache lookups that measure no model latency, and the paper shows them as a dash.
+- Claude Sonnet 5 (9 households) replays its smoke and two restarted chunks.
+  Muse Spark 1.3 (4) and Muse Wonder, Claude Opus 5.5 and Claude Haiku 5.5
+  (2 each) replay their onboarding smokes. DeepSeek V4 Pro and GPT-5.6 Sol,
+  Luna and Terra (2 each) replay requests sent minutes to an hour before
+  their runs. Replays can only lower a median. Dropping these households would
+  raise no published median by more than 2.5 seconds (DeepSeek V4 Pro, 169.9
+  to 172.4 s).
+- The 33 partial replays are in GLM-5.3 (18), GLM-5.3-Flash (preview) (4),
+  Kimi K2.6 (4), Claude Sonnet 5 (2), Kimi K3 (2), and GLM-5.2, MiniMax M3 and
+  Qwen3.7-max (1 each).
+
+The leaderboard does not display latency. Whether published medians should
+leave out replayed households is an open methodology decision.
 
 ## Country data paths
 
@@ -257,9 +514,60 @@ populace dataset and scores outputs against PolicyEngine US reference outputs.
 
 The repository retains legacy UK-calibrated transfer-path support, but the
 current public release is US-only. If UK results are revived, describe that path
-as a public UK transfer path for benchmarking, not as a replacement for enhanced
-Family Resources Survey (FRS) microdata or as a population-representative UK
-household sample.
+as a public UK transfer path for benchmarking. It does not replace enhanced
+Family Resources Survey (FRS) microdata, and its households are not a
+population-representative UK sample.
+
+The UK path samples households from the public calibrated transfer dataset in
+`PolicyEngine/policyengine-uk-data` (`enhanced_cps_2025.h5`, pinned to commit
+`6b1f80e` and its sha256). Those records are PolicyEngine US households
+re-weighted to UK targets, and they carry no State
+Pension: every pension-age person in the sample has none, and the prompt says
+so by listing none. Since October 2026 the path works as follows.
+
+- **Reference-period inputs.** The artifact stores the 2025 survey year.
+  PolicyEngine UK uprates stored incomes, rents and savings when it calculates
+  2026-27, so the prompt shows the uprated 2026-27 amounts the reference uses.
+- **References from the prompted facts.** Each UK reference is a PolicyEngine
+  UK household simulation of exactly the facts the prompt lists, one simulation
+  per household, as on the US path. Facts the source record holds and the
+  prompt omits (for example Universal Credit deductions, or the seeded draw
+  that marks some 2026 health-element claimants as new) cannot move a
+  reference. `calculate_uk_transfer_microsimulation_values` recomputes the
+  outputs from the full records as a cross-check.
+- **Derived facts stated.** Where PolicyEngine UK derives a fact that changes
+  an output, the prompt states it: each person's sex and date of birth (State
+  Pension age and the Pension Credit savings credit cutoff), the education
+  status of anyone aged 16 to 19 (qualifying young person rules), and an
+  adult's limited capability for work and work-related activity for Universal
+  Credit, held since before 6 April 2026.
+- **Relationships and locality stated.** The prompt says two listed adults are
+  a couple who are not married or in a civil partnership, and the reference
+  supplies exactly that (claimant and partner flags, no marriage), so neither
+  PE-UK's presumed-child rule nor its presumption that couples are married
+  applies. A private renter's prompt states a Broad Rental Market Area: a
+  fixed area within each region, since the transfer data records none and
+  PE-UK otherwise reads Maidstone's Local Housing Allowance everywhere.
+  Someone in non-advanced education has the age it began stated (16 where
+  the scenario gives none).
+- **Facts as shown.** Every UK amount is the whole number the prompt shows,
+  and every rate the four significant figures it shows, so the reference uses
+  the stated figure in place of an unrounded uprated one.
+- **Pension contributions.** PolicyEngine UK deducts both kinds of
+  contribution from taxable income and neither from adjusted net income, so
+  they do not lower the High Income Child Benefit Charge or the personal
+  allowance taper (policyengine-uk #2243). The prompt states that convention
+  for each: employee contributions under a net pay arrangement, and personal
+  contributions as a gross amount. It does not call personal contributions
+  relief at source, which works differently and which the reference does not
+  model.
+- **One canonical scenario.** The prompt renderer and the reference builder
+  both start from `canonical_uk_scenario`, which applies these conventions,
+  so a scenario loaded from a manifest gives each the same facts.
+- **Engine-version guards.** Reference generation stops if the artifact stores
+  a variable the installed PolicyEngine UK does not define, or if a derived
+  fact the prompt states is renamed, so a model release cannot silently drop
+  an input from the reference while it still reaches the prompt.
 
 ## Naming discipline
 

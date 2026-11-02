@@ -1,0 +1,82 @@
+{
+  "ambiguity": "The only path to the $19 reference is to treat the TY2025 TABOR sales-tax-refund table, where single filers with modified AGI of $52,000 or less get $19, as still in force for TY2026. The statute ties the refund to a surplus in the fiscal year ending in the tax year (FY 2025-26), and pre-freeze forecasts projected a shortfall with no refund. So that reading is not a reasonable reading of the law; it is a stale parameter. Whether the sales tax refund counts as a 'credit' at all doesn't matter, since it is $0 either way.",
+  "citations": [
+    {
+      "pinpoint": "subsection (2)",
+      "pre_freeze": true,
+      "published": "Current through Fall 2025",
+      "quote": "there shall be allowed to each qualified individual a state sales tax refund ... if there were excess state revenues for the fiscal year ending in that tax year that voters statewide have not authorized the state to retain and spend and that are required to be refunded pursuant to section 20 (7)(d) of article X of the state constitution.",
+      "source": "C.R.S. \u00a7 39-22-2003 (State sales tax refund - offset against state income tax - qualified individuals)",
+      "url": "https://colorado.public.law/statutes/crs_39-22-2003"
+    },
+    {
+      "pinpoint": "TABOR Outlook, FY 2025-26",
+      "pre_freeze": true,
+      "published": "2026-06",
+      "quote": "In FY 2025-26, state revenue subject to TABOR is projected to fall below the Referendum C cap by $424.9 million, and the state will not incur an obligation for TABOR refunds. As a result, no refunds to taxpayers are expected to be made via property tax exemptions and assessed value reductions, or refunds using the income tax form.",
+      "source": "Colorado Legislative Council Staff, Economic & Revenue Forecast, June 2026",
+      "url": "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf"
+    },
+    {
+      "pinpoint": "TABOR Outlook",
+      "pre_freeze": true,
+      "published": "2025-12",
+      "quote": "revenue for FY 2025-26 is expected to be below the cutoff amount, and there are no refunds to taxpayers in FY 2025-26",
+      "source": "Colorado Legislative Council Staff, Economic & Revenue Forecast, December 2025",
+      "url": "https://content.leg.colorado.gov/sites/default/files/dec2025forecastforpostingwithcover-accessible_0.pdf"
+    },
+    {
+      "pinpoint": "State Sales Tax Refund table, Single row, modified AGI $52,000 or less",
+      "pre_freeze": true,
+      "published": "2025-10-03",
+      "quote": "$52,000 or less: $19 (Single)",
+      "source": "Colorado Department of Revenue, DR 0104 (2025) Colorado Individual Income Tax Return",
+      "url": "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf"
+    },
+    {
+      "pinpoint": "Bill summary and status",
+      "pre_freeze": true,
+      "published": "2026-02-18",
+      "quote": "Concerning the removal of the maximum age requirement for the state earned income tax credit. ... Status: Lost",
+      "source": "Colorado General Assembly, HB26-1240 State Earned Income Tax Credit Age Limit",
+      "url": "https://www.leg.colorado.gov/bills/HB26-1240"
+    },
+    {
+      "pinpoint": "Eligibility",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "the Colorado EITC is allowed only to resident individuals who claim and are allowed a federal EITC on their federal income tax return for the same tax year",
+      "source": "Colorado Department of Revenue, Income Tax Topics: Earned Income Tax Credit",
+      "url": "https://tax.colorado.gov/income-tax-topics-earned-income-tax-credit"
+    },
+    {
+      "pinpoint": "Rule 11 (no qualifying child age test)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "You must be at least age 25 but under age 65 at the end of 2025",
+      "source": "IRS Publication 596 (2025), Earned Income Credit",
+      "url": "https://www.irs.gov/publications/p596"
+    },
+    {
+      "pinpoint": "Bill summary and status",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "The measure extends a refundable income tax credit for qualifying seniors for tax years commencing January 1, 2025, and January 1, 2026. ... Status: Lost",
+      "source": "Colorado General Assembly, SB25-013 Senior Housing Income Tax Credit Extension",
+      "url": "https://www.leg.colorado.gov/bills/SB25-013"
+    },
+    {
+      "pinpoint": "Bill summary",
+      "pre_freeze": true,
+      "published": "2024-06-06",
+      "quote": "Income tax year commencing January 1, 2024",
+      "source": "Colorado General Assembly, HB24-1052 Senior Housing Income Tax Credit",
+      "url": "https://www.leg.colorado.gov/bills/HB24-1052"
+    }
+  ],
+  "computation": "Household: one single filer, a Colorado resident aged 66, with no dependents. Wages are $4,088, less the $15 traditional 401(k) deferral, and taxable pension is $553. The $1 traditional IRA deduction brings federal AGI to about $4,625. Taxable income is $0 for both federal and Colorado purposes. I checked each possible Colorado refundable credit for TY2026:\n(1) Colorado EITC. It is generally available only to filers allowed the federal EITC. A filer with no qualifying child must be at least 25 and under 65 (IRC \u00a732(c)(1)(A)(ii); Pub 596 Rule 11). At 66 the head gets no federal EITC. Colorado's own exceptions cover ITIN filers and a lowered minimum age; neither applies. HB26-1240 would have removed Colorado's maximum age, but only from TY2028, and it was Lost. Result: $0.\n(2) Colorado Child Tax Credit and Family Affordability Tax Credit: both need a child, and the FATC is not available in 2026. Result: $0.\n(3) Child care expense credits: no child care expenses. Result: $0.\n(4) Senior Housing Income Tax Credit (HB24-1052): it covered TY2024 only. SB25-013, which would have extended it to TY2025\u20132026, was Lost. Result: $0.\n(5) TABOR state sales tax refund (C.R.S. 39-22-2003(2)): it is allowed only 'if there were excess state revenues for the fiscal year ending in that tax year'. For TY2026 that is FY 2025-26. The June 2026 Legislative Council Staff forecast, published before the freeze, projects revenue $424.9M below the Referendum C cap, so 'the state will not incur an obligation for TABOR refunds' and there will be no refunds through the income tax form. The December 2025 forecast already projected a $464.7M shortfall. TY2026 refund tier amounts had not been published by 2026-07-03, and with no surplus none apply. The reference value of $19 is exactly the TY2025 single-filer amount for modified AGI of $52,000 or less on the 2025 DR 0104 table, so the engine appears to have carried the TY2025 refund forward into 2026. Result: $0.\nTotal Colorado refundable credits = $0.",
+  "confidence": "high",
+  "definition_reading": "I read the output as the sum of all refundable Colorado individual income tax credits for this single-filer tax unit in TY2026. I counted the TABOR state sales tax refund, which is claimed on Form DR 0104 and offset against income tax, as a component along with the CO EITC, CTC, FATC, child care credits and the senior housing credit. Every one of them is $0 for this household in 2026.",
+  "independent_answer": 0,
+  "law_supports": "consensus"
+}

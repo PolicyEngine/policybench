@@ -1,0 +1,55 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.37350640000000007,
+  "duration_ms": 69220,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:18:45.308453+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "224ebdc04bdabed80fbb7ffbc28fede6acdd7d8020bbc9dd108c2fe341b99305",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "1bbe58840f428972f81f35da299026b9363570f557445986952d45ce1e18440a",
+  "session_id": "887cf0d0-e0c7-4c05-a698-23cd7ef29898",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "ce9aac127899b5307dffac1c81bb1aadc27bd352ea8710d8b52bed46ccd0f75e",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households",
+      "https://www.law.cornell.edu/uscode/text/7/2014",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    ],
+    "searches": [
+      "SNAP FY 2026 cost-of-living adjustments minimum benefit $24 maximum allotment $298 standard deduction $209"
+    ]
+  }
+}

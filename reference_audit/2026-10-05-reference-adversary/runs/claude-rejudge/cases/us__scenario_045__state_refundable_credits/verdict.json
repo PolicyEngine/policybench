@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Sec. 522(1)(a)",
+      "pre_freeze": true,
+      "published": "current as amended (2023 PA 4)",
+      "quote": "60% of the amount by which the property taxes on the homestead, or the credit for rental of the homestead for the tax year, exceeds ... 3.2% of the claimant's total household resources",
+      "source": "Michigan Income Tax Act of 1967, MCL 206.522",
+      "url": "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-522"
+    },
+    {
+      "pinpoint": "Sec. 520 (renter credit; payment of excess)",
+      "pre_freeze": true,
+      "published": "current as amended",
+      "quote": "the amount of the claim not used as an offset against the tax liability shall, after examination and review, be approved for payment, without interest, to the claimant.",
+      "source": "Michigan Income Tax Act of 1967, MCL 206.520",
+      "url": "https://legislature.mi.gov/documents/mcl/pdf/mcl-206-520-amended.pdf"
+    },
+    {
+      "pinpoint": "General Information - renters; Line 31 premiums",
+      "pre_freeze": true,
+      "published": "2024 tax year (published late 2024/early 2025)",
+      "quote": "23 percent of rent paid is considered property tax that can be claimed for credit",
+      "source": "Michigan Department of Treasury, 2024 MI-1040CR Instructions",
+      "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2024/MI-1040CR-Instructions.pdf?rev=82cc0535eb2b4cb2a9bb35e99e803e1d&hash=984BF2B14BF1A8252329AD64393ADC39"
+    },
+    {
+      "pinpoint": "Premiums not deductible from total household resources",
+      "pre_freeze": null,
+      "published": "undated Treasury guidance",
+      "quote": "premiums paid by an employer with pre-tax contributions are not deductible",
+      "source": "Michigan Department of Treasury, Health Insurance Premiums and Total Household Resources",
+      "url": "https://www.michigan.gov/taxes/property/homestead-property-tax-credit-claim-mi-1040cr-adjustment-or-denial-homeowners-checklist/health-insurance-premiums-and-total-household-resources"
+    },
+    {
+      "pinpoint": "Tax-year credit limits",
+      "pre_freeze": true,
+      "published": "2025 tax year guidance",
+      "quote": "The maximum credit limit is $1,900, the total household resources limit is $71,500, phase-out begins when total household resources exceed $62,500",
+      "source": "Michigan Department of Treasury, 2025 Homestead Property Tax Credit Information",
+      "url": "https://www.michigan.gov/taxes/iit/tax-guidance/credits-exemptions/hptc/tax-year-credit-information/2025"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 760.78,
+  "reference_value": 760.79,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The Michigan Homestead Property Tax Credit is a state income tax credit, and any amount above the tax liability is paid to the claimant. For a renter, 23% of gross rent counts as property tax: 0.23 \u00d7 $10,560 = $2,428.80. A claimant who is not a senior gets 60% of the amount by which that exceeds 3.2% of total household resources (THR = $36,276): 0.6 \u00d7 ($2,428.80 \u2212 $1,160.83) = $760.78. The 2025 maximum credit ($1,900) and phase-out limits ($62,500 to $71,500) do not bind. The Michigan EITC and Home Heating Credit are both $0. The engine did the same steps and got $760.79. The 1-cent gap is a float artifact, because the engine used THR = $36,275.59. Its 'household resource exemption of $1,267.98' is really the excess above the 3.2% threshold, which is mislabeled but correctly applied. The 0 consensus misses the renter's homestead credit, or counts only the part refunded above liability, whereas the definition asks for the total refundable credit amount.",
+  "verdict": "reference_holds"
+}

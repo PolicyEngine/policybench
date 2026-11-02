@@ -1,0 +1,58 @@
+{
+  "ambiguity": "Small differences only. If the monthly grant is truncated to whole dollars, the answer is $6,060 instead of $6,063.75. If the payment standard is computed unrounded (0.35 \u00d7 $24,860 / 12 = $725.08), it is about $6,064.75. The reference of $6,064.96 is within that range. No reasonable reading gives $0: the vehicle is excluded and the countable $2,800 is under the $3,000 limit, the head is not an SSI recipient because their resources exceed $2,000, and income is far below the GMI and benefit standards.",
+  "citations": [
+    {
+      "pinpoint": "ARM 37.78.401(1) and (4) (vehicles)",
+      "pre_freeze": true,
+      "published": "2009-07-01",
+      "quote": "If the total value of the filing unit's countable resources exceeds $3,000, the filing unit is ineligible for assistance. ... one vehicle regardless of its value",
+      "source": "Administrative Rules of Montana 37.78.401, TANF resource limits (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.401"
+    },
+    {
+      "pinpoint": "ARM 37.78.406(2)(a)-(b)",
+      "pre_freeze": true,
+      "published": "2008-06-13",
+      "quote": "$200 of monthly earnings for each wage earner ... 25% of the remaining earned income after the disregards in (2)(a) have been applied",
+      "source": "Administrative Rules of Montana 37.78.406, TANF Cash Assistance; Income Disregards and Income Deeming (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.406"
+    },
+    {
+      "pinpoint": "ARM 37.78.420 (method of computing payment)",
+      "pre_freeze": true,
+      "published": "2011-01-28",
+      "quote": "The household's net countable income is subtracted from the payment standard to determine the amount of the payment for the TANF case assistance unit.",
+      "source": "Administrative Rules of Montana 37.78.420, TANF Assistance Standards; Methods of Computing Amount of Monthly Benefit Payment (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.420"
+    },
+    {
+      "pinpoint": "Income limits table, family size 3; resource limit",
+      "pre_freeze": true,
+      "published": "2023-07-01",
+      "quote": "3 | $1,465 | $792 | $725 ... Countable resources must be less than $3,000.",
+      "source": "Montana DPHHS, Temporary Assistance for Needy Families (TANF) program page",
+      "url": "https://dphhs.mt.gov/HCSD/tanf"
+    },
+    {
+      "pinpoint": "TANF 001, effective 07/01/25 (payment standards 35% of 2023 FPL)",
+      "pre_freeze": true,
+      "published": "2025-07-01",
+      "quote": "TANF 001: Monthly Income Standards ... Effective: 07/01/25",
+      "source": "Montana DPHHS TANF Policy Manual index (TANF 001 Monthly Income Standards)",
+      "url": "https://dphhs.mt.gov/hcsd/Manuals/TANFpolicymanual"
+    },
+    {
+      "pinpoint": "\u00a7416.1205",
+      "pre_freeze": true,
+      "published": "1989-01-01",
+      "quote": "$2,000",
+      "source": "20 CFR 416.1205 (SSI resource limit)",
+      "url": "https://www.law.cornell.edu/cfr/text/20/416.1205"
+    }
+  ],
+  "computation": "Assistance unit: the head (46, disabled) and two dependent children aged 6 and 5, so the unit size is 3. The head does not get SSI: the $2,800 bank balance is above the $2,000 SSI resource limit (20 CFR 416.1205). The head therefore stays in the TANF unit.\n\nResource test (ARM 37.78.401): one vehicle is excluded \"regardless of its value,\" so the $1,981 vehicle does not count. Countable resources are the $2,800 in the bank, which is under the $3,000 limit. Pass.\n\nIncome: gross monthly earnings are $5,915 / 12 = $492.92. The prompt says the $5,915 already includes overtime, and there is no unearned income.\n\nGross monthly income (GMI) test: TANF 001 (effective 07/01/25, still current at the freeze date) sets GMI for a household of 3 at $1,465. $492.92 is under it. Pass.\n\nEarned income disregards (ARM 37.78.406(2)):\n- Subtract $200: $492.92 \u2212 $200 = $292.92.\n- Subtract 25% of the remainder ($73.23): net countable income = $219.69.\n- No child-care disregard applies, because no child-care expenses are listed.\n\nBenefit standard test: the benefit standard is 30% of the 2023 FPL, which is $622 for 3. $219.69 is under it. Eligible.\n\nPayment (ARM 37.78.420): payment = payment standard \u2212 net countable income. The payment standard for 3 is 35% of the 2023 FPL ($24,860 \u00d7 0.35 / 12 \u2248 $725). $725 \u2212 $219.69 = $505.31 a month, or $6,063.75 a year. If the grant is truncated to whole dollars, it is $505 \u00d7 12 = $6,060.\n\n2026 parameters: Montana did not re-index the cash standards to the 2025 or 2026 FPL. The TANF 001 version effective 07/01/25, published before the freeze, keeps the payment standards based on the 2023 FPL ($725 for 3), and the manual index still lists 07/01/25 as the current version. The SNAP and other figures in that table, which use the 2025 FPL, do not affect TANF cash.\n\nWork requirements and time limits do not reduce the amount, given the take-up assumption. The result is about $6,064 a year, which matches the reference of $6,064.96 to within about $1. The difference is rounding or how the standard is computed. The consensus answer of 0 is not supported: assets are below the limit once the vehicle is excluded, and income is far below every test.",
+  "confidence": "high",
+  "definition_reading": "I read the output as the annual Montana TANF cash payment (FAIM / TANF Cash Assistance) for the single assistance unit made up of the head and two children, with take-up assumed. Under the prompt's rules, gross wages are $5,915 a year, and there is no child-care expense and no SSI receipt. The household meets the resource test because one vehicle is excluded, and it meets both income tests. The amount is (payment standard of $725 for 3 \u2212 net countable earnings of $219.69) \u00d7 12.",
+  "independent_answer": 6063.75,
+  "law_supports": "reference"
+}

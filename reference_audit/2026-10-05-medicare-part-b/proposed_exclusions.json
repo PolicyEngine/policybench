@@ -1,0 +1,121 @@
+{
+ "schema_version": 1,
+ "status": "proposed 2026-10-05; changes published scores, so it waits for Max's ruling (cos decision). decided_on is the draft date; a release sets it to the ruling's date.",
+ "basis": "policybench/reference_exclusions.py: an output is excluded for every model when its reference depends on an engine input the prompt never listed and a careful reader could take the stated facts the other way.",
+ "salt_proposal": {
+  "pr": "PolicyEngine/policybench#191",
+  "head": "8af912a062dd7ae1373de4c043ae2727d3406930",
+  "decision": "d963",
+  "outputs": [
+   "scenario_022/federal_income_tax_before_refundable_credits",
+   "scenario_081/federal_income_tax_before_refundable_credits",
+   "scenario_114/federal_income_tax_before_refundable_credits"
+  ]
+ },
+ "exclusions": [
+  {
+   "scenario_id": "scenario_114",
+   "variable": "state_income_tax_before_refundable_credits",
+   "reason_code": "reference_depends_on_unlisted_input",
+   "alternative_reading": "The prompt lists no Medicare enrollment and no Medicare Part B premium, and its rules say to treat any unlisted numeric input as 0 and not to infer unlisted expenses or health coverage. The reference counts a modeled Part B premium as a medical expense: policyengine-us treats the head (age 69, so Medicare-eligible) as enrolled because takes_up_medicare_if_eligible defaults to true, and medical_expense_health_insurance_premiums adds medicare_part_b_premium, the 2026 standard premium of $202.90 a month, $2,434.80, to the listed $10,000 of other medical expenses. The household itemizes, so the federal medical expense deduction (26 U.S.C. 213(a): expenses above 7.5% of AGI) counts it, and Virginia's itemized deductions, which start from the federal itemized deductions (va_itemized_deductions), carry it too. The prompt also says to assume program take-up when required, and a reader who takes a 69-year-old with Social Security retirement income to be enrolled in Part B and paying the standard premium gets the frozen value. But the benchmark sets take-up only for the programs its household data list (Medicaid, SSI, the ACA credit, the DC property tax credit, the EITC, SNAP and tax filing; policybench.scenarios.DEFAULT_TAKEUP_INPUTS), and Medicare is not among them; the Medicare request asks only whether the head is eligible; and the more specific rules against inferring unlisted expenses or health coverage point the other way. Read with no Part B premium paid, the deduction falls by $2,434.80 and the output is the alternative value.",
+   "frozen_value": 3514.14501953125,
+   "alternative_value": 3654.14599609375,
+   "engine_version": "policyengine-us 2.15.17",
+   "decided_on": "2026-10-05",
+   "decided_by": "developer",
+   "unlisted_input": "Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either",
+   "note": "Found 2026-10-05 by sweeping every reference with each person's Medicare Part B premium at 0, and again with Medicare enrollment off (reference_audit/2026-10-05-medicare-part-b/scripts/sweep_part_b.py, on policyengine-us 2.15.17 with latest_final; its baseline reproduces all 1,928 scored references). Of 39 Medicare-eligible people in 33 households, the engine charges the premium in 30 (Medicare Savings Program coverage pays it for the 4 eligible people in the other 3); only this household's two tax outputs move, under either reading. The federal medical expense deduction is $4,441.86 in the reference ($12,434.80 of expenses less 7.5% of $106,572.56 AGI) and $2,007.06 without the premium; the household itemizes under both. The output also depends on the state income tax in the federal SALT deduction, which PolicyEngine/policybench#191 proposes to treat as an unlisted input (decision d963), through the federal itemization election, which Virginia follows (va_deductions reads tax_unit_itemizes). Without the premium the output is $3,654.15 under both the withholding estimate and the liability; with no state income tax paid it is $4,127.67, with or without the local sales tax estimate, because the household then takes the federal and Virginia standard deductions. With the premium it is $3,514.15 under all four readings. The premium is the standard premium: the engine reads the income-related adjustment from MAGI two years earlier, which no household sets, and at this household's 2026 MAGI ($106,572.56) none would apply. GPT-6 Astra ($3,654.16) and GPT-6.1 Sol ($3,654.66) answered within $1 of the alternative value, and no model within $1 of the frozen value."
+  }
+ ],
+ "conditional_on_salt_decision": [
+  {
+   "record": {
+    "scenario_id": "scenario_114",
+    "variable": "federal_income_tax_before_refundable_credits",
+    "reason_code": "reference_depends_on_unlisted_input",
+    "alternative_reading": "The prompt lists no Medicare enrollment and no Medicare Part B premium, and its rules say to treat any unlisted numeric input as 0 and not to infer unlisted expenses or health coverage. The reference counts a modeled Part B premium as a medical expense: policyengine-us treats the head (age 69, so Medicare-eligible) as enrolled because takes_up_medicare_if_eligible defaults to true, and medical_expense_health_insurance_premiums adds medicare_part_b_premium, the 2026 standard premium of $202.90 a month, $2,434.80, to the listed $10,000 of other medical expenses. The household itemizes, so the federal medical expense deduction (26 U.S.C. 213(a): expenses above 7.5% of AGI) counts it. The prompt also says to assume program take-up when required, and a reader who takes a 69-year-old with Social Security retirement income to be enrolled in Part B and paying the standard premium gets the frozen value. But the benchmark sets take-up only for the programs its household data list (Medicaid, SSI, the ACA credit, the DC property tax credit, the EITC, SNAP and tax filing; policybench.scenarios.DEFAULT_TAKEUP_INPUTS), and Medicare is not among them; the Medicare request asks only whether the head is eligible; and the more specific rules against inferring unlisted expenses or health coverage point the other way. Read with no Part B premium paid, the deduction falls by $2,434.80 and the output is the alternative value.",
+    "frozen_value": 10729.6123046875,
+    "alternative_value": 11265.267578125,
+    "engine_version": "policyengine-us 2.15.17",
+    "decided_on": "2026-10-05",
+    "decided_by": "developer",
+    "unlisted_input": "Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either",
+    "note": "Found 2026-10-05 by sweeping every reference with each person's Medicare Part B premium at 0, and again with Medicare enrollment off (reference_audit/2026-10-05-medicare-part-b/scripts/sweep_part_b.py, on policyengine-us 2.15.17 with latest_final; its baseline reproduces all 1,928 scored references). Of 39 Medicare-eligible people in 33 households, the engine charges the premium in 30 (Medicare Savings Program coverage pays it for the 4 eligible people in the other 3); only this household's two tax outputs move, under either reading. The federal medical expense deduction is $4,441.86 in the reference ($12,434.80 of expenses less 7.5% of $106,572.56 AGI) and $2,007.06 without the premium; the household itemizes under both. Under the readings of the state income tax in SALT that PolicyEngine/policybench#191 sets out, without the premium the output is $11,642.16 under the liability and $11,969.80 with no state income tax paid (the household then takes the standard deduction). The premium is the standard premium: the engine reads the income-related adjustment from MAGI two years earlier, which no household sets, and at this household's 2026 MAGI ($106,572.56) none would apply. No model answered within $1 of the alternative value, and no model within $1 of the frozen value. GPT-6.1 Sol ($11,642.09) and GPT-6 Astra ($11,642.20) answered within $1 of the value with no premium and the liability, and Kimi K3 ($11,969.85) and GPT-5.6 Sol ($11,970.00) within $1 of the value with no premium and no state income tax paid."
+   },
+   "readings": {
+    "salt_by_part_b": {
+     "modeled": {
+      "estimate": 10729.6123046875,
+      "liability": 11137.306640625,
+      "zero": 11758.08984375,
+      "zero_no_local_sales": 11783.4775390625
+     },
+     "no_part_b": {
+      "estimate": 11265.267578125,
+      "liability": 11642.162109375,
+      "zero": 11969.8037109375,
+      "zero_no_local_sales": 11969.8037109375
+     }
+    },
+    "itemizes": {
+     "modeled|estimate": true,
+     "modeled|liability": true,
+     "modeled|zero": true,
+     "modeled|zero_no_local_sales": true,
+     "no_part_b|estimate": true,
+     "no_part_b|liability": true,
+     "no_part_b|zero": false,
+     "no_part_b|zero_no_local_sales": false,
+     "not_enrolled|estimate": true,
+     "not_enrolled|liability": true,
+     "not_enrolled|zero": false,
+     "not_enrolled|zero_no_local_sales": false
+    },
+    "not_enrolled": 11265.267578125
+   },
+   "install_if": "PolicyEngine/policybench#191's record for this output (decision d963) is not adopted. The output then still rests on the Part B premium and needs this record.",
+   "if_salt_record_adopted": "PolicyEngine/policybench#191's record already excludes the output, and its note already gives the values without the premium (it quotes $11,265.27, $11,642.16 and $11,969.80). A release adds the unlisted input to that record's unlisted_input text: '; also Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either'.",
+   "salt_record_frozen_value": 10729.6123046875,
+   "salt_record_alternative_value": 11137.306640625
+  }
+ ],
+ "already_excluded": [],
+ "readings": {
+  "scenario_114/state_income_tax_before_refundable_credits": {
+   "salt_by_part_b": {
+    "modeled": {
+     "estimate": 3514.14501953125,
+     "liability": 3514.14501953125,
+     "zero": 3514.14501953125,
+     "zero_no_local_sales": 3514.14501953125
+    },
+    "no_part_b": {
+     "estimate": 3654.14599609375,
+     "liability": 3654.14599609375,
+     "zero": 4127.66650390625,
+     "zero_no_local_sales": 4127.66650390625
+    }
+   },
+   "itemizes": {
+    "modeled|estimate": true,
+    "modeled|liability": true,
+    "modeled|zero": true,
+    "modeled|zero_no_local_sales": true,
+    "no_part_b|estimate": true,
+    "no_part_b|liability": true,
+    "no_part_b|zero": false,
+    "no_part_b|zero_no_local_sales": false,
+    "not_enrolled|estimate": true,
+    "not_enrolled|liability": true,
+    "not_enrolled|zero": false,
+    "not_enrolled|zero_no_local_sales": false
+   },
+   "not_enrolled": 3654.14599609375
+  }
+ },
+ "readings_moving_no_further_output": [
+  "not_enrolled",
+  "not_enrolled_direct",
+  "irmaa_from_2026_income"
+ ]
+}

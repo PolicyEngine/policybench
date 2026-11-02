@@ -13,6 +13,12 @@ import {
   AUDIT_SELECTION_RULE,
   summarizeAuditUniverse,
 } from "../lib/auditUniverse";
+import { excludedOutputEngineSentence } from "../lib/referenceEngine";
+import {
+  capitalizeFirst,
+  chunkedServingModels,
+  numberWord,
+} from "../lib/servingConfig";
 
 const versionRegistry = parseDataVersionRegistry(versionRegistryJson);
 
@@ -94,6 +100,22 @@ export default function Methodology({
     country === "uk" ? "UK transfer households" : "populace households";
   const referenceOutputSource =
     country === "uk" ? "PolicyEngine-UK" : "PolicyEngine-US";
+  // The engine release behind this board's references, as its payload records
+  // it; archived boards name their own.
+  const referenceEngineVersion =
+    benchData.policyengineBundles?.[country]?.model_version ?? null;
+  // The current board's chunked rows, from the frozen serving configuration,
+  // against the board's own model count.
+  const chunkedRowsPhrase = `${capitalizeFirst(
+    numberWord(chunkedServingModels().length),
+  )} of the ${noToolsModels.length} models`;
+  const excludedOutputsSentence =
+    currentBoard && country === "us"
+      ? excludedOutputEngineSentence(
+          benchData.referenceExclusions,
+          referenceEngineVersion,
+        )
+      : null;
   const benchmarkDescription = currentBoard
     ? country === "uk"
       ? "This app shows the current no-tools UK benchmark on a fixed test set, with PolicyEngine reference outputs computed by PolicyEngine-UK for fiscal year 2026-27."
@@ -156,13 +178,25 @@ export default function Methodology({
           Each model sees the same household facts and requested outputs and
           must return every scored output plus a short explanation for each,
           with no external tools — no calculator, search, or PolicyEngine
-          access. The answer instructions follow the provider&apos;s transport:
-          a forced answer-schema tool call where the provider accepts one, and a
-          JSON object where the provider rejects a forced tool or the model card
-          selects JSON for the family (the older Gemini and DeepSeek rows).{" "}
+          access.{" "}
+          {country === "us" ? (
+            <>
+              Four output definitions in the current US prompts name
+              PolicyEngine: Medicaid and CHIP eligibility are asked &ldquo;under
+              PolicyEngine rules,&rdquo; and the two school-meal outputs ask
+              whether &ldquo;PolicyEngine returns&rdquo; support. PolicyBench
+              aims to measure knowledge of tax and benefit law. Knowledge of
+              PolicyEngine&apos;s implementation is outside that aim, so
+              PolicyBench is revising these definitions.{" "}
+            </>
+          ) : null}
+          The answer instructions follow each row&apos;s transport: a
+          forced answer-schema tool call, or a JSON object where the model card
+          or its family default selects JSON, for most such rows because the
+          provider rejects a forced tool call.{" "}
           {currentBoard ? (
             <>
-              Ten of the 42 models answer the same facts in subsets of one or
+              {chunkedRowsPhrase} answer the same facts in subsets of one or
               three outputs per request, an accommodation that predates the
               whole-scenario rule. The per-model transport and request shape are
               recorded in the paper&apos;s serving-configuration table and the
@@ -194,7 +228,7 @@ export default function Methodology({
         <SectionCard title="Reference outputs">
           {country === "uk"
             ? "PolicyEngine-UK computes the PolicyEngine reference output for every household-variable pair in UK fiscal year 2026-27. The displayed variables define the benchmark scope for this snapshot."
-            : "PolicyEngine-US computes the PolicyEngine reference output for every household-variable pair in tax year 2026. The displayed variables define the benchmark scope for this snapshot."}
+            : `PolicyEngine-US${referenceEngineVersion ? ` (policyengine-us ${referenceEngineVersion})` : ""} computes each scored PolicyEngine reference output in tax year 2026.${excludedOutputsSentence ? ` ${excludedOutputsSentence}` : ""} The displayed variables define the benchmark scope for this snapshot.`}
         </SectionCard>
 
         <SectionCard title="Output selection">
@@ -203,7 +237,7 @@ export default function Methodology({
           facts. It excludes intermediate tax bases, payroll subcomponents, and
           outputs that mainly require unavailable history, restricted local
           market data, or program take-up assignment. WIC is scored as
-          person-level eligibility, not as a dollar amount. Local income tax is
+          person-level eligibility, with no dollar amount. Local income tax is
           retained as a displayed requested output, but currently receives zero
           default population-impact weight because the full populace dataset has
           no positive modeled local-income-tax records.
@@ -247,8 +281,8 @@ export default function Methodology({
           Each frozen row uses its recorded per-call cost: reconstructed from
           token counts at the list price configured at request time, or the
           provider-reported charge where no reconstruction was available.
-          List-price overrides apply at
-          request time, not retroactively to recorded costs. Models without
+          A list-price override applies to
+          requests made after it is set and leaves recorded costs unchanged. Models without
           per-call costs use the frozen release-metadata cost.
         </SectionCard>
 
@@ -280,8 +314,7 @@ export default function Methodology({
           Binary coverage flags have 0/1 labels, but a 0/1 label is not their
           economic impact. Their leaderboard weights therefore come from
           PolicyEngine value proxies where available, such as estimated health
-          coverage or nutrition-program value, rather than from the binary label
-          itself. When every reference impact in a household is zero, the
+          coverage or nutrition-program value. When every reference impact in a household is zero, the
           household falls back to equal output weights.
         </SectionCard>
       </div>

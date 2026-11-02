@@ -1,0 +1,462 @@
+{
+  "scenario_id": "scenario_026",
+  "state": "NC",
+  "reference_system": "policyengine-us 2.15.17 + latest_final (reference_audit/2026-09-28/fixes)",
+  "policyengine_core": "3.32.8",
+  "period": "2026",
+  "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2",
+    "child3"
+  ],
+  "reproduction": {
+    "federal_income_tax_before_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "federal_refundable_credits": {
+      "published": 2013.4892578125,
+      "recomputed": 2013.489258,
+      "reproduces": true
+    },
+    "payroll_tax": {
+      "published": 6518.474609375,
+      "recomputed": 6518.474609,
+      "reproduces": true
+    },
+    "self_employment_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_income_tax_before_refundable_credits": {
+      "published": 2086.79052734375,
+      "recomputed": 2086.790527,
+      "reproduces": true
+    },
+    "state_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "local_income_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "snap": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "ssi": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "tanf": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child2_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child3_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_medicaid_eligible": {
+      "published": 1.0,
+      "recomputed": 1.0,
+      "reproduces": true
+    },
+    "child2_medicaid_eligible": {
+      "published": 1.0,
+      "recomputed": 1.0,
+      "reproduces": true
+    },
+    "child3_medicaid_eligible": {
+      "published": 1.0,
+      "recomputed": 1.0,
+      "reproduces": true
+    },
+    "head_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child2_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child3_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child2_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child3_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child2_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child3_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child1_early_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child2_early_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "child3_early_head_start_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "free_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "reduced_price_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    }
+  },
+  "all_scored_reproduce": true,
+  "variables": {
+    "age": {
+      "entity": "person",
+      "label": "age",
+      "definition_period": "year",
+      "values": {
+        "head": 48.0,
+        "spouse": 45.0,
+        "child1": 11.0,
+        "child2": 11.0,
+        "child3": 9.0
+      }
+    },
+    "has_esi": {
+      "entity": "person",
+      "label": "Person currently has ESI",
+      "definition_period": "year",
+      "values": {
+        "head": true,
+        "spouse": true,
+        "child1": true,
+        "child2": true,
+        "child3": true
+      }
+    },
+    "medicaid_income_level": {
+      "entity": "person",
+      "label": "Medicaid/CHIP-related income level",
+      "definition_period": "year",
+      "values": {
+        "head": 2.129406,
+        "spouse": 2.129406,
+        "child1": 2.129406,
+        "child2": 2.129406,
+        "child3": 2.129406
+      }
+    },
+    "medicaid_category": {
+      "entity": "person",
+      "label": "Medicaid category",
+      "definition_period": "year",
+      "values": {
+        "head": "NONE",
+        "spouse": "NONE",
+        "child1": "OLDER_CHILD",
+        "child2": "OLDER_CHILD",
+        "child3": "OLDER_CHILD"
+      }
+    },
+    "is_medicaid_eligible": {
+      "entity": "person",
+      "label": "Eligible for Medicaid",
+      "definition_period": "year",
+      "values": {
+        "head": false,
+        "spouse": false,
+        "child1": true,
+        "child2": true,
+        "child3": true
+      }
+    },
+    "is_chip_eligible": {
+      "entity": "person",
+      "label": "CHIP eligible",
+      "definition_period": "year",
+      "values": {
+        "head": false,
+        "spouse": false,
+        "child1": false,
+        "child2": false,
+        "child3": false
+      }
+    },
+    "is_older_child_for_medicaid": {
+      "entity": "person",
+      "label": "Older children",
+      "definition_period": "year",
+      "values": {
+        "head": false,
+        "spouse": false,
+        "child1": true,
+        "child2": true,
+        "child3": true
+      }
+    }
+  },
+  "parameters": {
+    "gov.hhs.medicaid.eligibility.categories.older_child.income_limit.NC": {
+      "metadata": {
+        "propagate_metadata_to_children": true,
+        "economy": false,
+        "household": false,
+        "unit": "/1",
+        "reference": [
+          {
+            "title": "Medicaid Income Eligibility Limits for Children Ages 6 \u2013 18, 2000-2025 | KFF State Health Facts",
+            "href": "https://www.kff.org/medicaid/state-indicator/medicaid-income-eligibility-limits-for-children-ages-6-18/?currentTimeframe=0&selectedDistributions=january-2018--january-2021--january-2025&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility and Enrollment Policies as of January 2022 | KFF",
+            "href": "https://files.kff.org/attachment/REPORT-Medicaid-and-CHIP-Eligibility-and-Enrollment-Policies-as-of-January-2022.pdf#page=33"
+          },
+          {
+            "title": "medicaidscreener.com",
+            "href": "https://www.medicaidscreener.com/?p=table"
+          },
+          {
+            "title": "Medicaid, Children's Health Insurance Program, & Basic Health Program Eligibility Levels",
+            "href": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels/index.html"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility, Enrollment, Renewal, and Cost Sharing Policies as of January 2018",
+            "href": "https://files.kff.org/attachment/Report-Medicaid-and-CHIP-Eligibility-Enrollment-Renewal-and-Cost-Sharing-Policies-as-of-January-2018#page=26"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility Levels | CMS Data.Medicaid.gov dataset page (April 1, 2018)",
+            "href": "https://data.medicaid.gov/dataset/d7e4cccb-1c56-5b5d-acce-5e7744c6d3b4"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility Levels | CMS Data.Medicaid.gov CSV download (April 1, 2018)",
+            "href": "https://download.medicaid.gov/data/medicaid-and-chip-eligibility-levels.xy8t-auhk.csv"
+          },
+          {
+            "title": "Missouri DSS Manual \u00a7 1830.010.05 - MO HealthNet for Kids income maximums (148% FPL, ages 1-18)",
+            "href": "https://dssmanuals.mo.gov/family-mo-healthnet-magi/1830-000-00/1830-010-00/1830-010-05/"
+          },
+          {
+            "title": "Missouri DSS Manual \u00a7 1805.030.20.20.05 - 5% FPL disregard",
+            "href": "https://dssmanuals.mo.gov/family-mo-healthnet-magi/1805-000-00/1805-030-00/1805-030-20/1805-030-20-20/1805-030-20-20-05/"
+          },
+          {
+            "title": "Missouri DSS benefit program income limits (MO HealthNet for Kids ages 1-18 at 148% FPL)",
+            "href": "https://mydss.mo.gov/benefit-program-income-limits"
+          }
+        ]
+      },
+      "value_2026": 2.16,
+      "history": [
+        {
+          "from": "2023-12-01",
+          "value": 2.16
+        },
+        {
+          "from": "2018-01-01",
+          "value": 1.38
+        },
+        {
+          "from": "2015-01-01",
+          "value": 1.38
+        }
+      ]
+    },
+    "gov.hhs.medicaid.eligibility.categories.young_child.income_limit.NC": {
+      "metadata": {
+        "propagate_metadata_to_children": true,
+        "economy": false,
+        "household": false,
+        "unit": "/1",
+        "reference": [
+          {
+            "title": "Medicaid Income Eligibility Limits for Children Ages 1 \u2013 5, 2000-2025 | KFF State Health Facts",
+            "href": "https://www.kff.org/medicaid/state-indicator/medicaid-income-eligibility-limits-for-children-ages-1-5/?currentTimeframe=0&selectedDistributions=january-2018--january-2021--january-2025&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility and Enrollment Policies as of January 2022 | KFF",
+            "href": "https://files.kff.org/attachment/REPORT-Medicaid-and-CHIP-Eligibility-and-Enrollment-Policies-as-of-January-2022.pdf#page=33"
+          },
+          {
+            "title": "medicaidscreener.com",
+            "href": "https://www.medicaidscreener.com/?p=table"
+          },
+          {
+            "title": "Medicaid, Children's Health Insurance Program, & Basic Health Program Eligibility Levels",
+            "href": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels/index.html"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility, Enrollment, Renewal, and Cost Sharing Policies as of January 2018",
+            "href": "https://files.kff.org/attachment/Report-Medicaid-and-CHIP-Eligibility-Enrollment-Renewal-and-Cost-Sharing-Policies-as-of-January-2018#page=26"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility Levels | CMS Data.Medicaid.gov dataset page (April 1, 2018)",
+            "href": "https://data.medicaid.gov/dataset/d7e4cccb-1c56-5b5d-acce-5e7744c6d3b4"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility Levels | CMS Data.Medicaid.gov CSV download (April 1, 2018)",
+            "href": "https://download.medicaid.gov/data/medicaid-and-chip-eligibility-levels.xy8t-auhk.csv"
+          },
+          {
+            "title": "Missouri DSS Manual \u00a7 1830.010.05 - MO HealthNet for Kids income maximums (148% FPL, ages 1-18)",
+            "href": "https://dssmanuals.mo.gov/family-mo-healthnet-magi/1830-000-00/1830-010-00/1830-010-05/"
+          },
+          {
+            "title": "Missouri DSS Manual \u00a7 1805.030.20.20.05 - 5% FPL disregard",
+            "href": "https://dssmanuals.mo.gov/family-mo-healthnet-magi/1805-000-00/1805-030-00/1805-030-20/1805-030-20-20/1805-030-20-20-05/"
+          },
+          {
+            "title": "Missouri DSS benefit program income limits (MO HealthNet for Kids ages 1-18 at 148% FPL)",
+            "href": "https://mydss.mo.gov/benefit-program-income-limits"
+          }
+        ]
+      },
+      "value_2026": 2.16,
+      "history": [
+        {
+          "from": "2023-12-01",
+          "value": 2.16
+        },
+        {
+          "from": "2018-01-01",
+          "value": 2.15
+        },
+        {
+          "from": "2015-01-01",
+          "value": 2.15
+        }
+      ]
+    },
+    "gov.hhs.chip.child.income_limit.NC": {
+      "metadata": {
+        "propagate_metadata_to_children": true,
+        "economy": false,
+        "unit": "/1",
+        "period": "year",
+        "reference": [
+          {
+            "title": "Separate Children's Health Insurance Program (CHIP) Income Eligibility Limits for Children, 2000-2025 | KFF State Health Facts",
+            "href": "https://www.kff.org/medicaid/state-indicator/separate-childrens-health-insurance-program-chip-income-eligibility-limits-for-children/?currentTimeframe=0&selectedDistributions=january-2018--january-2021--january-2025&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D"
+          },
+          {
+            "title": "Medicaid, Children's Health Insurance Program, & Basic Health Program Eligibility Levels as of December 2023 | CMS",
+            "href": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels"
+          },
+          {
+            "title": "Medicaid and CHIP Eligibility Levels as of April, 2018",
+            "href": "https://data.medicaid.gov/dataset/d7e4cccb-1c56-5b5d-acce-5e7744c6d3b4"
+          }
+        ]
+      },
+      "value_2026": -Infinity,
+      "history": [
+        {
+          "from": "2023-04-01",
+          "value": -Infinity
+        },
+        {
+          "from": "2018-01-01",
+          "value": 2.16
+        },
+        {
+          "from": "2015-01-01",
+          "value": 2.16
+        }
+      ]
+    }
+  }
+}

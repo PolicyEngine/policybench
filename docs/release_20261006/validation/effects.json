@@ -1,0 +1,427 @@
+{
+  "release_tag": "dashboard-data-20261006",
+  "base_commit": "8b4c0ca146bb6f66deba6ce24009d49d70d92df2",
+  "summary_csv": "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/analysis/summary_by_model.csv",
+  "old_csv_sha256": "fe929fc5d4c01f74c4a199a68701e92001a64eee84b83131eaa22ef1d4ffb851",
+  "new_csv_sha256": "1b7640f3c0c7e7376c1bed0567dcc034866822a06e998658f4595ef74e5acabf",
+  "payload_sha256": "aa34e5c9ea926848dc7af460a98f17021bc42dae54a8015c9988a85e79a5d462",
+  "all_expected_effects_reproduced": true,
+  "change_min": 0.6678742593199019,
+  "change_max": 1.3542788161743147,
+  "models": [
+    {
+      "model": "gpt-6-sol",
+      "rank": 1,
+      "before": 95.00349913571871,
+      "after": 95.8278593391396,
+      "change": 0.8243602034208806,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-opus-5.5",
+      "rank": 2,
+      "before": 93.69749019238289,
+      "after": 95.0517690085572,
+      "change": 1.3542788161743147,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "rank": 3,
+      "before": 93.57174672125771,
+      "after": 94.43315328635904,
+      "change": 0.8614065651013334,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-sonnet-5.5",
+      "rank": 4,
+      "before": 92.08077168426426,
+      "after": 93.25308629240557,
+      "change": 1.1723146081413063,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-6-luna",
+      "rank": 5,
+      "before": 92.09699160500828,
+      "after": 93.02067960711825,
+      "change": 0.9236880021099694,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-6-astra",
+      "rank": 6,
+      "before": 91.67398399934551,
+      "after": 92.53539056444686,
+      "change": 0.8614065651013476,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-fable-5.1",
+      "rank": 7,
+      "before": 90.82809795026888,
+      "after": 92.070046378755,
+      "change": 1.2419484284861113,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "rank": 8,
+      "before": 90.5950906002756,
+      "after": 91.2629648595955,
+      "change": 0.6678742593199019,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "kimi-k3",
+      "rank": 9,
+      "before": 90.43471486856777,
+      "after": 91.22815783106216,
+      "change": 0.7934429624943959,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "rank": 10,
+      "before": 89.30789108165669,
+      "after": 90.27941661573834,
+      "change": 0.9715255340816498,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "ox-alpha",
+      "rank": 11,
+      "before": 88.49353035198622,
+      "after": 89.77515163322984,
+      "change": 1.2816212812436163,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "inkling",
+      "rank": 12,
+      "before": 88.22006716270263,
+      "after": 89.32869677000899,
+      "change": 1.108629607306355,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "grok-4.7",
+      "rank": 13,
+      "before": 88.3352356001671,
+      "after": 89.29738601164692,
+      "change": 0.9621504114798256,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.5",
+      "rank": 14,
+      "before": 88.15164989242267,
+      "after": 89.10223705999104,
+      "change": 0.9505871675683721,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "rank": 15,
+      "before": 87.69497703300591,
+      "after": 88.968823575796,
+      "change": 1.273846542790082,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "deepseek-v4.1-flash",
+      "rank": 16,
+      "before": 87.0552377499924,
+      "after": 88.00840767222911,
+      "change": 0.9531699222367109,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "grok-4.6",
+      "rank": 17,
+      "before": 86.40208736627577,
+      "after": 87.5192684468519,
+      "change": 1.117181080576131,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "rank": 18,
+      "before": 85.94579492214984,
+      "after": 87.21883965470892,
+      "change": 1.2730447325590717,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "grok-4.5",
+      "rank": 19,
+      "before": 85.08110483198445,
+      "after": 86.29327728338254,
+      "change": 1.2121724513980894,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-opus-5",
+      "rank": 20,
+      "before": 84.02988376350788,
+      "after": 85.22255993736842,
+      "change": 1.1926761738605336,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-fable-5",
+      "rank": 21,
+      "before": 83.6253944438549,
+      "after": 84.89232434256384,
+      "change": 1.2669298987089377,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "deepseek-v4-pro-0813",
+      "rank": 22,
+      "before": 83.37167580453175,
+      "after": 84.64638044169422,
+      "change": 1.274704637162472,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "deepseek-v4-flash-0731",
+      "rank": 23,
+      "before": 83.2758619160859,
+      "after": 84.5191109515007,
+      "change": 1.2432490354148058,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.7-flash",
+      "rank": 24,
+      "before": 83.11782882466474,
+      "after": 84.21804200586138,
+      "change": 1.1002131811966365,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.6-flash",
+      "rank": 25,
+      "before": 83.09499152818556,
+      "after": 84.20619812334691,
+      "change": 1.1112065951613488,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.5-flash-lite",
+      "rank": 26,
+      "before": 81.9592849674438,
+      "after": 83.19892957661855,
+      "change": 1.2396446091747464,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "rank": 27,
+      "before": 81.63648613293833,
+      "after": 82.76615889413155,
+      "change": 1.1296727611932198,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "glm-5.3",
+      "rank": 28,
+      "before": 81.09010878646016,
+      "after": 82.3445616390977,
+      "change": 1.2544528526375416,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3-flash-preview",
+      "rank": 29,
+      "before": 80.95099070665046,
+      "after": 82.23561003657501,
+      "change": 1.2846193299245527,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-opus-4.7",
+      "rank": 30,
+      "before": 80.9638962030392,
+      "after": 82.16321631925601,
+      "change": 1.1993201162168106,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "grok-4.3",
+      "rank": 31,
+      "before": 80.62160266220387,
+      "after": 81.88053476681135,
+      "change": 1.2589321046074815,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "grok-build-0.1",
+      "rank": 32,
+      "before": 80.36084468856437,
+      "after": 81.61932318022014,
+      "change": 1.2584784916557652,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-sonnet-4.6",
+      "rank": 33,
+      "before": 80.27617496987095,
+      "after": 81.49661043992744,
+      "change": 1.2204354700564863,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.5-flash",
+      "rank": 34,
+      "before": 80.04238564541743,
+      "after": 81.3347797137955,
+      "change": 1.2923940683780728,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gemini-3.1-flash-lite-preview",
+      "rank": 35,
+      "before": 79.73940156545854,
+      "after": 80.94050297084618,
+      "change": 1.2011014053876465,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "rank": 36,
+      "before": 79.75124065440951,
+      "after": 80.8234097199763,
+      "change": 1.0721690655667828,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "qwen-3.7-max",
+      "rank": 37,
+      "before": 77.38613945075842,
+      "after": 78.60647395672628,
+      "change": 1.2203345059678554,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "glm-5.2",
+      "rank": 38,
+      "before": 77.04754617804436,
+      "after": 78.0090780621868,
+      "change": 0.9615318841424454,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-opus-4.8",
+      "rank": 39,
+      "before": 76.17545674851087,
+      "after": 77.37850060971023,
+      "change": 1.2030438611993617,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "minimax-m3",
+      "rank": 40,
+      "before": 75.74649533851503,
+      "after": 76.89602609069553,
+      "change": 1.149530752180496,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "qwen3.8-max",
+      "rank": 41,
+      "before": 75.22482335536425,
+      "after": 76.40969244962697,
+      "change": 1.184869094262723,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-haiku-4.5",
+      "rank": 42,
+      "before": 74.6603649485753,
+      "after": 75.88064801985028,
+      "change": 1.2202830712749773,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "rank": 43,
+      "before": 73.66669485735765,
+      "after": 74.74882415461991,
+      "change": 1.0821292972622558,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "claude-sonnet-5",
+      "rank": 44,
+      "before": 72.64249589279979,
+      "after": 73.79393638195099,
+      "change": 1.1514404891511987,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "kimi-k2.6",
+      "rank": 45,
+      "before": 67.40417281119927,
+      "after": 68.11125273246809,
+      "change": 0.7070799212688144,
+      "n_before": 1928,
+      "n_after": 1920
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "rank": 46,
+      "before": 65.33891134939903,
+      "after": 66.53551716384946,
+      "change": 1.196605814450436,
+      "n_before": 1928,
+      "n_after": 1920
+    }
+  ]
+}

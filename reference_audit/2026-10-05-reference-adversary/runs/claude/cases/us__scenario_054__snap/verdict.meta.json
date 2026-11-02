@@ -1,0 +1,53 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.16995139999999997,
+  "duration_ms": 46807,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:33:09.571621+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "c67f8b5afec69236c10c55ea68e18016170e57cfe055a787e6c4846076ad4bc7",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "5ee19dbc2f054e2e7b6f746f839050faa1a292935166d1f730fc048c4569aa7b",
+  "session_id": "61acbc5c-eaba-4fda-91bc-48dd4a0e5cff",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "3735ca7353c9699e9405b686e4b3e821d34438bfd4ce3c56a110518114618ce5",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.fns.usda.gov/snap/allotment/cola"
+    ],
+    "searches": [
+      "SNAP fiscal year 2026 cost-of-living adjustment maximum allotment household of 3 $785 standard deduction $209"
+    ]
+  }
+}

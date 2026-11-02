@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Division (A), schedule for taxable years beginning in 2026 and thereafter",
+      "pre_freeze": true,
+      "published": "2025-09-30",
+      "quote": "$332.00 plus 2.75% of the amount in excess of $26,050",
+      "source": "Ohio Revised Code 5747.02",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.02"
+    },
+    {
+      "pinpoint": "Division (A)(10)(b)-(c)",
+      "pre_freeze": true,
+      "published": "2026-03-05",
+      "quote": "Deduct, to the extent not otherwise deducted or excluded in computing federal or Ohio adjusted gross income during the taxable year, the amount the taxpayer paid during the taxable year, not compensated for by any insurance or otherwise, for medical care of the taxpayer, the taxpayer's spouse, and dependents, to the extent the expenses exceed seven and one-half per cent of the taxpayer's federal adjusted gross income.",
+      "source": "Ohio Revised Code 5747.01",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.01"
+    },
+    {
+      "pinpoint": "Subsection (d)(1)(D)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "for insurance (including amounts paid as premiums under part B of title XVIII of the Social Security Act, relating to supplementary medical insurance for the aged) covering medical care referred to in subparagraphs (A) and (B)",
+      "source": "26 U.S. Code 213",
+      "url": "https://www.law.cornell.edu/uscode/text/26/213"
+    },
+    {
+      "pinpoint": "Divisions (A)-(C)",
+      "pre_freeze": true,
+      "published": "2025-09-30",
+      "quote": "For taxable years beginning in 2020 and thereafter, the personal exemption amounts prescribed in division (A) of this section shall be adjusted each year in the manner prescribed in division (C) of this section.",
+      "source": "Ohio Revised Code 5747.025",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.025"
+    },
+    {
+      "pinpoint": "Personal exemptions paragraph",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "For 2025 and 2026, personal exemptions are not subject to inflation indexing.",
+      "source": "EY Tax News: Ohio legislation lowers top personal tax rate retroactive to January 1, 2025, implements flat tax in 2026 (summarizing H.B. 96)",
+      "url": "https://taxnews.ey.com/news/2025-1744-ohio-legislation-lowers-top-personal-tax-rate-retroactive-to-january-1-2025-implements-flat-tax-in-2026"
+    },
+    {
+      "pinpoint": "Division (B)",
+      "pre_freeze": true,
+      "published": "2019-10-17",
+      "quote": "A credit shall be allowed against a taxpayer's aggregate tax liability under section 5747.02 of the Revised Code for taxpayers who received retirement income during the taxable year and whose modified adjusted gross income for the taxable year, less applicable exemptions under section 5747.025 of the Revised Code, as shown on an individual or joint annual return is less than one hundred thousand dollars.",
+      "source": "Ohio Revised Code 5747.055",
+      "url": "https://codes.ohio.gov/ohio-revised-code/section-5747.055"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 1589.56,
+  "engine_step_at_issue": "Determining Ohio AGI of $94,925.30. The engine applied no R.C. 5747.01(A)(10)(b) deduction for unreimbursed medical care above 7.5% of federal AGI, even though the head's $6,500 of after-tax non-employer premiums plus $800 of other medical expenses exceed that threshold.",
+  "independent_answer": 1916.6,
+  "reference_value": 1921.57,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "For 2026, R.C. 5747.02 sets Ohio's tax at $332 plus 2.75% of taxable income above $26,050. That base accounts for the consensus's whole $332 shortfall, so the consensus ($1,589.56) is wrong. The engine has the base, the two $1,900 exemptions and the $200 retirement income credit right. However, it starts from Ohio AGI equal to federal AGI ($94,925.30) and takes no medical-care deduction under R.C. 5747.01(A)(10)(b). On the stated facts the head paid $6,500 of non-employer insurance premiums and $800 of other medical costs, totaling $7,300. Premiums count as medical care under IRC 213(d)(1)(D), and $7,300 exceeds 7.5% of federal AGI ($7,119.38), so the deduction is about $180.63. Ohio tax after the retirement credit is then about $1,916.60, roughly $5 below the reference.",
+  "verdict": "reference_wrong"
+}

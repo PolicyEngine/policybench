@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7606(e)(1)(A)(ii), qualified taxpayer for taxable years beginning on or after Jan. 1, 2025",
+      "pre_freeze": true,
+      "published": "in force for taxable years beginning on or after 2025-01-01",
+      "quote": "has qualifying real property taxes ... in excess of the following percentages of federal adjusted gross income ... $3,000 or less 3 1/2",
+      "source": "New York Tax Law \u00a7606(e) (Real property tax circuit breaker credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "Real property tax credit simplification (Article 22), Part RR of Chapter 59 of the Laws of 2025; Tax Law \u00a7606(e)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "federal adjusted gross income (FAGI) instead of household income ... The calculation of the credit amount is simplified.",
+      "source": "NYS Department of Taxation and Finance, Summary of 2025 legislative changes: Real property tax credit simplification",
+      "url": "https://www.tax.ny.gov/legal/2025/pit-corp-changes.htm"
+    },
+    {
+      "pinpoint": "Eligibility and credit amount",
+      "pre_freeze": true,
+      "published": "2025-11-18",
+      "quote": "If you, your spouse (if married filing jointly), or a dependent claimed is 65 or older, the credit can be as much as $375.",
+      "source": "NYS Department of Taxation and Finance, Real property tax credit",
+      "url": "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm"
+    },
+    {
+      "pinpoint": "Eligibility list",
+      "pre_freeze": true,
+      "published": "2025-11-18",
+      "quote": "your federal adjusted gross income is $18,000 or less; you occupied the same New York residence for six months or more",
+      "source": "NYS Department of Taxation and Finance, Real property tax credit",
+      "url": "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm"
+    },
+    {
+      "pinpoint": "\u00a786(c)(1)(A) base amount",
+      "pre_freeze": true,
+      "published": "current through 2026",
+      "quote": "except as otherwise provided in subparagraph (B) or (C), $25,000",
+      "source": "26 U.S.C. \u00a786 (Social security and tier 1 railroad retirement benefits)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 375,
+  "reference_value": 375,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "From tax year 2025, NY Tax Law \u00a7606(e), as amended by Part RR of Chapter 59 of the Laws of 2025, tests the real property tax credit against federal AGI instead of household gross income. The head's federal AGI is $0, because $2,800 of Social Security is below the IRC \u00a786 base amount. The head is a full-year resident aged 74 who paid $1,634 of property tax. The home's market value isn't listed, so the prompt's convention treats it as $0, which is under the $85,000 limit. The refundable credit is therefore the $375 maximum for filers 65 or older. No other NY refundable credit applies, and no 2026 change was found, so the engine's $375 matches the law and stage 1. The cluster answering $0 missed the IT-214 credit.",
+  "verdict": "reference_holds"
+}

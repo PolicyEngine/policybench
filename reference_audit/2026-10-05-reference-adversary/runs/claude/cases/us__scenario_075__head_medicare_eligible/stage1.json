@@ -1,0 +1,42 @@
+{
+  "ambiguity": "A loose reading would treat the \"is disabled\" flag, together with the assumption that people take up programs they qualify for, as proof of SSDI entitlement and Medicare eligibility. That reading gives 1. It is not reasonable here: the prompt says not to infer benefit receipt, it lists no Social Security disability income, it says nothing about work credits or insured status, and it describes only one year, so 24 months of prior entitlement cannot be shown. The output definition does not mention PolicyEngine rules, so that issue does not arise.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 426(b)(1)-(2)(A)",
+      "pre_freeze": true,
+      "published": "Statute in force before 2026 (current codification)",
+      "quote": "has not attained age 65, and ... is entitled to, and has for 24 calendar months been entitled to, (i) disability insurance benefits under section 423 of this title",
+      "source": "42 U.S.C. \u00a7 426 (Social Security Act \u00a7 226), Hospital insurance benefits for the aged and disabled",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7 426(a)(1)",
+      "pre_freeze": true,
+      "published": "Statute in force before 2026 (current codification)",
+      "quote": "Every individual who\u2014(1) has attained age 65, and (2)...",
+      "source": "42 U.S.C. \u00a7 426 (Social Security Act \u00a7 226)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7 1395o(a)",
+      "pre_freeze": true,
+      "published": "Statute in force before 2026 (current codification)",
+      "quote": "Every individual who\u2014(1) is entitled to hospital insurance benefits under part A, or (2) has attained age 65 and is a resident of the United States ... is eligible to enroll",
+      "source": "42 U.S.C. \u00a7 1395o (Social Security Act \u00a7 1836), Eligibility for Part B",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1395o"
+    },
+    {
+      "pinpoint": "Disability benefits section",
+      "pre_freeze": true,
+      "published": "unknown (page asset dated 2023-07-19)",
+      "quote": "If you're getting Social Security disability benefits, you'll get Medicare automatically after getting disability benefits for 24 months.",
+      "source": "Medicare.gov (CMS), I'm getting Social Security benefits before 65",
+      "url": "https://www.medicare.gov/basics/get-started-with-medicare/before-65"
+    }
+  ],
+  "computation": "1. Age route: under 42 U.S.C. 426(a), Part A entitlement based on age requires the person to have reached age 65. Part B under 42 U.S.C. 1395o(a)(2) also requires age 65, unless the person is already entitled to Part A. Head is 62, so the age route fails.\n2. Disability route: under 42 U.S.C. 426(b), a person under 65 qualifies only if they are entitled to, and have for 24 calendar months been entitled to, Social Security disability insurance benefits (SSDI, \u00a7423), disabled child's benefits (\u00a7402(d)) or disabled widow(er)'s benefits (\u00a7402(e)/(f)), or are a qualified railroad retirement disability beneficiary. Being disabled is not enough by itself. The prompt lists no Social Security or railroad disability benefits, so under the conventions they are 0. The prompt also says \"Do not infer unlisted ... benefit receipt.\" Nothing in the facts shows 24 months of prior entitlement, and nothing shows insured status for SSDI. Head is not entitled through \u00a7426(b).\n3. Special routes: ALS (immediate entitlement once disability benefits begin) and ESRD (42 U.S.C. 426-1) are conditions not listed in the prompt, so they are false.\n4. Part B through Part A entitlement (\u00a71395o(a)(1)): fails because Head has no Part A entitlement.\nResult: Head is not eligible for Medicare in 2026. head_medicare_eligible = 0, which matches the reference. The consensus answer of 1 treats any disability as enough, but the statute requires 24 months of entitlement to disability benefits. No 2026-specific amount is involved; the statutory rules were in force well before the 2026-07-03 freeze.",
+  "confidence": "high",
+  "definition_reading": "I read \"eligible for Medicare\" as being entitled to, or eligible to enroll in, Medicare Part A or Part B under the Social Security Act. Head is 62, so they need a disability route. That route requires 24 months of entitlement to Social Security or railroad disability benefits, or ESRD or ALS. The prompt lists none of these, and its conventions treat them as 0 or false and forbid inferring benefit receipt. So Head is not eligible.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}
