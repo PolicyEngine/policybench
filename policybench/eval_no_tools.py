@@ -302,6 +302,9 @@ class RequestWallTimeoutError(TimeoutError):
     """Raised when a provider request exceeds PolicyBench's local wall timeout."""
 
 
+WALL_TIMEOUT_MESSAGE = "Provider request exceeded {seconds}s wall-clock timeout"
+
+
 class SensitivityKnobError(ValueError):
     """Raised when a serving sensitivity knob is unsupported by a transport."""
 
@@ -410,6 +413,33 @@ def is_infrastructure_error_text(error: str | None) -> bool:
     if any(marker.lower() in error_lower for marker in FATAL_ERROR_TEXT_MARKERS):
         return True
     return is_retryable_provider_error_text(error)
+
+
+# What a provider request timeout leaves in a worker's log (its stdout and
+# stderr). litellm.Timeout's str and repr both begin "litellm.Timeout: ", so
+# it survives the 60-character "Retry" line as well as the ERROR line and
+# the traceback; litellm raises it for a client-side timeout and for a
+# provider's HTTP 408 or 504. The SIGALRM wall timeout usually fires inside a
+# socket read, where httpcore re-raises it as ReadTimeout and litellm then as
+# litellm.Timeout; elsewhere it surfaces under its own class name. Its message
+# is kept in the traceback either way. Deliberately not a bare "Timeout" or
+# "timed out": every worker's `import litellm` logs "Failed to fetch remote
+# model cost map from <url>: timed out" (or "504 Gateway Timeout") when that
+# fetch fails, and no request timed out.
+REQUEST_TIMEOUT_LOG_PATTERN = re.compile(
+    "|".join(
+        (
+            r"\blitellm\.Timeout: ",
+            rf"\b{RequestWallTimeoutError.__name__}\b",
+            re.escape(WALL_TIMEOUT_MESSAGE).replace(re.escape("{seconds}"), r"\S+"),
+        )
+    )
+)
+
+
+def log_shows_request_timeout(text: str) -> bool:
+    """Return whether a worker log records a provider request that timed out."""
+    return REQUEST_TIMEOUT_LOG_PATTERN.search(text) is not None
 
 
 def _is_retryable_provider_error(error: Exception) -> bool:
@@ -1031,7 +1061,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
 
     def _raise_timeout(_signum, _frame):
         raise RequestWallTimeoutError(
-            f"Provider request exceeded {wall_timeout_seconds}s wall-clock timeout"
+            WALL_TIMEOUT_MESSAGE.format(seconds=wall_timeout_seconds)
         )
 
     signal.signal(signal.SIGALRM, _raise_timeout)
@@ -1747,6 +1777,51 @@ def _merge_repair_cells(
             repair_value,
         )
     return merged
+
+
+def _nonblank_explanations(explanations: dict) -> dict:
+    return {
+        variable: (
+            explanation
+            if isinstance(explanation, str) and explanation.strip()
+            else None
+        )
+        for variable, explanation in explanations.items()
+    }
+
+
+def _merge_repair_response(
+    predictions: dict[str, float | None],
+    explanations: dict[str, str | None],
+    response_predictions: dict[str, float | None],
+    response_explanations: dict[str, str | None],
+    *,
+    disagreements: list[dict],
+) -> tuple[dict[str, float | None], dict[str, str | None]]:
+    """Merge one repair response into the cells earlier responses produced.
+
+    Sync's value and explanation repair rounds and the batch runner both merge
+    through this, so the two harnesses keep the same cells for the same
+    responses. (Sync's explanation-only pass merges its explanations with
+    ``_merge_repair_cells`` directly.) Each field merges
+    independently via ``_merge_repair_cells``: a present value is never replaced,
+    a missing one is filled from the response, and a missing response value
+    changes nothing. A blank explanation counts as missing, as it does in
+    ``_missing_explanations``.
+    """
+    merged_predictions = _merge_repair_cells(
+        predictions,
+        response_predictions,
+        field="prediction",
+        disagreements=disagreements,
+    )
+    merged_explanations = _merge_repair_cells(
+        _nonblank_explanations(explanations),
+        _nonblank_explanations(response_explanations),
+        field="explanation",
+        disagreements=disagreements,
+    )
+    return merged_predictions, merged_explanations
 
 
 def _enforce_explanation_value_contract(
@@ -2597,16 +2672,11 @@ def _request_predictions_with_budget_escalation(
             raise
 
         request_results.append(result)
-        predictions = _merge_repair_cells(
+        predictions, explanations = _merge_repair_response(
             predictions,
-            result["predictions"],
-            field="prediction",
-            disagreements=repair_disagreements,
-        )
-        explanations = _merge_repair_cells(
             explanations,
+            result["predictions"],
             result.get("explanations", {}),
-            field="explanation",
             disagreements=repair_disagreements,
         )
 

@@ -20,19 +20,17 @@ For a single-country run (every supervised run in practice), PolicyEngine
 provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
 computed once, in a fresh interpreter, into
 ``<run_dir>/policyengine_provenance.json`` and handed to workers through
-``POLICYBENCH_POLICYENGINE_PROVENANCE``. What computing it costs depends on
-the environment. It imports policyengine only when a country's installed
-model package is the exact version policyengine.py pins for it. Under
-policyengine.py 4.16.1, with ``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset,
-that import built the US and UK tax-benefit systems: about 1 GB of peak RSS
-and 11-14 CPU-seconds per process when measured on 2026-09-28. Otherwise it
-reads only package metadata and policyengine.py's bundled release manifest,
-and imports no PolicyEngine module; that was the case on 2026-09-30 for
-policyengine-us 2.15.17, which differs from the 2.2.1 that policyengine.py
-6.1.2 pins. Either way, computing it once per run bounds the cost: a worker
-that only calls an LLM does not pay it, and neither does the supervisor.
-Without the file (a mixed-country run, or a failed write), workers and the
-supervisor compute provenance themselves, as before.
+``POLICYBENCH_POLICYENGINE_PROVENANCE``. Computing it reads package metadata
+and policyengine.py's bundled release manifest and imports no PolicyEngine
+module (about 0.15 CPU-seconds). Before PR #186 it imported policyengine
+whenever a country's installed model package was the exact version
+policyengine.py pins; under policyengine.py 4.16.1 with
+``POLICYENGINE_SKIP_COUNTRY_IMPORTS`` unset, that built the US and UK
+tax-benefit systems: about 1 GB of peak RSS and 11-14 CPU-seconds per process
+when measured on 2026-09-28. The file now mainly makes every worker record the
+bundles the supervisor checks. Without the file (a mixed-country run, or a
+failed write), workers and the supervisor compute provenance themselves, as
+before.
 """
 
 from __future__ import annotations
@@ -74,7 +72,9 @@ HEARTBEAT_FILENAME = "run_state.json"
 SCENARIO_DIR = "scenarios"
 DEFAULT_MAX_WORKERS = 4
 MIN_WORKERS = 1
-# Above this timeout share in the sliding window, concurrency steps down.
+# Above this timeout share in the sliding window, concurrency steps down. A
+# scenario counts as timed out when its worker log shows a provider request
+# timeout (eval_no_tools.log_shows_request_timeout).
 TIMEOUT_RATE_BACKOFF_THRESHOLD = 0.3
 ADAPTIVE_WINDOW = 8
 # Dispatching stops once projected spend for in-flight + queued work would
@@ -720,29 +720,39 @@ class Supervisor:
         )
 
     def _collect(self, index: int, started: float) -> ScenarioResult:
+        from policybench.eval_no_tools import log_shows_request_timeout
+
         scenario_id = self.scenario_ids[index]
         path = self.scenario_csv(index)
+        # Read the log before looking for the CSV: a worker whose request
+        # timed out deletes its scenario CSV before re-raising, so the
+        # timeouts that fail a scenario leave no CSV behind.
+        log = path.with_suffix(".log")
+        log_text = log.read_text(errors="ignore") if log.exists() else ""
+        timed_out = log_shows_request_timeout(log_text)
         if not path.exists():
             return ScenarioResult(
-                scenario_id, index, ok=False, seconds=time.time() - started
+                scenario_id,
+                index,
+                ok=False,
+                timed_out=timed_out,
+                seconds=time.time() - started,
             )
         try:
             frame = pd.read_csv(path)
         except Exception:
             return ScenarioResult(
-                scenario_id, index, ok=False, seconds=time.time() - started
+                scenario_id,
+                index,
+                ok=False,
+                timed_out=timed_out,
+                seconds=time.time() - started,
             )
         cost = float(
             frame.get("total_cost_usd", pd.Series(dtype=float)).fillna(0).sum()
         )
         missing = int(frame["prediction"].isna().sum()) if "prediction" in frame else 0
-        log = path.with_suffix(".log")
-        timed_out = False
-        provenance_recomputed = False
-        if log.exists():
-            text = log.read_text(errors="ignore")
-            timed_out = "Timeout" in text or "timed out" in text
-            provenance_recomputed = POLICYENGINE_PROVENANCE_NOT_REUSED in text
+        provenance_recomputed = POLICYENGINE_PROVENANCE_NOT_REUSED in log_text
         return ScenarioResult(
             scenario_id,
             index,
@@ -786,10 +796,11 @@ class Supervisor:
         with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
         countries = sorted(_scenario_countries(self.scenarios))
-        # Each worker computed its one scenario's country in a fresh process.
-        # Whether ``import policyengine`` succeeds, and so which branch
-        # records the US bundle, can depend on what the same process looked
-        # up first, so the handoff covers single-country runs only.
+        # The handoff covers single-country runs only. It was built while the
+        # US bundle still depended on whether the process had already tried to
+        # import policyengine, so a file covering several countries could
+        # differ from what each worker computed alone. That dependence is gone,
+        # and mixed-country workers computing their own bundles is now cheap.
         if len(countries) != 1:
             return
         if not self._compute_policyengine_provenance(path, countries, dict(self.env)):
