@@ -39,8 +39,8 @@ A batch row's ``error`` holds only a provider error or a missing batch entry.
 Sync also writes a note into the ``error`` of every row of a scenario whose
 repairs left a cell without a value or an explanation (for example
 ``Missing explanations after repair: eitc``, or
-``budget_exhausted_at_ceiling: eitc`` for a cell that hit the budget ceiling);
-batch writes no such note.
+``budget_exhausted_at_ceiling: eitc`` for a cell left without a value at the
+budget ceiling); batch writes no such note.
 
 xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 """
