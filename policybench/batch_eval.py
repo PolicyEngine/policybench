@@ -13,7 +13,8 @@ Semantics that differ from sync mode, by design:
   is not model latency. Models evaluated in batch mode show no latency on the
   leaderboard rather than a misleading one. Batch turnaround is recorded in
   the run's ``batches/`` state files.
-- ``live_calls`` is 1 on rows a batch response answered and 0 otherwise, and
+- ``live_calls`` counts the batch responses that answered a row's cell (one
+  per answered attempt, summed over repair rounds) and is 0 when none did, and
   ``cache_hit_calls`` is always 0: batch requests bypass the LiteLLM disk
   cache. ``live_elapsed_seconds`` is empty, like ``elapsed_seconds``.
 - Cost columns are reconstructed from token usage at standard synchronous
@@ -32,6 +33,11 @@ Semantics that differ from sync mode, by design:
     next round instead;
   - a batch has no counterpart to the explanation-only request sync makes
     when every value is present but some explanations are still missing.
+
+A batch row's ``error`` holds only a provider error or a missing batch entry.
+When a cell still lacks a value or an explanation after the last round, sync
+also writes an "after repair" note there (for example ``Missing explanations
+after repair: eitc``); batch writes none.
 
 xAI and DeepSeek have no batch APIs; use the sync chunked runner for them.
 """
