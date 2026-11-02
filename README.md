@@ -118,22 +118,21 @@ The short version is: generate fixed reference-output manifests first, run
 Claude models serially, run non-Claude models in parallel, then do a final merge
 and export pass.
 
-Run these commands from a clone of the repository: they write under
-`results/local/`, and `analyze` also writes the dashboard payload to
-`app/src/data.json`. They call `policybench` as `uv tool install` puts it on
-your `PATH`; in a clone set up with `uv sync`, prefix each with `uv run`, as the
-runbook does.
+Run these commands from a clone of the repository after `uv sync`, as the
+runbook does. They write under `results/local/`, `analyze` also writes the
+dashboard payload to `app/src/data.json`, and some commands read committed files
+such as `paper/snapshot/`, which `uv tool install` leaves out.
 
 ```bash
 # Generate reference outputs for 100 sampled households using headline outputs
-policybench reference-outputs -n 100 --seed 42
+uv run policybench reference-outputs -n 100 --seed 42
 
 # Run AI-alone evaluations on the exported scenario manifest.
 # The standard response contract includes numeric answers and explanations.
-policybench eval-no-tools -n 100 --seed 42
+uv run policybench eval-no-tools -n 100 --seed 42
 
 # For larger runs, use resumable per-model chunks.
-policybench eval-no-tools-chunked \
+uv run policybench eval-no-tools-chunked \
   --scenario-manifest results/local/scenarios.csv \
   --output-dir results/local/no_tools_chunked \
   --country us \
@@ -144,7 +143,7 @@ policybench eval-no-tools-chunked \
 # Claude models must use --parallel 1 and --model-parallel 1.
 
 # Analyze local results and export local artifacts
-policybench analyze --output-dir results/local/analysis
+uv run policybench analyze --output-dir results/local/analysis
 ```
 
 ## Response-contract retries
@@ -152,7 +151,7 @@ policybench analyze --output-dir results/local/analysis
 For paid runs, retry broken full responses before freezing a snapshot:
 
 ```bash
-policybench retry-failed-responses \
+uv run policybench retry-failed-responses \
   --country us \
   --source-predictions results/local/full_run/us/predictions.csv \
   --scenario-manifest results/local/full_run/us/scenarios.csv \
@@ -168,10 +167,10 @@ rows are preserved.
 
 ```bash
 # Optional: run the same benchmark multiple times on the saved scenario manifest
-policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local/no_tools/runs
+uv run policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local/no_tools/runs
 
 # Analyze the canonical point estimate plus across-run stability
-policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
+uv run policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
 ```
 
 `policybench reference-outputs` writes PolicyEngine reference outputs, not

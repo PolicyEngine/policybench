@@ -13,6 +13,7 @@ PolicyBench is ever published to PyPI, delete this module with the README's
 """
 
 import html
+import itertools
 import json
 import re
 import shlex
@@ -44,6 +45,8 @@ SURFACES = (
 
 # Each installer and what its positional arguments are.
 #   requirements: each positional is a requirement (pip install).
+#   tool install: the positional is a requirement unless --from, anywhere in
+#     the arguments, names the source; then it names only the tool.
 #   tool: the first positional names the tool's package, unless --from or
 #     --spec names it, and later tokens are the tool's own arguments (uvx).
 #   command: positionals are a command to run; only --with adds a package.
@@ -51,7 +54,8 @@ SURFACES = (
 INSTALLERS = (
     (re.compile(r"(?<![\w-])pip3?\s+install\b"), "requirements"),
     (re.compile(r"\bpipx\s+install\b"), "requirements"),
-    (re.compile(r"\buv\s+(?:add|tool\s+install)\b"), "requirements"),
+    (re.compile(r"\buv\s+tool\s+install\b"), "tool install"),
+    (re.compile(r"\buv\s+add\b"), "requirements"),
     (re.compile(r"\b(?:conda|mamba|micromamba)\s+install\b"), "requirements"),
     (re.compile(r"\b(?:poetry|pdm)\s+add\b"), "requirements"),
     (re.compile(r"\buvx\b|\buv\s+tool\s+run\b|\bpipx\s+run\b"), "tool"),
@@ -157,7 +161,10 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
     install puts policybench on your PATH" names no requirement.
     """
     names = []
-    named_tool = False
+    command = itertools.takewhile(lambda token: token not in SHELL_OPERATORS, tokens)
+    named_tool = role == "tool install" and any(
+        token.partition("=")[0] in TOOL_OPTIONS for token in command
+    )
     i = 0
     while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
         token = tokens[i].strip("\u201c\u201d\u2018\u2019")  # curly quotes in prose
@@ -175,6 +182,8 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
                 i += 1
         elif role == "command" or (role == "tool" and named_tool):
             break
+        elif role == "tool install" and named_tool:
+            pass  # --from names the source; the positional names only the tool
         else:
             name = _index_name(token.rstrip(".,;:!?)}\"'"))
             if name:
@@ -258,6 +267,7 @@ def surface_installs(path: Path) -> list[str]:
         "py -3.12 -m pip install policybench",
         "uv pip install --system PolicyBench==2.0.0",
         "uv tool install --python 3.12 policybench",
+        "uv tool install --from policybench policybench",
         "uv add policybench",
         "pipx install policybench",
         "conda install -c conda-forge policybench",
@@ -294,6 +304,8 @@ def test_detector_flags_index_installs_of_policybench(text):
         f"pip install git+{REPO_URL}.git@main",
         f"pip install git+{REPO_URL}#egg=policybench",
         f"uv tool install --python 3.12 git+{REPO_URL}  # puts policybench on PATH",
+        f"uv tool install policybench --from git+{REPO_URL}",
+        f"uv tool install --from git+{REPO_URL} policybench",
         f"uvx --from git+{REPO_URL} policybench --help",
         f"pip install 'policybench @ git+{REPO_URL}'",
         f"pip install policybench@git+{REPO_URL}",
@@ -375,7 +387,7 @@ def test_readme_installs_policybench_from_github():
     sources = [
         token
         for snippet in code
-        for pattern, _ in INSTALLERS[:3]
+        for pattern, _ in INSTALLERS[:4]
         for match in pattern.finditer(snippet)
         for token in _tokens(snippet[match.end() :])
     ]
