@@ -5695,7 +5695,7 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     # "exceeding GPT-5.5's ... and trailing GPT-6 Sol's", "between their".
     assert facts["gpt55FedTaxRate"] < facts["fedTaxRate"] < facts["solFedTaxRate"]
     assert facts["gpt55StateTaxRate"] < facts["stateTaxRate"] < facts["solStateTaxRate"]
-    # "It trails both on SNAP and Medicaid eligibility".
+    # "It trails both on SNAP amounts and Medicaid eligibility".
     for name in ("Snap", "Medicaid"):
         rate = facts[f"{name.lower()}Rate"]
         assert rate < min(facts[f"gpt55{name}Rate"], facts[f"sol{name}Rate"])
