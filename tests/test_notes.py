@@ -5686,6 +5686,23 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
 
     # "GPT-6 Sol leads".
     assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
+    # "GPT-5.5, which OpenAI released in April, matches it".
+    from policybench.paper_results import MODEL_RELEASE_DATES
+
+    assert MODEL_RELEASE_DATES["gpt-5.5"].startswith("2026-04-")
+    facts = note["facts"]
+    assert facts["gpt55Exact"] == facts["agovExact"]
+    # "exceeding GPT-5.5's ... and trailing GPT-6 Sol's", "between their".
+    assert facts["gpt55FedTaxRate"] < facts["fedTaxRate"] < facts["solFedTaxRate"]
+    assert facts["gpt55StateTaxRate"] < facts["stateTaxRate"] < facts["solStateTaxRate"]
+    # "It trails both on SNAP and Medicaid eligibility".
+    for name in ("Snap", "Medicaid"):
+        rate = facts[f"{name.lower()}Rate"]
+        assert rate < min(facts[f"gpt55{name}Rate"], facts[f"sol{name}Rate"])
+    # "trails GPT-5.5 by at most": a real gap, on one of the four outputs.
+    assert float(facts["peMaxGap"]) > 0
+    # The note compares America.gov with models it names, each at its own rate.
+    assert "median" not in text
     # "the output that carries the most weight".
     weights = payload["globalWeights"]["household"]
     assert max(weights, key=weights.get) == "person_medicaid_eligible"
