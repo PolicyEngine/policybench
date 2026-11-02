@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "ARM 37.78.401 (resource limit; vehicle exclusion)",
+      "pre_freeze": true,
+      "published": "2009-07-01",
+      "quote": "If the total value of the filing unit's countable resources exceeds $3,000, the filing unit is ineligible for assistance. ... one vehicle regardless of its value",
+      "source": "Administrative Rules of Montana 37.78.401, TANF resource limits (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.401"
+    },
+    {
+      "pinpoint": "Income limits table, family size 3",
+      "pre_freeze": true,
+      "published": "2023-07-01",
+      "quote": "3 | $1,465 | $792 | $725 ... Countable resources must be less than $3,000.",
+      "source": "Montana DPHHS, Temporary Assistance for Needy Families (TANF) program page",
+      "url": "https://dphhs.mt.gov/HCSD/tanf"
+    },
+    {
+      "pinpoint": "TANF 001, effective 07/01/25",
+      "pre_freeze": true,
+      "published": "2025-07-01",
+      "quote": "TANF 001: Monthly Income Standards ... Effective: 07/01/25",
+      "source": "Montana DPHHS TANF Policy Manual index (TANF 001 Monthly Income Standards)",
+      "url": "https://dphhs.mt.gov/hcsd/Manuals/TANFpolicymanual"
+    },
+    {
+      "pinpoint": "ARM 37.78.406(2)(a)-(b)",
+      "pre_freeze": true,
+      "published": "2008-06-13",
+      "quote": "$200 of monthly earnings for each wage earner ... 25% of the remaining earned income after the disregards in (2)(a) have been applied",
+      "source": "Administrative Rules of Montana 37.78.406, TANF Cash Assistance; Income Disregards (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.406"
+    },
+    {
+      "pinpoint": "ARM 37.78.420",
+      "pre_freeze": true,
+      "published": "2011-01-28",
+      "quote": "The household's net countable income is subtracted from the payment standard to determine the amount of the payment for the TANF case assistance unit.",
+      "source": "Administrative Rules of Montana 37.78.420, TANF Assistance Standards; Methods of Computing Amount of Monthly Benefit Payment (via Cornell LII)",
+      "url": "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.420"
+    },
+    {
+      "pinpoint": "\u00a7416.1205",
+      "pre_freeze": true,
+      "published": "1989-01-01",
+      "quote": "$2,000",
+      "source": "20 CFR 416.1205 (SSI resource limit)",
+      "url": "https://www.law.cornell.edu/cfr/text/20/416.1205"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 6063.75,
+  "reference_value": 6064.96,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The unit is the disabled head and two children, so its size is 3. The head is not an SSI recipient because the $2,800 bank balance is over the $2,000 SSI limit. The vehicle is excluded, which leaves countable resources of $2,800, under Montana's $3,000 limit. Net countable earnings are ($492.92 \u2212 $200) \u00d7 0.75 = $219.69 a month. That is far below the $1,465 GMI and $792 net income standards. The payment is the $725 payment standard minus $219.69, or about $505 a month and $6,064 a year. The engine's $6,064.96 matches this to within about $1, which is a rounding difference. The consensus answer of $0 depends on wrong asset limits, a made-up SSI receipt, or the belief that the program is not modeled.",
+  "verdict": "reference_holds"
+}

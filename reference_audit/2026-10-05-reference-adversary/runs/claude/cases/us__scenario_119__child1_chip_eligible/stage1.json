@@ -1,0 +1,58 @@
+{
+  "ambiguity": "There is a weak second reading: treat \"eligible, not currently enrolled\" as a check on income and age only, ignoring Child 1's existing coverage. That reading gives 1, because MAGI of about 169\u2013192% FPL is within FAMIS's 205% limit. But federal and Virginia law make being uninsured an eligibility condition, not an enrollment fact, so this reading is not well supported. The words \"under PolicyEngine rules\" in the definition do not change the legal answer.",
+  "citations": [
+    {
+      "pinpoint": "(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification (in force before 2026)",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage (as such terms are defined in section 300gg\u201391 of this title)",
+      "source": "42 U.S. Code \u00a7 1397jj (Social Security Act \u00a72110)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "(b)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current eCFR text (in force before 2026)",
+      "quote": "A targeted low-income child must not be\u2014 ... (ii) Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act",
+      "source": "42 CFR \u00a7 457.310 (Targeted low-income child)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "E.4 and E.4.b",
+      "pre_freeze": true,
+      "published": "2019-06-26 (last amendment, Va. Reg. Vol. 35 Iss. 20)",
+      "quote": "Any child covered under a group health plan or under health insurance coverage, as defined in \u00a7 2791 of the Public Health Services Act (42 USC \u00a7 300gg-91(a) and (b)(1)), shall not be eligible for FAMIS.",
+      "source": "Virginia Administrative Code 12VAC30-141-100 (FAMIS eligibility requirements)",
+      "url": "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/"
+    },
+    {
+      "pinpoint": "F.2.a",
+      "pre_freeze": true,
+      "published": "2019-06-26 (last amendment)",
+      "quote": "Children from birth to age 19 years who have income above the Medicaid-eligible limit at or below 200% of the federal poverty level, with a 5% income disregard, shall be income eligible to participate in FAMIS.",
+      "source": "Virginia Administrative Code 12VAC30-141-100 (FAMIS eligibility requirements)",
+      "url": "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/"
+    },
+    {
+      "pinpoint": "eligibility list",
+      "pre_freeze": null,
+      "published": "undated agency page",
+      "quote": "Are uninsured",
+      "source": "Virginia DMAS, FAMIS program page",
+      "url": "https://www.dmas.virginia.gov/for-applicants/populations-served/for-children/famis/"
+    },
+    {
+      "pinpoint": "48 contiguous states, household of 3",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "The 2026 poverty guidelines are published in the Federal Register",
+      "source": "HHS ASPE, 2026 Poverty Guidelines",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "computation": "1) Income test (passes; for completeness). The household is a 3-person MAGI household: the head plus two children. Starting from $55,000 of wages, subtract the $3,087 traditional 401(k) deferral, which is excluded from W-2 wages. Add $800 of taxable interest. Subtract the $144 traditional IRA deduction. That gives MAGI of about $52,569. If the head's $6,389 employer premium is treated as a pre-tax \u00a7125 deduction, MAGI is about $46,180. The 2026 HHS poverty guideline for 3 people is $27,320, published in the Federal Register on 2026-01-15, before the freeze. MAGI is therefore about 169\u2013192% FPL. That is above Virginia's Medicaid limit for children aged 6\u201318 (143% FPL plus the 5% disregard), so Child 1 is not Medicaid-eligible. It is at or below the FAMIS limit under 12VAC30-141-100 F.2.a (200% FPL plus a 5% disregard, so 205%). Child 1 is 14, which is under 19. On income and age alone, Child 1 would fit in FAMIS (Virginia's separate CHIP).\n2) Coverage test (fails). A CHIP \"targeted low-income child\" must not be covered under a group health plan or health insurance coverage: 42 U.S.C. 1397jj(b)(1)(C) and 42 CFR 457.310(b)(2)(ii). Virginia's FAMIS rule says the same in 12VAC30-141-100 E.4: \"Only uninsured children shall be eligible for FAMIS.\" It also says: \"Any child covered under a group health plan ... shall not be eligible for FAMIS.\" The household facts list Child 1 as having employer-sponsored insurance, and the facts are constant for the whole year. Employer coverage is a group health plan under PHSA \u00a72791. None of the listed exceptions applies: Medicare, Medicaid, FAMIS, HIPP or FAMIS Select coverage, or lack of geographic access. Nothing in the facts suggests any of them.\n3) Result: Child 1 is not CHIP (FAMIS) eligible, so the answer is 0. The models that answered 1 checked only income and age and missed the uninsured requirement.",
+  "confidence": "high",
+  "definition_reading": "The flag asks whether Child 1 meets every CHIP eligibility condition in Virginia (FAMIS), not whether Child 1 is enrolled. Those conditions are age, residency, income above the Medicaid limit and at or below 205% FPL, and having no other health coverage. The household facts say Child 1 has employer-sponsored insurance all year, so Child 1 fails the no-other-coverage condition, which is part of the definition of eligibility itself.",
+  "independent_answer": 0,
+  "law_supports": "reference"
+}

@@ -3,7 +3,8 @@
 The sensitivity runs' predictions never change; their scores do whenever the
 frozen board's scored reference changes (regenerated references, new exclusions)
 or its roster changes (the would-rank). This recomputes every pinned number in
-``sensitivity/data/claude-fable-5-1-thinking.json`` and
+``sensitivity/data/claude-fable-5-1-thinking.json``,
+``sensitivity/data/claude-haiku-5-5-thinking.json`` and
 ``sensitivity/data/claude-thinking-2026-08.json`` the way
 ``tests/test_sensitivity_evidence.py`` checks them, after
 ``scripts/sensitivity_by_variable.py`` has regenerated the per-program assets:
@@ -44,13 +45,17 @@ RUN_DIR = (
     / "us_full_run_20260612_policyengine_4_16_1_populace"
 )
 FABLE51 = DATA / "claude-fable-5-1-thinking.json"
+HAIKU55 = DATA / "claude-haiku-5-5-thinking.json"
 AUGUST = DATA / "claude-thinking-2026-08.json"
 NUMBER_WORDS = {
     11: "eleven",
     51: "fifty-one",
     55: "fifty-five",
     56: "fifty-six",
+    64: "sixty-four",
     66: "sixty-six",
+    69: "sixty-nine",
+    74: "seventy-four",
 }
 
 
@@ -142,6 +147,22 @@ def main() -> None:
         "used results/local/fable51/predictions32.csv as the incumbent base"
     )
     FABLE51.write_text(json.dumps(fable51, indent=2) + "\n")
+
+    haiku55 = json.loads(HAIKU55.read_text())
+    stem = "sensitivity-claude-haiku-5-5-thinking"
+    if haiku55.get("board") is None:
+        # First rescore: the board and sensitivity scores take their places.
+        haiku55["board"] = {}
+    haiku55["sensitivity"] = {
+        **{k: None for k in ("exact", "within1pct", "score", "would_rank")},
+        **haiku55["sensitivity"],
+    }
+    rescore(haiku55, stem)
+    haiku55["release"] = args.release
+    haiku55["scored_against"] = (
+        universe + "; exact, within-1% and the bounded score all on that universe"
+    )
+    HAIKU55.write_text(json.dumps(haiku55, indent=2) + "\n")
 
     august = json.loads(AUGUST.read_text())
     for block in august["runs"].values():

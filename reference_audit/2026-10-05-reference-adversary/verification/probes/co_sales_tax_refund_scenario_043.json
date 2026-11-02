@@ -1,0 +1,223 @@
+{
+  "scenario_id": "scenario_043",
+  "state": "CO",
+  "reference_system": "policyengine-us 2.15.17 + latest_final (reference_audit/2026-09-28/fixes)",
+  "policyengine_core": "3.32.8",
+  "period": "2026",
+  "people": [
+    "head"
+  ],
+  "reproduction": {
+    "federal_income_tax_before_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "federal_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "payroll_tax": {
+      "published": 330.7310791015625,
+      "recomputed": 330.731079,
+      "reproduces": true
+    },
+    "self_employment_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_income_tax_before_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_refundable_credits": {
+      "published": 19.0,
+      "recomputed": 19.0,
+      "reproduces": true
+    },
+    "local_income_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "snap": {
+      "published": 3576.0,
+      "recomputed": 3576.0,
+      "reproduces": true
+    },
+    "ssi": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "tanf": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicare_eligible": {
+      "published": 1.0,
+      "recomputed": 1.0,
+      "reproduces": true
+    },
+    "free_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "reduced_price_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    }
+  },
+  "all_scored_reproduce": true,
+  "variables": {
+    "co_sales_tax_refund": {
+      "entity": "tax_unit",
+      "label": "Colorado sales tax refund",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 19.0
+      }
+    },
+    "co_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "Colorado refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 19.0
+      }
+    },
+    "co_eitc": {
+      "entity": "tax_unit",
+      "label": "Colorado EITC",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "co_tabor_cash_back": {
+      "entity": "tax_unit",
+      "label": "Colorado TABOR cash back",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 750.0
+      }
+    },
+    "state_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "state refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 19.0
+      }
+    }
+  },
+  "parameters": {
+    "gov.states.co.tax.income.credits.sales_tax_refund.amount.flat_amount_enabled": {
+      "metadata": {
+        "period": "year",
+        "unit": "bool",
+        "label": "Colorado sales tax refund credit flat amount enabled",
+        "reference": [
+          {
+            "title": "2022 Colorado Individual Income Tax Filing Guide",
+            "href": "https://tax.colorado.gov/sites/tax/files/documents/DR_0104_Book_2022.pdf#page=23"
+          },
+          {
+            "title": "2023 Colorado Individual Income Tax Filing Guide",
+            "href": "https://leg.colorado.gov/sites/default/files/documents/2023A/bills/fn/2023a_hb1311_00.pdf#page=3"
+          },
+          {
+            "title": "2024 Colorado State Sales Tax Refund",
+            "href": "https://tax.colorado.gov/income-tax-topics-state-sales-tax-refund"
+          },
+          {
+            "title": "Colorado General Assembly HB23-1311 Identical Temporary TABOR Refund",
+            "href": "https://leg.colorado.gov/bills/hb23-1311#:~:text=The%20act%20creates%20a%20new,2022%2D23%20state%20fiscal%20year"
+          },
+          {
+            "title": "2025 Colorado Individual Tax Filing Guide 104 Book",
+            "href": "https://tax.colorado.gov/sites/tax/files/documents/Book104_2025.pdf#page=23"
+          }
+        ]
+      },
+      "description": "Colorado allows for a flat sales tax refund credit if this is true.",
+      "value_2026": false,
+      "history": [
+        {
+          "from": "2025-01-01",
+          "value": false
+        },
+        {
+          "from": "2024-01-01",
+          "value": false
+        },
+        {
+          "from": "2023-01-01",
+          "value": true
+        },
+        {
+          "from": "2021-01-01",
+          "value": false
+        },
+        {
+          "from": "2015-01-01",
+          "value": false
+        }
+      ]
+    },
+    "gov.states.co.tax.income.credits.sales_tax_refund.amount.amount": {
+      "metadata": {
+        "period": "year",
+        "unit": "currency-USD",
+        "label": "Colorado sales tax refund credit flat amount",
+        "reference": [
+          {
+            "title": "2023 Colorado Individual Tax Filing Guide 104 Book, Line 34",
+            "href": "https://tax.colorado.gov/sites/tax/files/documents/Book0104_2023.pdf#page=9"
+          },
+          {
+            "title": "Colorado General Assembly HB23-1311 Identical Temporary TABOR Refund",
+            "href": "https://leg.colorado.gov/bills/hb23-1311#:~:text=The%20act%20creates%20a%20new,2022%2D23%20state%20fiscal%20year"
+          },
+          {
+            "title": "2025 Colorado Individual Tax Filing Guide 104 Book",
+            "href": "https://tax.colorado.gov/sites/tax/files/documents/Book104_2025.pdf#page=23"
+          }
+        ]
+      },
+      "description": "Colorado provides a flat sales tax refund credit of this amount.",
+      "value_2026": 800,
+      "history": [
+        {
+          "from": "2023-01-01",
+          "value": 800
+        },
+        {
+          "from": "2015-01-01",
+          "value": 800
+        }
+      ]
+    }
+  }
+}

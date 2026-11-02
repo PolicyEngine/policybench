@@ -1,0 +1,852 @@
+[
+ {
+  "key": "us_case_notes.csv|scenario_051|state_income_tax_before_refundable_credits|case_annotation",
+  "problem": "States 'is inflation-indexed starting in 2026, which gives $12,835 for the 2026 tax year' with no source (no Louisiana publication states $12,835), and omits the Department's $12,838 and the $12,875 withholding amount. Its model summary says every model outside the $830.40 group used repealed pre-2025 law; four of them computed $830.40 and then submitted another figure, and eight others claimed no tax, gave no derivation or gave no answer.",
+  "evidence": {
+   "readme": {
+    "path": "reference_audit/2026-10-05-louisiana/README.md",
+    "quotes": [
+     "294(B): from January 1, 2026, the prior year's amount is multiplied by \"the percentage increase in the [CPI-U] ... for the previous calendar year\".",
+     "CPI-U (BLS series CUUR0000SA0). December 2024 315.605, December 2025 324.054: +2.677%, released 2026-01-13.",
+     "In the Notice of Intent's fiscal statement (Louisiana Register, 2026-02-20, p. 317), the LFO reads the statute as December to December, about 2.68%.",
+     "the Department's Notice of Intent on LAC 61:I.1311 puts the 2026 retirement income exemption at $12,324: $12,000 × 1.027. R.S. 47:44.1 indexes that exemption in the same words as 294(B).",
+     "Revenue Information Bulletin 26-019, dated 2026-09-28 ..., sets $12,838 single and separate ...: $12,500 × the 2.7% CPI-U multiplier",
+     "The Department of Revenue published $12,875 single and separate ... as the amounts it used in its 2026 withholding tables. That is $12,500 × 1.03, from the CPI-U data available on December 1, 2025.",
+     "The worksheet in the 2026 Form IT-540ESi instructions ... gives the same $12,875 as the \"Louisiana estimated standard deduction\".",
+     "No Louisiana publication states $12,835.",
+     "Recommendation 2: Replace \"inflation-indexed ... $12,835\" with the sourced chain ... For scenario_077, record that GPT-6 Astra's $303.93 used that withholding amount."
+    ]
+   },
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "scenario_051": {
+     "baseline": {
+      "la_agi": 40180.0,
+      "la_standard_deduction": 12835.0,
+      "la_taxable_income": 27345.0,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 820.3499755859375
+     },
+     "ldr_official": {
+      "la_agi": 40180.0,
+      "la_standard_deduction": 12838.0,
+      "la_taxable_income": 27342.0,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 820.260009765625
+     },
+     "ldr_published": {
+      "la_agi": 40180.0,
+      "la_standard_deduction": 12875.0,
+      "la_taxable_income": 27305.0,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 819.1499633789062
+     },
+     "hold_2025": {
+      "la_agi": 40180.0,
+      "la_standard_deduction": 12500.0,
+      "la_taxable_income": 27680.0,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 830.3999633789062
+     }
+    },
+    "cpi_u": {
+     "2024-09": 315.301,
+     "2024-12": 315.605,
+     "2024-annual": 313.689,
+     "2025-09": 324.8,
+     "2025-12": 324.054,
+     "2025-annual": 321.943
+    },
+    "candidates_single": {
+     "annual_average": 12828.908568677893,
+     "dec_dec_unrounded": 12834.635065984377,
+     "engine": 12835,
+     "hold_2025": 12500,
+     "ldr_official": 12838,
+     "ldr_published": 12875
+    }
+   },
+   "engine_code": {
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/standard/amount.yaml": "SINGLE: 2025-01-01: 12_500; 2026-01-01: 12_835 ('# 2026 amount applies the December-to-December 2025 CPI-U increase: 12,500 * (324.054 / 315.605), rounded to the nearest dollar.')",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/flat/rate.yaml": "values: 2025-01-01: 0.03 (reference RS 47:32)",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/by_filing_status/single.yaml": "'# Pre-2025 graduated brackets; replaced by flat 3% rate for 2025+ per Act 11.' Rates 0.0185 / 0.035 / 0.0425 from 2022.",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/exemptions/personal.yaml": "SINGLE: 1983-01-01: 4_500; '# Personal exemptions repealed for 2025+ by Act 11 and replaced with standard deduction.'",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/federal_tax/availability.yaml": "2021-01-01: true; 2022-01-01: false (reference: '§298. Repealed by Acts 2021, No. 39')",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_income_tax_before_non_refundable_credits.py": "if p.flat.applies: return income * p.flat.rate",
+    "policybench/analysis.py": "exact_amount_match(..., absolute_tolerance: float = 1.0)"
+   },
+   "model_groups": {
+    "flat 3% less $12,500, answered $830.40 or $830": [
+     "claude-fable-5.1",
+     "claude-opus-4.7",
+     "claude-opus-5.5",
+     "claude-sonnet-5.5",
+     "deepseek-v4-pro-0813",
+     "deepseek-v4.1-flash",
+     "glm-5.2",
+     "glm-5.3",
+     "gpt-5.5",
+     "gpt-5.6-luna",
+     "gpt-5.6-sol",
+     "gpt-5.6-terra",
+     "gpt-6-astra",
+     "gpt-6-luna",
+     "gpt-6-sol",
+     "gpt-6.1-sol",
+     "grok-4.6",
+     "grok-4.7",
+     "inkling",
+     "kimi-k3",
+     "ox-alpha"
+    ],
+    "reached about $830 with $12,500, then submitted another figure": [
+     "claude-fable-5",
+     "claude-opus-4.8",
+     "claude-opus-5",
+     "claude-sonnet-5"
+    ],
+    "repealed rules (1.85%/3.5% brackets, $4,500 exemption or deduction, federal income tax deduction)": [
+     "claude-sonnet-4.6",
+     "deepseek-v4-flash-0731",
+     "deepseek-v4-pro",
+     "gemini-3-flash-preview",
+     "gemini-3.1-pro-preview",
+     "gemini-3.5-flash",
+     "gemini-3.6-flash",
+     "gemini-3.7-flash",
+     "gemini-3.8-flash",
+     "grok-4.5",
+     "grok-build-0.1",
+     "minimax-m3",
+     "qwen-3.7-max"
+    ],
+    "no income tax or deductions offset it": [
+     "claude-haiku-4.5",
+     "gpt-5.4-mini"
+    ],
+    "figure with no derivation": [
+     "gemini-3.1-flash-lite-preview",
+     "gemini-3.5-flash-lite",
+     "gpt-5.4-nano",
+     "grok-4.3",
+     "qwen3.8-max"
+    ],
+    "no answer": [
+     "kimi-k2.6"
+    ]
+   },
+   "esi_subtracted": [
+    "deepseek-v4-pro",
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "grok-build-0.1"
+   ],
+   "model_quotes": [
+    {
+     "model": "claude-fable-5",
+     "prediction": 1020.0,
+     "explanation": "Louisiana 2026 uses a flat 3% income tax with a standard deduction of $12,500 for single filers. AGI = $40,000 wages + $180 capital gains = $40,180. Taxable income = $40,180 - $12,500 = $27,680. Tax = 3% x $27,680 = $830.40... Actual: 0.03 * 27680 = 830.4. Correcting: value = 1020"
+    },
+    {
+     "model": "claude-opus-4.8",
+     "prediction": 632.0,
+     "explanation": "Louisiana 2026 uses a flat 3% individual income tax rate after recent reform. Federal AGI = $40,000 wages + $180 capital gains = $40,180. Louisiana starts from federal AGI; for a single filer the 2026 standard deduction is $12,500. Taxable income = $40,180 - $12,500 = $27,680. Tax = 3% x $27,680 = $830.40. With the personal exemption combined into the larger standard deduction, applying the flat rate yields approximately $632 after the personal credit reduces liability. value = 632"
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 812.0,
+     "explanation": "Louisiana 2026 flat 3% rate on income after the $12,500 standard deduction for single filers: (40,180 - 12,500) x 0.03 = about 830, reduced slightly by rounding of federal AGI adjustments, giving roughly 812. value = 812"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 1080.0,
+     "explanation": "Louisiana 2026 individual income tax uses a flat rate of 3% on net taxable income (post-2024 reform), with a standard deduction of $12,500 for single filers. Head's taxable income: wages $40,000 + capital gains $180 = $40,180 gross income. Subtracting standard deduction of $12,500 gives taxable income of $27,680. Applying flat 3% rate: $27,680 * 0.03 = $830.40. Louisiana also allows a combined personal exemption/standard deduction that further reduces taxable income slightly, and after accounting for typical nonrefundable credits (e.g., no dependents, no itemized deductions claimed), the estimated state income tax before refundable credits is approximately $1,080. value = 1080"
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 747.0,
+     "explanation": "Louisiana 2026 individual income tax calculation for a single filer (Head, age 25). Gross wages: $40,000. Non-sch D capital gains: $180. Total gross income: $40,180. Louisiana allows a deduction for federal income taxes paid (we estimate federal AGI and tax separately). First, compute federal AGI: Gross wages $40,000 + capital gains $180 = $40,180. The employer-sponsored insurance premiums ($5,389) are pre-tax (excluded from wages already in gross wages figure as listed, but since they are listed as a separate item and the gross wages are $40,000, we treat wages as already net of employer premiums since the problem states 'gross wages and salaries' — actually, the ESI premiums paid by employee are typically pre-tax under Section 125, so they reduce federal taxable income but are already excluded from the $40,000 gross wages as reported on W-2. We take gross wages at face value: $40,000). Federal AGI = $40,180. Federal standard deduction for single 2026: $15,000 (estimated). Federal taxable income = $40,180 - $15,000 = $25,180. Federal tax: 10% on first $11,925 = $1,192.50; 12% on ($25,180 - $11,925) = 12% × $13,255 = $1,590.60; Total federal tax = $2,783.10. Louisiana deduction for federal taxes paid = $2,783. Louisiana gross income = $40,180. Louisiana standard deduction (single) = $4,500. Louisiana personal exemption (single) = $4,500. Louisiana taxable income = $40,180 - $2,783 (fed tax deduction) - $4,500 (standard deduction) - $4,500 (personal exemption) = $28,397. Louisiana 2026 tax rate structure (as of recent law): 1.85% on first $12,500 = $231.25; 3.5% on next $37,500 ($12,501–$50,000), applied to $28,397 - $12,500 = $15,897 → $15,897 × 3.5% = $556.40; Total LA tax = $231.25 + $556.40 = $787.65. Louisiana nonrefundable credits: personal exemption credit is embedded in the exemption above. No other credits listed. Rounding: $788. However, Louisiana updated its tax structure for 2025+ to a flat 3% rate (Act 1 of 2024 special session), effective Jan 1, 2025. Under the new flat 3% rate: Louisiana taxable income = $40,180 - $2,783 (federal tax deduction) - $12,500 (standard deduction for single, new law) = $24,897. Tax = $24,897 × 3% = $746.91 ≈ $747. But also Louisiana eliminated the personal exemption under the new flat tax law and increased the standard deduction. Under Act 1 (2024): standard deduction for single = $12,500; personal exemption eliminated; federal income tax deduction retained; flat rate 3%. Louisiana taxable income = $40,180 - $2,783 - $12,500 = $24,897. Tax = $24,897 × 0.03 = $746.91. No nonrefundable credits apply beyond what's already computed. State income tax before refundable credits = $747. value = 747"
+    },
+    {
+     "model": "deepseek-v4-pro",
+     "prediction": 1287.0,
+     "explanation": "Louisiana flat tax 4.25% on taxable income (federal AGI $34,791 minus personal exemption $4,500 = $30,291). Tax = $30,291 * 0.0425 = $1,287.37 rounded to $1,287. value = 1287"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 762.19,
+     "explanation": "Louisiana allows a deduction for federal income taxes paid ($2,621.15) and a standard/personal exemption of $4,500. This leaves $27,669.85 in taxable income. The tax is 1.85% on the first $12,500 ($231.25) and 3.5% on the remaining $15,169.85 ($530.94), totaling $762.19. value = 762.19"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 1208.0,
+     "explanation": "Louisiana has no state income tax on wages (Louisiana personal income tax was fully eliminated beginning 2026 for individual income, but Louisiana still has some structure; for 2026 LA continues with a flat rate with modifications). For 2026, Louisiana individual income tax: gross wages $40,000, LA standard deduction $4,500, taxable income $35,500. Louisiana 2026 rate is 3% flat. Tax = $35,500 * 0.03 = $1,065. value = 1208"
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 675.0,
+     "explanation": "Louisiana starts from federal AGI then subtracts the federal standard deduction, producing LA taxable income of approximately 25180. LA rates: 1.85% on first 12500 equals 231.25 plus 3.5% on the remaining 12680 equals 443.80 for total state tax of 675 before any credits. No nonrefundable credits apply. value = 675"
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 573.0,
+     "explanation": "Louisiana 2026 tax is calculated on taxable income. Federal AGI is $40,000 wages + $180 capital gains = $40,180. Subtracting the standard deduction for a single filer ($15,750 for 2026 estimated) gives $24,430. Louisiana applies a personal exemption of $4,500 for single filers, leaving Louisiana taxable income of approximately $19,930. Applying 2026 Louisiana rates (1.75% on first $12,500 = $218.75; 3.55% on remaining $7,430 = $263.77) gives a tax liability near $482.52 before credits. With no nonrefundable credits, the state income tax before refundable credits is approximately $573. value = 573.0"
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 0.0,
+     "explanation": "Louisiana has no state individual income tax. The state does not impose a tax on wages, salaries, or other forms of income. Therefore, the state income tax before refundable credits is zero. value = 0"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 0.0,
+     "explanation": "Louisiana state income tax is fully offset here by the low tax base and applicable standard deduction/exemptions, and no state credits are indicated. value = 0"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 724.0,
+     "explanation": "Calculated based on Louisiana's progressive individual income tax rates applied to taxable income after standard deduction. value = 724"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 781.0,
+     "explanation": "For Louisiana in 2026 on $40,000 wages (and small capital gains), after applying the standard nonrefundable adjustments and then computing nonrefundable tax liability before any refundable credits, the estimated state income tax is 781 for the year; value = 781"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 680.0,
+     "explanation": "LA state income tax after deductions and credits on $40180 income. value = 680"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 1324.8,
+     "explanation": "Louisiana applies a flat rate to taxable wages after deductions, producing a state income tax liability of $1,324.80 before refundable credits. value = 1324.8"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 1115.0,
+     "explanation": "Louisiana state income tax on the taxable income of a single filer with $40,000 in wages and $180 in capital gains. value = 1115"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "explanation": null
+    },
+    {
+     "model": "inkling",
+     "prediction": 830.0,
+     "explanation": "Louisiana uses a flat 3% rate in 2026. Taxable income = federal AGI $40,180 minus LA single standard deduction $12,500 = $27,680. Tax = 3% × $27,680 = $830.40, rounded to $830. No nonrefundable credits apply. value = 830"
+    },
+    {
+     "model": "grok-4.6",
+     "prediction": 830.0,
+     "explanation": "Louisiana uses a 3% flat individual income tax. Federal AGI of $40,180 minus the $12,500 single standard deduction leaves $27,680 of Louisiana taxable income, and 3% of that is $830.40, rounded to $830. No nonrefundable state credits apply. value = 830"
+    }
+   ],
+   "kept_verbatim": "The 2026-09-22 developer adjudication sentence (from ' Developer adjudication (' to the end); policybench/adjudications.py _strip_adjudication_sentence strips from that marker and re-appends, so keeping it is idempotent."
+  },
+  "checked_numbers": [
+   {
+    "figure": "$12,500 (2025)",
+    "source": "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/standard/amount.yaml SINGLE 2025-01-01"
+   },
+   {
+    "figure": "2.68%",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json cpi_u: 324.054/315.605 - 1 = 0.02677"
+   },
+   {
+    "figure": "$12,835",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json baseline la_standard_deduction 12835.0; 12,500 x 1.0268 = 12,835.00"
+   },
+   {
+    "figure": "$40,180 AGI, $27,345 taxable, $820.35",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_051 baseline la_agi 40180.0, la_taxable_income 27345.0, tax 820.3499755859375"
+   },
+   {
+    "figure": "2.7% / $12,838",
+    "source": "README (RIB 26-019); reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json candidates_single.ldr_official 12838; 12,500 x 1.027 = 12,837.50"
+   },
+   {
+    "figure": "$820.26",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_051 ldr_official tax 820.260009765625"
+   },
+   {
+    "figure": "within the $1 tolerance",
+    "source": "|820.35 - 820.26| = 0.09 < 1.0 (policybench/analysis.py absolute_tolerance=1.0)"
+   },
+   {
+    "figure": "$12,875 / $819.15",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json candidates_single.ldr_published 12875; scenario_051 ldr_published tax 819.1499633789062"
+   },
+   {
+    "figure": "21 of 46 at $830.40 or $830",
+    "source": "predictions.csv.gz: 19 at 830.4, grok-4.6 and inkling at 830.0 (list in model_groups)"
+   },
+   {
+    "figure": "four more, $632 to $1,080",
+    "source": "claude-opus-4.8 632, claude-opus-5 812, claude-fable-5 1020, claude-sonnet-5 1080; each explanation computes 12,500-based ~830"
+   },
+   {
+    "figure": "13 of the other 21 used repealed rules",
+    "source": "model_groups; each explanation names 1.85%/3.5% brackets, a $4,500 exemption/deduction or a federal income tax deduction (deepseek-v4-pro: 4.25% plus $4,500 exemption)"
+   },
+   {
+    "figure": "six subtracted the ESI premiums",
+    "source": "explanations start from $34,791 (= 40,180 - 5,389.28) or reach $27,669.85 = 34,791 - 2,621.15 - 4,500 (gemini-3.5-flash)"
+   },
+   {
+    "figure": "remaining eight",
+    "source": "claude-haiku-4.5 (no income tax), gpt-5.4-mini (fully offset), 5 with no derivation, kimi-k2.6 (no value)"
+   }
+  ]
+ },
+ {
+  "key": "us_case_notes.csv|scenario_077|state_income_tax_before_refundable_credits|case_annotation",
+  "problem": "States 'That deduction is indexed for inflation from 2026, so it is $12,835 in 2026' with no source, omits the Department's $12,838 and the $12,875 withholding amount GPT-6 Astra used, says the 2025 reform replaced the federal income tax deduction (the engine ends it after 2021), and says 'Most models used the unindexed $12,500 deduction and got $315.18' (19 of 46 answered $315.18 or $315). Revised after review: the first draft said Astra worked 'on AGI rounded to $23,006'; the model took $23,006 from the prompt's stated $26,006 of wages less the $3,000 capital-loss limit, so the new text says that.",
+  "evidence": {
+   "readme": {
+    "path": "reference_audit/2026-10-05-louisiana/README.md",
+    "quotes": [
+     "294(B): from January 1, 2026, the prior year's amount is multiplied by \"the percentage increase in the [CPI-U] ... for the previous calendar year\".",
+     "CPI-U (BLS series CUUR0000SA0). December 2024 315.605, December 2025 324.054: +2.677%, released 2026-01-13.",
+     "In the Notice of Intent's fiscal statement (Louisiana Register, 2026-02-20, p. 317), the LFO reads the statute as December to December, about 2.68%.",
+     "the Department's Notice of Intent on LAC 61:I.1311 puts the 2026 retirement income exemption at $12,324: $12,000 × 1.027. R.S. 47:44.1 indexes that exemption in the same words as 294(B).",
+     "Revenue Information Bulletin 26-019, dated 2026-09-28 ..., sets $12,838 single and separate ...: $12,500 × the 2.7% CPI-U multiplier",
+     "The Department of Revenue published $12,875 single and separate ... as the amounts it used in its 2026 withholding tables. That is $12,500 × 1.03, from the CPI-U data available on December 1, 2025.",
+     "The worksheet in the 2026 Form IT-540ESi instructions ... gives the same $12,875 as the \"Louisiana estimated standard deduction\".",
+     "No Louisiana publication states $12,835.",
+     "Recommendation 2: Replace \"inflation-indexed ... $12,835\" with the sourced chain ... For scenario_077, record that GPT-6 Astra's $303.93 used that withholding amount."
+    ]
+   },
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "scenario_077": {
+     "baseline": {
+      "la_agi": 23006.17578125,
+      "la_standard_deduction": 12835.0,
+      "la_taxable_income": 10171.17578125,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 305.13525390625
+     },
+     "ldr_official": {
+      "la_agi": 23006.17578125,
+      "la_standard_deduction": 12838.0,
+      "la_taxable_income": 10168.17578125,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 305.0452575683594
+     },
+     "ldr_published": {
+      "la_agi": 23006.17578125,
+      "la_standard_deduction": 12875.0,
+      "la_taxable_income": 10131.17578125,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 303.9352722167969
+     },
+     "hold_2025": {
+      "la_agi": 23006.17578125,
+      "la_standard_deduction": 12500.0,
+      "la_taxable_income": 10506.17578125,
+      "la_non_refundable_credits": 0.0,
+      "state_income_tax_before_refundable_credits": 315.1852722167969
+     }
+    }
+   },
+   "engine_code": {
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/standard/amount.yaml": "SINGLE: 2025-01-01: 12_500; 2026-01-01: 12_835 ('# 2026 amount applies the December-to-December 2025 CPI-U increase: 12,500 * (324.054 / 315.605), rounded to the nearest dollar.')",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/flat/rate.yaml": "values: 2025-01-01: 0.03 (reference RS 47:32)",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/by_filing_status/single.yaml": "'# Pre-2025 graduated brackets; replaced by flat 3% rate for 2025+ per Act 11.' Rates 0.0185 / 0.035 / 0.0425 from 2022.",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/exemptions/personal.yaml": "SINGLE: 1983-01-01: 4_500; '# Personal exemptions repealed for 2025+ by Act 11 and replaced with standard deduction.'",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/federal_tax/availability.yaml": "2021-01-01: true; 2022-01-01: false (reference: '§298. Repealed by Acts 2021, No. 39')",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_income_tax_before_non_refundable_credits.py": "if p.flat.applies: return income * p.flat.rate",
+    "policybench/analysis.py": "exact_amount_match(..., absolute_tolerance: float = 1.0)"
+   },
+   "model_groups": {
+    "$12,500 at 3%, answered $315.18 or $315": [
+     "claude-fable-5.1",
+     "claude-opus-4.7",
+     "claude-opus-4.8",
+     "claude-opus-5.5",
+     "claude-sonnet-5.5",
+     "deepseek-v4-pro",
+     "deepseek-v4.1-flash",
+     "gemini-3.6-flash",
+     "glm-5.2",
+     "gpt-5.5",
+     "gpt-5.6-luna",
+     "gpt-5.6-sol",
+     "gpt-6-luna",
+     "gpt-6-sol",
+     "gpt-6.1-sol",
+     "grok-4.6",
+     "grok-4.7",
+     "inkling",
+     "kimi-k3"
+    ],
+    "reached about $315 with $12,500, then submitted $446 to $496": [
+     "claude-fable-5",
+     "claude-opus-5",
+     "claude-sonnet-5"
+    ],
+    "$12,500 with the 1.85% rate or the $4,500 exemption": [
+     "glm-5.3",
+     "gpt-5.6-terra"
+    ],
+    "$12,875": [
+     "gpt-6-astra"
+    ],
+    "repealed rules (personal exemption, 1.85%/3.5% brackets, federal income tax deduction)": [
+     "claude-sonnet-4.6",
+     "deepseek-v4-pro-0813",
+     "gemini-3-flash-preview",
+     "gemini-3.1-pro-preview",
+     "gemini-3.5-flash",
+     "gemini-3.7-flash",
+     "grok-4.5",
+     "grok-build-0.1",
+     "ox-alpha",
+     "qwen-3.7-max"
+    ],
+    "answered $0": [
+     "claude-haiku-4.5",
+     "gemini-3.5-flash-lite",
+     "gemini-3.8-flash",
+     "gpt-5.4-mini",
+     "gpt-5.4-nano",
+     "grok-4.3",
+     "minimax-m3"
+    ],
+    "figure with no derivation": [
+     "gemini-3.1-flash-lite-preview",
+     "qwen3.8-max"
+    ],
+    "unstated $15,400 deduction": [
+     "deepseek-v4-flash-0731"
+    ],
+    "no answer": [
+     "kimi-k2.6"
+    ]
+   },
+   "esi_subtracted": [
+    "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
+    "grok-build-0.1"
+   ],
+   "model_quotes": [
+    {
+     "model": "gpt-6-astra",
+     "prediction": 303.93,
+     "explanation": "Louisiana AGI is $23,006; subtracting the inflation-adjusted $12,875 single standard deduction leaves $10,131 taxable at 3%, with no applicable nonrefundable credits. value = 303.93"
+    },
+    {
+     "model": "claude-fable-5",
+     "prediction": 496.0,
+     "explanation": "Louisiana 2026 uses a flat 3% income tax with a $12,500 standard deduction for single filers. Federal AGI = $26,006 wages + capital losses capped at -$3,000 = $23,006. LA taxable income = $23,006 - $12,500 = $10,506. Tax = 3% x $10,506 = $315... adjusted: LA also allows an exemption; using standard deduction only, tax = 0.03 x 10,506 = 315.18, but including no other credits the LA income tax before refundable credits is approximately $496 after accounting for the deduction structure. value = 496"
+    },
+    {
+     "model": "claude-opus-5",
+     "prediction": 446.0,
+     "explanation": "Louisiana 2026 flat 3% rate on federal AGI-based income of about $23,006 less the $12,500 standard exemption for single filers = ~$10,500 taxable, times 3% = about $315; accounting for capital-loss treatment and rounding in PolicyEngine, tax is about $446. value = 446"
+    },
+    {
+     "model": "claude-sonnet-5",
+     "prediction": 448.0,
+     "explanation": "Louisiana 2026 individual income tax: Federal AGI starts with wages $26,006 less capital losses (short-term -$4, long-term -$7,964, but capital losses limited to $3,000 net deduction per federal rules) giving AGI ~$23,006. Louisiana uses a flat rate structure for 2026 (post-reform flat 3% rate on net income after standard deduction ~$12,500 for single filer). Taxable income ≈ $23,006 - $12,500 standard deduction ≈ $10,506, taxed at 3% ≈ $315, plus adjustments for federal-based deductions bring estimate to approximately $448 after standard deductions and personal exemption credits. value = 448"
+    },
+    {
+     "model": "glm-5.3",
+     "prediction": 194.0,
+     "explanation": "Louisiana starts from federal AGI of $23,006, less the Louisiana single standard deduction of $12,500, giving taxable income of $10,506. This is taxed at Louisiana's bottom 1.85% rate: 0.0185 x 10,506 = about $194. No nonrefundable credits apply. value = 194"
+    },
+    {
+     "model": "gpt-5.6-terra",
+     "prediction": 180.18,
+     "explanation": "Louisiana adjusted income of 23006 after the allowable capital-loss deduction, less the 12500 single standard deduction and 4500 personal exemption, leaves 6006 taxed at Louisiana's 3 percent flat rate. value = 180.18"
+    },
+    {
+     "model": "claude-sonnet-4.6",
+     "prediction": 531.0,
+     "explanation": "Louisiana 2026 individual income tax computation: Gross wages = $26,006. Capital gains: long-term = -$7,964, short-term = -$4; net capital gain/loss = -$7,968 (losses limited to -$3,000 for federal/state purposes, but LA follows federal AGI). Federal AGI: wages $26,006 + capital losses capped at -$3,000 = $23,006. Louisiana uses federal AGI as starting point. LA personal exemption for single filer = $4,500. Louisiana also allows deduction for federal income tax paid; federal tax on ~$23,006 AGI (standard deduction $15,000, taxable income ~$8,006, federal tax ~$801). LA taxable income = $23,006 - $4,500 (personal exemption) - $801 (federal tax deduction) = $17,705. LA 2026 flat income tax rate is 3% (Act 5 of 2024 special session reduced rate to 3% effective 2025). LA tax = $17,705 × 3% = $531.15. LA nonrefundable credits: none identified. However, employer-sponsored insurance premiums of $8,389 are pre-tax (excluded from wages already). Rechecking: wages $26,006 are gross including ESI premiums already excluded at federal level (Box 1 W-2). Net capital loss deduction on LA return: LA follows federal capital loss limitation of -$3,000. Federal AGI = $26,006 - $3,000 = $23,006. Federal taxable income = $23,006 - $15,000 (standard deduction) = $8,006. Federal income tax = 10% × $8,006 = $800.60 ≈ $801. LA AGI = $23,006. LA deductions: personal exemption $4,500 + federal tax paid $801 = $5,301. LA taxable income = $23,006 - $5,301 = $17,705. LA tax at 3% = $531.15. No nonrefundable credits identified. State income tax before refundable credits = $531. Rounding to nearest dollar: $531. value = 531"
+    },
+    {
+     "model": "deepseek-v4-pro-0813",
+     "prediction": 379.66,
+     "explanation": "Louisiana taxable income = $23,006 federal AGI - $765.60 federal income tax - $4,500 LA standard deduction - $1,000 personal exemption = $16,740.40; tax = 1.85% of $12,500 plus 3.5% of $4,240.40 = $379.66. value = 379.66"
+    },
+    {
+     "model": "gemini-3-flash-preview",
+     "prediction": 187.16,
+     "explanation": "Louisiana state income tax is calculated by taking the federal adjusted gross income (AGI) of $14,617 (wages minus pre-tax premiums and the capital loss limit), subtracting a $4,500 personal exemption/standard deduction for a single filer, leaving a taxable income of $10,117. Applying the 1.85% tax rate for the first $12,500 results in a tax liability of $187.16. value = 187.16"
+    },
+    {
+     "model": "gemini-3.1-pro-preview",
+     "prediction": 104.0,
+     "explanation": "Louisiana AGI is $14,617. Subtracting the state standard deduction ($4,500) and personal exemption ($4,500) for a single filer leaves $5,617 in state taxable income. Taxed at the lowest LA bracket of 1.85%, the tax is $104. value = 104"
+    },
+    {
+     "model": "gemini-3.5-flash",
+     "prediction": 187.16,
+     "explanation": "Louisiana state income tax is calculated on the federal AGI of $14,617. After subtracting the combined standard deduction and personal exemption of $4,500 for a single filer, the taxable income is $10,117. Applying the lowest bracket rate of 1.85% yields a state income tax of $187.16. value = 187.16"
+    },
+    {
+     "model": "gemini-3.7-flash",
+     "prediction": 152.0,
+     "explanation": "Louisiana state income tax on taxable income after state standard deduction and personal exemption yields $130.value = 130"
+    },
+    {
+     "model": "grok-4.5",
+     "prediction": 441.0,
+     "explanation": "LA starts from federal AGI of 23006 less single exemption of 4500 for taxable income of 18506. Tax is 1.85% on first 12500 (231) plus 3.5% on remaining 6006 (210), totaling 441 after nonrefundable credits of zero. value = 441"
+    },
+    {
+     "model": "grok-build-0.1",
+     "prediction": 187.0,
+     "explanation": "Louisiana AGI is $14,617. Louisiana standard deduction for single is $4,500. Louisiana taxable income $10,117. Louisiana tax rate 1.85% on income under $12,500 gives tax of $187. No nonrefundable credits. value = 187"
+    },
+    {
+     "model": "ox-alpha",
+     "prediction": 72.18,
+     "explanation": "Louisiana's flat 3% tax applies to federal AGI $23,006 less the federal standard deduction $16,100 and the $4,500 personal exemption, leaving LA taxable income $2,406; tax = 3% x $2,406 = $72.18, with no applicable nonrefundable credits. value = 72.18"
+    },
+    {
+     "model": "qwen-3.7-max",
+     "prediction": 267.58,
+     "explanation": "Louisiana 2026 individual income tax calculation: Federal AGI = $26,006 (wages) + (-$7,964) (LTCG) + (-$4) (STCG) = $18,038. Louisiana does not conform to the federal standard deduction increase; Louisiana standard deduction is the applicable amount. LA uses 2025+ brackets: 1.85% on first $12,500, 3.5% on $12,500–$50,000 of taxable income. After the LA standard deduction, LA taxable income ≈ $12,000 (head, single-like filing). Tax = 1.85% × $12,000 ≈ $222. With wage income of $26,006 hourly, and standard exemption, LA taxable income ≈ $30,200 after adding back and subtracting applicable items. Using LA 2026 tax rate of 1.85% on first $25,000 and 3.5% above: with LA taxable income ≈ $30,200, tax = 1.85% × $25,000 + 3.5% × $5,200 = $462.50 + $182 = $644.50, minus nonrefundable credits. Louisiana personal exemption for 1 person = $4,500. LA taxable income = $26,006 - $4,500 - state standard deduction. LA standard deduction for single is $0 in recent years (LA eliminated it). So LA taxable income = $26,006 - $4,500 = $21,506. But capital losses reduce AGI. LA starts with federal AGI = $18,038. LA personal exemption = $4,500. LA taxable income = $18,038 - $4,500 = $13,538. Tax = 1.85% × $12,500 + 3.5% × $1,038 = $231.25 + $36.33 = $267.58. With LA tax year 2026 rates (flat 1.85% proposed but not enacted, use graduated): 1.85% on first $12,500 = $231.25, 3.5% on next portion. LA taxable income = $13,538. Tax = $231.25 + 3.5% × $1,038 = $231.25 + $36.33 = $267.58. LA EIC is refundable so not deducted here. Adding back: LA did not historically allow capital loss deductions the same way, so LA addback of capital losses. State taxable income with federal AGI starting point = $18,038. Personal exemption $4,500. Taxable = $13,538. Tax at 2026 rates: LA reduced rates to 1.85%/4.25% starting 2022. Graduated: 1.85% × $12,500 + 4.25% × $1,038 = $231.25 + $44.12 = $275.37. But with 2025+ further reductions to 1.85%/3.5%: $231.25 + $36.33 = $267.58. Applying further 2026 rate adjustments (3.25% on second bracket): $231.25 + $33.74 = $264.99. Given uncertainty, using 2026 top rate of 3.5%: value = $267.58. Recalculating with more precision: LA taxable income $13,538, bracket 1 tax = $12,500 × 0.0185 = $231.25, bracket 2 tax = $1,038 × 0.035 = $36.33, total = $267.58. Rounding: value = 267.58"
+    },
+    {
+     "model": "claude-haiku-4.5",
+     "prediction": 0.0,
+     "explanation": "Louisiana has no state income tax. For the 2026 tax year, Louisiana residents have no state individual income tax liability. Therefore, state income tax after nonrefundable credits and before refundable credits is $0. value = 0"
+    },
+    {
+     "model": "minimax-m3",
+     "prediction": 0.0,
+     "explanation": "Louisiana has no state income tax. value = 0"
+    },
+    {
+     "model": "gemini-3.8-flash",
+     "prediction": 0.0,
+     "explanation": "Louisiana individual income tax is not modeled in PolicyEngine, resulting in $0. value = 0"
+    },
+    {
+     "model": "gpt-5.4-mini",
+     "prediction": 0.0,
+     "explanation": "Louisiana individual income tax is zero here because the head’s taxable income after the state standard deduction and exemption is below the lowest-bracket threshold. value = 0"
+    },
+    {
+     "model": "gpt-5.4-nano",
+     "prediction": 0.0,
+     "explanation": "Estimated Louisiana state income tax after nonrefundable credits but before refundable credits is assumed to be 0 because wage income is low and no specific nonrefundable credit amounts are provided that would still leave a positive tax after standard treatment. value = 0"
+    },
+    {
+     "model": "grok-4.3",
+     "prediction": 0.0,
+     "explanation": "Louisiana taxable income after standard deduction and exemptions is zero or negative at this income level. value = 0"
+    },
+    {
+     "model": "gemini-3.5-flash-lite",
+     "prediction": 0.0,
+     "explanation": "Louisiana state income tax before refundable credits is $0.00 after deductions and exemptions. value = 0"
+    },
+    {
+     "model": "gemini-3.1-flash-lite-preview",
+     "prediction": 158.0,
+     "explanation": "Louisiana state income tax is applied to taxable income after standard deductions and exemptions for the 2026 tax year. value = 158"
+    },
+    {
+     "model": "qwen3.8-max",
+     "prediction": 347.24,
+     "explanation": "Louisiana income tax is estimated at $347.24 on the household's Louisiana taxable income after the standard deduction and the allowed capital-loss limitation. value = 347.24"
+    },
+    {
+     "model": "deepseek-v4-flash-0731",
+     "prediction": 228.18,
+     "explanation": "Louisiana flat 3% individual income tax applied to taxable base of $7,606 (AGI $23,006 less standard deduction), yielding 0.03 x 7,606 = $228.18. value = 228.18"
+    },
+    {
+     "model": "kimi-k2.6",
+     "prediction": null,
+     "explanation": null
+    },
+    {
+     "model": "gemini-3.6-flash",
+     "prediction": 315.18,
+     "explanation": "Louisiana individual income tax on AGI of $23,006 after the state combined personal exemption and standard deduction is $315.18. value = 315.18"
+    }
+   ]
+  },
+  "checked_numbers": [
+   {
+    "figure": "$4,500 combined personal exemption (pre-2025)",
+    "source": "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/exemptions/personal.yaml SINGLE 4_500, repealed for 2025+ by Act 11 (comment)"
+   },
+   {
+    "figure": "flat 3% from 2025",
+    "source": "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/flat/rate.yaml 2025-01-01: 0.03"
+   },
+   {
+    "figure": "2.68% / $12,835",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json cpi_u ratio 0.02677; baseline la_standard_deduction 12835.0"
+   },
+   {
+    "figure": "$23,006.18 AGI, $10,171.18 taxable, $305.14",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline la_agi 23006.17578125, la_taxable_income 10171.17578125, tax 305.13525390625"
+   },
+   {
+    "figure": "$12,838 / $305.05",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 ldr_official tax 305.0452575683594; |305.14-305.05| = 0.09 < 1"
+   },
+   {
+    "figure": "GPT-6 Astra $303.93 with $12,875 on $23,006",
+    "source": "predictions.csv.gz gpt-6-astra explanation: 'Louisiana AGI is $23,006; subtracting the inflation-adjusted $12,875 single standard deduction leaves $10,131 taxable at 3% ... value = 303.93'"
+   },
+   {
+    "figure": "$23,006 AGI from the prompt's $26,006 of wages and the $3,000 capital-loss limit",
+    "source": "describe_household(scenario_077) renders 'gross wages and salaries: $26,006', 'long-term capital gains: $-7,964', 'short-term capital gains: $-4'; scenarios.csv employment_income 26006.17578125; 26,006 - 3,000 = 23,006; engine la_agi 23006.17578125 = 26,006.17578125 - 3,000"
+   },
+   {
+    "figure": "$303.94 with $12,875",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 ldr_published tax 303.9352722167969"
+   },
+   {
+    "figure": "19 of 46 at $315.18 or $315",
+    "source": "predictions.csv.gz: 15 at 315.18, 4 at 315.0 (claude-opus-4.7, claude-opus-4.8, grok-4.6, inkling)"
+   },
+   {
+    "figure": "three more, $446 to $496",
+    "source": "claude-opus-5 446, claude-sonnet-5 448, claude-fable-5 496; each explanation computes ~$315 from $12,500 first"
+   },
+   {
+    "figure": "two paired $12,500 with 1.85% or $4,500",
+    "source": "glm-5.3 ('taxed at Louisiana's bottom 1.85% rate', 194); gpt-5.6-terra ('12500 single standard deduction and 4500 personal exemption', 180.18)"
+   },
+   {
+    "figure": "ten more applied repealed rules; four took $8,389 ESI out of AGI",
+    "source": "model_groups; ESI four state AGI $14,617 = 26,006.18 - 8,389.28 - 3,000"
+   },
+   {
+    "figure": "seven answered $0",
+    "source": "predictions 0.0 for the seven in model_groups['answered $0']"
+   },
+   {
+    "figure": "unstated $15,400",
+    "source": "deepseek-v4-flash-0731: 'taxable base of $7,606 (AGI $23,006 less standard deduction)'; 23,006 - 7,606 = 15,400; 3% x 7,606 = 228.18"
+   }
+  ]
+ },
+ {
+  "key": "us_audit_row_annotations.csv|scenario_077|state_income_tax_before_refundable_credits|gpt-6-astra|annotation",
+  "problem": "Says the model 'correctly inflation-indexed the standard deduction but overstated it as $12,875', treating $12,875 as the model's own indexing error, and says it 'rounded AGI down to $23,006'. $12,875 is the Department of Revenue's provisional withholding and estimated-tax amount, and the model rounded nothing: the prompt shows wages of $26,006, so $23,006 is the AGI the stated facts give. The $40 deduction difference accounts for $1.20 of the $1.21 gap; the $0.18 of wages the prompt leaves out ($0.0053 of tax) and rounding the $305.135 reference to $305.14 make up the rest. Revised after review: the first draft still said the model worked 'from AGI rounded to $23,006'.",
+  "evidence": {
+   "model_quote": {
+    "model": "gpt-6-astra",
+    "prediction": 303.93,
+    "explanation": "Louisiana AGI is $23,006; subtracting the inflation-adjusted $12,875 single standard deduction leaves $10,131 taxable at 3%, with no applicable nonrefundable credits. value = 303.93"
+   },
+   "readme": {
+    "path": "reference_audit/2026-10-05-louisiana/README.md",
+    "quotes": [
+     "The Department of Revenue published $12,875 single and separate ... as the amounts it used in its 2026 withholding tables. That is $12,500 × 1.03, from the CPI-U data available on December 1, 2025.",
+     "The worksheet in the 2026 Form IT-540ESi instructions ... gives the same $12,875 as the \"Louisiana estimated standard deduction\".",
+     "Recommendation 2: Replace \"inflation-indexed ... $12,835\" with the sourced chain ... For scenario_077, record that GPT-6 Astra's $303.93 used that withholding amount."
+    ]
+   },
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "baseline": {
+     "la_agi": 23006.17578125,
+     "la_standard_deduction": 12835.0,
+     "la_taxable_income": 10171.17578125,
+     "la_non_refundable_credits": 0.0,
+     "state_income_tax_before_refundable_credits": 305.13525390625
+    },
+    "ldr_published": {
+     "la_agi": 23006.17578125,
+     "la_standard_deduction": 12875.0,
+     "la_taxable_income": 10131.17578125,
+     "la_non_refundable_credits": 0.0,
+     "state_income_tax_before_refundable_credits": 303.9352722167969
+    }
+   },
+   "prompt": {
+    "render": "policybench.prompts.describe_household(scenario_from_dict(scenarios.csv scenario_077 scenario_json)) with the release worktree on PYTHONPATH",
+    "lines": [
+     "- gross wages and salaries: $26,006",
+     "- long-term capital gains: $-7,964",
+     "- short-term capital gains: $-4"
+    ],
+    "scenarios_csv_employment_income": 26006.17578125,
+    "code": "policybench/prompts.py describe_person: f\"{person.employment_income:,.0f}\"",
+    "all_models_agi": "every scenario_077 explanation that states AGI uses '23,006'; none uses 23,006.18"
+   }
+  },
+  "checked_numbers": [
+   {
+    "figure": "$12,875, $23,006, $10,131, $303.93",
+    "source": "gpt-6-astra explanation (quoted); 0.03 x (23,006 - 12,875) = 303.93"
+   },
+   {
+    "figure": "$12,835, $10,171.18, $305.14",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline"
+   },
+   {
+    "figure": "$1.21 gap; $1.20 from the deduction; the rest from the $0.18 and rounding to the cent",
+    "source": "305.14 - 303.93 = 1.21; 0.03 x (12,875 - 12,835) = 1.20; 0.03 x 0.17578 = 0.0053; 305.14 - 305.13525390625 = 0.00475; 1.20 + 0.0053 + 0.0047 = 1.21"
+   },
+   {
+    "figure": "$0.18 of wages the prompt leaves out",
+    "source": "employment_income 26006.17578125 vs prompt '$26,006'"
+   },
+   {
+    "figure": "$23,006.18 engine AGI",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline la_agi 23006.17578125"
+   },
+   {
+    "figure": "$303.94 with $12,875",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 ldr_published tax 303.9352722167969"
+   }
+  ]
+ },
+ {
+  "key": "us_audit_row_annotations.csv|scenario_077|state_income_tax_before_refundable_credits|claude-sonnet-4.6|annotation",
+  "problem": "Says 'From 2025 both were replaced by a single standard deduction', dating the end of the federal income tax deduction to 2025; the engine ends it after 2021. The rewritten scenario_077 case note drops the same claim, so the two would contradict each other on the same view. It also calls the model's method 'Louisiana's repealed pre-2025 structure', though the model taxed at the post-2025 flat 3%. Missed in the first draft; raised by the reviewer.",
+  "evidence": {
+   "model_quote": {
+    "model": "claude-sonnet-4.6",
+    "prediction": 531.0,
+    "explanation": "Louisiana 2026 individual income tax computation: Gross wages = $26,006. Capital gains: long-term = -$7,964, short-term = -$4; net capital gain/loss = -$7,968 (losses limited to -$3,000 for federal/state purposes, but LA follows federal AGI). Federal AGI: wages $26,006 + capital losses capped at -$3,000 = $23,006. Louisiana uses federal AGI as starting point. LA personal exemption for single filer = $4,500. Louisiana also allows deduction for federal income tax paid; federal tax on ~$23,006 AGI (standard deduction $15,000, taxable income ~$8,006, federal tax ~$801). LA taxable income = $23,006 - $4,500 (personal exemption) - $801 (federal tax deduction) = $17,705. LA 2026 flat income tax rate is 3% (Act 5 of 2024 special session reduced rate to 3% effective 2025). LA tax = $17,705 × 3% = $531.15. LA nonrefundable credits: none identified. However, employer-sponsored insurance premiums of $8,389 are pre-tax (excluded from wages already). Rechecking: wages $26,006 are gross including ESI premiums already excluded at federal level (Box 1 W-2). Net capital loss deduction on LA return: LA follows federal capital loss limitation of -$3,000. Federal AGI = $26,006 - $3,000 = $23,006. Federal taxable income = $23,006 - $15,000 (standard deduction) = $8,006. Federal income tax = 10% × $8,006 = $800.60 ≈ $801. LA AGI = $23,006. LA deductions: personal exemption $4,500 + federal tax paid $801 = $5,301. LA taxable income = $23,006 - $5,301 = $17,705. LA tax at 3% = $531.15. No nonrefundable credits identified. State income tax before refundable credits = $531. Rounding to nearest dollar: $531. value = 531"
+   },
+   "engine_code": {
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/federal_tax/availability.yaml": "2021-01-01: true; 2022-01-01: false (reference: 'Title 47 - Revenue and Taxation §298. Repealed by Acts 2021, No. 39')",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/deductions/la_federal_tax_deduction.py": "# The deduction was discontinued in 2022; return amount * p.availability",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/standard/applies.yaml": "description: 'Louisiana applies a standard deduction and repeals personal exemptions, if this is true.' 2020-01-01: false; 2025-01-01: true",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/exemptions/personal.yaml": "SINGLE 4_500; '# Personal exemptions repealed for 2025+ by Act 11 and replaced with standard deduction.'",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_income_tax_before_non_refundable_credits.py": "if p.flat.applies: return income * p.flat.rate (la_exemptions enters only the graduated branch)"
+   },
+   "consistency": "scenario_051 claude-sonnet-4.6 row (committed): 'a deduction Louisiana repealed after 2021'",
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "baseline": {
+     "la_agi": 23006.17578125,
+     "la_standard_deduction": 12835.0,
+     "la_taxable_income": 10171.17578125,
+     "la_non_refundable_credits": 0.0,
+     "state_income_tax_before_refundable_credits": 305.13525390625
+    }
+   }
+  },
+  "checked_numbers": [
+   {
+    "figure": "$4,500, $801, $17,705, 3%, $531",
+    "source": "claude-sonnet-4.6 explanation: 'LA taxable income = $23,006 - $4,500 (personal exemption) - $801 (federal tax deduction) = $17,705 ... LA tax at 3% = $531.15 ... value = 531'; 23,006 - 4,500 - 801 = 17,705; 0.03 x 17,705 = 531.15"
+   },
+   {
+    "figure": "$23,006 AGI",
+    "source": "claude-sonnet-4.6 explanation: 'Federal AGI: wages $26,006 + capital losses capped at -$3,000 = $23,006'"
+   },
+   {
+    "figure": "federal income tax deduction ended after 2021",
+    "source": "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/federal_tax/availability.yaml 2022-01-01: false"
+   },
+   {
+    "figure": "$12,835, $10,171.18, $305.14",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline la_standard_deduction 12835.0, la_taxable_income 10171.17578125, tax 305.13525390625"
+   }
+  ]
+ },
+ {
+  "key": "us_audit_row_annotations.csv|scenario_077|state_income_tax_before_refundable_credits|claude-sonnet-5|annotation",
+  "problem": "'Louisiana repealed both of these for 2025+' dates the repeal of the model's 'federal-based deductions' to 2025. Read as the federal income tax deduction, the engine ends it after 2021; read as the federal-based itemized deduction, the engine still has it in 2026. Missed in the first draft; raised by the reviewer. The reviewer's suggested 'Louisiana allows neither for 2026' is not used, because under the second reading it is false (la_itemized_deductions still applies in 2026 for itemizers).",
+  "evidence": {
+   "model_quote": {
+    "model": "claude-sonnet-5",
+    "prediction": 448.0,
+    "explanation": "Louisiana 2026 individual income tax: Federal AGI starts with wages $26,006 less capital losses (short-term -$4, long-term -$7,964, but capital losses limited to $3,000 net deduction per federal rules) giving AGI ~$23,006. Louisiana uses a flat rate structure for 2026 (post-reform flat 3% rate on net income after standard deduction ~$12,500 for single filer). Taxable income ≈ $23,006 - $12,500 standard deduction ≈ $10,506, taxed at 3% ≈ $315, plus adjustments for federal-based deductions bring estimate to approximately $448 after standard deductions and personal exemption credits. value = 448"
+   },
+   "engine_code": {
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/federal_tax/availability.yaml": "2021-01-01: true; 2022-01-01: false",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_taxable_income.py": "total_deductions = itemizes * la_itemized_deductions + la_federal_tax_deduction (+ la_standard_deduction when standard.applies); return max_(agi - total_deductions, 0)",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/itemized/relevant_federal_deductions.yaml": "2022-01-01: [medical_expense_deduction] (no end date)",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/deductions/itemized/excess_fraction.yaml": "2009-01-01: 1 (no end date)",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_income_tax_before_non_refundable_credits.py": "if p.flat.applies: return income * p.flat.rate; la_exemptions enters only the graduated branch"
+   },
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "baseline": {
+     "la_agi": 23006.17578125,
+     "la_standard_deduction": 12835.0,
+     "la_taxable_income": 10171.17578125,
+     "la_non_refundable_credits": 0.0,
+     "state_income_tax_before_refundable_credits": 305.13525390625
+    }
+   }
+  },
+  "checked_numbers": [
+   {
+    "figure": "neither applies to this household in 2026",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline: la_agi 23006.17578125 - la_taxable_income 10171.17578125 = 12835.0 = la_standard_deduction, so no itemized, federal-tax or exemption amount reduces taxable income; flat branch ignores la_exemptions"
+   },
+   {
+    "figure": "about $315, then $448 (unchanged text)",
+    "source": "claude-sonnet-5 explanation: 'taxed at 3% ≈ $315, plus adjustments for federal-based deductions bring estimate to approximately $448 after standard deductions and personal exemption credits. value = 448'"
+   }
+  ]
+ },
+ {
+  "key": "us_audit_row_annotations.csv|scenario_077|state_income_tax_before_refundable_credits|deepseek-v4-flash-0731|annotation",
+  "problem": "'which is roughly a federal-style standard deduction' attributes the model's $15,400 to a federal amount with no support. The model named no amount, and no federal single standard deduction in the engine is $15,400. Missed in the first draft; raised by the reviewer.",
+  "evidence": {
+   "model_quote": {
+    "model": "deepseek-v4-flash-0731",
+    "prediction": 228.18,
+    "explanation": "Louisiana flat 3% individual income tax applied to taxable base of $7,606 (AGI $23,006 less standard deduction), yielding 0.03 x 7,606 = $228.18. value = 228.18"
+   },
+   "engine_code": {
+    "policyengine_us/parameters/gov/irs/deductions/standard/amount.yaml": "SINGLE: 2024-01-01: 14_600; 2025-01-01: 15_750; 2026-01-01: 16_100 (no 15_400 anywhere in the file)"
+   }
+  },
+  "checked_numbers": [
+   {
+    "figure": "$7,606, $15,400, $23,006",
+    "source": "deepseek-v4-flash-0731 explanation: 'taxable base of $7,606 (AGI $23,006 less standard deduction), yielding 0.03 x 7,606 = $228.18'; 23,006 - 7,606 = 15,400"
+   },
+   {
+    "figure": "called it the standard deduction, no amount stated",
+    "source": "same quote: 'less standard deduction'; '15,400' does not appear in the explanation"
+   }
+  ]
+ },
+ {
+  "key": "us_case_reference_explanations.csv|scenario_077|state_income_tax_before_refundable_credits|explanation",
+  "problem": "Says the taxable income 'was then subject to Louisiana's tax brackets and rates'. The engine applies a single flat 3% rate for 2026; the graduated brackets are the repealed schedule.",
+  "evidence": {
+   "engine_code": {
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/variables/gov/states/la/tax/income/la_income_tax_before_non_refundable_credits.py": "income = tax_unit('la_taxable_income', period); p = parameters(period).gov.states.la.tax.income.main; if p.flat.applies: return income * p.flat.rate",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/flat/applies.yaml": "2020-01-01: false; 2025-01-01: true",
+    "results/local/adds202609/triage/.venv-pe21517/lib/python3.13/site-packages/policyengine_us/parameters/gov/states/la/tax/income/main/flat/rate.yaml": "2025-01-01: 0.03"
+   },
+   "engine": {
+    "path": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json",
+    "baseline": {
+     "la_agi": 23006.17578125,
+     "la_standard_deduction": 12835.0,
+     "la_taxable_income": 10171.17578125,
+     "la_non_refundable_credits": 0.0,
+     "state_income_tax_before_refundable_credits": 305.13525390625
+    }
+   }
+  },
+  "checked_numbers": [
+   {
+    "figure": "$305.14",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline la_income_tax_before_refundable_credits 305.13525390625; 0.03 x 10,171.18 = 305.14"
+   },
+   {
+    "figure": "no nonrefundable credit",
+    "source": "reference_audit/2026-10-05-louisiana/verification/sweep_la_households.json scenario_077 baseline la_non_refundable_credits 0.0"
+   }
+  ]
+ }
+]

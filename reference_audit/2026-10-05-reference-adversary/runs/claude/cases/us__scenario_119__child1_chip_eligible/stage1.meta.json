@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.32154380000000005,
+  "duration_ms": 86473,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:53:50.751213+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "4f029d73947d77262d4bbc602cde3d16de82470866508e4915c08cb4d9435ff6",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "442d9ba4739db8ed18a47bfed583e083faf8650435c8b2f8e1774e8517782890",
+  "session_id": "a14276ce-a34f-485f-a736-a4b2d6be2b94",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-D/part-457/subpart-C/section-457.310",
+      "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/",
+      "https://law.lis.virginia.gov/admincode/title12/agency30/chapter141/section100/",
+      "https://www.law.cornell.edu/uscode/text/42/1397jj",
+      "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+      "https://www.coverva.dmas.virginia.gov/learn/coverage-for-children-and-pregnant-women/famis/",
+      "https://www.dmas.virginia.gov/for-applicants/populations-served/for-children/famis/",
+      "https://www.law.cornell.edu/cfr/text/42/457.310",
+      "https://www.law.cornell.edu/cfr/text/42/457.310"
+    ],
+    "searches": [
+      "FAMIS Virginia eligibility child must be uninsured income limit 2026 coverva"
+    ]
+  }
+}

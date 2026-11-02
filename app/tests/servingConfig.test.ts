@@ -8,6 +8,7 @@ import ModelLeaderboard from "../src/components/ModelLeaderboard";
 import rawData from "../src/data-summary.json";
 import servingConfig from "../src/model-serving-config.json";
 import augustSummary from "../../sensitivity/data/claude-thinking-2026-08.json";
+import haiku55Summary from "../../sensitivity/data/claude-haiku-5-5-thinking.json";
 import fable51Summary from "../../sensitivity/data/claude-fable-5-1-thinking.json";
 import { MODEL_LABELS } from "../src/modelMeta";
 import { buildProgramOptions } from "../src/lib/programFilters";
@@ -194,22 +195,25 @@ describe("leaderboard serving copy", () => {
   });
 
   test("states the re-run counts the sensitivity data records", () => {
-    // The August runs are the forced-tool rows, whose thinking was off; the
-    // Fable 5.1 run compares transports on a row that reasons.
+    // The August runs and Haiku 5.5's are forced-tool rows, whose thinking
+    // was off; the Fable 5.1 run compares transports on a row that reasons.
     const counts = servingSensitivityCounts();
-    const august = Object.values(augustSummary.runs).map((run) => run.model);
+    const forced = [
+      ...Object.values(augustSummary.runs).map((run) => run.model),
+      haiku55Summary.model,
+    ];
     expect(Object.keys(SERVING_SENSITIVITY).sort()).toEqual(
-      [...august, fable51Summary.model].sort(),
+      [...forced, fable51Summary.model].sort(),
     );
     expect(
       Object.entries(SERVING_SENSITIVITY)
         .filter(([, entry]) => entry.thinkingSuppressedOnBoard)
         .map(([model]) => model)
         .sort(),
-    ).toEqual([...august].sort());
+    ).toEqual([...forced].sort());
     expect(counts).toEqual({
-      reruns: august.length + 1,
-      thinkingSuppressed: august.length,
+      reruns: forced.length + 1,
+      thinkingSuppressed: forced.length,
     });
     const html = render("1.1");
     expect(html).toContain(

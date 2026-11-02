@@ -12,7 +12,16 @@ so it is a continuing mortgage charge counted as a shelter cost (7 CFR 273.9(d)(
 "Continuing charges for the shelter occupied by the household, ... including mortgage
 payments ... and interest on such payments"). Unlisted principal is not invented; only
 max(interest - mortgage_payments, 0) is added, so a reported payment is never counted
-twice. First-home versus person interest is chosen per tax unit, as in r15 v2.
+twice. The interest is the person-level home_mortgage_interest input, as in r15 v2.
+
+Revised 2026-10-09, with r15 v2. The module first counted first-home interest for a tax
+unit that listed the tax-unit first/second home interest inputs; policyengine-us #9605
+deletes them, and every benchmark household that lists them lists the same total as
+home_mortgage_interest. The readings differ only where a second home is listed
+(scenario_046 and scenario_120), and no output moves: on 2.15.17 the revised module
+reproduces this sweep's recorded CSV byte for byte (verification/rerun_sweeps.json,
+csv_sha256 3dea0be8..., from the scenario builder and board of 2026-09-28), as does the
+original, and the two give byte-identical sweeps with today's builder too.
 
 Port to 2.15.17. 2.15.17's snap_excess_shelter_expense_deduction differs from 1.755.4 in
 two places (diff of the installed files): actual housing costs are multiplied by
@@ -61,16 +70,7 @@ class snap_mortgage_interest_shelter_cost(Variable):
     )
 
     def formula(spm_unit, period, parameters):
-        person = spm_unit.members
-        head = person("is_tax_unit_head", period)
-        first = person.tax_unit("first_home_mortgage_interest", period)
-        second = person.tax_unit("second_home_mortgage_interest", period)
-        interest_by_person = where(
-            first + second > 0,
-            head * first,
-            person("home_mortgage_interest", period),
-        )
-        occupied_home_interest = spm_unit.sum(interest_by_person)
+        occupied_home_interest = add(spm_unit, period, ["home_mortgage_interest"])
         mortgage_payments = spm_unit("mortgage_payments", period)
         return max_(occupied_home_interest - mortgage_payments, 0)
 

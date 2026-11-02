@@ -1,0 +1,56 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.3481882,
+  "duration_ms": 69303,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:34:27.006652+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "d800ef3f3802a3b70122e6b742536cbcd84830875b72830976be77e61fb1a0c0",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "fbceec73bef939a3a2ed243c4cd1f69427811c94c217547f6e28a9c21da123b5",
+  "session_id": "9da71bb5-561d-4fe2-8e80-3297a22eb2fa",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "6f02dfa400366c114cce942f0f5a640f6d2c7a9f598446bac0874421ef87b9fc",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.nj.gov/treasury/taxation/eitc/knoweitc.shtml",
+      "https://www.bkc-cpa.com/new-jersey-fy2027-budget-brings-important-changes-for-individuals-and-businesses/",
+      "https://nj.gov/treasury/taxation/eitc/howmucheitc.shtml",
+      "https://pub.njleg.gov/Bills/2024/S2000/1557_I1.HTM"
+    ],
+    "searches": [
+      "Rev. Proc. 2025-32 earned income credit 2026 no qualifying children maximum $664",
+      "New Jersey earned income tax credit 2026 change budget FY2027 NJEITC percentage"
+    ]
+  }
+}

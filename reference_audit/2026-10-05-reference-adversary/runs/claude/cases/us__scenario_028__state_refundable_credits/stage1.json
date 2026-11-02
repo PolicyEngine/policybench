@@ -1,0 +1,66 @@
+{
+  "ambiguity": "The only open point is rounding. \u00a732(f) says the federal EITC 'received' is the amount from the IRS EIC table, which uses $50 brackets. Assuming the usual midpoint calculation, the table would give about $621, making the PA credit about $62.10 rather than the formula's $62.41. The 2026 table had not been published before the freeze. Neither reading supports $0: the consensus answer misses the Working Pennsylvanians Tax Credit, which Act 45 of 2025 created and which applies to 2026.",
+  "citations": [
+    {
+      "pinpoint": "Section 1603-W.2 (amount of credit; refund)",
+      "pre_freeze": true,
+      "published": "2025-11-12",
+      "quote": "10% of the Federal earned income tax credit received by the taxpayer for the same taxable year.",
+      "source": "Act of Apr. 9, 1929, P.L. 343, No. 176 (The Fiscal Code), Art. XVI-W.2 as added by Act of Nov. 12, 2025, P.L. 156, No. 45",
+      "url": "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2025/0/0045..HTM"
+    },
+    {
+      "pinpoint": "Section 1603-W.2 (refund of excess)",
+      "pre_freeze": true,
+      "published": "2025-11-12",
+      "quote": "if the amount of credit which the qualified taxpayer is eligible to receive under this section exceeds the qualified taxpayer's tax liability, the department shall refund the excess amount to the qualified taxpayer.",
+      "source": "Act of Nov. 12, 2025, P.L. 156, No. 45 (Fiscal Code Art. XVI-W.2)",
+      "url": "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2025/0/0045..HTM"
+    },
+    {
+      "pinpoint": "Sections 1604-W.2 (eligibility) and 1606-W.2 (applicability)",
+      "pre_freeze": true,
+      "published": "2025-11-12",
+      "quote": "This article shall apply to taxable years beginning after December 31, 2024.",
+      "source": "Act of Nov. 12, 2025, P.L. 156, No. 45 (Fiscal Code Art. XVI-W.2)",
+      "url": "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2025/0/0045..HTM"
+    },
+    {
+      "pinpoint": "Overview",
+      "pre_freeze": null,
+      "published": "undated (after 2025-11-12)",
+      "quote": "This is a refundable tax credit, meaning you can receive it even if you don't owe Pennsylvania income tax.",
+      "source": "Pennsylvania Department of Revenue, Working Pennsylvanians Tax Credit",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax/working-pennsylvanians-tax-credit"
+    },
+    {
+      "pinpoint": "Section 4.06, Earned Income Credit table, Three or More Qualifying Children",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "Maximum Amount of Credit: $8,231 ... Threshold Phaseout Amount (All other filing statuses): $23,890 ... Completed Phaseout Amount (All other filing statuses): $62,974",
+      "source": "IRS Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "\u00a732(b)(1) table; \u00a732(a)(2)(B)",
+      "pre_freeze": true,
+      "published": "in force for 2026",
+      "quote": "the phaseout percentage of so much of the adjusted gross income (or, if greater, the earned income) of the taxpayer for the taxable year as exceeds the phaseout amount",
+      "source": "26 U.S.C. \u00a7 32 (Internal Revenue Code)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a732(f)(1)-(2)",
+      "pre_freeze": true,
+      "published": "in force for 2026",
+      "quote": "The amount of the credit allowed by this section shall be determined under tables prescribed by the Secretary.",
+      "source": "26 U.S.C. \u00a7 32 (Internal Revenue Code)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    }
+  ],
+  "computation": "1) PA refundable credits in force for tax year 2026: the Working Pennsylvanians Tax Credit (WPTC). Act 45 of 2025 added Fiscal Code Art. XVI-W.2, which sets the credit at 10% of the federal EITC the taxpayer receives for the same year. The credit is refundable, and the article applies to taxable years beginning after 12/31/2024, so it covers 2026. PA's Child and Dependent Care Enhancement credit is also refundable, but it gives $0 here because no child care expenses are listed. Tax Forgiveness reduces tax only and is not a refundable credit. So the output equals the WPTC.\n2) Federal EITC (IRC \u00a732). The Head is single with three children aged 10 who live with them, so the filing status is head of household with 3 qualifying children. Earned income is $60,000 in wages. AGI is $60,010: wages plus $10 of interest. Child support is not income. Investment income of $10 is far below the 2026 limit of $12,200 (Rev. Proc. 2025-32).\n3) 2026 parameters for 3 or more children (Rev. Proc. 2025-32 \u00a74.06): earned income amount $18,290; maximum credit $8,231 (45% \u00d7 $18,290); phase-out starts at $23,890 for filers other than MFJ and ends at $62,974. The phase-out rate is 21.06% (\u00a732(b)(1)). Under \u00a732(a)(2) the phase-out applies to the greater of AGI and earned income, which is $60,010.\n4) EITC = 8,231 \u2212 0.2106 \u00d7 (60,010 \u2212 23,890) = 8,231 \u2212 0.2106 \u00d7 36,120 = 8,231 \u2212 7,606.87 = $624.13.\n5) WPTC = 10% \u00d7 $624.13 = $62.41 (\u00a71603-W.2). This is refundable, so it counts in full as a state refundable credit.\n6) Rounding note: \u00a732(f) says the credit allowed is set by IRS tables that use income brackets of $50 or less. The 2026 EIC table had not been published by 2026-07-03; it normally appears in the 2026 Form 1040 instructions late in the year. Only the Rev. Proc. 2025-32 parameters had been published. If the IRS follows its usual practice of computing each bracket at its midpoint ($60,000\u2013$60,050, midpoint $60,025), the table EITC would be about $621, giving a WPTC of about $62.10. Either way the law gives roughly $62, not $0.\nTotal state refundable credits \u2248 $62.41 (formula) or \u2248 $62.10 (expected table value).",
+  "confidence": "high",
+  "definition_reading": "'Total refundable state individual income tax credits' covers every Pennsylvania personal income tax credit that is paid out even when it exceeds liability. For this one tax unit (a single head of household with three qualifying children), the only such credit with a positive value is the Working Pennsylvanians Tax Credit, which is 10% of the federal EITC. The refundable PA child and dependent care credit is $0 because no care expenses are listed, and Tax Forgiveness is not a refundable credit.",
+  "independent_answer": 62.41,
+  "law_supports": "reference"
+}

@@ -1,0 +1,55 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.21664540000000002,
+  "duration_ms": 42719,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:21:49.090207+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "048bab01142e20827e311c2528d063b871f9c5038580352d1059c22248ee7cc4",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "d051c870be4aea2c9e443af8dbaa6f0304841f1c72b9c5808c3ef27036b28daf",
+  "session_id": "47368ae9-abac-4739-82e2-b785d952f27a",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "05712aa510cc439818e52980ac2a6bdeae9e2ab26b3512f8428e306488083593",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.revisor.mn.gov/statutes/cite/256B.056",
+      "https://hcopub.dhs.state.mn.us/epm/2_2_3_3.htm",
+      "https://hcopub.dhs.state.mn.us/epm/2_2_1_2.htm",
+      "https://hcopub.dhs.state.mn.us/epm/2_2_2_1.htm"
+    ],
+    "searches": [
+      "Minnesota EPM MA basis of eligibility children under age 19 married \"children\" Medical Assistance hcopub"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+local_authority,region,brma,band_d,band_d_source
+MERTON,LONDON,OUTER_SOUTH_WEST_LONDON,2146.76,https://www.merton.gov.uk/council-tax-benefits-and-housing/council-tax/about/guide
+KINGSTON_UPON_THAMES,LONDON,OUTER_SOUTH_WEST_LONDON,2608.12,"https://www.kingston.gov.uk/council-tax/bands-and-charges (standard charge, excluding the Commons levy)"
+NEWHAM,LONDON,INNER_EAST_LONDON,1944.23,https://www.newham.gov.uk/council-tax/council-tax-bands-charges-appeals/1
+WESTMINSTER,LONDON,CENTRAL_LONDON,1047.85,https://www.westminster.gov.uk/sites/default/files/media/documents/your-guide-to-council-tax-2026-27.pdf (standard charge)
+CROYDON,LONDON,OUTER_SOUTH_LONDON,2599.91,https://www.croydon.gov.uk/council-tax/what-council-tax-and-how-much-it/council-tax-bands
+CAMDEN,LONDON,CENTRAL_LONDON,2207.12,https://www.camden.gov.uk/council-tax-guide (standard charge)
+OXFORD,SOUTH_EAST,OXFORD,2678.4,https://mycouncil.oxford.gov.uk/ieDecisionDetails.aspx?Id=2829
+READING,SOUTH_EAST,READING,2612.77,https://www.reading.gov.uk/council-tax/council-tax-bands/
+MAIDSTONE,SOUTH_EAST,MAIDSTONE,2454.24,https://maidstone.gov.uk/home/primary-services/council-tax/council-tax-summary
+NEWCASTLE_UPON_TYNE,NORTH_EAST,TYNESIDE,2540.66,https://new.newcastle.gov.uk/council-tax/council-tax-explained/council-tax-rates-all-years
+SUNDERLAND,NORTH_EAST,SUNDERLAND,2196.25,https://www.sunderland.gov.uk/article/36111/What-is-Council-Tax
+MANCHESTER,NORTH_WEST,CENTRAL_GREATER_MANCHESTER,2312.04,https://www.manchester.gov.uk/council-tax/how-council-tax-is-worked-out-data-and-policies/council-tax-bands-and-charges
+LIVERPOOL,NORTH_WEST,GREATER_LIVERPOOL,2673.59,https://liverpool.gov.uk/council-tax/how-much/
+BOLTON,NORTH_WEST,BOLTON_AND_BURY,2392.33,https://www.bolton.gov.uk/downloads/file/1945/council-tax-bill-band-d-2026-27
+LANCASTER,NORTH_WEST,LANCASTER,2461.08,https://www.lancaster.gov.uk/council-tax/annual-council-tax-charge
+LEEDS,YORKSHIRE,LEEDS,2271.51,https://www.leeds.gov.uk/council-tax/bands-and-charges
+SHEFFIELD,YORKSHIRE,SHEFFIELD,2505.32,https://www.sheffield.gov.uk/council-tax/your-bill/check-council-tax-band
+BRADFORD,YORKSHIRE,BRADFORD_SOUTH_DALES,2333.05,https://www.bradford.gov.uk/council-tax/bands-and-charges/council-tax-bands-and-amounts/
+YORK,YORKSHIRE,YORK,2269.91,https://www.york.gov.uk/CouncilTaxCharges
+NOTTINGHAM,EAST_MIDLANDS,NOTTINGHAM,2755.39,https://www.nottinghamcity.gov.uk/ctbands
+LEICESTER,EAST_MIDLANDS,LEICESTER,2528.75,https://www.leicester.gov.uk/council-tax/council-tax-bands-and-charges
+DERBY,EAST_MIDLANDS,DERBY,2306.0,https://www.derby.gov.uk/advice-and-benefits/council-tax/bands-charges-and-premiums/
+LINCOLN,EAST_MIDLANDS,LINCOLN,2323.08,https://www.lincoln.gov.uk/council-tax/bands-charges
+BIRMINGHAM,WEST_MIDLANDS,BIRMINGHAM,2353.17,Birmingham City Council 2026-27 budget report (birmingham.cmis.uk.com)
+COVENTRY,WEST_MIDLANDS,COVENTRY,2516.09,https://www.coventry.gov.uk/council-tax/council-tax-bands-charges
+WOLVERHAMPTON,WEST_MIDLANDS,BLACK_COUNTRY,2538.99,https://www.wolverhampton.gov.uk/council-tax/bands-charges
+HEREFORDSHIRE_COUNTY_OF,WEST_MIDLANDS,HEREFORDSHIRE,2574.37,https://www.herefordshire.gov.uk/council-tax/what-your-council-tax-pays-for/how-your-council-tax-bill-is-calculated/
+CAMBRIDGE,EAST_OF_ENGLAND,CAMBRIDGE,2467.02,https://www.cambridge.gov.uk/council-tax-bands-and-charges
+NORWICH,EAST_OF_ENGLAND,CENTRAL_NORFOLK_NORWICH,2503.43,https://www.norwich.gov.uk/council-tax/understanding-council-tax
+LUTON,EAST_OF_ENGLAND,LUTON,2439.93,https://www.luton.gov.uk/sites/default/files/2026-03/council-tax-booklet.pdf
+COLCHESTER,EAST_OF_ENGLAND,COLCHESTER,2240.94,https://www.new.colchester.gov.uk/council-tax/council-tax-information-0/council-tax-bands-and-charges
+BRISTOL_CITY_OF,SOUTH_WEST,BRISTOL,2713.68,https://www.bristol.gov.uk/residents/council-tax/charges-and-bands
+PLYMOUTH,SOUTH_WEST,PLYMOUTH,2441.85,https://www.plymouth.gov.uk/council-tax-bands-and-charges
+EXETER,SOUTH_WEST,EXETER,2495.36,https://committees.exeter.gov.uk/documents/g7857/Public%20minutes%2025th-Feb-2026%2018.00%20Council.pdf
+CORNWALL,SOUTH_WEST,KERNOW_WEST,2590.93,https://www.cornwall.gov.uk/council-tax/your-council-tax-bill/council-tax-2026/council-tax-bands-2026/
+CARDIFF,WALES,CARDIFF,2008.86,https://cardiff.moderngov.co.uk/mgAi.aspx?ID=38608
+SWANSEA,WALES,SWANSEA,2212.52,https://swansea.moderngov.co.uk/documents/s116741/Minutes%20-%202026Mar05.pdf
+NEWPORT,WALES,NEWPORT,2079.59,https://www.newport.gov.uk/sites/default/files/media/media-documents/Council-tax-and-non-domestic-rates-2026-27.pdf
+RHONDDA_CYNON_TAF,WALES,TAFF_RHONDDA,2250.41,https://www.rctcbc.gov.uk/EN/Resident/CouncilTax/Suggested/CouncilTaxBandsandCharges/Counciltaxbandsandcharges.aspx
+GLASGOW_CITY,SCOTLAND,GREATER_GLASGOW,1706.0,Glasgow City Council revenue estimates 2026-27
+CITY_OF_EDINBURGH,SCOTLAND,LOTHIAN,1626.05,https://www.edinburgh.gov.uk/downloads/file/39461/council-finance-information-2026
+FIFE,SCOTLAND,FIFE,1573.69,https://www.fife.gov.uk/housing/council-tax/how-your-council-tax-is-spent
+ABERDEEN_CITY,SCOTLAND,ABERDEEN_AND_SHIRE,1747.54,Aberdeen City Council decisions 4 March 2026
+HIGHLAND,SCOTLAND,HIGHLAND_AND_ISLANDS,1633.99,https://www.highland.gov.uk/council-tax/council-tax-scottish-water-charges/2
+DUNDEE_CITY,SCOTLAND,DUNDEE_AND_ANGUS,1729.69,https://dundeecity.gov.uk/news/article?article_ref=5057
+NORTH_LANARKSHIRE,SCOTLAND,NORTH_LANARKSHIRE,1554.56,https://www.northlanarkshire.gov.uk/council-tax/council-tax-bands-charges-and-appeals
+SOUTH_LANARKSHIRE,SCOTLAND,SOUTH_LANARKSHIRE,1468.47,https://www.southlanarkshire.gov.uk/pay-2/council-tax-expenditure

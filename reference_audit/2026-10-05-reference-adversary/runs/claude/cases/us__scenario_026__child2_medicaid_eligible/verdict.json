@@ -1,0 +1,69 @@
+{
+  "citations": [
+    {
+      "pinpoint": "(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage.",
+      "source": "42 U.S.C. 1397jj (SSA \u00a72110)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "(u)(2)(B)",
+      "pre_freeze": true,
+      "published": "current codification",
+      "quote": "the term 'optional targeted low-income child' means a targeted low-income child as defined in section 1397jj(b)(1) of this title (determined without regard to that portion of subparagraph (C) of such section concerning eligibility for medical assistance under this subchapter)",
+      "source": "42 U.S.C. 1396d (SSA \u00a71905)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1396d"
+    },
+    {
+      "pinpoint": "\"Optional targeted low-income child\" (2) No other coverage",
+      "pre_freeze": true,
+      "published": "current codification",
+      "quote": "An optional targeted low-income child is not covered under a group health plan or health insurance coverage",
+      "source": "42 CFR 435.4 Definitions",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.4"
+    },
+    {
+      "pinpoint": "\u00a7435.118(c)(2)",
+      "pre_freeze": true,
+      "published": "2012-03-23",
+      "quote": "The maximum income standard for each of the age groups of infants under age 1, children age 1 through age 5, and children age 6 through age 18 is the higher of\u2014 (i) 133 percent FPL; (ii) The highest effective income level for each age group in effect under the Medicaid State plan",
+      "source": "42 CFR 435.118 Infants and children under age 19",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "North Carolina row; footnote 1",
+      "pre_freeze": true,
+      "published": "2023-12-01 (as-of date)",
+      "quote": "Children eligible for a CHIP-funded Medicaid expansion may be covered either under the mandatory children's group or under the optional targeted low-income child group.",
+      "source": "CMS, Medicaid, CHIP & BHP Eligibility Levels",
+      "url": "https://www.medicaid.gov/medicaid/national-medicaid-chip-program-information/medicaid-childrens-health-insurance-program-basic-health-program-eligibility-levels"
+    },
+    {
+      "pinpoint": "Summary",
+      "pre_freeze": true,
+      "published": "2023-09-11 (effective 2023-04-01)",
+      "quote": "Through these SPAs, the state transitions all children from the state's separate CHIP to a Medicaid expansion CHIP.",
+      "source": "CMS CHIP SPA NC-23-0008 and NC-23-0010 summary",
+      "url": "https://www.medicaid.gov/chip-spa/2023-09-18/153066"
+    },
+    {
+      "pinpoint": "Overview",
+      "pre_freeze": true,
+      "published": "2023-07-28 (effective 2023-04-01)",
+      "quote": "adopt a new Medicaid eligibility group for certain children under age 19; and align the income standard for all children under age 19 at 211 percent of the federal poverty level",
+      "source": "CMS Medicaid SPA NC-23-0009 summary",
+      "url": "https://www.medicaid.gov/medicaid-spa/2023-07-31/151086"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "The OLDER_CHILD category check: the engine found Child 2 eligible because MAGI of 2.13\u00d7 FPL is within NC's 211% (with disregard) children's limit. It did not apply the OTLIC / targeted low-income child rule that the 133\u2013211% band for ages 6\u201318 excludes children covered under a group health plan. The input that Child 2 has employer-sponsored insurance was never used.",
+  "independent_answer": 0,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "engine_defect",
+  "summary": "The law gives 0. Under federal law, NC Medicaid can cover children aged 6\u201318 between 133% and 211% FPL only through the CHIP-funded optional targeted low-income child (OTLIC) group, and that group excludes any child covered under a group health plan. The prompt states that Child 2 has employer-sponsored insurance, so the only group left is 435.118, capped at 133% FPL (138% with the 5-point disregard). Child 2's MAGI of $82,301 is about 212.8% of the 2026 FPL ($38,680 for 5), far above that cap. The engine tested only income against NC's 211% older-child limit and found eligibility, ignoring the no-other-coverage condition. So the reference of 1 misapplies the law, and the 44-model consensus of 0 is correct.",
+  "verdict": "reference_wrong"
+}

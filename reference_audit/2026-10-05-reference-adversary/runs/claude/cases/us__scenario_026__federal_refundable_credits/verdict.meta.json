@@ -1,0 +1,52 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.2681698,
+  "duration_ms": 52878,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:55:43.669080+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "add84ae6a11851394cf8bbb7d5adf893b79a1540e833e7137ed042743133eba4",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "edeb41b5cee67f11e855f9b95acb2d077481871b809eb106a1426ab945188788",
+  "session_id": "5ed20732-192d-418b-be12-901a38131089",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "123f6c6070e9fefc4184514ae2a4a498b51d5f9218444e3f327c93e5ceeea0e2",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.law.cornell.edu/uscode/text/26/24",
+      "https://www.irs.gov/irb/2025-45_IRB"
+    ],
+    "searches": []
+  }
+}
