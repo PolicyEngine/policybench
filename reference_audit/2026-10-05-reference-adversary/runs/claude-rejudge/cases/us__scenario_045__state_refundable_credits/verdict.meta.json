@@ -1,0 +1,57 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.428987,
+  "duration_ms": 1060764,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:33:14.825108+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a69dd75de65d0615eb30e77fe8b701eeb1d2207b4f7f358a76053210ba88ec9a",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "40448003d4bd5ed17ee20f71b1ec8820d6406ed1ff58c7c74de7df1c16e3e3d2",
+  "session_id": "32b4a805-1b64-482b-8b50-9a847a5bc7fe",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "a8d5ec5a5dbc0e99176c603fc1d68e70a3861952d0757fee0f12836a6de0be22",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-522",
+      "https://legislature.mi.gov/Laws/MCL?objectName=MCL-206-520",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf"
+    ],
+    "searches": [
+      "MCL 206.522 homestead property tax credit 60% 3.2% total household resources",
+      "MI-1040CR instructions health insurance premiums total household resources renters 23% rent",
+      "Michigan homestead property tax credit \"pre-tax\" health insurance premiums employer paid not included total household resources",
+      "2026 Michigan homestead property tax credit maximum total household resources limit"
+    ]
+  }
+}

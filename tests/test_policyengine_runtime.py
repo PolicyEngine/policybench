@@ -32,7 +32,7 @@ def test_uk_policyengine_bundle_uses_transfer_artifact(monkeypatch):
     assert "private" not in bundle["default_dataset_uri"]
     assert bundle["runtime_dataset"] == "enhanced_cps_2025"
     assert bundle["runtime_dataset_sha256"] == (
-        "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+        "c663daea31b6fb8300f5c4758ccdcd7a227835ad7de90655294392fb95543eec"
     )
     assert "not native UK survey microdata" in bundle["runtime_dataset_note"]
 

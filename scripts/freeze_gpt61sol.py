@@ -555,6 +555,14 @@ def main(argv: list[str] | None = None) -> None:
             )
         evidence_paths[model] = str(state_path)
     del staged_rows
+    # The freezer dates the response window from these rows: from the run
+    # label's start to the last answer, not to the release date. Refuse here,
+    # before the pointer is written, rather than partway through the freeze.
+    window = freezer.model_response_window(
+        source_us / "predictions.csv",
+        freezer.MODEL_RESPONSE_START,
+        freezer.MODEL_RESPONSE_DATE,
+    )
 
     adjudications = freezer.load_adjudications(staged_annotations / ADJUDICATIONS)
     from policybench.adjudications import verify_adjudications_applied
@@ -593,14 +601,13 @@ def main(argv: list[str] | None = None) -> None:
         print(
             f"Validated local release inputs: {args.tag}, {BOARD_MODELS} models, "
             f"{payload_hash}; references unchanged; {added} adjudications added; "
-            f"{len(amendments)} wording amendments"
+            f"{len(amendments)} wording amendments; model responses {window}"
         )
         return
 
     # Read-only input paths are all in this checkout. Override defaults that
     # captured the old audit directory when freeze_snapshot was imported.
     freezer.SNAPSHOT_DATE = date
-    freezer.MODEL_RESPONSE_DATE = f"2026-06-12 to {date}"
     freezer.SOURCE_RUN = source_run
     freezer.SOURCE_US = source_us
     freezer.SOURCE_ANNOTATIONS = staged_annotations

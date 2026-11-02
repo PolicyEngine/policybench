@@ -1,0 +1,40 @@
+# pytest, final, code at 4a62b1e5245fe8ac0d9a660eea28f6e7cc9df1a6 (the round-4 review's notes and the payload pinned to its commit)
+# Each of the six files ran on its own, one after another, on a loaded machine:
+# OPENBLAS_NUM_THREADS=1 PYTHONPATH=. policybench-wt/adds0928-stage2/.venv/bin/python -m pytest <file> -q -p no:cacheprovider
+
+## tests/test_consensus.py
+.........................................................                [100%]
+57 passed in 239.20s (0:03:59)
+exit 0
+
+## tests/test_definition_conformance.py
+................................................................         [100%]
+64 passed in 49.88s
+exit 0
+
+## tests/test_publication_sources.py
+........................................................................ [ 64%]
+.......................................                                  [100%]
+111 passed in 102.63s (0:01:42)
+exit 0
+
+## tests/test_audit.py
+.........................                                                [100%]
+25 passed in 19.71s
+exit 0
+
+## tests/test_reference_adversary.py
+........................................................................ [ 67%]
+...................................                                      [100%]
+107 passed in 188.98s (0:03:08)
+exit 0
+
+## tests/test_reference_adversary_runner.py
+...........................                                              [100%]
+27 passed in 2500.78s (0:41:40)
+exit 0
+
+# 57 + 64 + 111 + 25 + 107 + 27 = 391 passed, 0 failed, across the 5 adversary test files this branch adds plus tests/test_audit.py, run 2026-10-09T14:27:44Z to 15:26:08Z.
+# ruff check . and ruff format --check . (ruff 0.15.2, the locked version):
+All checks passed!
+129 files already formatted

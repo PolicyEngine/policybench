@@ -1,0 +1,28 @@
+{
+ "disagreements": [],
+ "outputs_compared": 1984,
+ "parameters": {
+  "HEAD_OF_HOUSEHOLD": {
+   "2025": 25000.0,
+   "2026": 25750.0
+  },
+  "JOINT": {
+   "2025": 25000.0,
+   "2026": 25750.0
+  },
+  "SEPARATE": {
+   "2025": 12500.0,
+   "2026": 12875.0
+  },
+  "SINGLE": {
+   "2025": 12500.0,
+   "2026": 12875.0
+  },
+  "SURVIVING_SPOUSE": {
+   "2025": 25000.0,
+   "2026": 25750.0
+  }
+ },
+ "parameters_as_expected": true,
+ "policyengine_us": "2.15.17"
+}

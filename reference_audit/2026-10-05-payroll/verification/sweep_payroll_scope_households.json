@@ -1,0 +1,506 @@
+{
+ "adapter_sha256": "e139fe6f4dded9723721def83b03facc466bff19930532024d6262166846dc54",
+ "households": {
+  "scenario_000": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_001": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "VA"
+  },
+  "scenario_002": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WA"
+  },
+  "scenario_003": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_004": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NY"
+  },
+  "scenario_005": {
+   "employee_state_payroll_tax_final": 5590.0,
+   "employee_state_payroll_tax_scoped": 5590.0,
+   "state": "CA"
+  },
+  "scenario_007": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "ID"
+  },
+  "scenario_008": {
+   "employee_state_payroll_tax_final": 112.56000518798828,
+   "employee_state_payroll_tax_scoped": 112.56000518798828,
+   "state": "NJ"
+  },
+  "scenario_009": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_012": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MS"
+  },
+  "scenario_013": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AZ"
+  },
+  "scenario_014": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WV"
+  },
+  "scenario_015": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "IN"
+  },
+  "scenario_016": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_018": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AZ"
+  },
+  "scenario_020": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_021": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MO"
+  },
+  "scenario_022": {
+   "employee_state_payroll_tax_final": 684.2550048828125,
+   "employee_state_payroll_tax_scoped": 684.2550048828125,
+   "state": "CA"
+  },
+  "scenario_023": {
+   "employee_state_payroll_tax_final": 226.75440979003906,
+   "employee_state_payroll_tax_scoped": 226.75440979003906,
+   "state": "CA"
+  },
+  "scenario_025": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OH"
+  },
+  "scenario_026": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_027": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "CT"
+  },
+  "scenario_028": {
+   "employee_state_payroll_tax_final": 42.0,
+   "employee_state_payroll_tax_scoped": 42.0,
+   "state": "PA"
+  },
+  "scenario_029": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OK"
+  },
+  "scenario_030": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_031": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "CA"
+  },
+  "scenario_032": {
+   "employee_state_payroll_tax_final": 127.5999984741211,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MN"
+  },
+  "scenario_033": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "SD"
+  },
+  "scenario_036": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NJ"
+  },
+  "scenario_037": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_038": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "LA"
+  },
+  "scenario_039": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "VA"
+  },
+  "scenario_040": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AZ"
+  },
+  "scenario_042": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WI"
+  },
+  "scenario_043": {
+   "employee_state_payroll_tax_final": 17.98784637451172,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "CO"
+  },
+  "scenario_044": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "KS"
+  },
+  "scenario_045": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MI"
+  },
+  "scenario_046": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OK"
+  },
+  "scenario_048": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OH"
+  },
+  "scenario_049": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NH"
+  },
+  "scenario_051": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "LA"
+  },
+  "scenario_052": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_053": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "ID"
+  },
+  "scenario_054": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_055": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_056": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NJ"
+  },
+  "scenario_057": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "LA"
+  },
+  "scenario_059": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_060": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_062": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_064": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WI"
+  },
+  "scenario_066": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "VA"
+  },
+  "scenario_067": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "IN"
+  },
+  "scenario_068": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MD"
+  },
+  "scenario_070": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "IL"
+  },
+  "scenario_071": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NY"
+  },
+  "scenario_072": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MI"
+  },
+  "scenario_073": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MI"
+  },
+  "scenario_074": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "LA"
+  },
+  "scenario_075": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_076": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "ID"
+  },
+  "scenario_077": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "LA"
+  },
+  "scenario_078": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MD"
+  },
+  "scenario_079": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AZ"
+  },
+  "scenario_080": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "PA"
+  },
+  "scenario_081": {
+   "employee_state_payroll_tax_final": 805.0092163085938,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MA"
+  },
+  "scenario_082": {
+   "employee_state_payroll_tax_final": 443.1100158691406,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NY"
+  },
+  "scenario_083": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_084": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_085": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "PA"
+  },
+  "scenario_086": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "GA"
+  },
+  "scenario_088": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_089": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_090": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "KS"
+  },
+  "scenario_091": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WI"
+  },
+  "scenario_092": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AL"
+  },
+  "scenario_093": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MO"
+  },
+  "scenario_095": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NJ"
+  },
+  "scenario_098": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "IL"
+  },
+  "scenario_099": {
+   "employee_state_payroll_tax_final": 2145.0,
+   "employee_state_payroll_tax_scoped": 2145.0,
+   "state": "CA"
+  },
+  "scenario_100": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MT"
+  },
+  "scenario_101": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_102": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NC"
+  },
+  "scenario_104": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NY"
+  },
+  "scenario_107": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OH"
+  },
+  "scenario_108": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WI"
+  },
+  "scenario_109": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_110": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "OH"
+  },
+  "scenario_111": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "WA"
+  },
+  "scenario_112": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "TX"
+  },
+  "scenario_114": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "VA"
+  },
+  "scenario_115": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AL"
+  },
+  "scenario_116": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "FL"
+  },
+  "scenario_117": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "AR"
+  },
+  "scenario_118": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "NY"
+  },
+  "scenario_119": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "VA"
+  },
+  "scenario_120": {
+   "employee_state_payroll_tax_final": 827.9849853515625,
+   "employee_state_payroll_tax_scoped": 827.9849853515625,
+   "state": "CT"
+  },
+  "scenario_121": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "SC"
+  },
+  "scenario_122": {
+   "employee_state_payroll_tax_final": 0.0,
+   "employee_state_payroll_tax_scoped": 0.0,
+   "state": "MN"
+  },
+  "scenario_123": {
+   "employee_state_payroll_tax_final": 101.5,
+   "employee_state_payroll_tax_scoped": 101.5,
+   "state": "PA"
+  }
+ },
+ "policyengine_us": "2.15.17"
+}

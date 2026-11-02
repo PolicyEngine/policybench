@@ -1,0 +1,58 @@
+{
+  "ambiguity": "One could argue that a refundable credit counts only to the extent it exceeds liability. On that reading the answer would be 0, because the head's Idaho tax is well above $155. Neither the definition nor the statute supports this. The credit is refundable by statute, and the companion output measures tax before refundable credits, so the credit has to be counted in full here. The consensus explanations rest on factual errors: that the grocery credit is nonrefundable or has an income limit. It has no income limit, and it is refundable for full-year residents.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 63-3024A(1)",
+      "pre_freeze": true,
+      "published": "2025 (am. 2025, ch. 56, sec. 1, p. 267)",
+      "quote": "For tax year 2025 and each year thereafter, the credit is one hundred fifty-five dollars ($155).",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1) refund provision",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(5)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "the credit or refund allowed under this section shall be in proportion to the number of months of the year in which no assistance was received.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "799.02 and priority list item (b)",
+      "pre_freeze": null,
+      "published": "unknown (rule in force)",
+      "quote": "For part-year residents only, the grocery credit as authorized by Section 63-3024A, Idaho Code",
+      "source": "IDAPA 35.01.01.799, Priority Order of Credits and Adjustments to Credits (Idaho State Tax Commission rule)",
+      "url": "https://www.law.cornell.edu/regulations/idaho/IDAPA-35.01.01.799"
+    },
+    {
+      "pinpoint": "Credit amount section",
+      "pre_freeze": true,
+      "published": "2026-02-19",
+      "quote": "For most Idaho residents it's $155 per person or up to $250 if you submit receipts for sales tax paid for food.",
+      "source": "Idaho State Tax Commission, Idaho Food Tax Credit web page",
+      "url": "https://tax.idaho.gov/taxes/income-tax/individual-income/popular-credits-and-deductions/idaho-grocery-credit/"
+    },
+    {
+      "pinpoint": "Food tax credit paragraph",
+      "pre_freeze": true,
+      "published": "2026-03-11",
+      "quote": "The food tax credit (formerly known as the Grocery Credit) is now $155 per person.",
+      "source": "Idaho State Tax Commission press release, What's new for 2025 income tax returns",
+      "url": "https://tax.idaho.gov/pressrelease/whats-new-for-2025-income-tax-returns/"
+    }
+  ],
+  "computation": "1. The household is one full-year Idaho resident filing single. The head is 25, earns $66,969 in wages and has no dependents. With that income the head must file an Idaho return.\n2. Idaho Code \u00a7 63-3024A(1) gives a resident who files a return a food tax credit (formerly called the grocery credit) for each personal exemption. The amount is $155 for \"tax year 2025 and each year thereafter.\" The 2025 amendment (2025 ch. 56, HB 231) was enacted in 2025, before the 2026-07-03 freeze, so the 2026 amount was published before the freeze. HB 605 (2026), a senior-only increase, was only filed and printed and never enacted. Even if enacted, it would not apply to a 25-year-old.\n3. The credit is refundable. Under \u00a7 63-3024A(1), \"If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.\" The Tax Commission also calls the credit refundable. IDAPA 35.01.01.799 lists the grocery credit as nonrefundable only \"for part-year residents,\" so for a full-year resident it is refundable.\n4. None of the limits apply:\n   - SNAP months: \u00a7 63-3024A(5) prorates the credit for months of food stamp receipt. No SNAP receipt is listed, and at $67k of income a single person is not SNAP-eligible anyway.\n   - Incarceration and unlawful residence are unlisted, so treated as false.\n   - There is no income cap.\n   - The receipts alternative (up to $250) is not available because no food sales tax receipts are given.\n5. The credit is 1 person \u00d7 $155 = $155.\n6. No other refundable credit applies. Idaho has no state EITC, its child tax credit is nonrefundable and there are no children. Total refundable state credits are $155.\n7. Whether the head's Idaho tax is large enough to absorb the credit does not affect its classification. A refundable credit is still a refundable credit when it reduces a tax balance, and the companion output state_income_tax_before_refundable_credits is measured before this credit.",
+  "confidence": "high",
+  "definition_reading": "\"Total refundable state individual income tax credits\" means the sum of every Idaho credit that is refundable by law, whether or not the filer's liability absorbs it. For a full-year Idaho resident, the \u00a7 63-3024A food tax credit is refundable: any excess over tax is paid out. Form 40 reports it with payments rather than with the nonrefundable credits. This household is one single filer with no dependents, so the total is that person's $155 food tax credit.",
+  "independent_answer": 155,
+  "law_supports": "reference"
+}

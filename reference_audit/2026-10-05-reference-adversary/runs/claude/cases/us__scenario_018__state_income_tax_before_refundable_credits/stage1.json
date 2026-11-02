@@ -1,0 +1,82 @@
+{
+  "ambiguity": "Two other readings exist.\n\n(a) Overtime: one could take the $26 straight-time wage and 50 usual weekly hours to mean FLSA-required time-and-a-half was paid on 10 hours a week. That premium would be 0.5 \u00d7 $26 \u00d7 10 \u00d7 52 = $6,760, deductible under IRC \u00a7225. Arizona's new subtraction under 43-1022, effective from 2025 and enacted before the freeze, would then also apply. Taxable income would be $61,592 \u2212 $6,760 \u2212 $16,100 = $38,732, and tax $968.30, matching neither answer. I reject this as the main reading because no overtime pay or non-exempt status is listed. The $68,005 total also matches straight-time pay for all 50 hours, not FLSA-required overtime pay.\n\n(b) Unadjusted deduction: one could use the statute's face amount of $15,750, since the DOR had not published a 2026-adjusted figure before the freeze. That gives $1,146.05, the reference. But subsection H requires the inflation adjustment, and the federal method gives $16,100 for 2026, which was published in October 2025. So I don't consider this reading reasonable.",
+  "citations": [
+    {
+      "pinpoint": "\u00a743-1041(A)(1) and (H)",
+      "pre_freeze": true,
+      "published": "2026-06-13",
+      "quote": "For each taxable year beginning from and after December 31, 2019, the department shall adjust the dollar amounts prescribed by subsection A, paragraphs 1, 2 and 3 of this section for inflation in the same manner in which the federal basic standard deduction is adjusted for inflation pursuant to section 63 of the internal revenue code.",
+      "source": "Arizona Revised Statutes 43-1041 (standard deduction), as amended by Laws 2026, Ch. 140 (HB 4168)",
+      "url": "https://www.azleg.gov/ars/43/01041.htm"
+    },
+    {
+      "pinpoint": "amendment to \u00a743-1041(A); \u00a743-1022 para. 32",
+      "pre_freeze": true,
+      "published": "2026-06-13",
+      "quote": "For taxable years beginning from and after december 31, 2024, To the extent not already excluded from Arizona gross income under the internal revenue code, the amount of qualified overtime compensation received during the taxable year that is deducted under section 225 of the internal revenue code.",
+      "source": "Laws 2026, Chapter 140 (HB 4168), 57th Legislature, 2nd Regular Session",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/laws/0140.htm"
+    },
+    {
+      "pinpoint": "Standard deduction and subtractions",
+      "pre_freeze": true,
+      "published": "2026-06-23",
+      "quote": "Increases the standard deduction as follows: Single person or married filing separately $15,750; Head of household $23,625; Married filing jointly $31,500.",
+      "source": "Arizona State Senate Fact Sheet for SB1861/HB4168 (as enacted)",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm"
+    },
+    {
+      "pinpoint": "\u00a763(c)(7)(B)(ii)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "In the case of a taxable year beginning after 2025, the $23,625 and $15,750 amounts in subparagraph (A) shall each be increased by an amount equal to\u2014 (I) such dollar amount, multiplied by (II) the cost-of-living adjustment",
+      "source": "26 U.S.C. \u00a763(c)(7) (as amended by P.L. 119-21)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/63"
+    },
+    {
+      "pinpoint": "Standard deduction paragraph",
+      "pre_freeze": true,
+      "published": "2025-10-09",
+      "quote": "For single taxpayers and married individuals filing separately, the standard deduction rises to $16,100 for tax year 2026",
+      "source": "IRS News Release IR-2025-103, IRS releases tax inflation adjustments for tax year 2026",
+      "url": "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill"
+    },
+    {
+      "pinpoint": "\u00a7225(a), (c)(1)",
+      "pre_freeze": true,
+      "published": "2025-07-04",
+      "quote": "Qualified overtime compensation means overtime compensation paid to an individual required under section 7 of the Fair Labor Standards Act of 1938 that is in excess of the regular rate at which such individual is employed.",
+      "source": "26 U.S.C. \u00a7225 (qualified overtime compensation)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/225"
+    },
+    {
+      "pinpoint": "Page notice",
+      "pre_freeze": true,
+      "published": "2023-01-01",
+      "quote": "For tax year 2023 and beyond, there are no optional or X&Y tax tables to post due to Arizona's flat tax rate of 2.5%.",
+      "source": "Arizona Department of Revenue, Form 140 - Optional Tax Tables page",
+      "url": "https://azdor.gov/forms/individual/form-140-optional-tax-tables"
+    },
+    {
+      "pinpoint": "Standard deduction (2025)",
+      "pre_freeze": null,
+      "published": "2026 (undated page for tax year 2025)",
+      "quote": "The 2025 Arizona standard deduction amounts are: $ 15,750 for a single taxpayer or a married taxpayer filing a separate return",
+      "source": "Arizona Department of Revenue, Individual Income Tax Highlights",
+      "url": "https://azdor.gov/forms/individual-income-tax-highlights"
+    },
+    {
+      "pinpoint": "IRA deduction phase-out ranges",
+      "pre_freeze": true,
+      "published": "2025-11-13",
+      "quote": "For a single individual or head of household covered by a workplace retirement plan, the phase-out range is more than $81,000 but less than $91,000 for 2026.",
+      "source": "IRS News Release, 401(k) limit increases to $24,500 for 2026, IRA limit increases to $7,500",
+      "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500"
+    }
+  ],
+  "computation": "1) Federal AGI (Arizona starts from this). Wages of $68,005 minus the traditional 401(k) deferral of $6,174 gives $61,831. Add $50 taxable interest to get $61,881. Subtract the $289 traditional IRA deduction to get $61,592.\n   - The IRA deduction is allowed in full. The head is an active participant in a workplace plan through the 401(k), but income of about $61,881 is below the 2026 single phase-out start of $81,000.\n   - Roth 401(k) and Roth IRA contributions are not deductible.\n   - The prompt does not say the health premiums are pre-tax, so I did not exclude them.\n\n2) Arizona subtractions for 2026: none on the stated facts.\n   - Laws 2026, ch. 140 (HB 4168), signed 2026-06-13 before the freeze, added subtractions under A.R.S. 43-1022.\n   - Overtime subtraction: it is tied to the federal deduction under IRC \u00a7225, which requires overtime pay actually paid, required by FLSA \u00a77 and reported on the W-2. The prompt lists no overtime compensation and no FLSA non-exempt status. Under the prompt's rules (unlisted amounts are 0, don't infer income) I treat it as $0. The listed $68,005 also fits straight-time pay for 50 hours \u00d7 52 weeks (about $26.16 an hour), not time-and-a-half.\n   - Car loan interest subtraction: applies to tax year 2025 only.\n\n3) Arizona standard deduction for 2026. A.R.S. 43-1041(A), as amended by ch. 140 and retroactive to tax year 2025, sets the single amount at $15,750. Subsection H requires the Department of Revenue to adjust that amount \"in the same manner in which the federal basic standard deduction is adjusted.\" Federally, IRC 63(c)(7) takes the 2025 $15,750 to $16,100 for 2026 (IRS release IR-2025-103, published 2025-10-09). So Arizona's 2026 amount is $16,100.\n   - I did not find an Arizona DOR publication of the 2026 figure before 2026-07-03. Its published 2025 amount is $15,750.\n   - Itemizing would give less. Medical costs of $9,500 to $18,500, minus 7.5% of AGI ($4,619), leave at most $13,881. There are no property taxes or other itemizable costs.\n\n4) Taxable income: $61,592 \u2212 $16,100 = $45,492.\n\n5) Tax at Arizona's flat 2.5%: $45,492 \u00d7 0.025 = $1,137.30.\n\n6) Nonrefundable credits: none. The family tax credit is out of reach at this income, and there are no dependents, so the result is $1,137.30.\n\nCheck on the reference: $1,146.05 \u00f7 0.025 = $45,842, which is $61,592 \u2212 $15,750. The engine used the 2025 deduction without the 2026 inflation adjustment the statute requires.",
+  "confidence": "medium",
+  "definition_reading": "This is Arizona individual income tax for the single head's one resident return, after nonrefundable credits (there are none) and before refundable credits. It equals 2.5% of Arizona taxable income: federal AGI ($61,592), less any Arizona subtractions, less the 2026 standard deduction. No local tax is involved.",
+  "independent_answer": 1137.3,
+  "law_supports": "consensus"
+}

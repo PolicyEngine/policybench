@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 426(b)",
+      "pre_freeze": true,
+      "published": "in force long before 2026",
+      "quote": "Every individual who\u2014(1) has not attained age 65, and (2) (A) is entitled to, and has for 24 calendar months been entitled to",
+      "source": "42 U.S.C. \u00a7 426 (Social Security Act \u00a7 226), Entitlement to hospital insurance benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7 406.12(a)",
+      "pre_freeze": true,
+      "published": "in force before 2026",
+      "quote": "An individual under age 65 is entitled to hospital insurance benefits if, for 25 months, he or she has been\u2014",
+      "source": "42 CFR \u00a7 406.12, Individual under age 65 who is entitled to social security or railroad retirement disability benefits",
+      "url": "https://www.law.cornell.edu/cfr/text/42/406.12"
+    },
+    {
+      "pinpoint": "\u00a7 1395c(2)",
+      "pre_freeze": true,
+      "published": "in force long before 2026",
+      "quote": "individuals under age 65 who have been entitled for not less than 24 months to benefits under subchapter II of this chapter",
+      "source": "42 U.S.C. \u00a7 1395c (Social Security Act \u00a7 1811), Description of program",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1395c"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Head is 53, so the age route under 42 U.S.C. 426(a) does not apply. A person under 65 qualifies for Medicare only after 24 months of entitlement to Title II Social Security or Railroad Retirement disability benefits (\u00a7 426(b); 42 CFR 406.12), or through ESRD or ALS. The prompt lists a generic \"disability benefits\" amount. It does not say the benefit is SSDI, gives no months of entitlement, and lists no ESRD or ALS. Under the prompt's rule, unlisted numeric inputs are 0 and unlisted statuses are false. The engine therefore correctly returns 0, and the consensus of 1 rests on two unlisted assumptions: that the benefit is SSDI and that the 24-month wait has passed.",
+  "verdict": "reference_holds"
+}

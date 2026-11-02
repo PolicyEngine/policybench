@@ -1,0 +1,102 @@
+{
+  "blinding": "tools",
+  "cost_usd": 2.2233046000000014,
+  "duration_ms": 440102,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:01:02.376274+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "9012ff4a26b4b17f9d9bebd77515b5e661d547b3ce427efa658989288d1d67bb",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "1d685fa45cb9544980f45afac3b7ccafe6301ca6c90874156fa35abb6c29177d",
+  "session_id": "6e5a9d25-2d33-4f6c-ad2a-2e7e3f69378d",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.2",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.law.cornell.edu/cfr/text/7/273.8",
+      "https://portaldir.ct.gov/dss/snap/Assets.html",
+      "https://portaldir.ct.gov/dss/snap/Tables.html",
+      "https://www.cga.ct.gov/2023/rpt/pdf/2023-R-0100.pdf?t=1702638468423",
+      "https://cga.ct.gov/2016/rpt/2016-R-0106.htm",
+      "https://portal.ct.gov/dss/snap/supplemental-nutrition-assistance-program---snap",
+      "https://portal.ct.gov/dss/snap/supplemental-nutrition-assistance-program---snap/eligibility",
+      "https://www.govinfo.gov/content/pkg/CFR-2024-title7-vol4/pdf/CFR-2024-title7-vol4-sec273-2.pdf",
+      "https://www.law.cornell.edu/cfr/text/7/273.2",
+      "https://fns-prod.azureedge.us/sites/default/files/snap/Categorical-Eligibility-QandA-1-26-10.pdf",
+      "https://www.congress.gov/crs-product/R42505",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://ballotpedia.s3.amazonaws.com/images/c/c4/Snap-cola-fy26memo-Aug13-2025-2.pdf",
+      "https://www.publicnow.com/view/FCC4C4B63E9116B346D946AAFFBBFAF9C0245CA3",
+      "https://www.fns.usda.gov/snap/recipient/eligibility",
+      "https://sgp.fas.org/crs/misc/R42054.pdf",
+      "https://portal.ct.gov/dss/-/media/departments-and-agencies/dss/upms/upm5---treatment-of-income-income-eligibility/5520_35p.doc?rev=e912d64ac7e747afa4e64e163becd6e7",
+      "https://portal.ct.gov/-/media/Departments-and-Agencies/DSS/Fair-Hearings/SNAP-Eligibility/SNAP-Eligibility-2023/SNAP_2023_216432.pdf",
+      "https://www.cga.ct.gov/2016/rpt/2016-R-0106.htm",
+      "https://www.cga.ct.gov/2023/rpt/pdf/2023-R-0100.pdf",
+      "https://portaldir.ct.gov/dss/SNAP/Income.html",
+      "https://www.fna.usda.gov/snap/broad-based-categorical-eligibility",
+      "https://fna-bwbufwdzbabpezgc.z01.azurefd.us/sites/default/files/resource-files/BBCE-States-Chart-June2026.pdf",
+      "https://portal.ct.gov/dss/knowledge-base/articles/fact-sheets-and-brochures-articles/brochures-articles/help-for-people-in-need",
+      "https://portal.ct.gov/dss/-/media/departments-and-agencies/dss/snap/pub-96-3.pdf?rev=54a117f583394753bcc5e43b33ff70c9&hash=9711F4D9AD0FDB7531203ED7195877BD",
+      "https://portal.ct.gov/dss/-/media/departments-and-agencies/dss/fair-hearings/snap-eligibility/snap-eligibility-2023/snap_2023_227136.pdf?rev=3fe39604b9194643b8a8f5673b79ca43",
+      "https://yaledailynews.com/articles/connecticut-increases-snap-eligibility-benefits",
+      "https://portal.ct.gov/dss/snap/supplemental-nutrition-assistance-program---snap/eligibility",
+      "https://www.nd.gov/dhs/policymanuals/SNAP/Content/505%20Categorical%20and%20Broad%20Based%20Categorical%20Eligibility%20(BBCE).htm?TocPath=500+Non-Financial+Eligiblity+%7C_____5",
+      "https://www.fna.usda.gov/snap/allotment/cola/fy26",
+      "https://primarynewssource.org/sourcedocument/snap-fiscal-year-2026-cost-of-living-adjustments/"
+    ],
+    "searches": [
+      "7 CFR 273.2(j)(2) \"categorically eligible\" \"considered to have met\" resource gross net income \"except for households of one or two\"",
+      "Connecticut DSS SNAP eligibility gross income 200% elderly disabled asset test $4,500 2025 2026",
+      "portal.ct.gov DSS SNAP \"200%\" \"gross income\" \"categorically eligible\" elderly disabled asset limit",
+      "FNS broad-based categorical eligibility one- and two-person households minimum benefit even if net income exceeds",
+      "FNS SNAP FY 2026 cost-of-living adjustments minimum allotment $24 maximum allotment household of 2 $546 standard deduction",
+      "Connecticut Uniform Policy Manual SNAP categorically eligible \"minimum benefit\" one or two person household",
+      "Connecticut UPM SNAP \"categorically eligible\" \"200%\" \"federal poverty level\" units elderly disabled \"asset limit\" policy transmittal",
+      "FNS broad-based categorical eligibility chart states Connecticut gross income limit 200% asset limit net income test",
+      "\"BBCE\" chart \"Connecticut\" \"Help for People in Need\" brochure 200% \"no limit\"",
+      "Connecticut DSS SNAP \"expanded categorical eligibility\" OR \"broad based categorical eligibility\" UPM net income test 200 percent",
+      "portal.ct.gov dss upms \"categorically eligible\" SNAP unit \"200 percent\" OR \"200%\" gross income \"TANF\" brochure",
+      "Connecticut SNAP fair hearing \"Expanded Categorical Eligibility\" \"minimum benefit\" \"two person\" UPM",
+      "Connecticut \"expanded categorical eligibility\" SNAP regulation \"net income\" units \"185 percent\" OR \"200 percent\" \"categorically eligible\" elderly disabled",
+      "\"BBCE-States-Chart\" Connecticut \"All households\" \"No limit\" \"200%\"",
+      "Connecticut UPM SNAP \"categorically eligible\" \"Help for People in Need\" OR \"TANF-funded\" gross income \"200%\" unit \"not subject\"",
+      "\"SNAP FY 2026 Cost-of-Living Adjustments\" minimum benefit \"$24\" \"48 States and DC\""
+    ]
+  }
+}

@@ -69,6 +69,32 @@ bun run test
 bun run build
 ```
 
+## Paper and documentation site
+
+The manuscript in `paper/` renders with Quarto. Its Python environment is the
+`docs` extra, which holds only the Jupyter kernel and notebook runner that
+Quarto's Jupyter engine drives (ipykernel, nbclient, nbformat). See
+[`paper/README.md`](paper/README.md) for the other prerequisites.
+
+```bash
+uv sync --extra docs
+uv run python paper/render_paper.py
+```
+
+The operational-docs site in `docs/` builds with Jupyter Book 2, which
+`docs/requirements.txt` declares outside `uv.lock`. Build it in a throwaway
+environment (Jupyter Book needs Node.js 18, 20 or 22+):
+
+```bash
+cd docs
+uv run --no-project --with-requirements requirements.txt jupyter book build --html
+```
+
+The output lands in `docs/_build/` (gitignored). jupyter-book stays out of the
+`docs` extra on purpose: it pulls in jupyter-server, nbconvert, bleach, mistune
+and their dependencies, none of which the paper render uses, and every package
+in `uv.lock` is in Dependabot's scan whichever extra it belongs to.
+
 ## Benchmark run
 
 For paid/public runs, follow the concrete

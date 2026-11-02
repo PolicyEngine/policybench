@@ -1,0 +1,57 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.31061320000000003,
+  "duration_ms": 189703,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:13:15.373104+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "3e90f552e07264b39703b0a771b1e4010f009a72fcc6402adbf6ca12c895809c",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "e2024ff61a270bbd23383b4d6cd1c71a18f12872b54c3916d088f7d4c4c3159a",
+  "session_id": "dae94e36-7205-4741-b445-4c516b2138ba",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "a731f8fbfe7df57019821be858b34c5f12c767f91b653ef2f623474c0fc7a37a",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf",
+      "https://colorado.public.law/statutes/crs_39-22-2003",
+      "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Sales_Tax_Refund_Nov_2025.pdf",
+      "https://tax.colorado.gov/tabor-refund"
+    ],
+    "searches": [
+      "Colorado June 2026 forecast TABOR FY 2025-26 below Referendum C cap no refunds",
+      "Colorado TABOR sales tax refund 2025 tax year DR 0104 $19 single",
+      "\"39-22-2003\" sales tax refund \"fiscal year ending in that tax year\" excess state revenues"
+    ]
+  }
+}

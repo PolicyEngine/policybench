@@ -1,0 +1,69 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Subd. 4 (income limit for child under 19); Subd. 1a (5% FPG disregard)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "To be eligible for medical assistance under section 256B.055, subdivision 3a, a child under age 19 may have income up to 275 percent of the federal poverty guidelines for the household size.",
+      "source": "Minnesota Statutes 256B.056 (Medical assistance eligibility requirements)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/256B.056"
+    },
+    {
+      "pinpoint": "Subd. 3a (Families with children)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "Medical assistance may be paid for a person who is a child under the age of 19",
+      "source": "Minnesota Statutes 256B.055 (Eligibility categories)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/256B.055"
+    },
+    {
+      "pinpoint": "2.2.3.3 MA-FCA Income Limit",
+      "pre_freeze": true,
+      "published": "2018-12-01",
+      "quote": "Children 2 through 18: less than or equal to 275% FPG",
+      "source": "Minnesota DHS Eligibility Policy Manual",
+      "url": "https://hcopub.dhs.state.mn.us/epm/2_2_3_3.htm"
+    },
+    {
+      "pinpoint": "2.2.2.1 MA-FCA Bases of Eligibility",
+      "pre_freeze": true,
+      "published": "2026-06-03",
+      "quote": "Child age 2 through 18",
+      "source": "Minnesota DHS Eligibility Policy Manual",
+      "url": "https://hcopub.dhs.state.mn.us/epm/2_2_2_1.htm"
+    },
+    {
+      "pinpoint": "2.2.3.1 MA-FCA Asset Limits",
+      "pre_freeze": true,
+      "published": "2016-06-01",
+      "quote": "There is no asset limit for Medical Assistance (MA) for Families with Children and Adults.",
+      "source": "Minnesota DHS Eligibility Policy Manual",
+      "url": "https://hcopub.dhs.state.mn.us/epm/2_2_3_1.htm"
+    },
+    {
+      "pinpoint": "\u00a7 435.118(b)",
+      "pre_freeze": true,
+      "published": "current eCFR text (in force before 2026)",
+      "quote": "The agency must provide Medicaid to children under age 19 whose household income is at or below the income standard established by the agency in its State plan",
+      "source": "42 CFR 435.118 (Infants and children under age 19)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "2026 table, 48 contiguous states, household of 3",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "3 ... $27,320",
+      "source": "HHS ASPE Poverty Guidelines (2026)",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 1,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The spouse is 18, so they fall in Minnesota's Medical Assistance category for children under 19 (Minn. Stat. 256B.055 subd. 3a; 42 CFR 435.118). Its income limit is 275% FPG (256B.056 subd. 4; EPM 2.2.3.3). Neither the statute, the federal rule nor DHS's list of eligibility categories excludes married children, and MA-FCA has no asset test. The engine put the 3-person MAGI household at about 156% FPL ($42,664 against the 2026 guideline of $27,320) and found the spouse eligible under its older-child category. That matches the law, so the reference of 1 holds. The consensus answer of 0 wrongly applied the 133%/138% adult limit.",
+  "verdict": "reference_holds"
+}

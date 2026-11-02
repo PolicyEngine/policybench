@@ -1,0 +1,79 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.763415,
+  "duration_ms": 384621,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:56:01.637599+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "071251d027c3f7d3ecd15bba6441b43e74016ea9d2f1bd385b1cb0dbadc37af5",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "2dd22908021974d8f0332ef91fb6ee1546737c752cc209cecd641ce94c68e28d",
+  "session_id": "7f0cd6c3-8c24-4e1f-911d-83b0281dfcd7",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214i.pdf",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm",
+      "https://www.tax.ny.gov/pdf/2025/inc/it214i_2025.pdf",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://law.justia.com/codes/new-york/tax/article-22/part-3/606/",
+      "https://www.tax.ny.gov/forms/current-forms/it/it214i.htm",
+      "https://www.ny.gov/services/claim-your-real-property-tax-credit-form-it-214",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214_fill_in.pdf",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://codes.findlaw.com/ny/tax-law/tax-sect-606/",
+      "https://www.tax.ny.gov/pit/ads/2024/efile_addit214-2d.htm",
+      "https://www.stateandlocaltax.com/new-york/governor-hochul-signs-new-york-fy-2027-budget-into-law/",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214_fill_in_2d.pdf",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://newyork.public.law/laws/n.y._tax_law_section_606",
+      "https://nyassembly.gov/write/upload/req/real_prop.pdf?v=1740417570",
+      "https://www.nyassembly.gov/2024budget/bills2024/executive/rev_memo.pdf",
+      "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm",
+      "https://www.law.cornell.edu/uscode/text/26/86"
+    ],
+    "searches": [
+      "IT-214 real property tax credit 2025 instructions household gross income $18,000 market value $85,000 maximum credit $375",
+      "New York Tax Law 606(e) circuit breaker \"taxable years beginning on or after January first, two thousand twenty-five\" federal adjusted gross income real property tax credit",
+      "\"circuit breaker\" 606(e) \"maximum credit\" \"seventy-five dollars\" \"three hundred seventy-five\" elderly household gross income table New York tax law",
+      "New York real property tax credit IT-214 2025 change federal adjusted gross income instead of household gross income budget simplification",
+      "\"real property tax circuit breaker\" \"federal adjusted gross income\" 2024 budget part chapter 59 laws of 2024 IT-214 simplify",
+      "\"real property tax circuit breaker credit\" amended \"federal adjusted gross income\" \"two thousand twenty-five\" maximum credit elderly bill 2024 revenue Part",
+      "New York FY2027 enacted budget 2026 real property tax credit circuit breaker change IT-214 tax year 2026",
+      "tax.ny.gov IT-214 2025 \"what's new\" household gross income replaced federal adjusted gross income real property tax credit",
+      "\"real property tax credit\" simplify \"household gross income\" \"federal adjusted gross income\" New York budget 2024 Part revenue article VII memorandum circuit breaker"
+    ]
+  }
+}

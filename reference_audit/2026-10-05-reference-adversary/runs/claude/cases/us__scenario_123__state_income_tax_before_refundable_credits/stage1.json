@@ -1,0 +1,66 @@
+{
+  "ambiguity": "The prompt lists a single \"Tax unit\" made up of head, spouse and dependent child. If the output means that tax unit's own state return, it is the parents' joint PA-40 only. PA law keeps a dependent's income off the parents' return, so that gives $100,002 \u00d7 3.07% = $3,070.06, the reference value. The child's $1,381.50 is owed on a separate return that this reading leaves out. Both readings are reasonable: the law fixes each return's amount but does not say which returns this output covers.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 7302(a) (tax years beginning on or after Jan. 1, 2024, per Act 64 of 2023)",
+      "pre_freeze": true,
+      "published": "2023-12-14",
+      "quote": "a tax upon each dollar of income received by that resident during that resident's taxable year at the rate of three and seven hundredths per cent.",
+      "source": "Pennsylvania Tax Reform Code of 1971, Section 302(a), 72 P.S. \u00a7 7302(a)",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7302/"
+    },
+    {
+      "pinpoint": "Overview, rate and deductions",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "Pennsylvania personal income tax is levied at the rate of 3.07 percent against taxable income of resident and nonresident individuals",
+      "source": "Pennsylvania Department of Revenue, Personal Income Tax",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax"
+    },
+    {
+      "pinpoint": "Standard deduction / filing requirement",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "PA PIT does not provide for a standard deduction or personal exemption.",
+      "source": "Pennsylvania Department of Revenue, PA Personal Income Tax Guide \u2013 Brief Overview and Filing Requirements",
+      "url": "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/brief-overview-and-filing-requirements"
+    },
+    {
+      "pinpoint": "Who must file / minors",
+      "pre_freeze": true,
+      "published": "2024",
+      "quote": "PA law does not exempt a minor from the requirements to file a PA tax return even if claimed as a dependent on a federal return.",
+      "source": "Pennsylvania Department of Revenue, 2024 Pennsylvania Personal Income Tax Return Instructions (PA-40 IN)",
+      "url": "https://www.pa.gov/content/dam/copapwp-pagov/en/revenue/documents/formsandpublications/formsforindividuals/pit/documents/2024/2024_pa-40in.pdf"
+    },
+    {
+      "pinpoint": "Dependent children; Eligibility Income Table (married, one dependent)",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "The dependent child with taxable income in excess of $33 must file a PA-40 Individual Income Tax Return and a PA-40 Schedule SP.",
+      "source": "Pennsylvania Department of Revenue, PA Personal Income Tax Guide \u2013 Tax Forgiveness",
+      "url": "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/tax-forgiveness"
+    },
+    {
+      "pinpoint": "Eligibility income tables",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "If your Eligibility Income from PA Schedule SP, Line 11, does not exceed: $13,000",
+      "source": "Pennsylvania Department of Revenue, Tax Forgiveness",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax/tax-forgiveness"
+    },
+    {
+      "pinpoint": "Credit description",
+      "pre_freeze": true,
+      "published": "2025-11",
+      "quote": "The state credit equals 10 percent of your federal credit.",
+      "source": "Pennsylvania Department of Revenue, Working Pennsylvanians Tax Credit",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax/working-pennsylvanians-tax-credit"
+    }
+  ],
+  "computation": "1) Rate: PA personal income tax is a flat 3.07% on each class of income under 72 P.S. \u00a77302(a). That subsection covers tax years beginning on or after 1/1/2024, and no change for 2026 was enacted before 2026-07-03. DOR still lists 3.07% as the current rate. PA has no standard deduction, personal exemption or itemized deductions, so the charitable gift, medical costs, real estate tax and mortgage are irrelevant.\n2) Parents' joint PA-40: compensation $100,000 (head) plus interest $1 + $1 = $100,002. Tax = $100,002 \u00d7 0.0307 = $3,070.06.\n3) Tax forgiveness (a nonrefundable credit, Schedule SP): the limit for a married couple with one dependent is $22,500 for 100% forgiveness, phasing to 10% at $24,750. Eligibility income of about $100,002 is far above that, so the credit is $0. No other nonrefundable PA credit applies; the resident credit for other-state tax does not arise.\n4) Child, age 16: $45,000 in wages. PA requires a dependent child with taxable income over $33 to file their own PA-40, and a minor is not exempt even if claimed as a federal dependent. The child's income goes on the child's return, not the parents'. The child's tax is $45,000 \u00d7 0.0307 = $1,381.50. Tax forgiveness is unavailable because a dependent child qualifies only if the parents do.\n5) The Working Pennsylvanians Tax Credit (10% of federal EITC) is refundable, so it is excluded by definition. The household would get $0 of it anyway.\n6) Total PA income tax owed by the household on all returns it is required to file: $3,070.06 + $1,381.50 = $4,451.56. Under a reading limited to the parents' (primary tax unit's) return: $3,070.06, which equals the engine's 3,070.0613.\nDate note: the 2026 PA-40 and its instructions were not published before 2026-07-03. The 3.07% rate is set by statute and the forgiveness tables are unchanged. The 2026 estimated-tax instructions (REV-413(I)) were posted but I could not read their text.",
+  "confidence": "medium",
+  "definition_reading": "I read the output as all Pennsylvania personal income tax owed by the household after nonrefundable credits (tax forgiveness, which is $0 here). That includes every PA return the household is legally required to file under the prompt's \"assume tax filing when required\" convention. The definition names no particular return, and the prompt puts everyone in one household group for tax calculations. So the figure covers the parents' joint PA-40 ($3,070.06) plus the 16-year-old's required separate PA-40 on $45,000 of wages ($1,381.50), for $4,451.56.",
+  "independent_answer": 4451.56,
+  "law_supports": "both_readings"
+}

@@ -1,0 +1,222 @@
+{
+  "scenario_id": "scenario_025",
+  "state": "OH",
+  "reference_system": "policyengine-us 2.15.17 + latest_final (reference_audit/2026-09-28/fixes)",
+  "policyengine_core": "3.32.8",
+  "period": "2026",
+  "people": [
+    "head",
+    "spouse"
+  ],
+  "reproduction": {
+    "federal_income_tax_before_refundable_credits": {
+      "published": 7031.03564453125,
+      "recomputed": 7031.035645,
+      "reproduces": true
+    },
+    "federal_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "payroll_tax": {
+      "published": 4798.48486328125,
+      "recomputed": 4798.484863,
+      "reproduces": true
+    },
+    "self_employment_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "state_income_tax_before_refundable_credits": {
+      "published": 1921.57275390625,
+      "recomputed": 1921.572754,
+      "reproduces": true
+    },
+    "state_refundable_credits": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "local_income_tax": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "snap": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "ssi": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "tanf": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_wic_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_medicaid_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_chip_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "head_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "spouse_medicare_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "free_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    },
+    "reduced_price_school_meals_eligible": {
+      "published": 0.0,
+      "recomputed": 0.0,
+      "reproduces": true
+    }
+  },
+  "all_scored_reproduce": true,
+  "variables": {
+    "oh_unreimbursed_medical_care_expense_deduction": {
+      "entity": "tax_unit",
+      "label": "Ohio unreimbursed medical and health care expense deduction",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "oh_unreimbursed_medical_care_expense_deduction_person": {
+      "entity": "person",
+      "label": "Ohio unreimbursed medical and health care expense deduction",
+      "definition_period": "year",
+      "values": {
+        "head": 0.0,
+        "spouse": 0.0
+      }
+    },
+    "oh_insured_unreimbursed_medical_care_expenses": {
+      "entity": "tax_unit",
+      "label": "Ohio insured unreimbursed medical and health care expense deduction",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 0.0
+      }
+    },
+    "oh_uninsured_unreimbursed_medical_care_expenses": {
+      "entity": "person",
+      "label": "Ohio unreimbursed medical and health care expense deduction for uninsured expenses",
+      "definition_period": "year",
+      "values": {
+        "head": 0.0,
+        "spouse": 0.0
+      }
+    },
+    "oh_insured_unreimbursed_medical_care_expense_amount": {
+      "entity": "person",
+      "label": "Ohio insured unreimbursed medical and health care expense amount",
+      "definition_period": "year",
+      "values": {
+        "head": 800.0,
+        "spouse": 0.0
+      }
+    },
+    "oh_agi": {
+      "entity": "tax_unit",
+      "label": "Ohio adjusted gross income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 94925.296875
+      }
+    },
+    "oh_taxable_income": {
+      "entity": "tax_unit",
+      "label": "Ohio taxable income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 91125.296875
+      }
+    },
+    "oh_income_tax_before_refundable_credits": {
+      "entity": "tax_unit",
+      "label": "Ohio income tax before refundable credits",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 1921.572754
+      }
+    },
+    "adjusted_gross_income": {
+      "entity": "tax_unit",
+      "label": "Adjusted gross income",
+      "definition_period": "year",
+      "values": {
+        "tax_unit": 94925.296875
+      }
+    },
+    "has_esi": {
+      "entity": "person",
+      "label": "Person currently has ESI",
+      "definition_period": "year",
+      "values": {
+        "head": true,
+        "spouse": true
+      }
+    },
+    "health_insurance_premiums_without_medicare_part_b": {
+      "entity": "person",
+      "label": "Health insurance premiums without Medicare Part B premiums",
+      "definition_period": "year",
+      "values": {
+        "head": 6500.0,
+        "spouse": 0.0
+      }
+    },
+    "other_medical_expenses": {
+      "entity": "person",
+      "label": "Other medical expenses",
+      "definition_period": "year",
+      "values": {
+        "head": 800.0,
+        "spouse": 0.0
+      }
+    },
+    "medical_out_of_pocket_expenses": {
+      "error": "no variable 'medical_out_of_pocket_expenses' in the reference system"
+    }
+  },
+  "parameters": {}
+}

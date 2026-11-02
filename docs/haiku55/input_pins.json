@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "haiku55": {
+      "run": "haiku55-runs/haiku55/run",
+      "sha256": {
+        "predictions.csv": "27a5e48f44ad875f6d0901571b91c06c67045a7a6841f95a5ab56ecf0cfc8344",
+        "run_state.json": "42f82f504003a8ec0b7604c39bb1d42d0487c48747e6124171fd86d25472bd4e"
+      }
+    }
+  },
+  "note": "The sha256 of Claude Haiku 5.5's supervised run files as the run finished, written by scripts/finish_haiku55.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}

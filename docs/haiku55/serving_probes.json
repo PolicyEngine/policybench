@@ -1,0 +1,57 @@
+{
+ "note": "The two probes behind Claude Haiku 5.5's serving claims (its model card's notes and the release note): the request settings, HTTP status, response id, the response's content block types and its usage, from results/local/haiku55/haiku55_thinking_default_probe.json and haiku55_forced_tool_probe.json in the main clone (run 2026-10-08 during onboarding; each source file's sha256 is kept). Thinking text and signatures are left out.",
+ "probes": {
+  "no_thinking_parameter": {
+   "source": "haiku55_thinking_default_probe.json",
+   "source_sha256": "b4e9e415c2867571c63a493c1bdcb14d299a8f3f1195ccf740f6aa15607ad6d0",
+   "probe": "one question, no thinking parameter, no tools (does the default request think?)",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "max_tokens": 2048,
+    "has_thinking_parameter": false,
+    "tools": [],
+    "tool_choice": null
+   },
+   "status": 200,
+   "response_id": "msg_011CfpxFX7LMQXwhoCSjpP9H",
+   "content_block_types": [
+    "thinking",
+    "text"
+   ],
+   "stop_reason": "end_turn",
+   "usage": {
+    "input_tokens": 54,
+    "output_tokens": 123,
+    "thinking_tokens": 119
+   }
+  },
+  "forced_tool": {
+   "source": "haiku55_forced_tool_probe.json",
+   "source_sha256": "4b2ec49ff811e17aa40237b18f3b9eb80db7118686b33ef4912b45ef0c01dea9",
+   "probe": "forced tool_choice type tool, no thinking parameter",
+   "request": {
+    "model": "claude-haiku-5-5",
+    "max_tokens": 2048,
+    "has_thinking_parameter": false,
+    "tools": [
+     "answer"
+    ],
+    "tool_choice": {
+     "type": "tool",
+     "name": "answer"
+    }
+   },
+   "status": 200,
+   "response_id": "msg_011CfpxFbsq3B3zCWjJBgNrh",
+   "content_block_types": [
+    "tool_use"
+   ],
+   "stop_reason": "tool_use",
+   "usage": {
+    "input_tokens": 529,
+    "output_tokens": 33,
+    "thinking_tokens": 0
+   }
+  }
+ }
+}

@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(A); \u00a7273.10(e)(1)(i)(D)",
+      "pre_freeze": true,
+      "published": "current eCFR text (in force for 2026)",
+      "quote": "the household's monthly allotment shall be equal to the maximum SNAP allotment for the household's size reduced by 30 percent of the household's net monthly income",
+      "source": "7 CFR 273.10 (SNAP \u2013 Determining household eligibility and benefit levels)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Standard deduction and maximum allotment tables, 48 States and D.C.",
+      "pre_freeze": true,
+      "published": "2025-08 (effective 2025-10-01)",
+      "quote": "The standard deduction for household sizes 1 through 3 increased to $209 a month for the 48 States and D.C.",
+      "source": "USDA FNS, SNAP \u2013 Fiscal Year 2026 Cost-of-Living Adjustments",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "Standard Medical Deduction (SMD)",
+      "pre_freeze": true,
+      "published": "effective 2023-08-01",
+      "quote": "Standard Medical Deduction (SMD) net amount of $145 ($180 minus $35 disregard equals $145)",
+      "source": "Arizona DES, Elderly Simplified Application Project (ESAP)",
+      "url": "https://des.az.gov/ESAP"
+    },
+    {
+      "pinpoint": "Medical expense deduction",
+      "pre_freeze": null,
+      "published": "effective 2026-10-01 (publication date not shown)",
+      "quote": "A standard medical deduction of $160 ($195 - $35) is allowed when your household medical expenses are from $35.01 to $195.",
+      "source": "Arizona DES, Nutrition Assistance Frequently Asked Questions",
+      "url": "https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs"
+    },
+    {
+      "pinpoint": "Memo date; maximum allotments, 48 States and D.C.",
+      "pre_freeze": false,
+      "published": "2026-08-21 (effective 2026-10-01)",
+      "quote": "The COLAs are effective as of October 1, 2026.",
+      "source": "USDA FNS, SNAP \u2014 Fiscal Year 2027 Cost-of-Living Adjustments",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    },
+    {
+      "pinpoint": "SSI federal benefit rate 2026",
+      "pre_freeze": true,
+      "published": "2025-10",
+      "quote": "$994 per month for an eligible individual and $1,491 per month for an eligible couple",
+      "source": "Social Security Administration, What's New in 2026 (Red Book)",
+      "url": "https://www.ssa.gov/redbook/newfor2026.htm"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 1956,
+  "engine_step_at_issue": "",
+  "independent_answer": 2376,
+  "reference_value": 2376,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under the law published by the freeze, the couple's monthly gross income is $1,511: $630 of SSDI plus $881 of SSI ($1,491 couple rate minus $610 countable). Arizona's net $145 standard medical deduction applies because their medical costs are at least $36 a month. With the FY2026 $209 standard deduction, net income is $1,157. 30% of that rounds up to $348, and $546 \u2212 $348 = $198 a month, or $2,376 a year. The engine's steps match this exactly. The FY2027 COLA ($562/$217) is dated 2026-08-21, after the freeze, so keeping the FY2026 amounts for Oct\u2013Dec is correct. The $1,956 consensus deducts only the actual $26 excess medical cost and misses Arizona's standard medical deduction.",
+  "verdict": "reference_holds"
+}

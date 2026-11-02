@@ -1,0 +1,71 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.8756084000000002,
+  "duration_ms": 174517,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:05:22.167508+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "be0a96a72cba404c1728ed3d435da87ec40e73619115e656b0c783583286a3d1",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "c28a5c7aa902d9de29c8aa38fdacf3c88c086720d45437fe45ce0fb20eca3ad3",
+  "session_id": "0d5f9448-c922-4919-924d-e6184a1cb151",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "9012ff4a26b4b17f9d9bebd77515b5e661d547b3ce427efa658989288d1d67bb",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://cga.ct.gov/2016/rpt/2016-R-0106.htm",
+      "https://cga.ct.gov/2016/rpt/pdf/2016-R-0106.pdf",
+      "https://portaldir.ct.gov/dss/snap/IncomeLimits.html",
+      "https://portaldir.ct.gov/dss/snap/Tables.html",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://ballotpedia.s3.amazonaws.com/images/c/c4/Snap-cola-fy26memo-Aug13-2025-2.pdf",
+      "https://fns-prod.azureedge.us/sites/default/files/resource-files/snap-fy26maximumAllotments-deductions.pdf",
+      "https://www.fna.usda.gov/snap/allotment/COLA",
+      "https://www.publicnow.com/view/FCC4C4B63E9116B346D946AAFFBBFAF9C0245CA3",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://portal.ct.gov/dss/-/media/departments-and-agencies/dss/upms/upm5---treatment-of-income-income-eligibility/5520_35p.doc?rev=e912d64ac7e747afa4e64e163becd6e7",
+      "https://portaldir.ct.gov/dss/SNAP/ExpandedCategoricalEligibilityEC.html",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.law.cornell.edu/cfr/text/7/273.8"
+    ],
+    "searches": [
+      "Connecticut SNAP expanded categorical eligibility net income 100% FPL Help for People in Need UPM",
+      "Connecticut Uniform Policy Manual SNAP categorically eligible \"200%\" gross income \"net income\" elderly disabled BBCE",
+      "\"ECE\" \"do not have a net income limit\" Connecticut SNAP",
+      "SNAP FY 2026 cost-of-living adjustments minimum benefit $24 maximum allotment $546 two person standard deduction $209",
+      "portal.ct.gov dss upm SNAP \"expanded categorical eligibility\" \"200%\" \"Help for People in Need\"",
+      "\"Expanded Categorical Eligibility\" Connecticut SNAP EDG \"Help for People in Need Brochure\" net income asset limit"
+    ]
+  }
+}

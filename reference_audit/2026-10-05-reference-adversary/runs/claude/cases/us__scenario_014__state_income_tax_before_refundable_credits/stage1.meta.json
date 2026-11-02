@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.5159718000000001,
+  "duration_ms": 136971,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:05:47.403224+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "fd11920826d48f2ac0ee5a1372cef80272fe2fdd75e3aaf6bef233dd0d7177f2",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "98d3131f9f7a8728ef4dbdb1b01ec514553419ec49014d2c6fbae00817cbfaa6",
+  "session_id": "d690ffbf-d128-4035-bd01-36457bc13096",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392",
+      "https://tax.wv.gov/Individuals/Pages/PersonalIncomeTaxReductionBill.aspx",
+      "https://www.wvlegislature.gov/Bill_Text_HTML/2026_SESSIONS/RS/bills/sb392%20sub1%20enr.pdf",
+      "https://www.wvlegislature.gov/bill_status/bills_text.cfm?billdoc=sb392+sub1+enr.htm&yr=2026&sesstype=RS&i=392",
+      "https://code.wvlegislature.gov/11-21-16/",
+      "https://code.wvlegislature.gov/11-21-12/",
+      "https://code.wvlegislature.gov/11-21-16/",
+      "https://www.law.cornell.edu/uscode/text/38/5301"
+    ],
+    "searches": [
+      "West Virginia 2026 personal income tax rate reduction 5% signed Morrisey tax year 2026 rates",
+      "wvlegislature.gov SB 392 2026 enrolled personal income tax rates 11-21-4"
+    ]
+  }
+}

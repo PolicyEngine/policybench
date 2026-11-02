@@ -152,6 +152,35 @@ EXCLUDED_INPUT_VARIABLES = {
 # also the prompt's rule for unlisted numbers (0).
 PE_INPUT_ALIASES = {"hours_worked_last_week": "weekly_hours_worked_before_lsr"}
 
+# Manifest inputs policyengine-us has renamed. The manifests keep the name the
+# prompts were rendered from; the situation passes the value under the engine's
+# name. policyengine-us 1.728.0 renamed partnership_se_income. Every reference
+# build since then has applied the rename outside this builder: v1.1 in a
+# patched manifest, later builds in the RENAME map of
+# reference_audit/*/scripts/sweep.py.
+PE_INPUT_RENAMES = {
+    "partnership_se_income": "partnership_self_employment_net_earnings",
+}
+
+# Manifest inputs the situation leaves out, by entity. policyengine-us #9605
+# deletes the tax-unit first_home_mortgage_interest and
+# second_home_mortgage_interest inputs. Every household that lists them also
+# lists the same interest as the person-level home_mortgage_interest (on the
+# two that list a second home, the person value is the sum of both loans).
+# From 1.782.1, home_mortgage_interest_tax_unit falls back to the person-level
+# input when the tax-unit inputs are absent (from 1.804.1, #9276, it prefers
+# it), so leaving them out moves no reference on those engines. 1.620.0 through
+# 1.782.0 take the interest only from the tax-unit inputs (on 1.755.4 five
+# outputs move without them), so references built on those engines reproduce
+# from a commit before this change. The prompts still list the inputs. The
+# per-loan balances and origination years stay, since the acquisition-debt cap
+# reads them.
+PE_DROPPED_INPUTS = {
+    "tax_unit": frozenset(
+        {"first_home_mortgage_interest", "second_home_mortgage_interest"}
+    ),
+}
+
 EXCLUDED_INPUT_PREFIXES = (
     "takes_up_",
     "would_",
@@ -167,6 +196,11 @@ EXCLUDED_INPUT_SUFFIXES = (
 
 PROMPTABLE_REPORTED_INPUTS = {
     "employee_pension_contributions_reported",
+    # A household simulated on its own has no dataset year, so PE-UK reads
+    # this as the State Pension for the period itself (new_state_pension,
+    # basic_state_pension and additional_state_pension split it at that
+    # year's rates). The prompt states it as the 2026-27 amount.
+    "state_pension_reported",
 }
 
 INPUT_NAME_ALIASES = {
@@ -302,6 +336,49 @@ UK_EXCLUDED_HOUSEHOLD_INPUTS = {
     "transport_consumption",
 }
 
+# Person facts PE-UK derives rather than stores. ``state_pension`` is derived
+# from the stored reported amount; ``current_education`` is imputed from age
+# when the data carries no enrolment (16-17 non-advanced, 18-19 higher
+# education), and decides qualifying-young-person status for Child Benefit and
+# Universal Credit, so the prompt has to state it. ``date_of_birth`` places
+# each person within their year of age (a seeded draw in microdata), which
+# decides State Pension age and the Pension Credit savings credit cutoff.
+UK_COMPUTED_PERSON_INPUTS = (
+    "state_pension",
+    "current_education",
+    "date_of_birth",
+)
+
+# Ages at which enrolment changes a qualifying-young-person or student rule.
+# Below 16 every person is a child; from 20 no one is a qualifying young person.
+UK_EDUCATION_PROMPT_AGES = range(16, 20)
+
+# A fixed Broad Rental Market Area within each region, for private renters.
+# PE-UK reads the Local Housing Allowance from the BRMA alone and defaults
+# every household to Maidstone, whatever its region; the transfer data records
+# none. The prompt states the area it uses.
+UK_REGION_BRMA = {
+    "NORTH_EAST": "TYNESIDE",
+    "NORTH_WEST": "CENTRAL_GREATER_MANCHESTER",
+    "YORKSHIRE": "LEEDS",
+    "EAST_MIDLANDS": "NOTTINGHAM",
+    "WEST_MIDLANDS": "BIRMINGHAM",
+    "EAST_OF_ENGLAND": "CAMBRIDGE",
+    "LONDON": "INNER_NORTH_LONDON",
+    "SOUTH_EAST": "MAIDSTONE",
+    "SOUTH_WEST": "BRISTOL",
+    "WALES": "CARDIFF",
+    "SCOTLAND": "GREATER_GLASGOW",
+    "NORTHERN_IRELAND": "BELFAST",
+}
+UK_PRIVATE_RENT_TENURE = "RENT_PRIVATELY"
+
+# The age a prompted person in non-advanced education began it, where the
+# scenario gives none. PE-UK's default (1000) would fail every
+# qualifying-young-person entry condition. The prompt states the age.
+UK_EDUCATION_ENTRY_AGE = 16
+UK_EDUCATION_ENTRY_FIELD = "age_started_or_accepted_current_education_or_training"
+
 UK_NON_PROMPTABLE_SENTINELS = {
     "",
     "NONE",
@@ -313,10 +390,14 @@ UK_EMPLOYMENT_INCOME_COLUMNS = (
 )
 
 UK_TRANSFER_DATASET_FILENAME = "enhanced_cps_2025.h5"
+# Commit 6b1f80e (policyengine-uk-data#419, 2026-05-24) rebuilt the artifact
+# with PIP component categories. The earlier pin (9514dfb, 2026-04-26) stored
+# reported PIP amounts, which policyengine-uk stopped reading when
+# policyengine-uk#1656 moved that mapping into the data package.
 UK_TRANSFER_DATASET_SHA256 = (
-    "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+    "c663daea31b6fb8300f5c4758ccdcd7a227835ad7de90655294392fb95543eec"
 )
-UK_TRANSFER_DATASET_PINNED_COMMIT = "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+UK_TRANSFER_DATASET_PINNED_COMMIT = "6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"
 UK_TRANSFER_DATASET_PINNED_URL = (
     "https://raw.githubusercontent.com/PolicyEngine/policyengine-uk-data/"
     f"{UK_TRANSFER_DATASET_PINNED_COMMIT}/policyengine_uk_data/storage/"
@@ -470,6 +551,22 @@ class Scenario:
     def _yearize(self, value: Any) -> dict[str, Any]:
         return {str(self.year): value}
 
+    def _pe_inputs(self, entity: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        """An entity's manifest inputs, yearized, under the engine's names."""
+        dropped = PE_DROPPED_INPUTS.get(entity, frozenset())
+        data: dict[str, Any] = {}
+        for key, value in inputs.items():
+            if key in dropped:
+                continue
+            name = PE_INPUT_RENAMES.get(key, key)
+            if name in data:
+                raise ValueError(
+                    f"Scenario {self.id} sets {name} twice on one {entity}: "
+                    f"directly and through the input it renames."
+                )
+            data[name] = self._yearize(value)
+        return data
+
     def to_pe_household(self) -> dict:
         """Convert to PolicyEngine-US household JSON format."""
         if self.country != "us":
@@ -483,8 +580,7 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+            person_data.update(self._pe_inputs("person", person.inputs))
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])
@@ -498,8 +594,7 @@ class Scenario:
                 "age": self._yearize(person.age),
                 "employment_income": self._yearize(person.employment_income),
             }
-            for key, value in person.inputs.items():
-                person_data[key] = self._yearize(value)
+            person_data.update(self._pe_inputs("person", person.inputs))
             for source, target in PE_INPUT_ALIASES.items():
                 if source in person.inputs and target not in person.inputs:
                     person_data[target] = self._yearize(person.inputs[source])
@@ -513,14 +608,12 @@ class Scenario:
         tax_unit_data = {
             "members": all_names,
         }
-        for key, value in self.tax_unit_inputs.items():
-            tax_unit_data[key] = self._yearize(value)
+        tax_unit_data.update(self._pe_inputs("tax_unit", self.tax_unit_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["tax_unit"].items():
             tax_unit_data.setdefault(key, self._yearize(value))
 
         spm_unit_data = {"members": all_names}
-        for key, value in self.spm_unit_inputs.items():
-            spm_unit_data[key] = self._yearize(value)
+        spm_unit_data.update(self._pe_inputs("spm_unit", self.spm_unit_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["spm_unit"].items():
             spm_unit_data.setdefault(key, self._yearize(value))
 
@@ -528,8 +621,7 @@ class Scenario:
             "members": all_names,
             "state_code": self._yearize(self.state),
         }
-        for key, value in self.household_inputs.items():
-            household_data[key] = self._yearize(value)
+        household_data.update(self._pe_inputs("household", self.household_inputs))
         for key, value in DEFAULT_TAKEUP_INPUTS["household"].items():
             household_data.setdefault(key, self._yearize(value))
 
@@ -540,6 +632,83 @@ class Scenario:
             "spm_units": {"spm_unit": spm_unit_data},
             "families": {"family": {"members": all_names}},
             "households": {"household": household_data},
+        }
+
+    def to_pe_uk_situation(self, prefix: str = "") -> dict:
+        """Convert to a PolicyEngine-UK situation holding only prompted facts.
+
+        Each listed person, the region and the household inputs go in
+        unchanged; nothing else from the source record does, so the reference
+        is a function of the prompt. The benchmark keeps households with one
+        benefit unit, so every person joins that unit. The prompt states the
+        relationships, so they go in explicitly rather than through PE-UK's
+        presumptions: the listed adults are the claimant and partner, every
+        child is neither, and a couple is not married (the prompt states no
+        marriage, and unlisted statuses are false). ``prefix`` namespaces
+        entity keys when several scenarios share one simulation.
+
+        Raises ``ValueError`` for inputs the prompt cannot show: tax-unit or
+        benefit inputs, or person fields the renderer filters out.
+        """
+        if self.country != "uk":
+            raise ValueError("to_pe_uk_situation is only supported for UK scenarios.")
+        self = canonical_uk_scenario(self)
+        hidden_household = sorted(
+            k for k in self.household_inputs if is_excluded_prompt_input_name(k)
+        )
+        if hidden_household:
+            raise ValueError(
+                f"{self.id}: household inputs the prompt does not show: "
+                f"{hidden_household}"
+            )
+        if self.tax_unit_inputs or self.spm_unit_inputs:
+            raise ValueError(
+                f"{self.id}: UK scenarios cannot carry tax-unit or benefit inputs."
+            )
+        people = {}
+        for person in self.all_people:
+            hidden = sorted(
+                k for k in person.inputs if is_excluded_prompt_input_name(k)
+            )
+            if hidden:
+                raise ValueError(
+                    f"{self.id} {person.name}: inputs the prompt does not show: "
+                    f"{hidden}"
+                )
+            is_adult = person.name.startswith("adult")
+            person_data = {
+                "age": self._yearize(person.age),
+                # The stored wage leaf; employment_income adds the (zero)
+                # labour-supply response to it, as in the microsimulation.
+                "employment_income_before_lsr": self._yearize(person.employment_income),
+                "is_claimant_or_partner": self._yearize(is_adult),
+                # The prompt says the children are the adults' dependents.
+                # PE-UK reads is_parent as an input that defaults to false,
+                # and Tax-Free Childcare tests only parents' income, so the
+                # adults are stated as parents whenever there are children.
+                "is_parent": self._yearize(is_adult and bool(self.children)),
+            }
+            for key, value in person.inputs.items():
+                if key == "date_of_birth":
+                    value = int(value)
+                person_data[key] = self._yearize(value)
+            people[f"{prefix}{person.name}"] = person_data
+        members = list(people)
+        household_data = {
+            "members": members,
+            "region": self._yearize(self.state),
+        }
+        for key, value in self.household_inputs.items():
+            household_data[key] = self._yearize(value)
+        return {
+            "people": people,
+            "benunits": {
+                f"{prefix}benunit": {
+                    "members": members,
+                    "is_married": self._yearize(False),
+                }
+            },
+            "households": {f"{prefix}household": household_data},
         }
 
     def marital_couple(self) -> tuple[str, str] | None:
@@ -594,6 +763,101 @@ class Scenario:
             f"marital_unit_{index}": {"members": members}
             for index, members in enumerate(groups, start=1)
         }
+
+
+# Fields the prompt shows as a fraction rather than a whole number. The
+# renderer formats by the same suffixes.
+RATE_OR_RATIO_FIELD_SUFFIXES = ("_rate", "_ratio")
+UK_GAINFUL_SELF_EMPLOYMENT_FIELD = "uc_is_in_gainful_self_employment"
+
+
+def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Each numeric input as the prompt shows it: amounts to the whole unit,
+    rates to four significant figures. An explicit zero is a stated fact and
+    is kept."""
+    canonical: dict[str, Any] = {}
+    for key, value in inputs.items():
+        if isinstance(value, (bool, np.bool_, str)) or value is None:
+            canonical[key] = value
+        elif key.endswith(RATE_OR_RATIO_FIELD_SUFFIXES):
+            canonical[key] = round_uk_prompt_rate(value)
+        else:
+            canonical[key] = round_uk_prompt_number(value)
+    return canonical
+
+
+def canonical_uk_person(person: Person) -> Person:
+    """A UK person holding exactly the facts the prompt states about them.
+
+    Besides whole-number amounts, three statuses PE-UK would otherwise fill in
+    itself are made explicit, each following the prompt's rule that an
+    unlisted status is false:
+
+    - someone aged 16 to 19 with no education status is not in education
+      (PE-UK imputes enrolment from age);
+    - someone in non-advanced education with no entry age began it at
+      ``UK_EDUCATION_ENTRY_AGE``;
+    - someone with self-employment income and no gainful self-employment
+      determination has none (PE-UK presumes one, applying the Universal
+      Credit minimum income floor).
+    """
+    inputs = _canonical_uk_inputs(person.inputs)
+    if int(person.age) in UK_EDUCATION_PROMPT_AGES:
+        inputs.setdefault("current_education", "NOT_IN_EDUCATION")
+    if inputs.get("current_education") == "POST_SECONDARY":
+        inputs.setdefault(UK_EDUCATION_ENTRY_FIELD, float(UK_EDUCATION_ENTRY_AGE))
+    if inputs.get("self_employment_income"):
+        inputs.setdefault(UK_GAINFUL_SELF_EMPLOYMENT_FIELD, False)
+    return Person(
+        name=person.name,
+        age=person.age,
+        employment_income=round_uk_prompt_number(person.employment_income),
+        inputs=inputs,
+    )
+
+
+def canonical_uk_scenario(scenario: "Scenario") -> "Scenario":
+    """A UK scenario holding exactly the facts its prompt states.
+
+    The prompt renderer and the reference builder both start from this, so a
+    scenario loaded from a manifest gives the same facts to each as one built
+    from the transfer data:
+
+    - every amount is the whole number the prompt shows;
+    - each person is canonical (:func:`canonical_uk_person`);
+    - a private renter without a Broad Rental Market Area gets the fixed one
+      for the region (``UK_REGION_BRMA``).
+
+    Idempotent. Scenarios of other countries are returned unchanged.
+    """
+    if scenario.country != "uk":
+        return scenario
+
+    household_inputs = _canonical_uk_inputs(scenario.household_inputs)
+    if (
+        household_inputs.get("tenure_type") == UK_PRIVATE_RENT_TENURE
+        and "brma" not in household_inputs
+    ):
+        if scenario.state not in UK_REGION_BRMA:
+            raise ValueError(
+                f"{scenario.id}: no Broad Rental Market Area is set for region "
+                f"{scenario.state!r}."
+            )
+        household_inputs["brma"] = UK_REGION_BRMA[scenario.state]
+    return Scenario(
+        id=scenario.id,
+        state=scenario.state,
+        filing_status=scenario.filing_status,
+        adults=[canonical_uk_person(adult) for adult in scenario.adults],
+        children=[canonical_uk_person(child) for child in scenario.children],
+        tax_unit_inputs=scenario.tax_unit_inputs,
+        spm_unit_inputs=scenario.spm_unit_inputs,
+        household_inputs=household_inputs,
+        year=scenario.year,
+        country=scenario.country,
+        source_dataset=scenario.source_dataset,
+        metadata=scenario.metadata,
+    )
 
 
 def person_to_dict(person: Person) -> dict[str, Any]:
@@ -831,8 +1095,44 @@ def get_uk_dataset_path() -> Path:
     )
 
 
-def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
-    """Load person and household frames from the local UK transfer artifact."""
+UK_REFERENCE_PERIOD_INPUT_ENTITIES = ("person", "household")
+
+
+def _uk_dataset_inputs_by_entity(
+    values: dict[str, Any], tax_benefit_system: Any
+) -> dict[str, list[str]]:
+    """Group the artifact's stored variables by PE-UK entity.
+
+    Every stored variable must be one the installed policyengine-uk defines.
+    A variable the engine no longer reads (as ``pip_dl_reported`` became
+    after policyengine-uk#1656) would otherwise drop out of the reference
+    silently while the stale value still reached the prompt.
+    """
+    unknown = sorted(key for key in values if key not in tax_benefit_system.variables)
+    if unknown:
+        raise ValueError(
+            "The UK transfer artifact stores variables the installed "
+            f"policyengine-uk does not define: {unknown}. Re-pin a transfer "
+            "artifact built for this model version."
+        )
+    grouped: dict[str, list[str]] = {}
+    for key in values:
+        entity = tax_benefit_system.variables[key].entity.key
+        grouped.setdefault(entity, []).append(key)
+    return grouped
+
+
+def load_uk_transfer_frames(
+    period: int = TAX_YEAR,
+) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """Load person and household frames from the local UK transfer artifact.
+
+    The artifact stores one survey year (2025). PE-UK uprates stored incomes,
+    rents and savings when a later year is calculated, so each stored variable
+    is read back from the simulation at the reference ``period``. The prompt
+    then shows the same amounts the reference calculation uses, rather than
+    the stored base-year amounts.
+    """
     from policybench.policyengine_runtime import (
         get_uk_single_year_dataset_class,
         make_uk_transfer_microsimulation,
@@ -844,18 +1144,34 @@ def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
     dataset = UKSingleYearDataset(file_path=str(dataset_path))
     values = dataset.load()
 
-    person_length = len(values["person_id"])
-    household_length = len(values["household_id"])
+    sim = make_uk_transfer_microsimulation(dataset_path)
+    period = str(period)
+    inputs_by_entity = _uk_dataset_inputs_by_entity(values, sim.tax_benefit_system)
 
-    person_values = {
-        key: value for key, value in values.items() if len(value) == person_length
-    }
-    household_values = {
-        key: value for key, value in values.items() if len(value) == household_length
-    }
+    unsupported = sorted(
+        variable
+        for entity, variables in inputs_by_entity.items()
+        if entity not in UK_REFERENCE_PERIOD_INPUT_ENTITIES
+        for variable in variables
+        if not variable.endswith("_id")
+    )
+    if unsupported:
+        raise ValueError(
+            "The UK transfer artifact stores benefit-unit inputs the prompt "
+            f"cannot show yet: {unsupported}."
+        )
 
-    person_df = pd.DataFrame(person_values)
-    household_df = pd.DataFrame(household_values)
+    frames: dict[str, dict[str, np.ndarray]] = {}
+    for entity in UK_REFERENCE_PERIOD_INPUT_ENTITIES:
+        frames[entity] = {
+            variable: np.asarray(
+                sim.calculate(variable, period, map_to=entity, unweighted=True)
+            )
+            for variable in inputs_by_entity.get(entity, [])
+        }
+
+    person_df = pd.DataFrame(frames["person"])
+    household_df = pd.DataFrame(frames["household"])
 
     person_df["person_id"] = pd.to_numeric(
         person_df["person_id"], errors="coerce"
@@ -870,16 +1186,12 @@ def load_uk_transfer_frames() -> tuple[pd.DataFrame, pd.DataFrame, int]:
         pd.to_numeric(person_df["age"], errors="coerce").fillna(0).astype(int)
     )
 
-    sim = make_uk_transfer_microsimulation(dataset_path)
-    period = str(TAX_YEAR)
-    for variable in (
-        "state_pension",
-        "is_child_or_QYP",
-        "pip_dl_category",
-        "pip_m_category",
-    ):
+    for variable in UK_COMPUTED_PERSON_INPUTS:
         if variable not in sim.tax_benefit_system.variables:
-            continue
+            raise ValueError(
+                f"policyengine-uk no longer defines '{variable}', which the UK "
+                "transfer path prompts. Update UK_COMPUTED_PERSON_INPUTS."
+            )
         calculated = np.asarray(
             sim.calculate(
                 variable,
@@ -1282,6 +1594,25 @@ def scenarios_from_cps_frame(
     return scenarios
 
 
+def round_uk_prompt_number(value: float) -> float:
+    """A UK numeric input as the prompt shows it: to the whole unit.
+
+    The prompt formats every UK amount, hour count and date with no decimals
+    (Python's round-half-even, as the formatter rounds), so storing the
+    rounded value makes the reference use exactly the stated fact.
+    """
+    return float(round(float(value)))
+
+
+def round_uk_prompt_rate(value: float) -> float:
+    """A UK rate or ratio as the prompt shows it: to four significant figures.
+
+    The prompt formats rates with ``.4g``, so the stored value is the one that
+    format prints and the reference uses exactly the stated rate.
+    """
+    return float(f"{float(value):.4g}")
+
+
 def _uk_promptable_value(value: Any) -> Any | None:
     if pd.isna(value):
         return None
@@ -1293,10 +1624,10 @@ def _uk_promptable_value(value: Any) -> Any | None:
             return None
         return cleaned
     try:
-        numeric = float(value)
+        numeric = round_uk_prompt_number(value)
     except (TypeError, ValueError):
         return value
-    if abs(numeric) <= 1e-6:
+    if numeric == 0:
         return None
     return numeric
 
@@ -1312,10 +1643,18 @@ def _extract_uk_person_inputs(row: pd.Series) -> dict[str, Any]:
             in {
                 "age",
                 *UK_EMPLOYMENT_INCOME_COLUMNS,
-                "gender",
                 "marital_status",
             }
         ):
+            continue
+        if col == "current_education" and int(row["age"]) not in (
+            UK_EDUCATION_PROMPT_AGES
+        ):
+            continue
+        # The transfer path states the State Pension PE-UK computes
+        # (state_pension, in UK_COMPUTED_PERSON_INPUTS); stating the reported
+        # amount as well would show two State Pension lines.
+        if col == "state_pension_reported":
             continue
         promptable = _uk_promptable_value(value)
         if promptable is not None:
@@ -1341,7 +1680,7 @@ def _build_uk_person(row: pd.Series, label: str) -> Person:
             continue
         value = pd.to_numeric(row[column], errors="coerce")
         if not pd.isna(value):
-            employment_income = float(value)
+            employment_income = round_uk_prompt_number(value)
             break
     return Person(
         name=label,
@@ -1475,7 +1814,7 @@ def scenarios_from_uk_frames(
             )
         )
 
-    return scenarios
+    return [canonical_uk_scenario(scenario) for scenario in scenarios]
 
 
 def generate_scenarios(

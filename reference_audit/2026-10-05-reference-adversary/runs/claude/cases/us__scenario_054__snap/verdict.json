@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(A)",
+      "pre_freeze": true,
+      "published": "in force; longstanding",
+      "quote": "The State agency shall round the 30 percent of net income up to the nearest higher dollar ... [or] after subtracting the 30 percent of net income from the appropriate Thrifty Food Plan, the State agency shall round the allotment down to the nearest lower dollar.",
+      "source": "7 CFR 273.10 (Code of Federal Regulations, USDA FNS SNAP regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(1)(i)(B)",
+      "pre_freeze": true,
+      "published": "in force; longstanding",
+      "quote": "Multiply the total gross monthly earned income by 20 percent and subtract that amount from the total gross income",
+      "source": "7 CFR 273.10 (Code of Federal Regulations, USDA FNS SNAP regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Maximum allotments and standard deduction tables, 48 States & DC (read via search-result summary; the PDF returned 403)",
+      "pre_freeze": true,
+      "published": "2025 (effective 2025-10-01)",
+      "quote": "The standard deduction for household sizes 1 through 3 increased to $209 a month ... household of 3 in the 48 States and D.C., the maximum SNAP allotment for FY 2026 is $785.",
+      "source": "USDA FNS, SNAP \u2014 Fiscal Year 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 6068.4,
+  "engine_step_at_issue": "",
+  "independent_answer": 6060,
+  "reference_value": 6060,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The SNAP household is the three listed people. Their only income is $17,100 of self-employment earnings, or $1,425 a month. Under 7 CFR 273.10(e)(1) the 20% earned-income deduction ($285) and the FY2026 standard deduction ($209) leave net income of $931. Thirty percent of that is $279.30, which must be rounded to a whole dollar under 273.10(e)(2)(ii)(A), so the allotment is $785 \u2212 $280 = $505 a month, or $6,060 a year. The engine follows exactly these steps and uses the FY2026 amounts published before the freeze for all 12 months, which matches stage 1. The consensus of $6,068.40 leaves out the required whole-dollar rounding.",
+  "verdict": "reference_holds"
+}

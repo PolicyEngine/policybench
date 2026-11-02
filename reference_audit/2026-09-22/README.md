@@ -38,6 +38,8 @@ This directory records how the September 22 references and exclusion record were
   - this package's builder, `package_audit.py`.
 
   They run against the local results tree and a policyengine-us 1.755.4 environment; their paths are the ones used on 2026-09-22 and 2026-09-23.
+
+  They reproduce these records only with policybench at a commit before 2026-10-09 (origin/main 9ce4ade8 or earlier). On 2026-10-09 policybench's situation builder (`Scenario.to_pe_household`) stopped passing the tax-unit `first_home_mortgage_interest` and `second_home_mortgage_interest` inputs, which policyengine-us #9605 deletes. policyengine-us 1.755.4 takes mortgage interest only from those inputs, so with the current builder the unmodified harness moves five of the 1,984 references on 1.755.4: scenario_078 federal and state income tax, and scenario_081, scenario_088 and scenario_120 federal income tax.
 - `verification/` holds the independent reports:
   - `v1`–`v4`: GPT-6 Astra lanes re-derived each first-pass fix from primary sources and reran its sweep.
   - `v5a`, `v5b`: sourced every projected parameter behind a moved output.
