@@ -1,15 +1,15 @@
 """Install commands in the docs must name a source that exists.
 
-PolicyBench is not published on PyPI: on 2026-10-06 both
+PyPI has no PolicyBench package: on 2026-10-06 both
 https://pypi.org/pypi/policybench/json and https://pypi.org/simple/policybench/
 returned 404. A command that installs the ``policybench`` distribution from a
 package index by name (``pip install policybench``, ``uvx policybench``) fails
 today, and would install whatever a third party later uploads under the name.
 The README installs it from GitHub and the development docs from a clone; these
 tests hold every surface a reader follows to that. A doc that quotes the index
-command, even to warn against it, fails too: readers copy commands. If
-PolicyBench is ever published to PyPI, delete this module with the README's
-"not published" line.
+command, even to warn against it, fails too: readers copy commands. If anyone
+publishes PolicyBench to PyPI, delete this module and the README's line that
+says PyPI has no PolicyBench package.
 """
 
 import html
@@ -25,8 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DISTRIBUTION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["name"]
 REPO_URL = "https://github.com/PolicyEngine/policybench"
 
-# Where readers and agents look for install instructions. Dated records
-# (docs/adds0928/, docs/gpt61sol/, reference_audit/) are left out: they quote
+# Where readers and agents look for install instructions. The scan leaves out
+# dated records (docs/adds0928/, docs/gpt61sol/, reference_audit/): they quote
 # what happened rather than tell anyone what to run.
 SURFACES = (
     "*.md",
@@ -65,7 +65,7 @@ INSTALLERS = (
 REQUIREMENT_OPTIONS = {"--with", "-w", "--from", "--spec"}
 TOOL_OPTIONS = {"--from", "--spec"}
 # Options whose value is anything else (a path, an index, a Python version, a
-# channel, a format control), which is skipped.
+# channel, a format control); the scan skips the value.
 VALUE_OPTIONS = {
     "-C",
     "-P",
@@ -234,10 +234,9 @@ def _code_and_prose(text: str, markup: bool) -> tuple[list[str], str]:
     """Split text into code snippets and the prose around them.
 
     Code is fenced blocks and, in markup, ``<pre>`` elements (one command per
-    line), plus inline code spans and ``<code>`` elements, joined across a
-    soft wrap.
-    Prose is everything else with line breaks collapsed, so a wrapped sentence
-    reads as one line.
+    line), plus inline code spans and ``<code>`` elements, which the function
+    joins across a soft wrap. Prose is everything else, and the function
+    collapses its line breaks so a wrapped sentence reads as one line.
     """
     code = []
     if markup:

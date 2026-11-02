@@ -48,7 +48,7 @@ information.
 
 ## Quick start
 
-PolicyBench is not published on PyPI, so install the command-line tool from
+PyPI has no PolicyBench package, so install the command-line tool from
 GitHub. With [uv](https://docs.astral.sh/uv/):
 
 ```bash
