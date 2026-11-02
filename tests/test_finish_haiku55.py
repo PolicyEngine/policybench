@@ -1148,7 +1148,9 @@ def seeded_stage(tmp_path, monkeypatch):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = tmp_path / "seed"
     seed_board = _board(tmp_path / "seed-board", INCUMBENT_ROWS)
-    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+    # Release 20261006's seed was judged on judge template v1, before versions
+    # existed, so its sidecars record none.
+    prepare_audit(seed_board / "us", seed, grounding_lookup=lookup, template_version=1)
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(
             seed / "cases" / item["case_id"],
@@ -1965,7 +1967,8 @@ def test_each_20261006_entry_names_its_seed_verdict_as_its_sidecar_records_it():
 @pytest.mark.slow
 def test_every_seed_prompt_rerenders_except_the_nine_reworded(tmp_path):
     """Local only: release 20261006's 46-model board, as BASE_COMMIT holds it,
-    renders exactly the seed's cases, and every seed prompt except the nine
+    renders exactly the seed's cases, and on judge template v1, the template
+    the seed was judged on, every seed prompt except the nine
     REWORDED_SINCE_SEED, whose reference explanations it reworded (this reads
     the 43 MB predictions from git into scratch). So
     check_prompt_changes may attribute every other changed or new prompt to
@@ -1996,7 +1999,8 @@ def test_every_seed_prompt_rerenders_except_the_nine_reworded(tmp_path):
         if arrow
         else contextlib.nullcontext()
     ):
-        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+        # The seed was judged on judge template v1.
+        prepare_audit(bundle / "us", audit, grounding_lookup=lookup, template_version=1)
     # The manifest records each case's reference derivation, so it differs
     # from the seed's in that field of the nine cases and nowhere else.
     ours, seeds = (
@@ -3470,8 +3474,9 @@ def _exported(incumbents):
         row.update(n=driver.RELEASE_SCORED, exact=row["exact"] + 0.25)
         row["score"] = row["exact"] / 100
     fable = stats[-1]
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     return stats + [_stat(NEW, 65.0, costUsd=0.13)]
 
 
@@ -3563,6 +3568,9 @@ def test_the_scope_check_allows_every_incumbent_change_the_ten_records_explain(s
     assert {row["n"] for row in rows} == {1910}
     fable = next(row for row in rows if row["model"] == "claude-fable-5")
     assert {key: fable[key] for key in FABLE_USAGE} == FABLE_USAGE
+    # The export reports none of Fable 5's usage; the carry puts it back where
+    # the published row has it, so the serialized key order is the release's.
+    assert list(fable) == list(incumbents[-1])
     assert fable["exact"] == incumbents[-1]["exact"] + 0.25
     (_, run_dir, kwargs), (_, bundle, live, record) = scope.calls
     assert run_dir == bundle == Path("b")
@@ -6140,8 +6148,11 @@ def tiny_upgrade_stage(root: Path, stack: contextlib.ExitStack, haiku=None):
     lookup = {("s1", "snap"): "Gross test: pass."}
     seed = root / "seed"
     seed_board = _board(root / "seed-board", INCUMBENT_ROWS)
+    # The seed is on judge template v1, as release 20261006's was.
     with driver.object_strings():
-        prepare_audit(seed_board / "us", seed, grounding_lookup=lookup)
+        prepare_audit(
+            seed_board / "us", seed, grounding_lookup=lookup, template_version=1
+        )
     for item in map(json.loads, (seed / "cases.jsonl").read_text().splitlines()):
         write_verdict(
             seed / "cases" / item["case_id"],

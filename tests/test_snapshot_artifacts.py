@@ -655,18 +655,29 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # 2026-10-06 rulings and the engine upgrade exclude leave the universe
     # while the ones it regenerates return (release 20261006: annotated 7,527,
     # below full bounded score 9,599, llm_error 6,883, parse failures 644).
+    # Release 20261014: Gemini 4 Argon's and Muse Spark 1.3's rows join on
+    # unchanged references and exclusions (262 annotated misses, all LLM
+    # errors since both rows parsed every answer, and 111 more unannotated
+    # rows below full bounded score; release 20261013: 8,503 annotated,
+    # 10,721 below full bounded score, llm_error 7,834).
+    # Release 20261027: GPT-6.1 Terra's rows join (96 annotated misses, all
+    # LLM errors since it parsed every answer), and the move to
+    # policyengine-us 2.60.0 changes four scored references, which adds 189
+    # incumbent misses (192 on the four outputs, less 3 that now match);
+    # release 20261014: 8,765 annotated, 11,094 below full bounded score,
+    # llm_error 8,096.
     expected_audit_counts = {
         "us": {
-            "annotated": 8_001,
-            "exact_misses": 7_997,
-            "annotated_exact_misses": 7_997,
+            "annotated": 9_050,
+            "exact_misses": 9_046,
+            "annotated_exact_misses": 9_046,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 10_139,
-            "unannotated_below_full_bounded_score": 2_138,
+            "below_full_bounded_score": 11_457,
+            "unannotated_below_full_bounded_score": 2_407,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 7_342, "parse_contract_failure": 659},
+        "us": {"llm_error": 8_381, "parse_contract_failure": 669},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
@@ -921,7 +932,7 @@ def test_manifest_names_the_build_the_households_came_from():
     modules = {entry["module"] for entry in upgrade["fix_modules"]}
     conventions = {m for m in modules if m.startswith("latest_c_")}
     base_modules = {"latest_conventions.py", "latest_md_local_output_scope.py"}
-    if upgrade["builder"] == freeze_snapshot.UPGRADE_BUILDER:
+    if upgrade["builder"] in freeze_snapshot.UPGRADE_BUILDERS:
         assert modules - conventions == base_modules | (
             freeze_snapshot.UPGRADE_SUPPORT_MODULES
         )
@@ -1330,7 +1341,7 @@ def test_the_published_upgrades_pins_are_their_committed_bytes():
     sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
     upgrades = [r for r in sidecar["revisions"] if r["kind"] == "engine_upgrade"]
     for index, upgrade in enumerate(upgrades):
-        inherits = upgrade.get("builder") == freeze_snapshot.UPGRADE_BUILDER
+        inherits = upgrade.get("builder") in freeze_snapshot.UPGRADE_BUILDERS
         freeze_snapshot.verify_fix_module_pins(
             upgrade["fix_modules"], upgrades[:index] if inherits else []
         )
@@ -1627,6 +1638,75 @@ def test_model_response_window_ends_on_the_last_frozen_answer():
     notes = " ".join(manifest["reproducibility_notes"])
     assert f"between {_response_window_phrase(window)}, as models" in notes
     assert f"recorded {window} response window" in notes
+
+
+# Board rows recorded under Gemini names that Google has since routed to
+# another model (see the comments beside them in policybench/config.py): the
+# model each name now reaches, and the hash of the rows' answers as frozen.
+RETIRED_GEMINI_ROWS = {
+    "gemini-3.5-flash": (
+        "gemini-3.6-flash",
+        "d47d9d6595ccc0fcb230ead7ed13afe45c57122d6e037c9e7a60feb4406aa5ff",
+    ),
+    "gemini-3.7-flash": (
+        "gemini-3.8-flash",
+        "614925842d04dea7122cda55b7f35a15053a709865fd7d7322626ef0f10d06f8",
+    ),
+}
+
+
+def _answers_sha256(predictions: pd.DataFrame, model: str) -> str:
+    """Hash a model's answers from the CSV text: the cells are read as strings,
+    and only predictions are parsed, by Python's float. freeze_snapshot's
+    canonical row hash gives one value on macOS and another on the Linux CI
+    runner for the same file, so it cannot be pinned here."""
+    rows = sorted(
+        (
+            row.scenario_id,
+            row.variable,
+            repr(float(row.prediction)) if row.prediction.strip() else "",
+            row.explanation.strip(),
+            row.raw_response.strip(),
+            row.provider_response_id.strip(),
+        )
+        for row in predictions[predictions["model"] == model].itertuples(index=False)
+    )
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode()).hexdigest()
+
+
+@pytest.mark.parametrize("model", sorted(RETIRED_GEMINI_ROWS))
+def test_board_rows_under_retired_gemini_names_stay_as_recorded(model):
+    """Since 2026-10-08 a request under gemini-3.5-flash or gemini-3.7-flash
+    reaches Gemini 3.6 Flash or 3.8 Flash, and a synchronous run still records
+    the requested name as provider_resolved_model. So neither row may be re-run
+    or repaired: its answers stay the ones frozen, and every request time it
+    records precedes the successor's release (the gemini-3.5-flash rows
+    predate request-time capture and record none, as batch runs do)."""
+    from policybench.paper_results import MODEL_RELEASE_DATES
+
+    successor, answers_sha256 = RETIRED_GEMINI_ROWS[model]
+    manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+    predictions = pd.read_csv(
+        _frozen_run_dir(manifest) / "predictions.csv.gz",
+        usecols=[
+            "model",
+            "scenario_id",
+            "variable",
+            "prediction",
+            "explanation",
+            "raw_response",
+            "provider_response_id",
+            "request_started_at",
+        ],
+        dtype=str,
+        keep_default_na=False,
+    )
+    assert _answers_sha256(predictions, model) == answers_sha256
+    successor_released = pd.Timestamp(
+        MODEL_RELEASE_DATES[successor], tz="UTC"
+    ).timestamp()
+    started = predictions.loc[predictions["model"] == model, "request_started_at"]
+    assert all(float(time) < successor_released for time in started if time)
 
 
 def test_rendered_paper_states_the_manifest_response_window():

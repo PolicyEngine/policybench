@@ -54,6 +54,9 @@ from policybench.spec import metric_type_for_output
 # ``paper_results`` lives in ``policybench/``; the repo root is one level up.
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
+# The frozen run's replayed households, traced from the disk caches, spend
+# ledgers and smoke files (scripts/audit_latency_replays.py).
+LATENCY_REPLAY_AUDIT = ROOT / "docs" / "latency_replay_audit" / "households.csv"
 
 # The 2026-09-29 move from policyengine-us 1.755.4 to 2.15.17. Its audit,
 # reference_audit/2026-09-28, holds the publication check, the sweep timing
@@ -74,10 +77,25 @@ RERUN_SWEEPS = UPGRADE_VERIFICATION / "rerun_sweeps.json"
 # The phrase an upgrade's recheck reason uses for an output whose recorded
 # defect the new engine fixes but whose reference rests on another one.
 FURTHER_DEFECT = "rests on a further engine defect"
+# The phrase an upgrade's recheck uses for an output whose recorded defect the
+# new engine fixes but whose reference the stated facts do not decide (as an
+# earlier recheck found, e.g. scenario_080's SNAP on 2026-09-29): it stays
+# excluded for an input the prompt does not state.
+INDETERMINATE = "indeterminate on the stated facts"
 
-# The October 2026 engine move's audit: its builder, and the timing record and
-# publication check scripts/sweep_timing.py writes there.
-OCTOBER_UPGRADE_AUDIT = "reference_audit/2026-10-09-engine-upgrade"
+# The October 2026 engine moves' audits, oldest first: each holds its builder,
+# its fix-module evidence, and the timing record and publication check
+# scripts/sweep_timing.py writes there. The timing accessors read the newest
+# one, whose builder made the last upgrade (the 2026-10-22 audit moved the
+# references from 2.41.0 to 2.60.0, after the 2026-10-12 audit's move from
+# 2.38.6 to 2.41.0 and the 2026-10-09 audit's move to 2.38.6); a view of an
+# earlier move reads its own audit's record.
+OCTOBER_UPGRADE_AUDITS = (
+    "reference_audit/2026-10-09-engine-upgrade",
+    "reference_audit/2026-10-12-engine-upgrade",
+    "reference_audit/2026-10-22-engine-upgrade",
+)
+OCTOBER_UPGRADE_AUDIT = OCTOBER_UPGRADE_AUDITS[-1]
 OCTOBER_SWEEP_TIMING = (
     ROOT / OCTOBER_UPGRADE_AUDIT / "verification" / "sweep_timing.json"
 )
@@ -105,7 +123,8 @@ ROOT_CAUSE_LABELS = {
     ),
     "r07_idaho_health_premiums": "Idaho's subtraction for health insurance premiums",
     "r08_eitc_earned_income_deferrals": (
-        "elective deferrals in the earned income behind the EITC"
+        "elective deferrals in the earned income behind the EITC and the "
+        "refundable child tax credit"
     ),
     "r11_ca_itemized_conformity": "California's itemized deduction conformity",
     "r22_ma_part_a_loss_offset": "Massachusetts's Part A capital loss offset",
@@ -113,12 +132,34 @@ ROOT_CAUSE_LABELS = {
     "r32_wi_capital_gain_distributions": (
         "Wisconsin's capital gain subtraction for distributions"
     ),
+    # The 2026-10-12 audit's own fix module (not the 2026-09-22 audit's r33,
+    # the Michigan child support cause): California adds back the federal
+    # educator expense deduction (policyengine-us#10052).
+    "r33_ca_educator_expense_addback": "California's educator expense addback",
 }
+# A fix module's file names the root cause it corrects: the cause, then an
+# optional revision suffix (r02_ira_219g_v2.py corrects r02_ira_219g). A stem
+# that is neither a named root cause nor an audit cause (rNN_...) is a
+# convention or helper module, not a cause.
+FIX_MODULE_STEM = re.compile(r"^(?P<stem>.+?)(?:_v\d+)?\.py$")
+AUDIT_CAUSE = re.compile(r"^r\d+_")
 # The same for the cause of a scored reference an upgrade changes.
 CHANGE_CAUSE_LABELS = {
     "id_permanent_building_fund_tax": (
         "Idaho's $10 permanent building fund tax (Idaho Code 63-3082), which "
         "policyengine-us now counts in state income tax"
+    ),
+    # The 2026-10-22 audit's two scored changes (its README's table).
+    # The paper's paragraph on that move states the breakfast laws' conditions,
+    # which policyengine-us does not model.
+    "state_universal_free_breakfast_10238": (
+        "the free school breakfast that Pennsylvania (Act 33 of 2023) and "
+        "Arkansas (Act 123 of 2025) give students at covered schools"
+    ),
+    "ca_snap_mce_no_net_income_test_10036": (
+        "California's modified categorical eligibility for CalFresh, which has "
+        "no net income test even for a household with an elderly or disabled "
+        "member"
     ),
 }
 UPSTREAM_PR = re.compile(r"policyengine-us#(\d+)")
@@ -399,11 +440,11 @@ def restored_split_clause(restored: int, ruled: int, ruling_date: str) -> str:
     does: ``restored - ruled`` that earlier releases excluded return to
     scoring, and ``ruled`` that rulings on ``ruling_date`` decided while they
     were still scored stay scored. A lone output in either group is "one", not
-    "1"."""
+    "1". With nothing fixed, it says the move returns no excluded output."""
     if not 0 <= ruled <= restored:
         raise ValueError(f"{ruled} ruled of {restored} fixed outputs")
     if not restored:
-        return "fixes none of the engine defects behind excluded outputs"
+        return "returns no excluded output to scoring"
     returned = restored - ruled
     defects = "defect" if restored == 1 else "defects"
     noun = "output" if restored == 1 else "outputs"
@@ -625,6 +666,7 @@ MODEL_DISPLAY_NAMES = {
     "gpt-6-astra": "GPT-6 Astra",
     "gpt-6-sol": "GPT-6 Sol",
     "gpt-6.1-sol": "GPT-6.1 Sol",
+    "gpt-6.1-terra": "GPT-6.1 Terra",
     "gpt-6-luna": "GPT-6 Luna",
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
@@ -655,6 +697,9 @@ MODEL_DISPLAY_NAMES = {
     "qwen-3.7-max": "Qwen3.7-max",
     "qwen3.8-max": "Qwen3.8-Max",
     "inkling": "Inkling",
+    "muse-wonder": "Muse Wonder",
+    "muse-spark-1.3": "Muse Spark 1.3",
+    "gemini-4-argon": "Gemini 4 Argon",
     "grok-build-0.1": "Grok Build 0.1",
     "claude-opus-4.8": "Claude Opus 4.8",
     "claude-opus-4.7": "Claude Opus 4.7",
@@ -756,10 +801,17 @@ class PaperResults:
     the manuscript prose.
     """
 
+    def __init__(self, snapshot_dir: Path | None = None):
+        """``snapshot_dir`` reads another tree's paper/snapshot/20260501 (a
+        superseded release's snapshot from git, in the note tests); the
+        annotations, audits and sensitivity summaries still come from this
+        checkout."""
+        self.snapshot_dir = SNAPSHOT_DIR if snapshot_dir is None else snapshot_dir
+
     # ----- raw artifact loaders ------------------------------------------
     @cached_property
     def manifest(self) -> dict:
-        return json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
+        return json.loads((self.snapshot_dir / "manifest.json").read_text())
 
     @cached_property
     def us_run_label(self) -> str:
@@ -767,15 +819,15 @@ class PaperResults:
 
     @cached_property
     def dashboard(self) -> dict:
-        return read_run_payload(SNAPSHOT_DIR / "runs" / self.us_run_label)
+        return read_run_payload(self.snapshot_dir / "runs" / self.us_run_label)
 
     @cached_property
     def serving_config(self) -> dict:
-        return json.loads((SNAPSHOT_DIR / "model_serving_config.json").read_text())
+        return json.loads((self.snapshot_dir / "model_serving_config.json").read_text())
 
     @cached_property
     def reference_meta(self) -> dict:
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         return meta["policyengine_bundles"]["us"]
 
@@ -783,7 +835,7 @@ class PaperResults:
     def sample_bundle(self) -> dict:
         """Runtime metadata of the scenario draw: the certified dataset build
         the benchmark households were sampled from."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "scenarios.csv.meta.json").read_text())
         return meta["policyengine_bundles"]["us"]
 
@@ -846,7 +898,7 @@ class PaperResults:
     def reference_exclusions(self) -> list[dict]:
         """Outputs removed from scoring for every model (frozen record)."""
         return load_reference_exclusions(
-            SNAPSHOT_DIR / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
+            self.snapshot_dir / "runs" / self.us_run_label / EXCLUSIONS_FILENAME
         )
 
     @cached_property
@@ -1133,7 +1185,7 @@ class PaperResults:
 
     def _benchmark_people(self) -> list[dict]:
         """Every person in the frozen US scenarios, with their prompt inputs."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         scenarios = pd.read_csv(run_dir / "scenarios.csv")
         people = []
         for text in scenarios["scenario_json"]:
@@ -1269,11 +1321,13 @@ class PaperResults:
     def blank_raw_response_counts(self) -> Counter:
         """Frozen prediction rows whose raw_response is empty, by model.
 
-        Rows served through the Anthropic batch adapter carry no raw payload,
-        and some parse failures never captured one; the manuscript states the
-        preservation rule with these exceptions rather than as absolute.
+        Claude Fable 5's board rows were rebuilt from the 20260701 release
+        without their raw payloads (that release's
+        claude-fable-5-predictions.csv.gz asset keeps them), and some parse
+        failures never captured one; the manuscript states the preservation
+        rule with these exceptions rather than as absolute.
         """
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         frame = pd.read_csv(
             run_dir / "predictions.csv.gz", usecols=["model", "raw_response"]
         )
@@ -1292,6 +1346,183 @@ class PaperResults:
         if not items:
             return "every row carries its raw provider response"
         return "no raw payload is retained for " + _ordinal_join(items)
+
+    # ----- latency: untimed rows and cache replays -------------------------
+    @cached_property
+    def household_latencies(self) -> pd.Series:
+        """Each frozen household's summed request time, by (model, scenario)."""
+        from policybench.analysis import household_latency_seconds
+
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz",
+            usecols=["model", "scenario_id", "elapsed_seconds"],
+        )
+        return household_latency_seconds(frame)
+
+    def _published_latency(self, model_id: str) -> float | None:
+        value = self._stats_by_model.get(model_id, {}).get("latencySeconds")
+        return None if value is None or pd.isna(value) else float(value)
+
+    @cached_property
+    def untimed_latency_models(self) -> list[str]:
+        """Models none of whose frozen rows records a request time."""
+        timed = self.household_latencies.groupby("model").count()
+        return sorted(timed[timed == 0].index)
+
+    @cached_property
+    def replayed_latency_models(self) -> list[str]:
+        """Models whose median household is a cache replay, not a call."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        median = self.household_latencies.groupby("model").median()
+        return sorted(median[median < REPLAYED_HOUSEHOLD_SECONDS].index)
+
+    @cached_property
+    def latency_dash_models(self) -> list[str]:
+        """Models the cost-and-latency table shows without a latency.
+
+        A model is dashed when its frozen rows give no latency of a second or
+        more and its published modelStats carries none either; Claude Fable
+        5's rows are untimed but its published latency comes from its
+        original run's per-call rows, so it is not dashed.
+        """
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        dashed = []
+        for model in sorted(
+            set(self.untimed_latency_models) | set(self.replayed_latency_models)
+        ):
+            published = self._published_latency(model)
+            if published is None or published < REPLAYED_HOUSEHOLD_SECONDS:
+                dashed.append(model)
+        return dashed
+
+    @cached_property
+    def subsecond_household_counts(self) -> Counter:
+        """Households summing to under a second, by model."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        latency = self.household_latencies
+        fast = latency[latency < REPLAYED_HOUSEHOLD_SECONDS]
+        return Counter(fast.groupby("model").size().to_dict())
+
+    @cached_property
+    def zero_cost_models(self) -> list[str]:
+        """Models every one of whose frozen rows records a charge of zero."""
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
+        frame = pd.read_csv(
+            run_dir / "predictions.csv.gz", usecols=["model", "total_cost_usd"]
+        )
+        cost = frame.groupby("model")["total_cost_usd"]
+        recorded = cost.count() == cost.size()
+        zero = cost.apply(lambda values: bool((values == 0).all()))
+        return sorted(recorded[recorded & zero].index)
+
+    @property
+    def zero_cost_models_fmt(self) -> str:
+        return _ordinal_join([self.model_name(m) for m in self.zero_cost_models])
+
+    @property
+    def batch_latency_models_fmt(self) -> str:
+        """Dashed models whose rows carry no request time (the batch run)."""
+        dashed = [
+            m for m in self.latency_dash_models if m in self.untimed_latency_models
+        ]
+        return _ordinal_join([self.model_name(m) for m in dashed])
+
+    @property
+    def replayed_latency_models_fmt(self) -> str:
+        dashed = [
+            m for m in self.latency_dash_models if m in self.replayed_latency_models
+        ]
+        return _ordinal_join([self.model_name(m) for m in dashed])
+
+    @property
+    def replayed_latency_range_fmt(self) -> str:
+        """Fewest to most replayed households among the dashed replay models."""
+        counts = [
+            self.subsecond_household_counts[m]
+            for m in self.latency_dash_models
+            if m in self.replayed_latency_models
+        ]
+        low, high = min(counts), max(counts)
+        return f"{low}" if low == high else f"{low} to {high}"
+
+    @cached_property
+    def _other_subsecond_models(self) -> list[str]:
+        """Shown models with some households under a second."""
+        return sorted(
+            m
+            for m, n in self.subsecond_household_counts.items()
+            if n and m not in self.latency_dash_models
+        )
+
+    @property
+    def other_subsecond_household_count(self) -> int:
+        return sum(
+            self.subsecond_household_counts[m] for m in self._other_subsecond_models
+        )
+
+    @property
+    def other_subsecond_model_count(self) -> int:
+        return len(self._other_subsecond_models)
+
+    @property
+    def other_subsecond_model_count_fmt(self) -> str:
+        return count_word(self.other_subsecond_model_count)
+
+    @property
+    def untraced_subsecond_count(self) -> int:
+        return self.other_subsecond_household_count - self.traced_other_subsecond_count
+
+    @property
+    def untraced_subsecond_count_fmt(self) -> str:
+        return count_word(self.untraced_subsecond_count)
+
+    @cached_property
+    def subsecond_median_shift_seconds(self) -> float:
+        """Largest rise in a shown model's median when its sub-second
+        households are dropped: how far the replays lower a published median."""
+        from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+        latency = self.household_latencies
+        shifts = []
+        for model in self._other_subsecond_models:
+            households = latency.loc[model].dropna()
+            kept = households[households >= REPLAYED_HOUSEHOLD_SECONDS]
+            shifts.append(float(kept.median() - households.median()))
+        return max(shifts) if shifts else 0.0
+
+    @property
+    def subsecond_median_shift_fmt(self) -> str:
+        """The shift rounded up to a tenth, so the prose's "no more than"
+        bound holds for the unrounded value."""
+        import math
+
+        return f"{math.ceil(self.subsecond_median_shift_seconds * 10) / 10:.1f}"
+
+    @cached_property
+    def latency_replay_audit(self) -> pd.DataFrame:
+        """The audited replayed households (docs/latency_replay_audit)."""
+        return pd.read_csv(LATENCY_REPLAY_AUDIT)
+
+    @property
+    def traced_other_subsecond_count(self) -> int:
+        """Of the shown models' sub-second households, those the audit traced
+        to an earlier request on the same household."""
+        audit = self.latency_replay_audit
+        traced = audit[
+            (audit["replay"] == "full")
+            & audit["model"].isin(self._other_subsecond_models)
+        ]
+        return len(traced)
+
+    @property
+    def partial_replay_count(self) -> int:
+        """Households whose first recorded call is a replay and whose later
+        calls reached the provider."""
+        return int((self.latency_replay_audit["replay"] == "partial").sum())
 
     # ----- populace dataset construction ---------------------------------
     @property
@@ -1322,7 +1553,7 @@ class PaperResults:
         as they are from every published score)."""
         from policybench.reference_exclusions import scored_reference_for
 
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         scored, _ = scored_reference_for(run_dir / "reference_outputs.csv")
         return [float(value) for value in scored["value"]]
 
@@ -1356,7 +1587,7 @@ class PaperResults:
         from policybench.reference_exclusions import scored_reference_for
         from policybench.spec import get_output_ids, output_group_id
 
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         # The scored reference: excluded outputs are out of the baseline as
         # they are out of every model's score.
         ground_truth, _ = scored_reference_for(run_dir / "reference_outputs.csv")
@@ -1757,7 +1988,7 @@ class PaperResults:
     @cached_property
     def reference_revisions(self) -> list[dict]:
         """Revisions recorded in the frozen reference sidecar (oldest first)."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         meta = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
         return meta.get("revisions", [])
 
@@ -1780,7 +2011,7 @@ class PaperResults:
     @cached_property
     def frozen_references(self) -> dict[tuple[str, str], float]:
         """The frozen reference for every output, scored or excluded."""
-        run_dir = SNAPSHOT_DIR / "runs" / self.us_run_label
+        run_dir = self.snapshot_dir / "runs" / self.us_run_label
         frozen = pd.read_csv(run_dir / "reference_outputs.csv")
         return {
             (row.scenario_id, row.variable): float(row.value)
@@ -1944,19 +2175,28 @@ class PaperResults:
 
     @cached_property
     def engine_upgrade_timing(self) -> dict | None:
-        """The last upgrade's sweep timing record, when that upgrade is the
-        October 2026 audit's build and the record is written (None before)."""
+        """The last upgrade's sweep timing record, when that upgrade is one
+        of the October 2026 audits' builds and the record is written (None
+        before): the newest audit's at OCTOBER_SWEEP_TIMING, an earlier one's
+        in its own verification folder (an upgrade_view of its move)."""
         last = self.last_engine_upgrade
-        if last is None or not str(last.revision.get("builder", "")).startswith(
-            OCTOBER_UPGRADE_AUDIT
-        ):
+        if last is None:
             return None
-        if not OCTOBER_SWEEP_TIMING.is_file():
+        builder = str(last.revision.get("builder", ""))
+        audit = builder.split(";")[0].strip().split("/scripts/")[0]
+        if audit not in OCTOBER_UPGRADE_AUDITS:
             return None
-        timing = json.loads(OCTOBER_SWEEP_TIMING.read_text())
+        path = (
+            OCTOBER_SWEEP_TIMING
+            if audit == OCTOBER_UPGRADE_AUDIT
+            else ROOT / audit / "verification" / "sweep_timing.json"
+        )
+        if not path.is_file():
+            return None
+        timing = json.loads(path.read_text())
         if timing["reference_sweep"]["engine"] != last.engine_version:
             raise ValueError(
-                f"{OCTOBER_SWEEP_TIMING} times policyengine-us "
+                f"{path} times policyengine-us "
                 f"{timing['reference_sweep']['engine']}, not {last.engine_version}"
             )
         return timing
@@ -1976,7 +2216,10 @@ class PaperResults:
         read_at = timing["pypi"]["read_at_utc"]
         check = timing.get("publication_check")
         if check is None or check["engine"] != timing["pypi"]["newest_at_read"]:
-            raise ValueError(f"{OCTOBER_SWEEP_TIMING} records no publication check")
+            raise ValueError(
+                f"the timing record of the move to {engine} records no "
+                "publication check"
+            )
         when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
         if check["engine"] == engine:
             checked = f"It was still the newest release when {when}."
@@ -2008,25 +2251,78 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_fixes(self) -> list[tuple[str, int, list[str]]]:
-        """The defects the last upgrade fixes behind its fixed outputs (those
-        that return to scoring and those still scored alike): each one's name,
-        how many outputs it fixes and the upstream pull requests its
-        regenerated_exclusions entries name (not the related ones), in the
-        sidecar's order. A record with several root causes names each."""
+        """The defects behind the outputs the last upgrade returned to scoring:
+        each one's name, how many outputs it restores and the upstream pull
+        requests its regenerated_exclusions entries name (not the related
+        ones), in the sidecar's order. A record with several root causes names
+        each, and so does a fix-modules target whose modules correct a cause
+        the record does not name (scenario_099's educator expense addback,
+        policyengine-us#10052). Outputs whose causes are the same or one
+        within the other, under the same pull requests, are one fix (the two
+        Wisconsin outputs of #10026); other outputs with the same causes are
+        one fix too, with the union of their pull requests. Outputs join
+        transitively, so the groups do not depend on the sidecar's order."""
+        return [
+            (_series([ROOT_CAUSE_LABELS[c] for c in g["causes"]]), g["count"], g["prs"])
+            for g in self.engine_upgrade_restored_fix_groups
+        ]
+
+    @property
+    def engine_upgrade_restored_fix_groups(self) -> list[dict]:
+        """engine_upgrade_restored_fixes before naming: each group's root
+        causes and pull requests (first-seen order) and how many outputs."""
         last = self.last_engine_upgrade
-        fixes: dict[str, tuple[int, list[str]]] = {}
+        items: list[tuple[list[str], list[str]]] = []
         for entry in [] if last is None else last.revision["regenerated_exclusions"]:
             causes = entry["record"]["root_cause"].split("+")
+            if entry["target"]["kind"] == "fix_modules":
+                for module in entry["target"]["modules"]:
+                    match = FIX_MODULE_STEM.match(module["module"])
+                    stem = match.group("stem") if match else ""
+                    named = stem in ROOT_CAUSE_LABELS or AUDIT_CAUSE.match(stem)
+                    if named and stem not in causes:
+                        causes.append(stem)
             unnamed = [c for c in causes if c not in ROOT_CAUSE_LABELS]
             if unnamed:
                 raise ValueError(f"no paper name for the root causes {unnamed}")
-            label = " and ".join(ROOT_CAUSE_LABELS[c] for c in causes)
             prs = UPSTREAM_PR.findall(entry["upstream"].split("; related")[0])
             if not prs:
                 raise ValueError(f"{_key(entry)} names no upstream pull request")
-            count, known = fixes.get(label, (0, []))
-            fixes[label] = (count + 1, known + [p for p in prs if p not in known])
-        return [(label, count, prs) for label, (count, prs) in fixes.items()]
+            items.append((causes, prs))
+
+        def joins(one: tuple[list[str], list[str]], other) -> bool:
+            if one[0] == other[0]:
+                return True
+            nested = set(one[0]) <= set(other[0]) or set(other[0]) <= set(one[0])
+            return set(one[1]) == set(other[1]) and nested
+
+        # Join outputs transitively (union-find), so the groups do not depend
+        # on the sidecar's order; each group then lists its causes and pull
+        # requests in first-seen order.
+        parent = list(range(len(items)))
+
+        def root(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i in range(len(items)):
+            for j in range(i):
+                if joins(items[i], items[j]):
+                    parent[root(i)] = root(j)
+        groups: list[dict] = []
+        by_root: dict[int, dict] = {}
+        for i, (causes, prs) in enumerate(items):
+            group = by_root.get(root(i))
+            if group is None:
+                group = {"causes": [], "prs": [], "count": 0}
+                by_root[root(i)] = group
+                groups.append(group)
+            group["causes"] += [c for c in causes if c not in group["causes"]]
+            group["prs"] += [p for p in prs if p not in group["prs"]]
+            group["count"] += 1
+        return groups
 
     @property
     def engine_upgrade_restored_fix_phrase(self) -> str:
@@ -2041,13 +2337,71 @@ class PaperResults:
 
     @property
     def engine_upgrade_restored_sentence(self) -> str:
-        """One sentence naming the fixes behind all the fixed outputs. They
-        are "fixed", not "restored": the ones the 2026-10-06 rulings decided
-        while still scored never left scoring."""
+        """One sentence naming the fixes behind all the outputs the last
+        upgrade fixes. When the 2026-10-06 rulings decided some of them while
+        still scored, those never left scoring, so the sentence calls them all
+        "fixed"; when every one of them returns to scoring, "restored" holds
+        and it says that."""
         phrase = self.engine_upgrade_restored_fix_phrase
         if not phrase:
             return ""
-        return f"The fixed outputs take the upstream fixes for {phrase}."
+        kind = "fixed" if self.engine_upgrade_restored_ruled_count else "restored"
+        return f"The {kind} outputs take the upstream fixes for {phrase}."
+
+    @property
+    def engine_upgrade_audit_dir(self) -> str:
+        """The audit folder whose builder made the last upgrade, as its
+        sidecar revision names the builder (``<audit>/scripts/...``)."""
+        last = self.last_engine_upgrade
+        builder = "" if last is None else str(last.revision.get("builder", ""))
+        head = builder.split(";")[0].strip()
+        if "/scripts/" not in head:
+            raise ValueError(f"the last upgrade's builder names no audit: {builder!r}")
+        return head.split("/scripts/")[0]
+
+    @property
+    def engine_upgrade_change_summary_sentence(self) -> str:
+        """What the last upgrade did to the scored references and to scoring:
+        the scored references it moved beyond and within the dollar tolerance,
+        and the outputs it removed from scoring."""
+        beyond = self.engine_upgrade_scored_change_count
+        within = self.engine_upgrade_within_tolerance_count
+        removed = self.engine_upgrade_new_exclusion_count
+        if not (beyond or within or removed):
+            return (
+                "The move changes no scored reference, by any amount, and removes "
+                "no output from scoring."
+            )
+        references = "reference" if beyond == 1 else "references"
+        # "no output", as the sentence above says it; counts as words.
+        outputs = "output" if removed in (0, 1) else "outputs"
+        within_words = count_word(within) if within else "none"
+        return (
+            f"The move changes {count_word(beyond)} scored {references} beyond the "
+            f"dollar tolerance and {within_words} within it, and removes "
+            f"{count_word(removed)} {outputs} from scoring."
+        )
+
+    @property
+    def engine_upgrade_change_details(self) -> str:
+        """The change summary with the sentences naming the changed scored
+        references and the new exclusions, where there are any: one non-empty
+        string, so the paper never renders an empty inline expression."""
+        parts = [
+            self.engine_upgrade_change_summary_sentence,
+            self.engine_upgrade_scored_change_sentence,
+            self.engine_upgrade_new_exclusion_sentence,
+        ]
+        return " ".join(part for part in parts if part)
+
+    def upgrade_view(self, version: str) -> "PaperResults":
+        """These accessors as of the engine upgrade to ``version``: a view of
+        the same snapshot whose last_engine_upgrade is that move, so the
+        engine_upgrade_* sentences describe it (the paper's paragraph and
+        table row on an earlier October move). Accessors that read the
+        current exclusion record or engine still describe the current
+        snapshot."""
+        return _UpgradeView(self.snapshot_dir, self.engine_upgrade_to(version))
 
     @property
     def engine_upgrade_restored_targets(self) -> dict[str, list[dict]]:
@@ -2723,9 +3077,10 @@ class PaperResults:
         recorded defect is fixed there, split by why the
         upgrade's recheck keeps each excluded: ``unlisted_input``, for the
         second reason the record's note names (an input the prompt does not
-        state); ``further_defect``, because the recheck found the reference
-        rests on a further engine defect the new engine does not fix (its
-        reason says so). A landed record that is neither is refused."""
+        state) or a recheck that finds the output indeterminate on the stated
+        facts (INDETERMINATE); ``further_defect``, because the recheck found
+        the reference rests on a further engine defect the new engine does not
+        fix (its reason says so). A landed record that is neither is refused."""
         last = self.last_engine_upgrade
         kinds: dict[str, set] = {"unlisted_input": set(), "further_defect": set()}
         if last is None:
@@ -2748,7 +3103,9 @@ class PaperResults:
                 for target in targets
             ):
                 continue
-            if "(unlisted input)" in record.get("note", ""):
+            if "(unlisted input)" in record.get("note", "") or (
+                INDETERMINATE in item["reason"]
+            ):
                 kinds["unlisted_input"].add(key)
             elif FURTHER_DEFECT in item["reason"]:
                 kinds["further_defect"].add(key)
@@ -2761,12 +3118,18 @@ class PaperResults:
 
     @cached_property
     def upgrade_fix_evidence(self) -> dict[tuple[str, str], list[float]]:
-        """Per output, the corrected values the October audit's committed
-        fix-module evidence gives (reference_audit/2026-10-09-engine-upgrade/
-        evidence): each on an engine that still has the defect, kept only where
-        the modules moved the output beyond the exact-match tolerance there."""
+        """Per output, the corrected values the October audits' committed
+        fix-module evidence gives (each audit's evidence/ folder,
+        OCTOBER_UPGRADE_AUDITS): each on an engine that still has the defect,
+        kept only where the modules moved the output beyond the exact-match
+        tolerance there."""
         found: dict[tuple[str, str], list[float]] = {}
-        for path in sorted((ROOT / OCTOBER_UPGRADE_AUDIT / "evidence").glob("*.json")):
+        paths = [
+            path
+            for audit in OCTOBER_UPGRADE_AUDITS
+            for path in sorted((ROOT / audit / "evidence").glob("*.json"))
+        ]
+        for path in paths:
             doc = json.loads(path.read_text())
             if doc.get("kind") != "regeneration_evidence":
                 continue
@@ -2810,11 +3173,15 @@ class PaperResults:
                 "them at its corrected value; it stays excluded because it also "
                 "moves under an input the prompt does not state."
             )
+        amount = (
+            f"all {count_word(count)}"
+            if count == self.engine_defect_exclusion_count
+            else f"{count_word(count)} of them"
+        )
         return (
-            f"policyengine-us {self.policyengine_us_version} computes "
-            f"{count_word(count)} of them at their corrected values; they stay "
-            "excluded because each also moves under an input the prompt does not "
-            "state."
+            f"policyengine-us {self.policyengine_us_version} computes {amount} at "
+            "their corrected values; they stay excluded because each also moves "
+            "under an input the prompt does not state."
         )
 
     @property
@@ -2879,6 +3246,87 @@ class PaperResults:
             if _key(item) in self.engine_defect_further_defect_keys
         }
         return self.engine_defect_unfixed_root_cause_count + len(reasons)
+
+    @property
+    def engine_defect_unfixed_sentence(self) -> str:
+        """Whether the reference engine still has the recorded defects behind
+        the engine-defect exclusions; empty when there are none."""
+        if not self.engine_defect_exclusion_count:
+            return ""
+        version = self.policyengine_us_version
+        unfixed = self.engine_defect_unfixed_count
+        if not unfixed:
+            return (
+                f"policyengine-us {version} no longer has the recorded defect "
+                "behind any of them."
+            )
+        return (
+            f"policyengine-us {version} still has the defect behind {unfixed} of "
+            f"them, across {self.engine_defect_unfixed_root_cause_count} root causes."
+        )
+
+    @property
+    def engine_defect_class_sentence(self) -> str:
+        """What the reference_engine_defect class marks, with the records the
+        reference engine fixes but keeps excluded (an unstated input, or a
+        further defect), where there are any; never empty."""
+        lead = (
+            f"marks the {self.engine_defect_exclusion_count} outputs where that "
+            "engine misapplies the law on stated facts."
+        )
+        parts = [
+            lead,
+            self.engine_defect_fixed_kept_sentence,
+            self.engine_defect_further_defect_sentence,
+        ]
+        return " ".join(part for part in parts if part)
+
+    @property
+    def abstract_exclusion_sentence(self) -> str:
+        """The abstract's account of what PolicyBench excludes from scoring:
+        the outputs resting on engine defects the reference engine still has
+        (when any do), on an input the prompt does not state, and on an amount
+        a state published after the freeze."""
+        present = self.engine_defect_present_count
+        unstated = self.unstated_input_exclusion_total
+        later = self.later_law_exclusion_count_word
+        lead = "PolicyBench excludes from scoring, for every model, the "
+        if present:
+            return (
+                f"{lead}{present} outputs whose references rest on engine defects "
+                f"the audits found and upstream has not fixed, the {unstated} whose "
+                "references depend on an input the prompt does not state, and "
+                f"{later} whose references rest on an amount a state published "
+                "after the freeze."
+            )
+        return (
+            f"{lead}{unstated} outputs whose references depend on an input the "
+            f"prompt does not state and the {later} whose references rest on an "
+            "amount a state published after the freeze. No excluded output rests "
+            "on an engine defect the audits found that policyengine-us "
+            f"{self.policyengine_us_version} still has."
+        )
+
+    @property
+    def engine_defect_limitation_lead(self) -> str:
+        """The limitations list's lead on reference-engine defects."""
+        present = self.engine_defect_present_count
+        if present:
+            return (
+                f"the reference engine carries known defects: {present} outputs, "
+                "recorded as engine-defect exclusions, rest on "
+                f"{self.engine_defect_present_root_cause_count} root causes that "
+                "the audits found in policyengine-us "
+                f"{self.september_upgrade.previous_engine_version} or later "
+                f"releases and that {self.policyengine_us_version} does not fix, "
+                "and are excluded until a reference version built on a fixed "
+                "engine restores them"
+            )
+        return (
+            "the reference engine can carry defects the audits have not found: "
+            f"policyengine-us {self.policyengine_us_version} no longer has any "
+            "defect the audits recorded behind an excluded output"
+        )
 
     @property
     def unstated_input_exclusion_total(self) -> int:
@@ -3026,6 +3474,20 @@ class PaperResults:
 
 # Module-level singleton, imported by the paper as ``from
 # policybench.paper_results import r``.
+
+
+class _UpgradeView(PaperResults):
+    """PaperResults whose last engine upgrade is a given one (upgrade_view)."""
+
+    def __init__(self, snapshot_dir: Path, upgrade: EngineUpgrade):
+        super().__init__(snapshot_dir)
+        self._upgrade = upgrade
+
+    @property
+    def last_engine_upgrade(self) -> EngineUpgrade:
+        return self._upgrade
+
+
 r = PaperResults()
 
 
@@ -3081,6 +3543,15 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gemini-3.8-flash": "2026-09-02",
     # blog.google/products/gemini/gemini-3-7-flash (2026-08-13)
     "gemini-3.7-flash": "2026-08-13",
+    # ai.google.dev/gemini-api/docs/changelog ("October 13, 2026": Gemini 4
+    # Argon, gemini-4-argon, generally available) and blog.google/
+    # innovation-and-ai/models-and-research/gemini-models/
+    # introducing-gemini-4-argon (2026-10-13: the paid tier of the Gemini
+    # API, and Google AI Pro and Ultra subscribers in the Gemini app), both
+    # read 2026-10-13. Google announced the model on 2026-09-30 for Fairwind
+    # Program cyber partners only (techcrunch.com 2026-09-30); that day is
+    # excluded under the public-availability rule.
+    "gemini-4-argon": "2026-10-13",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17
@@ -3103,6 +3574,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gpt-6-sol": "2026-09-22",
     # OpenAI announced GPT-6.1 Sol at DevDay on 2026-09-29 (API id gpt-6.1-sol).
     "gpt-6.1-sol": "2026-09-29",
+    # OpenAI announced GPT-6.1 Terra on 2026-10-26, in ChatGPT, Codex and the
+    # API (id gpt-6.1-terra) the same day (x.com/OpenAI/status/
+    # 2114780711664398349; 9to5mac.com 2026-10-26).
+    "gpt-6.1-terra": "2026-10-26",
     "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",
@@ -3154,6 +3629,18 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # techcrunch.com 2026-07-15; weights on Hugging Face the same day
     # under Apache 2.0 (Thinking Machines Lab's first from-scratch model)
     "inkling": "2026-07-15",
+    # techcrunch.com 2026-10-12 ("Meta releases its first frontier model,
+    # Muse Wonder") and venturebeat.com the same day; on Meta's Model API
+    # (muse-wonder-1.0) and OpenRouter (meta/muse-wonder, listed
+    # 2026-10-12) from launch. Proprietary: no weights. Muse Wonder Full,
+    # released alongside it, is limited to Muse Code subscriptions and has
+    # no API, so the board cannot run it.
+    "muse-wonder": "2026-10-12",
+    # research.meta.ai/blog/introducing-muse-spark-1-3 (2026-09-02: "available
+    # today in Muse Code and in Meta Model API"); datanorth.ai 2026-09-03;
+    # OpenRouter lists meta/muse-spark-1.3 from 2026-09-02. Proprietary: no
+    # weights.
+    "muse-spark-1.3": "2026-09-02",
     # openrouter.ai/stealth/ox-alpha ("released on August 20, 2026" as a
     # stealth preview; the 2026-09-01 table carried 08-21 from the listing's
     # first observed day). After the row's run Z.ai identified the preview as

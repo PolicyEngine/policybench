@@ -62,10 +62,11 @@ def _revisions() -> list[dict]:
 
 
 def _later_dates() -> tuple[str, ...]:
-    """LATER_DATES with the day of the last engine upgrade, whose new records
-    carry it (2026-10-10 in this release)."""
+    """LATER_DATES with the day of each later engine upgrade, whose new
+    records carry it (2026-10-10's Indiana county records; the 2026-10-13
+    upgrade added none)."""
     upgrades = [r["date"] for r in _all_revisions() if r["kind"] == "engine_upgrade"]
-    return tuple(dict.fromkeys((*LATER_DATES, upgrades[-1])))
+    return tuple(dict.fromkeys((*LATER_DATES, *upgrades)))
 
 
 def _superseded() -> dict[tuple[str, str], dict]:
@@ -332,8 +333,12 @@ def test_no_qualifying_move_is_left_unresolved():
         if key in excluded:
             continue
         if key in restored:
-            # The record this wave wrote, removed when the engine fixed it.
-            assert row["root_cause"] in restored[key]["root_cause"].split("+"), key
+            # The record this wave wrote, removed when the engine fixed it. A
+            # move there of a cause the record does not name is one upstream
+            # had fixed, which the regenerating engine carries too (scenario_042:
+            # r04's capital gain distributions, beside its r06 and r32).
+            named = restored[key]["root_cause"].split("+")
+            assert row["root_cause"] in named or cause.get("upstream_fixed"), key
             continue
         assert cause.get("upstream_fixed"), (row["root_cause"], key)
         assert row["root_cause"] in regenerated_by.get(key, set()), (
@@ -380,7 +385,7 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     # 2026-10-10 to that upgrade's county records.
     later = [e for e in _exclusions() if e["decided_on"] in _later_dates()]
     assert Counter(e["decided_on"] for e in later) == Counter(
-        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, _later_dates()[-1]: 2}
+        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, "2026-10-10": 2}
     )
     for entry in later:
         key = (entry["scenario_id"], entry["variable"])
@@ -494,13 +499,39 @@ def test_frozen_narratives_state_the_frozen_path():
         regen.REGENERATED_NARRATIVES
     )
     assert set(regen.FROZEN_REQUIRED) <= set(regen.FROZEN_NARRATIVES)
+    # An output a later engine upgrade regenerated (scenario_091's Wisconsin
+    # tax, on 2.41.0) is scored again and publishes that upgrade's own
+    # hand-corrected narrative instead (_upgrade_narratives).
+    restored = _regenerated_by_upgrade()
+    upgraded = _upgrade_narratives()
     for key in regen.FROZEN_NARRATIVES:
+        if key in restored:
+            assert key not in excluded, key
+            assert explanations[key] == upgraded[key], key
+            continue
         assert key in excluded, key
         assert references[key] == excluded[key]["frozen_value"], key
         for figure in regen.FROZEN_REQUIRED.get(key, []):
             assert figure in explanations[key], (key, figure)
     for key, text in regen.HAND_CORRECTED.items():
+        if key in restored:
+            continue
         assert explanations[key] == text, key
+
+
+def _upgrade_narratives() -> dict[tuple[str, str], str]:
+    """The hand-corrected narratives each October engine upgrade published for
+    the outputs it regenerated (its hand_corrected_narratives.json)."""
+    found: dict[tuple[str, str], str] = {}
+    for path in sorted(
+        (ROOT / "reference_audit").glob(
+            "2026-10-*-engine-upgrade/hand_corrected_narratives.json"
+        )
+    ):
+        for key, text in _load(path).items():
+            scenario_id, variable = key.split("|")
+            found[(scenario_id, variable)] = text
+    return found
 
 
 def test_regenerated_narratives_state_the_fixed_path():

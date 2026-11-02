@@ -69,6 +69,11 @@ ANNOTATION_FILES = (
     "us_adjudications.json",
 )
 JUDGE_MODEL = "claude-opus-5-5"
+# The judge template (policybench.judge_template) this driver renders new
+# and re-opened cases on. Its release, RELEASE_TAG, judged every verdict on
+# v1, so re-running the driver reproduces its prompts. A seed case keeps the
+# version its sidecar records.
+JUDGE_TEMPLATE_VERSION = 1
 ADJUDICATIONS = "us_adjudications.json"
 # Stage files export binds: the cases Claude Haiku 5.5 re-opened, and the
 # wording-only amendments a developer lists for them.
@@ -187,8 +192,10 @@ INPUT_PINS_PATH = "docs/haiku55/input_pins.json"
 INPUT_PINS = ROOT / INPUT_PINS_PATH
 PINNED_INPUTS = ("predictions.csv", "run_state.json")
 # Incumbent usage the exporter cannot recompute from committed predictions:
-# Fable 5 ran through the Anthropic batch adapter, and its rows carry no cost,
-# token or latency fields, so export_full_run reports $0 and omits the rest.
+# Fable 5's board rows were rebuilt from release 20260701 without their cost,
+# token and latency fields (its original per-call rows are that release's
+# claude-fable-5-predictions.csv.gz), so export_full_run reports none of its
+# usage.
 # The released values are carried over; the drift gate then checks every field.
 CARRIED_USAGE = {
     "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")
@@ -2334,7 +2341,12 @@ def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
                 if (source / name).is_file():
                     shutil.copyfile(source / name, target / name)
     lookup = grounding_lookup(args.grounding)
-    prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+    prepare_audit(
+        bundle / "us",
+        audit,
+        grounding_lookup=lookup,
+        template_version=JUDGE_TEMPLATE_VERSION,
+    )
     changes = check_prompt_changes(audit, seeded)
     write_json(
         args.stage_dir / "prompt-changes.json",
@@ -4327,6 +4339,9 @@ def render_audit_with(
 
     A scratch run directory links every other bundle file and holds the
     build's, so nothing in the stage changes. The order is prepare_audit's.
+    Every prompt is on JUDGE_TEMPLATE_VERSION, the version of every verdict
+    this release's stage holds; install-references refuses a stage whose
+    prepare_audit rendering differs.
     """
     import tempfile
 
@@ -4350,7 +4365,11 @@ def render_audit_with(
         with object_strings():
             cases = build_audit_cases(run / "us", grounding_lookup=lookup)
             return [
-                (case.case_id, render_case_prompt(case), case.to_manifest_row())
+                (
+                    case.case_id,
+                    render_case_prompt(case, template_version=JUDGE_TEMPLATE_VERSION),
+                    case.to_manifest_row(),
+                )
                 for case in cases
             ]
 
@@ -4545,7 +4564,12 @@ def install_references(args) -> None:
     for case, reason in reopen.items():
         set_aside(audit, case, reason)
     with object_strings():
-        prepare_audit(bundle / "us", audit, grounding_lookup=lookup)
+        prepare_audit(
+            bundle / "us",
+            audit,
+            grounding_lookup=lookup,
+            template_version=JUDGE_TEMPLATE_VERSION,
+        )
     manifest = [
         json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
     ]

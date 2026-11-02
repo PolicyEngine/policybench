@@ -18,7 +18,8 @@ Python (`policybench/audit.py`).
 # 1. Assemble one prompt per wrong case (+ shared output schema + manifest).
 uv run python -m policybench.cli audit-prepare \
   --country-dir results/<run>/us \
-  --audit-dir   results/<run>/us/audit
+  --audit-dir   results/<run>/us/audit \
+  --template-version 2
 
 # 2. Classify in bulk via Codex (ChatGPT plan). Resumable + parallel.
 AUDIT_PARALLEL=4 AUDIT_REASONING_EFFORT=low \
@@ -46,6 +47,122 @@ the models were asked, and each selected model's answer and explanation side by
 side. It is told to default to `llm_error` and flag `reference_suspect` only
 with concrete evidence — the same conservatism as the deterministic inferrer,
 but with actual tax/benefit reasoning instead of keyword matching.
+
+## Judge template versions
+
+Each prompt starts with a fixed header, the judge template, followed by the
+case (`policybench/judge_template.py`). The template is versioned because a
+release carries a seed verdict forward only when its case re-renders to the
+exact bytes the judge read.
+
+| Version | Judged | Change |
+|---|---|---|
+| v1 | every verdict through release dashboard-data-20261010 (Claude Haiku 5.5), the last release judged before versions existed | none |
+| v2 | the version a new audit names | drops v1's claim that the reference pipeline "has survived an adversarial review program" and that "the few real bugs found were fixed before this run" |
+
+The v1 claim is not so: release dashboard-data-20261006's exclusion record
+stops scoring 28 outputs for engine defects, and the 2026-10-05 reference
+adversary confirmed four more (`reference_audit/2026-10-05-reference-adversary/`,
+#200).
+
+- Version selection is explicit. `render_case_prompt` and `prepare_audit` take
+  `template_version` as a required keyword, and `audit-prepare` requires
+  `--template-version`; nothing defaults to `CURRENT_TEMPLATE_VERSION`. A
+  judged case renders on the version its sidecar records. Nothing reads a
+  version off a prompt to choose how to render it: `template_version_of` only
+  records what a judge read and checks a tree.
+- Both runners have the judge read a private copy of `prompt.md`, and record
+  that copy's sha256 (`prompt_sha256`) and version (`judge_template_version`)
+  in `verdict.meta.json`. A verdict is not published if `prompt.md` no longer
+  holds those bytes. A prompt that begins with no version's header, one
+  `audit-prepare` did not write, records `null`. Before it judges a case, a
+  runner removes the case's invalid `verdict.json` and stale sidecar, and it
+  publishes the sidecar before the verdict. An interrupted publish can leave
+  a sidecar without a verdict, which the next run removes, but never a new
+  verdict without its sidecar.
+- A sidecar without the field was judged on v1
+  (`UNRECORDED_TEMPLATE_VERSION`). That is a fixed rule for sidecars written
+  before versions existed, not a guess from the prompt.
+- A verdict without a sidecar has no record of what its judge read.
+  `audit-prepare` re-opens it and `audit-collect` refuses it. A runner's
+  verdict can lose its sidecar to an `audit-prepare` racing it, so this is
+  what keeps such a verdict out. Every verdict in releases 20260929 and
+  20260930 has a sidecar.
+- `audit-prepare` renders a case that already has a verdict with the version
+  its sidecar records. The verdict stands only if that reproduces
+  `prompt.md` byte for byte and, when the sidecar records `prompt_sha256`
+  (the hash of the bytes its judge read), matches it. Without `prompt.md`,
+  the verdict stands only if that hash matches, and the prompt is restored.
+  A sidecar that records `verdict_sha256` must also describe the verdict. A
+  kept case's files are not rewritten. Otherwise the case changed since it
+  was judged, or its version or judged bytes are unknown, and the case is
+  re-opened: the verdict is dropped, and so is its sidecar when the sidecar
+  describes that verdict or records no `verdict_sha256`. A sidecar that
+  describes another verdict when `audit-prepare` reads it, such as the
+  record of a verdict a runner is still publishing, is left in place. A
+  `prompt.md` on another version is re-opened, not adopted. New and
+  re-opened cases use the version the caller names.
+- `audit-prepare` may run while a runner judges the same tree, with one
+  runner per case and one `audit-prepare` at a time. Once both finish, no
+  verdict passes `audit-collect`, or survives the next `audit-prepare`, on
+  bytes its judge did not read. Two rules carry that guarantee. First, a
+  verdict without its sidecar is refused and re-opened. Second, a sidecar
+  that survives is the runner's own record of the bytes its judge read, so
+  a verdict whose case `audit-prepare` rewrote meanwhile fails the hash
+  check: `audit-collect` refuses it and `audit-prepare` re-opens it. The
+  other measures make a stranded verdict rare without ruling it out.
+  Runners start each case clean and publish the sidecar first, and
+  `audit-prepare` removes a sidecar only when it describes the verdict being
+  dropped. But `audit-prepare` reads a sidecar before it removes it, so a
+  runner publishing in between can still lose its sidecar; its verdict is
+  then refused. Run `audit-collect` after both finish.
+- Each release driver names the version its new and re-opened cases render
+  on, as `JUDGE_TEMPLATE_VERSION`. The drivers of releases judged before
+  versions existed (`scripts/finish_adds0928.py`, `scripts/finish_gpt61sol.py`,
+  `scripts/finish_haiku55.py`) name v1, so re-running one reproduces its
+  release's prompts. A new release's driver names v2. Each driver copies the
+  seed's prompts, verdicts and sidecars into its stage before it calls
+  `prepare_audit`, so each seed case renders on its recorded version and a
+  kept case's prompt keeps the seed's bytes.
+- A tree may mix versions. `audit-collect` refuses a tree in which a verdict
+  records an unknown version, or one other than the version its `prompt.md`
+  begins with (`policybench.audit.template_version_problems`). It also
+  refuses a verdict whose sidecar's `prompt_sha256` is not `prompt.md`'s
+  bytes (`prompt_hash_problems`), such as a verdict published after an
+  `audit-prepare` that raced its runner rewrote the case. Re-running
+  `audit-prepare` re-opens those cases.
+- A version's text never changes once a verdict is judged on it; changing the
+  template means adding a version. `tests/test_judge_template.py` pins each
+  version's sha256.
+- Every writer of `verdict.meta.json` must record the field. A writer that
+  does not, such as the Workflow and session judges of
+  `results/local/adds202609/judge_stages.py`, labels its verdicts v1; on a v2
+  prompt, `audit-collect` refuses them and `audit-prepare` re-opens them.
+
+### Invariants
+
+`tests/test_judge_template.py` states and tests these:
+
+- **Every committed prompt re-renders on its recorded version.** Each prompt
+  sha256 committed in `docs/gpt61sol/` and `docs/haiku55/` (the seed digests
+  and the judge provenance records) re-renders on the version its verdict
+  records, v1. It renders from the committed board of the release that judged
+  it: release 20260929, 20260930 or 20261010. Release 20261006 judged
+  nothing. It carried release 20260930's audit while rewording nine reference
+  explanations, so those nine prompts do not re-render from its own board;
+  release 20261010 re-opened them. This test is local only: it needs the
+  audit grounding, which is not committed. In CI, property tests check that
+  `prepare_audit` keeps a judged case's files only on the exact bytes its
+  judge read.
+- **v2 differs from v1 only by the dropped clause.** The header diff is one
+  deletion, `V1_REVIEW_CLAIM`. For any case, the two prompts differ only in
+  their headers, and the v2 prompt is the v1 prompt without that clause.
+- **Version selection is explicit, never inferred.** The renderers have no
+  default version, and every call in `policybench/` and `scripts/` names one.
+  `prepare_audit` decides whether to keep a verdict from the recorded version
+  alone: a prompt on any other version is re-opened, never adopted.
+- No header is a prefix of another, so a prompt's version is unambiguous.
+- `prepare_audit` is idempotent, and the tree it writes validates.
 
 ## Acting on suspect references
 
@@ -89,12 +206,14 @@ uv run policybench consensus-flags \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --output <dir>/consensus_flags.json
 
-# 2. One two-stage case per flagged cell, minus cells another audit owns.
+# 2. One two-stage case per flagged cell, minus cells another audit owns and
+#    cells whose reference an earlier check already held.
 uv run policybench adversary-prepare \
   --payload paper/snapshot/20260501/runs/<run>/data.json.gz \
   --flags <dir>/consensus_flags.json \
   --annotations-dir annotations/<run> \
   --skip-cells <dir>/covered_elsewhere.json \
+  --held-references reference_audit/held_references.json \
   --adversary-dir <adv>
 
 # 3. Judge inside a Subfleet lane (subscription billing, never an API key).
@@ -115,6 +234,18 @@ The defaults round answers to the nearest dollar, which merges answers such as
 model whose own answer is within the tolerance of an amount reference counts as
 exact and never toward a wrong cluster, even when its rounded key misses.
 
+### The UK leg
+
+`consensus-flags` and `adversary-prepare` take `--country uk`. They read the
+`uk/data.json` that `export-full-run --country uk` writes, or the `uk` entry
+of a combined payload. UK cases get UK prompts: the 2026-27 fiscal year,
+legislation.gov.uk and GOV.UK as primary sources, pounds, the region, and a
+2026-10-10 law freeze (policyengine-uk 2.125.1). The UK board has six models,
+so pass thresholds that fit it, for example `--min-models 2 --top-k 3
+--min-top 2 --zero-cluster-min-models 2`. A UK derivation is the
+engine's own computation log, pruned to the steps that carry a value, in
+`uk_case_reference_explanations.csv`. US prompts are unchanged byte for byte.
+
 ## Two stages
 
 - **Stage 1, law first.** The judge sees the household prompt, the output's
@@ -122,8 +253,9 @@ exact and never toward a wrong cluster, even when its rounded key misses.
   member's model id, answer and explanation, and the reference value. It does
   not see the engine derivation. It works the answer from primary law
   (statutes, regulations, agency publications, forms and instructions), cites
-  each rule with its publication date and whether it predates the 2026-07-03
-  reference freeze, and says which answer the law supports.
+  each rule with its publication date and whether it predates the country's
+  reference freeze (US 2026-07-03, UK 2026-10-10), and says which answer the
+  law supports.
   - The Claude runner gives it only web tools (no file access) and denies
     WebFetch on the PolicyBench, PolicyEngine and GitHub domains
     (`BLOCKED_DOMAINS`). WebSearch has no deny rule, so its results reach the
@@ -181,6 +313,64 @@ release's case notes, so `scripts/freeze_snapshot.py` refuses to freeze until
 each carries a developer `reference_verdict` (`policybench.adjudications`):
 the existing adjudication path. A change to a published reference or an
 exclusion still needs a release and the maintainer's ruling.
+
+## Held references
+
+The consensus trigger reads no history, so a cell whose reference a check has
+already worked from the law and held is flagged again for as long as the same
+models agree. `reference_audit/held_references.json` is the standing list of
+such checks. Each record names a cell, the scenario's prompt as the payload
+exports it (by its sha256), the reference value held, each consensus answer
+the check explained, and the write-up (`policybench/held_references.py` gives
+the schema).
+
+`adversary-prepare --held-references` gives a flagged cell on that list no
+case and writes `<adv>/held_references.json`, which lists it as checked and
+held beside the explanation of each triggering cluster. A record applies only
+while all of these are true:
+
+- the payload's exported prompt for the scenario (`prompt.tool`, the
+  canonical whole-scenario prompt under the tool answer contract) is the one
+  the check read, byte for byte. A scenario id is a position in a run
+  (`scenario_{i:03d}`), so the same id can name another household after a
+  regeneration. The hash binds the household and the output definitions; it
+  does not record each model's own request, which a model card may serve
+  under the JSON contract or in chunks;
+- the flag's reference is the held value; and
+- each triggering cluster is an answer the record explains: every member's
+  own answer matches the same explained answer.
+
+"Is" and "matches" mean within a dollar on an amount output, the benchmark's
+exact-match tolerance, and equal on an eligibility output. The bound belongs
+to the record: the pass's own `--tolerance` is not used.
+
+Otherwise the cell is judged like any other, and the listing gives the first
+reason that fails: `prompt_changed`, `reference_moved` when an engine or data
+change gave the cell another reference, or `unexplained_consensus` when models
+now agree on an answer the check never looked at. A record whose cell is not
+flagged is listed as `not_flagged`. The option decides only which cells get a
+case. It changes no score, reference or exclusion, and a hold is not a ruling:
+a record can carry an open question, as the first two do
+(`reference_audit/2026-10-10-held-references/`).
+
+With the option, the command also:
+
+- requires the flags to be the payload's. The flags report must record the
+  payload's sha256, and the command recomputes the flags from the payload at
+  the report's parameters and refuses a report that differs. Flags from an
+  older payload would lack a consensus that has formed since, and a hold
+  would hide it;
+- refuses to prepare a directory that holds a runner's files for a cell now
+  listed as held, because preparing removes the directory of a case no longer
+  listed. Preparation writes only `stage1_prompt.md` into a case directory,
+  so any other file there counts: a verdict, or what an interrupted run left
+  behind. Prepare each pass into a new directory;
+- marks a record that no longer applies with what happens to its cell:
+  `prepared`, or `covered_elsewhere` when `--skip-cells` lists it.
+
+To add a record, write the check up under `reference_audit/`, with the law,
+the engine run and the models' answers it rests on, and list only the
+consensus answers it explains.
 
 ## Definition and publication checks
 
