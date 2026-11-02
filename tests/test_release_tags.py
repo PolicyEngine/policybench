@@ -689,7 +689,7 @@ def test_sealing_starts_after_the_last_board_cut_before_the_workflow():
     """The workflow never moves the tags of the releases in the runbook
     table: each of their board commits is this commit or an ancestor of it."""
     history = rt.pointer_history("HEAD", root=str(ROOT))
-    live = [e for e in history if e.tag == "dashboard-data-20261010"]
+    live = [e for e in history if e.tag == "dashboard-data-20261027"]
     assert [e.commit for e in live][0] == rt.SEALING_STARTS_AFTER
     rows = RUNBOOK_ROW.findall((ROOT / "docs/runbook.md").read_text(encoding="utf-8"))
     for _, commit, _ in rows:
@@ -899,7 +899,7 @@ RUNBOOK_ROW = re.compile(
     r"^\| `(dashboard-data-\d{8}[a-z]?)` \| `([0-9a-f]{12})` \| `([0-9a-f]{12})` \|",
     re.M,
 )
-LAST_UNSEALED = "dashboard-data-20261010"
+LAST_UNSEALED = "dashboard-data-20261027"
 NEVER_ON_MAIN = {
     "dashboard-data-20260709",
     "dashboard-data-20260901",
@@ -912,7 +912,7 @@ NO_RELEASE = {"dashboard-data-20260705b"}
 
 def test_the_runbook_names_each_older_releases_board_commit():
     rows = RUNBOOK_ROW.findall((ROOT / "docs/runbook.md").read_text(encoding="utf-8"))
-    assert len(rows) == 29
+    assert len(rows) == 33
     history = rt.pointer_history("HEAD", root=str(ROOT))
     for tag, commit, sha_prefix in rows:
         shas = {

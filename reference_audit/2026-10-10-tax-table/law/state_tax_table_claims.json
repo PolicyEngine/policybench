@@ -1,0 +1,225 @@
+{
+  "read_on": "2026-10-10",
+  "how": "A Subfleet research lane (job 20261010-130415-pb-taxtable-states) read each state's resident instructions and reported these rows. scripts/state_tax_tables.py then fetched each address and checked each quotation against the document. Band widths are as the lane read them and were not rechecked.",
+  "states": [
+    {
+      "state": "NC",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 4.25%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "To calculate your North Carolina income tax, multiply Line 14 by the income tax rate of 4.25% (0.0425).",
+      "url": "https://www.ncdor.gov/2025-d-401-individual-income-tax-instructions/open"
+    },
+    {
+      "state": "CA",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income $100,000 or less",
+      "mandatory": "mandatory",
+      "band_width": "$100 ($50 first row)",
+      "quote": "Tax Table – If your taxable income on line 19 is $100,000 or less, use the tax table.",
+      "url": "https://www.ftb.ca.gov/forms/2025/2025-540-booklet.html",
+      "note": "The research lane could not open ftb.ca.gov; the quotation was read from the 2025 Form 540 booklet on 2026-10-10."
+    },
+    {
+      "state": "NJ",
+      "tax_year": "2018 table (posted by Treasury for 2018 and later)",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income less than $100,000",
+      "mandatory": "optional on the Division's rates page; the table's own heading says 'Use this table'",
+      "band_width": "$50",
+      "quote": "Use this table if your New Jersey taxable income on Line 40 is less than $100,000. If your taxable income is $100,000 or more, you must use the Tax Rate Schedules on page 61.",
+      "url": "https://www.nj.gov/treasury/taxation/pdf/current/taxtable.pdf",
+      "second_quote": "If your New Jersey taxable income is less than $100,000, you can use the New Jersey Tax Table or New Jersey Rate Schedules.",
+      "second_url": "https://www.nj.gov/treasury/taxation/taxtables.shtml"
+    },
+    {
+      "state": "OH",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: rate schedule only",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "2025 Ohio Income Tax Brackets for Ohio IT 1040",
+      "url": "https://dam.assets.ohio.gov/image/upload/v1735920104/tax.ohio.gov/forms/ohio_individual/individual/2025/it1040-booklet.pdf",
+      "note": "The booklet's text never uses the words 'tax table'."
+    },
+    {
+      "state": "MD",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable net income less than $100,000",
+      "mandatory": "mandatory",
+      "band_width": "$50",
+      "quote": "You must use the tax tables if your taxable income is less than $100,000.",
+      "url": "https://www.marylandcomptroller.gov/content/dam/mdcomp/tax/instructions/2025/resident-booklet.pdf"
+    },
+    {
+      "state": "IN",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 3%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "State adjusted gross income tax: multiply line 7 by 3% (.03)",
+      "url": "https://forms.in.gov/Download.aspx?id=16914"
+    },
+    {
+      "state": "NY",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "NYS AGI $107,650 or less and NYS taxable income less than $65,000",
+      "mandatory": "mandatory",
+      "band_width": "$50 (narrower in the first rows)",
+      "quote": "NYS adjusted gross income is $107,650 or less (line 33)",
+      "url": "https://www.tax.ny.gov/pit/file/tax-tables/2025.htm",
+      "second_quote": "NYS taxable income is less than $65,000 (line 38)",
+      "second_url": "https://www.tax.ny.gov/pit/file/tax-tables/2025.htm"
+    },
+    {
+      "state": "AZ",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 2.5%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "For tax year 2023 and beyond, there are no optional or X&Y tax tables to post due to Arizona's flat tax rate of 2.5%.",
+      "url": "https://azdor.gov/forms/individual/form-140-optional-tax-tables"
+    },
+    {
+      "state": "MI",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 4.25%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "Multiply line 16 by 4.25% (0",
+      "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040.pdf",
+      "note": "The research lane could not open michigan.gov; the quotation was read from the 2025 Form MI-1040 on 2026-10-10."
+    },
+    {
+      "state": "VA",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income listed in the table (2025 table ends at $98,356)",
+      "mandatory": "optional",
+      "band_width": "variable: about $50 at 2%, about $35 at 5.75%",
+      "quote": "The tax table can be used if your Virginia taxable income is listed in the table. Otherwise, use the Tax Rate Schedule above.",
+      "url": "https://www.tax.virginia.gov/sites/default/files/vatax-pdf/tax-table-2025.pdf"
+    },
+    {
+      "state": "PA",
+      "tax_year": "current (page not dated)",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 3.07%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "Pennsylvania personal income tax is levied at the rate of 3.07 percent against taxable income",
+      "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/personal-income-tax"
+    },
+    {
+      "state": "OK",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income less than $100,000",
+      "mandatory": "mandatory",
+      "band_width": "$50",
+      "quote": "Use this table if your taxable income is less than $100,000.",
+      "url": "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/511-Pkt.pdf"
+    },
+    {
+      "state": "MN",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "Form M1 line 9 less than $86,800",
+      "mandatory": "mandatory",
+      "band_width": "$100 ($20 and $80 in the first rows)",
+      "quote": "If line 9 of Form M1 is less than $86,800, you must use the tax table on pages 32 through 38.",
+      "url": "https://www.revenue.state.mn.us/sites/default/files/2026-10/m1-inst-25.pdf"
+    },
+    {
+      "state": "AL",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income $100,000 or less",
+      "mandatory": "mandatory (except NOL carryover or carryback)",
+      "band_width": "$50 under $1,000, then $100",
+      "quote": "You must figure your tax from the Tax Tables unless you are claiming a carryover or carryback Net Operating Loss from another year.",
+      "url": "https://www.revenue.alabama.gov/wp-content/uploads/2026/01/25f40bk.pdf",
+      "second_quote": "If taxable income is over $100,000, use the following worksheet to figure your tax.",
+      "second_url": "https://www.revenue.alabama.gov/wp-content/uploads/2026/01/25f40bk.pdf"
+    },
+    {
+      "state": "IL",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 4.95%",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "Residents: Multiply Line 11 by 4.95% (.0495). Cannot be less than zero.",
+      "url": "https://tax.illinois.gov/content/dam/soi/en/web/tax/forms/incometax/documents/currentyear/individual/il-1040.pdf"
+    },
+    {
+      "state": "CT",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "Connecticut AGI less than or equal to $102,000 (keyed on AGI; exemptions and credits included)",
+      "mandatory": "optional",
+      "band_width": "$50",
+      "quote": "If your Connecticut adjusted gross income is less than or equal to $102,000, you may use the Tax Tables on the DRS website",
+      "url": "https://portal.ct.gov/-/media/drs/forms/2025/income/2025-ct-1040-instructions_1225.pdf"
+    },
+    {
+      "state": "WI",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income less than $100,000",
+      "mandatory": "mandatory",
+      "band_width": "$100 ($20, $20 and $60 in the first rows)",
+      "quote": "Use this Tax Table if your taxable income is less than $100,000. If $100,000 or more, use the Tax Computation Worksheet on page 44.",
+      "url": "https://www.revenue.wi.gov/TaxForms2025/2025-Form1-Inst.pdf"
+    },
+    {
+      "state": "AR",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "net taxable income $100,000 or less",
+      "mandatory": "optional; mandatory if itemizing",
+      "band_width": "$100",
+      "quote": "You must use this tax table if you itemize your deductions or if you are filing a Fiduciary Tax Return.",
+      "url": "https://www.dfa.arkansas.gov/wp-content/uploads/2025_TaxTables.pdf"
+    },
+    {
+      "state": "ID",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: worksheet, flat 5.3% above $4,811 / $9,622",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "Otherwise, complete the worksheet below to calculate the Idaho tax due.",
+      "url": "https://tax.idaho.gov/wp-content/uploads/forms/EIN00046/EIN00046_03-02-2026.pdf"
+    },
+    {
+      "state": "GA",
+      "tax_year": "2025",
+      "table_prescribed": "no",
+      "ceiling": "none: flat rate 5.19%, rounded to nearest dollar",
+      "mandatory": "n.a.",
+      "band_width": "n.a.",
+      "quote": "Multiply the amount on Line 15c by 5.19%. Round to nearest dollar.",
+      "url": "https://dor.georgia.gov/document/document/2025-it-511-individual-income-tax-booklet/download"
+    },
+    {
+      "state": "WV",
+      "tax_year": "2025",
+      "table_prescribed": "yes",
+      "ceiling": "taxable income $100,000 or less (not available to married filing separately)",
+      "mandatory": "mandatory in effect",
+      "band_width": "$25 in the first rows, then $100, then $60",
+      "quote": "If your taxable income is over $100,000 refer to the Tax Rate Schedules on page 35.",
+      "url": "https://tax.wv.gov/Documents/PIT/2025/it140.TaxTable.2025.pdf"
+    }
+  ]
+}

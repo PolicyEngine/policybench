@@ -56,6 +56,7 @@ import pandas as pd
 
 from policybench.adjudications import (
     excluded_case_keys,
+    judge_ever_flagged,
     load_adjudications,
     unresolved_suspect_cases,
     verify_adjudications_applied,
@@ -247,6 +248,8 @@ def codex_log_describes_verdict(
 def audit_judge_provenance(
     cases_dir: Path = AUDIT_CASES_DIR,
     log_tolerance: float = LOG_FALLBACK_TOLERANCE_SECONDS,
+    *,
+    case_ids: tuple[str, ...] | None = None,
 ) -> dict:
     """Tally which judge model produced each case verdict in the audit tree.
 
@@ -257,12 +260,20 @@ def audit_judge_provenance(
     read from the log's ``model:`` line. Anything else, including a stale or
     hash-less sidecar beside an unrelated log, is counted under ``unknown``
     so the manifest cannot silently claim provenance it does not have.
+
+    A release driver may provide its validated, receipt-bound manifest case
+    IDs. The default retains the historical whole-tree tally unchanged.
     """
     if not cases_dir.is_dir():
         raise SystemExit(f"Audit case tree not found: {cases_dir}")
     by_judge: dict[str, dict] = {}
     judged = 0
-    for case_dir in sorted(cases_dir.iterdir()):
+    directories = (
+        sorted(cases_dir.iterdir())
+        if case_ids is None
+        else [cases_dir / case for case in sorted(case_ids)]
+    )
+    for case_dir in directories:
         if not (case_dir / "verdict.json").is_file():
             continue
         judged += 1
@@ -434,10 +445,13 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
         "by_reference_verdict": _count(
             e["reference_verdict"] for e in entries if e.get("reference_verdict")
         ),
+        # A case any recorded judge verdict flagged: the current one, a verdict
+        # a re-judge replaced (judge_previous), or an earlier run a
+        # judge_reference_suspect_source names.
         "judge_flagged_by_reference_verdict": _count(
             e["reference_verdict"]
             for e in entries
-            if e.get("judge_reference_suspect") and e.get("reference_verdict")
+            if judge_ever_flagged(e) and e.get("reference_verdict")
         ),
         "note": (
             "Judge verdicts outside the final classes (llm_error, "
@@ -447,8 +461,11 @@ def developer_adjudications_block(cases_dir: Path = AUDIT_CASES_DIR) -> dict:
             "published payload and the frozen annotations agree. Every case the "
             "judge flagged reference-suspect carries a reference verdict "
             "(affirmed, regenerated, engine_defect, unlisted_input, later_law) "
-            "that clears the flag; judge_reference_suspect records which "
-            "entries the judge flagged."
+            "that clears the flag; judge_reference_suspect records whether the "
+            "case's current verdict flagged it, and "
+            "judge_flagged_by_reference_verdict counts a case any recorded "
+            "judge verdict flagged (the current one, a judge_previous item, or "
+            "an earlier run its judge_reference_suspect_source names)."
         ),
     }
 
@@ -1505,13 +1522,23 @@ UPGRADE_MODULE_PATHS = {
         "reference_audit/2026-09-22/fixes/r19_irs_sales_tax_2025.json"
     ),
 }
-UPGRADE_BUILDER = (
-    "reference_audit/2026-10-09-engine-upgrade/scripts/"
+# Each later builder's note, oldest first: the 2026-10-10 upgrade's, the
+# 2026-10-12 one's, then the 2026-10-22 one's. Each builds households as the
+# 2026-09-29 upgrade did and pins the same inherited setup; a sidecar keeps
+# every upgrade's revision, so each note must still read as a later builder's.
+UPGRADE_BUILDERS = tuple(
+    f"reference_audit/{folder}/scripts/"
     "build_references_upgrade.py; households from "
     "policybench.scenarios.Scenario.to_pe_household through "
     "reference_audit/2026-09-28/scripts/sweep.py build_situation, as in the "
     "2026-09-29 upgrade"
+    for folder in (
+        "2026-10-09-engine-upgrade",
+        "2026-10-12-engine-upgrade",
+        "2026-10-22-engine-upgrade",
+    )
 )
+UPGRADE_BUILDER = UPGRADE_BUILDERS[-1]
 
 
 def read_reference_engine_setup() -> dict[str, int]:
@@ -1561,7 +1588,7 @@ def read_reference_engine_setup() -> dict[str, int]:
     if not isinstance(builder, str):
         raise SystemExit("the engine_upgrade builder note must be a string")
     inherited_builder = (
-        builder == UPGRADE_BUILDER
+        builder in UPGRADE_BUILDERS
         and set(others) == expected | UPGRADE_SUPPORT_MODULES
         and any(
             isinstance(previous.get("builder"), str)
@@ -1653,7 +1680,8 @@ AUDIT_FIXES_DIR = "reference_audit/2026-09-22/fixes"
 def verify_regeneration_target_pins(upgrade: dict) -> None:
     """Each regenerated output held to the audit's fix modules publishes the
     bytes that ran: every module and sibling its target pins is the file
-    committed under AUDIT_FIXES_DIR, and its evidence file is the committed
+    committed under AUDIT_FIXES_DIR (or at the path it names, in an upgrade
+    audit's own fixes/), and its evidence file is the committed
     one. The builder and driver check this before the install; the freeze
     checks what the published sidecar says."""
     for entry in upgrade.get("regenerated_exclusions", []):
@@ -1665,7 +1693,19 @@ def verify_regeneration_target_pins(upgrade: dict) -> None:
         if not target.get("modules"):
             raise SystemExit(f"regenerated {key}: a fix_modules target pins no module")
         for item in pins:
-            path = f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            # A module an upgrade audit adds after 2026-09-22 names its own
+            # path, in that audit's fixes/ (the 2026-10-12 builder's
+            # fix_location); every other module is under AUDIT_FIXES_DIR.
+            path = item.get("path") or f"{AUDIT_FIXES_DIR}/{item.get('module')}"
+            if not re.fullmatch(
+                r"reference_audit/[0-9a-z-]+/fixes/"
+                + re.escape(str(item.get("module"))),
+                path,
+            ):
+                raise SystemExit(
+                    f"regenerated {key}: {item.get('module')} names path {path!r}, "
+                    "not an audit's fixes/ directory"
+                )
             committed = committed_sha256(path)
             if committed is None or item.get("sha256") != committed:
                 raise SystemExit(
@@ -1797,9 +1837,11 @@ def build_manifest(
             "failed or timed-out scenarios in bounded rounds; every model's "
             "canonical file covers all 100 households.",
             "Raw provider responses are retained in the compressed source-run "
-            "predictions.csv.gz file wherever the transport exposed them; rows "
-            "served through the Anthropic batch adapter (Claude Fable 5) and "
-            "64 Kimi K3 parse failures carry no raw payload. The separate "
+            "predictions.csv.gz file wherever the transport exposed them; "
+            "Claude Fable 5's rows, rebuilt from release dashboard-data-20260701 "
+            "without their raw payloads (that release's "
+            "claude-fable-5-predictions.csv.gz asset keeps them), and 64 Kimi "
+            "K3 parse failures carry none. The separate "
             "LiteLLM cache remains "
             "local-only because it is a generated request cache, not the "
             "canonical snapshot artifact.",

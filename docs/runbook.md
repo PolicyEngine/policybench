@@ -204,6 +204,15 @@ already moved to the August V4 Pro release, so neither row can be re-run under
 its name. V4.1 Flash is the `deepseek-v4.1-flash` row, which calls
 DeepSeek's current name `deepseek-flash`.
 
+Google deprecated `gemini-3.5-flash` and `gemini-3.7-flash` on 2026-10-08
+([changelog](https://ai.google.dev/gemini-api/docs/changelog)). Requests under
+those names now route to `gemini-3.6-flash` and `gemini-3.8-flash`, which are
+rows of their own, so neither row can be re-run under its name. A synchronous
+re-run or row repair would not show the re-route: litellm 1.88.x sets the
+response model to the requested name, which PolicyBench records as
+`provider_resolved_model`, and ignores Gemini's `modelVersion`. The Gemini
+batch path, which calls google-genai directly, does record `modelVersion`.
+
 OpenAI made [GPT-5.6 generally available](https://openai.com/index/gpt-5-6/)
 across ChatGPT, Codex, and the API on 2026-07-09, with a global rollout over 24
 hours. Because these models are new to the PolicyBench harness, run the serving
@@ -429,7 +438,55 @@ for model_dir in sorted((run / "chunks").glob("*")):
 PY
 ```
 
-## 8. Publish a release
+## 8. Call provenance
+
+The harness caches provider responses on disk (`policybench/cache.py`). A
+request identical to an earlier one returns the cached response, and the
+timer measures the lookup, a few hundredths of a second, as if it were the
+call. Each prediction row therefore records where its responses came from:
+
+| Column | Meaning |
+| --- | --- |
+| `live_calls` | responses behind the row that the provider answered |
+| `cache_hit_calls` | responses behind the row that the disk cache replayed |
+| `live_elapsed_seconds` | the live calls' share of `elapsed_seconds` |
+
+The counts cover the request group whose time the row's `elapsed_seconds`
+apportions: the whole household for `run_no_tools_eval` (every chunk, repair
+round, budget escalation and explanation repair), the one output for
+single-output runs and row repairs, and the one request for batch rows.
+Every row of a group repeats them, so never sum them across rows.
+`live_elapsed_seconds` is divided among the rows like `elapsed_seconds`, so a
+household's live time is the sum over its rows. A replay adds its lookup time
+to `elapsed_seconds` and nothing to `live_elapsed_seconds`. Failed attempts
+are not counted here; the spend ledger records them.
+
+Batch rows have `cache_hit_calls` 0 (batch requests never read the disk
+cache), `live_calls` 1 when a response answered them, and no live time, like
+their empty `elapsed_seconds`. Rows written before these columns existed,
+including the frozen board's, leave all three empty, and a supervised run
+resumed across the change accepts those scenario files. A row-repair merge
+that applies an older repair, written without the columns, empties them on
+the row it replaces rather than keep the replaced request's values.
+
+The values hold these invariants, which `tests/test_call_provenance.py`
+checks with property-based tests that drive the real request path, failed
+requests included, against the calls actually made and the spend ledger's
+records of them:
+
+- the counts are non-negative integers;
+- `0 <= live_elapsed_seconds <= elapsed_seconds`, and both are empty together;
+- a row whose responses were all replays has `live_calls` 0 and
+  `live_elapsed_seconds` exactly 0;
+- a row with no replays has `live_elapsed_seconds` equal to `elapsed_seconds`.
+
+`call_provenance.household_call_provenance` classifies each household as `live`,
+`partial_replay`, `full_replay`, `no_response` or `unknown` (rows that
+predate the columns), with its summed live time. No published figure uses it:
+`latencySeconds` still takes the median of each household's
+`elapsed_seconds`, replays included.
+
+## 9. Publish a release
 
 A release is a GitHub release `dashboard-data-YYYYMMDD[a-z]` that holds
 `dashboard-data.json` and `predictions.csv.gz`, plus the PR whose committed
@@ -464,7 +521,7 @@ PR's merge commit when the PR merges.
 Each run of the workflow reads main as it is when the run starts, not the
 commit of the push that started it. It seals every release that a
 first-parent commit of main names after `SEALING_STARTS_AFTER` in
-`policybench/release_tags.py` (the merge of release 20261010), so a run
+`policybench/release_tags.py` (the merge of release 20261027), so a run
 GitHub cancels in favour of a newer one loses nothing. The run refuses to
 start if that commit is not on main's first-parent line. It never moves the
 tag of a release main named by then. When main points back at one of those
@@ -508,7 +565,7 @@ commit until `git fetch --tags --force`.
 
 ### Releases cut before sealing
 
-The tags from `dashboard-data-20260520` through `dashboard-data-20261010`
+The tags from `dashboard-data-20260520` through `dashboard-data-20261027`
 predate the workflow. Each names main as it stood before the release PR
 merged, or an older commit when other PRs merged between the upload and the
 merge. `git checkout <tag>` therefore gives an earlier release's board. Until
@@ -548,6 +605,10 @@ release.
 | `dashboard-data-20260930` | `8b4c0ca146bb` | `d1cae7456cf9` | [#187](https://github.com/PolicyEngine/policybench/pull/187) |
 | `dashboard-data-20261006` | `9ce4ade83829` | `aa34e5c9ea92` | [#202](https://github.com/PolicyEngine/policybench/pull/202) |
 | `dashboard-data-20261010` | `5a8164a001ef` | `f834478e6519` | [#208](https://github.com/PolicyEngine/policybench/pull/208) |
+| `dashboard-data-20261013` | `bc305793c527` | `aef5dc73a764` | [#217](https://github.com/PolicyEngine/policybench/pull/217) |
+| `dashboard-data-20261013b` | `2cb77a177398` | `0a4b754a4ce3` | [#218](https://github.com/PolicyEngine/policybench/pull/218) |
+| `dashboard-data-20261014` | `bf845cbe4e92` | `22db9a9c0525` | [#221](https://github.com/PolicyEngine/policybench/pull/221) |
+| `dashboard-data-20261027` | `875fe1f6f59f` | `67cb0d14ca93` | [#247](https://github.com/PolicyEngine/policybench/pull/247) |
 
 `dashboard-data-20260705`'s asset was replaced twice after the release first
 reached main. Main's pointer named three sha256s under that tag, at

@@ -1,6 +1,19 @@
 """Score the frozen run under each combination of the Part B and SALT proposals.
 
-Copies the frozen run (predictions, references, scenarios, exclusions) to scratch
+Reads the pass's inputs from git, never from the working tree: the frozen run
+(payload, predictions, references, scenarios, exclusions, and the legacy impact
+summary) as PASS_COMMIT (release dashboard-data-20260930, #187) holds it, and this
+audit's proposals, sweep and copy of #191's records as AUDIT_COMMIT (#202, which
+merged this audit) holds them. Later releases rewrite the working tree's run:
+dashboard-data-20261006 (#202) installed #191's three records and this audit's
+Virginia record and rewrote the legacy impact summary, so a copy of today's run with
+these records appended carries duplicate exclusions, which the analyze CLI refuses.
+Each input in INPUTS is staged under ``<scratch>/pass_inputs`` and must match its
+pinned sha256, or the script stops before scoring anything. The scoring code is the
+checkout's; the ``published`` checks below stop the script if that code no longer
+scores the pinned run as the pinned payload and impact summary record.
+
+Copies the staged run (predictions, references, scenarios, exclusions) to scratch
 directories and never writes the snapshot. Each copy is scored with ``python -m
 policybench.cli analyze``, the command the freeze runs, and the dashboard payloads are
 compared. The cases:
@@ -29,11 +42,16 @@ compared payload value changes and how the legacy impact summary moves.
 
 #191's records are read from ``verification/inputs/pr191_proposed_exclusions.json``, a
 copy of ``reference_audit/2026-10-05/proposed_exclusions.json`` at #191's head
-8af912a0, checked against its sha256.
+8af912a0; its pinned sha256 is that file's.
 
   PYTHONPATH=<checkout> <triage>/.venv-pe21517/bin/python \\
     reference_audit/2026-10-05-medicare-part-b/scripts/leaderboard_impact.py \\
       --scratch <dir> --weights-check
+
+The checkout needs PASS_COMMIT and AUDIT_COMMIT in its history (a shallow clone needs
+``git fetch --unshallow``). ``--out-dir`` writes the verification files elsewhere;
+tests/test_reference_audit_pins.py regenerates them that way and requires the
+committed ones byte for byte.
 """
 
 from __future__ import annotations
@@ -53,16 +71,66 @@ import pandas as pd
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
-RUN = (
-    ROOT
-    / "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
-)
-PROPOSED = HERE / "proposed_exclusions.json"
-SWEEP = HERE / "verification/sweep_part_b.csv"
 OUT_DIR = HERE / "verification"
-SALT_COPY = HERE / "verification/inputs/pr191_proposed_exclusions.json"
+# The pass's inputs, pinned by commit and sha256.
+PASS_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
+AUDIT_COMMIT = "9ce4ade8382962a9134860c23f56d92509b5e57f"
+RUN_PATH = (
+    "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace"
+)
+AUDIT_PATH = "reference_audit/2026-10-05-medicare-part-b"
+FROZEN_IMPACT_PATH = f"{RUN_PATH}/analysis/impact_summary_by_model.csv"
+PROPOSED_PATH = f"{AUDIT_PATH}/proposed_exclusions.json"
+SWEEP_PATH = f"{AUDIT_PATH}/verification/sweep_part_b.csv"
+SALT_COPY_PATH = f"{AUDIT_PATH}/verification/inputs/pr191_proposed_exclusions.json"
+# #191's reference_audit/2026-10-05/proposed_exclusions.json at its head 8af912a0.
 SALT_SHA256 = "3c330177762c46fa5c52b02f9f943e9d5a65e15855280b64e9b462ab27413272"
-FROZEN_IMPACT = RUN / "analysis/impact_summary_by_model.csv"
+# Every file the script reads from the repository: path -> (commit, sha256).
+# pass_inputs() stages each at the same path under its target.
+INPUTS = {
+    f"{RUN_PATH}/data.json.gz": (
+        PASS_COMMIT,
+        "1e029aaa87d1dfbd2ceee88419599a919dd7c9d4aba78a308ec48d008d54ae18",
+    ),
+    f"{RUN_PATH}/predictions.csv.gz": (
+        PASS_COMMIT,
+        "ca2c4c48c7fd3e680c9c61a7380ecfcb60ce95f913c5c363762e023949d8ad12",
+    ),
+    f"{RUN_PATH}/reference_outputs.csv": (
+        PASS_COMMIT,
+        "e8bbba8fd3e90f78e7c0e83df06227bc1c94563e92f7405fe12be853a30b2466",
+    ),
+    f"{RUN_PATH}/reference_outputs.csv.meta.json": (
+        PASS_COMMIT,
+        "816fef53c452d8520a321bc12bc29b28da1e7956a06818e5ec13d7fc7b371a4b",
+    ),
+    f"{RUN_PATH}/reference_exclusions.json": (
+        PASS_COMMIT,
+        "bf4e6a249aeee01d0b71f5834ef7a35c4bab2266d2c59d0e81b12a0da44281c2",
+    ),
+    f"{RUN_PATH}/scenarios.csv": (
+        PASS_COMMIT,
+        "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+    ),
+    f"{RUN_PATH}/scenarios.csv.meta.json": (
+        PASS_COMMIT,
+        "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb",
+    ),
+    FROZEN_IMPACT_PATH: (
+        PASS_COMMIT,
+        "e6e034adee408cc798897bc0825ace9740055ab20e528ce842bd06e2c81e0922",
+    ),
+    PROPOSED_PATH: (
+        AUDIT_COMMIT,
+        "fee2523738a2da96876e6cd3141325cb5939e0140a357c0b59b0f39d5b37eb76",
+    ),
+    SWEEP_PATH: (
+        AUDIT_COMMIT,
+        "a0f7820ca0b5b64118509dc39ae5469ecbde89e5f843065761d429b81458681b",
+    ),
+    SALT_COPY_PATH: (AUDIT_COMMIT, SALT_SHA256),
+}
+# Copied into each copy and scored; data.json.gz is only compared against.
 RUN_FILES = (
     "predictions.csv.gz",
     "reference_outputs.csv",
@@ -115,14 +183,71 @@ def always_zero(run_dir: Path) -> dict[str, float]:
     }
 
 
+def overlaps(scratch: Path, root: Path) -> bool:
+    """Whether ``scratch`` and ``root`` are one directory or one holds the other.
+
+    Judged by filesystem identity (device and inode), not spelling, so case on a
+    case-insensitive filesystem or a link cannot hide an overlap. ``scratch`` need
+    not exist yet; its nearest existing ancestors decide.
+    """
+
+    def identities(path: Path) -> set[tuple[int, int]]:
+        found = set()
+        for part in (path, *path.parents):
+            try:
+                status = part.stat()
+            except OSError:
+                continue
+            found.add((status.st_dev, status.st_ino))
+        return found
+
+    root_status = root.stat()
+    if (root_status.st_dev, root_status.st_ino) in identities(scratch):
+        return True
+    try:
+        scratch_status = scratch.stat()
+    except OSError:
+        return False
+    return (scratch_status.st_dev, scratch_status.st_ino) in identities(root)
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def salt_records() -> list[dict]:
-    if sha256(SALT_COPY) != SALT_SHA256:
-        raise SystemExit(f"{SALT_COPY} does not match #191's file at 8af912a0")
-    return json.loads(SALT_COPY.read_text())["exclusions"]
+def git_input(commit: str, path: str, pinned: str, target: Path) -> Path:
+    """Write ``path`` as ``commit`` holds it to ``target``, refusing any other bytes."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+    )
+    if result.returncode:
+        raise SystemExit(
+            f"cannot read {path} at {commit[:12]}; fetch full history "
+            f"(git fetch --unshallow): {result.stderr.decode().strip()}"
+        )
+    digest = hashlib.sha256(result.stdout).hexdigest()
+    if digest != pinned:
+        raise SystemExit(
+            f"{commit[:12]}:{path} has sha256 {digest}, not the pinned {pinned}"
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(result.stdout)
+    return target
+
+
+def pass_inputs(target: Path) -> Path:
+    """Stage every input in INPUTS at its repository path under ``target``."""
+    if target.exists():
+        shutil.rmtree(target)
+    for path, (commit, pinned) in INPUTS.items():
+        git_input(commit, path, pinned, target / path)
+    return target
+
+
+def salt_records(path: Path) -> list[dict]:
+    """#191's records, from the staged copy at ``path`` (pass_inputs checked it)."""
+    return json.loads(path.read_text())["exclusions"]
 
 
 def legacy_impact_summary(run_dir: Path) -> pd.DataFrame:
@@ -157,12 +282,15 @@ def legacy_impact_change(base: pd.DataFrame, case: pd.DataFrame) -> dict:
     }
 
 
-def stage(target: Path, extra: list[dict], weights: pd.DataFrame | None = None) -> Path:
+def stage(
+    source: Path, target: Path, extra: list[dict], weights: pd.DataFrame | None = None
+) -> Path:
+    """Copy the staged run at ``source`` to ``target`` and apply the case."""
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
     for name in RUN_FILES:
-        shutil.copy2(RUN / name, target / name)
+        shutil.copy2(source / name, target / name)
     if extra:
         record = json.loads((target / "reference_exclusions.json").read_text())
         record["exclusions"].extend(extra)
@@ -232,8 +360,9 @@ def payload_differences(a: dict, b: dict) -> list[str]:
     return out
 
 
-def check_reproduces_published(base: dict) -> None:
-    published = json.loads(gzip.decompress((RUN / "data.json.gz").read_bytes()))
+def check_reproduces_published(base: dict, source: Path) -> None:
+    """Stop unless ``base`` scores as the staged ``source/data.json.gz`` does."""
+    published = json.loads(gzip.decompress((source / "data.json.gz").read_bytes()))
     diffs = payload_differences(published, base)
     if diffs:
         raise SystemExit(
@@ -329,25 +458,37 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scratch", required=True)
     parser.add_argument("--weights-check", action="store_true")
+    parser.add_argument(
+        "--out-dir",
+        default=str(OUT_DIR),
+        help="where to write the verification files (default: %(default)s)",
+    )
     args = parser.parse_args()
-    scratch = Path(args.scratch)
+    scratch = Path(args.scratch).resolve()
+    out_dir = Path(args.out_dir)
+    # stage() and pass_inputs() delete and rewrite scratch/<name>, so scratch and
+    # the repository must not overlap: neither may lie inside the other.
+    if overlaps(scratch, ROOT):
+        parser.error(f"--scratch must not overlap the repository ({ROOT})")
+    inputs = pass_inputs(scratch / "pass_inputs")
+    source = inputs / RUN_PATH
 
-    proposal = json.loads(PROPOSED.read_text())
+    proposal = json.loads((inputs / PROPOSED_PATH).read_text())
     va = proposal["exclusions"]
     federal = [c["record"] for c in proposal["conditional_on_salt_decision"]]
-    salt = salt_records()
+    salt = salt_records(inputs / SALT_COPY_PATH)
     cases = {
         "part_b": va + federal,
         "salt": salt,
         "salt_and_part_b": salt + va,
     }
 
-    base_dir = stage(scratch / "published", [])
+    base_dir = stage(source, scratch / "published", [])
     base = analyze(base_dir)
-    check_reproduces_published(base)
+    check_reproduces_published(base, source)
     zero_published = always_zero(base_dir)
     impact_base = legacy_impact_summary(base_dir)
-    frozen_impact = pd.read_csv(FROZEN_IMPACT)
+    frozen_impact = pd.read_csv(inputs / FROZEN_IMPACT_PATH)
     pd.testing.assert_frame_equal(
         impact_base.reset_index(drop=True),
         frozen_impact,
@@ -358,7 +499,7 @@ def main() -> None:
 
     summaries, tables = [], {}
     for name, records in cases.items():
-        run_dir = stage(scratch / name, records)
+        run_dir = stage(source, scratch / name, records)
         case = analyze(run_dir)
         zero = {"published": zero_published, "case": always_zero(run_dir)}
         summary = summarize(name, records, base, case, zero)
@@ -398,8 +539,8 @@ def main() -> None:
 
     weights_check = None
     if args.weights_check:
-        sweep = pd.read_csv(SWEEP)
-        run_dir = stage(scratch / "weights_2_15_17", [], weights=sweep)
+        sweep = pd.read_csv(inputs / SWEEP_PATH)
+        run_dir = stage(source, scratch / "weights_2_15_17", [], weights=sweep)
         moved = int(
             (
                 sweep["reference_impact_weight"].notna()
@@ -421,7 +562,7 @@ def main() -> None:
             ),
         }
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     wide = pd.concat(
         {
             name: table[
@@ -437,8 +578,8 @@ def main() -> None:
     wide.insert(1, "exact_rank_published", first["exact_rank_published"])
     wide.insert(2, "score_published", first["score_published"])
     wide.insert(3, "score_rank_published", first["score_rank_published"])
-    wide.to_csv(OUT_DIR / "leaderboard_impact_models.csv")
-    marginal.to_csv(OUT_DIR / "leaderboard_impact_marginal.csv")
+    wide.to_csv(out_dir / "leaderboard_impact_models.csv")
+    marginal.to_csv(out_dir / "leaderboard_impact_marginal.csv")
     result = {
         "published_reproduced": True,
         "legacy_impact_summary_reproduced": True,
@@ -446,7 +587,7 @@ def main() -> None:
         "virginia_record_on_top_of_salt": marginal_summary,
         "impact_weights_check": weights_check,
     }
-    (OUT_DIR / "leaderboard_impact.json").write_text(
+    (out_dir / "leaderboard_impact.json").write_text(
         json.dumps(result, indent=2) + "\n"
     )
     with pd.option_context("display.width", 250, "display.max_rows", 100):

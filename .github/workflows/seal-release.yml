@@ -6,7 +6,7 @@ name: Seal release
 # changes, this moves the tag of every release that has landed since sealing
 # began (policybench.release_tags.SEALING_STARTS_AFTER) to the commit that
 # holds its board, and marks Latest the release main serves. See
-# docs/runbook.md, section 8.
+# docs/runbook.md, section 9.
 on:
   push:
     branches: [main]

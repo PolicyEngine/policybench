@@ -32,10 +32,10 @@ DEFAULT_REF = "origin/main"
 POINTER_PATH = "app/src/data.artifact.json"
 ASSET_NAME = "dashboard-data.json"
 TAG_PATTERN = re.compile(r"dashboard-data-\d{8}[a-z]?")
-# The merge of PR #208, which holds release dashboard-data-20261010: the last
+# The merge of PR #247, which holds release dashboard-data-20261027: the last
 # board before the Seal release workflow. The workflow seals releases main first
 # names after it; tags of earlier releases are re-pointed by hand.
-SEALING_STARTS_AFTER = "5a8164a001efb27fa55f47fe7ea26666a0de31f8"
+SEALING_STARTS_AFTER = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
 
 
 class ReleaseTagError(RuntimeError):

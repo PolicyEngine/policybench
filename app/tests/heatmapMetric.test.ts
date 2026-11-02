@@ -39,8 +39,8 @@ describe("program heatmap metric", () => {
     expect(Math.round(heatmapValue(federal, "exact"))).toBe(80);
     expect(Math.round(heatmapValue(federal, "score"))).toBe(96);
     const stateTax = fable51("state_income_tax_before_refundable_credits");
-    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(74);
-    expect(Math.round(heatmapValue(stateTax, "score"))).toBe(94);
+    expect(Math.round(heatmapValue(stateTax, "exact"))).toBe(69);
+    expect(Math.round(heatmapValue(stateTax, "score"))).toBe(92);
   });
 
   test("the rendered heatmap shows exact-match cells and says so", () => {

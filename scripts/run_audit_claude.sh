@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Bulk failure-audit classifier, run through the Claude Code CLI so the work
 # bills to a Claude subscription lane rather than a metered API key. Mirrors
-# scripts/run_audit_codex.sh: same audit directory layout, same schema, same
-# resumable verdict.json contract, so the two runners are interchangeable.
+# scripts/run_audit_codex.sh: same audit directory layout, base audit schema
+# and resumable verdict.json contract. Each Claude judge gets that schema
+# pinned to its case's model count and IDs from cases.jsonl.
 #
 #   policybench audit-prepare --country-dir <dir> --audit-dir <audit>
 #   scripts/run_audit_claude.sh <audit>          # this script
@@ -28,7 +29,10 @@
 #     an advisor model; and unless the judge's one accepted StructuredOutput
 #     call (any other is one the schema refused) answered exactly the verdict;
 #   - it reads a private copy of prompt.md, hashed before it runs; the sidecar
-#     records that hash. A verdict is rejected if prompt.md no longer has it
+#     records that hash and the judge template version the copy begins with
+#     (judge_template_version, policybench.judge_template; null for a prompt
+#     audit-prepare did not render). A verdict is rejected if prompt.md no
+#     longer has it
 #     at extraction, or if the transcript's user events are not exactly one
 #     text message equal to the judged prompt (plus Claude Code's own
 #     StructuredOutput nudge, PROMPT_NUDGE) and the results of the judge's
@@ -80,15 +84,19 @@
 #
 # A verdict counts only if it satisfies the audit schema and names exactly the
 # models its case lists in audit-prepare's cases.jsonl, each once and no other
-# (the finish driver's coverage rule, scripts/validate_verdict.py). A judge
+# (the finish driver's coverage rule, scripts/validate_verdict.py). Each judge's
+# schema bounds the models array to that count and enums its model IDs, so the
+# CLI refuses incomplete or foreign-model calls within the same session.
+# Duplicate IDs still require the coverage check after extraction. A judge
 # whose verdict does not is logged "[invalid]"; nothing is published for the
 # case, which stays pending for the next run, and the run goes on.
 #
 # Judge provenance: beside each verdict.json the runner writes
 # verdict.meta.json with the judge model requested, the model the CLI reports,
 # the CLI version, the effort level, the session id, the UTC timestamp, the
-# sha256 of the verdict and of the prompt the judge read, the login the CLI
-# reports, the declared account and the isolation the judge ran under.
+# sha256 of the verdict, the prompt the judge read and the exact per-case
+# --json-schema argument (judge_schema_sha256), the login the CLI reports,
+# the declared account and the isolation the judge ran under.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -164,7 +172,6 @@ CASES_DIR="$AUDIT_DIR/cases"
 # The models each case lists, which its verdict must name exactly.
 MANIFEST="$AUDIT_DIR/cases.jsonl"
 [ -f "$MANIFEST" ] || { echo "missing $MANIFEST — run audit-prepare first" >&2; exit 1; }
-SCHEMA_JSON=$(cat "$SCHEMA")
 
 # The desktop login only by Max's explicit opt-in (see the header).
 DESKTOP_OPT_IN=0
@@ -352,15 +359,21 @@ case_ok() {
 # emit the provenance sidecar.
 extract_verdict() {
   case_dir="$1"; out_tmp="$2"; meta_tmp="$3"; judged="$4"; judged_sha="$5"
+  judge_schema="$6"
   "$PYTHON" - "$case_dir" "$out_tmp" "$meta_tmp" "$MODEL" "$CLI_VERSION" \
     "$CONFIG_DIR" "$AUTH" "$DECLARED" "$DISALLOWED" "$ATTACHMENTS" \
-    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" <<'PY'
+    "$EFFORT" "$judged" "$judged_sha" "$PROMPT_NUDGE" "$EVENT_TYPES" \
+    "$SCRIPT_DIR" "$judge_schema" <<'PY'
 import datetime, glob, hashlib, json, re, shutil, sys
 from pathlib import Path
 
 (case_dir, out_path, meta_path, requested_model, cli_version, config_dir, auth,
  declared, disallowed, attachments, effort, judged_path, judged_sha,
- nudge, event_types) = sys.argv[1:16]
+ nudge, event_types, script_dir, judge_schema) = sys.argv[1:18]
+# The judge template versions, from this runner's own checkout.
+sys.path.insert(0, str(Path(script_dir).resolve().parent))
+from policybench.judge_template import template_version_of
+
 case = Path(case_dir)
 try:
     envelope = json.load(open(case / "claude.json"))
@@ -597,6 +610,11 @@ meta = {
     "verdict_sha256": hashlib.sha256(verdict_bytes).hexdigest(),
     # The exact bytes the judge read on stdin, hashed before it ran.
     "prompt_sha256": judged_sha,
+    # The exact UTF-8 bytes passed to the CLI's --json-schema for this case.
+    "judge_schema_sha256": hashlib.sha256(judge_schema.encode("utf-8")).hexdigest(),
+    # The judge template those bytes begin with (policybench.judge_template),
+    # or null for a prompt audit-prepare did not render.
+    "judge_template_version": template_version_of(judged),
     "judge_model_requested": requested_model,
     "judge_model_reported": sorted((envelope.get("modelUsage") or {}).keys()),
     "judge_cli_version": cli_version,
@@ -631,9 +649,35 @@ classify_one() {
   [ -f "$prompt" ] || return 0
   case_ok "$out" "$name" 2>/dev/null && return 0
   # No valid verdict: any sidecar left behind describes a verdict that no
-  # longer exists (re-prepared case) and must not outlive it.
-  rm -f "$tmp" "$meta_tmp" "$envelope" "$case_dir/verdict.meta.json" \
+  # longer exists (re-prepared case) and must not outlive it. An invalid
+  # verdict.json goes too, so no verdict sits beside this run's sidecar until
+  # this run's verdict is published: audit-prepare removes a sidecar only
+  # together with the verdict it describes.
+  rm -f "$tmp" "$meta_tmp" "$envelope" "$out" "$case_dir/verdict.meta.json" \
     "$case_dir/claude.transcript.jsonl"
+  case_schema_json=$("$PYTHON" - "$SCRIPT_DIR" "$SCHEMA" "$MANIFEST" "$name" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from validate_verdict import manifest_wrong_models
+
+schema = json.loads(Path(sys.argv[2]).read_text())
+wrong_models = manifest_wrong_models(Path(sys.argv[3])).get(sys.argv[4])
+# A case absent from the manifest keeps the base schema; case_ok refuses it.
+if wrong_models is not None:
+    models = schema["properties"]["models"]
+    models["minItems"] = models["maxItems"] = len(wrong_models)
+    models["items"]["properties"]["model"]["enum"] = wrong_models
+    # Bounds and enum still allow duplicate IDs. coverage_errors after
+    # extraction remains the authority that requires each listed model once.
+print(json.dumps(schema))
+PY
+  ) || {
+    echo "[FAIL] $name (could not build the case schema)"
+    return 0
+  }
   work=$(mktemp -d "${TMPDIR:-/tmp}/pb-judge.XXXXXX") || {
     echo "[FAIL] $(basename "$case_dir") (no scratch directory)"
     return 0
@@ -661,11 +705,12 @@ classify_one() {
     return 0
   fi
   # Self-contained prompt on stdin, no tools, no project instructions; the
-  # schema enforces the JSON shape. Publish atomically only once it validates.
+  # schema enforces the JSON shape, model count and IDs. Publish atomically
+  # only once the verdict also passes the coverage check after extraction.
   ( cd "$work" && claude_child -p \
       --model "$MODEL" \
       --output-format json \
-      --json-schema "$SCHEMA_JSON" \
+      --json-schema "$case_schema_json" \
       --tools "" \
       --disallowedTools "$DISALLOWED" \
       --strict-mcp-config \
@@ -675,13 +720,17 @@ classify_one() {
       < "$judged" > "$envelope" 2> "$case_dir/claude.log" )
   rmdir "$work" 2>/dev/null || echo "[warn] $(basename "$case_dir"): the judge left files in $work"
   extract_verdict "$case_dir" "$tmp" "$meta_tmp" "$judged" "$judged_sha" \
-    2>> "$case_dir/claude.log"
+    "$case_schema_json" 2>> "$case_dir/claude.log"
   extracted=$?
   rm -f "$judged"
   if [ "$extracted" = 0 ] && verdict_ok "$tmp"; then
     if problem=$(case_ok "$tmp" "$name" 2>&1); then
-      mv -f "$tmp" "$out"
+      # The sidecar first: an interrupted publish leaves at most a sidecar
+      # without a verdict, which the next run removes, and never a verdict
+      # without its sidecar, which audit-prepare would read as a legacy v1
+      # verdict with no record of the bytes its judge read.
       mv -f "$meta_tmp" "$case_dir/verdict.meta.json"
+      mv -f "$tmp" "$out"
       echo "[ok] $name"
     else
       # Answered, but not for this case's models: pending, and the run goes on.

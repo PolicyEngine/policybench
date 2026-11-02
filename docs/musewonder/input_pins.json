@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "musewonder": {
+      "run": "musewonder-runs/musewonder/run",
+      "sha256": {
+        "predictions.csv": "2e0eddd68fdd39201f564ed07d485329e13a80450881a3bad63d24f726380d6a",
+        "run_state.json": "2a619b8178422df280a419255c3451e7ce7a05336710bdd3d68adffbfee267f6"
+      }
+    }
+  },
+  "note": "The sha256 of Muse Wonder's supervised run files as the run finished, written by scripts/finish_musewonder.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}

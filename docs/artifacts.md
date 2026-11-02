@@ -52,7 +52,7 @@ sha256 is its integrity check. `--dry-run` validates and writes the pointer
 without uploading. The command creates the release before its PR merges and
 does not mark it Latest. GitHub puts the new tag on main as it stands then;
 when the PR merges, the Seal release workflow moves the tag to the merge
-commit and marks the release Latest (`docs/runbook.md`, section 8).
+commit and marks the release Latest (`docs/runbook.md`, section 9).
 
 ## Consuming
 

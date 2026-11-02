@@ -103,7 +103,7 @@ def publish_dashboard(
             # Vercel download the asset the PR's pointer names. GitHub puts the
             # new tag on main as it stands now; the Seal release workflow moves
             # it to the release PR's merge commit and marks the release Latest
-            # (docs/runbook.md, section 8). Until then it is not Latest.
+            # (docs/runbook.md, section 9). Until then it is not Latest.
             _run_gh(
                 [
                     "release",
