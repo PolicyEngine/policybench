@@ -31,9 +31,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     # Serially, the test job on main took 29.5 minutes at b0c8f2e and hit
-    # this limit at ec5413c (2026-11-02). In parallel, with -n auto, it took
-    # 12.7, 12.5 and 16.2 minutes (run 41490222217). Fail a hung job instead
-    # of holding a shared runner for GitHub's 6-hour default.
+    # this limit at ec5413c (2026-11-02). In parallel it took 12.3 minutes
+    # with -n logical (4 workers, run 41526298328), and 12.5 to 16.2 minutes
+    # in three attempts with -n auto (run 41490222217). Fail a hung job
+    # instead of holding a shared runner for GitHub's 6-hour default.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6

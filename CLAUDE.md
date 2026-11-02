@@ -28,6 +28,8 @@ ruff format .             # Format
 ## Testing
 - All tests mock external calls (LiteLLM, PE-US API)
 - `pytest -m "not slow"` to skip slow tests
+- `pytest -m "not slow" -n 4 --dist loadfile` to split them across four workers (CI starts one per CPU)
+- Some tests read git history, so run the suite from a full clone (`git fetch --unshallow`)
 - Full benchmark runs are manual and expensive
 
 ## Formatting
