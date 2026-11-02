@@ -1035,8 +1035,11 @@ def test_canonical_amounts_are_a_us_step():
         canonical_us_scenario(scenario)
 
 
-def _household_rows(household_id, dependent_inputs=None, weight=1.0, **head_inputs):
-    """A head and one dependent; each row a person in a one-unit household."""
+def _household_rows(
+    household_id, dependent_inputs=None, weight=1.0, spouse_inputs=None, **head_inputs
+):
+    """A head and one dependent, and a spouse when ``spouse_inputs`` is given;
+    each row a person in a one-unit household."""
     common = {
         "household_id": household_id,
         "tax_unit_id": household_id,
@@ -1045,10 +1048,10 @@ def _household_rows(household_id, dependent_inputs=None, weight=1.0, **head_inpu
         "marital_unit_id": household_id,
         "household_weight": weight,
         "state_code": "PA",
-        "filing_status": "HEAD_OF_HOUSEHOLD",
+        "filing_status": "HEAD_OF_HOUSEHOLD" if spouse_inputs is None else "JOINT",
         DEPENDENT_GROSS_INCOME_COLUMN: 0.0,
     }
-    return [
+    rows = [
         {
             **common,
             "person_id": household_id * 10,
@@ -1065,6 +1068,18 @@ def _household_rows(household_id, dependent_inputs=None, weight=1.0, **head_inpu
             **(dependent_inputs or {}),
         },
     ]
+    if spouse_inputs is not None:
+        rows.append(
+            {
+                **common,
+                "person_id": household_id * 10 + 2,
+                "age": 38,
+                "employment_income": 0.0,
+                "is_tax_unit_spouse": True,
+                **spouse_inputs,
+            }
+        )
+    return rows
 
 
 def _frame(*households):
@@ -1095,20 +1110,62 @@ def test_a_dependent_with_return_income_drops_the_household():
         _household_rows(7, {"debt_relief": 500.0}),
         _household_rows(8, {"illicit_income": 500.0}),
         _household_rows(9, {"military_retirement_pay_survivors": 500.0}),
+        # Not gross income, but net earnings from self-employment of $400
+        # require a return (26 U.S.C. 6017; review r3).
+        _household_rows(10, {"partnership_self_employment_net_earnings": 400.0}),
+        # A part of long-term gains, which the prompt prints on its own line.
+        _household_rows(11, {"schedule_d_capital_gain_distributions": 500.0}),
     )
     assert _drawn(frame, 1, head_spouse_returns_only=True) == {1}
     with pytest.raises(ValueError, match="only 1 eligible"):
         _drawn(frame, 2, head_spouse_returns_only=True)
 
 
+@pytest.mark.parametrize(
+    "part",
+    [
+        # Parts of long-term gains.
+        "collectibles_gain_or_loss",
+        "long_term_capital_gains_on_collectibles",
+        "long_term_capital_gains_on_small_business_stock",
+        "schedule_d_capital_gain_distributions",
+        "section_1202_gain",
+        # Parts of wages.
+        "fsla_overtime_premium",
+        "ga_rla_hourly_component_overtime",
+        "total_disability_payments",
+        # Parts of partnership, S corporation and estate income.
+        "eitc_passive_income_also_in_earned_income",
+        "passive_estate_income",
+        "passive_partnership_s_corp_income",
+        "s770_active_fica_income",
+        "s770_passive_se_income",
+    ],
+)
+def test_a_dependents_part_of_a_listed_income_drops_the_household(part):
+    """The prompt prints each part of a listed income on a line of its own, so
+    a record that holds the part without the whole still shows the dependent
+    with income (review r3)."""
+    frame = _frame(_household_rows(1), _household_rows(2, {part: 500.0}))
+    assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {2}
+
+
 def test_transfers_to_a_dependent_keep_the_household():
     frame = _frame(
         _household_rows(1, {"social_security_survivors": 8_000.0}),
         _household_rows(2, {"child_support_received": 3_000.0}),
-        # The head's income never counts, however large.
+        # The head's income never counts, however large,
         _household_rows(3, taxable_interest_income=90_000.0),
+        # and nor does the spouse's, which the joint return holds (review r3).
+        _household_rows(
+            4,
+            spouse_inputs={
+                "employment_income": 40_000.0,
+                "self_employment_income": -2_000.0,
+            },
+        ),
     )
-    assert _drawn(frame, 3, head_spouse_returns_only=True) == {1, 2, 3}
+    assert _drawn(frame, 4, head_spouse_returns_only=True) == {1, 2, 3, 4}
 
 
 def test_the_filter_reads_amounts_as_the_prompt_prints_them():
@@ -1245,15 +1302,31 @@ RETURN_INCOME = sorted(
 )
 
 
-@settings(deadline=None, max_examples=25)
+AMOUNTS = st.tuples(
+    st.sampled_from(RETURN_INCOME), st.floats(min_value=-1e6, max_value=1e6)
+)
+
+
+@settings(deadline=None, max_examples=40)
 @given(
     st.lists(
         st.one_of(
             st.none(),
-            st.tuples(
-                st.sampled_from(RETURN_INCOME),
-                st.floats(min_value=-1e6, max_value=1e6),
-                st.one_of(st.just(0.0), st.floats(min_value=0, max_value=1e5)),
+            st.fixed_dictionaries(
+                {
+                    "income": st.one_of(st.none(), AMOUNTS),
+                    "social_security": st.dictionaries(
+                        st.sampled_from(SOCIAL_SECURITY_FIELDS),
+                        st.floats(min_value=0, max_value=60_000),
+                        max_size=2,
+                    ),
+                    "engine": st.one_of(
+                        st.just(0.0),
+                        st.just(float("nan")),
+                        st.floats(min_value=0, max_value=1e5),
+                    ),
+                    "spouse": st.one_of(st.none(), AMOUNTS),
+                }
             ),
         ),
         min_size=1,
@@ -1261,28 +1334,51 @@ RETURN_INCOME = sorted(
     ),
     st.integers(min_value=0, max_value=2**31),
 )
-def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed):
+def test_no_drawn_household_has_a_dependent_with_return_income(households, seed):
     """Invariant: the filter removes exactly the households with a dependent
-    whose listed income or loss prints as other than $0, or whom the engine
-    gives gross income, so every draw from the rest holds none."""
-    households = [
-        _household_rows(
-            index,
-            None
-            if entry is None
-            else {entry[0]: entry[1], DEPENDENT_GROSS_INCOME_COLUMN: entry[2]},
+    whose listed income or loss prints as other than $0, whose Social Security
+    prints above $50,000 in all, or whom the engine gives gross income or no
+    count; a spouse's income never counts (review r3). Every draw from the
+    rest holds none of them."""
+
+    def rows(index, entry):
+        if entry is None:
+            return _household_rows(index)
+        dependent = {
+            **entry["social_security"],
+            DEPENDENT_GROSS_INCOME_COLUMN: entry["engine"],
+        }
+        if entry["income"] is not None:
+            dependent[entry["income"][0]] = entry["income"][1]
+        spouse = None if entry["spouse"] is None else dict([entry["spouse"]])
+        return _household_rows(index, dependent, spouse_inputs=spouse)
+
+    def drops(entry):
+        if entry is None:
+            return False
+        income = entry["income"] is not None and (
+            round_us_prompt_amount(entry["income"][1]) != 0
         )
-        for index, entry in enumerate(dependents, start=1)
-    ] + [_household_rows(99)]
-    frame = _frame(*households)
+        benefits = sum(
+            round_us_prompt_amount(amount)
+            for amount in entry["social_security"].values()
+        )
+        # A missing (NaN) count is not 0, so it drops the household.
+        return (
+            income
+            or benefits > DEPENDENT_SOCIAL_SECURITY_LIMIT
+            or not entry["engine"] == 0
+        )
+
+    frame = _frame(
+        *(rows(index, entry) for index, entry in enumerate(households, start=1)),
+        _household_rows(99),
+    )
     flagged = _households_with_dependent_return_income(_prepare_cps_frame(frame))
     assert flagged == {
-        index
-        for index, entry in enumerate(dependents, start=1)
-        if entry is not None
-        and (round_us_prompt_amount(entry[1]) != 0 or entry[2] != 0)
+        index for index, entry in enumerate(households, start=1) if drops(entry)
     }
-    clean = len(dependents) + 1 - len(flagged)
+    clean = len(households) + 1 - len(flagged)
     drawn = scenarios_from_cps_frame(
         frame, n=clean, seed=seed, head_spouse_returns_only=True
     )

@@ -160,10 +160,21 @@ def situation_for(scenario) -> dict:
     return situation
 
 
-def dependents_with_gross_income(scenarios, system) -> list[str]:
-    """Each person other than the head or spouse whom ``system`` gives gross
-    income as a dependent, as "scenario person $amount". d1029's filter drops
-    such households before the draw, so a build stops if any remain."""
+# The engine's own measures of a dependent's income that can require a return:
+# gross income as a dependent, and net earnings from self-employment, which
+# require a return from $400 (26 U.S.C. 6017) though partnership earnings are
+# not gross income (review r3).
+RETURN_INCOME_MEASURES = (
+    ("gross income", "dependent_gross_income"),
+    ("self-employment earnings", "taxable_self_employment_income"),
+)
+
+
+def dependents_with_return_income(scenarios, system) -> list[str]:
+    """Each person other than the head or spouse whom ``system`` gives income
+    that can require a return of their own, as "scenario person measure
+    $amount". d1029's filter drops such households before the draw, so a build
+    stops if any remain."""
     from policyengine_us import Simulation
 
     found = []
@@ -171,12 +182,15 @@ def dependents_with_gross_income(scenarios, system) -> list[str]:
         simulation = Simulation(
             tax_benefit_system=system, situation=situation_for(scenario)
         )
-        for person, amount in zip(
-            simulation.populations["person"].ids,
-            simulation.calculate("dependent_gross_income", YEAR),
-        ):
-            if amount != 0:
-                found.append(f"{scenario.id} {person} ${float(amount):,.2f}")
+        people = simulation.populations["person"].ids
+        head_or_spouse = simulation.calculate("is_tax_unit_head_or_spouse", YEAR)
+        for measure, variable in RETURN_INCOME_MEASURES:
+            amounts = simulation.calculate(variable, YEAR)
+            for person, counted, amount in zip(people, head_or_spouse, amounts):
+                if not counted and amount != 0:
+                    found.append(
+                        f"{scenario.id} {person} {measure} ${float(amount):,.2f}"
+                    )
     return found
 
 
@@ -402,11 +416,11 @@ def command_build(args) -> None:
         canonical_us_scenario(scenario)
         for scenario in rename_scenarios(sampled, args.id_prefix)
     ]
-    with_income = dependents_with_gross_income(scenarios, system)
+    with_income = dependents_with_return_income(scenarios, system)
     if with_income:
         raise SystemExit(
-            "the draw kept dependents with gross income, which d1029's filter "
-            "should have dropped: " + "; ".join(with_income)
+            "the draw kept dependents with income that can require a return, "
+            "which d1029's filter should have dropped: " + "; ".join(with_income)
         )
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
     references = compute_references(scenarios, programs, system)

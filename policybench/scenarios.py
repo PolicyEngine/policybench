@@ -276,9 +276,9 @@ MONETARY_INCOME_FIELDS = {
 # the inputs produce together, such as state unemployment insurance modeled
 # from base-period wages (Sol review r2). That catches the dependents who must
 # file and some who need not. household_set.py build refuses a draw whose
-# references still give a dependent gross income. Child support, SSI,
-# veterans' benefits and workers' compensation are never gross income; Social
-# Security follows its own rule.
+# references still give a dependent gross income or net earnings from
+# self-employment. Child support, SSI, veterans' benefits and workers'
+# compensation are never gross income; Social Security follows its own rule.
 SOCIAL_SECURITY_FIELDS = (
     "social_security_dependents",
     "social_security_disability",
@@ -302,23 +302,47 @@ DEPENDENT_SOCIAL_SECURITY_LIMIT = 50_000
 # The frame column holding the engine's own count of each person's gross income
 # as a dependent (policyengine-us's dependent_gross_income).
 DEPENDENT_GROSS_INCOME_COLUMN = "engine_dependent_gross_income"
+# The list holds every input the engine turns into a dependent's gross income
+# or net earnings from self-employment; a test gives a dependent each promptable
+# input in turn and checks this. Partnership self-employment earnings are not
+# gross income, but net earnings of $400 or more require a return (26 U.S.C.
+# 6017), and the engine taxes them on the dependent (review r3). The list also
+# holds each part of a listed income that the prompt prints on a line of its
+# own, such as capital gain distributions or an overtime premium. A record can
+# hold the part without the whole, and the prompt then prints income that the
+# reference ignores: on policyengine-us 2.41.0's certified frame, two kept
+# households print a dependent's capital gain distributions with no long-term
+# gains.
 DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIELDS) | {
+    "collectibles_gain_or_loss",
     "csrs_retirement_pay",
     "debt_relief",
+    "eitc_passive_income_also_in_earned_income",
+    "fsla_overtime_premium",
+    "ga_rla_hourly_component_overtime",
     "gambling_winnings",
     "illicit_income",
     "keogh_distributions",
+    "long_term_capital_gains_on_collectibles",
+    "long_term_capital_gains_on_small_business_stock",
     "military_basic_pay",
     "military_retirement_pay",
     "military_retirement_pay_survivors",
     "military_service_income",
     "non_sch_d_capital_gains",
     "partnership_income",
+    "partnership_self_employment_net_earnings",
+    "passive_estate_income",
+    "passive_partnership_s_corp_income",
     "pension_survivors",
     "pfml_benefits",
     "qualified_bdc_income",
     "qualified_reit_and_ptp_income",
+    "s770_active_fica_income",
+    "s770_passive_se_income",
     "s_corp_income",
+    "schedule_d_capital_gain_distributions",
+    "section_1202_gain",
     "sstb_self_employment_income_before_lsr",
     "state_or_federal_salary",
     "strike_benefits",
@@ -327,6 +351,7 @@ DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIE
     "taxable_public_pension_income",
     "taxable_roth_conversions",
     "tip_income",
+    "total_disability_payments",
 }
 
 BASE_PERSON_COLUMNS = {
