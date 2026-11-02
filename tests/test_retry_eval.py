@@ -196,3 +196,86 @@ def test_run_retry_round_with_no_targets_writes_merged_copy(tmp_path):
     assert merged["error"].isna().all()
     assert list(accepted.columns) == ["model", "scenario_id"]
     assert list(rejected.columns) == ["model", "scenario_id", "reason"]
+
+
+def test_run_retry_models_hands_all_models_one_provenance_file(tmp_path, monkeypatch):
+    """A retry round writes PolicyEngine provenance once, at its root, and
+    every model's chunk workers get that file."""
+    import json
+
+    from policybench.config import DEFAULT_PROGRAM_SET, get_programs
+    from policybench.policyengine_runtime import (
+        POLICYENGINE_PROVENANCE_ENV,
+        POLICYENGINE_PROVENANCE_FILENAME,
+    )
+    from policybench.retry_eval import run_retry_models
+    from policybench.spec import expand_programs_for_scenario
+    from tests.test_chunked_eval import (
+        MOCK_BUNDLES,
+        _complete_chunk_writer,
+        _probe_scenarios,
+        _write_manifest,
+    )
+
+    scenarios = _probe_scenarios(3)
+    manifest = _write_manifest(tmp_path / "scenarios.csv", scenarios)
+    programs = get_programs("us", DEFAULT_PROGRAM_SET)
+    models = ["gpt-5.5", "grok-4.3"]
+    source = tmp_path / "predictions.csv"
+    pd.DataFrame(
+        [
+            {
+                "model": model,
+                "scenario_id": scenario.id,
+                "variable": variable,
+                "prediction": None,
+                "explanation": "",
+                "error": "Missing predictions after repair",
+            }
+            for model in models
+            for scenario in scenarios
+            for variable in expand_programs_for_scenario(programs, scenario)
+        ]
+    ).to_csv(source, index=False)
+    preparation = prepare_retry_round(
+        country="us",
+        source_predictions=source,
+        scenario_manifest=manifest,
+        output_dir=tmp_path / "retry",
+    )
+    writes = []
+
+    def fake_writer(python, path, countries, env, **kwargs):
+        writes.append(Path(path))
+        bundles = {country: MOCK_BUNDLES[country] for country in countries}
+        Path(path).write_text(json.dumps({"policyengine_bundles": bundles}))
+        return True
+
+    monkeypatch.setattr(
+        "policybench.chunked_eval.run_policyengine_provenance_writer", fake_writer
+    )
+    chunk_calls = []
+    monkeypatch.setattr(
+        "policybench.chunked_eval.run_chunk",
+        _complete_chunk_writer(scenarios, chunk_calls),
+    )
+
+    run_retry_models(
+        preparation=preparation,
+        country="us",
+        chunk_size=1,
+        parallel=2,
+        model_parallel=2,
+    )
+
+    path = (tmp_path / "retry" / POLICYENGINE_PROVENANCE_FILENAME).resolve()
+    assert writes == [path]
+    assert len(chunk_calls) == 6
+    assert {call["env"][POLICYENGINE_PROVENANCE_ENV] for call in chunk_calls} == {
+        str(path)
+    }
+    assert not list(
+        (tmp_path / "retry" / "model_runs").glob(
+            f"*/{POLICYENGINE_PROVENANCE_FILENAME}"
+        )
+    )

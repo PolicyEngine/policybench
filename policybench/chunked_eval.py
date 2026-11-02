@@ -1,9 +1,21 @@
-"""Chunked, resumable orchestration for no-tools model evaluations."""
+"""Chunked, resumable orchestration for no-tools model evaluations.
+
+Each chunk runs in its own ``python -m policybench.cli eval-no-tools``
+subprocess, whose resume sidecar records ``policyengine_bundles``. An
+invocation computes those bundles once, in a fresh interpreter, into
+``<output_dir>/policyengine_provenance.json`` and hands the file to its chunk
+workers through ``POLICYBENCH_POLICYENGINE_PROVENANCE`` (see
+:class:`PolicyEngineProvenanceHandoff`), so a worker that only calls an LLM
+does not import policyengine.
+"""
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import threading
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +23,13 @@ from pathlib import Path
 import pandas as pd
 
 from policybench.config import DEFAULT_PROGRAM_SET, MODELS, get_programs
-from policybench.eval_no_tools import is_infrastructure_error_text
+from policybench.eval_no_tools import _scenario_countries, is_infrastructure_error_text
+from policybench.policyengine_runtime import (
+    POLICYENGINE_PROVENANCE_ENV,
+    POLICYENGINE_PROVENANCE_FILENAME,
+    read_written_policyengine_bundles,
+    run_policyengine_provenance_writer,
+)
 from policybench.scenarios import load_scenarios_from_manifest
 from policybench.spec import expand_programs_for_scenario
 from policybench.spend_ledger import (
@@ -28,6 +46,79 @@ class ScenarioChunk:
     start: int
     end: int
     path: Path
+
+
+class PolicyEngineProvenanceHandoff:
+    """PolicyEngine provenance computed at most once for an invocation's chunks.
+
+    The first :meth:`worker_env` call writes
+    ``<output_dir>/policyengine_provenance.json`` from a fresh interpreter, as
+    the supervisor does for its run; every call returns the environment for a
+    chunk worker, pointing at the file once it was written and read back.
+    Workers reuse the file only when its fingerprint equals their own and
+    compute the bundles themselves otherwise, as they did before the file
+    existed. Nothing is written until a chunk needs to run, so a pass that
+    only merges finished chunks does not import policyengine.
+
+    Unlike the supervisor, an earlier file is not deleted before writing,
+    because the runbook runs several invocations on one output dir at once.
+    The writer replaces it atomically, and this invocation hands it on only
+    after its own writer succeeded. Another invocation can still replace or
+    remove the file while this one's workers run (a writer whose own check
+    fails removes it); a worker that then finds it missing or written for a
+    different environment computes the bundles itself.
+    """
+
+    def __init__(self, output_dir: str | Path, *, python: str | None = None):
+        self.path = (Path(output_dir) / POLICYENGINE_PROVENANCE_FILENAME).resolve()
+        # The interpreter run_chunk starts; the fingerprint records it.
+        self.python = python or sys.executable
+        self.countries: list[str] | None = None
+        self.bundles: dict | None = None
+        self._lock = threading.Lock()
+
+    def worker_env(self, countries: Iterable[str]) -> dict[str, str]:
+        """Environment for chunk workers whose scenarios cover ``countries``.
+
+        Thread-safe: model threads share one handoff, and the first caller
+        writes the file while the others wait for it.
+        """
+        wanted = sorted({country.lower() for country in countries})
+        # Only a file this invocation wrote may reach its workers.
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key != POLICYENGINE_PROVENANCE_ENV
+        }
+        with self._lock:
+            if self.countries is None:
+                self.countries = wanted
+                self.bundles = self._write(wanted, dict(env))
+                if self.bundles is None:
+                    print(
+                        "PolicyEngine provenance not handed off; chunk workers "
+                        "compute it themselves."
+                    )
+                else:
+                    print(f"PolicyEngine provenance for chunk workers: {self.path}")
+        if self.bundles is not None and wanted == self.countries:
+            env[POLICYENGINE_PROVENANCE_ENV] = str(self.path)
+        return env
+
+    def _write(self, countries: list[str], env: dict[str, str]) -> dict | None:
+        # Each worker computes its chunk's countries in a fresh process, and
+        # which branch records the US bundle can depend on what the same
+        # process looked up first, so, as for supervised runs, only
+        # single-country chunks are handed a file. eval-no-tools rejects a
+        # manifest whose scenarios differ from --country, so every chunk of a
+        # runnable invocation is single-country.
+        if len(countries) != 1:
+            return None
+        if not run_policyengine_provenance_writer(
+            self.python, self.path, countries, env
+        ):
+            return None
+        return read_written_policyengine_bundles(self.path, countries)
 
 
 def expected_rows(*, scenario_program_counts: list[int]) -> int:
@@ -107,6 +198,7 @@ def run_chunk(
     end: int,
     include_explanations: bool,
     single_output: bool,
+    env: dict[str, str] | None = None,
 ) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -136,7 +228,7 @@ def run_chunk(
     if single_output:
         cmd.append("--single-output")
 
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, env=env)
 
 
 def run_chunk_with_retries(
@@ -153,6 +245,7 @@ def run_chunk_with_retries(
     single_output: bool,
     scenario_program_counts: list[int],
     attempts: int = 1,
+    env: dict[str, str] | None = None,
 ) -> None:
     if attempts <= 0:
         raise ValueError("attempts must be positive.")
@@ -171,6 +264,7 @@ def run_chunk_with_retries(
                 end=end,
                 include_explanations=include_explanations,
                 single_output=single_output,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             last_error = exc
@@ -258,7 +352,13 @@ def run_model_chunks(
     chunk_attempts: int = 1,
     include_explanations: bool = True,
     single_output: bool = False,
+    provenance: PolicyEngineProvenanceHandoff | None = None,
 ) -> Path:
+    """Run a model's pending chunks, then merge its chunks into one CSV.
+
+    ``provenance`` is shared by every model of one invocation; without one,
+    this call hands its own chunk workers a file in ``output_dir``.
+    """
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive.")
     if parallel <= 0:
@@ -302,6 +402,11 @@ def run_model_chunks(
         f"{country} {model}: {scenario_count} scenarios, "
         f"{len(chunks)} chunks, {len(pending)} pending"
     )
+    worker_env = None
+    if pending:
+        if provenance is None:
+            provenance = PolicyEngineProvenanceHandoff(output_dir)
+        worker_env = provenance.worker_env(_scenario_countries(scenarios))
 
     if pending and parallel == 1:
         for chunk in pending:
@@ -320,6 +425,7 @@ def run_model_chunks(
                     chunk.start : chunk.end
                 ],
                 attempts=chunk_attempts,
+                env=worker_env,
             )
     elif pending:
         with ThreadPoolExecutor(max_workers=parallel) as executor:
@@ -340,6 +446,7 @@ def run_model_chunks(
                         chunk.start : chunk.end
                     ],
                     attempts=chunk_attempts,
+                    env=worker_env,
                 )
                 for chunk in pending
             ]
@@ -391,6 +498,7 @@ def run_chunked_eval(
             "stay on the main thread for wall-timeout enforcement. Run these "
             f"models separately: {', '.join(serial_models)}."
         )
+    provenance = PolicyEngineProvenanceHandoff(output_dir)
 
     def run_one_model(model: str) -> Path:
         return run_model_chunks(
@@ -404,6 +512,7 @@ def run_chunked_eval(
             chunk_attempts=chunk_attempts,
             include_explanations=include_explanations,
             single_output=single_output,
+            provenance=provenance,
         )
 
     if model_parallel == 1:
