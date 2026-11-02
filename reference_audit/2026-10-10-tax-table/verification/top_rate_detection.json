@@ -1,0 +1,14 @@
+{
+  "hypothesis": "6.168.3",
+  "fault": "the top rate is 39 percent",
+  "runs_per_generator": 40,
+  "examples_per_run": 1000,
+  "seeds": [
+    0,
+    39
+  ],
+  "runs_that_missed_the_fault": {
+    "cents": 13,
+    "dollars_and_cents": 0
+  }
+}

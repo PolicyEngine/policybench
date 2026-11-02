@@ -86,8 +86,8 @@ VERSIONS = Path("app/src/data.versions.json")
 STAGE_ROOT = Path("results/local")
 BOARD_MODELS = 46
 TOTAL_OUTPUTS = 1984
-# Fable 5 ran through the Anthropic batch adapter, whose rows carry no cost,
-# token or latency fields; release 20260930 carried its released values, and
+# Fable 5's board rows were rebuilt from release 20260701 without their cost,
+# token and latency fields; release 20260930 carried its released values, and
 # so does this release (scripts/finish_gpt61sol.py, CARRIED_USAGE).
 CARRIED_USAGE = {
     "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")
@@ -777,10 +777,19 @@ EXPORT_INPUTS = (
 )
 
 
-def export_payload(bundle: Path, base: dict, exclusions: Path | None = None) -> dict:
+def export_payload(
+    bundle: Path,
+    base: dict,
+    exclusions: Path | None = None,
+    *,
+    require_failure_annotations: bool = True,
+) -> dict:
     """export_full_run on a scratch copy of the bundle's export inputs, with
     Fable 5's usage carried from the base. ``exclusions`` substitutes another
-    exclusion record (the scope check rebuilds with the base's)."""
+    exclusion record (the scope check rebuilds with the base's). A scope
+    export whose annotations follow other references than the ones it scores
+    passes ``require_failure_annotations=False``; every release export keeps
+    the default."""
     from policybench.dashboard_schema import validate_dashboard_payload
     from policybench.full_run_export import export_full_run
 
@@ -799,7 +808,9 @@ def export_payload(bundle: Path, base: dict, exclusions: Path | None = None) -> 
         )
         for field in fields:
             row[field] = previous[model][field]
-    errors = validate_dashboard_payload(payload, require_failure_annotations=True)
+    errors = validate_dashboard_payload(
+        payload, require_failure_annotations=require_failure_annotations
+    )
     require(not errors, f"dashboard schema: {errors[:5]}")
     return payload
 

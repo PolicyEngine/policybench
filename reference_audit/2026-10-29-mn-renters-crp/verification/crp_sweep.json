@@ -1,0 +1,29 @@
+{
+  "question": "Which outputs move when every Minnesota tax unit sets mn_renters_credit_qualifying_crp to true?",
+  "engine": "policyengine-us 2.60.0",
+  "policyengine_core": "3.32.29",
+  "computed_at_utc": "2026-10-29T14:36:41Z",
+  "conventions": "reference_audit/2026-09-28/fixes/latest_final.py",
+  "harness": {
+    "path": "reference_audit/2026-09-28/scripts/sweep.py",
+    "sha256": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69"
+  },
+  "references": "reference_audit/2026-10-22-engine-upgrade/reference-build",
+  "minnesota_households": [
+    "scenario_032",
+    "scenario_122"
+  ],
+  "outputs_checked": 42,
+  "scored_outputs_checked": 41,
+  "baseline_mismatches": [],
+  "moved": [
+    {
+      "scenario_id": "scenario_122",
+      "variable": "state_refundable_credits",
+      "scored": true,
+      "reference": 0.0,
+      "as_built": 0.0,
+      "with_crp": 1921.0
+    }
+  ]
+}

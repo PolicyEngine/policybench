@@ -131,10 +131,26 @@ describe("dataset switching", () => {
       byEngine.set(version, (byEngine.get(version) ?? 0) + 1);
     }
     const engine = data.policyengineBundles?.us?.model_version as string;
-    const [older] = [...byEngine.keys()].filter((version) => version !== engine);
+    // Oldest engine first, as the sentence lists them.
+    const groups = [...byEngine.entries()]
+      .sort(([a], [b]) => {
+        const left = a.split(".").map(Number);
+        const right = b.split(".").map(Number);
+        for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+          const diff = (left[i] ?? 0) - (right[i] ?? 0);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      })
+      .map(([version, count], index) =>
+        index === 0
+          ? `${count} computed with policyengine-us ${version}`
+          : `${count} with ${version}`,
+      );
+    expect(groups.length).toBeGreaterThanOrEqual(2);
     const html = render("1.1").replaceAll("&#x27;", "'");
     expect(html).toContain(
-      `The ${exclusions.length} excluded outputs keep the values they were decided on (${byEngine.get(older)} computed with policyengine-us ${older}, ${byEngine.get(engine)} with ${engine})`,
+      `The ${exclusions.length} excluded outputs keep the values they were decided on (${groups.join(", ")})`,
     );
     expect(html).toContain(`that move on ${engine}; all`);
     expect(render("1.0")).not.toContain("excluded outputs keep the values");

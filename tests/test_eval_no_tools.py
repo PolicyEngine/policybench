@@ -7,10 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import litellm
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from policybench.config import (
     COUNTRY_PROGRAMS,
     GPT_56_MODELS,
+    GPT_RESPONSES_MODELS,
     MODELS,
     PRICE_OVERRIDES_PER_1M,
 )
@@ -23,6 +26,7 @@ from policybench.eval_no_tools import (
     _combined_cost_is_estimated,
     _completion_controls,
     _enforce_explanation_value_contract,
+    _gpt_responses_cache_rates,
     _reconstruct_token_cost,
     _request_explanations_once,
     _request_timeout_seconds,
@@ -436,7 +440,7 @@ def test_no_tools_prompt_supports_uk_households(uk_scenario):
     assert "head:" not in prompt_lower
     assert "household total annual uk income tax liability" in prompt_lower
     assert "excluding capital gains tax" in prompt_lower
-    assert "tenure: rent privately" in prompt_lower
+    assert "tenure: renting privately" in prompt_lower
     assert "£42,000" in prompt
     assert "£14,400" in prompt
     assert "currency amount" in prompt_lower
@@ -3041,6 +3045,398 @@ def test_claude_haiku_5_5_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
+def test_local_claude_registration_works_without_the_remote_cost_map():
+    """With litellm's remote cost map off (LITELLM_LOCAL_MODEL_COST_MAP), its
+    bundled backup lacks the newest Claude ids, and importing eval_no_tools
+    must register each at the configured override prices. The parametrized
+    test above reads the already-loaded map, which the remote fetch can fill,
+    so it cannot fail when a local entry is missing; this one runs a fresh
+    interpreter where only the local registration can supply the entry."""
+    import subprocess
+    import sys
+
+    code = """
+import json, os
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+import litellm
+from policybench.config import MODELS, PRICE_OVERRIDES_PER_1M
+newest = ("claude-haiku-5-5", "claude-sonnet-5-5")
+missing = [m for m in newest if m in litellm.model_cost]
+import policybench.eval_no_tools as harness
+out = {"bundled_already": missing, "models": {}}
+for display in harness._LOCAL_CLAUDE_MODELS:
+    entry = litellm.model_cost.get(MODELS[display])
+    prices = PRICE_OVERRIDES_PER_1M[display]
+    out["models"][display] = entry is not None and all(
+        abs(entry[key] - prices[name] / 1e6) < 1e-15
+        for key, name in (
+            ("input_cost_per_token", "input"),
+            ("output_cost_per_token", "output"),
+            ("cache_read_input_token_cost", "cache_read"),
+            ("cache_creation_input_token_cost", "cache_write"),
+        )
+    ) and entry["litellm_provider"] == "anthropic"
+print("RESULT " + json.dumps(out))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=300
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    line = next(row for row in result.stdout.splitlines() if row.startswith("RESULT "))
+    out = json.loads(line.removeprefix("RESULT "))
+    # The premise: the bundled backup does not carry these ids, so the entries
+    # checked below can only come from the local registration.
+    assert out["bundled_already"] == []
+    assert "claude-haiku-5.5" in out["models"]
+    assert all(out["models"].values()), out["models"]
+
+
+def test_muse_spark_1_3_routes_through_openrouter_at_metas_standard_rate():
+    """Muse Spark 1.3 runs through OpenRouter, whose one endpoint for the id
+    is Meta's own, at Meta's standard-mode rate: $1.25 / $4.25 per 1M
+    input/output tokens and $0.15 cached input, at every prompt length. The
+    contributor-mode listing is a different endpoint and is not the board's."""
+    assert MODELS["muse-spark-1.3"] == "openrouter/meta/muse-spark-1.3"
+    assert PRICE_OVERRIDES_PER_1M["muse-spark-1.3"] == {
+        "input": 1.25,
+        "output": 4.25,
+        "cache_read": 0.15,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 1.25),
+        (0, 1_000_000, 0, 4.25),
+        (1_000_000, 1_000_000, 0, 5.50),
+        (1_000_000, 0, 1_000_000, 0.15),
+        (1_000_000, 0, 250_000, 0.975),
+        # The smoke's largest household: 2,080 prompt and 6,966 completion
+        # tokens, which Meta billed at $0.0322.
+        (2_080, 6_966, 0, 0.0322055),
+    ],
+)
+def test_muse_spark_1_3_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="muse-spark-1.3",
+        model_id="openrouter/meta/muse-spark-1.3",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_muse_wonder_routes_through_openrouter_at_metas_list_price():
+    """Muse Wonder runs through OpenRouter, whose one endpoint for the id is
+    Meta's own, at Meta's list price: $4 / $20 per 1M input/output tokens
+    and $0.20 cached input, at every prompt length."""
+    assert MODELS["muse-wonder"] == "openrouter/meta/muse-wonder"
+    assert PRICE_OVERRIDES_PER_1M["muse-wonder"] == {
+        "input": 4.0,
+        "output": 20.0,
+        "cache_read": 0.20,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 4.0),
+        (0, 1_000_000, 0, 20.0),
+        (1_000_000, 1_000_000, 0, 24.0),
+        (1_000_000, 0, 1_000_000, 0.20),
+        (1_000_000, 0, 250_000, 3.05),
+    ],
+)
+def test_muse_wonder_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="muse-wonder",
+        model_id="openrouter/meta/muse-wonder",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_gemini_4_argon_runs_first_party_at_googles_dated_rate():
+    """Gemini 4 Argon runs on the first-party Gemini API, like the other
+    Gemini rows, at the rate Google's pricing page lists through 2026-11-30:
+    $2 / $10 per 1M input/output tokens and $0.10 cached input, at every
+    prompt length (the page doubles all three from 2026-12-01)."""
+    assert MODELS["gemini-4-argon"] == "gemini/gemini-4-argon"
+    assert PRICE_OVERRIDES_PER_1M["gemini-4-argon"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.10,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 2.0),
+        (0, 1_000_000, 0, 10.0),
+        (1_000_000, 1_000_000, 0, 12.0),
+        (1_000_000, 0, 1_000_000, 0.10),
+        (1_000_000, 0, 250_000, 1.525),
+        # The gauntlet's whole-scenario probe used 2,619 completion tokens
+        # (reasoning included); the same request's prompt is 2,762 tokens in
+        # the harness probe. That is the card's $0.032.
+        (2_762, 2_619, 0, 0.031714),
+    ],
+)
+def test_gemini_4_argon_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="gemini-4-argon",
+        model_id="gemini/gemini-4-argon",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+@given(
+    prompt_tokens=st.integers(min_value=0, max_value=1_048_576),
+    completion_tokens=st.integers(min_value=0, max_value=131_072),
+    cached_share=st.floats(min_value=0.0, max_value=1.0),
+)
+def test_gemini_4_argon_cost_is_linear_in_tokens_and_bounded_by_the_cache_rates(
+    prompt_tokens, completion_tokens, cached_share
+):
+    """Invariants of the override's reconstruction: the cost is the sum of
+    uncached input at $2, cached input at $0.10 and output at $10 per 1M; it
+    is never negative; and it lies between the all-cached and the uncached
+    cost of the same call."""
+    cached = int(prompt_tokens * cached_share)
+
+    def cost(cached_prompt_tokens):
+        return _reconstruct_token_cost(
+            model_name="gemini-4-argon",
+            model_id="gemini/gemini-4-argon",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+        ).usd
+
+    expected = (
+        (prompt_tokens - cached) * 2.0 + cached * 0.10 + completion_tokens * 10.0
+    ) / 1_000_000
+    assert cost(cached) == pytest.approx(expected, abs=1e-12)
+    assert cost(cached) >= 0
+    assert cost(prompt_tokens) - 1e-12 <= cost(cached) <= cost(0) + 1e-12
+
+
+@pytest.mark.parametrize(
+    (
+        "prompt_tokens",
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        # 200k prompt tokens stay below the 272k long-context line.
+        (200_000, 0, 0, 0, 0.2),
+        (0, 1_000_000, 0, 0, 5.0),
+        (200_000, 0, 200_000, 0, 0.01),
+        (200_000, 0, 0, 200_000, 0.25),
+        # The card review's case: the smoke's first ledger entry recorded
+        # 2,046 prompt tokens, 1,914 of them cached, and 1,959 completion
+        # tokens. At a tenth for cache reads it came to $0.0101184.
+        (2_046, 1_959, 1_914, 0, 0.0100227),
+        # Above 272k prompt tokens input and cache double; output takes 1.5x.
+        (300_000, 10_000, 300_000, 0, 0.105),
+        (300_000, 0, 0, 300_000, 0.75),
+    ],
+)
+def test_gpt_6_1_terra_override_reconstructs_token_costs(
+    prompt_tokens,
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    """GPT-6.1 Terra is priced at $1 / $5 per 1M input/output tokens, $0.05
+    cached input (a twentieth, where the GPT-5.6 line reads at a tenth) and
+    $1.25 cache writes (developers.openai.com/api/docs/models/gpt-6.1-terra,
+    read 2026-10-26)."""
+    assert PRICE_OVERRIDES_PER_1M["gpt-6.1-terra"] == {
+        "input": 1.0,
+        "output": 5.0,
+        "cache_read": 0.05,
+    }
+    reconstructed = _reconstruct_token_cost(
+        model_name="gpt-6.1-terra",
+        model_id="gpt-6.1-terra",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+# Each Responses-API GPT row's cache read and write rates per 1M tokens, as
+# OpenAI lists them, written out here so the pricing tests do not derive their
+# expectations from the helper they test (Terra card review r2): the GPT-6.1
+# rows read at a twentieth of input, the rest at the GPT-5.6 line's tenth;
+# every row writes at 1.25x input.
+LISTED_CACHE_RATES_PER_1M = {
+    "gpt-6.1-terra": (0.05, 1.25),
+    "gpt-6.1-sol": (0.10, 2.50),
+    "gpt-6-sol": (0.20, 2.50),
+    "gpt-6-luna": (0.01, 0.125),
+    "gpt-6-astra": (1.0, 12.5),
+    "gpt-5.6-sol": (0.5, 6.25),
+    "gpt-5.6-terra": (0.25, 3.125),
+    "gpt-5.6-luna": (0.1, 1.25),
+}
+
+
+def test_every_responses_model_has_a_listed_cache_rate():
+    assert set(LISTED_CACHE_RATES_PER_1M) == set(GPT_RESPONSES_MODELS)
+
+
+@pytest.mark.parametrize(
+    ("model", "read", "write"),
+    [(model, *rates) for model, rates in LISTED_CACHE_RATES_PER_1M.items()],
+)
+def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write):
+    """Each Responses-API GPT row prices its cache at the rate its override
+    lists, or at the GPT-5.6 line's tenth and 1.25x when it lists none. The
+    two GPT-6.1 rows read at a twentieth (the bug the Terra card review found:
+    the reconstruction hard-coded a tenth)."""
+    assert _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model]) == (
+        pytest.approx(read / 1_000_000),
+        pytest.approx(write / 1_000_000),
+    )
+    # 200k prompt tokens, all read from (or written to) the cache: below the
+    # 272k long-context line, so a fifth of the per-1M rate.
+    for cached, cache_write, rate in ((200_000, 0, read), (0, 200_000, write)):
+        reconstructed = _reconstruct_token_cost(
+            model_name=model,
+            model_id=GPT_RESPONSES_MODELS[model],
+            prompt_tokens=200_000,
+            completion_tokens=0,
+            cached_prompt_tokens=cached,
+            cache_write_prompt_tokens=cache_write,
+        )
+        assert reconstructed.usd == pytest.approx(rate / 5)
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-terra", "gpt-6.1-sol"])
+def test_litellm_registers_the_gpt_6_1_cache_read_rate(model):
+    """The local litellm entry carries the same cache rates as the
+    reconstruction, doubled above 272k prompt tokens."""
+    entry = litellm.model_cost[GPT_RESPONSES_MODELS[model]]
+    read, write = _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model])
+    assert entry["cache_read_input_token_cost"] == pytest.approx(read)
+    assert entry["cache_read_input_token_cost_above_272k_tokens"] == pytest.approx(
+        2 * read
+    )
+    assert entry["cache_creation_input_token_cost"] == pytest.approx(write)
+
+
+@given(
+    model=st.sampled_from(sorted(GPT_RESPONSES_MODELS)),
+    prompt_tokens=st.integers(min_value=0, max_value=1_050_000),
+    completion_tokens=st.integers(min_value=0, max_value=128_000),
+    cached_share=st.floats(min_value=0.0, max_value=1.0),
+    write_share=st.floats(min_value=0.0, max_value=1.0),
+)
+def test_responses_cost_is_the_sum_of_its_priced_token_classes(
+    model, prompt_tokens, completion_tokens, cached_share, write_share
+):
+    """For every Responses-API GPT row and every usage: the cost is uncached
+    input, cache reads, cache writes and output, each at its listed rate (all
+    input classes doubled and output 1.5x above 272k prompt tokens); it is
+    never negative; and caching the whole prompt never costs more than
+    caching none of it, since every listed read rate is below input."""
+    rates = PRICE_OVERRIDES_PER_1M[model]
+    cached = int(prompt_tokens * cached_share)
+    written = int((prompt_tokens - cached) * write_share)
+
+    def cost(cached_prompt_tokens, cache_write_prompt_tokens):
+        return _reconstruct_token_cost(
+            model_name=model,
+            model_id=GPT_RESPONSES_MODELS[model],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+            cache_write_prompt_tokens=cache_write_prompt_tokens,
+        ).usd
+
+    read, write = (r / 1_000_000 for r in LISTED_CACHE_RATES_PER_1M[model])
+    long = prompt_tokens > 272_000
+    scale_in, scale_out = (2, 1.5) if long else (1, 1)
+    expected = (
+        scale_in
+        * (
+            (prompt_tokens - cached - written) * rates["input"] / 1_000_000
+            + cached * read
+            + written * write
+        )
+        + scale_out * completion_tokens * rates["output"] / 1_000_000
+    )
+    assert cost(cached, written) == pytest.approx(expected, rel=1e-9, abs=1e-12)
+    assert cost(cached, written) >= 0
+    assert cost(prompt_tokens, 0) <= cost(0, 0) + 1e-12
+
+
+def test_gemini_4_argon_request_forces_the_answer_tool_and_sets_no_reasoning(
+    mini_scenario,
+):
+    """The Gemini API accepts a forced function call on Gemini 4 Argon, so
+    its card selects the board's forced answer tool (the older Gemini rows
+    answer as JSON by the family default). The request carries no reasoning
+    parameter: the model reasons at Google's default. It takes the
+    thinking-default class's 300s timeout and the Gemini family's
+    16,384-token starting budget."""
+    from policybench.eval_no_tools import (
+        ANSWER_FUNCTION_NAME,
+        _answer_contract_for_model,
+        _chat_completion_request_kwargs,
+    )
+
+    model_id = "gemini/gemini-4-argon"
+    assert _answer_contract_for_model(model_id, env={}) == "tool"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 300
+
+    _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "function": {"name": ANSWER_FUNCTION_NAME},
+    }
+    assert [tool["function"]["name"] for tool in kwargs["tools"]] == [
+        ANSWER_FUNCTION_NAME
+    ]
+    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["timeout"] == 300
+    assert "response_format" not in kwargs
+    for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
+        assert reasoning_key not in kwargs
+
+
 def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
     """Haiku 5.5 thinks when the request omits the thinking parameter, so it
     is a thinking-default Claude: provider-default thinking, the thinking
@@ -3916,3 +4312,107 @@ def test_chunk_override_env_runs_whole_scenario(monkeypatch):
     monkeypatch.setenv("POLICYBENCH_CHUNK_OVERRIDE", "none")
     assert _required_explanation_chunk_size("claude-fable-5", True) is None
     assert _required_explanation_chunk_size("claude-sonnet-5", True) is None
+
+
+def test_uk_prompt_states_role_specific_disability_and_birth_facts():
+    scenario = Scenario(
+        id="uk-disability",
+        country="uk",
+        state="WALES",
+        filing_status=None,
+        adults=[
+            Person(
+                name="adult1",
+                age=73,
+                employment_income=0.0,
+                inputs={
+                    "is_disabled_for_benefits": True,
+                    "date_of_birth": 19530403.0,
+                    "gender": "FEMALE",
+                    "hours_worked": 1_820.0,
+                },
+            )
+        ],
+        children=[
+            Person(
+                name="child1",
+                age=17,
+                employment_income=0.0,
+                inputs={
+                    "is_disabled_for_benefits": True,
+                    "current_education": "POST_SECONDARY",
+                },
+            ),
+            Person(
+                name="child2",
+                age=19,
+                employment_income=0.0,
+                inputs={"current_education": "TERTIARY"},
+            ),
+        ],
+        year=2026,
+    )
+
+    prompt = make_no_tools_batch_prompt(scenario, ["universal_credit"])
+
+    assert (
+        "- assessed as having limited capability for work and work-related "
+        "activity (LCWRA); if entitled to Universal Credit, the award has "
+        "included the LCWRA element since before 6 April 2026"
+    ) in prompt
+    assert (
+        "- is disabled (lower rate disabled child addition in Universal Credit)"
+    ) in prompt
+    assert "is disabled for benefits" not in prompt
+    assert "- date of birth: 3 April 1953" in prompt
+    assert "- gender: Female" in prompt
+    assert "- annual hours worked: 1,820" in prompt
+    assert (
+        "- current education: full-time non-advanced education (school or "
+        "college, below higher-education level)"
+    ) in prompt
+    assert "- age when the current education or training began: 16" in prompt
+    assert "- current education: advanced (higher) education" in prompt
+
+
+@pytest.mark.slow
+def test_pe_uk_gives_a_lone_lcwra_household_the_protected_health_element():
+    """The UK prompt says LCWRA was held before 6 April 2026; check PE-UK agrees.
+
+    PE-UK draws new-claimant status per benefit unit from a fixed seed. A
+    household simulated alone takes the first draw, which is an existing
+    claimant, so it gets more than the new-claimant rate. If PE-UK changes the
+    draw, this fails and the prompt wording has to change with it.
+    """
+    from policyengine_uk import CountryTaxBenefitSystem
+
+    from policybench.ground_truth import calculate_ground_truth
+
+    scenario = Scenario(
+        id="uk-lcwra",
+        country="uk",
+        state="NORTH_EAST",
+        filing_status=None,
+        adults=[
+            Person(
+                name="adult1",
+                age=35,
+                employment_income=0.0,
+                inputs={"is_disabled_for_benefits": True},
+            )
+        ],
+        household_inputs={"tenure_type": "OWNED_OUTRIGHT"},
+        year=2026,
+    )
+    from policyengine_uk import Simulation
+
+    sim = Simulation(situation=scenario.to_pe_uk_situation())
+    lcwra = float(sim.calculate("uc_LCWRA_element", 2026)[0])
+    new_claimant_monthly = float(
+        CountryTaxBenefitSystem().parameters.gov.dwp.universal_credit.rebalancing.new_claimant_health_element(
+            "2026-06-01"
+        )
+    )
+    assert lcwra > new_claimant_monthly * 12
+    reference = calculate_ground_truth([scenario], ["universal_credit"], year=2026)
+    assert reference["value"].iloc[0] > 0

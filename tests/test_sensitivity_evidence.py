@@ -1,4 +1,5 @@
-"""The Fable 5.1 thinking sensitivity claims are pinned to committed evidence.
+"""The Fable 5.1 and Haiku 5.5 thinking sensitivity claims, and the August
+runs', are pinned to committed evidence.
 
 ``sensitivity/data/`` holds the run's predictions and per-variable rates with a
 summary JSON; the doc's headline numbers must match the summary, the committed
@@ -14,6 +15,7 @@ import re
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from policybench.reference_exclusions import scored_reference_for
 from policybench.scorer_vectors import canonical_filtered_scores
@@ -23,6 +25,12 @@ from policybench.spec import output_group_id
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "sensitivity" / "data"
 SUMMARY = json.loads((DATA / "claude-fable-5-1-thinking.json").read_text())
+HAIKU = json.loads((DATA / "claude-haiku-5-5-thinking.json").read_text())
+# The per-model summaries (one run each), as opposed to AUGUST's three.
+SUMMARIES = {
+    "sensitivity-claude-fable-5-1-thinking": SUMMARY,
+    "sensitivity-claude-haiku-5-5-thinking": HAIKU,
+}
 AUGUST = json.loads((DATA / "claude-thinking-2026-08.json").read_text())
 DOC = ROOT / "sensitivity" / "claude-thinking-2026-08.md"
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
@@ -33,6 +41,7 @@ SENSITIVITY_ROWS = {
     "Claude Opus 5": "claude-opus-5",
     "Claude Sonnet 5": "claude-sonnet-5",
     "Claude Fable 5.1": "claude-fable-5.1",
+    "Claude Haiku 5.5": "claude-haiku-5.5",
 }
 
 
@@ -44,11 +53,12 @@ def _would_rank(exact: float, rows: list[dict]) -> int:
 
 
 def test_committed_assets_match_the_summary_pins():
-    for name, pin in SUMMARY["assets"].items():
-        path = DATA / name
-        assert path.exists(), name
-        assert path.stat().st_size == pin["bytes"], name
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == pin["sha256"], name
+    for summary in SUMMARIES.values():
+        for name, pin in summary["assets"].items():
+            path = DATA / name
+            assert path.exists(), name
+            assert path.stat().st_size == pin["bytes"], name
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == pin["sha256"], name
 
 
 def test_doc_table_row_matches_the_summary():
@@ -71,18 +81,24 @@ def test_doc_table_row_matches_the_summary():
     )
 
 
-def test_doc_table_ranks_match_the_frozen_46_model_board():
+def test_doc_table_ranks_match_the_frozen_board():
     """Each doc row's scores are its summary's, rounded for display, and its
     ranks are the board's: the board row's own, and where the unrounded
     sensitivity score would place (as app/src/lib/wouldRank.ts ranks it). A
     rank taken from the rounded display value is off by a place whenever
     rounding carries the score past a board row's score."""
-    text = DOC.read_text()
-    assert "on the 46-model board (2026-09-30)" in text
+    text = re.sub(r"\s+", " ", DOC.read_text())
     rows = read_run_payload(RUN_DIR)["modelStats"]
-    assert len(rows) == 46
+    snapshot_date = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
+        "snapshot_date"
+    ]
+    assert f"on the {len(rows)}-model board ({snapshot_date})" in text
+    assert "-model board (" not in text.replace(
+        f"on the {len(rows)}-model board ({snapshot_date})", ""
+    )
+    text = DOC.read_text()
     board_by_model = {row["model"]: row for row in rows}
-    blocks = {SUMMARY["model"]: SUMMARY}
+    blocks = {summary["model"]: summary for summary in SUMMARIES.values()}
     blocks.update({block["model"]: block for block in AUGUST["runs"].values()})
     assert set(blocks) == set(SENSITIVITY_ROWS.values())
 
@@ -109,15 +125,16 @@ def test_doc_table_ranks_match_the_frozen_46_model_board():
         assert int(would_rank) == block["sensitivity"]["would_rank"], label
 
 
-def test_exact_score_recomputes_from_committed_predictions():
-    with gzip.open(
-        DATA / "sensitivity-claude-fable-5-1-thinking-predictions.csv.gz"
-    ) as fileobj:
+@pytest.mark.parametrize("stem", sorted(SUMMARIES))
+def test_exact_score_recomputes_from_committed_predictions(stem):
+    summary = SUMMARIES[stem]
+    with gzip.open(DATA / f"{stem}-predictions.csv.gz") as fileobj:
         predictions = pd.read_csv(
             fileobj, usecols=["model", "scenario_id", "variable", "prediction"]
         )
-    assert set(predictions["model"]) == {SUMMARY["sensitivity_model_id"]}
-    assert len(predictions) == SUMMARY["sensitivity"]["n"]
+    assert set(predictions["model"]) == {summary["sensitivity_model_id"]}
+    assert len(predictions) == summary["sensitivity"]["n"]
+    assert predictions["prediction"].notna().sum() == summary["sensitivity"]["n_parsed"]
     # Score against the same reference the board scores: excluded outputs out.
     ground_truth, _ = scored_reference_for(RUN_DIR / "reference_outputs.csv")
     payload = read_run_payload(RUN_DIR)
@@ -140,17 +157,19 @@ def test_exact_score_recomputes_from_committed_predictions():
             "all",
             field,
         )
-        assert round(scores[SUMMARY["sensitivity_model_id"]], 3) == round(
-            SUMMARY["sensitivity"][key], 3
+        assert round(scores[summary["sensitivity_model_id"]], 3) == round(
+            summary["sensitivity"][key], 3
         ), field
 
 
-def test_board_row_in_summary_matches_the_frozen_snapshot():
+@pytest.mark.parametrize("stem", sorted(SUMMARIES))
+def test_board_row_in_summary_matches_the_frozen_snapshot(stem):
+    summary = SUMMARIES[stem]
     payload = read_run_payload(RUN_DIR)
-    row = next(m for m in payload["modelStats"] if m["model"] == SUMMARY["model"])
-    assert round(row["exact"], 3) == SUMMARY["board"]["exact"]
-    assert round(row["within1pct"], 3) == SUMMARY["board"]["within1pct"]
-    assert round(row["score"], 3) == SUMMARY["board"]["score"]
+    row = next(m for m in payload["modelStats"] if m["model"] == summary["model"])
+    assert round(row["exact"], 3) == summary["board"]["exact"]
+    assert round(row["within1pct"], 3) == summary["board"]["within1pct"]
+    assert round(row["score"], 3) == summary["board"]["score"]
 
 
 def _scored_inputs():
@@ -172,14 +191,8 @@ def _by_variable_rates(predictions, reference, scenarios):
 
 
 def _all_runs() -> list[tuple[str, str, dict]]:
-    """(board model, asset stem, summary block) for the four thinking runs."""
-    runs = [
-        (
-            SUMMARY["model"],
-            "sensitivity-claude-fable-5-1-thinking",
-            {"assets": SUMMARY["assets"], **SUMMARY},
-        )
-    ]
+    """(board model, asset stem, summary block) for the five thinking runs."""
+    runs = [(summary["model"], stem, summary) for stem, summary in SUMMARIES.items()]
     for block in AUGUST["runs"].values():
         stem = next(
             name for name in block["assets"] if name.endswith("-predictions.csv.gz")
@@ -290,6 +303,11 @@ def test_doc_program_tables_match_the_frozen_heatmap_and_assets():
             "| program | board (JSON) | auto (tool declared) | delta |",
             "sensitivity-claude-fable-5-1-thinking",
         ),
+        (
+            "claude-haiku-5.5",
+            "| program | board (forced tool) | auto (tool declared) | delta |",
+            "sensitivity-claude-haiku-5-5-thinking",
+        ),
     ):
         table = _doc_program_table(text, header)
         board = {
@@ -306,3 +324,62 @@ def test_doc_program_tables_match_the_frozen_heatmap_and_assets():
                 variable,
             )
             assert delta == round(auto_rate - board_rate, 1), (board_model, variable)
+
+
+def _all_output_exact(stem: str) -> float:
+    """A run's exact score on all 1,984 outputs, excluded ones included."""
+    payload = read_run_payload(RUN_DIR)
+    weights_by_group: dict[str, float] = {}
+    for variable, weight in payload["globalWeights"]["household"].items():
+        group = output_group_id(variable)
+        weights_by_group[group] = weights_by_group.get(group, 0.0) + weight
+    with gzip.open(DATA / f"{stem}-predictions.csv.gz") as fileobj:
+        predictions = pd.read_csv(
+            fileobj, usecols=["model", "scenario_id", "variable", "prediction"]
+        )
+    scores, _ = canonical_filtered_scores(
+        pd.read_csv(RUN_DIR / "reference_outputs.csv"),
+        predictions,
+        weights_by_group,
+        set(weights_by_group),
+        "all",
+        "exact",
+    )
+    (score,) = scores.values()
+    return score
+
+
+def test_doc_all_output_scores_recompute_on_the_frozen_references():
+    """The doc's scores on all 1,984 outputs move with every reference
+    change, excluded outputs included, so each recomputes from the committed
+    predictions and the frozen references."""
+    text = re.sub(r"\s+", " ", DOC.read_text())
+    august = [
+        f"{_all_output_exact(f'sensitivity-claude-{m}-thinking'):.1f}"
+        for m in ("fable-5", "opus-5", "sonnet-5")
+    ]
+    assert (
+        "On all 1,984 outputs the thinking runs scored "
+        f"{august[0]}, {august[1]} and {august[2]}."
+    ) in text
+    found = re.findall(r"on all 1,984 the auto run scored ([\d.]+)\.", text)
+    assert found == [
+        f"{_all_output_exact(stem):.1f}"
+        for stem in (
+            "sensitivity-claude-fable-5-1-thinking",
+            "sensitivity-claude-haiku-5-5-thinking",
+        )
+    ]
+
+
+def test_only_claude_sonnet_5_gains_more_than_claude_haiku_5_5():
+    """The doc's "Among the Claude rows only Claude Sonnet 5 gains more under
+    auto", from the committed summaries' gains on the frozen board."""
+    gains = {run["model"]: run["delta_exact"] for run in AUGUST["runs"].values()}
+    gains[SUMMARY["model"]] = SUMMARY["delta_exact"]
+    above = sorted(m for m, gain in gains.items() if gain > HAIKU["delta_exact"])
+    assert above == ["claude-sonnet-5"]
+    doc = re.sub(
+        r"\s+", " ", (ROOT / "sensitivity/claude-thinking-2026-08.md").read_text()
+    )
+    assert "Among the Claude rows only Claude Sonnet 5 gains more under `auto`" in doc

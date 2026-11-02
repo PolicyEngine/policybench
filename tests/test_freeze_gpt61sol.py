@@ -444,8 +444,9 @@ def staged_board(freeze_preflight, monkeypatch, rebuilds, exports):
         for row in exported["countries"]["us"]["modelStats"]
         if row["model"] == "claude-fable-5"
     )
-    fable.update(costUsd=0.0, costPerHousehold=0.0)
-    del fable["totalTokens"], fable["latencySeconds"]
+    # Fable 5's rows record no usage, so export_full_run reports none of it.
+    for key in ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds"):
+        del fable[key]
     exports["board"] = exported
 
     def export_full_run(run_dir, *, countries, skip_app_data):
