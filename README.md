@@ -64,14 +64,14 @@ pip install git+https://github.com/PolicyEngine/policybench
 policybench --help
 ```
 
-For repository development, clone the full Git repository and install the
-locked environment before running tests:
+For repository development, clone the full Git repository, install the
+locked environment, and run the tests CI runs:
 
 ```bash
 git clone https://github.com/PolicyEngine/policybench
 cd policybench
 uv sync --locked --extra dev --python 3.12
-uv run pytest
+uv run pytest -m "not slow"
 ```
 
 Verify the dashboard with its bundled data prepared automatically:

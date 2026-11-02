@@ -162,6 +162,7 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
     """
     names = []
     named_tool = role == "tool install" and _tool_install_names_source(tokens)
+    positionals = 0
     i = 0
     while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
         token = tokens[i].strip("\u201c\u201d\u2018\u2019")  # curly quotes in prose
@@ -180,7 +181,11 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
         elif role == "command" or (role == "tool" and named_tool):
             break
         elif role == "tool install" and named_tool:
-            pass  # --from names the source; the positional names only the tool
+            # --from names the source and the positional names only the tool. The
+            # command takes one package, so a second positional ends it.
+            positionals += 1
+            if positionals > 1:
+                break
         else:
             name = _index_name(token.rstrip(".,;:!?)}\"'"))
             if name:
@@ -290,6 +295,8 @@ def surface_installs(path: Path) -> list[str]:
         "uv pip install --system PolicyBench==2.0.0",
         "uv tool install --python 3.12 policybench",
         "uv tool install --from policybench policybench",
+        "Run uv tool install policybench --from policybench, not pip install "
+        "--no-index from a wheel directory.",
         f"PolicyBench is not on PyPI, so uv tool install policybench fails. Use "
         f"uvx --from git+{REPO_URL} policybench.",
         "uv add policybench",
@@ -330,6 +337,7 @@ def test_detector_flags_index_installs_of_policybench(text):
         f"uv tool install --python 3.12 git+{REPO_URL}  # puts policybench on PATH",
         f"uv tool install policybench --from git+{REPO_URL}",
         f"uv tool install --from git+{REPO_URL} policybench",
+        f"uv tool install --python 3.12 policybench --from git+{REPO_URL}",
         f"uvx --from git+{REPO_URL} policybench --help",
         f"pip install 'policybench @ git+{REPO_URL}'",
         f"pip install policybench@git+{REPO_URL}",
@@ -366,6 +374,12 @@ def test_detector_passes_installs_from_source(text):
         (
             "Page.tsx",
             "<code>\n  uv tool install --python 3.12\n  policybench\n</code>",
+            True,
+        ),
+        (
+            "Page.tsx",
+            "<code>\n  uv tool install policybench\n"
+            f"  uvx --from git+{REPO_URL} policybench\n</code>",
             True,
         ),
         (
