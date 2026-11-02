@@ -1,0 +1,46 @@
+{
+ "note": "Payload rebuilt from the frozen run by export_country with the base's annotation files and with the working tree's. 'changed' lists every path that differs between the two rebuilds. 'base_vs_frozen' lists every path where the base rebuild differs from the frozen data.json.gz: claude-fable-5's usage, which the release drivers carry from the published payload (CARRIED_USAGE in scripts/finish_gpt61sol.py) because export cannot recompute it.",
+ "base": "origin/main",
+ "changed_sections": [
+  "scenarioPredictions"
+ ],
+ "changed_cells": [
+  [
+   "scenario_031",
+   "head_medicaid_eligible"
+  ]
+ ],
+ "changed_fields": [
+  "annotation",
+  "caseAnnotation",
+  "referenceExplanation"
+ ],
+ "changed_paths": 132,
+ "changed_by_field": {
+  "annotation": 43,
+  "caseAnnotation": 43,
+  "referenceExplanation": 46
+ },
+ "base_vs_frozen": [
+  [
+   "modelStats",
+   "claude-fable-5",
+   "costPerHousehold"
+  ],
+  [
+   "modelStats",
+   "claude-fable-5",
+   "costUsd"
+  ],
+  [
+   "modelStats",
+   "claude-fable-5",
+   "latencySeconds"
+  ],
+  [
+   "modelStats",
+   "claude-fable-5",
+   "totalTokens"
+  ]
+ ]
+}

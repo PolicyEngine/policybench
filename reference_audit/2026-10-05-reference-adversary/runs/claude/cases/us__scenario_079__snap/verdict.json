@@ -1,0 +1,77 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Standard Medical Deduction (SMD), effective 08/01/2023",
+      "pre_freeze": true,
+      "published": "2023-08-01",
+      "quote": "Standard Medical Deduction (SMD) net amount of $145 ($180 minus $35 disregard equals $145)",
+      "source": "Arizona Department of Economic Security, Elderly Simplified Application Project (ESAP) page",
+      "url": "https://des.az.gov/esap"
+    },
+    {
+      "pinpoint": "Medical expense deduction (amounts effective 10/01/2026)",
+      "pre_freeze": false,
+      "published": "2026-10-01",
+      "quote": "Households with a member who is age 60 or older or has a disability are eligible for the medical expense deduction. The first $35 of the medical expense is disregarded. A standard medical deduction of $160 ($195 - $35) is allowed when your household medical expenses are from $35.01 to $195.",
+      "source": "Arizona Department of Economic Security, Nutrition Assistance Frequently Asked Questions",
+      "url": "https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs"
+    },
+    {
+      "pinpoint": "\u00a7 273.9(d)(3) and (d)(3)(iv)",
+      "pre_freeze": true,
+      "published": "current regulation",
+      "quote": "That portion of medical expenses in excess of $35 per month",
+      "source": "7 CFR 273.9",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.9"
+    },
+    {
+      "pinpoint": "\u00a7 2014(e)(5)(B)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "A State agency shall offer an eligible household under subparagraph (A) a method of claiming a deduction for recurring medical expenses that are initially verified ... in lieu of submitting information on, or verification of, actual expenses on a monthly basis.",
+      "source": "7 U.S.C. 2014 (Food and Nutrition Act of 2008)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "48 States & DC maximum allotments and standard deductions",
+      "pre_freeze": true,
+      "published": "2025-08",
+      "quote": "2-person household in the 48 States and D.C.: maximum allotment $546; standard deduction $209 for households of one to three members",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    },
+    {
+      "pinpoint": "Memo date; effective October 1, 2026",
+      "pre_freeze": false,
+      "published": "2026-08-21",
+      "quote": "The memorandum provides the fiscal year (FY) 2027 Cost-of-Living Adjustments (COLA) to the Supplemental Nutrition Assistance Program (SNAP) maximum allotments, income eligibility standards, and deductions.",
+      "source": "USDA FNA, SNAP \u2014 Fiscal Year 2027 Cost-of-Living Adjustments",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf"
+    },
+    {
+      "pinpoint": "2026 monthly maximum Federal amounts",
+      "pre_freeze": true,
+      "published": "2025-10",
+      "quote": "The monthly maximum Federal amounts for 2026 are $994 for an eligible individual, $1,491 for an eligible individual with an eligible spouse",
+      "source": "Social Security Administration, SSI Federal Payment Amounts",
+      "url": "https://www.ssa.gov/oact/cola/SSI.html"
+    },
+    {
+      "pinpoint": "\u00a7 273.10(e)(2)(ii)(A)",
+      "pre_freeze": true,
+      "published": "current regulation",
+      "quote": "The State agency shall round the 30 percent of net income up to the nearest higher dollar",
+      "source": "7 CFR 273.10",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1956,
+  "engine_step_at_issue": "",
+  "independent_answer": 2376,
+  "reference_value": 2376,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The law gives the same result as the engine. Monthly gross income is $1,511: SSDI of $630 plus the couple's SSI of $881, which is $1,491 minus ($630 minus the $20 exclusion). Arizona's $145 Standard Medical Deduction applies because the disabled household's medical costs are over $35. With the FY2026 standard deduction of $209, net income is $1,157. Thirty percent of that, rounded up, is $348, so the benefit is $546 \u2212 $348 = $198 a month, or $2,376 a year. The engine's derivation matches each of these steps, and stage 1 independently reached $2,376. The consensus figure of $1,956 used the $26 actual-cost medical deduction instead of Arizona's $145 SMD. The FY2027 figures ($562 maximum, $217 standard deduction, $160 SMD) take effect 10/1/2026, but they were published after the 2026-07-03 freeze, so frozen law uses the FY2026 values for all 12 months.",
+  "verdict": "reference_holds"
+}

@@ -14,7 +14,8 @@
     "GPT-6 Astra gets {astraHits:words} of the {householdCount:words} households right, more than any other model, and cites the state's BBCE limit of {bbceGrossLimitHigh}% of the guideline each time. It answers $0 for the Texas resident, the one household that fails SNAP's ordinary gross income test, and for the Arizona resident. GPT-6.1 Sol gets {sol61Hits:words} right, the Michigan and Wisconsin households, citing each state's categorical eligibility limit. Claude Opus 5.5 answers ${opusOn108} for the Wisconsin surviving spouse, citing Wisconsin's BBCE and its {bbceGrossLimitHigh}% limit. For the Connecticut couple, the disabled Michigan resident, and the Arizona resident, it answers $0, citing SNAP's ordinary net income test, which BBCE removes in all three states. GPT-6 Sol, which leads PolicyBench overall, answers $0 for {sol6ZeroCount:words} of the {householdCount:words} and mentions BBCE in {sol6BbceMentions:words} of its SNAP explanations for PolicyBench's {boardHouseholds} households.",
     "GPT-6 Sol, Claude Opus 5.5, and Claude Sonnet 5.5 miss the Texas resident's amount because they count less income than PolicyEngine does. GPT-6 Sol answers ${sol6On030}, and Claude Opus 5.5 and Claude Sonnet 5.5 each answer ${opusOn030}. All three compute an ordinary benefit from wages alone. PolicyEngine also counts the ${financialAssistance} of financial assistance as income, which puts the household above SNAP's ordinary limits and leaves BBCE as its only route. The prompt labels that money only \"financial assistance\", without naming its source, and SNAP counts some kinds of assistance as income but excludes others, such as educational assistance.",
     "All {nModels} models answer $0 for the Arizona resident, whose gross income falls between Arizona's old and new BBCE limits. PolicyBench's references use policyengine-us {engineVersion}, which encodes the raise. GPT-6 Astra, GPT-6.1 Sol, Gemini 3.5 Flash, and Gemini 3.8 Flash write that the resident's income exceeds Arizona's categorical eligibility limit; Gemini 3.5 Flash and Gemini 3.8 Flash, along with Gemini 3 Flash Preview, give Arizona's limit as {azLimitBefore}%, the limit before March.",
-    "This note corrects PolicyBench's September 3 note. That note counted {sept3HouseholdCount:words} households, {fullYearCount:words} of them among the {householdCount:words} here, at ${sept3Reference} each, an amount PolicyBench computed from PolicyEngine's unrounded minimum. SNAP rounds the minimum to the nearest dollar, and so does PolicyEngine (policyengine-us #9162). One of the {sept3HouseholdCount:words}, a Michigan worker who pays child support, does not qualify. Michigan counts that child support in gross income and deducts it when computing net income, which puts the worker's gross income above Michigan's {bbceGrossLimitHigh}% BBCE limit; PolicyEngine subtracted it from gross income until policyengine-us #9586. The version of this note published September 23 counted the worker among its households. PolicyBench no longer scores another of the {sept3HouseholdCount:words}, a second Texas household, whose reference assumed {assumedHours} hours of work a week that the prompt does not list. At 0 hours, as the prompt's rule for unlisted numbers reads, PolicyEngine gives that household $0, the answer GPT-5.6 Sol, Claude Fable 5.1, and Kimi K3 gave in the September 3 note. The September 3 note also says SNAP excludes that household's farm rent, but SNAP counts rent, farm rent included, net of the costs of doing business: as unearned income under 7 CFR 273.9(b)(2)(ii), or as earned income under 273.9(b)(1)(ii) when a household member averages at least 20 hours a week managing the property. PolicyEngine counts farm rent from policyengine-us #9671, which postdates the references' engine, {engineVersion}. The September 3 note described BBCE as covering households that receive the non-cash benefit, but PolicyEngine computed that note's amounts by applying BBCE to every household eligible for that benefit. It also said Connecticut, Michigan, Texas, and Wisconsin waive the asset test, but Texas keeps a ${bbceAssetLimitTx} asset limit."
+    "This note corrects PolicyBench's September 3 note. That note counted {sept3HouseholdCount:words} households, {fullYearCount:words} of them among the {householdCount:words} here, at ${sept3Reference} each, an amount PolicyBench computed from PolicyEngine's unrounded minimum. SNAP rounds the minimum to the nearest dollar, and so does PolicyEngine (policyengine-us #9162). One of the {sept3HouseholdCount:words}, a Michigan worker who pays child support, does not qualify. Michigan counts that child support in gross income and deducts it when computing net income, which puts the worker's gross income above Michigan's {bbceGrossLimitHigh}% BBCE limit; PolicyEngine subtracted it from gross income until policyengine-us #9586. The version of this note published September 23 counted the worker among its households. PolicyBench no longer scores another of the {sept3HouseholdCount:words}, a second Texas household, whose reference assumed {assumedHours} hours of work a week that the prompt does not list. At 0 hours, as the prompt's rule for unlisted numbers reads, PolicyEngine gives that household $0, the answer GPT-5.6 Sol, Claude Fable 5.1, and Kimi K3 gave in the September 3 note. The September 3 note also says SNAP excludes that household's farm rent, but SNAP counts rent, farm rent included, net of the costs of doing business: as unearned income under 7 CFR 273.9(b)(2)(ii), or as earned income under 273.9(b)(1)(ii) when a household member averages at least 20 hours a week managing the property. PolicyEngine counts farm rent from policyengine-us #9671, which postdates the references' engine, {engineVersion}. The September 3 note described BBCE as covering households that receive the non-cash benefit, but PolicyEngine computed that note's amounts by applying BBCE to every household eligible for that benefit. It also said Connecticut, Michigan, Texas, and Wisconsin waive the asset test, but Texas keeps a ${bbceAssetLimitTx} asset limit.",
+    "A later release, dashboard-data-20261006, stops scoring {laterExclusions:words} tax outputs and changes no SNAP reference or answer. On it, GPT-6 Luna is #{laterLunaRank} on PolicyBench, below Claude Sonnet 5.5, and every other figure in this note stays the same."
   ],
   "facts": {
     "householdCount": 5,
@@ -72,7 +73,9 @@
     "sept3HouseholdCount": 6,
     "sept3Reference": "287.68",
     "assumedHours": 40,
-    "bbceAssetLimitTx": 5000
+    "bbceAssetLimitTx": 5000,
+    "laterExclusions": 8,
+    "laterLunaRank": 5
   },
   "mentionRegexes": {
     "bbce": "broad-based|\\bbbce\\b|categorical(?:ly)?[- ]eligib|expanded categorical",
@@ -118,6 +121,10 @@
       "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260930"
     },
     {
+      "label": "Later release dashboard-data-20261006",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261006"
+    },
+    {
       "label": "Six SNAP households note (September 3)",
       "href": "/notes/2026-09-03-six-snap-households"
     },
@@ -128,6 +135,10 @@
     {
       "label": "Release note for dashboard-data-20260929 (September 29)",
       "href": "/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth"
+    },
+    {
+      "label": "Release note for dashboard-data-20261006 (October 6)",
+      "href": "/notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs"
     },
     {
       "label": "Reference upgrade record",

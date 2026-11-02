@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 63-3024A(1)",
+      "pre_freeze": true,
+      "published": "2025 (am. 2025, ch. 56, sec. 1, p. 267)",
+      "quote": "For tax year 2025 and each year thereafter, the credit is one hundred fifty-five dollars ($155).",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(1), refund provision",
+      "pre_freeze": true,
+      "published": "2025 (am. 2025, ch. 56, sec. 1, p. 267)",
+      "quote": "If taxes due are less than the total credit allowed, the taxpayer shall be paid a refund equal to the balance of the unused credit.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    },
+    {
+      "pinpoint": "\u00a7 63-3024A(5)",
+      "pre_freeze": true,
+      "published": "2025 (am. 2025, ch. 56, sec. 1, p. 267)",
+      "quote": "the credit or refund allowed under this section shall be in proportion to the number of months of the year in which no assistance was received.",
+      "source": "Idaho Code \u00a7 63-3024A, Food Tax Credits and Refunds",
+      "url": "https://legislature.idaho.gov/statutesrules/idstat/title63/t63ch30/sect63-3024a/"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 155,
+  "reference_value": 155,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under Idaho Code \u00a7 63-3024A, each full-year resident who files gets a food tax credit (formerly the grocery credit) of $155 per personal exemption \"for tax year 2025 and each year thereafter.\" Any part of the credit that exceeds the tax due is paid as a refund. The credit has no income limit. It is prorated only for months in which the filer received SNAP, and none is listed here. The engine counted $155 for one person over 12 qualifying months, which matches the statute. The 0 consensus wrongly assumed the credit is nonrefundable or income-limited, and stage 1 was right.",
+  "verdict": "reference_holds"
+}

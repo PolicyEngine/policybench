@@ -1,0 +1,41 @@
+{
+  "note": "When PolicyBench began sweeping the references for the 2026-10-09 move, which policyengine-us release was the newest then and at publication, and the publication check. Times are UTC. The PyPI upload times were read from the PyPI JSON API; the install and first-output times are filesystem birth times (st_birthtime) of the engine's dist-info directory and of the first file the sweep wrote.",
+  "pypi": {
+    "source": "https://pypi.org/pypi/policyengine-us/json",
+    "read_at_utc": "2026-10-10T06:53:19Z",
+    "newest_at_read": "2.38.6",
+    "wheel_uploaded_at_utc": {
+      "2.38.6": "2026-10-10T05:39:47.526002Z"
+    },
+    "yanked_newer": {}
+  },
+  "reference_sweep": {
+    "engine": "2.38.6",
+    "engine_installed_at_utc": "2026-10-10T05:41:09Z",
+    "engine_installed_evidence": "results/local/final/pe2.38.6/venv/lib/python3.12/site-packages/policyengine_us-2.38.6.dist-info",
+    "engine_install": {
+      "version": "2.38.6",
+      "files_verified": 18357,
+      "editable": false,
+      "imported_from_package": true,
+      "fresh_bytecode_cache": true
+    },
+    "script": "reference_audit/2026-10-09-engine-upgrade/scripts/build_references_upgrade.py (first pass, empty actions)",
+    "first_output_at_utc": "2026-10-10T05:45:24Z",
+    "first_output": "results/local/final/pe2.38.6/pass1/computed.csv",
+    "first_output_sha256": "b46cc0ed23182416c61071992d611500931d39d9039fb6c6bf605f5ccb368483"
+  },
+  "publication_check": {
+    "engine": "2.38.6",
+    "result": "policyengine-us 2.38.6, the reference engine, was still the newest release when PolicyBench read PyPI",
+    "build": "results/local/final/pe2.38.6/build",
+    "build_sha256": {
+      "computed.csv": "b46cc0ed23182416c61071992d611500931d39d9039fb6c6bf605f5ccb368483",
+      "reference_outputs.csv": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371",
+      "reference_outputs.csv.meta.json": "d534cfeacf7f8a8b7f6fca477adbb02c5bb52b226778d63cc10fd117ec70c54b",
+      "reference_exclusions.json": "089e01e1f699aa19f2171e1ac5b6dc2ce775f9898c94420e6a0b06ff5f773626",
+      "builder": "9fd003be76a7a00ae83e5e17bc652dc7cdee3a7c351fb3efb26308d93c0ca6f5"
+    },
+    "scored_outputs": 1926
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "ambiguity": "There is no real second reading. The consensus answer of $0 assumes that a refundable credit needs earned income or tax liability, but the excise tax credit only requires federal AGI at or under the limit, which $0 AGI meets. Filing jointly or separately both give $50. The \u00a743-1072.02 education credit is an alternative to the \u00a743-1072.01 credit, not an addition, so the total cannot go above $50.",
+  "citations": [
+    {
+      "pinpoint": "Subsections A(1), C, and the refund provision",
+      "pre_freeze": true,
+      "published": "In force for taxable years beginning after 2000-12-31; current ARS text",
+      "quote": "The amount of the credit shall not exceed twenty-five dollars for each person who is a resident of this state and for whom a personal or dependent exemption is allowed ... but not more than one hundred dollars for all persons in the taxpayer's household",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.01, Credit for increased excise taxes paid",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection A(1) income limit; refundability provision",
+      "pre_freeze": true,
+      "published": "Current ARS text",
+      "quote": "If the allowable amount of the credit exceeds the income taxes otherwise due on the claimant's income, the amount of the claim not used as an offset against income taxes shall be paid in the same manner as a refund granted under section 42-1118.",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.01, Credit for increased excise taxes paid",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Bar on claiming both credits",
+      "pre_freeze": true,
+      "published": "Effective for taxable years after 2020-12-31 and ending before 2042-01-01",
+      "quote": "A taxpayer that claims a credit under this section may not claim the credit under section 43-1072.01 for the same taxable year.",
+      "source": "Arizona Revised Statutes \u00a7 43-1072.02, Credit for increased transaction privilege or excise tax paid for education",
+      "url": "https://www.azleg.gov/ars/43/01072-02.htm"
+    },
+    {
+      "pinpoint": "Eligibility (age/SSI) requirement",
+      "pre_freeze": true,
+      "published": "Current ARS text",
+      "quote": "Such resident attained the age of sixty-five years prior to or during the taxable year or such resident is a recipient of public monies under title 16 of the social security act",
+      "source": "Arizona Revised Statutes \u00a7 43-1072, Credit for property taxes",
+      "url": "https://www.azleg.gov/ars/43/01072.htm"
+    },
+    {
+      "pinpoint": "\u00a786(b)(1), (c)(1)(B)",
+      "pre_freeze": true,
+      "published": "Current USC text",
+      "quote": "$32,000 in the case of a joint return",
+      "source": "26 U.S.C. \u00a7 86, Social security and tier 1 railroad retirement benefits",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    },
+    {
+      "pinpoint": "Eligibility section",
+      "pre_freeze": true,
+      "published": "Page covering forms through tax year 2025",
+      "quote": "$25,000 or less for a married couple or a single person who is a head of a household",
+      "source": "Arizona Department of Revenue, Credit for Increased Excise Taxes (Form 140ET page)",
+      "url": "https://azdor.gov/forms/tax-credits-forms/credit-increased-excise-taxes"
+    },
+    {
+      "pinpoint": "Provisions on income tax credits",
+      "pre_freeze": true,
+      "published": "2026-06-13 (signed, Chapter 140)",
+      "quote": "Eliminates the refundable portion of the individual and corporate Research and Development Tax Credit and repeals the related administrative requirements",
+      "source": "Arizona Senate Fact Sheet, SB1861 (HB4168 attachment), taxation omnibus 2026-2027, as enacted",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm"
+    }
+  ],
+  "computation": "1) Federal AGI. The only income is $7,560 of SSDI. Under IRC \u00a786, provisional income is $0 MAGI plus half of the benefits ($3,780). That is below the $32,000 joint-return base amount, so none of the SSDI is taxable and federal AGI is $0. (If the couple instead filed separately while living together, the base amount would be $0. The head's AGI would then be at most about $3,213, still under the $12,500 MFS limit, so the result below does not change.)\n2) Credit for increased excise taxes, A.R.S. \u00a743-1072.01. Neither spouse is anyone else's dependent, federal AGI of $0 is at or under the $25,000 limit for a married couple, and no incarceration is listed. The credit is $25 for each resident person with a personal or dependent exemption, capped at $100 per household. The head and spouse are 2 persons, so 2 \u00d7 $25 = $50. The statute makes the credit refundable: the excess over tax is paid as a refund. Arizona tax liability is $0, so the whole $50 is refunded.\n3) Education excise credit, A.R.S. \u00a743-1072.02. It has the same eligibility and the same $25-per-person, $100-cap amount. The statute bars claiming it in the same year as the \u00a743-1072.01 credit, so it is an alternative and does not add anything. Whichever one is claimed, the credit is $50.\n4) Property tax credit, A.R.S. \u00a743-1072 (refundable). It requires age 65 or older or receipt of Title XVI (SSI) payments, plus property taxes or rent actually paid. The head is 58, the spouse is 55, and SSDI is Title II, not SSI. No property tax or rent is listed (a mortgage balance is not property tax paid). Result: $0.\n5) Other Arizona credits. The family income tax credit (\u00a743-1073) and the dependent credit are nonrefundable, and Arizona has no state EITC. The 2026 omnibus (SB1861/HB4168, signed 2026-06-13, before the freeze) left \u00a743-1072.01 and \u00a743-1072 unchanged. Its only change to a refundable credit was removing the refundable portion of the R&D credit, which does not apply here.\n6) Total refundable Arizona credits = $50. These amounts are fixed in the statute and not indexed for inflation, so no 2026-specific figure had to be published before the freeze. The latest official instructions available are AZDOR's 2025 Forms 140/140ET, which apply the same $25,000/$12,500 limits and the $100 household cap.",
+  "confidence": "high",
+  "definition_reading": "I read 'total refundable state individual income tax credits' as the sum of all refundable Arizona individual income tax credits for the household's single tax unit: the married head and spouse, presumably filing jointly. For this household the only one that applies is the credit for increased excise taxes (or its interchangeable \u00a743-1072.02 counterpart). It is $25 for each of the two filers, $50 in total, and it is paid even though Arizona tax is zero.",
+  "independent_answer": 50,
+  "law_supports": "reference"
+}

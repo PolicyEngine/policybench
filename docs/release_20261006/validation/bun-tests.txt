@@ -1,0 +1,59 @@
+bun install v1.3.12 (700fc117)
+
+Checked 1035 installs across 1020 packages (no changes) [1074.00ms]
+$ eslint . --max-warnings=0
+$ bun scripts/prepare-data.ts
+prepare-data: frozen serving configuration -> /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/src/model-serving-config.json
+prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-aa34e5c9ea926848.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
+prepare-data: [1.0] 36.3MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-72d4b524fb6df8b3.json (cached) -> 6.9MB bundled summary + lazy explanations (us 12.1MB)
+bun test v1.3.12 (700fc117)
+
+ 170 pass
+ 0 fail
+ 5374 expect() calls
+Ran 170 tests across 23 files. [6.18s]
+$ bun run prepare-data && next build
+$ bun scripts/prepare-data.ts
+prepare-data: frozen serving configuration -> /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/src/model-serving-config.json
+prepare-data: [1.1] 127.2MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-aa34e5c9ea926848.json (cached) -> 23.8MB bundled summary + lazy explanations (us 34.2MB)
+prepare-data: [1.0] 36.3MB payload from /Users/maxghenis/PolicyEngine/policybench-wt/release-exclusions-batch/app/.cache/dashboard-data-72d4b524fb6df8b3.json (cached) -> 6.9MB bundled summary + lazy explanations (us 12.1MB)
+▲ Next.js 16.2.6 (Turbopack)
+
+  Creating an optimized production build ...
+(node:5473) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✓ Compiled successfully in 16.4s
+  Running TypeScript ...
+  Finished TypeScript in 30.7s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/62) ...
+  Generating static pages using 11 workers (15/62) 
+  Generating static pages using 11 workers (30/62) 
+  Generating static pages using 11 workers (46/62) 
+✓ Generating static pages using 11 workers (62/62) in 1612ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /expand
+├ ● /model/[id]
+│ ├ /model/gpt-6-sol
+│ ├ /model/claude-opus-5.5
+│ ├ /model/gpt-5.6-sol
+│ └ [+43 more paths]
+├ ○ /notes
+├ ● /notes/[slug]
+│ ├ /notes/2026-10-06-policybench-stops-scoring-eight-tax-outputs
+│ ├ /notes/2026-10-05-five-snap-households-bbce
+│ ├ /notes/2026-09-29-claude-sonnet-5-5-debuts-fifth
+│ └ [+5 more paths]
+├ ○ /paper
+├ ○ /robots.txt
+└ ○ /sitemap.xml
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses generateStaticParams)
+
+BUN_EXIT=0

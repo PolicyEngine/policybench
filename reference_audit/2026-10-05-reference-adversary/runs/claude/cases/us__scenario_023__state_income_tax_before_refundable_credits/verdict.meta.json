@@ -1,0 +1,59 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.5191898,
+  "duration_ms": 114700,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:39:38.459361+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "a29b93d7e61791308f1d18b6388a9774a713c678657a091445732a7c9296124f",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "48d48be3eb658b59d69dd384c547856eae7e83daffb182e32d3c1b8cf20126b5",
+  "session_id": "ef335992-d4e8-4764-88ba-c0b0f50e68ea",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "e20634f2127ce3f39afeecb2c95304b217cb43ba37f2e7a49fb1454f40f5d55e",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/2025/10.html",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5",
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=RTC&sectionNum=17053.5",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17053-5/",
+      "https://codes.findlaw.com/ca/revenue-and-taxation-code/rtc-sect-17053-5/",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17054"
+    ],
+    "searches": [
+      "\"17053.5\" renter's credit \"shall be zero dollars\" \"clause (i)\" 2026 budget act",
+      "FTB 2025 California standard deduction $5,706 personal exemption credit $153 tax rate schedule $11,079"
+    ]
+  }
+}

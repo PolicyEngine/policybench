@@ -1,0 +1,62 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.5544378,
+  "duration_ms": 85311,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:42:37.325432+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "10fefbe7369dc607d2fc166d35699f39c13f885220d7302305e618586ccaf1c6",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "0cf8e0fdce70bcad20ce9f3031b1dea1214205b680a08494463a2b8c60da045b",
+  "session_id": "26687e1f-ffec-4664-a919-b415b07e5821",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "af3aa290efe2c109a84b356ceaba016042b82bf63f0233f02b2e90bbdac0169e",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://des.az.gov/esap",
+      "https://frac.org/wp-content/uploads/SNAP-SMD-National-Report-1.pdf",
+      "https://des.az.gov/services/basic-needs/food/nutrition-assistance/faqs",
+      "https://www.ssa.gov/oact/cola/SSI.html",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://health.alaska.gov/media/apzdxrwr/snap-fy-2027-cola-memo.pdf"
+    ],
+    "searches": [
+      "Arizona DES SNAP standard medical deduction $145 elderly disabled $35",
+      "SNAP FY 2027 cost-of-living adjustment memo maximum allotment $562 standard deduction $217 released",
+      "Arizona Nutrition Assistance standard medical deduction effective August 1, 2023 $180 elderly or disabled households",
+      "Arizona DES Cash and Nutrition Assistance policy manual standard medical deduction NA elderly disabled verified medical expenses exceed $35"
+    ]
+  }
+}

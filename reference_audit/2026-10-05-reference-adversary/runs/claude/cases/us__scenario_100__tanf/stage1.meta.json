@@ -1,0 +1,78 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.9492741999999998,
+  "duration_ms": 234828,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:47:03.984314+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "751d814849a6733445487aa62a2ad7171751baa894ede3a79224d48d8ceb4ff2",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "ce021e7cfbc3cb15987f56483f3202663f614b1828bc727dcf859f4542df7308",
+  "session_id": "f7c60b5d-41ed-466c-8853-5cd45af88365",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://dphhs.mt.gov/assets/hcsd/tanfmanual/TANF001.pdf",
+      "https://dphhs.mt.gov/hcsd/Manuals/TANFpolicymanual",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.420",
+      "https://dphhs.mt.gov/assets/hcsd/tanfmanual/TANF604-1Jan012018.pdf",
+      "http://www.mtrules.org/gateway/RuleNo.asp?RN=37.78.420",
+      "https://rules.mt.gov/gateway/RuleNo.asp?RN=37.78.420",
+      "https://www.nccp.org/wp-content/uploads/2024/11/TANF-profile-Montana.pdf",
+      "https://dphhs.mt.gov/HCSD/tanf",
+      "https://archive.legmt.gov/content/Publications/fiscal/2027-Biennium/Committees/Section-B/2025-Session/RFI/RFI-Eligibility-Matrix-2025.pdf",
+      "https://dphhs.mt.gov/assets/hcsd/tanfmanual/TANF602-1Jan012018.pdf",
+      "https://prod-dphhs.mt.gov/assets/hcsd/tanfmanual/TANF001.pdf",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.406",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.407",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.420",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.406",
+      "https://www.law.cornell.edu/regulations/montana/title-37/chapter-37.78",
+      "https://dphhs.mt.gov/assets/hcsd/TANF/TANFStatePlan.pdf",
+      "https://regulations.justia.com/states/montana/department-37/chapter-37-78/subchapter-37-78-4/rule-37-78-401/",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.401",
+      "https://www.law.cornell.edu/regulations/montana/Mont-Admin-r-37.78.401",
+      "https://www.ssa.gov/ssi/text-resources-ussi.htm",
+      "https://www.law.cornell.edu/cfr/text/20/416.1205"
+    ],
+    "searches": [
+      "Montana TANF benefit standard 2026 household size 3 ARM 37.78.420",
+      "Montana DPHHS TANF policy manual earned income disregard $200 25 percent",
+      "\"37.78.420\" Montana TANF payment standard 2025 amendment federal poverty level percent notice",
+      "Montana TANF 001 monthly income standards effective 07/01/25 payment standard gross monthly income net monthly income",
+      "Montana TANF resources vehicle excluded ARM 37.78 \"motor vehicle\" countable resources $3,000",
+      "law.cornell.edu Mont. Admin. r. 37.78 TANF resources vehicle \"one vehicle\" excluded",
+      "Montana TANF 604-1 \"grant\" calculation \"payment standard\" net countable income rounded down whole dollar",
+      "Montana Administrative Register 2023 37.78.420 TANF payment standard \"35%\" federal poverty notice of amendment"
+    ]
+  }
+}

@@ -94,6 +94,7 @@ The CSV has **22 columns** (one row per `(model, scenario_id, variable)`):
 | `prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cached_prompt_tokens`, `cache_write_prompt_tokens` | `responses.usage_json` |
 | `provider_reported_cost_usd`, `reconstructed_cost_usd`, `total_cost_usd`, `cost_is_estimated`, `estimated_cost_usd` | `responses.cost_usd` (+ the exact per-row values for byte-identical export) |
 | `provider_response_id`, `provider_system_fingerprint`, `provider_resolved_model` | dedicated `responses` columns |
+| `live_calls`, `cache_hit_calls`, `live_elapsed_seconds` (call provenance, see the runbook; absent from CSVs written before October 2026) | `responses.usage_json` (+ the exact per-row values) |
 | any future/unknown column | `predictions.extra_json` |
 
 The `run_id` column is optional in the CSV (the eval loop only writes it for

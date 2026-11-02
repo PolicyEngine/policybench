@@ -1,0 +1,1054 @@
+{
+  "published_reproduced": true,
+  "salt_commit": "8af912a062dd7ae1373de4c043ae2727d3406930",
+  "salt": {
+    "changed_outputs": [
+      "scenario_022/federal_income_tax_before_refundable_credits",
+      "scenario_081/federal_income_tax_before_refundable_credits",
+      "scenario_114/federal_income_tax_before_refundable_credits"
+    ],
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1925
+    },
+    "exact_delta_pp": {
+      "min": 0.41983119224074983,
+      "max": 0.6110860229821071,
+      "mean": 0.5239506378619773
+    },
+    "score_delta": {
+      "min": -0.0017724385748465465,
+      "max": 0.555965927062843
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      }
+    },
+    "within1pct_rank_changes": {
+      "gpt-6.1-sol": {
+        "published": 9,
+        "proposed": 10
+      },
+      "grok-4.7": {
+        "published": 10,
+        "proposed": 9
+      },
+      "gemini-3.5-flash-lite": {
+        "published": 27,
+        "proposed": 26
+      },
+      "glm-5.3": {
+        "published": 26,
+        "proposed": 27
+      },
+      "claude-opus-4.8": {
+        "published": 40,
+        "proposed": 39
+      },
+      "minimax-m3": {
+        "published": 39,
+        "proposed": 40
+      }
+    },
+    "score_rank_changes": {
+      "gpt-5.5": {
+        "published": 14,
+        "proposed": 13
+      },
+      "gpt-5.6-terra": {
+        "published": 13,
+        "proposed": 14
+      },
+      "claude-opus-5": {
+        "published": 24,
+        "proposed": 23
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 23,
+        "proposed": 24
+      },
+      "minimax-m3": {
+        "published": 43,
+        "proposed": 42
+      },
+      "claude-sonnet-5": {
+        "published": 42,
+        "proposed": 43
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.39464856524052,
+        "within1pct": 70.39464856524052
+      }
+    },
+    "leader_margin_over_always_zero_exact": {
+      "model": "gpt-6-sol",
+      "published": 25.023904562030225,
+      "proposed": 25.219936593460304
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "payroll_exact_delta_by_model": {},
+    "payroll_program": {},
+    "measured_against": "published"
+  },
+  "exclude": {
+    "changed_outputs": [
+      "scenario_032/payroll_tax",
+      "scenario_043/payroll_tax",
+      "scenario_081/payroll_tax",
+      "scenario_082/payroll_tax"
+    ],
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1924
+    },
+    "exact_delta_pp": {
+      "min": -0.06670007462854244,
+      "max": 0.6197044822258704,
+      "mean": 0.43651111567473166
+    },
+    "score_delta": {
+      "min": -0.10686930776678594,
+      "max": 0.24838814821841027
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      },
+      "gpt-6.1-sol": {
+        "published": 8,
+        "proposed": 9
+      },
+      "kimi-k3": {
+        "published": 9,
+        "proposed": 8
+      },
+      "grok-4.7": {
+        "published": 12,
+        "proposed": 13
+      },
+      "inkling": {
+        "published": 13,
+        "proposed": 12
+      },
+      "claude-opus-4.7": {
+        "published": 29,
+        "proposed": 30
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 29
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 36,
+        "proposed": 35
+      }
+    },
+    "within1pct_rank_changes": {
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-6.1-sol": {
+        "published": 9,
+        "proposed": 10
+      },
+      "grok-4.7": {
+        "published": 10,
+        "proposed": 9
+      },
+      "gemini-3-flash-preview": {
+        "published": 31,
+        "proposed": 32
+      },
+      "grok-build-0.1": {
+        "published": 34,
+        "proposed": 31
+      },
+      "claude-sonnet-4.6": {
+        "published": 32,
+        "proposed": 34
+      },
+      "gemini-3.5-flash": {
+        "published": 36,
+        "proposed": 35
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "score_rank_changes": {
+      "kimi-k3": {
+        "published": 19,
+        "proposed": 18
+      },
+      "gpt-5.6-luna": {
+        "published": 18,
+        "proposed": 19
+      },
+      "grok-4.3": {
+        "published": 36,
+        "proposed": 35
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.52527771951148,
+        "within1pct": 70.52527771951148
+      }
+    },
+    "leader_margin_over_always_zero_exact": {
+      "model": "gpt-6-sol",
+      "published": 25.023904562030225,
+      "proposed": 24.56800728567967
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "payroll_exact_delta_by_model": {
+      "gpt-6-sol": -3,
+      "gpt-5.6-sol": -3,
+      "gpt-6-luna": -2,
+      "claude-sonnet-5.5": -1,
+      "gpt-6-astra": -3,
+      "gpt-6.1-sol": -4,
+      "kimi-k3": -3,
+      "gpt-5.6-luna": -2,
+      "grok-4.7": -2,
+      "inkling": -1,
+      "gpt-5.5": -2,
+      "deepseek-v4.1-flash": -2,
+      "grok-4.6": -1,
+      "gemini-3.7-flash": -1,
+      "gemini-3.6-flash": -1,
+      "gemini-3.1-pro-preview": -1,
+      "deepseek-v4-pro": -1,
+      "glm-5.2": -1,
+      "kimi-k2.6": -1
+    },
+    "payroll_program": {
+      "payroll_tax": {
+        "exact_published": 78.5024154589372,
+        "exact_proposed": 81.00686498855836,
+        "exact_delta": 2.5044495296211693,
+        "score_published": 94.95457150909301,
+        "score_proposed": 95.12885899304094,
+        "score_delta": 0.17428748394792137,
+        "n_published": 4554,
+        "n_proposed": 4370,
+        "n_delta": -184
+      }
+    },
+    "measured_against": "published"
+  },
+  "regenerate": {
+    "changed_outputs": [
+      "scenario_032/payroll_tax",
+      "scenario_043/payroll_tax",
+      "scenario_081/payroll_tax",
+      "scenario_082/payroll_tax"
+    ],
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1928
+    },
+    "exact_delta_pp": {
+      "min": -0.6879552856780577,
+      "max": 0.687955285678072,
+      "mean": 0.16946573844677584
+    },
+    "score_delta": {
+      "min": -0.04009914519481583,
+      "max": 0.037873732016365125
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      },
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-6.1-sol": {
+        "published": 8,
+        "proposed": 9
+      },
+      "kimi-k3": {
+        "published": 9,
+        "proposed": 8
+      },
+      "gpt-5.6-luna": {
+        "published": 10,
+        "proposed": 11
+      },
+      "ox-alpha": {
+        "published": 11,
+        "proposed": 10
+      },
+      "grok-4.7": {
+        "published": 12,
+        "proposed": 13
+      },
+      "inkling": {
+        "published": 13,
+        "proposed": 12
+      },
+      "gpt-5.5": {
+        "published": 14,
+        "proposed": 15
+      },
+      "gpt-5.6-terra": {
+        "published": 15,
+        "proposed": 14
+      },
+      "grok-4.6": {
+        "published": 17,
+        "proposed": 18
+      },
+      "gemini-3.8-flash": {
+        "published": 18,
+        "proposed": 17
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 22,
+        "proposed": 23
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 23,
+        "proposed": 22
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 31
+      },
+      "grok-4.3": {
+        "published": 31,
+        "proposed": 30
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 36,
+        "proposed": 35
+      }
+    },
+    "within1pct_rank_changes": {
+      "gpt-6-sol": {
+        "published": 1,
+        "proposed": 2
+      },
+      "claude-opus-5.5": {
+        "published": 2,
+        "proposed": 1
+      },
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-6.1-sol": {
+        "published": 9,
+        "proposed": 12
+      },
+      "gpt-5.6-luna": {
+        "published": 11,
+        "proposed": 10
+      },
+      "ox-alpha": {
+        "published": 13,
+        "proposed": 11
+      },
+      "grok-4.7": {
+        "published": 10,
+        "proposed": 9
+      },
+      "inkling": {
+        "published": 12,
+        "proposed": 13
+      },
+      "claude-fable-5": {
+        "published": 23,
+        "proposed": 22
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 23
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 22,
+        "proposed": 21
+      },
+      "gemini-3.7-flash": {
+        "published": 25,
+        "proposed": 24
+      },
+      "gemini-3.6-flash": {
+        "published": 24,
+        "proposed": 25
+      },
+      "gemini-3-flash-preview": {
+        "published": 31,
+        "proposed": 34
+      },
+      "grok-build-0.1": {
+        "published": 34,
+        "proposed": 32
+      },
+      "claude-sonnet-4.6": {
+        "published": 32,
+        "proposed": 33
+      },
+      "gemini-3.5-flash": {
+        "published": 36,
+        "proposed": 35
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 33,
+        "proposed": 31
+      },
+      "qwen3.8-max": {
+        "published": 42,
+        "proposed": 43
+      },
+      "gpt-5.4-mini": {
+        "published": 43,
+        "proposed": 42
+      }
+    },
+    "score_rank_changes": {
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 22
+      },
+      "gemini-3.7-flash": {
+        "published": 22,
+        "proposed": 21
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      }
+    },
+    "leader_margin_over_always_zero_exact": {
+      "model": "gpt-6-sol",
+      "published": 25.023904562030225,
+      "proposed": 24.64892116455411
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "payroll_exact_delta_by_model": {
+      "gpt-6-sol": -2,
+      "claude-opus-5.5": 4,
+      "gpt-5.6-sol": -2,
+      "claude-sonnet-5.5": 2,
+      "gpt-6-astra": -3,
+      "claude-fable-5.1": 4,
+      "gpt-6.1-sol": -4,
+      "kimi-k3": -3,
+      "gpt-5.6-luna": -1,
+      "ox-alpha": 4,
+      "inkling": 1,
+      "gpt-5.5": -1,
+      "gpt-5.6-terra": 2,
+      "deepseek-v4.1-flash": -2,
+      "grok-4.6": 1,
+      "gemini-3.8-flash": 4,
+      "grok-4.5": 2,
+      "claude-opus-5": 3,
+      "claude-fable-5": 2,
+      "deepseek-v4-flash-0731": 3,
+      "gemini-3.5-flash-lite": 3,
+      "glm-5.3": 3,
+      "claude-opus-4.7": 2,
+      "gemini-3-flash-preview": 1,
+      "grok-4.3": 3,
+      "grok-build-0.1": 3,
+      "claude-sonnet-4.6": 2,
+      "gemini-3.5-flash": 2,
+      "deepseek-v4-pro": -1,
+      "gemini-3.1-flash-lite-preview": 3,
+      "qwen-3.7-max": 2,
+      "glm-5.2": -1,
+      "claude-opus-4.8": 3,
+      "minimax-m3": 3,
+      "qwen3.8-max": 2,
+      "claude-haiku-4.5": 1,
+      "gpt-5.4-mini": 1,
+      "claude-sonnet-5": 2,
+      "kimi-k2.6": -1
+    },
+    "payroll_program": {
+      "payroll_tax": {
+        "exact_published": 78.5024154589372,
+        "exact_proposed": 79.53447518664908,
+        "exact_delta": 1.0320597277118821,
+        "score_published": 94.95457150909301,
+        "score_proposed": 95.01545619845788,
+        "score_delta": 0.060884689364868905,
+        "n_published": 4554,
+        "n_proposed": 4554,
+        "n_delta": 0
+      }
+    },
+    "measured_against": "published"
+  },
+  "exclude+salt": {
+    "changed_outputs": [
+      "scenario_032/payroll_tax",
+      "scenario_043/payroll_tax",
+      "scenario_081/payroll_tax",
+      "scenario_082/payroll_tax"
+    ],
+    "scored_outputs": {
+      "published": 1925,
+      "proposed": 1921
+    },
+    "exact_delta_pp": {
+      "min": -0.021612722479446234,
+      "max": 0.7121113961713235,
+      "mean": 0.5194277429690684
+    },
+    "score_delta": {
+      "min": -0.08929133009138468,
+      "max": 0.3020164401803527
+    },
+    "exact_rank_changes": {
+      "grok-4.7": {
+        "published": 12,
+        "proposed": 13
+      },
+      "inkling": {
+        "published": 13,
+        "proposed": 12
+      },
+      "claude-opus-4.7": {
+        "published": 29,
+        "proposed": 30
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 29
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 36,
+        "proposed": 35
+      }
+    },
+    "within1pct_rank_changes": {
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-6.1-sol": {
+        "published": 10,
+        "proposed": 11
+      },
+      "gpt-5.6-luna": {
+        "published": 11,
+        "proposed": 10
+      },
+      "gemini-3.5-flash-lite": {
+        "published": 26,
+        "proposed": 27
+      },
+      "glm-5.3": {
+        "published": 27,
+        "proposed": 26
+      },
+      "gemini-3-flash-preview": {
+        "published": 31,
+        "proposed": 32
+      },
+      "grok-build-0.1": {
+        "published": 34,
+        "proposed": 31
+      },
+      "claude-sonnet-4.6": {
+        "published": 32,
+        "proposed": 34
+      },
+      "gemini-3.5-flash": {
+        "published": 36,
+        "proposed": 35
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "score_rank_changes": {
+      "kimi-k3": {
+        "published": 19,
+        "proposed": 18
+      },
+      "gpt-5.6-luna": {
+        "published": 18,
+        "proposed": 19
+      },
+      "claude-opus-5": {
+        "published": 23,
+        "proposed": 24
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 24,
+        "proposed": 23
+      },
+      "grok-4.3": {
+        "published": 36,
+        "proposed": 35
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 70.39464856524052,
+        "within1pct": 70.39464856524052
+      },
+      "proposed": {
+        "exact": 71.03273862500897,
+        "within1pct": 71.03273862500897
+      }
+    },
+    "leader_margin_over_always_zero_exact": {
+      "model": "gpt-6-sol",
+      "published": 25.219936593460304,
+      "proposed": 24.716719755313363
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "payroll_exact_delta_by_model": {
+      "gpt-6-sol": -3,
+      "gpt-5.6-sol": -3,
+      "claude-sonnet-5.5": -1,
+      "gpt-6-luna": -2,
+      "gpt-6-astra": -3,
+      "gpt-6.1-sol": -4,
+      "kimi-k3": -3,
+      "gpt-5.6-luna": -2,
+      "grok-4.7": -2,
+      "inkling": -1,
+      "gpt-5.5": -2,
+      "deepseek-v4.1-flash": -2,
+      "grok-4.6": -1,
+      "gemini-3.7-flash": -1,
+      "gemini-3.6-flash": -1,
+      "gemini-3.1-pro-preview": -1,
+      "deepseek-v4-pro": -1,
+      "glm-5.2": -1,
+      "kimi-k2.6": -1
+    },
+    "payroll_program": {
+      "payroll_tax": {
+        "exact_published": 78.5024154589372,
+        "exact_proposed": 81.00686498855836,
+        "exact_delta": 2.5044495296211693,
+        "score_published": 94.95457150909301,
+        "score_proposed": 95.12885899304094,
+        "score_delta": 0.17428748394792137,
+        "n_published": 4554,
+        "n_proposed": 4370,
+        "n_delta": -184
+      }
+    },
+    "measured_against": "salt"
+  },
+  "regenerate+salt": {
+    "changed_outputs": [
+      "scenario_032/payroll_tax",
+      "scenario_043/payroll_tax",
+      "scenario_081/payroll_tax",
+      "scenario_082/payroll_tax"
+    ],
+    "scored_outputs": {
+      "published": 1925,
+      "proposed": 1925
+    },
+    "exact_delta_pp": {
+      "min": -0.735274847474443,
+      "max": 0.735274847474443,
+      "mean": 0.16946573844677676
+    },
+    "score_delta": {
+      "min": -0.04294449211639062,
+      "max": 0.040557703662329914
+    },
+    "exact_rank_changes": {
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-5.6-luna": {
+        "published": 10,
+        "proposed": 11
+      },
+      "ox-alpha": {
+        "published": 11,
+        "proposed": 10
+      },
+      "grok-4.7": {
+        "published": 12,
+        "proposed": 13
+      },
+      "inkling": {
+        "published": 13,
+        "proposed": 12
+      },
+      "gpt-5.5": {
+        "published": 14,
+        "proposed": 15
+      },
+      "gpt-5.6-terra": {
+        "published": 15,
+        "proposed": 14
+      },
+      "grok-4.6": {
+        "published": 17,
+        "proposed": 18
+      },
+      "gemini-3.8-flash": {
+        "published": 18,
+        "proposed": 17
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 22,
+        "proposed": 23
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 23,
+        "proposed": 22
+      },
+      "gemini-3.1-pro-preview": {
+        "published": 27,
+        "proposed": 28
+      },
+      "glm-5.3": {
+        "published": 28,
+        "proposed": 27
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 31
+      },
+      "grok-4.3": {
+        "published": 31,
+        "proposed": 30
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 36,
+        "proposed": 35
+      }
+    },
+    "within1pct_rank_changes": {
+      "gpt-6-sol": {
+        "published": 1,
+        "proposed": 2
+      },
+      "claude-opus-5.5": {
+        "published": 2,
+        "proposed": 1
+      },
+      "gpt-6-astra": {
+        "published": 6,
+        "proposed": 7
+      },
+      "claude-fable-5.1": {
+        "published": 7,
+        "proposed": 6
+      },
+      "gpt-6.1-sol": {
+        "published": 10,
+        "proposed": 12
+      },
+      "gpt-5.6-luna": {
+        "published": 11,
+        "proposed": 10
+      },
+      "ox-alpha": {
+        "published": 13,
+        "proposed": 11
+      },
+      "inkling": {
+        "published": 12,
+        "proposed": 13
+      },
+      "claude-fable-5": {
+        "published": 23,
+        "proposed": 22
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 23
+      },
+      "deepseek-v4-flash-0731": {
+        "published": 22,
+        "proposed": 21
+      },
+      "gemini-3.7-flash": {
+        "published": 25,
+        "proposed": 24
+      },
+      "gemini-3.6-flash": {
+        "published": 24,
+        "proposed": 25
+      },
+      "gemini-3.5-flash-lite": {
+        "published": 26,
+        "proposed": 27
+      },
+      "glm-5.3": {
+        "published": 27,
+        "proposed": 26
+      },
+      "gemini-3-flash-preview": {
+        "published": 31,
+        "proposed": 34
+      },
+      "grok-build-0.1": {
+        "published": 34,
+        "proposed": 32
+      },
+      "claude-sonnet-4.6": {
+        "published": 32,
+        "proposed": 33
+      },
+      "gemini-3.5-flash": {
+        "published": 36,
+        "proposed": 35
+      },
+      "deepseek-v4-pro": {
+        "published": 35,
+        "proposed": 36
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 33,
+        "proposed": 31
+      },
+      "qwen3.8-max": {
+        "published": 42,
+        "proposed": 43
+      },
+      "gpt-5.4-mini": {
+        "published": 43,
+        "proposed": 42
+      }
+    },
+    "score_rank_changes": {
+      "gpt-5.5": {
+        "published": 13,
+        "proposed": 14
+      },
+      "gpt-5.6-terra": {
+        "published": 14,
+        "proposed": 13
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 70.39464856524052,
+        "within1pct": 70.39464856524052
+      },
+      "proposed": {
+        "exact": 70.39464856524052,
+        "within1pct": 70.39464856524052
+      }
+    },
+    "leader_margin_over_always_zero_exact": {
+      "model": "gpt-6-sol",
+      "published": 25.219936593460304,
+      "proposed": 24.797633634187804
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "payroll_exact_delta_by_model": {
+      "gpt-6-sol": -2,
+      "claude-opus-5.5": 4,
+      "gpt-5.6-sol": -2,
+      "claude-sonnet-5.5": 2,
+      "gpt-6-astra": -3,
+      "claude-fable-5.1": 4,
+      "gpt-6.1-sol": -4,
+      "kimi-k3": -3,
+      "gpt-5.6-luna": -1,
+      "ox-alpha": 4,
+      "inkling": 1,
+      "gpt-5.5": -1,
+      "gpt-5.6-terra": 2,
+      "deepseek-v4.1-flash": -2,
+      "grok-4.6": 1,
+      "gemini-3.8-flash": 4,
+      "grok-4.5": 2,
+      "claude-opus-5": 3,
+      "claude-fable-5": 2,
+      "deepseek-v4-flash-0731": 3,
+      "gemini-3.5-flash-lite": 3,
+      "glm-5.3": 3,
+      "claude-opus-4.7": 2,
+      "gemini-3-flash-preview": 1,
+      "grok-4.3": 3,
+      "grok-build-0.1": 3,
+      "claude-sonnet-4.6": 2,
+      "gemini-3.5-flash": 2,
+      "deepseek-v4-pro": -1,
+      "gemini-3.1-flash-lite-preview": 3,
+      "qwen-3.7-max": 2,
+      "glm-5.2": -1,
+      "claude-opus-4.8": 3,
+      "minimax-m3": 3,
+      "qwen3.8-max": 2,
+      "claude-haiku-4.5": 1,
+      "gpt-5.4-mini": 1,
+      "claude-sonnet-5": 2,
+      "kimi-k2.6": -1
+    },
+    "payroll_program": {
+      "payroll_tax": {
+        "exact_published": 78.5024154589372,
+        "exact_proposed": 79.53447518664908,
+        "exact_delta": 1.0320597277118821,
+        "score_published": 94.95457150909301,
+        "score_proposed": 95.01545619845788,
+        "score_delta": 0.060884689364868905,
+        "n_published": 4554,
+        "n_proposed": 4554,
+        "n_delta": 0
+      }
+    },
+    "measured_against": "salt"
+  }
+}

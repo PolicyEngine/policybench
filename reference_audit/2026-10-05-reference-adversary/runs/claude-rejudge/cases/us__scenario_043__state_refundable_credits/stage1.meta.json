@@ -1,0 +1,86 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.2323321999999999,
+  "duration_ms": 1234060,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T22:08:36.900067+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "a731f8fbfe7df57019821be858b34c5f12c767f91b653ef2f623474c0fc7a37a",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "f463c6c63fa1134862d723dc819a6e35a05c46157be1b4940b34f91ee10867d7",
+  "session_id": "14a0f557-21c7-4a4b-b828-6f01381a0389",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://tax.colorado.gov/individual-income-tax-guide",
+      "https://tax.colorado.gov/income-tax-topics-earned-income-tax-credit",
+      "https://www.leg.colorado.gov/bills/HB26-1240",
+      "https://tax.colorado.gov/income-tax-topics-state-sales-tax-refund",
+      "https://tax.colorado.gov/sites/tax/files/documents/Book104_2025.pdf",
+      "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf",
+      "https://kdvr.com/news/local/how-much-will-tabor-refunds-be-in-2026/",
+      "https://leg.colorado.gov/bills/SB25-013",
+      "https://leg.colorado.gov/bills/hb24-1052",
+      "https://www.leg.colorado.gov/bills/SB25-013",
+      "https://www.leg.colorado.gov/bills/HB24-1052",
+      "https://www.leg.colorado.gov/bills/HB24-1052",
+      "https://colorado.public.law/statutes/crs_39-22-2003",
+      "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Sales_Tax_Refund_Nov_2025.pdf",
+      "https://colorado.public.law/statutes/crs_39-22-2003",
+      "https://content.leg.colorado.gov/sites/default/files/2026-06/june-2026-forecast-presentation-to-print-accessible.pdf",
+      "https://colorado.public.law/statutes/crs_39-22-2003",
+      "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf",
+      "https://coloradofiscal.org/june-2026-forecast-five/",
+      "https://content.leg.colorado.gov/sites/default/files/2026-06/June%202026%20Forecast%20Presentation%20to%20print.pdf",
+      "https://content.leg.colorado.gov/sites/default/files/march2026forecastwithcover-accessible.pdf",
+      "https://gazette.com/2026/01/05/no-tabor-refunds-this-year-as-colorado-gov-polis-warns-of-tight-fiscal-outlook/",
+      "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf",
+      "https://colorado.public.law/statutes/crs_39-22-123.5",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/who-qualifies-for-the-earned-income-tax-credit-eitc",
+      "https://colorado.public.law/statutes/crs_39-22-123.5",
+      "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf"
+    ],
+    "searches": [
+      "Colorado 2026 refundable income tax credits individuals TABOR sales tax refund tax year 2026",
+      "Colorado earned income tax credit 2026 age 65 older not eligible federal EITC expanded",
+      "Colorado state sales tax refund tax year 2025 amounts six tiers AGI 104 form",
+      "June 2026 revenue forecast Colorado TABOR surplus FY 2025-26 refund mechanisms sales tax refund",
+      "Legislative Council Staff June 2026 economic revenue forecast \"below the Referendum C cap\" FY 2025-26 no TABOR refund",
+      "Colorado Senior Housing Income Tax Credit tax year 2026 refundable eligibility HB24-1052",
+      "Colorado 39-22-2003 state sales tax refund \"eighteen years\" full-year resident refund six tiers statute",
+      "Colorado June 2026 forecast TABOR \"FY 2025-26\" \"below the Referendum C cap\" \"$424.9 million\"",
+      "IRS EITC without qualifying child \"at least age 25 but under age 65\" Publication 596",
+      "Colorado December 2025 forecast TABOR FY 2025-26 revenue below Referendum C cap no TABOR refund tax year 2026 returns 2027"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "ambiguity": "There is no real second reading. The consensus answer of 0 assumes Louisiana has no refundable EITC or repealed it. That is wrong: the 2025 repeal bills (SB 149, HB 642) died in committee, and R.S. 47:297.8 still provides a refundable 5% credit through 2030. A small open point is whether earned income is computed after the half-self-employment-tax deduction. Either way, earned income is between $18,290 and $31,160, so the federal EITC is the $7,316 maximum and the result does not change.",
+  "citations": [
+    {
+      "pinpoint": "R.S. 47:297.8(A)(2)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "there shall be a credit against the tax imposed by this Chapter for individuals in an amount equal to five percent of the federal earned income tax credit for which the individual is eligible for the taxable year under Section 32 of the Internal Revenue Code.",
+      "source": "Louisiana Revised Statutes, Title 47, \u00a7297.8 (Earned income tax credit)",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "R.S. 47:297.8(B)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "If the credit against Louisiana income tax for resident individuals exceeds the amount of such individual's tax liability for the taxable year, then such excess tax credit shall constitute an overpayment from the current collections of the taxes imposed under this Part.",
+      "source": "Louisiana Revised Statutes, Title 47, \u00a7297.8 (Earned income tax credit)",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "Section 4.06, Earned Income Credit table (two qualifying children)",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "The \"earned income amount\" is the amount of earned income at or above which the maximum amount of the earned income credit is allowed.",
+      "source": "IRS Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "\u00a732(c)(2)(A); \u00a732(b)(1)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "such net earnings shall be determined with regard to the deduction allowed to the taxpayer by section 164(f).",
+      "source": "26 U.S. Code \u00a732 (Earned income)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "Bill digest/status",
+      "pre_freeze": true,
+      "published": "2025-04-04",
+      "quote": "repeals the earned income tax credit for taxable periods beginning on or after January 1, 2026",
+      "source": "Louisiana Legislature, SB 149 (2025 Regular Session) bill record",
+      "url": "https://legis.la.gov/Legis/ViewDocument.aspx?d=1404166"
+    }
+  ],
+  "computation": "1. Federal EITC (IRC \u00a732), filing jointly with two qualifying children aged 7 and 6. The head is 25 and the spouse is 18; with qualifying children there is no minimum age. No investment income is listed, so it is treated as 0.\n   - Earned income (\u00a732(c)(2)(A)) is wages plus net self-employment earnings, reduced by the \u00a7164(f) deduction.\n   - Self-employment tax: 15,525 \u00d7 0.9235 = 14,337.34; \u00d7 15.3% = 2,193.61. Half of that is 1,096.81.\n   - Earned income = 7,468 + 15,525 \u2212 1,096.81 = 21,896.19. AGI is the same, 21,896.19.\n   - Rev. Proc. 2025-32 sets these 2026 figures for two children: earned income amount $18,290, maximum credit $7,316, joint-return phase-out threshold $31,160. (The rate is 40% under \u00a732(b), and 40% \u00d7 18,290 = 7,316.)\n   - Earned income of 21,896 is at least $18,290, and both AGI and earned income are below $31,160. So there is no phase-out and the federal EITC is $7,316.\n2. Louisiana EITC (R.S. 47:297.8(A)(2)): for tax years 2019 through 2030 the credit is 5% of the federal EITC. 5% \u00d7 7,316 = $365.80.\n3. Refundability: R.S. 47:297.8(B) treats any amount above the tax liability as an overpayment to be refunded, so the credit is refundable.\n4. Status of the law: the legislature's site lists Acts 2021, No. 453 as the last amendment. Two 2025 repeal bills, SB 149 and HB 642, stayed pending in committee and died. So the 5% refundable credit is in force for 2026.\n5. Other refundable Louisiana credits (the refundable child care credit and the school readiness credits) require child care expenses. None are listed, so they are 0.\n6. Total Louisiana refundable credits = $365.80.\n\nThe 2026 federal EITC parameters (Rev. Proc. 2025-32, Nov 2025) and the Louisiana statute were both published before the 2026-07-03 freeze.",
+  "confidence": "high",
+  "definition_reading": "This household is a single joint return of Louisiana residents. \"Total refundable state individual income tax credits\" covers every Louisiana income tax credit whose excess over liability is refunded. Here that is only the Louisiana EITC under R.S. 47:297.8: 5% of the federal EITC, refundable under subsection B. Refundable child care and school readiness credits are 0 because no child care expenses are listed.",
+  "independent_answer": 365.8,
+  "law_supports": "reference"
+}

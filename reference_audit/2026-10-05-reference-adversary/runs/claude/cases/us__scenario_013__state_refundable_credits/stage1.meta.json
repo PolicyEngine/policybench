@@ -1,0 +1,74 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.0925166000000002,
+  "duration_ms": 232020,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:07:21.388977+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "9a110beb3b226b1c087a130eeeae1b29ecd1223d2d2726d9ee812a1beb339a61",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "0146e5796470a76fb0c699f76bb60f8c2d0dadb3378692a48c840b7e58ed4630",
+  "session_id": "abd376b6-bc93-4998-b7e9-4f6a8b878d68",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://www.azleg.gov/ars/43/01072.htm",
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140i.pdf",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140PTCi.pdf",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140ETi.pdf",
+      "https://azdor.gov/forms/tax-credits-forms/credit-increased-excise-taxes",
+      "https://azdor.gov/individuals/income-tax-filing-assistance/tax-credits",
+      "https://azdor.gov/individuals/income-tax-filing-assistance/tax-credits",
+      "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm",
+      "https://legiscan.com/AZ/text/HB2004/2026",
+      "https://www.taxformfinder.org/forms/2025/2025-arizona-form-140ez.pdf",
+      "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm",
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://www.azleg.gov/ars/43/01023.htm",
+      "https://www.azleg.gov/ars/43/01043.htm",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2024_140ETi.pdf",
+      "https://azdor.gov/sites/default/files/document/FORMS_INDIVIDUAL_2025_140PTCBooklet.pdf",
+      "https://www.azleg.gov/ars/43/01072.htm",
+      "https://www.taxformfinder.org/forms/2023/2023-arizona-form-140et.pdf",
+      "https://azdor.gov/sites/default/files/2023-10/FORMS_INDIVIDUAL_140ET-SVi.pdf",
+      "https://www.law.cornell.edu/uscode/text/26/86"
+    ],
+    "searches": [
+      "Arizona Form 140 instructions 2025 credit for increased excise taxes line 56 federal adjusted gross income $12,500",
+      "azdor.gov increased excise tax credit $25 each person federal adjusted gross income $12,500 single",
+      "Arizona 2026 legislation increased excise tax credit 43-1072.01 amended",
+      "Arizona Form 140 line 56 \"increased excise tax credit\" \"yourself\" number of persons multiply by $25 instructions"
+    ]
+  }
+}

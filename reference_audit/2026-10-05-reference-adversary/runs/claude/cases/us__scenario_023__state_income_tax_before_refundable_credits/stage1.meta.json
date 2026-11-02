@@ -1,0 +1,87 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.6172357999999993,
+  "duration_ms": 425227,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:36:13.746863+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "e20634f2127ce3f39afeecb2c95304b217cb43ba37f2e7a49fb1454f40f5d55e",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "9853ed8908e30efc7d0d0a4be15ddd5591e71c412e530e6fd903e98df2c1d03e",
+  "session_id": "b22d7908-5425-45ac-b5cf-98478e11b9f2",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/index.html",
+      "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/",
+      "https://www.ftb.ca.gov/forms/2026/2026-540-es-instructions.pdf",
+      "https://www.ftb.ca.gov/forms/2026/2026-100-es-instructions.html",
+      "https://www.ftb.ca.gov/forms/2025/2025-540-booklet.html",
+      "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/2025/10.html",
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=RTC&sectionNum=17053.5",
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=RTC&sectionNum=17054",
+      "https://legiscan.com/CA/text/AB838/id/3131856",
+      "https://law.justia.com/codes/california/code-rtc/division-2/part-10/chapter-2/article-2/section-17053-5/",
+      "https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260SB566",
+      "https://www.law.cornell.edu/uscode/text/26/72",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5",
+      "https://www.pwc.com/us/en/services/tax/library/california-legislature-passes-second-budget-trailer-bill.html",
+      "https://src.senate.ca.gov/content/2026-27-enacted-budget-initial-summary",
+      "https://src.senate.ca.gov/sites/src.senate.ca.gov/files/2026-27%20Highlights%20and%20Analysis%20-%20Sept%2030%20Final.pdf",
+      "https://src.senate.ca.gov/sites/src.senate.ca.gov/files/January%202026%20Highlights%20%26%20Analysis%20of%20Gov%27s%20Budget.pdf",
+      "https://calbudgetcenter.org/resources/first-look-understanding-the-governors-2026-27-may-revision/",
+      "https://www.ftb.ca.gov/file/personal/tax-calculator-tables-rates.asp",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17054",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17041",
+      "https://california.public.law/codes/revenue_and_taxation_code_section_17073.5",
+      "https://ustax.tools/tax-insights/california-income-tax-brackets-2026/",
+      "https://paycheckcalculatorcalifornia.com/california-tax-brackets-2026/",
+      "https://www.breakeven.tax/brackets/2026/california"
+    ],
+    "searches": [
+      "FTB 2026 tax rate schedules standard deduction exemption credit indexed California",
+      "\"2026\" California \"inflation rate\" CCPI \"June 2025 to June 2026\" FTB tax news indexing",
+      "FTB 2025 tax rate schedule single $11,079 standard deduction $5,706 exemption credit $153",
+      "FTB Tax News 2026 indexing \"$5,900\" \"$158\" renter's credit 2026 California",
+      "California Revenue and Taxation Code 17053.5 renter's credit \"sixty dollars\" text",
+      "California renter's credit 2026 $250 budget act funded 17053.5 subdivision (k) 2026 tax year",
+      "2026-27 California budget renter's credit increase not funded $60 2026 tax year",
+      "\"renter's credit\" California enacted budget June 2026 trailer bill expanded renters credit funded",
+      "calbudgetcenter 2026-27 enacted budget renter's tax credit",
+      "\"Renter's Tax Credit\" 2026-27 budget agreement legislature June 2026 California expanded credit",
+      "California 2026 tax rate schedule single \"$11,456\" 1% 2%",
+      "ftb.ca.gov tax news 2026 \"indexing\" \"3.4%\" standard deduction \"$5,900\""
+    ]
+  }
+}

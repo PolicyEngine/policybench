@@ -1,0 +1,19 @@
+{
+  "note": "The published policyengine-us 2.60.0 wheel against its release commit. 2bc4ccc970 (\"Update PolicyEngine US\", the commit whose pyproject.toml first reads 2.60.0) was built from source into a fresh environment and run through scripts/sweep_timing.py run with empty draft actions, as the reference sweep was. Its computed.csv is byte-identical to the wheel's (reference-build/computed.csv): every one of the 1,984 outputs agrees. Each pull request this upgrade names (#10036, #10158, #10185, #10238) is an ancestor of the commit; #10238 is not an ancestor of 2.59.0's release commit, 05813807e1.",
+  "release_commit": "2bc4ccc970912798a67b054e718800dd93cf70b6",
+  "previous_release_commit_2_59_0": "05813807e1",
+  "engine_install": {
+    "version": "2.60.0",
+    "files_verified": 19508,
+    "editable": false,
+    "imported_from_package": true
+  },
+  "computed_sha256": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008",
+  "wheel_computed_sha256": "98b0257548477a69f8c9f3cbdd85bb6fdbc430529189821bcd45068672f06008",
+  "ancestors": {
+    "PolicyEngine/policyengine-us#10036": "73d9c6ca0c",
+    "PolicyEngine/policyengine-us#10158": "f4b1644230",
+    "PolicyEngine/policyengine-us#10185": "b829c86733",
+    "PolicyEngine/policyengine-us#10238": "271d5e945b"
+  }
+}

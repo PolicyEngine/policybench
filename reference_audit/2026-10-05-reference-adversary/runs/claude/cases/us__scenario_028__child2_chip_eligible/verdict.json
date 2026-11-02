@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 1397jj(b)(1)(C)",
+      "pre_freeze": true,
+      "published": "current codification (in force 2026)",
+      "quote": "who is not found to be eligible for medical assistance under subchapter XIX or, subject to paragraph (5), covered under a group health plan or under health insurance coverage",
+      "source": "Social Security Act Title XXI, 42 U.S. Code \u00a7 1397jj (targeted low-income child)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/1397jj"
+    },
+    {
+      "pinpoint": "\u00a7 457.310(b)(2)",
+      "pre_freeze": true,
+      "published": "current CFR (in force 2026)",
+      "quote": "Covered under a group health plan or under health insurance coverage, as defined in section 2791 of the Public Health Service Act",
+      "source": "42 CFR \u00a7 457.310 Targeted low-income child",
+      "url": "https://www.law.cornell.edu/cfr/text/42/457.310"
+    },
+    {
+      "pinpoint": "Section 2311(c)(1.1)(ii)",
+      "pre_freeze": true,
+      "published": "2013-10-16",
+      "quote": "Is not covered by a health insurance plan, a self-insurance plan or a self-funded plan",
+      "source": "Pennsylvania Act of Oct. 16, 2013, No. 74 (Insurance Company Law of 1921, Article XXIII Children's Health Care)",
+      "url": "https://www.legis.state.pa.us/WU01/LI/LI/US/HTM/2013/0/0074..HTM"
+    },
+    {
+      "pinpoint": "Eligibility requirements list",
+      "pre_freeze": null,
+      "published": "undated web page (references 2026 income chart effective 2026-03-01)",
+      "quote": "Uninsured and not eligible for Medical Assistance",
+      "source": "Pennsylvania Department of Human Services, CHIP Eligibility and Benefits",
+      "url": "https://www.pa.gov/agencies/dhs/resources/chip/eligibility-and-benefits"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Child 2 is 10 years old. Household MAGI is about $60,010, roughly 182% of the 2026 FPL for a household of four, so the child fails Pennsylvania's Medicaid income test but meets CHIP's age and income tests. However, the prompt says Child 2 has employer-sponsored insurance all year. Under 42 USC 1397jj(b)(1)(C), 42 CFR 457.310(b)(2) and Pennsylvania's own rule that the child be uninsured, that coverage means the child is not a targeted low-income child. The engine's output of 0 is therefore correct. The narrative's stated reason (failing an age or income threshold) looks like a misdescription of the trace, but the value matches the law. The 20-model consensus of 1 ignored the uninsured requirement.",
+  "verdict": "reference_holds"
+}

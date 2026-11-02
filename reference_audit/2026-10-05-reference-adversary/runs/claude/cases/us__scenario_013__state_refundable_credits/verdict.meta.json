@@ -1,0 +1,51 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.1389298,
+  "duration_ms": 30519,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:08:24.076262+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "3b8c61a84efc235844ae618bdd723ba5a9389d0ada95f700aa88af69fa384ddd",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "40d4c6e033e2d6db6dac0362799aa3ab0ce65442fe436938623eec3ce906549f",
+  "session_id": "a5002386-05d4-4538-8de4-d5ea688a5c40",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "9a110beb3b226b1c087a130eeeae1b29ecd1223d2d2726d9ee812a1beb339a61",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.azleg.gov/ars/43/01072-01.htm",
+      "https://azdor.gov/individuals/income-tax-filing-assistance/tax-credits"
+    ],
+    "searches": []
+  }
+}

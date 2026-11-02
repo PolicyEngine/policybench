@@ -1,0 +1,25 @@
+started 2026-10-06T21:12:01Z lane claude-10 account max@farness.ai parallel 3
+reference adversary: 10 cases | parallel=3 model=opus effort=xhigh runner=claude (2.1.284 (Claude Code))
+login: {"account": null, "method": "oauth_token", "org": null} in /Users/maxghenis/.claude-judge-lanes/claude-10 (declared: max@farness.ai)
+[ok] us__scenario_014__state_income_tax_before_refundable_credits stage 1
+[ok] us__scenario_014__state_income_tax_before_refundable_credits stage 2
+[ok] us__scenario_030__snap stage 1
+[ok] us__scenario_023__state_refundable_credits stage 1
+[ok] us__scenario_030__snap stage 2
+[ok] us__scenario_023__state_refundable_credits stage 2
+[ok] us__scenario_043__state_refundable_credits stage 1
+[ok] us__scenario_043__state_refundable_credits stage 2
+[ok] us__scenario_045__state_refundable_credits stage 1
+[ok] us__scenario_013__snap stage 1
+[ok] us__scenario_045__state_refundable_credits stage 2
+[ok] us__scenario_073__snap stage 1
+[ok] us__scenario_066__state_refundable_credits stage 1
+[ok] us__scenario_073__snap stage 2
+[ok] us__scenario_066__state_refundable_credits stage 2
+[ok] us__scenario_013__snap stage 2
+[ok] us__scenario_079__snap stage 1
+[ok] us__scenario_115__state_income_tax_before_refundable_credits stage 1
+[ok] us__scenario_079__snap stage 2
+[ok] us__scenario_115__state_income_tax_before_refundable_credits stage 2
+reference adversary complete: 10/10 verdicts present
+runner exit 0 at 2026-10-06T22:58:41Z

@@ -1,0 +1,82 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.8191311999999995,
+  "duration_ms": 363477,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T04:03:29.162485+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "1e580d655092156ea2fde85e80e9aed370af96feec2baecafc09f3688582dd22",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "f9f9ac6f670be85b3d0d9d67a0dbc0cf6c461ff5e378c927d1ba90f5bcd98a66",
+  "session_id": "c723dba3-6eae-4932-9a0c-2df1102c0701",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-271/section-271.2",
+      "https://www.law.cornell.edu/cfr/text/7/271.2",
+      "https://www.law.cornell.edu/uscode/text/7/2012",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://health.alaska.gov/media/4nunu3ob/fy2026-cola-memo.pdf",
+      "https://primarynewssource.org/sourcedocument/snap-fiscal-year-2026-cost-of-living-adjustments/",
+      "https://dss.sc.gov/news/update-to-snap-income-reminder/",
+      "https://dss.sc.gov/resource-library/manuals/mini-snap.pdf",
+      "https://dss.sc.gov/media/hxnn4gwz/snap-outreah-toolkit_01092026_v6.pdf",
+      "https://www.fns.usda.gov/snap/broad-based-categorical-eligibility",
+      "https://dss.sc.gov/media/llodk0kb/snap-manual-volume-73.pdf",
+      "https://www.congress.gov/crs-product/R42505",
+      "https://www.otda.ny.gov/policy/gis/2025/25DC059.pdf",
+      "https://www.otda.ny.gov/policy/gis/2025/25DC059-Attachment-1.pdf",
+      "https://dss.sc.gov/assistance-programs/snap/how-do-i-qualify/",
+      "https://dss.sc.gov/media/onwb1yix/dss-brochure-2422-june-26.pdf",
+      "https://dss.sc.gov/resource-library/manuals/mini-snap.pdf",
+      "https://www.congress.gov/crs_external_products/R/HTML/R42505.html",
+      "https://dhs.maryland.gov/documents/FIA/Action%20Transmittals-AT%20-%20Information%20Memo-IM/AT-IM2026/26-05%20AT%20SNAP%20Mass%20Changes%20for%20October%202025.pdf",
+      "https://www.warrencountyny.gov/sites/default/files/25DC059%20-%20Attachment%201%20-%20LDSS-5006%20Notice%20to%20ALL%20SNAP%20Recipients%20(EN).pdf",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.ssa.gov/oact/cola/sga.html"
+    ],
+    "searches": [
+      "SNAP FY 2026 cost-of-living adjustments maximum allotment $298 standard deduction $209 gross income 130 percent $1,696",
+      "\"FY 2026\" SNAP COLA memo maximum allotments income eligibility standards deductions",
+      "South Carolina DSS SNAP income limits 2025-2026 gross monthly income 1 person $1,696 elderly disabled $4,500",
+      "dss.sc.gov SNAP income guidelines gross income net income maximum allotment",
+      "South Carolina SNAP broad-based categorical eligibility 130 percent gross income elderly disabled households SNAP manual",
+      "\"October 1, 2025\" SNAP \"$298\" \"$209\" \"$1,305\" \"$4,500\" state agency",
+      "South Carolina DSS SNAP \"how do I qualify\" income limits elderly disabled",
+      "SNAP standards effective October 1 2025 maximum allotment 298 standard deduction 209 net income 1,305 gross 1,696 dshs OR hhs.texas.gov"
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "ambiguity": "The $21,208 employer-sponsored insurance premiums are not stated to be pre-tax salary reductions, and the prompt gives gross wages, so I left wages unchanged. If they were treated as section 125 pre-tax reductions, federal AGI would be about $96,454. The ESCC would then be $653.50 (21 x $16.50 reduction) and the CDCC 34.6535% x $3,000 = $1,039.61, for a total of about $1,693. Smaller points: rounding the CDCC percentage or the credit to whole dollars gives $1,188, and not subtracting the $68 refund from NY AGI gives $1,187.04. Neither reading produces $667 or $0.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7 606(c-1)(1-a)(B)",
+      "pre_freeze": true,
+      "published": "2025-05-09",
+      "quote": "For taxable years beginning on and after January first, two thousand twenty-six, and before January first, two thousand twenty-eight, a resident taxpayer shall be allowed a credit as provided herein, equal to the sum of: (i) one thousand dollars times the number of qualifying children of the taxpayer aged three or younger",
+      "source": "New York Tax Law \u00a7 606(c-1)(1-a)(B) (Empire State child credit)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-1)(1-a)(C)",
+      "pre_freeze": true,
+      "published": "2025-05-09",
+      "quote": "The amount of the credit allowable under subparagraphs (A) and (B) of this paragraph shall be reduced (but not below zero) by sixteen dollars and fifty cents for each one thousand dollars by which the taxpayer's federal adjusted gross income exceeds the threshold amount.",
+      "source": "New York Tax Law \u00a7 606(c-1)(1-a)(C)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "Line 6 instructions",
+      "pre_freeze": true,
+      "published": "2025-12",
+      "quote": "Round down the amount from Form IT-201, line 19 to the nearest $1,000. If the amount is zero or less, enter 0.",
+      "source": "NYS Department of Taxation and Finance, Instructions for Form IT-213 (2025)",
+      "url": "https://www.tax.ny.gov/forms/html-instructions/2025/it/it213i-2025.htm"
+    },
+    {
+      "pinpoint": "\u00a7 606(c)(1)",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "For taxable years beginning before January first, two thousand twenty-six, a taxpayer shall be allowed a credit as provided herein equal to the applicable percentage of the credit allowable under section twenty-one of the internal revenue code",
+      "source": "New York Tax Law \u00a7 606(c)(1) as amended by L.2026, ch.59, Part A",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-2)(2) 'applicable percentage'",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "fifty-five percent reduced by twenty-five hundred thousandths of a percentage point for each dollar of an eligible taxpayer's New York adjusted gross income determined pursuant to section six hundred twelve of this article in excess of fifteen thousand dollars. Provided, however, that the applicable percentage for an eligible taxpayer shall not be reduced below four percent.",
+      "source": "New York Tax Law \u00a7 606(c-2) (New York state child and dependent care credit), added by L.2026, ch.59, Part A",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "\u00a7 606(c-2)(1) refundability; (3) credit amount; qualifying expense cap",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "If the amount of the credit allowed under this subsection for any taxable year shall exceed the eligible taxpayer's tax for such year, the excess shall be treated as an overpayment of tax to be credited or refunded",
+      "source": "New York Tax Law \u00a7 606(c-2)(1),(3)",
+      "url": "https://www.nysenate.gov/legislation/laws/TAX/606"
+    },
+    {
+      "pinpoint": "Part A",
+      "pre_freeze": true,
+      "published": "2026-05-28",
+      "quote": "'APPLICABLE PERCENTAGE' SHALL MEAN: (I) FIFTY-FIVE PERCENT IN THE CASE OF AN ELIGIBLE TAXPAYER WITH A NEW YORK ADJUSTED GROSS INCOME...OF FIFTEEN THOUSAND DOLLARS OR LESS; OR (II) FIFTY-FIVE PERCENT REDUCED BY TWENTY-FIVE HUNDRED THOUSANDTHS OF A PERCENTAGE POINT FOR EACH DOLLAR",
+      "source": "NY Senate Bill S9009-C (2025-2026 session), FY2027 revenue budget bill, signed as Chapter 59 of 2026",
+      "url": "https://www.nysenate.gov/legislation/bills/2025/S9009/amendment/C"
+    },
+    {
+      "pinpoint": "Credit amounts 2026-2027; refundability",
+      "pre_freeze": null,
+      "published": "2026",
+      "quote": "$1,000 per qualifying child under four years old; plus $500 per qualifying child at least age four but less than 17 years old.",
+      "source": "NYS Department of Taxation and Finance, Empire State child credit page",
+      "url": "https://www.tax.ny.gov/pit/credits/empire_state_child_credit.htm"
+    },
+    {
+      "pinpoint": "Child care tax credits",
+      "pre_freeze": true,
+      "published": "2026-05-07",
+      "quote": "Enhance the Child and Dependent Care Tax Credit to help defray childcare expenses for 230,000 New York families by providing an average benefit of $576.",
+      "source": "Governor Hochul, FY 2027 State Budget agreement announcement",
+      "url": "https://www.governor.ny.gov/news/governor-hochul-announces-agreement-fy-2027-state-budget"
+    }
+  ],
+  "computation": "1) Federal AGI (IRC 61/62, 401(k) exclusion, 1211(b) loss limit): wages 100,195 - traditional 401(k) deferral 181 = 100,014; + taxable interest 100; + dividends 7,056 non-qualified + 13,424 qualified = 20,480; capital gains: STCG 2,289 + LTCG -33,000 = -30,711, limited to -3,000; + state/local tax refund 68 (listed as income). Traditional IRA $8 is not deductible: the head is an active participant through the 401(k) and MAGI of about $117.7k is above the 2026 single/HOH phase-out. Federal AGI = 117,662. Filing status: head of household (single parent with a 1-year-old).\n2) NY AGI (Tax Law 612): subtract the $68 state income tax refund (IT-201 line 25 subtracts line 4). NY AGI = 117,594.\n3) Empire State Child Credit, Tax Law 606(c-1)(1-a)(B),(C), tax years 2026-2027: $1,000 per qualifying child aged three or younger, so $1,000. It is reduced by $16.50 for each $1,000 by which federal AGI exceeds $75,000 (single/HOH). The statute has no 'or fraction thereof'. Tax Dept IT-213 instructions round federal AGI (IT-201 line 19) down to the nearest $1,000: 117,000 - 75,000 = 42,000, so 42 x 16.50 = 693. ESCC = $307. It is refundable (606(c-1)(2)).\n4) NY child and dependent care credit, new Tax Law 606(c-2) (L.2026 ch.59 Part A, signed 2026-05-28; old 606(c) now applies only to tax years before 2026). Qualifying expenses are the $9,600 paid, capped at $3,000 for one qualifying individual (child under 13 who lives with the head and is a dependent). Earned income of $100,014 exceeds the cap. Applicable percentage = 55% minus 0.00025 percentage points for each dollar of NY AGI over $15,000. Budget materials confirm the percentage falls from 55% to 4% at $219,000, i.e. 51 points over $204,000 = 0.00025 per dollar. 55 - 0.00025 x (117,594 - 15,000) = 55 - 25.6485 = 29.3515%. Credit = 3,000 x 0.293515 = $880.55. The $750k high-income reduction does not apply. Refundable (606(c-2)(1)).\n5) Other NY refundable credits: NY EITC is 30% of the federal EITC, which is $0 (AGI far too high and investment income about $20.6k is above the limit). Real property tax credit: household gross income is above $18,000. College tuition credit: no expenses. No NYC residence, so no NYC credits. STAR credit: no listed ownership or registration.\nTotal = 307 + 880.55 = $1,187.55 (about $1,188 if rounded to whole dollars; within about $0.50 under other rounding of the percentage or the $68 refund treatment).\nAll 2026 parameters were enacted before 2026-07-03: the ESCC 2026 amounts in L.2025 ch.59 and the new CDCC in L.2026 ch.59 (signed 2026-05-28). The 2026 IT-216 and IT-213 forms and instructions had not been published; the 2025 IT-213 instructions were used for the rounding convention.",
+  "confidence": "high",
+  "definition_reading": "'Total refundable state individual income tax credits' means the sum of all refundable NY State personal income tax credits on the single return (head of household, with the child as dependent). For this household that is the Empire State Child Credit ($307, refundable under 606(c-1)(2)) plus the new 2026 NY child and dependent care credit ($880.55, refundable under 606(c-2)(1)). NY EITC, real property tax credit and college tuition credit are $0, and NYC credits do not apply because no NYC residence is listed.",
+  "independent_answer": 1187.55,
+  "law_supports": "neither"
+}

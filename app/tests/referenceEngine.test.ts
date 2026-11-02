@@ -101,14 +101,17 @@ describe("excluded-output engines against the Python record", () => {
       "utf8",
     ).replace(/<[^>]+>/g, "");
     const match = html.match(
-      /keep the values they were decided on \((\d+) computed with policyengine-us ([\d.]+), (\d+) with ([\d.]+)\)/,
+      /keep the values they were decided on \((\d+ computed with policyengine-us [\d.]+(?:, \d+ with [\d.]+)+)\)/,
     );
     expect(match).not.toBeNull();
-    const [, olderCount, older, newerCount, newer] = match!;
-    expect(excludedOutputsByEngine(exclusions)).toEqual([
-      [older, Number(olderCount)],
-      [newer, Number(newerCount)],
-    ]);
+    const groups = match![1]
+      .replace("computed with policyengine-us ", "with ")
+      .split(", ")
+      .map((group) => {
+        const [count, , version] = group.split(" ");
+        return [version, Number(count)];
+      });
+    expect(excludedOutputsByEngine(exclusions)).toEqual(groups);
   });
 
   test("the live sentence names the reference engine's recheck", () => {

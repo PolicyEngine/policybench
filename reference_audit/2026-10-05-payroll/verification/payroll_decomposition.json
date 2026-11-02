@@ -1,0 +1,1985 @@
+{
+ "policyengine_us": "2.15.17",
+ "households": [
+  {
+   "scenario_id": "scenario_000",
+   "state": "TX",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_001",
+   "state": "VA",
+   "payroll_tax": 2223.393798828125,
+   "parts": {
+    "employee_social_security_tax": 1801.9661865234375,
+    "employee_medicare_tax": 421.42755126953125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    29063.970703125,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_002",
+   "state": "WA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_003",
+   "state": "TX",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_004",
+   "state": "NY",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_005",
+   "state": "CA",
+   "payroll_tax": 36044.0,
+   "parts": {
+    "employee_social_security_tax": 22599.0,
+    "employee_medicare_tax": 6235.0,
+    "additional_medicare_tax": 1620.0,
+    "employee_state_payroll_tax": 5590.0
+   },
+   "state_leaves": {
+    "ca_employee_state_disability_insurance_contribution": 5590.0
+   },
+   "employment_income": [
+    180000.0,
+    250000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_007",
+   "state": "ID",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_008",
+   "state": "NJ",
+   "payroll_tax": 2162.760009765625,
+   "parts": {
+    "employee_social_security_tax": 1661.5999755859375,
+    "employee_medicare_tax": 388.5999755859375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 112.56000518798828
+   },
+   "state_leaves": {
+    "nj_employee_temporary_disability_insurance_contribution": 50.92000198364258,
+    "nj_employee_family_leave_insurance_contribution": 61.6400032043457
+   },
+   "employment_income": [
+    0.0,
+    26800.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2",
+    "child3",
+    "child4",
+    "child5",
+    "child6"
+   ]
+  },
+  {
+   "scenario_id": "scenario_009",
+   "state": "NC",
+   "payroll_tax": 4590.0,
+   "parts": {
+    "employee_social_security_tax": 3720.0,
+    "employee_medicare_tax": 870.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    60000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_012",
+   "state": "MS",
+   "payroll_tax": 1683.0,
+   "parts": {
+    "employee_social_security_tax": 1364.0,
+    "employee_medicare_tax": 319.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    22000.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_013",
+   "state": "AZ",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_014",
+   "state": "WV",
+   "payroll_tax": 6802.96484375,
+   "parts": {
+    "employee_social_security_tax": 5513.51416015625,
+    "employee_medicare_tax": 1289.4508056640625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    88927.6484375
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_015",
+   "state": "IN",
+   "payroll_tax": 3442.5,
+   "parts": {
+    "employee_social_security_tax": 2790.0,
+    "employee_medicare_tax": 652.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    45000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_016",
+   "state": "FL",
+   "payroll_tax": 2649.80224609375,
+   "parts": {
+    "employee_social_security_tax": 2147.55224609375,
+    "employee_medicare_tax": 502.2501220703125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    34637.94140625
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_018",
+   "state": "AZ",
+   "payroll_tax": 5202.38232421875,
+   "parts": {
+    "employee_social_security_tax": 4216.31005859375,
+    "employee_medicare_tax": 986.0724487304688,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    68005.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_020",
+   "state": "TX",
+   "payroll_tax": 16689.0,
+   "parts": {
+    "employee_social_security_tax": 11439.0,
+    "employee_medicare_tax": 4350.0,
+    "additional_medicare_tax": 900.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    300000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_021",
+   "state": "MO",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_022",
+   "state": "CA",
+   "payroll_tax": 4710.83251953125,
+   "parts": {
+    "employee_social_security_tax": 3263.369873046875,
+    "employee_medicare_tax": 763.2074584960938,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 684.2550048828125
+   },
+   "state_leaves": {
+    "ca_employee_state_disability_insurance_contribution": 684.2550048828125
+   },
+   "employment_income": [
+    52635.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_023",
+   "state": "CA",
+   "payroll_tax": 1561.1168212890625,
+   "parts": {
+    "employee_social_security_tax": 1081.444091796875,
+    "employee_medicare_tax": 252.91836547851562,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 226.75440979003906
+   },
+   "state_leaves": {
+    "ca_employee_state_disability_insurance_contribution": 226.75440979003906
+   },
+   "employment_income": [
+    17442.646484375
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_025",
+   "state": "OH",
+   "payroll_tax": 4798.48486328125,
+   "parts": {
+    "employee_social_security_tax": 3888.968017578125,
+    "employee_medicare_tax": 909.5167236328125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    62725.29296875
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_026",
+   "state": "NC",
+   "payroll_tax": 6518.474609375,
+   "parts": {
+    "employee_social_security_tax": 5282.94677734375,
+    "employee_medicare_tax": 1235.52783203125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    85208.8203125,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2",
+    "child3"
+   ]
+  },
+  {
+   "scenario_id": "scenario_027",
+   "state": "CT",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_028",
+   "state": "PA",
+   "payroll_tax": 4632.0,
+   "parts": {
+    "employee_social_security_tax": 3720.0,
+    "employee_medicare_tax": 870.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 42.0
+   },
+   "state_leaves": {
+    "pa_employee_unemployment_compensation_contribution": 42.0
+   },
+   "employment_income": [
+    60000.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1",
+    "child2",
+    "child3"
+   ]
+  },
+  {
+   "scenario_id": "scenario_029",
+   "state": "OK",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_030",
+   "state": "TX",
+   "payroll_tax": 994.5,
+   "parts": {
+    "employee_social_security_tax": 806.0,
+    "employee_medicare_tax": 188.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    13000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_031",
+   "state": "CA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_032",
+   "state": "MN",
+   "payroll_tax": 2346.10009765625,
+   "parts": {
+    "employee_social_security_tax": 1798.0,
+    "employee_medicare_tax": 420.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 127.5999984741211
+   },
+   "state_leaves": {
+    "mn_employee_paid_leave_contribution": 127.5999984741211
+   },
+   "employment_income": [
+    29000.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_033",
+   "state": "SD",
+   "payroll_tax": 6043.5,
+   "parts": {
+    "employee_social_security_tax": 4898.0,
+    "employee_medicare_tax": 1145.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    26000.0,
+    53000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_036",
+   "state": "NJ",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_037",
+   "state": "NC",
+   "payroll_tax": 3208.668701171875,
+   "parts": {
+    "employee_social_security_tax": 2600.48974609375,
+    "employee_medicare_tax": 608.1790161132812,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    41943.3828125
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_038",
+   "state": "LA",
+   "payroll_tax": 571.2637329101562,
+   "parts": {
+    "employee_social_security_tax": 462.9849853515625,
+    "employee_medicare_tax": 108.27874755859375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    7467.5,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_039",
+   "state": "VA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_040",
+   "state": "AZ",
+   "payroll_tax": 2142.0,
+   "parts": {
+    "employee_social_security_tax": 1736.0,
+    "employee_medicare_tax": 406.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    20000.0,
+    8000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_042",
+   "state": "WI",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_043",
+   "state": "CO",
+   "payroll_tax": 330.7310791015625,
+   "parts": {
+    "employee_social_security_tax": 253.46510314941406,
+    "employee_medicare_tax": 59.27812957763672,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 17.98784637451172
+   },
+   "state_leaves": {
+    "co_employee_famli_contribution": 17.98784637451172
+   },
+   "employment_income": [
+    4088.14697265625
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_044",
+   "state": "KS",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_045",
+   "state": "MI",
+   "payroll_tax": 2775.08251953125,
+   "parts": {
+    "employee_social_security_tax": 2249.08642578125,
+    "employee_medicare_tax": 525.9960327148438,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    36275.58984375
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_046",
+   "state": "OK",
+   "payroll_tax": 7038.0,
+   "parts": {
+    "employee_social_security_tax": 5704.0,
+    "employee_medicare_tax": 1334.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    92000.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_048",
+   "state": "OH",
+   "payroll_tax": 585.6839599609375,
+   "parts": {
+    "employee_social_security_tax": 474.6719970703125,
+    "employee_medicare_tax": 111.01199340820312,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    7656.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_049",
+   "state": "NH",
+   "payroll_tax": 15134.5,
+   "parts": {
+    "employee_social_security_tax": 11439.0,
+    "employee_medicare_tax": 3668.5,
+    "additional_medicare_tax": 27.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    253000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_051",
+   "state": "LA",
+   "payroll_tax": 3060.0,
+   "parts": {
+    "employee_social_security_tax": 2480.0,
+    "employee_medicare_tax": 580.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    40000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_052",
+   "state": "TX",
+   "payroll_tax": 20939.0,
+   "parts": {
+    "employee_social_security_tax": 11439.0,
+    "employee_medicare_tax": 7250.0,
+    "additional_medicare_tax": 2250.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    500000.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_053",
+   "state": "ID",
+   "payroll_tax": 5123.10400390625,
+   "parts": {
+    "employee_social_security_tax": 4152.05810546875,
+    "employee_medicare_tax": 971.0458374023438,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    66968.6796875
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_054",
+   "state": "NC",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_055",
+   "state": "FL",
+   "payroll_tax": 6398.08837890625,
+   "parts": {
+    "employee_social_security_tax": 5185.37890625,
+    "employee_medicare_tax": 1212.7095947265625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    83635.1484375
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_056",
+   "state": "NJ",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_057",
+   "state": "LA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_059",
+   "state": "FL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_060",
+   "state": "TX",
+   "payroll_tax": 229.5,
+   "parts": {
+    "employee_social_security_tax": 186.0,
+    "employee_medicare_tax": 43.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    3000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_062",
+   "state": "FL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_064",
+   "state": "WI",
+   "payroll_tax": 7443.0673828125,
+   "parts": {
+    "employee_social_security_tax": 6032.2900390625,
+    "employee_medicare_tax": 1410.7774658203125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    97295.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "dependent1",
+    "dependent2",
+    "child1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_066",
+   "state": "VA",
+   "payroll_tax": 39.779998779296875,
+   "parts": {
+    "employee_social_security_tax": 32.23999786376953,
+    "employee_medicare_tax": 7.539999961853027,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    520.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_067",
+   "state": "IN",
+   "payroll_tax": 6300.5400390625,
+   "parts": {
+    "employee_social_security_tax": 5106.31982421875,
+    "employee_medicare_tax": 1194.219970703125,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    82360.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "dependent1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_068",
+   "state": "MD",
+   "payroll_tax": 2607.39013671875,
+   "parts": {
+    "employee_social_security_tax": 2113.178955078125,
+    "employee_medicare_tax": 494.211181640625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    34083.53125
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_070",
+   "state": "IL",
+   "payroll_tax": 2907.0,
+   "parts": {
+    "employee_social_security_tax": 2356.0,
+    "employee_medicare_tax": 551.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    38000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_071",
+   "state": "NY",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_072",
+   "state": "MI",
+   "payroll_tax": 1530.0,
+   "parts": {
+    "employee_social_security_tax": 1240.0,
+    "employee_medicare_tax": 290.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    20000.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_073",
+   "state": "MI",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_074",
+   "state": "LA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_075",
+   "state": "FL",
+   "payroll_tax": 968.2120971679688,
+   "parts": {
+    "employee_social_security_tax": 784.6947631835938,
+    "employee_medicare_tax": 183.51731872558594,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    12656.3671875
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_076",
+   "state": "ID",
+   "payroll_tax": 12240.0,
+   "parts": {
+    "employee_social_security_tax": 9920.0,
+    "employee_medicare_tax": 2320.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    160000.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_077",
+   "state": "LA",
+   "payroll_tax": 1989.472412109375,
+   "parts": {
+    "employee_social_security_tax": 1612.3828125,
+    "employee_medicare_tax": 377.08953857421875,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    26006.17578125
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_078",
+   "state": "MD",
+   "payroll_tax": 14317.322265625,
+   "parts": {
+    "employee_social_security_tax": 11439.0,
+    "employee_medicare_tax": 2878.322509765625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    198505.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_079",
+   "state": "AZ",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_080",
+   "state": "PA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_081",
+   "state": "MA",
+   "payroll_tax": 14192.662109375,
+   "parts": {
+    "employee_social_security_tax": 10850.1240234375,
+    "employee_medicare_tax": 2537.52880859375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 805.0092163085938
+   },
+   "state_leaves": {
+    "ma_employee_paid_leave_contribution": 805.0092163085938
+   },
+   "employment_income": [
+    175002.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_082",
+   "state": "NY",
+   "payroll_tax": 8108.02734375,
+   "parts": {
+    "employee_social_security_tax": 6212.08984375,
+    "employee_medicare_tax": 1452.8275146484375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 443.1100158691406
+   },
+   "state_leaves": {
+    "ny_employee_paid_family_leave_contribution": 411.9100036621094,
+    "ny_employee_disability_benefits_contribution": 31.200000762939453
+   },
+   "employment_income": [
+    100195.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_083",
+   "state": "TX",
+   "payroll_tax": 539.3250122070312,
+   "parts": {
+    "employee_social_security_tax": 437.1000061035156,
+    "employee_medicare_tax": 102.2249984741211,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    7050.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_084",
+   "state": "NC",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_085",
+   "state": "PA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_086",
+   "state": "GA",
+   "payroll_tax": 4743.0,
+   "parts": {
+    "employee_social_security_tax": 3844.0,
+    "employee_medicare_tax": 899.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    62000.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_088",
+   "state": "TX",
+   "payroll_tax": 1421.1448974609375,
+   "parts": {
+    "employee_social_security_tax": 1151.777587890625,
+    "employee_medicare_tax": 269.3673400878906,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    18577.05859375
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_089",
+   "state": "NC",
+   "payroll_tax": 5039.91015625,
+   "parts": {
+    "employee_social_security_tax": 4084.633056640625,
+    "employee_medicare_tax": 955.277099609375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    65881.1796875
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_090",
+   "state": "KS",
+   "payroll_tax": 535.5,
+   "parts": {
+    "employee_social_security_tax": 434.0,
+    "employee_medicare_tax": 101.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    7000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_091",
+   "state": "WI",
+   "payroll_tax": 2065.5,
+   "parts": {
+    "employee_social_security_tax": 1674.0,
+    "employee_medicare_tax": 391.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    27000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_092",
+   "state": "AL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_093",
+   "state": "MO",
+   "payroll_tax": 12469.5,
+   "parts": {
+    "employee_social_security_tax": 10106.0,
+    "employee_medicare_tax": 2363.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    53000.0,
+    65000.0,
+    45000.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "dependent1"
+   ]
+  },
+  {
+   "scenario_id": "scenario_095",
+   "state": "NJ",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_098",
+   "state": "IL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_099",
+   "state": "CA",
+   "payroll_tax": 14767.5,
+   "parts": {
+    "employee_social_security_tax": 10230.0,
+    "employee_medicare_tax": 2392.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 2145.0
+   },
+   "state_leaves": {
+    "ca_employee_state_disability_insurance_contribution": 2145.0
+   },
+   "employment_income": [
+    85000.0,
+    80000.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_100",
+   "state": "MT",
+   "payroll_tax": 452.47613525390625,
+   "parts": {
+    "employee_social_security_tax": 366.7126770019531,
+    "employee_medicare_tax": 85.7634506225586,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    5914.720703125,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_101",
+   "state": "TX",
+   "payroll_tax": 7879.5,
+   "parts": {
+    "employee_social_security_tax": 6386.0,
+    "employee_medicare_tax": 1493.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    103000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_102",
+   "state": "NC",
+   "payroll_tax": 6670.7998046875,
+   "parts": {
+    "employee_social_security_tax": 5406.39990234375,
+    "employee_medicare_tax": 1264.39990234375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    41200.0,
+    46000.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_104",
+   "state": "NY",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_107",
+   "state": "OH",
+   "payroll_tax": 486.9607238769531,
+   "parts": {
+    "employee_social_security_tax": 394.6609802246094,
+    "employee_medicare_tax": 92.29974365234375,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    6365.5
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_108",
+   "state": "WI",
+   "payroll_tax": 585.6839599609375,
+   "parts": {
+    "employee_social_security_tax": 474.6719970703125,
+    "employee_medicare_tax": 111.01199340820312,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    7656.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_109",
+   "state": "FL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2",
+    "child3"
+   ]
+  },
+  {
+   "scenario_id": "scenario_110",
+   "state": "OH",
+   "payroll_tax": 7650.0,
+   "parts": {
+    "employee_social_security_tax": 6200.0,
+    "employee_medicare_tax": 1450.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    100000.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_111",
+   "state": "WA",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_112",
+   "state": "TX",
+   "payroll_tax": 453.09600830078125,
+   "parts": {
+    "employee_social_security_tax": 367.2150573730469,
+    "employee_medicare_tax": 85.88094329833984,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    5922.82373046875
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_114",
+   "state": "VA",
+   "payroll_tax": 1736.550048828125,
+   "parts": {
+    "employee_social_security_tax": 1407.4000244140625,
+    "employee_medicare_tax": 329.1499938964844,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    22700.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_115",
+   "state": "AL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_116",
+   "state": "FL",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse"
+   ]
+  },
+  {
+   "scenario_id": "scenario_117",
+   "state": "AR",
+   "payroll_tax": 15044.787109375,
+   "parts": {
+    "employee_social_security_tax": 11439.0,
+    "employee_medicare_tax": 3605.787353515625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0,
+    248675.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1",
+    "child2",
+    "child3"
+   ]
+  },
+  {
+   "scenario_id": "scenario_118",
+   "state": "NY",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_119",
+   "state": "VA",
+   "payroll_tax": 4207.5,
+   "parts": {
+    "employee_social_security_tax": 3410.0,
+    "employee_medicare_tax": 797.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    55000.0,
+    0.0,
+    0.0
+   ],
+   "people": [
+    "head",
+    "child1",
+    "child2"
+   ]
+  },
+  {
+   "scenario_id": "scenario_120",
+   "state": "CT",
+   "payroll_tax": 13496.1552734375,
+   "parts": {
+    "employee_social_security_tax": 10267.013671875,
+    "employee_medicare_tax": 2401.156494140625,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 827.9849853515625
+   },
+   "state_leaves": {
+    "ct_employee_paid_leave_contribution": 827.9849853515625
+   },
+   "employment_income": [
+    165597.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_121",
+   "state": "SC",
+   "payroll_tax": 1963.3724365234375,
+   "parts": {
+    "employee_social_security_tax": 1591.22998046875,
+    "employee_medicare_tax": 372.1424865722656,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    25665.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_122",
+   "state": "MN",
+   "payroll_tax": 0.0,
+   "parts": {
+    "employee_social_security_tax": 0.0,
+    "employee_medicare_tax": 0.0,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 0.0
+   },
+   "state_leaves": {},
+   "employment_income": [
+    0.0
+   ],
+   "people": [
+    "head"
+   ]
+  },
+  {
+   "scenario_id": "scenario_123",
+   "state": "PA",
+   "payroll_tax": 11194.0,
+   "parts": {
+    "employee_social_security_tax": 8990.0,
+    "employee_medicare_tax": 2102.5,
+    "additional_medicare_tax": 0.0,
+    "employee_state_payroll_tax": 101.5
+   },
+   "state_leaves": {
+    "pa_employee_unemployment_compensation_contribution": 101.5
+   },
+   "employment_income": [
+    100000.0,
+    0.0,
+    45000.0
+   ],
+   "people": [
+    "head",
+    "spouse",
+    "child1"
+   ]
+  }
+ ]
+}
