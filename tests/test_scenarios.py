@@ -943,28 +943,40 @@ def test_a_rounded_amount_is_the_whole_number_the_prompt_prints(amount):
     assert not (rounded == 0 and np.signbit(rounded))
 
 
-@given(AMOUNTS, AMOUNTS, AMOUNTS)
-def test_canonical_amounts_keep_every_line_of_the_us_prompt(wage, rent, interest):
+CHILD_AGE_LINES = "Child 1:\n- age: 16"
+CHILD_ZERO_WAGE_LINES = CHILD_AGE_LINES + "\n- gross wages and salaries: $0"
+
+
+@given(AMOUNTS, AMOUNTS, AMOUNTS, AMOUNTS)
+def test_canonical_amounts_keep_every_line_of_the_us_prompt(
+    wage, rent, interest, child_wage
+):
     scenario = Scenario(
         id="t",
         state="NJ",
         filing_status="single",
         adults=[
             Person(
-                name="head",
+                name="adult1",
                 age=40,
                 employment_income=wage,
                 inputs={"pre_subsidy_rent": rent, "taxable_interest_income": interest},
             )
         ],
+        children=[Person(name="child1", age=16, employment_income=child_wage)],
         tax_unit_inputs={"health_savings_account_ald": interest},
         spm_unit_inputs={"spm_unit_energy_subsidy": rent},
         household_inputs={"auto_loan_interest": interest},
     )
     canonical = canonical_us_scenario(scenario)
-    assert describe_household(canonical) == describe_household(scenario).replace(
-        "$-0", "$0"
-    )
+    expected = describe_household(scenario).replace("$-0", "$0")
+    if CHILD_ZERO_WAGE_LINES in expected:
+        # Intended: the prompt lists a child's wages only when they are nonzero,
+        # so a wage that rounds to $0 loses its "$0" line. The prompt treats an
+        # unlisted amount as 0, so the child's facts stay the same.
+        assert round_us_prompt_amount(child_wage) == 0
+        expected = expected.replace(CHILD_ZERO_WAGE_LINES, CHILD_AGE_LINES)
+    assert describe_household(canonical) == expected
     assert canonical_us_scenario(canonical) == canonical
 
 
