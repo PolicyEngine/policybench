@@ -630,6 +630,31 @@ def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
     assert github.writes == [] and github.tags[T1] == old_board
 
 
+def test_an_earlier_release_with_new_bytes_and_no_tag_asks_for_the_tag_first(
+    scratch, github, monkeypatch
+):
+    # As above, and someone also deleted T1's tag. A hand seal needs the tag, so
+    # the run asks for it back first. Once it is back, sealing T1 by hand at the
+    # new bytes' board clears it.
+    old_board = scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    new_board = scratch.release(T1, SHAS["c"])
+    github.tags = {}
+    github.release(T1, SHAS["c"], release_id=1)
+    (plan,) = rt.plan_landed(start, **where(scratch))
+    assert (plan.tag, plan.action, plan.board) == (T1, "leave", None)
+    assert plan.reason.endswith(
+        "main now names other bytes under it and its tag no longer exists; push "
+        "it back at the commit it named, then check the release and seal it by "
+        "hand with seal-release --tag"
+    )
+    github.tags[T1] = old_board
+    monkeypatch.chdir(scratch.root)
+    rt.main(["seal-release", "--tag", T1, "--ref", "main", "--apply"])
+    assert github.tags[T1] == new_board
+    assert rt.plan_landed(start, **where(scratch)) == []
+
+
 def test_an_earlier_release_sealed_by_hand_is_not_reported_again(
     scratch, github, monkeypatch
 ):

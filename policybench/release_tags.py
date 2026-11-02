@@ -323,7 +323,8 @@ def plan_landed(
     passed over. Otherwise someone reused the release's name, replaced its asset
     or deleted its tag. Unless the tag already names the board for the
     release's current bytes, the plan then has no board, and its reason says
-    what clears it (push a deleted tag back, or seal the tag by hand), so the
+    what clears it: push a deleted tag back, and seal the tag by hand when main
+    names other bytes under it or the tag names a commit after ``after``. The
     caller reports the tag instead of moving it. Any other plan with no board
     also stays in, for the caller to report.
     """
@@ -353,6 +354,9 @@ def plan_landed(
         fix = "check the release and seal it by hand with seal-release --tag"
         if any(pair[0] == tag and pair not in earlier_pairs for pair in named):
             why = "main now names other bytes under it"
+            if not current:
+                why += " and its tag no longer exists"
+                fix = "push it back at the commit it named, then " + fix
         else:
             if reachable_from_start is None:
                 reachable_from_start = set(_git(root, "rev-list", start).split())

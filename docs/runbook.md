@@ -551,7 +551,10 @@ commit from before sealing began, the run passes over it. Otherwise someone
 reused the release's name, replaced its asset or deleted its tag: the run
 moves nothing for it and fails, naming the tag. Check the release. If someone
 deleted its tag, push the tag back at the commit it named
-(`git push origin <commit>:refs/tags/<tag>`); otherwise seal it by hand with
+(`git push origin <commit>:refs/tags/<tag>`). An older clone may still have
+that commit (`git rev-parse <tag>^{commit}`); if none does, use the release's
+board commit from the table below. If main now names other bytes under the
+name, or the tag names a commit from after sealing began, seal it by hand with
 `uv run policybench seal-release --tag <tag> --apply`. Later runs then pass
 over it. Before and after each move the run reads the release's asset digest
 again, and it refuses the move, or reports it, when the asset changed; the
