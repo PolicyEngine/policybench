@@ -265,15 +265,20 @@ MONETARY_INCOME_FIELDS = {
 
 # d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
 # return, and household sets drop households whose dependents must file.
-# policyengine-us models no dependent's own return, and state thresholds run
-# low: a Pennsylvania dependent with more than $33 of PA-taxable income must
-# file (2025 PA-40 instructions), and Pennsylvania taxes interest on other
-# states' bonds (61 Pa. Code 103.16(e)). So the draw drops every household where
-# a dependent has any of this income as the prompt prints it, which catches the
-# dependents whose income makes them file and some whose income does not.
-# household_set.py build refuses an engine that counts any other input toward a
-# dependent's gross income. Child support, SSI, veterans' benefits and workers'
-# compensation are never gross income; Social Security follows its own rule.
+# policyengine-us models no dependent's own return, and state rules reach far:
+# Pennsylvania requires a return from anyone, minors included, with more than
+# $33 of PA-taxable income or a loss from any transaction as an individual,
+# sole proprietor, partner or S corporation shareholder (2025 PA-40
+# instructions, page 3), and it taxes interest on other states' bonds (61 Pa.
+# Code 103.16(e)). So the draw drops every household where a dependent has any
+# of this income, or a loss on it, as the prompt prints it, and every household
+# where the engine counts gross income for a dependent, which takes in income
+# the inputs produce together, such as state unemployment insurance modeled
+# from base-period wages (Sol review r2). That catches the dependents who must
+# file and some who need not. household_set.py build refuses a draw whose
+# references still give a dependent gross income. Child support, SSI,
+# veterans' benefits and workers' compensation are never gross income; Social
+# Security follows its own rule.
 SOCIAL_SECURITY_FIELDS = (
     "social_security_dependents",
     "social_security_disability",
@@ -294,6 +299,9 @@ NON_RETURN_INCOME_FIELDS = {
 # dependent who lives with a spouse has no base amount (86(c)(1)(C)); the
 # frame shows no marriages, so this takes the unmarried base.
 DEPENDENT_SOCIAL_SECURITY_LIMIT = 50_000
+# The frame column holding the engine's own count of each person's gross income
+# as a dependent (policyengine-us's dependent_gross_income).
+DEPENDENT_GROSS_INCOME_COLUMN = "engine_dependent_gross_income"
 DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIELDS) | {
     "csrs_retirement_pay",
     "debt_relief",
@@ -1068,6 +1076,15 @@ def load_certified_us_person_frame(
                 use_weights=False,
             )
         )
+    # d1029's filter reads it (_households_with_dependent_return_income).
+    values[DEPENDENT_GROSS_INCOME_COLUMN] = np.asarray(
+        sim.calculate(
+            "dependent_gross_income",
+            dataset_year,
+            map_to="person",
+            use_weights=False,
+        )
+    )
 
     return pd.DataFrame(values), dataset_year, dataset_label
 
@@ -1484,20 +1501,39 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _households_with_dependent_return_income(person_df: pd.DataFrame) -> set[int]:
-    """Households where someone other than the head or spouse has income that
-    could require a return of their own, read as the prompt prints it (d1029)."""
+    """Households where someone other than the head or spouse has income or a
+    loss that could require a return of their own (d1029): listed income or a
+    loss as the prompt prints it, Social Security past the section 86 base, or
+    any gross income the engine counts for them."""
+    if DEPENDENT_GROSS_INCOME_COLUMN not in person_df.columns:
+        raise ValueError(
+            f"the d1029 filter needs the frame's {DEPENDENT_GROSS_INCOME_COLUMN} "
+            "column (load_certified_us_person_frame)"
+        )
     dependents = person_df[
         ~(person_df["is_tax_unit_head"] | person_df["is_tax_unit_spouse"])
     ]
 
     def printed(fields) -> pd.DataFrame:
+        # The prompt prints nothing for a missing amount (_extract_entity_inputs).
         present = sorted(set(fields) & set(person_df.columns))
-        return dependents[present].apply(
-            lambda column: column.map(round_us_prompt_amount)
+        return (
+            dependents[present]
+            .fillna(0.0)
+            .apply(lambda column: column.map(round_us_prompt_amount))
         )
 
-    flagged = (printed(DEPENDENT_RETURN_INCOME_FIELDS) > 0).any(axis=1) | (
-        printed(SOCIAL_SECURITY_FIELDS).sum(axis=1) > DEPENDENT_SOCIAL_SECURITY_LIMIT
+    engine_income = pd.to_numeric(
+        dependents[DEPENDENT_GROSS_INCOME_COLUMN], errors="coerce"
+    )
+    flagged = (
+        (printed(DEPENDENT_RETURN_INCOME_FIELDS) != 0).any(axis=1)
+        | (
+            printed(SOCIAL_SECURITY_FIELDS).sum(axis=1)
+            > DEPENDENT_SOCIAL_SECURITY_LIMIT
+        )
+        # A missing amount counts, since it can't show the dependent has none.
+        | engine_income.ne(0)
     )
     return set(dependents.loc[flagged, "household_id"])
 
@@ -1684,7 +1720,8 @@ def scenarios_from_cps_frame(
     used so generated scenarios are never mislabeled.
 
     ``head_spouse_returns_only`` leaves out households whose dependents have
-    income of their own (d1029). The board's v1 draw predates it.
+    income or a loss of their own (d1029); the frame then needs
+    ``DEPENDENT_GROSS_INCOME_COLUMN``. The board's v1 draw predates it.
     """
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)

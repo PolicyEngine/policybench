@@ -11,6 +11,7 @@ from hypothesis import strategies as st
 import policybench.scenarios as scenarios_module
 from policybench.prompts import _format_input_line, describe_household
 from policybench.scenarios import (
+    DEPENDENT_GROSS_INCOME_COLUMN,
     DEPENDENT_RETURN_INCOME_FIELDS,
     DEPENDENT_SOCIAL_SECURITY_LIMIT,
     NON_RETURN_INCOME_FIELDS,
@@ -1045,6 +1046,7 @@ def _household_rows(household_id, dependent_inputs=None, weight=1.0, **head_inpu
         "household_weight": weight,
         "state_code": "PA",
         "filing_status": "HEAD_OF_HOUSEHOLD",
+        DEPENDENT_GROSS_INCOME_COLUMN: 0.0,
     }
     return [
         {
@@ -1111,18 +1113,88 @@ def test_transfers_to_a_dependent_keep_the_household():
 
 def test_the_filter_reads_amounts_as_the_prompt_prints_them():
     """A wage the prompt prints as $0 keeps the household, as the reference
-    computes from that $0 (d1972(1)); half a dollar prints as $0."""
+    computes from that $0 (d1972(1)); half a dollar prints as $0, and so does
+    a loss under half a dollar."""
     frame = _frame(
         _household_rows(1, {"employment_income": 0.49}),
         _household_rows(2, {"employment_income": 0.5}),
         _household_rows(3, {"employment_income": 0.51}),
         _household_rows(4, {"employment_income": 1.5}),
-        _household_rows(5, {"taxable_interest_income": -40.0}),
+        _household_rows(5, {"short_term_capital_gains": -0.4}),
     )
     assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {
         3,
         4,
     }
+
+
+def test_a_dependents_loss_drops_the_household():
+    """Pennsylvania requires a return from anyone, minors included, with a loss
+    from any transaction as an individual, sole proprietor, partner or S
+    corporation shareholder (2025 PA-40 instructions, page 3; Sol review r2)."""
+    frame = _frame(
+        _household_rows(1),
+        _household_rows(2, {"self_employment_income": -5_000.0}),
+        _household_rows(3, {"rental_income": -40.0}),
+        _household_rows(4, {"short_term_capital_gains": -1.0}),
+        _household_rows(5, {"farm_operations_income": -200.0}),
+    )
+    assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {
+        2,
+        3,
+        4,
+        5,
+    }
+
+
+def test_gross_income_the_engine_counts_drops_the_household():
+    """Inputs outside the list can produce gross income together: on
+    policyengine-us 2.90.4 an Oklahoma dependent's base-period wages and weeks
+    unemployed give $6,944 of modeled unemployment insurance (Sol review r2).
+    The frame carries the engine's count, and a missing count drops too."""
+    frame = _frame(
+        _household_rows(1, {DEPENDENT_GROSS_INCOME_COLUMN: 6_944.0}),
+        _household_rows(2, {DEPENDENT_GROSS_INCOME_COLUMN: 0.3}),
+        _household_rows(3, {DEPENDENT_GROSS_INCOME_COLUMN: float("nan")}),
+        # The head's own count never matters.
+        _household_rows(4, **{DEPENDENT_GROSS_INCOME_COLUMN: 90_000.0}),
+        _household_rows(5),
+    )
+    assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {
+        1,
+        2,
+        3,
+    }
+    assert _drawn(frame, 2, head_spouse_returns_only=True) == {4, 5}
+
+
+def test_the_filter_needs_the_engines_count():
+    frame = _frame(_household_rows(1)).drop(columns=DEPENDENT_GROSS_INCOME_COLUMN)
+    with pytest.raises(ValueError, match=DEPENDENT_GROSS_INCOME_COLUMN):
+        _drawn(frame, 1, head_spouse_returns_only=True)
+    assert _drawn(frame, 1) == {1}
+
+
+def test_the_frame_carries_the_engines_dependent_gross_income(monkeypatch):
+    import policybench.policyengine_runtime as runtime
+
+    asked = []
+
+    class Simulation:
+        default_input_period = 2024
+        policyengine_bundle = {"default_dataset": "populace_us_2024"}
+
+        def calculate(self, variable, period, map_to, use_weights):
+            asked.append((variable, period, map_to, use_weights))
+            if variable == "dependent_gross_income":
+                return np.array([0.0, 6_944.0])
+            return np.zeros(2)
+
+    monkeypatch.setattr(runtime, "make_us_microsimulation", lambda **kw: Simulation())
+    frame, year, label = scenarios_module.load_certified_us_person_frame()
+    assert frame[DEPENDENT_GROSS_INCOME_COLUMN].tolist() == [0.0, 6_944.0]
+    assert ("dependent_gross_income", 2024, "person", False) in asked
+    assert (year, label) == (2024, "populace_us_2024")
 
 
 def test_social_security_counts_once_half_of_it_passes_the_base_amount():
@@ -1166,7 +1238,9 @@ RETURN_INCOME = sorted(
         st.one_of(
             st.none(),
             st.tuples(
-                st.sampled_from(RETURN_INCOME), st.floats(min_value=0, max_value=1e6)
+                st.sampled_from(RETURN_INCOME),
+                st.floats(min_value=-1e6, max_value=1e6),
+                st.one_of(st.just(0.0), st.floats(min_value=0, max_value=1e5)),
             ),
         ),
         min_size=1,
@@ -1176,9 +1250,15 @@ RETURN_INCOME = sorted(
 )
 def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed):
     """Invariant: the filter removes exactly the households with a dependent
-    whose return income prints above $0, so every draw from the rest holds none."""
+    whose listed income or loss prints as other than $0, or whom the engine
+    gives gross income, so every draw from the rest holds none."""
     households = [
-        _household_rows(index, None if entry is None else {entry[0]: entry[1]})
+        _household_rows(
+            index,
+            None
+            if entry is None
+            else {entry[0]: entry[1], DEPENDENT_GROSS_INCOME_COLUMN: entry[2]},
+        )
         for index, entry in enumerate(dependents, start=1)
     ] + [_household_rows(99)]
     frame = _frame(*households)
@@ -1186,7 +1266,8 @@ def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed)
     assert flagged == {
         index
         for index, entry in enumerate(dependents, start=1)
-        if entry is not None and round_us_prompt_amount(entry[1]) > 0
+        if entry is not None
+        and (round_us_prompt_amount(entry[1]) != 0 or entry[2] != 0)
     }
     clean = len(dependents) + 1 - len(flagged)
     drawn = scenarios_from_cps_frame(

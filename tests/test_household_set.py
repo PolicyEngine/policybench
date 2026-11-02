@@ -335,29 +335,34 @@ def engine_system():
     return hs.reference_system()
 
 
-def test_the_engine_counts_no_dependent_income_the_filter_misses(engine_system):
-    """d1029's filter covers every input the reference engine counts toward a
-    dependent's gross income (review r1 found four it missed on 2.60.4)."""
-    assert hs.uncovered_dependent_income(engine_system) == []
+def _dependent_scenario(state: str, child_income: float = 0.0, **child_inputs):
+    from policybench.scenarios import Person, Scenario
 
-
-def test_the_engine_check_names_an_input_the_filter_leaves_out(
-    engine_system, monkeypatch
-):
-    """The check above can fail: it names wages and interest once they leave
-    the list."""
-    import policybench.scenarios as scenarios_module
-
-    monkeypatch.setattr(
-        scenarios_module,
-        "DEPENDENT_RETURN_INCOME_FIELDS",
-        scenarios_module.DEPENDENT_RETURN_INCOME_FIELDS
-        - {"employment_income", "taxable_interest_income"},
+    return Scenario(
+        id=f"{state.lower()}_{int(child_income)}",
+        state=state,
+        filing_status=None,
+        adults=[Person("adult1", 40, 50_000.0)],
+        children=[Person("child1", 16, child_income, dict(child_inputs))],
     )
-    assert hs.uncovered_dependent_income(engine_system) == [
-        "employment_income",
-        "taxable_interest_income",
-    ]
+
+
+def test_the_build_check_names_each_dependent_the_engine_gives_gross_income(
+    engine_system,
+):
+    """d1029's last check reads the reference engine's own count for every
+    person but the head and spouse, so it holds whichever inputs produce the
+    income (Sol review r2)."""
+    found = hs.dependents_with_gross_income(
+        [
+            _dependent_scenario("TX", 5_117.0),
+            _dependent_scenario("PA", 0.0, taxable_interest_income=40.0),
+            _dependent_scenario("TX"),
+            _dependent_scenario("TX", 0.0, child_support_received=3_000.0),
+        ],
+        engine_system,
+    )
+    assert found == ["tx_5117 child1 $5,117.00", "pa_0 child1 $40.00"]
 
 
 def _certified_build(tmp_path, monkeypatch):
@@ -384,25 +389,36 @@ def _certified_build(tmp_path, monkeypatch):
     monkeypatch.setattr(hs, "fix_module_pins", lambda fix_module: [])
 
 
-def test_the_build_refuses_an_engine_the_filter_misses(tmp_path, monkeypatch):
+def test_the_build_refuses_a_draw_that_kept_a_dependent_with_gross_income(
+    tmp_path, monkeypatch
+):
     import policybench.scenarios as scenarios_module
 
     _certified_build(tmp_path, monkeypatch)
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:1]
     monkeypatch.setattr(hs, "reference_system", lambda fix_module: "system")
     monkeypatch.setattr(
-        hs,
-        "uncovered_dependent_income",
-        lambda system: ["debt_relief"] if system == "system" else [],
+        scenarios_module, "generate_scenarios", lambda **kwargs: sampled
     )
+    checked = []
 
-    def draw(**kwargs):
-        raise AssertionError("the build drew households before the check")
+    def with_income(scenarios, system):
+        checked.append((scenarios, system))
+        return ["mc_000 child1 $6,944.00"]
 
-    monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
+    def references(scenarios, programs, system):
+        raise AssertionError("the build computed references before the check")
+
+    monkeypatch.setattr(hs, "dependents_with_gross_income", with_income)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
     out = tmp_path / "set"
-    with pytest.raises(SystemExit, match="counts debt_relief toward a dependent"):
+    with pytest.raises(SystemExit, match=r"kept dependents.*mc_000 child1 \$6,944"):
         hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
     assert not out.exists()
+    ((scenarios, system),) = checked
+    assert system == "system"
+    assert [s.id for s in scenarios] == ["mc_000"]
 
 
 def test_the_build_filters_the_draw_and_rounds_before_the_references(
@@ -429,7 +445,7 @@ def test_the_build_filters_the_draw_and_rounds_before_the_references(
     monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
     monkeypatch.setattr(hs, "compute_references", references)
     monkeypatch.setattr(hs, "reference_system", lambda fix_module: None)
-    monkeypatch.setattr(hs, "uncovered_dependent_income", lambda system: [])
+    monkeypatch.setattr(hs, "dependents_with_gross_income", lambda s, system: [])
     monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
     monkeypatch.setattr(hs, "filing_status_mismatches", lambda scenarios, stated: [])
     out = tmp_path / "set"

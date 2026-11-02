@@ -149,53 +149,6 @@ def reference_system(fix_module: Path = FIX_MODULE):
     return CountryTaxBenefitSystem(reform=load_reform(fix_module))
 
 
-def uncovered_dependent_income(system) -> list[str]:
-    """Promptable person inputs that ``system`` counts toward a dependent's gross
-    income and the d1029 filter does not. One simulation gives a dependent each
-    input, $1,000 of it."""
-    from policyengine_us import Simulation
-
-    from policybench import scenarios as scenarios_module
-
-    names = sorted(
-        name
-        for name, variable in system.variables.items()
-        if variable.is_input_variable()
-        and variable.entity.key == "person"
-        and getattr(variable.value_type, "__name__", "") == "float"
-        and scenarios_module._is_promptable_input_variable(name, variable)
-    )
-    people = {"head": {"age": {YEAR: 40}}}
-    for index, name in enumerate(names):
-        people[f"dependent{index}"] = {"age": {YEAR: 15}, name: {YEAR: 1_000.0}}
-    members = list(people)
-    simulation = Simulation(
-        tax_benefit_system=system,
-        situation={
-            "people": people,
-            "tax_units": {"tax_unit": {"members": members}},
-            "families": {"family": {"members": members}},
-            "spm_units": {"spm_unit": {"members": members}},
-            "marital_units": {f"{name}_unit": {"members": [name]} for name in members},
-            "households": {
-                "household": {"members": members, "state_code": {YEAR: "TX"}}
-            },
-        },
-    )
-    income = dict(
-        zip(
-            simulation.populations["person"].ids,
-            simulation.calculate("dependent_gross_income", YEAR),
-        )
-    )
-    counted = {
-        scenarios_module.INPUT_NAME_ALIASES.get(name, name)
-        for index, name in enumerate(names)
-        if income[f"dependent{index}"] > 0
-    }
-    return sorted(counted - scenarios_module.DEPENDENT_RETURN_INCOME_FIELDS)
-
-
 def situation_for(scenario) -> dict:
     situation = scenario.to_pe_household()
     for person in situation["people"].values():
@@ -205,6 +158,26 @@ def situation_for(scenario) -> dict:
         for name, value in STATED_STATUSES.items():
             person.setdefault(name, {str(scenario.year): value})
     return situation
+
+
+def dependents_with_gross_income(scenarios, system) -> list[str]:
+    """Each person other than the head or spouse whom ``system`` gives gross
+    income as a dependent, as "scenario person $amount". d1029's filter drops
+    such households before the draw, so a build stops if any remain."""
+    from policyengine_us import Simulation
+
+    found = []
+    for scenario in scenarios:
+        simulation = Simulation(
+            tax_benefit_system=system, situation=situation_for(scenario)
+        )
+        for person, amount in zip(
+            simulation.populations["person"].ids,
+            simulation.calculate("dependent_gross_income", YEAR),
+        ):
+            if amount != 0:
+                found.append(f"{scenario.id} {person} ${float(amount):,.2f}")
+    return found
 
 
 def compute_references(scenarios, programs: list[str], system) -> pd.DataFrame:
@@ -416,13 +389,6 @@ def command_build(args) -> None:
         )
     dataset_sha256 = sha256_file(dataset_path)
     system = reference_system(Path(args.fix_module))
-    uncovered = uncovered_dependent_income(system)
-    if uncovered:
-        raise SystemExit(
-            f"policyengine-us {engine} counts {', '.join(uncovered)} toward a "
-            "dependent's gross income, and the d1029 filter does not: add them to "
-            "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS"
-        )
 
     sampled = generate_scenarios(
         n=args.n,
@@ -436,6 +402,12 @@ def command_build(args) -> None:
         canonical_us_scenario(scenario)
         for scenario in rename_scenarios(sampled, args.id_prefix)
     ]
+    with_income = dependents_with_gross_income(scenarios, system)
+    if with_income:
+        raise SystemExit(
+            "the draw kept dependents with gross income, which d1029's filter "
+            "should have dropped: " + "; ".join(with_income)
+        )
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
     references = compute_references(scenarios, programs, system)
 

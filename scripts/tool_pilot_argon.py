@@ -470,7 +470,7 @@ V2_PILOT_DEFINITIONS = (
 # d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
 # return only. The reference has no second tax unit, so a dependent's own return
 # is in no reference, and household sets drop households where a dependent has
-# income (policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS).
+# income or a loss (policybench.scenarios._households_with_dependent_return_income).
 HEAD_SPOUSE_RETURN = (
     "Cover only the return of the head and spouse, not any return a dependent files"
 )
