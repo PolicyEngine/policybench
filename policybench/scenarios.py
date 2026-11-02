@@ -264,28 +264,45 @@ MONETARY_INCOME_FIELDS = {
 }
 
 # d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
-# return. A dependent with any of this income may owe a return of their own
-# (Pennsylvania's threshold is $33), which no reference holds, so household sets
-# drop those households. Transfers and tax-exempt interest do not by themselves
-# require a return.
-NON_RETURN_INCOME_FIELDS = {
-    "child_support_received",
-    "disability_benefits",
+# return, and household sets drop households whose dependents must file.
+# policyengine-us models no dependent's own return, and state thresholds run
+# low: a Pennsylvania dependent with more than $33 of PA-taxable income must
+# file (2025 PA-40 instructions), and Pennsylvania taxes interest on other
+# states' bonds (61 Pa. Code 103.16(e)). So the draw drops every household where
+# a dependent has any of this income as the prompt prints it, which catches the
+# dependents whose income makes them file and some whose income does not.
+# household_set.py build refuses an engine that counts any other input toward a
+# dependent's gross income. Child support, SSI, veterans' benefits and workers'
+# compensation are never gross income; Social Security follows its own rule.
+SOCIAL_SECURITY_FIELDS = (
     "social_security_dependents",
     "social_security_disability",
     "social_security_retirement",
     "social_security_survivors",
+)
+NON_RETURN_INCOME_FIELDS = {
+    "child_support_received",
+    *SOCIAL_SECURITY_FIELDS,
     "ssi_reported",
-    "tax_exempt_interest_income",
     "veterans_benefits",
     "workers_compensation",
 }
+# Social Security is gross income only in the part 26 U.S.C. 86 taxes, which
+# stays zero for an unmarried taxpayer until other income plus half the
+# benefits passes the $25,000 base amount (86(c)(1)(A)). Other income already
+# drops the household, so a dependent's benefits count above $50,000. A married
+# dependent who lives with a spouse has no base amount (86(c)(1)(C)); the
+# frame shows no marriages, so this takes the unmarried base.
+DEPENDENT_SOCIAL_SECURITY_LIMIT = 50_000
 DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIELDS) | {
     "csrs_retirement_pay",
+    "debt_relief",
     "gambling_winnings",
+    "illicit_income",
     "keogh_distributions",
     "military_basic_pay",
     "military_retirement_pay",
+    "military_retirement_pay_survivors",
     "military_service_income",
     "non_sch_d_capital_gains",
     "partnership_income",
@@ -1468,12 +1485,21 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
 
 def _households_with_dependent_return_income(person_df: pd.DataFrame) -> set[int]:
     """Households where someone other than the head or spouse has income that
-    could require a return of their own."""
+    could require a return of their own, read as the prompt prints it (d1029)."""
     dependents = person_df[
         ~(person_df["is_tax_unit_head"] | person_df["is_tax_unit_spouse"])
     ]
-    fields = sorted(DEPENDENT_RETURN_INCOME_FIELDS & set(person_df.columns))
-    return set(dependents.loc[(dependents[fields] > 0).any(axis=1), "household_id"])
+
+    def printed(fields) -> pd.DataFrame:
+        present = sorted(set(fields) & set(person_df.columns))
+        return dependents[present].apply(
+            lambda column: column.map(round_us_prompt_amount)
+        )
+
+    flagged = (printed(DEPENDENT_RETURN_INCOME_FIELDS) > 0).any(axis=1) | (
+        printed(SOCIAL_SECURITY_FIELDS).sum(axis=1) > DEPENDENT_SOCIAL_SECURITY_LIMIT
+    )
+    return set(dependents.loc[flagged, "household_id"])
 
 
 def _sample_household_ids(

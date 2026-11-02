@@ -12,7 +12,9 @@ import policybench.scenarios as scenarios_module
 from policybench.prompts import _format_input_line, describe_household
 from policybench.scenarios import (
     DEPENDENT_RETURN_INCOME_FIELDS,
+    DEPENDENT_SOCIAL_SECURITY_LIMIT,
     NON_RETURN_INCOME_FIELDS,
+    SOCIAL_SECURITY_FIELDS,
     SUPPORTED_FILING_STATUSES,
     Person,
     Scenario,
@@ -1084,6 +1086,13 @@ def test_a_dependent_with_return_income_drops_the_household():
         _household_rows(3, {"self_employment_income": 2_000.0}),
         # Pennsylvania taxes this: its threshold is $33.
         _household_rows(4, {"taxable_interest_income": 40.0}),
+        # and other states' bond interest, which federal law exempts.
+        _household_rows(5, {"tax_exempt_interest_income": 40.0}),
+        # Gross income on policyengine-us 2.60.4 and later (Sol review r1).
+        _household_rows(6, {"disability_benefits": 5_000.0}),
+        _household_rows(7, {"debt_relief": 500.0}),
+        _household_rows(8, {"illicit_income": 500.0}),
+        _household_rows(9, {"military_retirement_pay_survivors": 500.0}),
     )
     assert _drawn(frame, 1, head_spouse_returns_only=True) == {1}
     with pytest.raises(ValueError, match="only 1 eligible"):
@@ -1098,6 +1107,44 @@ def test_transfers_to_a_dependent_keep_the_household():
         _household_rows(3, taxable_interest_income=90_000.0),
     )
     assert _drawn(frame, 3, head_spouse_returns_only=True) == {1, 2, 3}
+
+
+def test_the_filter_reads_amounts_as_the_prompt_prints_them():
+    """A wage the prompt prints as $0 keeps the household, as the reference
+    computes from that $0 (d1972(1)); half a dollar prints as $0."""
+    frame = _frame(
+        _household_rows(1, {"employment_income": 0.49}),
+        _household_rows(2, {"employment_income": 0.5}),
+        _household_rows(3, {"employment_income": 0.51}),
+        _household_rows(4, {"employment_income": 1.5}),
+        _household_rows(5, {"taxable_interest_income": -40.0}),
+    )
+    assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {
+        3,
+        4,
+    }
+
+
+def test_social_security_counts_once_half_of_it_passes_the_base_amount():
+    """26 U.S.C. 86 taxes none of an unmarried dependent's benefits until half
+    of them passes $25,000, counted across every kind and as printed."""
+    assert DEPENDENT_SOCIAL_SECURITY_LIMIT == 2 * 25_000
+    frame = _frame(
+        _household_rows(1, {"social_security_retirement": 50_000.0}),
+        _household_rows(2, {"social_security_survivors": 50_000.4}),
+        _household_rows(
+            3,
+            {
+                "social_security_retirement": 30_000.0,
+                "social_security_disability": 20_001.0,
+            },
+        ),
+        _household_rows(4, {"social_security_dependents": 50_001.0}),
+    )
+    assert _households_with_dependent_return_income(_prepare_cps_frame(frame)) == {
+        3,
+        4,
+    }
 
 
 def test_the_v1_draw_keeps_every_household_by_default():
@@ -1119,7 +1166,7 @@ RETURN_INCOME = sorted(
         st.one_of(
             st.none(),
             st.tuples(
-                st.sampled_from(RETURN_INCOME), st.floats(min_value=0.01, max_value=1e6)
+                st.sampled_from(RETURN_INCOME), st.floats(min_value=0, max_value=1e6)
             ),
         ),
         min_size=1,
@@ -1128,8 +1175,8 @@ RETURN_INCOME = sorted(
     st.integers(min_value=0, max_value=2**31),
 )
 def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed):
-    """Invariant: the filter removes exactly the households with such a
-    dependent, so every draw from the rest holds none."""
+    """Invariant: the filter removes exactly the households with a dependent
+    whose return income prints above $0, so every draw from the rest holds none."""
     households = [
         _household_rows(index, None if entry is None else {entry[0]: entry[1]})
         for index, entry in enumerate(dependents, start=1)
@@ -1137,7 +1184,9 @@ def test_no_drawn_household_has_a_dependent_with_return_income(dependents, seed)
     frame = _frame(*households)
     flagged = _households_with_dependent_return_income(_prepare_cps_frame(frame))
     assert flagged == {
-        index for index, entry in enumerate(dependents, start=1) if entry is not None
+        index
+        for index, entry in enumerate(dependents, start=1)
+        if entry is not None and round_us_prompt_amount(entry[1]) > 0
     }
     clean = len(dependents) + 1 - len(flagged)
     drawn = scenarios_from_cps_frame(
@@ -1156,7 +1205,8 @@ def test_every_taxable_input_counts_as_return_income():
     taxable = {n for n in promptable if n.startswith("taxable_")}
     assert taxable - {"taxable_estate_value"} <= DEPENDENT_RETURN_INCOME_FIELDS
     assert not DEPENDENT_RETURN_INCOME_FIELDS & NON_RETURN_INCOME_FIELDS
-    assert not {n for n in DEPENDENT_RETURN_INCOME_FIELDS if "tax_exempt" in n}
+    assert set(SOCIAL_SECURITY_FIELDS) <= NON_RETURN_INCOME_FIELDS
+    assert "tax_exempt_interest_income" in DEPENDENT_RETURN_INCOME_FIELDS
 
 
 def test_the_head_spouse_filter_is_a_us_filter():

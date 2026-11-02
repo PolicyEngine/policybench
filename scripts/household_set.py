@@ -149,6 +149,53 @@ def reference_system(fix_module: Path = FIX_MODULE):
     return CountryTaxBenefitSystem(reform=load_reform(fix_module))
 
 
+def uncovered_dependent_income(system) -> list[str]:
+    """Promptable person inputs that ``system`` counts toward a dependent's gross
+    income and the d1029 filter does not. One simulation gives a dependent each
+    input, $1,000 of it."""
+    from policyengine_us import Simulation
+
+    from policybench import scenarios as scenarios_module
+
+    names = sorted(
+        name
+        for name, variable in system.variables.items()
+        if variable.is_input_variable()
+        and variable.entity.key == "person"
+        and getattr(variable.value_type, "__name__", "") == "float"
+        and scenarios_module._is_promptable_input_variable(name, variable)
+    )
+    people = {"head": {"age": {YEAR: 40}}}
+    for index, name in enumerate(names):
+        people[f"dependent{index}"] = {"age": {YEAR: 15}, name: {YEAR: 1_000.0}}
+    members = list(people)
+    simulation = Simulation(
+        tax_benefit_system=system,
+        situation={
+            "people": people,
+            "tax_units": {"tax_unit": {"members": members}},
+            "families": {"family": {"members": members}},
+            "spm_units": {"spm_unit": {"members": members}},
+            "marital_units": {f"{name}_unit": {"members": [name]} for name in members},
+            "households": {
+                "household": {"members": members, "state_code": {YEAR: "TX"}}
+            },
+        },
+    )
+    income = dict(
+        zip(
+            simulation.populations["person"].ids,
+            simulation.calculate("dependent_gross_income", YEAR),
+        )
+    )
+    counted = {
+        scenarios_module.INPUT_NAME_ALIASES.get(name, name)
+        for index, name in enumerate(names)
+        if income[f"dependent{index}"] > 0
+    }
+    return sorted(counted - scenarios_module.DEPENDENT_RETURN_INCOME_FIELDS)
+
+
 def situation_for(scenario) -> dict:
     situation = scenario.to_pe_household()
     for person in situation["people"].values():
@@ -368,6 +415,14 @@ def command_build(args) -> None:
             "--purpose test, or install a bundle that certifies the engine"
         )
     dataset_sha256 = sha256_file(dataset_path)
+    system = reference_system(Path(args.fix_module))
+    uncovered = uncovered_dependent_income(system)
+    if uncovered:
+        raise SystemExit(
+            f"policyengine-us {engine} counts {', '.join(uncovered)} toward a "
+            "dependent's gross income, and the d1029 filter does not: add them to "
+            "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS"
+        )
 
     sampled = generate_scenarios(
         n=args.n,
@@ -382,9 +437,7 @@ def command_build(args) -> None:
         for scenario in rename_scenarios(sampled, args.id_prefix)
     ]
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
-    references = compute_references(
-        scenarios, programs, reference_system(Path(args.fix_module))
-    )
+    references = compute_references(scenarios, programs, system)
 
     out.mkdir(parents=True, exist_ok=True)
     manifest = scenario_manifest(scenarios)

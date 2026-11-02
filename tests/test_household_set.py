@@ -330,11 +330,39 @@ def test_the_stated_statuses_are_the_engine_defaults():
     }
 
 
-def test_the_build_filters_the_draw_and_rounds_before_the_references(
-    tmp_path, monkeypatch
+@pytest.fixture(scope="module")
+def engine_system():
+    return hs.reference_system()
+
+
+def test_the_engine_counts_no_dependent_income_the_filter_misses(engine_system):
+    """d1029's filter covers every input the reference engine counts toward a
+    dependent's gross income (review r1 found four it missed on 2.60.4)."""
+    assert hs.uncovered_dependent_income(engine_system) == []
+
+
+def test_the_engine_check_names_an_input_the_filter_leaves_out(
+    engine_system, monkeypatch
 ):
-    import policybench.policyengine_runtime as runtime
+    """The check above can fail: it names wages and interest once they leave
+    the list."""
     import policybench.scenarios as scenarios_module
+
+    monkeypatch.setattr(
+        scenarios_module,
+        "DEPENDENT_RETURN_INCOME_FIELDS",
+        scenarios_module.DEPENDENT_RETURN_INCOME_FIELDS
+        - {"employment_income", "taxable_interest_income"},
+    )
+    assert hs.uncovered_dependent_income(engine_system) == [
+        "employment_income",
+        "taxable_interest_income",
+    ]
+
+
+def _certified_build(tmp_path, monkeypatch):
+    """A build with a certified bundle and dataset, both faked."""
+    import policybench.policyengine_runtime as runtime
 
     version = importlib.metadata.version("policyengine-us")
     dataset = tmp_path / "d.h5"
@@ -353,6 +381,36 @@ def test_the_build_filters_the_draw_and_rounds_before_the_references(
             }
         },
     )
+    monkeypatch.setattr(hs, "fix_module_pins", lambda fix_module: [])
+
+
+def test_the_build_refuses_an_engine_the_filter_misses(tmp_path, monkeypatch):
+    import policybench.scenarios as scenarios_module
+
+    _certified_build(tmp_path, monkeypatch)
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: "system")
+    monkeypatch.setattr(
+        hs,
+        "uncovered_dependent_income",
+        lambda system: ["debt_relief"] if system == "system" else [],
+    )
+
+    def draw(**kwargs):
+        raise AssertionError("the build drew households before the check")
+
+    monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
+    out = tmp_path / "set"
+    with pytest.raises(SystemExit, match="counts debt_relief toward a dependent"):
+        hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
+    assert not out.exists()
+
+
+def test_the_build_filters_the_draw_and_rounds_before_the_references(
+    tmp_path, monkeypatch
+):
+    import policybench.scenarios as scenarios_module
+
+    _certified_build(tmp_path, monkeypatch)
     drawn = {}
     sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:1]
 
@@ -371,9 +429,9 @@ def test_the_build_filters_the_draw_and_rounds_before_the_references(
     monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
     monkeypatch.setattr(hs, "compute_references", references)
     monkeypatch.setattr(hs, "reference_system", lambda fix_module: None)
+    monkeypatch.setattr(hs, "uncovered_dependent_income", lambda system: [])
     monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
     monkeypatch.setattr(hs, "filing_status_mismatches", lambda scenarios, stated: [])
-    monkeypatch.setattr(hs, "fix_module_pins", lambda fix_module: [])
     out = tmp_path / "set"
     hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
     assert drawn["head_spouse_returns_only"] is True

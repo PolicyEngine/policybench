@@ -3514,23 +3514,49 @@ def test_louisianas_stated_amounts_are_the_engines():
     assert "$12,838 for single and separate filers and $25,676 for all other" in text
 
 
+QBI_SENTENCE = (
+    "Treat rental, farm rent, partnership and S corporation income as qualified "
+    "business income under section 199A."
+)
+# The incomes the sentence names, as the engine's QBI sources.
+QBI_NAMED = {
+    "rental": "rental_income",
+    "farm rent": "farm_rent_income",
+    "partnership and S corporation": "partnership_s_corp_income",
+}
+# QBI sources that are a trade or business by their nature, so the prompt needs
+# no sentence for them.
+QBI_BUSINESS_BY_NATURE = {"self_employment_income", "farm_operations_income"}
+
+
 def test_the_stated_qualified_business_income_is_the_engines():
     """The prompt calls these qualified business income because the engine does
-    and no prompt can set the flags (`_would_be_qualified` is never promptable)."""
+    and no prompt can set the flags (`_would_be_qualified` is never promptable).
+    Both ways: every source the sentence names defaults to qualified, and every
+    source that defaults to qualified is named or a business by its nature."""
     import yaml
 
+    text = pilot.v2_pilot_text(
+        "Do not infer unlisted income, expenses, assets, "
+        "benefit receipt, rent, or health coverage."
+    )
+    assert QBI_SENTENCE in text
+    named = QBI_SENTENCE.removeprefix("Treat ").split(" income as qualified")[0]
+    assert named == "rental, farm rent, partnership and S corporation"
+    assert all(words in named for words in QBI_NAMED)
     sources = yaml.safe_load(
         _engine_file(
             "parameters/gov/irs/deductions/qbi/income_definition.yaml"
         ).read_text()
     )["values"]
     (listed,) = sources.values()
-    assert {"rental_income", "farm_rent_income", "partnership_s_corp_income"} <= set(
-        listed
-    )
-    for name in ("rental_income", "farm_rent_income", "partnership_s_corp_income"):
+    qualified = set()
+    for name in listed:
         (path,) = _engine_file("variables").rglob(f"{name}_would_be_qualified.py")
-        assert "default_value = True" in path.read_text()
+        if "default_value = True" in path.read_text():
+            qualified.add(name)
+    assert set(QBI_NAMED.values()) <= qualified
+    assert qualified - set(QBI_NAMED.values()) <= QBI_BUSINESS_BY_NATURE
 
 
 def test_the_v2_wording_refuses_a_uk_household():
