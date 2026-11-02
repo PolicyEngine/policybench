@@ -1147,6 +1147,18 @@ def test_a_dependents_loss_drops_the_household():
     }
 
 
+def test_a_missing_amount_prints_nothing_and_keeps_the_household():
+    """A listed column no promptable input fills stays missing for households
+    that lack it, and the prompt prints nothing for a missing amount."""
+    frame = _frame(
+        _household_rows(1, {"partnership_s_corp_income": 500.0}),
+        _household_rows(2),
+    )
+    prepared = _prepare_cps_frame(frame)
+    assert prepared["partnership_s_corp_income"].isna().sum() == 3
+    assert _households_with_dependent_return_income(prepared) == {1}
+
+
 def test_gross_income_the_engine_counts_drops_the_household():
     """Inputs outside the list can produce gross income together: on
     policyengine-us 2.90.4 an Oklahoma dependent's base-period wages and weeks
@@ -1191,6 +1203,7 @@ def test_the_frame_carries_the_engines_dependent_gross_income(monkeypatch):
             return np.zeros(2)
 
     monkeypatch.setattr(runtime, "make_us_microsimulation", lambda **kw: Simulation())
+    monkeypatch.setattr(scenarios_module, "get_promptable_input_specs", lambda: ())
     frame, year, label = scenarios_module.load_certified_us_person_frame()
     assert frame[DEPENDENT_GROSS_INCOME_COLUMN].tolist() == [0.0, 6_944.0]
     assert ("dependent_gross_income", 2024, "person", False) in asked
