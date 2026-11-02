@@ -42,7 +42,8 @@ SURFACES = (
     ".github/workflows/*.yml",
 )
 
-# Each installer and what its positional arguments are.
+# Each installer, what its positional arguments are, and the option table that
+# says which of its options take a value.
 #   requirements: each positional is a requirement (pip install).
 #   tool install: the positional is a requirement unless --from names the
 #     source before a second positional ends the command; then the positional
@@ -51,64 +52,84 @@ SURFACES = (
 #     --spec names it, and later tokens are the tool's own arguments (uvx).
 #   command: positionals are a command to run; only --with adds a package.
 # `pip install` also matches inside `uv pip install` and `python -m pip install`.
+# uv pip install reads with pip's table: each option the two share takes a value
+# in both or in neither.
 INSTALLERS = (
-    (re.compile(r"(?<![\w-])pip3?\s+install\b"), "requirements"),
-    (re.compile(r"\bpipx\s+install\b"), "requirements"),
-    (re.compile(r"\buv\s+tool\s+install\b"), "tool install"),
-    (re.compile(r"\buv\s+add\b"), "requirements"),
-    (re.compile(r"\b(?:conda|mamba|micromamba)\s+install\b"), "requirements"),
-    (re.compile(r"\b(?:poetry|pdm)\s+add\b"), "requirements"),
-    (re.compile(r"\buvx\b|\buv\s+tool\s+run\b|\bpipx\s+run\b"), "tool"),
-    (re.compile(r"\buv\s+run\b"), "command"),
+    (re.compile(r"(?<![\w-])pip3?\s+install\b"), "requirements", "pip"),
+    (re.compile(r"\bpipx\s+install\b"), "requirements", None),
+    (re.compile(r"\buv\s+tool\s+install\b"), "tool install", "uv"),
+    (re.compile(r"\buv\s+add\b"), "requirements", "uv"),
+    (re.compile(r"\bconda\s+install\b"), "requirements", "conda"),
+    (re.compile(r"\b(?:mamba|micromamba)\s+install\b"), "requirements", None),
+    (re.compile(r"\b(?:poetry|pdm)\s+add\b"), "requirements", None),
+    (re.compile(r"\buvx\b|\buv\s+tool\s+run\b"), "tool", "uv"),
+    (re.compile(r"\bpipx\s+run\b"), "tool", None),
+    (re.compile(r"\buv\s+run\b"), "command", "uv"),
 )
 # Options whose value is a requirement; --from and --spec also name the tool.
-REQUIREMENT_OPTIONS = {"--with", "-w", "--from", "--spec"}
+REQUIREMENT_OPTIONS = {"--with", "-w", "--from", "--spec", "--with-executables-from"}
 TOOL_OPTIONS = {"--from", "--spec"}
-# Options whose value is anything else (a path, an index, a Python version, a
-# channel, a format control); the scan skips the value.
-VALUE_OPTIONS = {
-    "-C",
-    "-P",
-    "-c",
-    "-e",
-    "-f",
-    "-i",
-    "-n",
-    "-p",
-    "-r",
-    "-t",
-    "--channel",
-    "--config-settings",
-    "--constraint",
-    "--default-index",
-    "--directory",
-    "--editable",
-    "--env-file",
-    "--exclude-newer",
-    "--extra",
-    "--extra-index-url",
-    "--find-links",
-    "--group",
-    "--index",
-    "--index-strategy",
-    "--index-url",
-    "--name",
-    "--no-binary",
-    "--only-binary",
-    "--optional",
-    "--pip-args",
-    "--platform",
-    "--prefix",
-    "--project",
-    "--python",
-    "--python-platform",
-    "--python-version",
-    "--requirement",
-    "--root",
-    "--target",
-    "--upgrade-package",
-    "--with-editable",
-    "--with-requirements",
+# The options that take a value, and those that don't. The pip and uv tables copy
+# the --help of pip 26.2.1 (pip install) and uv 0.11.7 (uv tool install, uv tool
+# run, uv add and uv run); the conda table holds options from conda's install
+# reference. The scan skips an option's value. An option that its installer's
+# table lacks, or lists in both sets (uv add's -m takes a marker; uv run's -m
+# runs a module), may take the next word as its value or leave it as an argument.
+PIP_VALUE = """
+-C -c -e -f -i -r -t --abi --all-releases --build-constraint --cache-dir --cert
+--client-cert --config-settings --constraint --editable --exists-action
+--extra-index-url --find-links --group --implementation --index-url
+--keyring-provider --log --no-binary --only-binary --only-final --platform --prefix
+--progress-bar --proxy --python --python-version --refresh-package --report
+--requirement --requirements-from-script --resume-retries --retries --root
+--root-user-action --src --target --timeout --trusted-host --upgrade-strategy
+--uploaded-prior-to --use-deprecated --use-feature
+"""
+PIP_FLAG = """
+-h -I -q -U -V -v --break-system-packages --check-build-dependencies --compile
+--debug --disable-pip-version-check --dry-run --force-reinstall --help
+--ignore-installed --ignore-requires-python --isolated --no-build-isolation
+--no-cache-dir --no-clean --no-color --no-compile --no-deps --no-index --no-input
+--no-proxy-env --no-require-hashes --no-warn-conflicts --no-warn-script-location
+--only-deps --pre --prefer-binary --quiet --require-hashes --require-virtualenv
+--upgrade --user --verbose --version
+"""
+UV_VALUE = """
+-b -C -c -f -i -m -P -p -r --allow-insecure-host --bounds --branch
+--build-constraints --cache-dir --color --config-file --config-setting
+--config-settings-package --constraints --default-index --directory --env-file
+--exclude-newer --exclude-newer-package --excludes --extra --extra-index-url
+--find-links --fork-strategy --group --index --index-strategy --index-url
+--keyring-provider --link-mode --marker --no-binary-package
+--no-build-isolation-package --no-build-package --no-extra --no-group
+--no-install-package --no-sources-package --only-group --optional --overrides
+--package --prerelease --project --python --python-platform --refresh-package
+--reinstall-package --requirements --resolution --rev --script --tag --torch-backend
+--upgrade-group --upgrade-package --with-editable --with-requirements
+"""
+UV_FLAG = """
+-e -h -m -n -q -s -U -v --active --all-extras --all-groups --all-packages
+--compile-bytecode --dev --editable --exact --force --frozen --gui-script --help
+--isolated --lfs --locked --managed-python --module --no-binary --no-build
+--no-build-isolation --no-cache --no-config --no-default-groups --no-dev
+--no-editable --no-env-file --no-index --no-install-local --no-install-project
+--no-install-workspace --no-managed-python --no-progress --no-project
+--no-python-downloads --no-sources --no-sync --no-workspace --offline --only-dev
+--quiet --raw --refresh --reinstall --script --system-certs --upgrade --verbose
+--workspace
+"""
+CONDA_VALUE = """
+-c -f -n -p --channel --file --name --prefix
+"""
+CONDA_FLAG = """
+-C -d -h -k -O -q -S -v -y --clobber --dry-run --insecure --json --offline
+--override-channels --quiet --satisfied-skip-solve --update-all --update-specs
+--use-index-cache --verbose --yes
+"""
+OPTION_TABLES = {
+    "pip": (set(PIP_VALUE.split()), set(PIP_FLAG.split())),
+    "uv": (set(UV_VALUE.split()), set(UV_FLAG.split())),
+    "conda": (set(CONDA_VALUE.split()), set(CONDA_FLAG.split())),
 }
 # Flags that keep the installer off every index, as in an offline install
 # from a directory of built wheels.
@@ -153,7 +174,33 @@ def _tokens(arguments: str) -> list[str]:
     return []
 
 
-def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
+def _arity(flag: str, table: str | None) -> str:
+    """Whether ``flag`` takes a value in ``table``: "value", "flag" or "either"."""
+    takes, skips = OPTION_TABLES.get(table, ((), ()))
+    if (flag in takes) == (flag in skips):
+        return "either"
+    return "value" if flag in takes else "flag"
+
+
+def _word(tokens: list[str], i: int) -> bool:
+    """Whether ``tokens[i]`` is a word that an option could take as its value."""
+    return (
+        i < len(tokens)
+        and tokens[i] not in SHELL_OPERATORS
+        and not tokens[i].startswith("-")
+    )
+
+
+def _requirement(token: str) -> list[str]:
+    """The distribution a word fetches from an index by name, if any, once
+    quotes and trailing prose punctuation are stripped."""
+    name = _index_name(token.strip("\u201c\u201d\u2018\u2019").rstrip(".,;:!?)}\"'"))
+    return [name] if name else []
+
+
+def _scan(
+    tokens: list[str], role: str, table: str | None, every_positional: bool
+) -> list[str]:
     """Distributions an installer's arguments fetch from an index by name.
 
     In code every positional of a ``requirements`` installer counts. In prose
@@ -161,7 +208,7 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
     install puts policybench on your PATH" names no requirement.
     """
     names = []
-    named_tool = role == "tool install" and _tool_install_names_source(tokens)
+    named_tool = role == "tool install" and _tool_install_names_source(tokens, table)
     positionals = 0
     i = 0
     while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
@@ -176,8 +223,19 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
                     value = tokens[i]
                 names += [n for n in map(_index_name, value.split(",")) if n]
                 named_tool = named_tool or flag in TOOL_OPTIONS
-            elif flag in VALUE_OPTIONS and not has_value:
+            elif not has_value and _arity(flag, table) == "value":
                 i += 1
+            elif (
+                not has_value
+                and _arity(flag, table) == "either"
+                and _word(tokens, i + 1)
+            ):
+                # The next word may be the option's value or an argument. Read it
+                # as a requirement where one could stand, but don't let it end
+                # the command.
+                i += 1
+                if role != "command" and not named_tool:
+                    names += _requirement(tokens[i])
         elif role == "command" or (role == "tool" and named_tool):
             break
         elif role == "tool install" and named_tool:
@@ -187,21 +245,20 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
             if positionals > 1:
                 break
         else:
-            name = _index_name(token.rstrip(".,;:!?)}\"'"))
-            if name:
-                names.append(name)
+            names += _requirement(token)
             if role == "tool" or not every_positional:
                 break
         i += 1
     return names
 
 
-def _tool_install_names_source(tokens: list[str]) -> bool:
+def _tool_install_names_source(tokens: list[str], table: str | None) -> bool:
     """Whether a ``uv tool install`` command passes --from.
 
     The command takes one package, so a second positional ends it: in prose, or
     in a ``<code>`` span joined across lines, later words belong to something
-    else, such as a following ``uvx --from`` command.
+    else, such as a following ``uvx --from`` command. A word that may be an
+    option's value doesn't count as a positional.
     """
     positionals = 0
     i = 0
@@ -211,7 +268,12 @@ def _tool_install_names_source(tokens: list[str]) -> bool:
         if flag in TOOL_OPTIONS:
             return True
         if token.startswith("-"):
-            if not has_value and (flag in VALUE_OPTIONS or flag in REQUIREMENT_OPTIONS):
+            arity = _arity(flag, table)
+            if not has_value and (
+                flag in REQUIREMENT_OPTIONS
+                or arity == "value"
+                or (arity == "either" and _word(tokens, i + 1))
+            ):
                 i += 1
         else:
             positionals += 1
@@ -223,10 +285,10 @@ def _tool_install_names_source(tokens: list[str]) -> bool:
 
 def _installs(snippet: str, every_positional: bool) -> list[str]:
     names = []
-    for pattern, role in INSTALLERS:
+    for pattern, role, table in INSTALLERS:
         for match in pattern.finditer(snippet):
             tokens = _tokens(snippet[match.end() :])
-            names += _scan(tokens, role, every_positional)
+            names += _scan(tokens, role, table, every_positional)
     return names
 
 
@@ -318,6 +380,18 @@ def surface_installs(path: Path) -> list[str]:
         "`uvx --from policybench policybench --help`",
         "uv add --optional dev policybench",
         "uvx --exclude-newer 2026-10-01 policybench --help",
+        "uv tool install --resolution highest --from ruff==0.6.9 ruff "
+        "--with policybench",
+        "uv tool install --some-new-option value --from ruff==0.6.9 ruff "
+        "--with policybench",
+        "uv tool install --from ruff==0.6.9 ruff --with-executables-from policybench",
+        "Run uv tool install policybench --from policybench, then --no-index "
+        "installs from wheels.",
+        "uv tool install -n policybench",
+        "uv tool install --no-binary policybench",
+        "uvx -n policybench --help",
+        "uv pip install -n policybench",
+        "Run conda install -n myenv policybench to add it.",
         "Install it with pip install \u201cpolicybench\u201d.",
         "PolicyBench is not on PyPI, so `pip install policybench` fails.",
         "```bash\npip install \\\n  policybench\n```",
@@ -337,6 +411,12 @@ def test_detector_flags_index_installs_of_policybench(text):
         f"uv tool install policybench --from git+{REPO_URL}",
         f"uv tool install --from git+{REPO_URL} policybench",
         f"uv tool install --python 3.12 policybench --from git+{REPO_URL}",
+        f"uv tool install --constraints c.txt policybench --from git+{REPO_URL}",
+        f"uv tool install --some-new-option value policybench --from git+{REPO_URL}",
+        f"`uv tool install --some-new-flag --from git+{REPO_URL} policybench`",
+        f"uvx --reinstall-package policybench --from git+{REPO_URL} policybench",
+        "uv tool install --force reinstalls policybench from GitHub.",
+        "pip install --user puts policybench on your PATH.",
         f"uvx --from git+{REPO_URL} policybench --help",
         f"pip install 'policybench @ git+{REPO_URL}'",
         f"pip install policybench@git+{REPO_URL}",
@@ -424,7 +504,7 @@ def test_readme_installs_policybench_from_github():
     sources = [
         token
         for snippet in code
-        for pattern, _ in INSTALLERS[:4]
+        for pattern, *_ in INSTALLERS[:4]
         for match in pattern.finditer(snippet)
         for token in _tokens(snippet[match.end() :])
     ]
