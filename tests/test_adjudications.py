@@ -1756,20 +1756,40 @@ _ROW_SOURCES = st.one_of(
     st.sampled_from(FAILURE_SOURCE_VALUES),
 )
 _SUBTYPES = st.sampled_from(FAILURE_SUBTYPE_VALUES)
+# Every adjudicated class a valid record admits, each with the reference
+# verdicts parse_adjudications accepts beside it (None: no verdict) and whether
+# it removes the output from scoring. Spelled out, like _SKIPPED, so the
+# generator does not share the module's constants.
+_OUTCOMES = {
+    "llm_error": ((None, "affirmed", "regenerated"), False),
+    "parse_contract_failure": ((None, "affirmed", "regenerated"), False),
+    "prompt_ambiguity": ((None, "unlisted_input"), True),
+    "reference_engine_defect": (("engine_defect",), True),
+    "reference_later_law": (("later_law",), True),
+}
 
 
 @st.composite
 def _adjudicated_annotations(draw):
     """Row annotations and case notes for one to three cases of one to four
-    rows, each row of any class and subtype, and a valid adjudication of any
-    judge verdict for some of the cases."""
+    rows, each row of any class, subtype and reference-suspect flag, and a
+    valid adjudication of any judge verdict, to any adjudicated class with
+    any reference verdict that class admits, for some of the cases."""
     rows, cases, entries = [], [], []
     for n in range(draw(st.integers(1, 3))):
         scenario = f"scenario_{n:03d}"
         count = draw(st.integers(1, 4))
         for m in range(count):
             rows.append(
-                ("us", scenario, "ssi", f"m{m}", draw(_ROW_SOURCES), draw(_SUBTYPES))
+                (
+                    "us",
+                    scenario,
+                    "ssi",
+                    f"m{m}",
+                    draw(_ROW_SOURCES),
+                    draw(_SUBTYPES),
+                    draw(st.booleans()),
+                )
             )
         cases.append(
             (
@@ -1780,14 +1800,12 @@ def _adjudicated_annotations(draw):
                 draw(_ROW_SOURCES),
                 draw(_SUBTYPES),
                 f"note {n}.",
+                draw(st.booleans()),
             )
         )
         if draw(st.booleans()):
-            adjudicated = draw(
-                st.sampled_from(
-                    ["llm_error", "parse_contract_failure", "prompt_ambiguity"]
-                )
-            )
+            adjudicated = draw(st.sampled_from(sorted(_OUTCOMES)))
+            verdicts, excluded = _OUTCOMES[adjudicated]
             entry = _entry(
                 scenario_id=scenario,
                 judge_failure_source=draw(st.sampled_from(FAILURE_SOURCE_VALUES)),
@@ -1795,8 +1813,13 @@ def _adjudicated_annotations(draw):
                 adjudicated_failure_source=adjudicated,
                 adjudicated_failure_subtype=draw(_SUBTYPES),
             )
-            if adjudicated == "prompt_ambiguity":
+            if excluded:
                 entry["excluded_from_scoring"] = True
+            verdict = draw(st.sampled_from(verdicts))
+            if verdict is not None:
+                entry["reference_verdict"] = verdict
+                entry["reference_basis"] = "recorded basis"
+                entry["judge_reference_suspect"] = draw(st.booleans())
             entries.append(entry)
     row_frame = pd.DataFrame(
         rows,
@@ -1807,9 +1830,9 @@ def _adjudicated_annotations(draw):
             "model",
             "failure_source",
             "failure_subtype",
+            "reference_suspect",
         ],
     )
-    row_frame["reference_suspect"] = False
     row_frame["annotation"] = "diagnosis"
     case_frame = pd.DataFrame(
         cases,
@@ -1821,6 +1844,7 @@ def _adjudicated_annotations(draw):
             "case_failure_sources",
             "case_failure_subtypes",
             "case_annotation",
+            "reference_suspect",
         ],
     )
     return row_frame, case_frame, parse_adjudications({"adjudications": entries}, "")
@@ -1829,10 +1853,12 @@ def _adjudicated_annotations(draw):
 @settings(max_examples=300, deadline=None)
 @given(data=_adjudicated_annotations())
 def test_adjudication_skips_non_substantive_rows_properties(data):
-    """For any annotations and valid record:
+    """For any annotations and valid record, whatever class it adjudicates:
     - a parse-failure or ceiling-exhaustion row keeps its class and subtype,
       and a row of a case no entry decides is untouched;
     - every other row of a decided case takes the adjudicated class;
+    - a reference verdict clears the flag on every row of its case, skipped
+      rows included, and touches no other row's flag;
     - the report counts exactly the rows whose class or subtype changed;
     - the verifier accepts what apply builds, and a second apply changes
       nothing.
@@ -1850,6 +1876,8 @@ def test_adjudication_skips_non_substantive_rows_properties(data):
                 entry["adjudicated_failure_source"],
                 entry["adjudicated_failure_subtype"],
             ]
+        if entry and entry.get("reference_verdict"):
+            expected.loc[index, "reference_suspect"] = False
     pd.testing.assert_frame_equal(out_rows, expected)
     changed = (rows[classes] != out_rows[classes]).any(axis=1)
     assert [item["rows_rewritten"] for item in report] == [
