@@ -565,6 +565,29 @@ def test_an_earlier_release_with_new_bytes_is_reported_not_moved(
     assert github.writes == [] and github.tags[T1] == old_board
 
 
+def test_an_earlier_release_sealed_by_hand_is_not_reported_again(
+    scratch, github, monkeypatch
+):
+    # After the run reports T1, its owner seals it by hand at the board for the
+    # release's new bytes. Later runs pass over T1, after main moves on too.
+    old_board = scratch.release(T1, SHAS["a"])
+    start = scratch.other()
+    new_board = scratch.release(T1, SHAS["c"])
+    github.tags = {T1: old_board}
+    github.release(T1, SHAS["c"], release_id=1)
+    monkeypatch.chdir(scratch.root)
+    rt.main(["seal-release", "--tag", T1, "--ref", "main", "--apply"])
+    assert github.tags[T1] == new_board
+    assert rt.plan_landed(start, **where(scratch)) == []
+    second = scratch.release(T2, SHAS["b"])
+    github.tags[T2] = new_board
+    github.release(T2, SHAS["b"], release_id=2)
+    plans = rt.plan_landed(start, **where(scratch))
+    assert [(p.tag, p.action, p.board) for p in plans] == [(T2, "move", second)]
+    rt.main(["seal-release", "--landed-after", start, "--ref", "main", "--apply"])
+    assert github.tags == {T1: new_board, T2: second}
+
+
 def test_a_start_off_the_refs_line_is_refused(scratch, github):
     scratch.release(T1, SHAS["a"])
     git(scratch.root, "checkout", "-q", "-b", "elsewhere", "HEAD~1")
@@ -688,7 +711,8 @@ def test_latest_is_refused_when_the_release_does_not_hold_the_pointers_bytes(
 def test_sealing_starts_after_the_last_board_cut_before_the_workflow():
     """The workflow never moves the tags of the releases in the runbook
     table: each of their board commits is this commit or an ancestor of it."""
-    history = rt.pointer_history("HEAD", root=str(ROOT))
+    git(ROOT, "merge-base", "--is-ancestor", rt.SEALING_STARTS_AFTER, "HEAD")
+    history = rt.pointer_history(rt.SEALING_STARTS_AFTER, root=str(ROOT))
     live = [e for e in history if e.tag == "dashboard-data-20261027"]
     assert [e.commit for e in live][0] == rt.SEALING_STARTS_AFTER
     rows = RUNBOOK_ROW.findall((ROOT / "docs/runbook.md").read_text(encoding="utf-8"))
@@ -913,7 +937,7 @@ NO_RELEASE = {"dashboard-data-20260705b"}
 def test_the_runbook_names_each_older_releases_board_commit():
     rows = RUNBOOK_ROW.findall((ROOT / "docs/runbook.md").read_text(encoding="utf-8"))
     assert len(rows) == 33
-    history = rt.pointer_history("HEAD", root=str(ROOT))
+    history = rt.pointer_history(rt.SEALING_STARTS_AFTER, root=str(ROOT))
     for tag, commit, sha_prefix in rows:
         shas = {
             e.sha256

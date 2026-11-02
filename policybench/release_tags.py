@@ -320,8 +320,9 @@ def plan_landed(
     history names belongs to an earlier release, and its tag is re-pointed by
     hand. When main points back at such a release, it is passed over. When
     main names such a tag with bytes it did not name by ``after``, the plan has
-    no board and says so, so the caller reports it instead of moving it. Any
-    other plan with no board also stays in, for the caller to report.
+    no board and says so, so the caller reports it instead of moving it, until
+    someone seals the tag by hand at the board for the release's current bytes.
+    Any other plan with no board also stays in, for the caller to report.
     """
     history = pointer_history(ref, root=root)
     start = _git(root, "rev-parse", "--verify", f"{after}^{{commit}}").strip()
@@ -345,7 +346,12 @@ def plan_landed(
             )
             continue
         named = {(e.tag, e.sha256) for e in history if e.commit in landed}
-        if any(pair[0] == tag and pair not in earlier_pairs for pair in named):
+        if not any(pair[0] == tag and pair not in earlier_pairs for pair in named):
+            continue
+        plan = plan_tag(
+            tag, remote_tag_commit(repo, tag), fetch_release(repo, tag), history
+        )
+        if plan.action != "sealed":
             plans.append(
                 TagPlan(
                     tag,

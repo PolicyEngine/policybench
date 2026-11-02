@@ -528,7 +528,8 @@ tag of a release main named by then. When main points back at one of those
 releases, the run passes over it. When main names one of those tags with
 bytes it did not name by then, the run moves nothing for it and fails, naming
 the tag; check the release and seal it by hand with
-`uv run policybench seal-release --tag <tag> --apply`. Before and after each
+`uv run policybench seal-release --tag <tag> --apply`, and later runs pass
+over it. Before and after each
 move the run reads the release's asset digest again, and it refuses the move,
 or reports it, when the asset changed. A move GitHub refuses does not stop the
 others; the run fails after trying them all. It marks Latest the release main
