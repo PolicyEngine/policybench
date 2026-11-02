@@ -513,7 +513,7 @@ def _never(name: str):
 
 @pytest.mark.parametrize(
     ("audit", "path"),
-    [(audit, path) for audit in IMPACT for path in IMPACT[audit].inputs],
+    [(audit, path) for audit in IMPACT for path in sorted(IMPACT[audit].inputs)],
 )
 def test_any_refused_input_stops_the_impact_script_before_it_scores(
     scratch, monkeypatch, audit, path
@@ -533,7 +533,7 @@ def test_any_refused_input_stops_the_impact_script_before_it_scores(
 
 @pytest.mark.parametrize(
     ("script", "path"),
-    [(script, path) for script in DIRECT for path in DIRECT[script].inputs],
+    [(script, path) for script in DIRECT for path in sorted(DIRECT[script].inputs)],
 )
 def test_any_refused_input_stops_the_direct_script_before_it_writes(
     scratch, monkeypatch, script, path
