@@ -2788,7 +2788,7 @@ def test_the_gemini_patch_keeps_search_beside_functions(monkeypatch):
 # The thoughtSignatures each checked litellm sends back on the toolCall and
 # toolResponse parts of a server-side search: 1.88.x merges the two parts'
 # signatures into one, the call's, and 1.95.0 returns each on its own part, as
-# ai.google.dev/gemini-api/docs/thought-signatures asks.
+# ai.google.dev/gemini-api/docs/tool-combination asks.
 RESENT_SEARCH_SIGNATURES = {
     "1.88.1": ("SIG_CALL", "SIG_CALL"),
     "1.88.6": ("SIG_CALL", "SIG_CALL"),

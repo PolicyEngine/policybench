@@ -439,7 +439,12 @@ MAX_PAUSE_CONTINUATIONS = 3
 # each server-side search part's thoughtSignature on the part Gemini put it on,
 # where 1.88.x sent one signature on both parts. It also counts
 # toolUsePromptTokenCount in prompt tokens when a response carries no search
-# grounding. Each run's manifest records the litellm it ran on.
+# grounding. The pilot's function-calling turns carry no grounding metadata
+# (see bill_searches), so on 1.95.0 any toolUsePromptTokenCount Gemini reports
+# on a web-arm turn adds to its prompt tokens and cost, though Google bills
+# Google Search per query and not by its tokens
+# (ai.google.dev/gemini-api/docs/tool-combination). Each run's manifest records
+# the litellm it ran on.
 GEMINI_SEARCH_PATCH_LITELLM = frozenset({"1.88.1", "1.88.6", "1.95.0"})
 
 CALCULATE_DESCRIPTION = (
@@ -1239,8 +1244,9 @@ def allow_gemini_search_with_functions() -> None:
     (ai.google.dev/gemini-api/docs/tool-combination), and the web arms always
     send it, so both of litellm's drops are skipped. litellm 1.95.0 reads the
     flag before it maps the tools and keeps the search tool by itself, so there
-    the patch changes nothing. Refuses any other litellm, whose code this was
-    not checked against.
+    the patch changes nothing, and CI, which runs the locked 1.95.0, can't catch
+    a broken patch body; only a test run on 1.88.x exercises it. Refuses any
+    other litellm, whose code this was not checked against.
     """
     version = importlib.metadata.version("litellm")
     if version not in GEMINI_SEARCH_PATCH_LITELLM:
