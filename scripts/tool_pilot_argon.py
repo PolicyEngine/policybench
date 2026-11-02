@@ -440,7 +440,7 @@ MAX_PAUSE_CONTINUATIONS = 3
 # where 1.88.x sent one signature on both parts. It also counts
 # toolUsePromptTokenCount in prompt tokens when a response carries no search
 # grounding. The pilot's function-calling turns carry no grounding metadata
-# (see bill_searches), so on 1.95.0 any toolUsePromptTokenCount Gemini reports
+# (see turn_searches), so on 1.95.0 any toolUsePromptTokenCount Gemini reports
 # on a web-arm turn adds to its prompt tokens and cost, though Google bills
 # Google Search per query and not by its tokens
 # (ai.google.dev/gemini-api/docs/tool-combination). Each run's manifest records
