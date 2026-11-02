@@ -30,11 +30,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # Run serially, the three latest test jobs on main took 17.3, 15.3 and
-    # 19.9 minutes (2026-10-31, 10-26, 10-25). On a 4-core VM on 2026-11-02
-    # the suite took 34.4 minutes serially and 9.2 to 9.7 minutes in three
-    # runs with -n 4 --dist loadfile. Fail a hung job instead of holding a
-    # shared runner for GitHub's 6-hour default.
+    # Serially, the test job on main took 29.5 minutes at b0c8f2e and hit
+    # this limit at ec5413c (2026-11-02). In parallel, with -n auto, it took
+    # 12.7, 12.5 and 16.2 minutes (run 41490222217). Fail a hung job instead
+    # of holding a shared runner for GitHub's 6-hour default.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -47,9 +46,11 @@ jobs:
           python-version: "3.12"
       - run: pip install uv
       - run: uv sync --locked --extra dev
-      # One worker per core. --dist loadfile keeps each test file on one
-      # worker; on the 4-core VM it ran faster than --dist load (10.1 minutes).
-      - run: uv run pytest -m "not slow" -n auto --dist loadfile --tb=short -q
+      # One worker per logical CPU (-n auto would count physical cores, since
+      # psutil is installed); the "created: N/N workers" line gives the count.
+      # --dist loadfile keeps each test file on one worker; on the 4-core VM it
+      # ran faster than --dist load (10.1 minutes).
+      - run: uv run pytest -m "not slow" -n logical --dist loadfile --tb=short
 
   app:
     runs-on: ubuntu-latest
