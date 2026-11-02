@@ -1,0 +1,66 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.0102858000000001,
+  "duration_ms": 163504,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:18:09.769121+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "c9e5a22756b26b1dd9a48998b30e48c91711c5954152d626b2764b2a2c9692e4",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "621b40a9ae01503c408648fb07121f8030ebe43eb51ee1be88557a075e035e61",
+  "session_id": "88354c3c-c78d-4b2d-a6c3-e9ba0f64660c",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "6cacc1cbc1edd6e83e396fe2c5a348f68eea0ba1504af7269af933c3ef5fb1da",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/538-S.pdf",
+      "https://www.zillionforms.com/2025/I8584001849.PDF",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/511-Pkt.pdf",
+      "https://eformrs.com/Forms10/States10/OK/OK538S.PDF",
+      "https://www.oklegislature.gov/cf_pdf/2025-26%20int/sb/SB72%20int.pdf",
+      "https://okpolicy.org/sales-tax-relief-credit/",
+      "https://oklahoma.gov/content/dam/ok/en/tax/documents/resources/publications/legislation/2026LegislativeUpdate.pdf",
+      "https://law.justia.com/codes/oklahoma/title-68/section-68-5011/"
+    ],
+    "searches": [
+      "Oklahoma Form 538-S 2025 instructions gross household income includes gifts",
+      "Oklahoma statute 68 O.S. 5011 sales tax relief credit \"gross household income\" definition 5011",
+      "Oklahoma 2026 legislature sales tax relief credit increase enacted",
+      "Oklahoma Tax Commission 2026 legislative summary income tax sales tax relief credit",
+      "\"5011\" Oklahoma \"Sales tax relief\" \"gross household income\" \"gifts\" statute text title 68",
+      "\"538-S\" \"gross household income\" \"support money\" \"school grants or scholarships\" \"gifts\"",
+      "Census CPS ASEC \"financial assistance\" income definition friends relatives not living in household FIN_VAL"
+    ]
+  }
+}

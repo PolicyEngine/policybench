@@ -1,0 +1,37 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 426(b)(1)-(2)(A)",
+      "pre_freeze": true,
+      "published": "Statute in force before 2026 (current codification)",
+      "quote": "has not attained age 65, and ... is entitled to, and has for 24 calendar months been entitled to, (i) disability insurance benefits under section 423 of this title",
+      "source": "42 U.S.C. \u00a7 426 (Social Security Act \u00a7 226), Hospital insurance benefits for the aged and disabled",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "\u00a7 426(a)(1)",
+      "pre_freeze": true,
+      "published": "Statute in force before 2026 (current codification)",
+      "quote": "has attained age 65",
+      "source": "42 U.S.C. \u00a7 426 (Social Security Act \u00a7 226)",
+      "url": "https://www.law.cornell.edu/uscode/text/42/426"
+    },
+    {
+      "pinpoint": "Disability benefits section",
+      "pre_freeze": null,
+      "published": "unknown",
+      "quote": "If you're getting Social Security disability benefits, you'll get Medicare automatically after getting disability benefits for 24 months.",
+      "source": "Medicare.gov (CMS), I'm getting Social Security benefits before 65",
+      "url": "https://www.medicare.gov/basics/get-started-with-medicare/before-65"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Head is 62, so Medicare by age (65 or older) does not apply. Under 42 U.S.C. 426(b), a person under 65 qualifies only after 24 calendar months of entitlement to Social Security or railroad disability benefits, or through ESRD or ALS. Being disabled does not qualify anyone by itself. The prompt lists no Social Security disability income, says not to infer benefit receipt, and lists no ESRD or ALS, so the law gives 0. That matches the engine's output. The engine narrative wrongly says there is \"no indication of disability\" (the Head is listed as disabled), but correcting that does not change the result. The 15-model cluster wrongly treated a disability flag as enough on its own.",
+  "verdict": "reference_holds"
+}

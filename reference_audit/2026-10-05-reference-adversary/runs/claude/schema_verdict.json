@@ -1,0 +1,119 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "reference_holds",
+        "reference_wrong",
+        "definition_mismatch",
+        "prompt_ambiguous"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "description": "2-4 sentences: what the law gives, what the engine did, and why the verdict follows."
+    },
+    "independent_answer": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "reference_value": {
+      "type": "number"
+    },
+    "consensus_value": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "engine_step_at_issue": {
+      "type": "string",
+      "description": "The derivation step that departs from the law or the definition; \"\" when the reference holds."
+    },
+    "stage1_error": {
+      "type": "string",
+      "description": "Where stage 1 erred and why; \"\" if stage 1 stands."
+    },
+    "citations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "The statute, regulation, publication, form or instructions, named as its issuer names it."
+          },
+          "pinpoint": {
+            "type": "string",
+            "description": "Section, subsection, line, table or page."
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL you read."
+          },
+          "published": {
+            "type": "string",
+            "description": "Publication or effective date as the source states it (YYYY-MM-DD where known)."
+          },
+          "pre_freeze": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True if published before 2026-07-03, false if after, null if unknown."
+          },
+          "quote": {
+            "type": "string",
+            "description": "A short verbatim quote of the rule relied on."
+          }
+        },
+        "required": [
+          "source",
+          "pinpoint",
+          "url",
+          "published",
+          "pre_freeze",
+          "quote"
+        ]
+      }
+    },
+    "suggested_adjudication": {
+      "type": "string",
+      "enum": [
+        "affirmed",
+        "regenerated",
+        "engine_defect",
+        "unlisted_input",
+        "later_law",
+        "definition_exclusion",
+        "none"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    }
+  },
+  "required": [
+    "verdict",
+    "summary",
+    "independent_answer",
+    "reference_value",
+    "consensus_value",
+    "engine_step_at_issue",
+    "stage1_error",
+    "citations",
+    "suggested_adjudication",
+    "confidence"
+  ]
+}

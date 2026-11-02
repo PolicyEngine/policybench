@@ -1,0 +1,50 @@
+{
+  "ambiguity": "No reading of the definition gives a different number. Whether the full credit counts or only the amount above tax owed makes no difference, because Louisiana tax before credits is $0 (AGI is below the $25,000 joint standard deduction). Different ways of computing self-employment earned income (with or without the 92.35% factor) and whether the $38 of disability benefits is taxable also make no difference: earned income is above the $8,680 plateau and AGI is below the $18,140 phase-out threshold in every case. The models answering $0 appear to have believed Louisiana has no refundable EITC, or that the 20-year-old spouse disqualifies the couple. Under \u00a732(c)(1)(A)(ii) only one spouse must be 25\u201364.",
+  "citations": [
+    {
+      "pinpoint": "\u00a7297.8(A)(2) and (B)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "five percent of the federal earned income tax credit for which the individual is eligible for the taxable year under Section 32 of the Internal Revenue Code ... such excess tax credit shall constitute an overpayment from the current collections of the taxes imposed under this Part",
+      "source": "Louisiana Revised Statutes 47:297.8, Earned income tax credit",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "Section 4.06, Earned Income Credit table, No Qualifying Children column",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "For taxable years beginning in 2026, the following amounts are used to determine the earned income credit under \u00a7 32(b). ... Earned Income Amount $8,680 ... Maximum Amount of Credit $664 ... Threshold Phaseout Amount (Married Filing Jointly) $18,140",
+      "source": "IRS Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "\u00a732(c)(1)(A)(ii)(II)",
+      "pre_freeze": true,
+      "published": "current code (as amended through 2025)",
+      "quote": "such individual (or, if the individual is married, either the individual or the individual's spouse) has attained age 25 but not attained age 65 before the close of the taxable year",
+      "source": "26 U.S.C. \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a732(c)(2)(A)",
+      "pre_freeze": true,
+      "published": "current code (as amended through 2025)",
+      "quote": "plus the amount of the taxpayer's net earnings from self-employment for the taxable year (within the meaning of section 1402(a)), but such net earnings shall be determined with regard to the deduction allowed to the taxpayer by section 164(f)",
+      "source": "26 U.S.C. \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "\u00a7293 standard deduction definition",
+      "pre_freeze": true,
+      "published": "2024-12-04",
+      "quote": "For Married-Joint Return filers ... 200% of the dollar amount provided for Single Individuals ($12,500)",
+      "source": "Louisiana Revised Statutes 47:293 (as amended by Acts 2024, 3rd Ex. Sess., No. 11)",
+      "url": "https://www.legis.la.gov/Legis/Law.aspx?d=101760"
+    }
+  ],
+  "computation": "1) Federal EITC (IRC \u00a732), joint return with no qualifying children. Age test (\u00a732(c)(1)(A)(ii)(II)): for a married filer, either spouse may meet the 25\u201364 age range. The head is 43, so the couple qualifies even though the spouse is 20. 2) Earned income (\u00a732(c)(2)(A)): net self-employment earnings reduced by the \u00a7164(f) deduction for half of SE tax. SE tax = 10,400 \u00d7 0.9235 \u00d7 0.153 = 1,469.47; half = 734.73. Earned income \u2248 10,400 \u2212 734.73 = 9,665.27. Under the stricter \u00a71402(a)(12) reading it is \u2248 8,869.66. Both are above the 2026 earned income amount of $8,680 (Rev. Proc. 2025-32 \u00a74.06). So the phase-in is complete: 7.65% \u00d7 8,680 = $664, the 2026 maximum for no children. 3) AGI \u2248 $9,665, or up to \u2248 $9,703 if the $38 of disability benefits were taxable. That is below the $18,140 joint-return phase-out threshold, so there is no reduction. Investment income is $0, below the $12,200 limit. Federal EITC = $664. 4) Louisiana EIC (R.S. 47:297.8(A)(2)): 5% of the federal EITC for tax years 2019\u20132030. 0.05 \u00d7 664 = $33.20. 5) Refundability (R.S. 47:297.8(B)): any credit above tax liability is an overpayment and is refunded. Louisiana AGI \u2248 $9,700 is below the $25,000 joint standard deduction (R.S. 47:293, Act 11 of 2024 3rd Ex. Sess.; $12,500 single \u00d7 200%, CPI-indexed from 2026). So Louisiana tax is $0 and the full $33.20 is refunded. 6) The other Louisiana refundable credits (school readiness, refundable child care, etc.) require children or expenses that are not listed, so they are $0. Total Louisiana refundable credits = $33.20. All 2026 parameters used (Rev. Proc. 2025-32, released October 2025) were published before 2026-07-03. HB 133 (2025 RS), which would have raised the credit to 10%, stayed pending in House Ways and Means. The statute's history ends with Acts 2021, No. 453.",
+  "confidence": "high",
+  "definition_reading": "I read the definition as the sum of all refundable Louisiana individual income tax credits on the couple's single joint return. For this household, the only one is the Louisiana Earned Income Credit (5% of the federal EITC), which R.S. 47:297.8(B) makes refundable. The household has no children and no child care or other qualifying expenses, so no other Louisiana refundable credit applies.",
+  "independent_answer": 33.2,
+  "law_supports": "reference"
+}

@@ -1,0 +1,61 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.7093254,
+  "duration_ms": 205592,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:33:39.581195+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "5789af9636d1845bb75b757f37eb70831d756e9ee99d32ae6976e46233f2fb37",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "d4e1b28ae4a6360ad878bde746ef46b58d48b9da80eeecf90f63ba00d1b6044e",
+  "session_id": "f8419f49-b209-48eb-a5a5-992da90ea6e0",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-339.8/",
+      "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-339.8/",
+      "https://law.lis.virginia.gov/vacode/title58.1/chapter3/section58.1-339.8/",
+      "https://lis.virginia.gov/bill-details/20261/HB29/text/CHAP0007",
+      "https://www.tax.virginia.gov/low-income-individuals-credit",
+      "https://www.tax.virginia.gov/sites/default/files/vatax-pdf/2025-760-instructions.pdf",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill",
+      "https://www.irs.gov/publications/p596",
+      "https://www.irs.gov/instructions/i1040gi",
+      "https://www.tax.virginia.gov/sites/default/files/vatax-pdf/2025-760py-instructions.pdf"
+    ],
+    "searches": [
+      "Virginia refundable earned income tax credit 20 percent 2026 Form 760 instructions",
+      "Rev. Proc. 2025-32 earned income credit 2026 earned income amount no qualifying children"
+    ]
+  }
+}

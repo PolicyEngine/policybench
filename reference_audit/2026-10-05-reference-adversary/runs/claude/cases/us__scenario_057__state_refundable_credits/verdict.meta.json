@@ -1,0 +1,58 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.4093538,
+  "duration_ms": 82020,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:33:06.363380+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "e47de10b1826bab45135a1bc2ff5dc4d2268aecf8a307767c4a2fca812f37014",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "b506f9db5d07e3d18074b1fbd84e58a5fafd079a66e534ab88b674e5cf75ffe9",
+  "session_id": "0bebe77b-d1c0-420e-90f4-e631eb9d58b0",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "7447b99c161f0ef12dd7cbe69da1b4a48b838da4be0ea146013029a4d374dd00",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.legis.la.gov/legis/Law.aspx?d=453085",
+      "https://legis.la.gov/legis/BillInfo.aspx?s=25RS&b=SB149&sbi=y",
+      "https://legis.la.gov/legis/BillInfo.aspx?s=25RS&b=HB642&sbi=y",
+      "https://dam.ldr.la.gov/taxforms/IT540i-WEB-2025.pdf"
+    ],
+    "searches": [
+      "Louisiana earned income credit 2025 session act 5 percent federal EITC change 2026",
+      "Louisiana 2026 regular session earned income tax credit bill R.S. 47:297.8",
+      "Louisiana SB 149 2025 repeal earned income tax credit status Act",
+      "Louisiana legislature 2026 session earned income credit repeal OR increase HB 2026RS"
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "ambiguity": "(a) Parameter vintage. The 2026 indexed amounts (3.4%) were published only after the 2026-07-03 freeze. Using the latest amounts published before the freeze (2025: $5,706 / $153 / $11,079), the result is $12.79, about $13, which matches the reference of $12.78. Using the 2026 amounts the law actually prescribes, the result is $0.14 unrounded, or $0 under whole-dollar or tax-table rules.\n(b) If the $8,089 employer-sponsored insurance premium were treated as an after-tax employee medical expense, itemized medical deductions of about $7,199 would exceed the standard deduction, and tax after credits would be $0 under either parameter vintage. I don't read it that way: it is separate from the listed $300 'health insurance premiums', and its size matches a typical total ESI premium.\n(c) If the disability exception to the 2.5% CA early-distribution tax were denied and that tax counted as 'income tax', $200 would be added.\n(d) If the enhanced 2026 renter's credit ($250) had been funded, the result would be $0 under either vintage.",
+  "citations": [
+    {
+      "pinpoint": "subd. (a)(1)(B)(i)-(ii); subd. (k)(1)-(2)",
+      "pre_freeze": true,
+      "published": "2025-06-30",
+      "quote": "Unless otherwise specified annually in any bill providing for appropriations related to the Budget Act, for taxable years beginning on or after January 1, 2026, the amount of credit under clause (ii) ... shall be zero dollars ($0).",
+      "source": "California Revenue and Taxation Code \u00a717053.5 (renter's credit)",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5"
+    },
+    {
+      "pinpoint": "subd. (a)(1)(B)(i)",
+      "pre_freeze": true,
+      "published": "2025-06-30",
+      "quote": "For other individuals, if adjusted gross income is twenty-five thousand dollars ($25,000) or less, the credit shall be equal to: (i) For taxable years beginning before January 1, 2026, sixty dollars ($60).",
+      "source": "California Revenue and Taxation Code \u00a717053.5 (renter's credit)",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17053.5"
+    },
+    {
+      "pinpoint": "subd. (h)",
+      "pre_freeze": true,
+      "published": "2025-06-30",
+      "quote": "the percentage change in the California Consumer Price Index for all items from June of the prior calendar year to June of the current calendar year",
+      "source": "California Revenue and Taxation Code \u00a717041 (rates and indexing)",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17041"
+    },
+    {
+      "pinpoint": "subd. (a), (e)",
+      "pre_freeze": true,
+      "published": "2025-06-30",
+      "quote": "(e) A credit for personal exemption of fifty-two dollars ($52) for the taxpayer if the taxpayer is blind",
+      "source": "California Revenue and Taxation Code \u00a717054 (personal exemption credits)",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17054"
+    },
+    {
+      "pinpoint": "subd. (b)",
+      "pre_freeze": true,
+      "published": "2025-06-30",
+      "quote": "The standard deduction provided for in subdivision (a) shall be in lieu of all deductions other than those which are to be subtracted from gross income",
+      "source": "California Revenue and Taxation Code \u00a717073.5 (standard deduction)",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17073.5"
+    },
+    {
+      "pinpoint": "2025 standard deduction, exemption credit, Schedule X (read via search excerpt; direct fetch returned 403)",
+      "pre_freeze": true,
+      "published": "2025-10",
+      "quote": "$11,079 to $26,264: $110.79 + 2.00% of the amount over $11,079 ... standard deduction for single or married filing separate taxpayers is $5,706 ... personal exemption credit ... $153",
+      "source": "Franchise Tax Board, Tax News (October 2025) \u2013 2025 indexing",
+      "url": "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/2025/10.html"
+    },
+    {
+      "pinpoint": "2026 inflation rate, standard deduction, exemption credit (read via search excerpt; direct fetch returned 403)",
+      "pre_freeze": false,
+      "published": "2026 (after June 2026 CCPI; exact date not visible)",
+      "quote": "For 2026, the inflation rate measured by the CCPI for all urban consumers from June 2025 to June 2026 was 3.4% ... standard deduction for single ... is $5,900 ... personal exemption credit amount for single ... is $158",
+      "source": "Franchise Tax Board, Tax News \u2013 2026 indexing",
+      "url": "https://www.ftb.ca.gov/about-ftb/newsroom/tax-news/index.html"
+    },
+    {
+      "pinpoint": "May Revise Falls Short in Protecting California Renters",
+      "pre_freeze": true,
+      "published": "2026-05",
+      "quote": "Does not provide funding for the expanded Renter's Tax Credit included in the 2025-26 Budget Act.",
+      "source": "California Budget & Policy Center, First Look: Understanding the Governor's 2026-27 May Revision",
+      "url": "https://calbudgetcenter.org/resources/first-look-understanding-the-governors-2026-27-may-revision/"
+    },
+    {
+      "pinpoint": "tax policy sections (no renter's credit funding listed)",
+      "pre_freeze": false,
+      "published": "2026-08-01",
+      "quote": "Sales tax expansion for digital software; Business tax credit limitations; ... CalCompetes Tax Credit extension (no renter's credit item)",
+      "source": "Senate Budget & Fiscal Review Committee, 2026-27 Enacted Budget: Initial Summary",
+      "url": "https://src.senate.ca.gov/content/2026-27-enacted-budget-initial-summary"
+    },
+    {
+      "pinpoint": "\u00a772(t)(2)(A)(iii); \u00a772(m)(7)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "attributable to the employee's being disabled within the meaning of subsection (m)(7)",
+      "source": "26 U.S.C. \u00a772 (conformed by R&TC 17085(c) at 2.5%)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/72"
+    }
+  ],
+  "computation": "1) Filing status: single, no dependents. Under R&TC 17054 there is no California exemption for disability; only blindness and age 65+ get extra exemptions, and neither applies here.\n2) Federal and CA AGI. Wages are $17,443. The traditional 401(k) deferral of $2,778 is excluded, which leaves $14,665 of W-2 wages; CA conforms. Add the taxable 403(b) distribution of $8,000 to get $22,665. Subtract the traditional IRA deduction of $130 (fully deductible at this MAGI) to get AGI = $22,535. The Roth 401(k) and Roth IRA contributions do not reduce AGI.\n3) Deduction. The medical items that count are $300 of premiums and $500 of other medical expenses, total $800. The $500 of over-the-counter costs is not deductible under IRC 213 unless prescribed. Even including it, the total is below 7.5% \u00d7 $22,535 = $1,690, so the itemized deduction is $0 and the standard deduction applies.\n4) 2026 indexed parameters. Under R&TC 17041(h) and 17073.5, amounts are indexed by the CA CPI change from June 2025 to June 2026, which the FTB reports as 3.4%. These figures could not exist before mid-July 2026, so they were NOT published before the 2026-07-03 freeze. I could not fetch ftb.ca.gov directly (HTTP 403) and read them through search excerpts of FTB pages. They are:\n   - standard deduction (single): $5,900, which is $5,706 \u00d7 1.034;\n   - personal exemption credit: $158, which is $153 \u00d7 1.034;\n   - top of the 1% bracket: $11,456, which is $11,079 \u00d7 1.034;\n   - top of the 2% bracket: $27,157.\n5) Tax. Taxable income = $22,535 \u2212 $5,900 = $16,635. Tax = $114.56 + 2% \u00d7 ($16,635 \u2212 $11,456) = $114.56 + $103.58 = $218.14.\n6) Nonrefundable credits.\n   - Personal exemption credit $158, leaving $60.14.\n   - Renter's credit (R&TC 17053.5, nonrefundable, applied against net tax). The head rents a CA principal residence for the full year and AGI is far below the limit. The enhanced $250 credit for 2026 is $0 under subdivision (k) unless a Budget Act bill funds it. The May 2026 Revision did not fund it, and the enacted 2026-27 summary does not mention it, so $60 applies. That leaves $0.14.\n   - Under CA whole-dollar and tax-table rules (taxable income \u2264 $100,000), the tax is about $218, and $218 \u2212 $158 \u2212 $60 = $0.\n   Result: $0, or $0.14 unrounded.\n7) What had been published before the freeze: only the 2025 parameters (standard deduction $5,706, exemption credit $153, 1% bracket top $11,079). With those: $22,535 \u2212 $5,706 = $16,829; tax = $110.79 + 2% \u00d7 $5,750 = $225.79; minus $153 minus $60 = $12.79. That reproduces the reference ($12.78), which suggests the engine used un-indexed or near-2025 parameters rather than the 3.4%-indexed 2026 amounts.\n8) Early-distribution tax. Under R&TC 17085(c), California's 2.5% additional tax on early distributions follows IRC 72(t), whose disability exception (72(t)(2)(A)(iii)) covers the head, who is listed as disabled. Earnings of about $1,454 a month are also below SGA. So no additional tax is added.",
+  "confidence": "medium",
+  "definition_reading": "This is one California resident return (single). The output is the Form 540 tax on taxable income after the personal exemption credit and the nonrefundable renter's credit, and before refundable credits such as CalEITC. It excludes payroll and SDI taxes. The 2.5% early-distribution additional tax is not owed here because of the disability exception.",
+  "independent_answer": 0,
+  "law_supports": "consensus"
+}

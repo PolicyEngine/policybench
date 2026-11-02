@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Arizona row",
+      "pre_freeze": true,
+      "published": "2026-06-29",
+      "quote": "Arizona ... No limit on assets | 200%",
+      "source": "USDA FNS, Broad-Based Categorical Eligibility (BBCE) state table",
+      "url": "https://fns-prod.azureedge.us/snap/broad-based-categorical-eligibility"
+    },
+    {
+      "pinpoint": "Archived Policy, 185% of Federal Poverty Level (Expanded Categorical Eligibility)",
+      "pre_freeze": null,
+      "published": "unknown (superseded; change to 200% reported effective 2026-03-01)",
+      "quote": "AZTECS determines when the gross income of an NA Expanded categorically eligible budgetary unit exceeds 185% of the current federal poverty level (FPL)... the budgetary unit is not categorically eligible.",
+      "source": "Arizona DES CNAP Manual, archived Expanded Categorical Eligibility (185% FPL) policy",
+      "url": "https://dbmefaapolicy.azdes.gov/Archived_Policy/185__of_Federal_Poverty_Level_(Expanded_Categ.html"
+    },
+    {
+      "pinpoint": "\u00a72014(a)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "households in which each member receives benefits under a State program funded under part A of title IV of the Social Security Act...shall be eligible to participate",
+      "source": "7 U.S.C. 2014 (Food and Nutrition Act, eligibility)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "\u00a72017(a)",
+      "pre_freeze": true,
+      "published": "current code",
+      "quote": "for households of one and two persons the minimum allotment shall be 8 percent of the cost of the thrifty food plan for a household containing 1 member ... rounded to the nearest whole dollar increment.",
+      "source": "7 U.S.C. 2017 (value of allotment)",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2017"
+    },
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)(C)",
+      "pre_freeze": true,
+      "published": "current regulation",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit.",
+      "source": "7 CFR 273.10",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "Minimum benefit, 48 States and D.C.",
+      "pre_freeze": true,
+      "published": "2025-08-13",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $24.",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 240,
+  "reference_value": 240,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The household is one person, age 80 and disabled, with gross income of about $2,539 a month. In Jan\u2013Feb 2026 that is above Arizona's 185% FPL expanded categorical eligibility limit, so the regular rules apply, and the net income and asset tests both deny benefits ($0). From March 2026 Arizona's limit is 200% FPL ($2,608.33 a month; $2,660 from October). The USDA BBCE table, updated 2026-06-29 (before the freeze), confirms 200% with no asset limit. That makes the household categorically eligible, which waives the income and resource tests. 7 U.S.C. 2017(a) and 7 CFR 273.10(e)(2)(ii)(C) then give the $24 FY2026 minimum benefit to every eligible one-person household, even though the benefit formula is negative. The engine's 10 \u00d7 $24 = $240 matches this. Using $24 for Oct\u2013Dec is right because the FY2027 COLA came out after the freeze. The $0 consensus applies 185% or the regular rules for the whole year.",
+  "verdict": "reference_holds"
+}

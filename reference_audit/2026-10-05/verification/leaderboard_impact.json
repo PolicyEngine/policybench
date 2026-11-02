@@ -1,0 +1,112 @@
+{
+  "proposed_exclusions": [
+    "scenario_022/federal_income_tax_before_refundable_credits",
+    "scenario_081/federal_income_tax_before_refundable_credits",
+    "scenario_114/federal_income_tax_before_refundable_credits"
+  ],
+  "published_reproduced": true,
+  "scored_outputs": {
+    "published": 1928,
+    "proposed": 1925
+  },
+  "exact_delta_pp": {
+    "min": 0.41983119224074983,
+    "max": 0.6110860229821071,
+    "mean": 0.5239506378619773
+  },
+  "score_delta": {
+    "min": -0.0017724385748465465,
+    "max": 0.555965927062843
+  },
+  "exact_rank_changes": {
+    "gpt-6-luna": {
+      "published": 4,
+      "proposed": 5
+    },
+    "claude-sonnet-5.5": {
+      "published": 5,
+      "proposed": 4
+    }
+  },
+  "within1pct_rank_changes": {
+    "gpt-6.1-sol": {
+      "published": 9,
+      "proposed": 10
+    },
+    "grok-4.7": {
+      "published": 10,
+      "proposed": 9
+    },
+    "gemini-3.5-flash-lite": {
+      "published": 27,
+      "proposed": 26
+    },
+    "glm-5.3": {
+      "published": 26,
+      "proposed": 27
+    },
+    "claude-opus-4.8": {
+      "published": 40,
+      "proposed": 39
+    },
+    "minimax-m3": {
+      "published": 39,
+      "proposed": 40
+    }
+  },
+  "score_rank_changes": {
+    "gpt-5.5": {
+      "published": 14,
+      "proposed": 13
+    },
+    "gpt-5.6-terra": {
+      "published": 13,
+      "proposed": 14
+    },
+    "claude-opus-5": {
+      "published": 24,
+      "proposed": 23
+    },
+    "deepseek-v4-flash-0731": {
+      "published": 23,
+      "proposed": 24
+    },
+    "minimax-m3": {
+      "published": 43,
+      "proposed": 42
+    },
+    "claude-sonnet-5": {
+      "published": 42,
+      "proposed": 43
+    }
+  },
+  "always_zero_baseline": {
+    "published": {
+      "exact": 69.97959457368849,
+      "within1pct": 69.97959457368849
+    },
+    "proposed": {
+      "exact": 70.39464856524052,
+      "within1pct": 70.39464856524052
+    }
+  },
+  "leader_margin_over_always_zero_exact": {
+    "model": "gpt-6-sol",
+    "published": 25.023904562030225,
+    "proposed": 25.219936593460304
+  },
+  "top5_exact_published": [
+    "gpt-6-sol",
+    "claude-opus-5.5",
+    "gpt-5.6-sol",
+    "gpt-6-luna",
+    "claude-sonnet-5.5"
+  ],
+  "top5_exact_proposed": [
+    "gpt-6-sol",
+    "claude-opus-5.5",
+    "gpt-5.6-sol",
+    "claude-sonnet-5.5",
+    "gpt-6-luna"
+  ]
+}

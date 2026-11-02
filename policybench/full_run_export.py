@@ -29,7 +29,7 @@ from policybench.reference_exclusions import (
     load_reference_exclusions,
     split_reference,
 )
-from policybench.spec import get_output_ids, output_group_id
+from policybench.spec import DEFAULT_PROGRAM_SET, get_output_ids, output_group_id
 
 
 class ReferenceProvenanceError(ValueError):
@@ -46,15 +46,18 @@ _REQUIRED_REFERENCE_BUNDLE_FIELDS = (
 )
 
 
-def _canonical_output_ids(country: str) -> set[str]:
-    return set(get_output_ids(country, "headline"))
+def _canonical_output_ids(country: str, program_set: str | None = None) -> set[str]:
+    return set(get_output_ids(country, program_set or "headline"))
 
 
-def _filter_to_canonical_outputs(frame: pd.DataFrame, country: str) -> pd.DataFrame:
-    """Drop source-run rows outside the canonical headline output scope."""
+def _filter_to_canonical_outputs(
+    frame: pd.DataFrame, country: str, program_set: str | None = None
+) -> pd.DataFrame:
+    """Drop source-run rows outside the run's output set (the headline set
+    unless the run names another, such as the internal ``uk_audit`` set)."""
     if frame.empty or "variable" not in frame.columns:
         return frame
-    canonical = _canonical_output_ids(country)
+    canonical = _canonical_output_ids(country, program_set)
     return frame[frame["variable"].map(output_group_id).isin(canonical)].reset_index(
         drop=True
     )
@@ -405,7 +408,12 @@ def reference_digest_for_country(
     return reference_digest
 
 
-def export_country(country_dir: Path, *, reference_digest: str | None = None) -> dict:
+def export_country(
+    country_dir: Path,
+    *,
+    reference_digest: str | None = None,
+    program_set: str | None = None,
+) -> dict:
     """Write analysis artifacts and dashboard payload for one country run.
 
     Reference provenance is verified strictly: the sidecar must carry the
@@ -446,8 +454,8 @@ def export_country(country_dir: Path, *, reference_digest: str | None = None) ->
         predictions,
         load_case_reference_explanations(country_dir),
     )
-    ground_truth = _filter_to_canonical_outputs(ground_truth, country)
-    predictions = _filter_to_canonical_outputs(predictions, country)
+    ground_truth = _filter_to_canonical_outputs(ground_truth, country, program_set)
+    predictions = _filter_to_canonical_outputs(predictions, country, program_set)
 
     # Outputs whose reference depends on an input the data never carried are
     # scored for no model; they stay in the payload marked scored=false.
@@ -588,6 +596,7 @@ def export_full_run(
     app_data_output: str | Path = "app/src/data.json",
     skip_app_data: bool = False,
     reference_digest: ReferenceDigests = None,
+    program_set: str | None = None,
 ) -> dict:
     """Export per-country and combined frontend artifacts from a full run.
 
@@ -596,6 +605,12 @@ def export_full_run(
     (the committed pin per country), or a bare sha256 for a single country
     (see ``reference_digest_for_country``).
     """
+    if program_set not in (None, DEFAULT_PROGRAM_SET) and not skip_app_data:
+        raise ValueError(
+            f"Output set {program_set!r} is internal; export it with "
+            "skip_app_data (--skip-app-data) so it never reaches the public "
+            "app data."
+        )
     run_path = Path(run_dir)
     if countries:
         selected_countries = list(countries)
@@ -614,6 +629,7 @@ def export_full_run(
             reference_digest=reference_digest_for_country(
                 reference_digest, country, len(selected_countries)
             ),
+            program_set=program_set,
         )
         for country in selected_countries
     }

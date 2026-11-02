@@ -1,0 +1,78 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.3793802000000002,
+  "duration_ms": 271094,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:23:50.867660+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "1870576e78ad1bfc230cd936450559e15cd3fce5ce1cdb873e001390a46d36b3",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "cd2ae685515f3332090b05e410e25076a4a49531be9d753f8009a58b0df45d8b",
+  "session_id": "1795fe27-384d-40e5-9422-daed43f6aaa7",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://tax.colorado.gov/income-tax-topics-income-qualified-senior-housing-tax-credit",
+      "https://tax.colorado.gov/income-tax-topics-earned-income-tax-credit",
+      "https://law.justia.com/codes/colorado/title-39/specific-taxes/income-tax/article-22/part-5/section-39-22-544/",
+      "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-544/",
+      "https://leg.colorado.gov/bills/sb25-013",
+      "https://tax.colorado.gov/sites/tax/files/documents/ITT_State_Sales_Tax_Refund_Nov_2025.pdf",
+      "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-123-5/",
+      "https://kdvr.com/news/local/audit-tabor-refunds-will-be-released-to-taxpayers-in-2026-none-in-2027/",
+      "https://content.leg.colorado.gov/sites/default/files/june-2026-forecast-for-posting-accessible_0.pdf",
+      "https://content.leg.colorado.gov/sites/default/files/2026-06/June%202026%20Forecast%20Presentation%20to%20print.pdf",
+      "https://www.cpr.org/2025/09/23/small-tabor-refunds-expected-2026/",
+      "https://codes.findlaw.com/co/title-39-taxation/co-rev-st-sect-39-22-2003/",
+      "https://content.leg.colorado.gov/sites/default/files/r26-577-finance-state-budget-taxes-summary-of-major-legislation-2026-accessible.pdf",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://tax.colorado.gov/sites/tax/files/documents/DR0104_2025.pdf",
+      "https://kdvr.com/news/local/how-much-will-tabor-refunds-be-in-2026/",
+      "https://www.coloradopolitics.com/2026/01/05/no-tabor-refunds-this-year-as-colorado-gov-polis-warns-of-tight-fiscal-outlook/",
+      "https://content.leg.colorado.gov/sites/default/files/dec2025forecastforpostingwithcover-accessible_0.pdf",
+      "https://leg.colorado.gov/bills/HB26-1419"
+    ],
+    "searches": [
+      "Colorado earned income tax credit 2026 percentage federal EITC childless age limit expanded",
+      "Colorado income tax credits refundable 2026 tax year list DR 0104CR senior",
+      "\"income-qualified senior housing income tax credit\" Colorado statute 39-22 tax year 2026 amount",
+      "Colorado 39-22-123.5 earned income tax credit 2026 \"twenty-five percent\" OR \"thirty percent\" HB25B-1002",
+      "Colorado SB25-013 senior housing income tax credit extension 2025 2026 enacted signed",
+      "Colorado senior housing income tax credit not available 2025 tax year expired",
+      "Colorado TABOR state sales tax refund tax year 2025 amounts by adjusted gross income single filers",
+      "Colorado Legislative Council June 2026 revenue forecast TABOR surplus FY 2025-26 FY 2026-27 refund",
+      "\"Referendum C cap\" FY 2025-26 \"will not\" TABOR refund June 2026 forecast Colorado",
+      "Colorado state controller certifies FY 2025-26 TABOR revenue below cap no refund September 2026",
+      "Colorado HB26-1419 TABOR refund income tax credit"
+    ]
+  }
+}

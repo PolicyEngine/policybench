@@ -1,0 +1,63 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.9015736000000002,
+  "duration_ms": 167232,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:30:24.578015+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "7447b99c161f0ef12dd7cbe69da1b4a48b838da4be0ea146013029a4d374dd00",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "306903cc04a7a2df9877fbff220dc21fa704893fb56eac1e904942e91fec8e0b",
+  "session_id": "eb50ca31-a0d9-46bf-b0e7-5c6dc480c734",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://law.justia.com/codes/louisiana/revised-statutes/title-47/rs-47-297-8/",
+      "https://www.legis.la.gov/legis/Law.aspx?d=453085",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf",
+      "https://www.irs.gov/irb/2025-45_IRB",
+      "https://www.law.cornell.edu/uscode/text/26/32",
+      "https://dam.ldr.la.gov/taxforms/IT540i-WEB-2025.pdf",
+      "https://dam.ldr.la.gov/taxforms/IT540i%20WEB(2025)D11.pdf"
+    ],
+    "searches": [
+      "Rev. Proc. 2025-32 earned income credit 2026 no qualifying children maximum credit $664",
+      "Louisiana R.S. 47:297.8 earned income credit refundable five percent",
+      "legis.la.gov Law.aspx RS 47:297.8 earned income tax credit",
+      "IRS releases tax inflation adjustments for tax year 2026 earned income tax credit $8,046 news release",
+      "Internal Revenue Bulletin 2025-45 Rev. Proc. 2025-32 earned income credit table",
+      "Louisiana 2025 IT-540 instructions \"Louisiana Earned Income Credit\" refundable 5 percent federal",
+      "Louisiana 2025 Regular Session HB 133 earned income tax credit 10 percent status",
+      "Louisiana R.S. 47:293 standard deduction twelve thousand five hundred married filing jointly Act 11 2024"
+    ]
+  }
+}

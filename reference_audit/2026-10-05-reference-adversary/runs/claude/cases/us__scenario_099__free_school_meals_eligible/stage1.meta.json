@@ -1,0 +1,66 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.5224184000000001,
+  "duration_ms": 115419,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:44:39.322548+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "0969296e5cc9bdab38ae028b8498935ffdf2516686f4caffa30d14e13b37734e",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "1cf499f9e1e2a6ee833eddbb99497c95e94984ad3365aa87ae04faf65600ffc5",
+  "session_id": "f8ceee86-1e6c-43de-988b-6d045ee2a506",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=EDC&sectionNum=49501.5",
+      "https://www.cde.ca.gov/ls/nu/sn/cauniversalmeals.asp",
+      "https://www.cde.ca.gov/LS/nu/sn/mbsnp052026.asp",
+      "https://law.justia.com/codes/california/code-edc/title-2/division-4/part-27/chapter-9/article-8/section-49501-5/",
+      "https://law.justia.com/codes/california/2021/code-edc/title-2/division-4/part-27/chapter-9/article-8/section-49501-5/",
+      "https://legiscan.com/CA/text/SB348/id/2844611",
+      "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?lawCode=EDC&division=4.&title=2.&part=27.&chapter=9.&article=8.",
+      "https://www.cde.ca.gov/ls/nu/sn/nslp.asp",
+      "https://www.federalregister.gov/documents/2026/04/09/2026-06842/child-nutrition-programs-income-eligibility-guidelines",
+      "https://www.education.nh.gov/sites/g/files/ehbemt326/files/inline-documents/2026/july1.2026_june-30.2027_child-nutrition-programs_income-eligibility-guidelines_1.pdf",
+      "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml",
+      "https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202320240SB348",
+      "https://www.cde.ca.gov/LS/NU/sn/documents/umpfinalguidelines.docx",
+      "https://codes.findlaw.com/ca/education-code/edc-sect-49501-5/",
+      "https://codes.findlaw.com/ca/education-code/edc-sect-49501-5/"
+    ],
+    "searches": [
+      "California Education Code 49501.5 universal meals \"two school meals free of charge\" each school day",
+      "Child Nutrition Programs Income Eligibility Guidelines July 1, 2026 through June 30, 2027 Federal Register",
+      "\"49501.5\" Education Code \"without consideration of the pupil's eligibility for a federally funded free or reduced-price meal\""
+    ]
+  }
+}

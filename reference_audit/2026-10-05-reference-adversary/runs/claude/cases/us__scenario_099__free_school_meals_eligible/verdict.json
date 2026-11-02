@@ -1,0 +1,29 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a749501.5(a)",
+      "pre_freeze": true,
+      "published": "Operative from the 2022-23 school year; current as of 2026",
+      "quote": "make available a nutritionally adequate breakfast and a nutritionally adequate lunch free of charge",
+      "source": "California Education Code \u00a749501.5 (via FindLaw codes mirror)",
+      "url": "https://codes.findlaw.com/ca/education-code/edc-sect-49501-5/"
+    },
+    {
+      "pinpoint": "Guidelines text, July 1, 2026\u2013June 30, 2027",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively",
+      "source": "USDA Food and Nutrition Service, Child Nutrition Programs: Income Eligibility Guidelines (Federal Register Doc. 2026-06842)",
+      "url": "https://www.federalregister.gov/documents/full_text/xml/2026/04/09/2026-06842.xml"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 1,
+  "reference_value": 1,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "California Education Code \u00a749501.5(a) has applied since the 2022-23 school year. It requires public schools to give every pupil who asks a free breakfast and a free lunch each school day, whatever the family's income or federal eligibility. The household's 9-year-old is of school age, so the household gets positive free school meal support even though its roughly $166k income puts it far above the federal 130% and 185% cutoffs. The engine set the meal tier to FREE under California's universal program and returned $1,130.96 a year. That positive amount matches both the law and the output definition (\"whether PolicyEngine returns positive annual free school meal support\"). The consensus answer of 0 applied only the federal income test and missed California's universal-meals mandate.",
+  "verdict": "reference_holds"
+}

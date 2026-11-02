@@ -1,8 +1,12 @@
 """PolicyEngine runtime provenance and model wiring."""
 
+import contextlib
+import hashlib
 import json
 import os
+import platform
 import re
+import sys
 from functools import lru_cache
 from importlib import metadata
 from pathlib import Path
@@ -12,6 +16,28 @@ MODEL_PACKAGES = {
     "us": "policyengine-us",
     "uk": "policyengine-uk",
 }
+
+# A supervised run computes PolicyEngine provenance once and hands it to its
+# per-scenario workers through this file, so a worker that only calls an LLM
+# never imports policyengine.
+POLICYENGINE_PROVENANCE_ENV = "POLICYBENCH_POLICYENGINE_PROVENANCE"
+POLICYENGINE_PROVENANCE_FILENAME = "policyengine_provenance.json"
+POLICYENGINE_PROVENANCE_FORMAT_VERSION = 1
+# Logged by a worker that could not reuse the file; the supervisor counts it.
+POLICYENGINE_PROVENANCE_NOT_REUSED = "PolicyEngine provenance file not reused"
+# Distributions whose metadata policyengine_release_bundle reads or whose code
+# runs when it imports policyengine.
+PROVENANCE_DISTRIBUTIONS = (
+    "policyengine",
+    "policyengine-core",
+    "policyengine-us",
+    "policyengine-uk",
+)
+# policyengine.py's bundled release manifests, relative to its distribution.
+# 4.16.1 ships one per country; 6.1.2 ships one bundle manifest that keeps each
+# country's release under data_releases.
+RELEASE_MANIFEST_PATH = "policyengine/data/release_manifests/{country}.json"
+BUNDLE_MANIFEST_PATH = "policyengine/data/bundle/manifest.json"
 
 DATA_PACKAGES = {
     "us": "policyengine-us-data",
@@ -48,19 +74,19 @@ UK_TRANSFER_DATASET = {
     "runtime_dataset": "enhanced_cps_2025",
     "runtime_dataset_filename": "enhanced_cps_2025.h5",
     "runtime_dataset_repo": "PolicyEngine/policyengine-uk-data",
-    "runtime_dataset_pinned_commit": ("9514dfb7ec607897c9f7122a2e073b922c9fd8b6"),
+    "runtime_dataset_pinned_commit": ("6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"),
     "runtime_dataset_pinned_url": (
         "https://raw.githubusercontent.com/PolicyEngine/"
-        "policyengine-uk-data/9514dfb7ec607897c9f7122a2e073b922c9fd8b6/"
+        "policyengine-uk-data/6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b/"
         "policyengine_uk_data/storage/enhanced_cps_2025.h5"
     ),
     "runtime_dataset_uri": (
         "policyengine_uk_data/storage/enhanced_cps_2025.h5 from the public "
         "PolicyEngine/policyengine-uk-data repository, pinned to commit "
-        "9514dfb7ec607897c9f7122a2e073b922c9fd8b6"
+        "6b1f80e0fdcd7ec149f347b4e0b2ae0081f0ff1b"
     ),
     "runtime_dataset_sha256": (
-        "199ebc61d29231b4799ad337a95393765b5fb5aede1834b93ff2acecceded866"
+        "c663daea31b6fb8300f5c4758ccdcd7a227835ad7de90655294392fb95543eec"
     ),
     "runtime_dataset_note": (
         "UK calibrated transfer dataset derived from benchmark-compatible "
@@ -237,11 +263,19 @@ def _load_raw_policyengine_manifest(country: str) -> dict[str, Any] | None:
     except metadata.PackageNotFoundError:
         return None
     manifest_path = Path(
-        distribution.locate_file(f"policyengine/data/release_manifests/{country}.json")
+        distribution.locate_file(RELEASE_MANIFEST_PATH.format(country=country))
     )
-    if not manifest_path.exists():
-        return None
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest_path.exists():
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    # policyengine.py 6.x ships one bundle manifest; each country's data release
+    # keeps the per-country manifest's shape under data_releases.
+    bundle_path = Path(distribution.locate_file(BUNDLE_MANIFEST_PATH))
+    if bundle_path.exists():
+        bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        release = (bundle.get("data_releases") or {}).get(country)
+        if isinstance(release, dict):
+            return release
+    return None
 
 
 def _default_dataset_uri_from_raw_manifest(raw_manifest: dict[str, Any]) -> str | None:
@@ -389,6 +423,207 @@ def policyengine_bundles_for_countries(countries: set[str] | list[str]) -> dict:
     return bundles
 
 
+def _sha256_or_none(path: Path) -> str | None:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+# Hashed at import, so a fingerprint describes the code this process runs even
+# if the file on disk changes afterwards.
+_RUNTIME_SOURCE_SHA256 = _sha256_or_none(Path(__file__))
+
+
+def _distribution_inputs(name: str) -> dict[str, Any]:
+    try:
+        metadata_text = metadata.distribution(name).read_text("METADATA")
+    except metadata.PackageNotFoundError:
+        metadata_text = None
+    return {
+        "version": _package_version_or_none(name),
+        "direct_url": _package_direct_url_or_none(name),
+        "metadata_sha256": (
+            hashlib.sha256(metadata_text.encode("utf-8")).hexdigest()
+            if metadata_text is not None
+            else None
+        ),
+    }
+
+
+def _packaged_file_sha256(distribution: Any, relative_path: str) -> str | None:
+    if distribution is None:
+        return None
+    return _sha256_or_none(Path(distribution.locate_file(relative_path)))
+
+
+def policyengine_provenance_inputs() -> dict[str, Any]:
+    """Fingerprint the environment ``policyengine_bundles_for_countries`` sees.
+
+    Reads package metadata, files and environment flags only; importing
+    policyengine is the cost this exists to avoid. Recorded directly: each
+    PolicyEngine package's version, install URL and METADATA; the hash of
+    each release manifest file, in either layout policyengine.py ships (one
+    file per country, or one bundle manifest holding every country's
+    release), with None for each file the installed layout lacks; this
+    module; and the import flags. The environment holding everything
+    else (pydantic, requests, ...) is identified by ``sys.prefix``, though an
+    in-place upgrade of those packages is not detected. A provenance file is
+    reused only when its recorded fingerprint equals the reader's, so a
+    worker whose environment differs from the writer's recomputes instead.
+    """
+    try:
+        policyengine_distribution = metadata.distribution("policyengine")
+    except metadata.PackageNotFoundError:
+        policyengine_distribution = None
+    release_manifests = {
+        country: _packaged_file_sha256(
+            policyengine_distribution, RELEASE_MANIFEST_PATH.format(country=country)
+        )
+        for country in sorted(MODEL_PACKAGES)
+    }
+    return {
+        "python_version": platform.python_version(),
+        "python_prefix": sys.prefix,
+        "distributions": {
+            name: _distribution_inputs(name) for name in PROVENANCE_DISTRIBUTIONS
+        },
+        "release_manifest_sha256": release_manifests,
+        "bundle_manifest_sha256": _packaged_file_sha256(
+            policyengine_distribution, BUNDLE_MANIFEST_PATH
+        ),
+        "policyengine_runtime_sha256": _RUNTIME_SOURCE_SHA256,
+        # Whether ``import policyengine`` succeeds decides which branch of
+        # policyengine_release_bundle records the US bundle. The skip flag
+        # stops policyengine/__init__.py importing the country models, and
+        # the token is sent with the Hugging Face request those imports make.
+        # Only the token's presence is recorded, never its value.
+        "environment": {
+            "POLICYENGINE_SKIP_COUNTRY_IMPORTS": os.environ.get(
+                "POLICYENGINE_SKIP_COUNTRY_IMPORTS"
+            ),
+            "HUGGING_FACE_TOKEN_set": bool(os.environ.get("HUGGING_FACE_TOKEN")),
+        },
+    }
+
+
+def _editable_provenance_distributions() -> list[str]:
+    """Editable installs change source without changing their fingerprint."""
+    editable = []
+    for name in PROVENANCE_DISTRIBUTIONS:
+        direct_url = _package_direct_url_or_none(name) or {}
+        if (direct_url.get("dir_info") or {}).get("editable"):
+            editable.append(name)
+    return editable
+
+
+def _provenance_warning(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
+def write_policyengine_provenance(
+    path: str | Path, countries: set[str] | list[str]
+) -> bool:
+    """Compute PolicyEngine bundles once and write them for workers to reuse.
+
+    Returns True only when the written file reproduces the computation
+    exactly. Otherwise no file is left at ``path`` and False is returned, so
+    callers leave workers to compute provenance themselves.
+    """
+    path = Path(path)
+    editable = _editable_provenance_distributions()
+    if editable:
+        path.unlink(missing_ok=True)
+        _provenance_warning(
+            f"PolicyEngine provenance file {path} not written: editable install "
+            f"of {', '.join(editable)}; workers will compute it themselves."
+        )
+        return False
+    bundles = policyengine_bundles_for_countries(countries)
+    payload = {
+        "format_version": POLICYENGINE_PROVENANCE_FORMAT_VERSION,
+        "inputs": policyengine_provenance_inputs(),
+        "policyengine_bundles": bundles,
+    }
+    # Replace atomically: a worker left running by an earlier supervisor may
+    # read this file while a restarted supervisor rewrites it.
+    tmp_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
+        os.replace(tmp_path, path)
+    except OSError as error:
+        with contextlib.suppress(OSError):
+            tmp_path.unlink(missing_ok=True)
+        _provenance_warning(
+            f"PolicyEngine provenance file {path} not written "
+            f"({type(error).__name__}); workers will compute it themselves."
+        )
+        return False
+    reread, reason = _read_policyengine_provenance(path, sorted(bundles))
+    if reread != bundles:
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
+        _provenance_warning(
+            f"PolicyEngine provenance file {path} removed: "
+            f"{reason or 'it does not round-trip exactly'}; workers will "
+            "compute it themselves."
+        )
+        return False
+    return True
+
+
+def _read_policyengine_provenance(
+    path: Path, countries: list[str]
+) -> tuple[dict | None, str | None]:
+    """Return (bundles, None) from a reusable file, else (None, reason)."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        return None, f"could not read it ({type(error).__name__})"
+    if not isinstance(payload, dict):
+        return None, "it is not a JSON object"
+    if payload.get("format_version") != POLICYENGINE_PROVENANCE_FORMAT_VERSION:
+        return None, f"format_version {payload.get('format_version')!r} differs"
+    if payload.get("inputs") != policyengine_provenance_inputs():
+        return None, "it was written for different PolicyEngine packages or code"
+    stored = payload.get("policyengine_bundles")
+    if not isinstance(stored, dict):
+        return None, "it has no policyengine_bundles object"
+    missing = [country for country in countries if country not in stored]
+    if missing:
+        return None, f"it has no bundle for {', '.join(missing)}"
+    return {country: stored[country] for country in countries}, None
+
+
+def resolve_policyengine_bundles(
+    countries: set[str] | list[str], env: dict | None = None
+) -> dict:
+    """Return ``policyengine_bundles_for_countries(countries)``, cheaply if possible.
+
+    When ``POLICYBENCH_POLICYENGINE_PROVENANCE`` names a file that
+    ``write_policyengine_provenance`` wrote under the same fingerprint, its
+    bundles are returned without importing policyengine. In every other case
+    (unset, unreadable, fingerprint mismatch, or a missing country) the
+    bundles are computed in this process, as they were before the file
+    existed.
+    """
+    source = os.environ if env is None else env
+    path = source.get(POLICYENGINE_PROVENANCE_ENV)
+    if path:
+        wanted = sorted({country.lower() for country in countries})
+        bundles, reason = _read_policyengine_provenance(Path(path), wanted)
+        if bundles is not None:
+            return bundles
+        _provenance_warning(
+            f"{POLICYENGINE_PROVENANCE_NOT_REUSED} ({path}): {reason}; "
+            "computing it in this process."
+        )
+    return policyengine_bundles_for_countries(countries)
+
+
 def runtime_metadata_for_country(
     country: str,
     *,
@@ -410,6 +645,14 @@ def get_uk_single_year_dataset_class():
     from policyengine_uk.data import UKSingleYearDataset
 
     return UKSingleYearDataset
+
+
+def get_uk_situation_simulation_class():
+    """Return the PE-UK situation Simulation class and record runtime metadata."""
+    policyengine_release_bundle("uk")
+    from policyengine_uk import Simulation
+
+    return Simulation
 
 
 def make_uk_transfer_microsimulation(dataset_path: str | Path):

@@ -1,11 +1,26 @@
-"""r15 v2: alternate SNAP shelter reading, with tax-unit-local input fallback.
+"""r15 v2: alternate SNAP shelter reading of listed mortgage interest.
 
 Classification: unlisted_input, not a proved engine-law defect. The benchmark
 prompts list mortgage interest but do not explicitly state that the encumbered
 home is the SNAP household's occupied shelter. This module implements the
-alternative reading that first-home interest (or person interest where the
-tax unit has no populated interest structure) belongs to the occupied home.
+alternative reading that the listed home mortgage interest (the person-level
+home_mortgage_interest input) belongs to the occupied home.
 It does not establish that reading as the unique interpretation of the prompt.
+
+Revised 2026-10-09. The module first read the tax-unit
+first_home_mortgage_interest and second_home_mortgage_interest inputs and, for
+a tax unit that listed them, counted first-home interest only. policyengine-us
+#9605 deletes those inputs, so it now reads only home_mortgage_interest, which
+every benchmark household that lists the tax-unit inputs also lists, with the
+same total. The two readings differ only where a second home is listed:
+scenario_046 and scenario_120, whose person-level total includes the second
+loan's 1,358.97 and 768.28. On policyengine-us 1.755.4 the sweep of all 1,984
+outputs is byte-identical under both readings and equal to this module's
+recorded sweep (triage/sweep/out/r15_snap_mortgage_interest_v2.csv, sha256
+63c9120f...),
+with situations built as before policybench stopped passing the tax-unit
+inputs. 1.755.4 takes the interest amount only from those inputs, so the
+current builder cannot reproduce that sweep on 1.755.4.
 
 7 CFR 273.9(d)(6)(ii)(A) allows continuing mortgage charges, including interest,
 for occupied shelter. Paragraph (D) also permits certain temporarily vacant
@@ -18,10 +33,8 @@ https://uscode.house.gov/view.xhtml?req=(title:7%20section:2014%20edition:prelim
 As in v1, the listed interest is a lower bound of total payments; unlisted
 principal is not invented. The SNAP-only increment is max(interest minus
 mortgage_payments, 0), preventing double counting of the reported payment.
-The first-versus-person fallback now occurs per tax unit before SPM-unit
-aggregation. The remainder of the original SNAP shelter formula is unchanged.
-No statutory dollar parameter is introduced. All 100 bundle scenarios have
-one tax unit, so this correction should leave the benchmark sweep unchanged.
+The remainder of the original SNAP shelter formula is unchanged.
+No statutory dollar parameter is introduced.
 """
 
 from policyengine_core.reforms import Reform
@@ -29,8 +42,8 @@ from policyengine_us.model_api import *
 
 FIX_ID = "r15_snap_mortgage_interest_v2"
 DESCRIPTION = (
-    "Alternative occupied-home reading of listed mortgage interest for SNAP; "
-    "choose first-home versus person inputs per tax unit before aggregation."
+    "Alternative occupied-home reading of listed mortgage interest for SNAP, "
+    "from the person-level home_mortgage_interest input."
 )
 
 
@@ -45,19 +58,7 @@ class snap_mortgage_interest_shelter_cost(Variable):
     )
 
     def formula(spm_unit, period, parameters):
-        person = spm_unit.members
-        head = person("is_tax_unit_head", period)
-        first = person.tax_unit("first_home_mortgage_interest", period)
-        second = person.tax_unit("second_home_mortgage_interest", period)
-        # Choose the input representation separately for each tax unit.
-        # A populated structure for one tax unit must not suppress another
-        # tax unit's person-only mortgage interest within the same SPM unit.
-        interest_by_person = where(
-            first + second > 0,
-            head * first,
-            person("home_mortgage_interest", period),
-        )
-        occupied_home_interest = spm_unit.sum(interest_by_person)
+        occupied_home_interest = add(spm_unit, period, ["home_mortgage_interest"])
         mortgage_payments = spm_unit("mortgage_payments", period)
         return max_(occupied_home_interest - mortgage_payments, 0)
 

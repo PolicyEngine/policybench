@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "subd. (a)(2); age modification of IRC 32(c)(1)(A)(ii)(II); subd. (o)(1)-(4); refundability",
+      "pre_freeze": true,
+      "published": "current code as amended through 2022",
+      "quote": "The amount of the credit determined under Section 32 of the Internal Revenue Code... shall be multiplied by the earned income tax credit adjustment factor... deleting '25 but not attained age 65' and inserting in lieu thereof the following: '18.'",
+      "source": "California Revenue and Taxation Code section 17052",
+      "url": "https://california.public.law/codes/revenue_and_taxation_code_section_17052"
+    },
+    {
+      "pinpoint": "(a)(2)(B); (c)(2)(A)(i)",
+      "pre_freeze": true,
+      "published": "current",
+      "quote": "the phaseout percentage of so much of the adjusted gross income (or, if greater, the earned income) of the taxpayer for the taxable year as exceeds the phaseout amount",
+      "source": "26 U.S. Code \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "Eligibility summary and EITC table (search-result excerpt; direct fetch returned 403)",
+      "pre_freeze": true,
+      "published": "2026-01",
+      "quote": "the credit is worth up to $302 for a worker with no qualifying children, and taxpayers may qualify if they have wage income earned in California and/or net earnings from self-employment of less than $32,901",
+      "source": "FTB 2025 California Earned Income Tax Credit Booklet (FTB 3514)",
+      "url": "https://www.ftb.ca.gov/forms/2025/2025-3514-booklet.html"
+    },
+    {
+      "pinpoint": "Bill status",
+      "pre_freeze": true,
+      "published": "2026-02-02",
+      "quote": "Failed - filed with the Chief Clerk pursuant to Joint Rule 56",
+      "source": "AB 398 (2025-2026), Personal income tax: Earned Income Tax Credit",
+      "url": "https://calmatters.digitaldemocracy.org/bills/ca_202520260ab398"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 95.15,
+  "reference_value": 95.15,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "California's refundable credits for this single 28-year-old with no children come only from CalEITC. R&TC \u00a717052 lets childless filers claim from age 18, and the \u00a717052(o) extended phaseout runs to about $32,900 for 2025. Under IRC \u00a732(a)(2)(B), the phaseout uses the greater of AGI ($22,535) or earned income. With the 2025 parameters, the latest published before the freeze, the credit is 0.85 \u00d7 [0.0543 \u00d7 ~$5,451 \u2212 ~1.0779% \u00d7 (AGI \u2212 $5,451)] \u2248 $95.15 at the FTB table midpoint, which matches the engine's $95.15. The engine counts earned income as $17,443 instead of $14,665 because it does not subtract the traditional 401(k) deferral, as \u00a732(c)(2)(A)(i) requires. That does not change the result: both figures are past the phase-in, and AGI sets the phaseout. The $0 consensus applied the federal childless cutoff and missed the \u00a717052(o) extension. The 2026 CCPI indexing (about 3.4%, giving roughly $105) was published only after the 2026-07-03 freeze, so the reference rests on law published before the freeze.",
+  "verdict": "reference_holds"
+}

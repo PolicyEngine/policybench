@@ -1,0 +1,61 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Definition of \"Gross Household Income\"",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "\"Gross Household Income\" does not include gifts, or income that is considered deferred.",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Income limits, tax year 2005 and subsequent years",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "For those taxpayers that can claim no allowable personal exemption other than themselves or their spouse, Gross Household Income cannot exceed Twenty Thousand Dollars ($20,000.00).",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Credit amount",
+      "pre_freeze": true,
+      "published": "2008-07-01",
+      "quote": "Forty dollars ($40.00) multiplied by the number of allowable personal exemptions the taxpayer is entitled to claim.",
+      "source": "Oklahoma Administrative Code 710:50-15-96, Sales tax relief credit (Oklahoma Tax Commission)",
+      "url": "https://www.law.cornell.edu/regulations/oklahoma/OAC-710-50-15-96"
+    },
+    {
+      "pinpoint": "Line instructions, total gross household income",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "includes, but is not limited to, public assistance payments, support money (example: child support), workmen's compensation, school grants or scholarships",
+      "source": "Oklahoma Tax Commission, Form 538-S Claim for Credit/Refund of Sales Tax, instructions (text taken from a search-result excerpt; the PDF would not render)",
+      "url": "https://oklahoma.gov/content/dam/ok/en/tax/documents/forms/individuals/current/538-S.pdf"
+    },
+    {
+      "pinpoint": "Financial assistance income items (HFIN_YN / FIN_VAL)",
+      "pre_freeze": true,
+      "published": "2022",
+      "quote": "regular financial assistance from friends or relatives not living in this household",
+      "source": "U.S. Census Bureau, CPS ASEC 2022 Public Use Data Dictionary (used only for the conventional meaning of \"financial assistance\")",
+      "url": "https://www2.census.gov/programs-surveys/cps/datasets/2022/march/asec2022_ddl_pub_full.pdf"
+    },
+    {
+      "pinpoint": "Overview",
+      "pre_freeze": true,
+      "published": "2025-12-18",
+      "quote": "$50,000 per year for filers who are elderly, have a physical disability, or claim a dependent; or $20,000 per year for everyone else.",
+      "source": "Oklahoma Policy Institute, Sales Tax Relief Credit (secondary source, used to confirm the 2026 amount was unchanged)",
+      "url": "https://okpolicy.org/sales-tax-relief-credit/"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 40,
+  "reference_value": 40,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Oklahoma's Sales Tax Relief Credit (68 O.S. \u00a7 5011; OAC 710:50-15-96) is refundable. It is $40 per allowable personal exemption when gross household income does not exceed $20,000 for a filer who has no dependents, is under 65 and is not disabled. Gross household income excludes gifts. The engine counted gross income of $312 (the taxable interest) and left out the $50,000 \"financial assistance\". It treated that amount as non-income help, which is the conventional meaning of the term (regular help from friends or relatives outside the household) and amounts to a gift. It then allowed $40 \u00d7 1 exemption. The Oklahoma EITC is $0 because the head has no earned income. On the most defensible reading of the facts the total is $40. The consensus answer of $0 depends on treating the assistance as public assistance, support money or scholarships, and the prompt's rules on benefit receipt and student status argue against that.",
+  "verdict": "reference_holds"
+}

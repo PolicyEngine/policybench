@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7273.10(e)(2)(ii)",
+      "pre_freeze": true,
+      "published": "current CFR (provision predates 2026)",
+      "quote": "Except during an initial month, all eligible one-person and two-person households shall receive minimum monthly allotments equal to the minimum benefit.",
+      "source": "7 CFR 273.10 (USDA FNS SNAP regulations)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/273.10"
+    },
+    {
+      "pinpoint": "B-471, B-472",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "has gross income less than or equal to 165 percent of the Federal Poverty Income Limit (FPIL) for its size.",
+      "source": "Texas Works Handbook (Texas HHSC), B-470 Categorically Eligible Households",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households"
+    },
+    {
+      "pinpoint": "\u00a72014(d) intro, (d)(3), (d)(8)",
+      "pre_freeze": true,
+      "published": "current code (provisions predate 2026)",
+      "quote": "Household income for purposes of the supplemental nutrition assistance program shall include all income from whatever source excluding only\u2014",
+      "source": "Food and Nutrition Act of 2008, 7 U.S.C. 2014",
+      "url": "https://www.law.cornell.edu/uscode/text/7/2014"
+    },
+    {
+      "pinpoint": "A-1322.1 Educational Assistance",
+      "pre_freeze": true,
+      "published": "2015-10-01",
+      "quote": "Educational assistance, including educational loans, scholarships, fellowships, grant monies, and work study, are exempt, regardless of the source.",
+      "source": "Texas Works Handbook (Texas HHSC), A-1320 Types of Income",
+      "url": "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income"
+    },
+    {
+      "pinpoint": "Minimum benefit; standard deduction; maximum allotment (48 States & DC)",
+      "pre_freeze": true,
+      "published": "2025-08-13",
+      "quote": "The minimum benefit for the 48 States and D.C. will increase to $24.",
+      "source": "USDA FNS, SNAP FY 2026 Cost-of-Living Adjustments memo",
+      "url": "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 288,
+  "reference_value": 288,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The law gives $288 ($24 a month for 12 months), which matches the engine. The household is the pregnant head alone. Countable income is $1,083.33 a month in wages plus $1,000 a month of financial assistance. Educational assistance is exempt under TWH A-1322.1. Gross income of $2,083.33 is above the 130% FPL limit but within Texas's 165% FPIL expanded categorical eligibility limit, and $190 in assets is under the TANF-NC limit, so the gross and net income tests are waived. Net income of $1,657.67 gives a formula benefit of $0 ($298 \u2212 $498), so an eligible one-person household gets the minimum benefit: 8% of $298, rounded to $24. The engine follows each of these steps and keeps the FY2026 amounts for October\u2013December, which is right because the FY2027 COLA values came out after the 2026-07-03 freeze. The 33 models that answered $0 applied the 130% gross income test or the net income test, both of which categorical eligibility waives. The 3 that answered $1,208 dropped the $12,000 of financial assistance, which SNAP counts as income.",
+  "verdict": "reference_holds"
+}

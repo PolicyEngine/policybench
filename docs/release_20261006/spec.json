@@ -1,0 +1,195 @@
+{
+  "note": "Inputs of release dashboard-data-20261006, read by scripts/release_20261006.py. The release applies Max's 2026-10-05 rulings (cos d963, d974, d972, d831, and the Louisiana ruling on PolicyEngine/policybench#192) to release dashboard-data-20260930: eight outputs leave scoring for every model; the references, the predictions and every earlier exclusion's value stay as they were.",
+  "release_tag": "dashboard-data-20261006",
+  "base_tag": "dashboard-data-20260930",
+  "base_commit": "8b4c0ca146bb6f66deba6ce24009d49d70d92df2",
+  "base_sha256": "d1cae7456cf91ab6fa04644a4d5d570e359522386a7c52f9645d5923bfc11258",
+  "base_bytes": 126109700,
+  "decided_on": "2026-10-05",
+  "rulings": {
+    "d963": "exclude scenario_022, scenario_081 and scenario_114 federal income tax before refundable credits (state income tax withheld in SALT; PolicyEngine/policybench#191)",
+    "d974": "exclude scenario_114 Virginia income tax before refundable credits (Medicare Part B premium; PolicyEngine/policybench#193)",
+    "d972": "exclude scenario_032, scenario_043, scenario_081 and scenario_082 payroll_tax (optional employer pass-through of a state paid-leave premium; PolicyEngine/policybench#194); do not regenerate",
+    "d831": "date the model response window from the last answer (PolicyEngine/policybench#188)",
+    "louisiana": "keep scenario_051 and scenario_077 state income tax at the $12,835 deduction; ship wording-only case-note edits (PolicyEngine/policybench#192); hold the README documentation sentence under d994"
+  },
+  "proposals": [
+    {
+      "path": "reference_audit/2026-10-05/proposed_exclusions.json",
+      "outputs": [
+        [
+          "scenario_022",
+          "federal_income_tax_before_refundable_credits"
+        ],
+        [
+          "scenario_081",
+          "federal_income_tax_before_refundable_credits"
+        ],
+        [
+          "scenario_114",
+          "federal_income_tax_before_refundable_credits"
+        ]
+      ]
+    },
+    {
+      "path": "reference_audit/2026-10-05-medicare-part-b/proposed_exclusions.json",
+      "outputs": [
+        [
+          "scenario_114",
+          "state_income_tax_before_refundable_credits"
+        ]
+      ]
+    },
+    {
+      "path": "reference_audit/2026-10-05-payroll/proposed_exclusions.json",
+      "outputs": [
+        [
+          "scenario_032",
+          "payroll_tax"
+        ],
+        [
+          "scenario_043",
+          "payroll_tax"
+        ],
+        [
+          "scenario_081",
+          "payroll_tax"
+        ],
+        [
+          "scenario_082",
+          "payroll_tax"
+        ]
+      ]
+    }
+  ],
+  "record_edits": [
+    {
+      "scenario_id": "scenario_114",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "field": "unlisted_input",
+      "append": "; also Medicare enrollment and a Medicare Part B premium paid during 2026, which the medical expense deductions count; policyengine-us treats every Medicare-eligible person as enrolled (takes_up_medicare_if_eligible defaults to true, so medicare_enrolled follows is_medicare_eligible) and adds the modeled premium (medicare_part_b_premium) to medical expenses, and the household data never set either",
+      "source": "reference_audit/2026-10-05-medicare-part-b/proposed_exclusions.json conditional_on_salt_decision[0].if_salt_record_adopted"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "field": "note",
+      "replace": "The output also moves under an engine defect: policyengine-us 2.15.17 leaves the household's Massachusetts paid family and medical leave contributions ($805.01) out of SALT, though they are deductible state income taxes (Rev. Rul. 2025-4). With them the output is $26,739.07 under the withholding estimate and $26,798.11 under the liability.",
+      "with": "The output would also move if the employer deducted the employee share of the household's Massachusetts paid family and medical leave premium, which the law allows but does not require (this household's payroll tax output is excluded on that ground; reference_audit/2026-10-05-payroll): policyengine-us 2.15.17 leaves any such contributions out of SALT, though Rev. Rul. 2025-4 treats them as deductible state income taxes. With the largest share Massachusetts's published 2026 rates let the employer deduct ($805.01), the output is $26,739.07 under the withholding estimate and $26,798.11 under the liability.",
+      "source": "reference_audit/2026-10-05-payroll/README.md, release step 11: the Massachusetts paid leave share is an optional employer pass-through"
+    },
+    {
+      "scenario_id": "scenario_078",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "field": "note",
+      "append_from": [
+        "reference_audit/2026-10-05/proposed_exclusions.json",
+        "already_excluded",
+        0,
+        "note_to_append"
+      ],
+      "source": "reference_audit/2026-10-05/README.md, release step 6"
+    },
+    {
+      "scenario_id": "scenario_120",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "field": "note",
+      "append_from": [
+        "reference_audit/2026-10-05/proposed_exclusions.json",
+        "already_excluded",
+        1,
+        "note_to_append"
+      ],
+      "source": "reference_audit/2026-10-05/README.md, release step 6"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "payroll_tax",
+      "field": "alternative_reading",
+      "replace": "counts the largest share the employer may deduct (ma_employee_paid_leave_contribution $805.01)",
+      "with": "counts the largest share Massachusetts's published 2026 rates let the employer deduct (ma_employee_paid_leave_contribution $805.01)",
+      "source": "reference_audit/2026-10-05-payroll/README.md, 'Massachusetts, Acts 2026 c. 101': a literal reading of the act's s. 45 would let a large employer deduct up to 0.772% ($1,351.02) for 2026, while the Department's rates page kept the 0.46% maximum, so the record names the published rates (independent review of the release, 2026-10-08)"
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "payroll_tax",
+      "field": "alternative_reading",
+      "replace": "which may deduct up to 100 percent of the family and 40 percent of the medical contribution from wages (s. 6(c))",
+      "with": "which may deduct part of the contribution from wages (s. 6(c)): under the Department of Family and Medical Leave's published 2026 rates, up to 100 percent of the family and 40 percent of the medical contribution, though Acts 2026 c. 101 ss. 25-26 and 45 can be read to swap those caps for 2026",
+      "source": "reference_audit/2026-10-05-payroll/README.md, 'Massachusetts, Acts 2026 c. 101' (independent re-review of the release, 2026-10-08)"
+    }
+  ],
+  "rule": {
+    "old": "An output is excluded from scoring for every model when its reference depends on an engine input that the certified household data never carried and the prompt therefore never listed, and a careful reader could take the stated facts the other way.",
+    "new": "An output is excluded from scoring for every model when its reference depends on an input or definition that the certified household data never carried and the prompt therefore never stated, and a careful reader could take the stated facts the other way."
+  },
+  "derivation_insert": {
+    "before": " On 2026-09-29 the references moved to policyengine-us 2.15.17",
+    "text": " On 2026-10-05 eight more outputs were excluded on review of release dashboard-data-20260930 (reference_audit/2026-10-05, reference_audit/2026-10-05-medicare-part-b and reference_audit/2026-10-05-payroll); their records are computed on policyengine-us 2.15.17, whose values are the references, and each sweep's baseline reproduced every scored reference."
+  },
+  "adjudications": [
+    {
+      "scenario_id": "scenario_022",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "reasoning": "The frozen reference is 11,113.57; the alternative is 11,895.23. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of California withholding on federal AGI ($6,058.85), while read as the household paying its 2026 California income tax during the year the deduction takes the engine's liability ($2,505.87). Found in the 2026-10-05 audit of the state income tax in SALT (reference_audit/2026-10-05, scripts/sweep_salt_withholding.py)."
+    },
+    {
+      "scenario_id": "scenario_032",
+      "variable": "payroll_tax",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The frozen reference is 2,346.10; the alternative is 2,218.50. The prompt counts mandatory employee state payroll taxes; Minnesota Paid Leave contributions are the employer's, which may deduct the employee share from wages but need not (Minn. Stat. 268B.14, subds. 1, 3 and 5a), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($127.60); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
+    },
+    {
+      "scenario_id": "scenario_043",
+      "variable": "payroll_tax",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The frozen reference is 330.73; the alternative is 312.74. The prompt counts mandatory employee state payroll taxes; Colorado FAMLI contributions are the employer's, which may deduct the employee share from wages but need not (C.R.S. 8-13.3-507(2) and (5); 7 CCR 1107-1 s. 1.4(6)(A)), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($17.99); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "reasoning": "The frozen reference is 26,932.27; the alternative is 26,991.31. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of Massachusetts withholding on federal AGI ($8,484.41), while read as the household paying its 2026 Massachusetts income tax during the year the deduction takes the engine's liability ($8,238.41). Found in the 2026-10-05 audit of the state income tax in SALT (reference_audit/2026-10-05, scripts/sweep_salt_withholding.py)."
+    },
+    {
+      "scenario_id": "scenario_081",
+      "variable": "payroll_tax",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The frozen reference is 14,192.66; the alternative is 13,387.65. The prompt counts mandatory employee state payroll taxes; Massachusetts PFML contributions are the employer's, which may deduct the employee share from wages but need not (M.G.L. c. 175M, s. 6(a) and (c); 458 CMR 2.05(5)), and policyengine-us 2.15.17 counts the largest share Massachusetts's published 2026 rates let the employer deduct ($805.01); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
+    },
+    {
+      "scenario_id": "scenario_082",
+      "variable": "payroll_tax",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "reasoning": "The frozen reference is 8,108.03; the alternative is 7,664.92. The prompt counts mandatory employee state payroll taxes; New York disability and Paid Family Leave contributions are the employer's, which may deduct the employee share from wages but need not (N.Y. Workers' Compensation Law ss. 209(3)-(4) and 210(1)), and policyengine-us 2.15.17 counts the largest share the employer may deduct ($443.11); read as the amount the law requires of the employee, $0, the output is employee federal payroll tax alone. Found in the 2026-10-05 audit of state payroll components (reference_audit/2026-10-05-payroll, program_classification.json)."
+    },
+    {
+      "scenario_id": "scenario_114",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "reasoning": "The frozen reference is 10,729.61; the alternative is 11,137.31. The prompt lists no state income tax withheld or paid during 2026; policyengine-us 2.15.17 fills the state income tax part of the federal state and local tax deduction with state_withheld_income_tax, a formula estimate of Virginia withholding on federal AGI ($5,367.30), while read as the household paying its 2026 Virginia income tax during the year the deduction takes the engine's liability ($3,514.15). The reference's medical deduction also counts a modeled Medicare Part B premium ($2,434.80) the prompt does not list; without it the output is 11,265.27. Found in the 2026-10-05 audits of the state income tax in SALT (reference_audit/2026-10-05) and of the Part B premium (reference_audit/2026-10-05-medicare-part-b)."
+    },
+    {
+      "scenario_id": "scenario_114",
+      "variable": "state_income_tax_before_refundable_credits",
+      "adjudicated_failure_subtype": "taxable_income_or_deductions",
+      "reasoning": "The frozen reference is 3,514.15; the alternative is 3,654.15. The prompt lists no Medicare enrollment or Part B premium; policyengine-us 2.15.17 treats the 69-year-old head as enrolled (takes_up_medicare_if_eligible defaults to true) and adds the $2,434.80 standard Part B premium to medical expenses, which Virginia's itemized deductions carry from the federal ones; read with no premium paid, the output is the alternative. Found in the 2026-10-05 audit of the Part B premium (reference_audit/2026-10-05-medicare-part-b, scripts/sweep_part_b.py)."
+    }
+  ],
+  "judge_evidence": {
+    "fill_wave": {
+      "wave": "2026-09-29",
+      "commit": "d616e67c33b6f80dabf5cb7329f069f9a1de069d",
+      "pull_request": 182,
+      "committed_on": "2026-09-30"
+    },
+    "new_wave": {
+      "wave": "2026-10-05",
+      "release": "dashboard-data-20261006",
+      "adjudications_written_on": "2026-10-06"
+    }
+  },
+  "snapshot_date": "2026-09-30",
+  "model_response_start": "2026-06-12"
+}

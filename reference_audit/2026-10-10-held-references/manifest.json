@@ -1,0 +1,179 @@
+{
+  "release": {
+    "tag": "dashboard-data-20261010",
+    "commit": "5a8164a001efb27fa55f47fe7ea26666a0de31f8",
+    "inputs": {
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/data.json.gz": "535a51db14f13284b7054f2980b3663c3bc4317037eb3a0cc65e392096df5a90",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/predictions.csv.gz": "0183ab75931b354d6b177b147bbf57fbb79d9d0ac5b98a0304fa32eb329007ae",
+      "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv": "fdd17a57092df4a9111652c85609c767bdbd05b6e32602dd8201b0b74bbbf371"
+    }
+  },
+  "engines": [
+    {
+      "role": "the engine report/REPORT.md used: upstream main on 2026-10-10",
+      "package": "policyengine-us",
+      "version": "2.38.8",
+      "commit": "75cdd8019e07b54c78f0c8d077935c5dc9b14670",
+      "policyengine_core": "3.33.0",
+      "traces": "traces/policyengine-us-2.38.8-75cdd8019e"
+    },
+    {
+      "role": "the release's own engine, as uv.lock pins it",
+      "package": "policyengine-us",
+      "version": "2.38.6",
+      "policyengine_core": "3.32.29",
+      "traces": "traces/policyengine-us-2.38.6"
+    }
+  ],
+  "files": {
+    "engine_sources.md": {
+      "sha256": "aee07e1e7957171839ff3c871a2b41394babd217c63c56386d8662bf85346deb",
+      "bytes": 4000
+    },
+    "law/excerpts.md": {
+      "sha256": "d3ce0029994d6dd7bffd05c41308b8040238863511eff7d6e314e87d10910f96",
+      "bytes": 13696
+    },
+    "law/sources.json": {
+      "sha256": "52c87dcb629ee106cb7080f7d054792e76306f843561966b0e0fac3983436bd3",
+      "bytes": 17042
+    },
+    "model_answers.json": {
+      "sha256": "2a5feb35c08834fb142d295e5b161f58d17f1e41f9591fc7ca12517ff1d0ee5c",
+      "bytes": 66204
+    },
+    "model_answers.md": {
+      "sha256": "f8bc570997ac0ad3956909ec335f42730610aa1cc1f9f6bb87d61f867b339bd3",
+      "bytes": 52828
+    },
+    "prompt_households.json": {
+      "sha256": "82409201dec0257aec0e2144fbcd2895dee7830932dc8d4ded654d340db29f63",
+      "bytes": 1408
+    },
+    "records.json": {
+      "sha256": "7310531020add7c2d8d59dd10b6067ab2dd9279f7bb1cdea57942613d58b2a50",
+      "bytes": 5434
+    },
+    "report/REPORT.md": {
+      "sha256": "7afae22e32af00b9d101fbb086fb7658a8983073bed2e4f5f270dd1498c1f9f2",
+      "bytes": 17680
+    },
+    "reviews/brief_oh025.md": {
+      "sha256": "9b957a03ac0317f5d20ede678135b506e3bb9192e6f71836e1452a416b2b0c80",
+      "bytes": 7620
+    },
+    "reviews/brief_va039.md": {
+      "sha256": "8da00d9f977e5cc504634a61a1f70ecb3ab4383bd4aa1eed5b7efffd2de50edf",
+      "bytes": 6926
+    },
+    "reviews/review_oh025.md": {
+      "sha256": "35ea93fa9a71d85ba0ede7425eb31e678d2e99ea45e79c100febe4342542235f",
+      "bytes": 23640
+    },
+    "reviews/review_va039.md": {
+      "sha256": "ae5956edfe2810d8fc83921a63a3333cb9d65b0bb7e8826fb7a5121d7d17221a",
+      "bytes": 24185
+    },
+    "scripts/build_manifest.py": {
+      "sha256": "b2f88cbc3a69a8ee46e8a3fbf7cd9e488872f73252b639a24446ece73d940541",
+      "bytes": 3077
+    },
+    "scripts/hand_derivations.py": {
+      "sha256": "43b5772f818f28acf02b53b136156d2c11884dfd093608068e8d8d10c4b504ef",
+      "bytes": 8841
+    },
+    "scripts/mutants_held_references.py": {
+      "sha256": "3892327bc07505b7929b95ce8c2046832a4ad9c7769d63b8050b0233d9bfe92e",
+      "bytes": 9360
+    },
+    "scripts/trace_cells.py": {
+      "sha256": "beb43916d71b4177e78e5c14bcdffcd561e0169d82d6c2968cb7b2733dc81b1b",
+      "bytes": 8222
+    },
+    "traces/policyengine-us-2.38.6/key_variables.txt": {
+      "sha256": "91eea4677b7622d4528f9293b0f70bc8c4c679be2095cc6e2b786ae58ca89f93",
+      "bytes": 5988
+    },
+    "traces/policyengine-us-2.38.6/scenario_025_situation.json": {
+      "sha256": "7912870c9832f137f3455637cdacb368545883f81809448b91a120a68ec9fecd",
+      "bytes": 2485
+    },
+    "traces/policyengine-us-2.38.6/scenario_025_trace.txt": {
+      "sha256": "a81089047d9b7ea5fd6728e310a60e6d244c6508a11c75c3122f7cc297d401ed",
+      "bytes": 6302
+    },
+    "traces/policyengine-us-2.38.6/scenario_025_trace_full.txt": {
+      "sha256": "cd35d5a18820ee6b23e7524233b638f5a4f3a78c31da288a6a16e5d2ab7721e8",
+      "bytes": 1012094
+    },
+    "traces/policyengine-us-2.38.6/scenario_039_situation.json": {
+      "sha256": "1fa6c46a161691fdbd90be2137b00ac192f04a3cd25fcdbdd59a17895273349f",
+      "bytes": 1982
+    },
+    "traces/policyengine-us-2.38.6/scenario_039_trace.txt": {
+      "sha256": "7427b20a5fffa06cd49388b454a609c31adaa304a645426da90d0c7cbce6d2cc",
+      "bytes": 1631
+    },
+    "traces/policyengine-us-2.38.6/scenario_039_trace_full.txt": {
+      "sha256": "c06c44afb6865a1e097f0f07ce073e2fab5cf86b8f2da2bc173825d3f02c9f68",
+      "bytes": 397554
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/key_variables.txt": {
+      "sha256": "46d20e1e83bf751029d64e3b97a158994ccb1e098bd3911fdff281d7e437e7e7",
+      "bytes": 5951
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/rerun/install.json": {
+      "sha256": "89be6e815fa4e488f4a14941fd12b4c927661d2261e109199b5aa73595b917d5",
+      "bytes": 1416
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/rerun/key_variables.txt": {
+      "sha256": "2b30218059be2154c87c74f400e0b4bc24e907b84fd55f410833eed6c8e69e9c",
+      "bytes": 6171
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_025_situation.json": {
+      "sha256": "7912870c9832f137f3455637cdacb368545883f81809448b91a120a68ec9fecd",
+      "bytes": 2485
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_025_trace.txt": {
+      "sha256": "a81089047d9b7ea5fd6728e310a60e6d244c6508a11c75c3122f7cc297d401ed",
+      "bytes": 6302
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_025_trace_full.txt": {
+      "sha256": "de95afc89171cb40dfc246a0a779604b708a2a113814bf9ab8ccffd4c7dbb694",
+      "bytes": 1013016
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_039_situation.json": {
+      "sha256": "1fa6c46a161691fdbd90be2137b00ac192f04a3cd25fcdbdd59a17895273349f",
+      "bytes": 1982
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_039_trace.txt": {
+      "sha256": "7427b20a5fffa06cd49388b454a609c31adaa304a645426da90d0c7cbce6d2cc",
+      "bytes": 1631
+    },
+    "traces/policyengine-us-2.38.8-75cdd8019e/scenario_039_trace_full.txt": {
+      "sha256": "3a53c6bce4e5739de634976155b67665e99fa41419e916ebee3d0a93f96f3cba",
+      "bytes": 398305
+    },
+    "verification/consensus_flags_20261010.json": {
+      "sha256": "2fcf288ed514e4a4a676eed6f94e41bc90f22b8e602d481e7c99d4bade39385f",
+      "bytes": 120250
+    },
+    "verification/consensus_flags_20261010_min_top_2.json": {
+      "sha256": "ba5e22c748c896615bc44dfa573e847f119a8d55562a24f18ddf56b446a03b45",
+      "bytes": 136711
+    },
+    "verification/hand_derivations.json": {
+      "sha256": "e86cc4557f3838c2b0fc036145c1077f59e25acb1314218edf01e806a06c371e",
+      "bytes": 1501
+    },
+    "verification/held_on_20261010.json": {
+      "sha256": "b0b7d7c645f1df76db7ff34d7ff106945b35e654ae5f2f9cab9858fdc0eed1dd",
+      "bytes": 7438
+    },
+    "verification/held_on_20261010_min_top_2.json": {
+      "sha256": "0397c0e30066337d1869965c93db53afe744e41fd666686921813dd9ba1d4858",
+      "bytes": 8991
+    }
+  }
+}

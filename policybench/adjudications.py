@@ -67,7 +67,15 @@ def load_adjudications(path: Path) -> list[dict]:
     """Read and validate an adjudication file; an absent file means none."""
     if not path.exists():
         return []
-    payload = json.loads(path.read_text())
+    return parse_adjudications(json.loads(path.read_text()), path)
+
+
+def parse_adjudications(payload: dict, path: Path | str) -> list[dict]:
+    """Validate an adjudication record already in memory.
+
+    ``path`` only names the record in error messages, so a record can be
+    checked before it is written anywhere.
+    """
     entries = payload.get("adjudications")
     if not isinstance(entries, list):
         raise AdjudicationError(f"{path}: 'adjudications' must be a list")
@@ -373,3 +381,19 @@ def excluded_case_keys(adjudications: list[dict]) -> set[tuple[str, str]]:
         for e in adjudications
         if e.get("excluded_from_scoring")
     }
+
+
+def judge_ever_flagged(entry: dict) -> bool:
+    """Whether any judge verdict the entry records flagged the case's reference.
+
+    The record keeps every verdict a re-judge replaced (judge_previous) and a
+    flag an earlier run raised (judge_reference_suspect_source, at the top level
+    or on the judge_previous item it belongs to), so a case a later verdict no
+    longer flags still counts as judge-flagged.
+    """
+    verdicts = [entry, *entry.get("judge_previous", [])]
+    return any(
+        bool(item.get("judge_reference_suspect"))
+        or bool(item.get("judge_reference_suspect_source"))
+        for item in verdicts
+    )

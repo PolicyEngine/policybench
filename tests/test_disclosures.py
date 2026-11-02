@@ -10,10 +10,13 @@ import json
 import re
 import shutil
 import subprocess
+from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from policybench.paper_results import r
 from policybench.snapshot_payload import read_run_payload
@@ -63,6 +66,25 @@ FALSE_CLAIMS = (
 )
 
 PAPER_FALSE_CLAIM_PATTERNS = (
+    # No board model logged submission times: GPT-5.5's batch rows log none,
+    # and the sub-second medians are cache replays of synchronous calls.
+    # Claude Fable 5 ran synchronously, and its usage was recorded per call
+    # (docs/latency_replay_audit.md).
+    r"batch\s+or\s+asynchronous\s+dispatch",
+    r"reflect\s+submission\s+rather\s+than\s+generation",
+    r"recorded\s+at\s+the\s+run\s+level",
+    r"Anthropic\s+batch\s+adapter",
+    r"not\s+measured\s+per\s+call",
+    # The harness restarts its timer on each retry and times only the attempt
+    # that succeeded; a replayed row's cost is recomputed when it is written.
+    r"spans\s+any\s+provider-side\s+retry",
+    r"keeps\s+the\s+cost\s+recorded\s+when\s+it\s+was\s+generated",
+    # Exclusion covers what the audits found, not every defect or unstated
+    # input: an output a fix or reading not run on the reference engine would
+    # move can still be scored (the paper's limitations say so).
+    r"every\s+output\s+whose\s+reference\s+rests\s+on",
+    r"every\s+output\s+whose\s+reference\s+depends\s+on",
+    r"re-ran\s+five",
     r"single\s+structured\s+response",
     r"one\s+response\s+per\s+household",
     r"one\s+structured\s+response",
@@ -113,6 +135,21 @@ def _pdf_text() -> str:
     pypdf = pytest.importorskip("pypdf")
     reader = pypdf.PdfReader(PAPER_PDF)
     return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _pdf_running_text() -> str:
+    """The PDF's text with the page-number lines at page breaks removed, so a
+    sentence that crosses a page reads as one sentence."""
+    pages = _pdf_text().split("\f")
+    kept = []
+    for page in pages:
+        lines = page.splitlines()
+        while lines and (not lines[-1].strip() or lines[-1].strip().isdigit()):
+            lines.pop()
+        while lines and (not lines[0].strip() or lines[0].strip().isdigit()):
+            lines.pop(0)
+        kept.append("\n".join(lines))
+    return "\n".join(kept)
 
 
 def _serving_rows() -> list[dict]:
@@ -182,14 +219,37 @@ def _audit_counts_from_frozen_files() -> dict[str, int]:
 
 
 def test_methodology_states_the_chunked_count_from_the_serving_config():
-    rows = _serving_rows()
-    chunked = [row for row in rows if row["request_shape"] != "whole scenario"]
-    text = METHODOLOGY.read_text()
-    phrase = f"{NUMBER_WORDS[len(chunked)].capitalize()} of the {len(rows)}"
-    assert phrase in re.sub(r"\s+", " ", text), phrase
-    assert "JSON object where the provider rejects a forced tool" in re.sub(
-        r"\s+", " ", text
+    """The chunked-row count comes from the app's copy of the frozen serving
+    configuration and the model total from the board payload; the app tests
+    (app/tests/boardScope.test.ts) render the sentence against both."""
+    text = re.sub(r"\s+", " ", METHODOLOGY.read_text())
+    assert "chunkedServingModels().length" in text
+    assert "of the ${noToolsModels.length} models" in text
+    assert re.search(r"\b[A-Z][a-z]+ of the \d+ models", text) is None
+    assert "because the provider rejects a forced tool call" in text
+    leaderboard = re.sub(r"\s+", " ", LEADERBOARD.read_text())
+    assert "jsonContractClaudeModels()" in leaderboard
+    assert "Claude Sonnet 5.5 reject" not in leaderboard
+
+
+def test_methodology_recheck_count_is_the_sidecar_record():
+    """The one engine-upgrade fact the payload does not carry: how many
+    excluded outputs moved on the new engine and were re-reviewed."""
+    sidecar = json.loads(
+        (
+            ROOT
+            / "paper/snapshot/20260501/runs"
+            / "us_full_run_20260612_policyengine_4_16_1_populace"
+            / "reference_outputs.csv.meta.json"
+        ).read_text()
     )
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
+    source = (ROOT / "app/src/lib/referenceEngine.ts").read_text()
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    assert f'engineVersion: "{engine}"' in source
+    assert f"rechecked: {len(upgrade['excluded_outputs_rechecked'])}," in source
 
 
 def test_serving_config_has_both_transports():
@@ -221,12 +281,23 @@ def test_current_board_copy_makes_no_identical_request_claim():
 
 def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     counts = _audit_counts_from_frozen_files()
+    # Release 20261006: release 20260930's counts (7,860 annotated, 7,856
+    # exact misses, 2,107 unannotated) less the 368 scored rows on the eight
+    # outputs it excludes: 333 annotated exact misses and 35 unannotated rows
+    # below full bounded score (7,527, 7,523 and 2,072). Release 20261010
+    # adds Claude Haiku 5.5's rows and moves the scored outputs. Release
+    # 20261014 adds Gemini 4 Argon's and Muse Spark 1.3's rows (262 annotated
+    # misses, 111 unannotated rows below full bounded score) on unchanged
+    # references and exclusions. Release 20261027 adds GPT-6.1 Terra's rows
+    # and moves four scored references (9,050 annotated, 9,046 exact misses,
+    # 2,407 unannotated). The app's summarizeAuditUniverse recomputes the same
+    # counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 7_545,
-        "exact_misses": 7_541,
-        "annotated_exact_misses": 7_541,
+        "annotated": 9_050,
+        "exact_misses": 9_046,
+        "annotated_exact_misses": 9_046,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 1_843,
+        "unannotated_below_full_bounded_score": 2_407,
     }
 
     for path in (
@@ -322,6 +393,7 @@ def test_paper_checklist_names_existing_manifest_keys():
         "live_dashboard_artifact",
         "rendered_paper_artifacts",
         "reference_output_refresh",
+        "household_dataset",
         "population_weight_artifact",
         "audit_annotation_artifacts",
         "reproducibility_notes",
@@ -344,13 +416,17 @@ FORCED_TOOL_OVERCLAIMS = (
 @pytest.mark.parametrize("path", [LEADERBOARD, SENSITIVITY_NOTE])
 def test_forced_tool_claims_are_qualified_by_contract(path):
     """Forcing applies to rows on the tool contract, not to every provider that
-    accepts a forced tool: older Gemini and DeepSeek rows select JSON by family."""
+    accepts a forced tool: the older Gemini rows take JSON from their family
+    default, and some cards select JSON without recording a rejection."""
     text = re.sub(r"\s+", " ", path.read_text())
     for pattern in FORCED_TOOL_OVERCLAIMS:
         assert re.search(pattern, text, re.IGNORECASE) is None, (
             f"{path.name} still matches {pattern!r}"
         )
-    assert re.search(r"selects? (the tool contract|JSON)", text) is not None, path.name
+    assert (
+        re.search(r"(selects? (the tool contract|JSON)|on the tool contract)", text)
+        is not None
+    ), path.name
 
 
 def test_benchmark_card_snapshot_scope_matches_scenario_metadata():
@@ -409,13 +485,18 @@ def test_paper_serving_table_publishes_the_transport_per_model():
 
 
 def test_json_transport_copy_names_both_reasons():
-    """JSON rows exist for two reasons — a provider that rejects a forced tool,
-    and a model card that selects JSON for a family — and the copy must not
-    attribute all of them to provider capability."""
-    for path in (METHODOLOGY, BENCHMARK_CARD):
+    """JSON rows exist for two reasons -- a provider that rejects a forced
+    tool, and a model card or its family default that selects JSON -- and the
+    copy must not attribute all of them to provider capability, nor attribute
+    the DeepSeek rows to a family choice: DeepSeek V4.1 Flash's card records
+    the rejection (and says the same of the V4 rows), and the family default
+    now reaches only the older Gemini rows."""
+    for path in (METHODOLOGY, BENCHMARK_CARD, SENSITIVITY_NOTE):
         text = re.sub(r"\s+", " ", path.read_text())
         assert "rejects a forced tool" in text, path.name
         assert "selects JSON" in text, path.name
+        assert re.search(r"Gemini and DeepSeek", text) is None, path.name
+        assert re.search(r"DeepSeek[^.]{0,40}famil", text) is None, path.name
 
 
 def test_paper_source_and_rendered_html_make_no_false_request_claims():
@@ -483,3 +564,714 @@ def test_rendered_pdf_reports_serving_evidence_summary():
     assert _hyphen_insensitive(_serving_evidence_sentence()) in _hyphen_insensitive(
         pdf_text
     )
+
+
+# The cost-and-latency sentence and table print dollar amounts. Quarto once
+# printed an inline string's repr there (a literal "\\$0.002") and the raw
+# DataFrame table kept the Markdown escape ("\$0.034") and its index column.
+COST_SENTENCE = re.compile(
+    r"Per-household cost spans \$\d+\.\d{3} \([^)]+\) to \$\d+\.\d{3} \([^)]+\)"
+)
+
+
+def _cost_latency_table_cells(html: str) -> list[list[str]]:
+    start = html.index('id="tbl-us-cost-latency"')
+    table = html[start : html.index("</table>", start)]
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.S)
+    return [
+        [
+            re.sub(r"<[^>]+>", "", cell).strip()
+            for cell in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)
+        ]
+        for row in rows
+    ]
+
+
+def test_rendered_html_prints_dollar_amounts_without_escapes():
+    html = PAPER_HTML.read_text()
+    parser = _VisibleTextParser()
+    parser.feed(html)
+    text = re.sub(r"\s+", " ", " ".join(parser.parts))
+    assert "\\$" not in text
+    assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
+    header, *rows = _cost_latency_table_cells(html)
+    # md_table puts a zero-width space after each slash as a line break point.
+    assert [cell.replace("\u200b", "") for cell in header] == [
+        "Model",
+        "Exact (%)",
+        "Cost / household",
+        "Latency (median)",
+    ]
+    assert len(rows) == r.n_models
+    for row in rows:
+        assert not row[0].isdigit(), row  # no DataFrame index column
+        assert re.fullmatch(r"\$\d+\.\d{3}|—", row[2]), row
+
+
+def test_rendered_pdf_prints_dollar_amounts_without_escapes():
+    text = re.sub(r"\s+", " ", _pdf_text())
+    assert "\\$" not in text
+    assert COST_SENTENCE.search(text), "cost sentence missing or escaped"
+
+
+def _paper_engine_times() -> tuple[str, str]:
+    """The paper's engine sentences for the current references, as the timing
+    record of the move to the current engine dates them. Earlier moves' times
+    stay in their audit records."""
+    from policybench.paper_results import uploaded_phrase
+
+    timing = json.loads(OCTOBER_TIMING.read_text())
+    engine = r.policyengine_us_version
+    assert timing["reference_sweep"]["engine"] == engine
+    began = timing["reference_sweep"]["first_output_at_utc"][:10]
+    uploaded = uploaded_phrase(timing["pypi"]["wheel_uploaded_at_utc"][engine], began)
+    return (
+        f"policyengine-us {engine} was the newest release when PolicyBench began "
+        f"sweeping the references on {began} ({uploaded}).",
+        _publication_check_sentence(timing, engine),
+    )
+
+
+# The HTML and PDF halves of each paper claim are separate tests: the HTML is
+# checked everywhere, and only the PDF half skips where neither pdftotext nor
+# pypdf is available (as in CI).
+
+
+def _html_text() -> str:
+    parser = _VisibleTextParser()
+    parser.feed(PAPER_HTML.read_text())
+    return _straight_quotes(re.sub(r"\s+", " ", " ".join(parser.parts)))
+
+
+def _abstract_exclusion_sentence() -> str:
+    # An engine-defect record whose defect the engine now fixes, kept for an
+    # unstated input, counts with the unstated inputs.
+    # One whose recorded defect is fixed but whose reference rests on a further
+    # defect the engine has counts with the defects upstream has not fixed.
+    counts = (
+        r.engine_defect_present_count,
+        r.unstated_input_exclusion_total,
+        r.later_law_exclusion_count,
+    )
+    # The three groups are the whole exclusion record.
+    assert sum(counts) == r.excluded_output_count
+    if counts[0]:
+        return (
+            "PolicyBench excludes from scoring, for every model, the "
+            f"{counts[0]} outputs whose references rest on engine defects the "
+            f"audits found and upstream has not fixed, the {counts[1]} whose "
+            "references depend on an input the prompt does not state, and "
+            f"{r.later_law_exclusion_count_word} whose references rest on an "
+            "amount a state published after the freeze."
+        )
+    # No engine-defect record rests on a defect the engine still has (release
+    # 20261013 on policyengine-us 2.41.0): the abstract says so.
+    return (
+        "PolicyBench excludes from scoring, for every model, the "
+        f"{counts[1]} outputs whose references depend on an input the prompt "
+        f"does not state and the {r.later_law_exclusion_count_word} whose "
+        "references rest on an amount a state published after the freeze. No "
+        "excluded output rests on an engine defect the audits found that "
+        f"policyengine-us {r.policyengine_us_version} still has."
+    )
+
+
+def test_paper_abstract_scopes_the_exclusions_to_what_the_audits_found():
+    assert _abstract_exclusion_sentence() in _html_text()
+
+
+def test_rendered_pdf_abstract_scopes_the_exclusions_to_what_the_audits_found():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text()))
+    assert _abstract_exclusion_sentence() in text
+
+
+def test_pdf_running_text_joins_a_sentence_across_a_page_break(monkeypatch):
+    import sys
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(
+        module, "_pdf_text", lambda: "the 28 outputs whose\n\n2\n\f3\nreferences rest"
+    )
+    assert (
+        re.sub(r"\s+", " ", _pdf_running_text())
+        == "the 28 outputs whose references rest"
+    )
+
+
+def test_paper_takes_its_engine_times_from_the_timing_record():
+    """The paper renders the current engine's clock times from its move's
+    sweep_timing.json through paper_results; its source hard-codes none, and
+    it states no earlier move's times, which would describe engines the
+    references have left."""
+    source = PAPER.read_text()
+    assert re.search(r"\d\d:\d\d UTC", source) is None
+    assert "r.engine_upgrade_timing_sentence" in source
+    for stale in (
+        "r.reference_engine_uploaded_utc",
+        "r.publication_check_pypi_read_utc",
+        "r.publication_check_policyengine_us_version",
+        "r10.engine_upgrade_timing_sentence",
+        "r12.engine_upgrade_timing_sentence",
+    ):
+        assert stale not in source, stale
+    text = _html_text()
+    for sentence in _paper_engine_times():
+        assert sentence in text, sentence
+
+
+def _across_page_breaks(sentence: str) -> re.Pattern:
+    """The sentence as extracted PDF text can carry it: a page break may put
+    the page number between any two of its words."""
+    words = [re.escape(word) for word in sentence.split()]
+    return re.compile(r" (?:\d{1,3} )?".join(words))
+
+
+def test_across_page_breaks_tolerates_only_a_page_number():
+    pattern = _across_page_breaks("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 26 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 at 04:45 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-29 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026-10-28 later at 04:44 UTC")
+
+
+def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_text()))
+    for sentence in _paper_engine_times():
+        assert _across_page_breaks(sentence).search(text), sentence
+
+
+def _engine_groups(exclusions) -> list[tuple[str, int]]:
+    """Excluded outputs by the engine version of their value, oldest first."""
+    by_engine = Counter(
+        e["engine_version"].removeprefix("policyengine-us ") for e in exclusions
+    )
+    return sorted(
+        by_engine.items(), key=lambda item: tuple(int(p) for p in item[0].split("."))
+    )
+
+
+def test_the_apps_recheck_constant_is_the_frozen_sidecars():
+    """app/src/lib/referenceEngine.ts's ENGINE_UPGRADE_RECHECK names the last
+    engine upgrade's engine and how many excluded outputs it re-reviewed,
+    which the payload does not carry."""
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
+    source = (ROOT / "app/src/lib/referenceEngine.ts").read_text()
+    block = re.search(
+        r"ENGINE_UPGRADE_RECHECK = \{\s*engineVersion: \"([\d.]+)\",\s*rechecked: "
+        r"(\d+),\s*\}",
+        source,
+    )
+    assert block, "ENGINE_UPGRADE_RECHECK not found"
+    assert block.group(1) == upgrade["engine_version"].removeprefix("policyengine-us ")
+    assert int(block.group(2)) == len(upgrade["excluded_outputs_rechecked"])
+
+
+def test_live_version_description_states_the_reference_engines():
+    """The dataset selector's one-line description of the live board names the
+    engine behind each scored reference and the engines behind the excluded
+    outputs' values, from the frozen records."""
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    previous = upgrade["previous_engine_version"].removeprefix("policyengine-us ")
+    exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
+        "exclusions"
+    ]
+    groups = _engine_groups(exclusions)
+    # Every excluded value comes from an engine the references have run on.
+    lineage = {
+        version.removeprefix("policyengine-us ")
+        for r in sidecar["revisions"]
+        if r["kind"] == "engine_upgrade"
+        for version in (r["engine_version"], r["previous_engine_version"])
+    }
+    assert {version for version, _ in groups} <= lineage
+    assert previous in lineage
+    clauses = ", ".join(
+        f"{count} from policyengine-us {version}"
+        if index == 0
+        else f"{count} from {version}"
+        for index, (version, count) in enumerate(groups)
+    )
+    versions = json.loads(VERSIONS.read_text())
+    live = next(v for v in versions["versions"] if v["id"] == versions["default"])
+    assert live["description"].startswith(
+        f"Scored reference outputs from policyengine-us {engine} (the "
+        f"{len(exclusions)} excluded outputs keep the values they were decided "
+        f"on: {clauses}, and the "
+        f"{len(upgrade['excluded_outputs_rechecked'])} that move on {engine} were "
+        "re-reviewed and stay excluded); "
+    )
+
+
+def test_newest_engine_claims_are_anchored_to_a_time():
+    """policyengine-us releases often, so "newest" holds only at a stated time:
+    2.15.17 when PolicyBench began sweeping the references (2026-09-29), 2.17.0
+    when PolicyBench checked PyPI later that day. The upgrade record states the
+    standing rule the same way: the newest release when PolicyBench begins the
+    reference sweep, checked before publishing against the newest release on
+    PyPI, with the time recorded. No surface claims what is newest "at
+    publication", which a later release could make stale."""
+    anchored = (
+        "newest release when PolicyBench began sweeping",
+        "newest release when it began sweeping",
+        "newest release when PolicyBench checked PyPI on",
+        "newest policyengine-us release when PolicyBench begins the",
+        "PolicyBench checks that the newest release on PyPI gives the same "
+        "values, and records when it checked",
+        "PolicyBench read PyPI on 2026-09-29 at 14:58 UTC, when policyengine-us "
+        "2.17.0 was the newest release",
+    )
+    surfaces = (
+        BENCHMARK_CARD,
+        PAPER,
+        PAPER_GUIDE,
+        METHODOLOGY,
+        VERSIONS,
+        ROOT / "README.md",
+        ROOT / "reference_audit/2026-09-28/README.md",
+        ROOT / "app/src/notes/2026-09-29-claude-sonnet-5-5-debuts-fifth.json",
+        ROOT / "app/src/notes/2026-10-05-five-snap-households-bbce.json",
+        SENSITIVITY_NOTE,
+    )
+    for path in surfaces:
+        text = re.sub(r"\s+", " ", path.read_text())
+        assert "at publication" not in text, path.name
+        for match in re.finditer(r"newest", text):
+            window = text[max(0, match.start() - 100) : match.end() + 80]
+            assert any(phrase in window for phrase in anchored), (path.name, window)
+
+
+# The timing record of the move to the current engine (the 2026-10-22 audit's;
+# the 2026-10-12 audit timed the move to 2.41.0 that preceded it).
+OCTOBER_TIMING = (
+    ROOT / "reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json"
+)
+
+
+def _publication_check_sentence(timing: dict, engine: str) -> str:
+    """How a surface states the publication check sweep_timing.py recorded."""
+    read_at = timing["pypi"]["read_at_utc"]
+    when = f"PolicyBench checked PyPI on {read_at[:10]} at {read_at[11:16]} UTC"
+    check = timing["publication_check"]
+    assert check["engine"] == timing["pypi"]["newest_at_read"]
+    if check["engine"] == engine:
+        return f"policyengine-us {engine} was still the newest release when {when}."
+    if check["same"] == check["outputs"]:
+        return (
+            f"policyengine-us {check['engine']}, the newest release when {when}, "
+            f"gives the same value as {engine} for all {check['outputs']:,} outputs "
+            "under the same conventions and adapter."
+        )
+    # A newer release may move outputs the release excludes; never a scored one.
+    assert check["scored_same"] == check["scored_outputs"], check["scored_differ"]
+    return (
+        f"policyengine-us {check['engine']}, the newest release when {when}, gives "
+        f"the same value as {engine} for all {check['scored_outputs']:,} scored "
+        "outputs under the same conventions and adapter"
+    )
+
+
+def test_card_states_the_engines_behind_scored_and_excluded_references():
+    """The card's engine sentences, rebuilt from the sidecar, the exclusion
+    record and each move's timing record and publication check."""
+    from policybench.paper_results import uploaded_phrase
+
+    run_dir = (
+        ROOT
+        / "paper/snapshot/20260501/runs"
+        / "us_full_run_20260612_policyengine_4_16_1_populace"
+    )
+    sidecar = json.loads((run_dir / "reference_outputs.csv.meta.json").read_text())
+    upgrade = next(
+        r for r in reversed(sidecar["revisions"]) if r["kind"] == "engine_upgrade"
+    )
+    engine = upgrade["engine_version"].removeprefix("policyengine-us ")
+    exclusions = json.loads((run_dir / "reference_exclusions.json").read_text())[
+        "exclusions"
+    ]
+    groups = ", ".join(
+        f"{count} computed with policyengine-us {version}"
+        if index == 0
+        else f"{count} with {version}"
+        for index, (version, count) in enumerate(_engine_groups(exclusions))
+    )
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    recheck = len(upgrade["excluded_outputs_rechecked"])
+    assert (
+        f"The {len(exclusions)} excluded outputs keep the values they were decided "
+        f"on ({groups}), and PolicyBench re-reviewed the {recheck} of them that "
+        f"move on {engine}; all {recheck} stay excluded."
+    ) in card
+    # The 2026-09-29 move: the timing record's upload time of its engine. That
+    # day's later PyPI check stays in its audit record, which must still name
+    # the release it checked; the card, like the paper, leaves that chronology
+    # out (release reviews r1 and r2).
+    with (ROOT / "reference_audit/2026-09-28/verification/latest_final_2170.csv").open(
+        newline=""
+    ) as source:
+        rows = list(csv.DictReader(source))
+    (check,) = {row["engine"] for row in rows}
+    timing = json.loads(
+        (ROOT / "reference_audit/2026-09-28/verification/sweep_timing.json").read_text()
+    )
+    september = timing["reference_sweep"]["engine"]
+    uploaded = timing["pypi"]["wheel_uploaded_at_utc"][september]
+    assert timing["pypi"]["newest_at_read"] == check
+    assert (
+        f"on {timing['reference_sweep']['first_output_at_utc'][:10]}, to "
+        f"policyengine-us {september}, the newest release when it began sweeping "
+        f"the references that day (uploaded {uploaded[11:16]} UTC)."
+    ) in card
+    assert (
+        f"policyengine-us {check}, the newest release when PolicyBench checked"
+        not in card
+    )
+    # The move to the current engine: its sweep's timing record, checked last
+    # so that a missing record does not hide the checks above.
+    assert OCTOBER_TIMING.is_file(), (
+        "record the sweep with reference_audit/2026-10-12-engine-upgrade/scripts/"
+        "sweep_timing.py and state its times in the card"
+    )
+    october = json.loads(OCTOBER_TIMING.read_text())
+    assert october["reference_sweep"]["engine"] == engine
+    uploaded_now = october["pypi"]["wheel_uploaded_at_utc"][engine]
+    began = october["reference_sweep"]["first_output_at_utc"][:10]
+    assert (
+        "PolicyBench computes each scored US reference by running "
+        f"`policyengine_us.Simulation` from policyengine-us {engine}, the newest "
+        "release when PolicyBench began sweeping the references on "
+        f"{began} ({uploaded_phrase(uploaded_now, began)})."
+    ) in card
+    assert _publication_check_sentence(october, engine) in card
+    # No other clock time appears in the card.
+    october_read = october["pypi"]["read_at_utc"]
+    assert sorted(set(re.findall(r"\b\d\d:\d\d UTC", card))) == sorted(
+        {
+            f"{uploaded[11:16]} UTC",
+            f"{uploaded_now[11:16]} UTC",
+            f"{october_read[11:16]} UTC",
+        }
+    )
+
+
+_TENS = {
+    2: "twenty",
+    3: "thirty",
+    4: "forty",
+    5: "fifty",
+    6: "sixty",
+    7: "seventy",
+    8: "eighty",
+    9: "ninety",
+}
+_TEENS = (
+    "ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen"
+).split()
+
+
+def _sentence_number(n: int) -> str:
+    """A count opening a sentence, spelled out as the card writes it."""
+    from policybench.paper_results import count_word
+
+    if n <= 10:
+        return count_word(n).capitalize()
+    if n < 20:
+        return _TEENS[n - 10].capitalize()
+    tens, ones = divmod(n, 10)
+    assert n < 100, n
+    word = _TENS[tens] + (f"-{count_word(ones)}" if ones else "")
+    return word.capitalize()
+
+
+def test_card_counts_follow_the_frozen_records():
+    """The card's October paragraph and its exclusion breakdown, written by
+    hand, state the counts the frozen sidecar and exclusion record give (pre-T
+    review finding 3)."""
+    from policybench.paper_results import (
+        ENGINE_DEFECT,
+        ROOT_CAUSE_LABELS,
+        PaperResults,
+        count_word,
+        exclusion_basis,
+    )
+
+    r = PaperResults()
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    # The October 10 move to 2.38.6: what it restores, from where, and why.
+    v10 = r.upgrade_view("2.38.6")
+    restored, ruled = v10.engine_upgrade_restored_count, r.ruled_regenerated_count
+    assert ruled == v10.engine_upgrade_restored_ruled_count
+    assert (
+        f"That version fixes the defects behind {count_word(restored)} outputs. "
+        f"Release 20261006 excluded {count_word(restored - ruled)} of them, which "
+        f"return to scoring; the other {count_word(ruled)} are the 2026-10-06 "
+        "defects below, which stay scored."
+    ) in card
+    october_10 = card[card.index("On 2026-10-10 PolicyBench moved the references") :]
+    october_10 = october_10[: october_10.index("On 2026-10-13 PolicyBench moved")]
+    for label, _, prs in v10.engine_upgrade_restored_fixes:
+        assert label in october_10, label
+        assert all(f"#{pr}" in october_10 for pr in prs), (label, prs)
+    changed = v10.engine_upgrade_scored_change_count
+    noun = "reference" if changed == 1 else "references"
+    assert f"The move changes {count_word(changed)} scored {noun} beyond" in (
+        october_10
+    )
+    new = v10.engine_upgrade_new_exclusion_count
+    assert f"moves {count_word(new)} Indiana households' local income tax" in (
+        october_10
+    )
+    # The October 13 move to 2.41.0: it restores outputs earlier releases
+    # excluded, none of them still scored, and changes nothing else.
+    v12 = r.upgrade_view("2.41.0")
+    october = card[card.index("On 2026-10-13 PolicyBench moved the references") :]
+    october = october[: october.index("On 2026-10-23 PolicyBench moved")]
+    assert f"from {v12.previous_policyengine_us_version} to 2.41.0" in october
+    assert v12.engine_upgrade_restored_ruled_count == 0
+    assert (
+        "The new version fixes the defects behind "
+        f"{count_word(v12.engine_upgrade_restored_count)} outputs. Earlier "
+        "releases excluded them, and they return to scoring."
+    ) in october
+    for label, count, prs in v12.engine_upgrade_restored_fixes:
+        assert label in october, label
+        assert all(f"#{pr}" in october for pr in prs), (label, prs)
+        if count > 1:
+            assert f"{count_word(count)} outputs)" in october, label
+    assert v12.engine_upgrade_change_summary_sentence == (
+        "The move changes no scored reference, by any amount, and removes no "
+        "output from scoring."
+    )
+    assert v12.engine_upgrade_change_summary_sentence in october
+    # The October 23 move to the current engine: it restores and removes
+    # nothing, and changes four scored references for law in force before the
+    # freeze, each cause named with its pull request.
+    current = card[card.index("On 2026-10-23 PolicyBench moved the references") :]
+    current = current[: current.index("## ")]
+    assert (
+        f"from {r.previous_policyengine_us_version} to {r.policyengine_us_version}"
+        in current
+    )
+    assert r.engine_upgrade_restored_count == r.engine_upgrade_new_exclusion_count == 0
+    assert (
+        "The move returns no excluded output to scoring and removes none from scoring."
+    ) in current
+    assert (
+        f"It changes {count_word(r.engine_upgrade_scored_change_count)} scored "
+        "references, each for law in force before the freeze."
+    ) in current
+    prs = re.findall(r"#(\d+)", r.engine_upgrade_scored_change_sentence)
+    assert prs and all(f"#{pr}" in current for pr in prs), prs
+    assert (
+        f"re-reviewed the {r.engine_upgrade_rechecked_count} excluded outputs "
+        f"whose values move on {r.policyengine_us_version}; all stay excluded."
+    ) in current
+    # The exclusion breakdown.
+    assert (
+        f"{_sentence_number(r.excluded_output_count)} outputs in "
+        f"{r.excluded_output_households_fmt} households are excluded from scoring "
+        "for every model"
+    ) in card
+    assert (
+        f"Of those records, {r.engine_defect_exclusion_count} remain as "
+        "engine-defect exclusions."
+    ) in card
+    if r.engine_defect_unfixed_count:
+        assert (
+            f"{_sentence_number(r.engine_defect_unfixed_count)} rest on the "
+            f"{count_word(r.engine_defect_unfixed_root_cause_count)} root causes "
+            f"policyengine-us {r.policyengine_us_version} does not fix"
+        ) in card
+    else:
+        # policyengine-us 2.41.0 fixes every remaining record's defect; the
+        # card must not still name root causes it does not fix.
+        assert "root causes policyengine-us" not in card
+        assert r.engine_defect_fixed_kept_count == r.engine_defect_exclusion_count
+    if r.engine_defect_fixed_kept_count:
+        assert r.engine_defect_fixed_kept_sentence in card
+    else:
+        # No fixed-but-kept records: the card must not still claim one.
+        assert "at its corrected value; it stays excluded" not in card
+        assert "at their corrected values; they stay excluded" not in card
+    if r.engine_defect_further_defect_count:
+        assert r.engine_defect_further_defect_sentence in card
+    else:
+        # No record kept for a further defect: the card must not still claim
+        # one (release 20261013; 2.41.0 fixes the California one).
+        assert "corrected value, but its reference rests on a further" not in card
+        assert "corrected values, but each reference rests on a further" not in card
+    # The root causes the card names as unfixed are ones the engine still has.
+    unfixed = {
+        cause
+        for entry in r.reference_exclusions
+        if entry["reason_code"] == ENGINE_DEFECT
+        and (entry["scenario_id"], entry["variable"])
+        not in r.engine_defect_fixed_kept_keys
+        for cause in exclusion_basis(entry).split("+")
+    }
+    if r.engine_defect_unfixed_count:
+        named = card[card.index("does not fix (among them") :]
+        named = named[: named.index(").")]
+        listed = [cause for cause, label in ROOT_CAUSE_LABELS.items() if label in named]
+        assert listed and set(listed) <= unfixed, set(listed) - unfixed
+    else:
+        assert "does not fix (among them" not in card
+    assert (
+        f"{_sentence_number(r.unlisted_input_exclusion_count)} depend on an input "
+        "the prompt never states"
+    ) in card
+    assert (
+        f"The other {count_word(r.later_law_exclusion_count)} are Louisiana "
+        "households' state income tax"
+    ) in card
+
+
+@given(st.integers(0, 99))
+def test_a_sentence_number_is_spelled_out(n):
+    word = _sentence_number(n)
+    assert word[0].isupper() and not any(ch.isdigit() for ch in word)
+
+
+def _app_model_labels() -> dict[str, str]:
+    source = (ROOT / "app" / "src" / "modelMeta.ts").read_text()
+    block = source[source.index("export const MODEL_LABELS") :]
+    block = block[: block.index("};")]
+    return dict(re.findall(r'"([^"]+)":\s*"([^"]+)"', block))
+
+
+def test_json_transport_rows_are_attributed_as_their_cards_record():
+    """The card names each JSON-contract row with the reason its model card
+    records: the provider rejects a forced tool call, or the card (or, for the
+    older Gemini rows, the family default) selects JSON. The app copy's
+    assumption holds too: every Claude row on the JSON contract is one whose
+    API rejects forced tool use, and such rows are most JSON rows."""
+    from policybench.model_cards import card_for
+
+    serving = json.loads(SERVING_CONFIG.read_text())["models"]
+    labels = _app_model_labels()
+    rejecting, card_choice, family_default = [], [], []
+    for model, treatment in serving.items():
+        if treatment["answer_contract"] != "json":
+            continue
+        card = card_for(treatment["provider_id"])
+        notes = card.notes if card is not None else ""
+        if re.search(r"reject|returns (?:a )?400", notes, re.IGNORECASE):
+            rejecting.append(model)
+        elif card is not None and card.answer_contract == "json":
+            card_choice.append(model)
+        else:
+            assert treatment["provider_id"].startswith("gemini/"), model
+            family_default.append(model)
+        if model.startswith("claude-"):
+            assert model in rejecting, model
+            assert "The API rejects forced tool use" in notes, model
+    assert len(rejecting) > len(card_choice) + len(family_default)
+    assert "as for the V4 rows" in card_for("deepseek/deepseek-flash").notes
+
+    card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    start = card.index("For most JSON rows the card records that the provider")
+    rejection_sentence = card[start : card.index(". The cards of", start)]
+    choice_sentence = card[card.index("The cards of", start) :]
+    choice_sentence = choice_sentence[: choice_sentence.index("family default.")]
+
+    def names(model: str, sentence: str) -> bool:
+        label = labels.get(model)
+        return bool(label) and re.search(re.escape(label) + r"(?![\w.])", sentence)
+
+    for model in rejecting:
+        assert names(model, rejection_sentence), model
+    for model in card_choice:
+        assert names(model, choice_sentence), model
+    assert family_default and "older Gemini rows" in choice_sentence
+    # Exactly these rows: the sentences name no other board row.
+    assert sorted(m for m in serving if names(m, rejection_sentence)) == sorted(
+        rejecting
+    )
+    assert sorted(m for m in serving if names(m, choice_sentence)) == sorted(
+        card_choice
+    )
+    methodology = re.sub(r"\s+", " ", METHODOLOGY.read_text())
+    assert (
+        "a JSON object where the model card or its family default selects JSON, "
+        "for most such rows because the provider rejects a forced tool call."
+    ) in methodology
+
+    # The sensitivity note attributes the same rows the same way.
+    note = re.sub(r"\s+", " ", SENSITIVITY_NOTE.read_text())
+    start = note.index("For most of them the card records that the provider")
+    note_choice = note[note.index("the cards of", start) :]
+    note_choice = note_choice[: note_choice.index("family default.")]
+    for model in card_choice:
+        assert names(model, note_choice), model
+    assert "older Gemini rows" in note_choice
+    assert sorted(m for m in serving if names(m, note_choice)) == sorted(card_choice)
+
+
+# The benchmark card's cache-replay accounting ("Latency basis"), checked
+# against the frozen predictions; tests/test_latency_replay_audit.py checks the
+# audit's household list itself.
+def test_card_latency_basis_matches_the_frozen_households():
+    """Every count the card states is the frozen data's: the sub-second
+    households, the traced and untraced ones, the per-model replays, and the
+    largest median shift."""
+    from policybench.analysis import REPLAYED_HOUSEHOLD_SECONDS
+
+    text = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
+    latency = r.household_latencies
+    subsecond = latency[latency < REPLAYED_HOUSEHOLD_SECONDS]
+    audit = r.latency_replay_audit
+    full = audit[audit["replay"] == "full"].groupby("model").size()
+    partial = audit[audit["replay"] == "partial"].groupby("model").size()
+
+    assert "a household's latency is the sum over its rows" in text
+    assert f"{len(subsecond)} households sum to under a second" in text
+    assert f"traces {int(full.sum())} of them" in text
+    assert f"Another {int(partial.sum())} households replay their first" in text
+    untraced = audit[audit["replay"] == "untraced"]
+    assert sorted(zip(untraced["model"], untraced["scenario_id"])) == [
+        ("claude-haiku-4.5", "scenario_009"),
+        ("grok-4.3", "scenario_000"),
+    ]
+    assert "(Grok 4.3's scenario_000 and Claude Haiku 4.5's scenario_009)" in text
+    for model, label in (
+        ("qwen-3.7-max", "Qwen3.7-max"),
+        ("glm-5.2", "GLM-5.2"),
+        ("kimi-k2.6", "Kimi K2.6"),
+        ("minimax-m3", "MiniMax M3"),
+        ("claude-sonnet-5", "Claude Sonnet 5"),
+        ("muse-spark-1.3", "Muse Spark 1.3"),
+    ):
+        assert f"{label} ({int(full[model])}" in text, model
+    for model in ("muse-wonder", "claude-opus-5.5", "claude-haiku-5.5"):
+        assert int(full[model]) == 2, model
+    for model in ("deepseek-v4-pro", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra"):
+        assert int(full[model]) == 2, model
+    for model, label in (
+        ("glm-5.3", "GLM-5.3"),
+        ("ox-alpha", "GLM-5.3-Flash (preview)"),
+    ):
+        assert f"{label} ({int(partial[model])})" in text, model
+    assert (
+        f"no published median by more than {r.subsecond_median_shift_fmt} seconds"
+        in text
+    )
+    published = {row["model"]: row.get("latencySeconds") for row in r.model_stats}
+    replayed = [published[m] for m in r.replayed_latency_models]
+    assert f"{min(replayed):.3f} to {max(replayed):.3f} seconds" in text

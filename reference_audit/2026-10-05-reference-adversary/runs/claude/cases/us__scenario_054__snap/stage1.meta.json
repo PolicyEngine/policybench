@@ -1,0 +1,79 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.4133139999999997,
+  "duration_ms": 226679,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:30:54.586977+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "3735ca7353c9699e9405b686e4b3e821d34438bfd4ce3c56a110518114618ce5",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "dc5df8100d0e19b9bdc7f7acb21b33a758db99b1332dfbff57c312d2b746653c",
+  "session_id": "a0d5a14c-7140-41fc-9c30-111b2137f2bd",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy27",
+      "https://fns-prod.azureedge.us/sites/default/files/resource-files/snap-fy26-cola-memo.pdf",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://benefitguide.net/guides/snap-changes-october-1-2026/",
+      "https://policies.ncdhhs.gov/wp-content/uploads/FNS-220-Categorical-Eligibility-10.2024.pdf",
+      "https://policies.ncdhhs.gov/document/fns-220-categorical-eligibility/",
+      "https://policies.ncdhhs.gov/wp-content/uploads/fss200.pdf",
+      "https://health.alaska.gov/media/4nunu3ob/fy2026-cola-memo.pdf",
+      "https://www.fna.usda.gov/snap/allotment/COLA",
+      "https://fns-prod.azureedge.us/sites/default/files/resource-files/snap-fy26maximumAllotments-deductions.pdf",
+      "https://basicneeds.ucmerced.edu/sites/g/files/ufvvjh411/f/documents/CalFreshFiles/ffy_2026_cola_acin_i-46_25.pdf",
+      "https://ncdhhs.gov/dss-8560eng-caseworker-desk-reference-12312025/download?attachment=",
+      "https://policies.ncdhhs.gov/wp-content/uploads/FNS-360-Determining-Benefit-Levels_09.30.2025.pdf",
+      "https://policies.ncdhhs.gov/wp-content/uploads/FNS-CN-01-2025.pdf",
+      "https://ncdhhs.gov/efs-fnsep-21-2025/download?attachment=",
+      "https://www.congress.gov/crs_external_products/R/HTML/R42505.html",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.ncdhhs.gov/income-limits-english/open"
+    ],
+    "searches": [
+      "SNAP FY 2026 cost-of-living adjustments maximum allotment household of 3 $785 standard deduction $209",
+      "\"FY 2026\" SNAP COLA memo maximum allotments standard deduction \"785\" \"209\"",
+      "North Carolina Food and Nutrition Services manual self-employment income cost of doing business deduction FNS 260",
+      "North Carolina Food and Nutrition Services expanded categorical eligibility 200% no resource limit FNS manual",
+      "North Carolina FNS October 1, 2025 maximum allotment standard deduction $209 change notice ncdhhs",
+      "North Carolina FNS expanded categorically eligible \"200%\" gross income \"resource\" Food and Nutrition Services ncdhhs categorical eligibility TANF funded services",
+      "SNAP fiscal year 2026 maximum monthly allotment household size 3 \"$785\" October 1, 2025 through September 30, 2026",
+      "North Carolina Food and Nutrition Services self-employment income \"cost of doing business\" standard deduction percent FNS 315 OR FNS 300",
+      "SNAP FY 2027 cost-of-living adjustment maximum allotment household of 3 standard deduction effective October 1, 2026"
+    ]
+  }
+}

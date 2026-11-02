@@ -1,0 +1,53 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7297.8(A)(2) and (B); history note (Acts 2007 No. 278; Acts 2018 2nd Ex. Sess. No. 6; Acts 2021 No. 453)",
+      "pre_freeze": true,
+      "published": "2021-06-23",
+      "quote": "For tax years beginning on or after January 1, 2019, through December 31, 2030 ... five percent of the federal earned income tax credit ... such excess tax credit shall constitute an overpayment",
+      "source": "Louisiana Revised Statutes 47:297.8, Earned income tax credit",
+      "url": "https://www.legis.la.gov/legis/Law.aspx?d=453085"
+    },
+    {
+      "pinpoint": "Section 4.06, Earned Income Credit table, No Qualifying Children column",
+      "pre_freeze": true,
+      "published": "2025-11-03",
+      "quote": "Earned Income Amount $8,680 ... Maximum Amount of Credit $664 ... Threshold Phaseout Amount (Married Filing Jointly) $18,140",
+      "source": "IRS Rev. Proc. 2025-32 (Internal Revenue Bulletin 2025-45)",
+      "url": "https://www.irs.gov/irb/2025-45_IRB"
+    },
+    {
+      "pinpoint": "\u00a732(c)(1)(A)(ii)(II)",
+      "pre_freeze": true,
+      "published": "current code (as amended through 2025)",
+      "quote": "such individual (or, if the individual is married, either the individual or the individual's spouse) has attained age 25 but not attained age 65 before the close of the taxable year",
+      "source": "26 U.S.C. \u00a7 32",
+      "url": "https://www.law.cornell.edu/uscode/text/26/32"
+    },
+    {
+      "pinpoint": "Bill history / status",
+      "pre_freeze": true,
+      "published": "2025-04-14",
+      "quote": "Pending Senate Revenue and Fiscal Affairs",
+      "source": "Louisiana Legislature, SB 149 (2025 Regular Session) bill status",
+      "url": "https://legis.la.gov/legis/BillInfo.aspx?s=25RS&b=SB149&sbi=y"
+    },
+    {
+      "pinpoint": "Bill history / status",
+      "pre_freeze": true,
+      "published": "2025-04-23",
+      "quote": "Pending House Ways and Means",
+      "source": "Louisiana Legislature, HB 642 (2025 Regular Session) bill status",
+      "url": "https://legis.la.gov/legis/BillInfo.aspx?s=25RS&b=HB642&sbi=y"
+    }
+  ],
+  "confidence": "high",
+  "consensus_value": 0,
+  "engine_step_at_issue": "",
+  "independent_answer": 33.2,
+  "reference_value": 33.2,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "The $33.20 reference is correct: it is Louisiana's refundable earned income credit, 5% of the federal EITC. Under IRC \u00a732, the joint return qualifies for the no-qualifying-children EITC because the 43-year-old head meets the 25\u201364 age test, which either spouse can satisfy. Earned income from self-employment (about $9,665) is above the 2026 earned income amount of $8,680, and AGI is below the $18,140 joint phase-out threshold, so the federal EITC is the $664 maximum. R.S. 47:297.8 sets the Louisiana credit at 5% for 2019\u20132030 and refunds any excess over tax, giving $33.20. The engine's derivation matches this, as does stage 1. The 2025 bills to repeal the credit (SB 149, HB 642) or raise it to 10% (HB 133) all stayed in committee, and the statute's history still ends with Acts 2021, No. 453. The 25 models that answered $0 wrongly thought Louisiana has no refundable EITC, no income tax, or that the 20-year-old spouse disqualifies the couple.",
+  "verdict": "reference_holds"
+}

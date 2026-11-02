@@ -1,0 +1,156 @@
+{
+ "people": {
+  "head": {
+   "age": {
+    "2026": 61
+   },
+   "employment_income": {
+    "2026": 0.0
+   },
+   "employer_sponsored_insurance_premiums": {
+    "2026": 21207.525390625
+   },
+   "has_esi": {
+    "2026": true
+   },
+   "health_insurance_premiums_without_medicare_part_b": {
+    "2026": 6500.0
+   },
+   "hours_worked_last_week": {
+    "2026": 40.0
+   },
+   "is_tax_unit_head": {
+    "2026": true
+   },
+   "is_tax_unit_spouse": {
+    "2026": false
+   },
+   "other_health_insurance_premiums": {
+    "2026": 6500.0
+   },
+   "other_medical_expenses": {
+    "2026": 800.0
+   },
+   "over_the_counter_health_expenses": {
+    "2026": 50.0
+   },
+   "weekly_hours_worked_before_lsr": {
+    "2026": 40.0
+   },
+   "takes_up_medicaid_if_eligible": {
+    "2026": true
+   },
+   "takes_up_ssi_if_eligible": {
+    "2026": true
+   }
+  },
+  "spouse": {
+   "age": {
+    "2026": 57
+   },
+   "employment_income": {
+    "2026": 62725.29296875
+   },
+   "bank_account_assets": {
+    "2026": 54394.1171875
+   },
+   "has_esi": {
+    "2026": true
+   },
+   "hourly_wage": {
+    "2026": 19.450000762939453
+   },
+   "hours_worked_last_week": {
+    "2026": 40.0
+   },
+   "is_paid_hourly": {
+    "2026": true
+   },
+   "is_tax_unit_head": {
+    "2026": false
+   },
+   "is_tax_unit_spouse": {
+    "2026": true
+   },
+   "taxable_private_pension_income": {
+    "2026": 32200.0
+   },
+   "weekly_hours_worked_before_lsr": {
+    "2026": 40.0
+   },
+   "takes_up_medicaid_if_eligible": {
+    "2026": true
+   },
+   "takes_up_ssi_if_eligible": {
+    "2026": true
+   }
+  }
+ },
+ "marital_units": {
+  "marital_unit_1": {
+   "members": [
+    "head",
+    "spouse"
+   ]
+  }
+ },
+ "tax_units": {
+  "tax_unit": {
+   "members": [
+    "head",
+    "spouse"
+   ],
+   "first_home_mortgage_balance": {
+    "2026": 366000.0
+   },
+   "takes_up_aca_if_eligible": {
+    "2026": true
+   },
+   "takes_up_dc_ptc": {
+    "2026": true
+   },
+   "takes_up_eitc": {
+    "2026": true
+   },
+   "would_file_if_eligible_for_refundable_credit": {
+    "2026": true
+   },
+   "would_file_taxes_voluntarily": {
+    "2026": true
+   }
+  }
+ },
+ "spm_units": {
+  "spm_unit": {
+   "members": [
+    "head",
+    "spouse"
+   ],
+   "takes_up_snap_if_eligible": {
+    "2026": true
+   }
+  }
+ },
+ "families": {
+  "family": {
+   "members": [
+    "head",
+    "spouse"
+   ]
+  }
+ },
+ "households": {
+  "household": {
+   "members": [
+    "head",
+    "spouse"
+   ],
+   "state_code": {
+    "2026": "OH"
+   },
+   "household_vehicles_value": {
+    "2026": 9510.0
+   }
+  }
+ }
+}
