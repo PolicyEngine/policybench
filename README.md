@@ -118,7 +118,7 @@ The short version is: generate fixed reference-output manifests first, run
 Claude models serially, run non-Claude models in parallel, then do a final merge
 and export pass.
 
-Run these commands from a clone of the repository after `uv sync`, as the
+Run these commands with `uv run` from a clone of the repository, as the
 runbook does. They write under `results/local/`, `analyze` also writes the
 dashboard payload to `app/src/data.json`, and some commands read committed files
 such as `paper/snapshot/`, which `uv tool install` leaves out.

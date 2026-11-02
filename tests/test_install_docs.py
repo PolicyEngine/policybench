@@ -13,7 +13,6 @@ PolicyBench is ever published to PyPI, delete this module with the README's
 """
 
 import html
-import itertools
 import json
 import re
 import shlex
@@ -45,8 +44,9 @@ SURFACES = (
 
 # Each installer and what its positional arguments are.
 #   requirements: each positional is a requirement (pip install).
-#   tool install: the positional is a requirement unless --from, anywhere in
-#     the arguments, names the source; then it names only the tool.
+#   tool install: the positional is a requirement unless --from names the
+#     source before a second positional ends the command; then the positional
+#     names only the tool.
 #   tool: the first positional names the tool's package, unless --from or
 #     --spec names it, and later tokens are the tool's own arguments (uvx).
 #   command: positionals are a command to run; only --with adds a package.
@@ -161,10 +161,7 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
     install puts policybench on your PATH" names no requirement.
     """
     names = []
-    command = itertools.takewhile(lambda token: token not in SHELL_OPERATORS, tokens)
-    named_tool = role == "tool install" and any(
-        token.partition("=")[0] in TOOL_OPTIONS for token in command
-    )
+    named_tool = role == "tool install" and _tool_install_names_source(tokens)
     i = 0
     while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
         token = tokens[i].strip("\u201c\u201d\u2018\u2019")  # curly quotes in prose
@@ -192,6 +189,31 @@ def _scan(tokens: list[str], role: str, every_positional: bool) -> list[str]:
                 break
         i += 1
     return names
+
+
+def _tool_install_names_source(tokens: list[str]) -> bool:
+    """Whether a ``uv tool install`` command passes --from.
+
+    The command takes one package, so a second positional ends it: in prose, or
+    in a ``<code>`` span joined across lines, later words belong to something
+    else, such as a following ``uvx --from`` command.
+    """
+    positionals = 0
+    i = 0
+    while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
+        token = tokens[i].strip("\u201c\u201d\u2018\u2019")
+        flag, has_value, _ = token.partition("=")
+        if flag in TOOL_OPTIONS:
+            return True
+        if token.startswith("-"):
+            if not has_value and (flag in VALUE_OPTIONS or flag in REQUIREMENT_OPTIONS):
+                i += 1
+        else:
+            positionals += 1
+            if positionals > 1:
+                return False
+        i += 1
+    return False
 
 
 def _installs(snippet: str, every_positional: bool) -> list[str]:
@@ -268,6 +290,8 @@ def surface_installs(path: Path) -> list[str]:
         "uv pip install --system PolicyBench==2.0.0",
         "uv tool install --python 3.12 policybench",
         "uv tool install --from policybench policybench",
+        f"PolicyBench is not on PyPI, so uv tool install policybench fails. Use "
+        f"uvx --from git+{REPO_URL} policybench.",
         "uv add policybench",
         "pipx install policybench",
         "conda install -c conda-forge policybench",
