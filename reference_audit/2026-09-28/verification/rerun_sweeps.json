@@ -170,7 +170,7 @@
       "september_22_root_cause": "r15_snap_mortgage_interest",
       "baseline": "latest_conventions",
       "csv_sha256": "3dea0be87a30b52d8e693fe8bf45fd2339979ec2f340ac342ee7f416eb7114ac",
-      "module_sha256": "00cd13886a8c3d03c4e84944d35f7e8a1448af26838e8bc0761b914b887c70cd",
+      "module_sha256": "5e701f8fa1b31bfeed882a0bc5160faa4ee1d2b5a67974f9d9dc60e6f6638053",
       "outputs": 1984,
       "moves": [
         {

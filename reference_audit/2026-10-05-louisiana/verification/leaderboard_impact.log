@@ -1,0 +1,262 @@
+{
+  "outputs": [
+    "scenario_051/state_income_tax_before_refundable_credits",
+    "scenario_077/state_income_tax_before_refundable_credits"
+  ],
+  "reference_values": {
+    "keep": {
+      "scenario_051/state_income_tax_before_refundable_credits": 820.3499755859375,
+      "scenario_077/state_income_tax_before_refundable_credits": 305.13525390625
+    },
+    "ldr_published": {
+      "scenario_051/state_income_tax_before_refundable_credits": 819.1499633789062,
+      "scenario_077/state_income_tax_before_refundable_credits": 303.9352722167969
+    },
+    "ldr_official": {
+      "scenario_051/state_income_tax_before_refundable_credits": 820.260009765625,
+      "scenario_077/state_income_tax_before_refundable_credits": 305.0452575683594
+    },
+    "hold_2025": {
+      "scenario_051/state_income_tax_before_refundable_credits": 830.3999633789062,
+      "scenario_077/state_income_tax_before_refundable_credits": 315.1852722167969
+    },
+    "exclude": null
+  },
+  "published_reproduced": true,
+  "options": {
+    "keep": {
+      "scored_outputs": 1928,
+      "exact_models": {
+        "scenario_051/state_income_tax_before_refundable_credits": [],
+        "scenario_077/state_income_tax_before_refundable_credits": []
+      },
+      "exact_delta_pp": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "score_delta": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "exact_rank_changes": {},
+      "score_rank_changes": {},
+      "top5_exact": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "gpt-6-luna",
+        "claude-sonnet-5.5"
+      ],
+      "top5_score": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-6-luna",
+        "claude-sonnet-5.5",
+        "gpt-6-astra"
+      ]
+    },
+    "ldr_published": {
+      "scored_outputs": 1928,
+      "exact_models": {
+        "scenario_051/state_income_tax_before_refundable_credits": [],
+        "scenario_077/state_income_tax_before_refundable_credits": [
+          "gpt-6-astra"
+        ]
+      },
+      "exact_delta_pp": {
+        "min": 0.0,
+        "max": 0.06272079169582412
+      },
+      "score_delta": {
+        "min": -0.0005167707332418559,
+        "max": 0.00028133168919453055
+      },
+      "exact_rank_changes": {},
+      "score_rank_changes": {},
+      "top5_exact": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "gpt-6-luna",
+        "claude-sonnet-5.5"
+      ],
+      "top5_score": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-6-luna",
+        "claude-sonnet-5.5",
+        "gpt-6-astra"
+      ]
+    },
+    "ldr_official": {
+      "scored_outputs": 1928,
+      "exact_models": {
+        "scenario_051/state_income_tax_before_refundable_credits": [],
+        "scenario_077/state_income_tax_before_refundable_credits": []
+      },
+      "exact_delta_pp": {
+        "min": 0.0,
+        "max": 0.0
+      },
+      "score_delta": {
+        "min": -3.863225583700114e-05,
+        "max": 2.1031813147942557e-05
+      },
+      "exact_rank_changes": {},
+      "score_rank_changes": {},
+      "top5_exact": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "gpt-6-luna",
+        "claude-sonnet-5.5"
+      ],
+      "top5_score": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-6-luna",
+        "claude-sonnet-5.5",
+        "gpt-6-astra"
+      ]
+    },
+    "hold_2025": {
+      "scored_outputs": 1928,
+      "exact_models": {
+        "scenario_051/state_income_tax_before_refundable_credits": [
+          "claude-fable-5.1",
+          "claude-opus-4.7",
+          "claude-opus-5.5",
+          "claude-sonnet-5.5",
+          "deepseek-v4-pro-0813",
+          "deepseek-v4.1-flash",
+          "glm-5.2",
+          "glm-5.3",
+          "gpt-5.5",
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-6-astra",
+          "gpt-6-luna",
+          "gpt-6-sol",
+          "gpt-6.1-sol",
+          "grok-4.6",
+          "grok-4.7",
+          "inkling",
+          "kimi-k3",
+          "ox-alpha"
+        ],
+        "scenario_077/state_income_tax_before_refundable_credits": [
+          "claude-fable-5.1",
+          "claude-opus-4.7",
+          "claude-opus-4.8",
+          "claude-opus-5.5",
+          "claude-sonnet-5.5",
+          "deepseek-v4-pro",
+          "deepseek-v4.1-flash",
+          "gemini-3.6-flash",
+          "glm-5.2",
+          "gpt-5.5",
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-6-luna",
+          "gpt-6-sol",
+          "gpt-6.1-sol",
+          "grok-4.6",
+          "grok-4.7",
+          "inkling",
+          "kimi-k3"
+        ]
+      },
+      "exact_delta_pp": {
+        "min": 0.0,
+        "max": 0.12544158339163403
+      },
+      "score_delta": {
+        "min": -0.002283981102237931,
+        "max": 0.004194709549594222
+      },
+      "exact_rank_changes": {
+        "gemini-3.7-flash": {
+          "published": 24,
+          "option": 25
+        },
+        "gemini-3.6-flash": {
+          "published": 25,
+          "option": 24
+        }
+      },
+      "score_rank_changes": {},
+      "top5_exact": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "gpt-6-luna",
+        "claude-sonnet-5.5"
+      ],
+      "top5_score": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-6-luna",
+        "claude-sonnet-5.5",
+        "gpt-6-astra"
+      ]
+    },
+    "exclude": {
+      "scored_outputs": 1926,
+      "exact_models": {
+        "scenario_051/state_income_tax_before_refundable_credits": [],
+        "scenario_077/state_income_tax_before_refundable_credits": []
+      },
+      "exact_delta_pp": {
+        "min": 0.04663680912904056,
+        "max": 0.12544158339163403
+      },
+      "score_delta": {
+        "min": -0.026480417381307575,
+        "max": 0.09867438210626744
+      },
+      "exact_rank_changes": {
+        "gemini-3.7-flash": {
+          "published": 24,
+          "option": 25
+        },
+        "gemini-3.6-flash": {
+          "published": 25,
+          "option": 24
+        }
+      },
+      "score_rank_changes": {
+        "ox-alpha": {
+          "published": 17,
+          "option": 16
+        },
+        "grok-4.6": {
+          "published": 16,
+          "option": 17
+        },
+        "grok-4.3": {
+          "published": 36,
+          "option": 35
+        },
+        "gemini-3.1-flash-lite-preview": {
+          "published": 35,
+          "option": 36
+        }
+      },
+      "top5_exact": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-5.6-sol",
+        "gpt-6-luna",
+        "claude-sonnet-5.5"
+      ],
+      "top5_score": [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        "gpt-6-luna",
+        "claude-sonnet-5.5",
+        "gpt-6-astra"
+      ]
+    }
+  }
+}

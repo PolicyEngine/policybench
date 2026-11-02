@@ -1,0 +1,82 @@
+{
+  "blinding": "tools",
+  "cost_usd": 3.5291850000000005,
+  "duration_ms": 863811,
+  "judge_account_declared": "max@farness.ai",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T21:37:45.742060+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "3a05b091251233dc4c6e1fbe5b41339d7d08a21034906c61e544512aa7316cfa",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "5de51bc8d8ecacab66337d3f350174ea63d6196ef5e57fcfb67b43097f2f0734",
+  "session_id": "90f3ede8-bceb-4317-8a12-a89c4b2ee8f9",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.ecfr.gov/current/title-7/subtitle-B/chapter-II/subchapter-C/part-273/subpart-D/section-273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.10",
+      "https://www.law.cornell.edu/cfr/text/7/273.9",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households",
+      "https://www.hhs.texas.gov/handbooks/texas-works-handbook/a-1340-income-limits",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/b-470-categorically-eligible-households",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1340-income-limits",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-1430-snap-allotment-charts",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/c-120-supplemental-nutrition-assistance-program",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/a-1320-types-income",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.congress.gov/crs_external_products/R/PDF/R42054/R42054.48.pdf",
+      "https://sgp.fas.org/crs/misc/R42054.pdf",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fns.snap-cola-fy26memo.pdf",
+      "https://ballotpedia.s3.amazonaws.com/images/c/c4/Snap-cola-fy26memo-Aug13-2025-2.pdf",
+      "https://www.fns.usda.gov/snap/recipient/eligibility",
+      "https://www.publicnow.com/view/FCC4C4B63E9116B346D946AAFFBBFAF9C0245CA3",
+      "https://fhb.hhs.texas.gov/handbooks/texas-works-handbook/25-4-october-quarterly-revision",
+      "https://www.fns.usda.gov/snap/allotment/COLA",
+      "https://www.hhs.texas.gov/sites/default/files/documents/mepd-and-twh-bulletin-25-24.pdf",
+      "https://www.hhs.texas.gov/sites/default/files/documents/mepd-and-tw-bulletin-25-15.pdf",
+      "https://frac.org/wp-content/uploads/frac-fats-new-snap-allotments-income-eligibility-standards-deductions.pdf",
+      "https://www.law.cornell.edu/uscode/text/7/2017",
+      "https://dhs.maryland.gov/documents/FIA/Action%20Transmittals-AT%20-%20Information%20Memo-IM/AT-IM2026/26-05%20AT%20SNAP%20Mass%20Changes%20for%20October%202025.pdf",
+      "https://pamms.dhs.ga.gov/dfcs/snap/appendix-a-food-stamp-income-limits/",
+      "https://pamms.dhs.ga.gov/dfcs/snap/appendix-a-food-stamp-income-limits/"
+    ],
+    "searches": [
+      "7 CFR 273.10(e)(2)(iii) minimum benefit one-person two-person categorically eligible net income exceeds",
+      "Texas Works Handbook categorical eligibility SNAP 165 percent federal poverty level gross income",
+      "Texas Works Handbook SNAP minimum allotment one- and two-person households $24 categorically eligible net income",
+      "Texas Works Handbook A-1326 types of income educational assistance SNAP exempt",
+      "FNS SNAP fiscal year 2026 cost-of-living adjustments maximum allotment $298 minimum benefit $24 standard deduction $209",
+      "\"SNAP\" \"FY 2026\" cost-of-living adjustment memo minimum allotment $24 48 states",
+      "Texas Works bulletin October 1, 2025 SNAP maximum allotment $298 standard deduction $209 minimum $24",
+      "\"MEPD and TW Bulletin 25-15\" SNAP income limits deductions allotments"
+    ]
+  }
+}

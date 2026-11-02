@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "\u00a7 7302(a) (tax years beginning on or after Jan. 1, 2024; Act 64 of 2023)",
+      "pre_freeze": true,
+      "published": "2023-12-14",
+      "quote": "a tax upon each dollar of income received by that resident during that resident's taxable year at the rate of three and seven hundredths per cent.",
+      "source": "Pennsylvania Tax Reform Code of 1971, Section 302(a), 72 P.S. \u00a7 7302(a)",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7302/"
+    },
+    {
+      "pinpoint": "Dependent children",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "The dependent child with taxable income in excess of $33 must file a PA-40 Individual Income Tax Return and a PA-40 Schedule SP.",
+      "source": "Pennsylvania Department of Revenue, PA Personal Income Tax Guide \u2013 Tax Forgiveness",
+      "url": "https://www.pa.gov/agencies/revenue/forms-and-publications/pa-personal-income-tax-guide/tax-forgiveness"
+    },
+    {
+      "pinpoint": "\u00a7 7331 (joint returns of husband and wife)",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "If the income tax liabilities of husband and wife are determined on a joint return, their tax liabilities shall be joint and several.",
+      "source": "Pennsylvania Tax Reform Code of 1971, 72 P.S. \u00a7 7331",
+      "url": "https://codes.findlaw.com/pa/title-72-ps-taxation-and-fiscal-affairs/pa-st-sect-72-7331/"
+    },
+    {
+      "pinpoint": "Who must file / minors",
+      "pre_freeze": true,
+      "published": "2024",
+      "quote": "PA law does not exempt a minor from the requirements to file a PA tax return even if claimed as a dependent on a federal return.",
+      "source": "Pennsylvania Department of Revenue, 2024 Pennsylvania Personal Income Tax Return Instructions (PA-40 IN)",
+      "url": "https://www.pa.gov/content/dam/copapwp-pagov/en/revenue/documents/formsandpublications/formsforindividuals/pit/documents/2024/2024_pa-40in.pdf"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 4451.56,
+  "engine_step_at_issue": "The engine starts from the tax unit's IRS gross income of $100,002 (head and spouse only) to get pa_total_taxable_income. It drops the dependent child's $45,000 of wages and models no separate PA-40 for the child, so the child's $1,381.50 of PA tax is missing from state_income_tax_before_refundable_credits.",
+  "independent_answer": 4451.56,
+  "reference_value": 3070.06,
+  "stage1_error": "",
+  "suggested_adjudication": "definition_exclusion",
+  "summary": "Pennsylvania taxes each dollar of income at a flat 3.07%, with no deductions or exemptions. The parents' joint PA-40 covers $100,002 of income, for $3,070.06 of tax. The 16-year-old has $45,000 of wages and must file a separate PA-40, owing $1,381.50. Tax forgiveness is $0 at these incomes, so the household owes $4,451.56 in total. The engine's $3,070.06 is correct for the parents' return, but it treats the child only as a dependent and never computes the child's own required return. The output definition does not limit itself to one return, and the prompt says to assume filing where required, so the engine leaves out a return the definition covers. The output should be excluded, or recomputed to include the child's return.",
+  "verdict": "definition_mismatch"
+}

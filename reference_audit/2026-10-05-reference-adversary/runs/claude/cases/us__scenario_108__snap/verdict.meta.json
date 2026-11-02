@@ -1,0 +1,57 @@
+{
+  "blinding": "tools",
+  "cost_usd": 0.32826039999999995,
+  "duration_ms": 71376,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:52:34.767944+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "71477ed3853eeac54a8934f9a86ce1ec8d3a66e577a96a56560b20d4e7c7bb31",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "1e466bbbfad45711f42c5b245d40830c4433ea1a9579d0ef20ad47879409847a",
+  "session_id": "fce29213-5265-4d28-87bc-b678d8a91f2d",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "0cdda79e68a4f69a7be79eea209fc5908594ab2631e2903c88bb439606195164",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.emhandbooks.wisconsin.gov/fsh/policy_files/8/81/8.1.1.htm",
+      "https://www.emhandbooks.wisconsin.gov/fsh/policy_files/4/42/4.2.1.htm",
+      "https://www.usda.gov/sites/default/files/guidance-documents/fna.snap-cola2027.pdf",
+      "https://www.fns.usda.gov/snap/allotment/cola/fy26",
+      "https://www.law.cornell.edu/cfr/text/7/273.10"
+    ],
+    "searches": [
+      "USDA SNAP FY 2027 cost-of-living adjustment minimum benefit $25 memo August 2026",
+      "SNAP Fiscal Year 2026 cost-of-living adjustments minimum benefit $24 maximum allotment $298 fns.usda.gov"
+    ]
+  }
+}

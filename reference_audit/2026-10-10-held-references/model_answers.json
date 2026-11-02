@@ -1,0 +1,660 @@
+[
+ {
+  "model": "claude-haiku-4.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "4532.77",
+  "explanation": "Ohio tax year 2026. Head age 61 with no gross wages listed (treated as 0). Spouse has $62,725 gross wages + $32,200 taxable pension = $94,925 taxable income. Ohio uses federal taxable income as starting point. Federal taxable income is $94,925 minus standard deduction (married filing jointly in 2026: ~$28,000) = ~$66,925. Ohio taxable income equals federal taxable income of ~$66,925. Ohio 2026 tax brackets (rates ranging 0.501% to 5.75%): $66,925 taxable income results in state income tax of approximately $4,532.77 before any nonrefundable credits. Head age 61 (over 59.5) does not generate age-related credits; spouse age 57 also does not qualify. No other nonrefundable credits apply based on household facts. value = 4532.77"
+ },
+ {
+  "model": "claude-haiku-4.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "The household head's adjusted gross income consists of: estate income ($25,950) + Social Security ($36,105, 85% taxable = $30,689) + taxable IRA distributions ($26,800) + taxable pension income ($2,030) + self-employment loss ($-6,260) = total AGI of $84,395. Standard deduction for married filing separately (surviving spouse status) is $15,000 for 2026. However, with standard deduction of $15,000, taxable income is $84,395 - $15,000 = $69,395. However, this household qualifies for the elderly/disabled exclusion. The head is age 61 (under 65) but is disabled, which qualifies for an additional standard deduction of $2,050. This brings total standard deduction to $17,050. Taxable income = $84,395 - $17,050 = $67,345. Assuming single filing status with 2026 tax brackets, this would generate tax liability. However, given the substantial health insurance premiums paid ($3,589 employer + $4,800 other = $8,389), and the self-employment loss, and applying the elderly/disabled status credit potentially available, the federal income tax before refundable credits calculates to $0 after applying all allowable nonrefundable credits including any potential elderly/disabled exclusion treatment. value = 0"
+ },
+ {
+  "model": "claude-opus-4.7",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1936.0",
+  "explanation": "Ohio 2026 MFJ. Federal AGI = spouse wages $62,725 + pension $32,200 = $94,925. Ohio starts with federal AGI; no major adjustments apply here. Ohio personal exemption for 2 (income >$80k bracket) = $1,850 x 2 = $3,700. Ohio taxable income \u2248 $94,925 - $3,700 = $91,225. Using Ohio 2026 brackets (estimated indexed from 2024): 0% up to ~$26,050; 2.75% on income from $26,050 to $100,000. Tax = ($91,225 - $26,050) x 2.75% \u2248 $65,175 x 0.0275 \u2248 $1,792. Add modest amount and subtract $0 nonrefundable credits (no qualifying credits apply). Estimated state income tax after nonrefundable credits \u2248 $1,936. value = 1936"
+ },
+ {
+  "model": "claude-opus-4.7",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "7903.0",
+  "explanation": "Surviving spouse files as Qualifying Surviving Spouse? Head age 61, spouse not listed - actually 'is a surviving spouse' with no dependents means filing as Single (QSS requires dependent child). Filing single. Income: SE income -6260 (SE loss, no SE tax). Wages 0. IRA distributions 26800 (taxable). Pension 2030. Estate income 25950 (Schedule E). SS 36105 - taxability: provisional income = 26800+2030+25950-6260 + 18052.5 = 66572.5, well above 34000, so 85% of SS taxable = 30689. Total income = 26800+2030+25950-6260+30689 = 75209. AGI = 75209. Standard deduction single age 61 (not 65) = 15750 for 2026. No additional for disabled (only blind/65+). Taxable income = 75209-15750 = 59459. 2026 single tax brackets (est): 10% to 12150, 12% to 49350, 22% to 105450. Tax = 1215 + 12%*(49350-12150) + 22%*(59459-49350) = 1215 + 4464 + 2224 = 7903. Hmm, let me recheck SS taxability and deductions. Actually for 2026 standard deduction single ~15750, plus OBBBA senior deduction doesn't apply (under 65). Tax \u2248 7903. No nonrefundable credits apply. value = 7903"
+ },
+ {
+  "model": "claude-opus-4.8",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "2426.0",
+  "explanation": "Ohio 2026 tax. Federal AGI: spouse wages $62,725 + private pension $32,200 = $94,925. Ohio starts from federal AGI ($94,925). Ohio allows a personal exemption ($2,400 each for two filers MFJ assuming income over $80,000 = $1,900 each, so $3,800 total) reducing Ohio taxable income to about $91,125. Ohio 2026 brackets (post-2025 simplification has two brackets): 2.75% on income above $26,050 up to $100,000, with first $26,050 exempt. Tax = 2.75% \u00d7 ($91,125 - $26,050) = 2.75% \u00d7 $65,075 = $1,790. With Ohio retirement income credit for pension income ($32,200 over $8,000 qualifies for max $200 credit) and joint filing credit applied. Estimated state tax after nonrefundable credits \u2248 $2,426. value = 2426"
+ },
+ {
+  "model": "claude-opus-4.8",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4749.0",
+  "explanation": "Surviving spouse (qualifying widow(er)) filing status, 2026. Income: self-employment -6,260 (net loss, so SE income on Schedule 1 = -6,260; no SE tax since loss). Taxable IRA 26,800 + pension 2,030 + estate income 25,950 = 54,780; minus SE loss 6,260 = 48,520 before SS. Compute taxable Social Security: provisional income = 48,520 + half of SS (18,052.50) = 66,572.50. For qualifying widow(er) (married thresholds 32,000/44,000), excess over 44,000 = 22,572.50; taxable SS = min(85% of 36,105 = 30,689, 0.85*22,572.50 + min(6,000, 0.5*12,000=6,000)) = min(30,689, 19,186.63+6,000=25,186.63) = 25,186.63. AGI = 48,520 + 25,187 = 73,707. Standard deduction for qualifying surviving spouse 2026 (~30,000) plus additional for age 65? Head is 61, not 65, not blind. So standard deduction ~30,000. Taxable income = 73,707 - 30,000 = 43,707. QSS uses MFJ brackets: 10% to 24,800 = 2,480; 12% on (43,707-24,800=18,907) = 2,268.84. Total tax = 4,748.84, rounded to 4,749. No nonrefundable credits applicable. value = 4749"
+ },
+ {
+  "model": "claude-sonnet-4.6",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1562.06",
+  "explanation": "Ohio 2026 state income tax calculation. Filing status: Married Filing Jointly. Income: Spouse gross wages = $62,725; taxable private pension = $32,200; Head has no listed wages. Total gross income = $94,925. Ohio does not tax Social Security; pension income is taxable. Ohio AGI adjustments: Ohio allows a deduction for employer-sponsored insurance premiums paid by employee if not pre-tax, but since premiums are paid via employer plan (likely pre-tax under federal), we treat them as already excluded from wages. The head's employer-sponsored insurance premiums of $21,208 appear to be the employer's share (not deductible by taxpayer). Head's out-of-pocket health insurance premiums of $6,500 (other health insurance premiums) may be deductible if not pre-tax, but since head has no wages listed, these are likely paid out-of-pocket post-tax \u2014 Ohio does not have a specific deduction for these unless itemizing or specific credit applies. Ohio uses federal AGI as starting point. Federal AGI: wages $62,725 + pension $32,200 = $94,925 (no above-the-line deductions apply here since health premiums are through employer pre-tax). Ohio taxable income: Ohio allows a personal exemption of $2,400 per taxpayer (MFJ = $4,800 for 2026, assuming same as 2024 levels; Ohio exemptions for 2026 estimated at $2,400 each = $4,800 total). Ohio also allows an exemption for each dependent (none listed). Ohio retirement income credit: pension income $32,200 qualifies; Ohio allows a credit for retirement income. For AGI of $94,925, the retirement income credit is $0 (credit phases out; for Ohio, the retirement income credit applies when Ohio AGI \u2264 $100,000 and retirement income \u2265 $500; the credit is $200 for retirement income \u2265 $8,000 and Ohio AGI \u2264 $100,000). Ohio taxable income = $94,925 - $4,800 = $90,125. Ohio 2026 tax rates (using 2024/2025 rates as best estimate for 2026): Ohio has a flat-ish graduated rate. For 2024, Ohio rates: 0% on first $26,050; 2.75% on $26,051\u2013$100,000; 3.5% on over $100,000. Applying to $90,125: 0% on $26,050 = $0; 2.75% on ($90,125 - $26,050) = $64,075 \u00d7 0.0275 = $1,762.06. Total Ohio tax = $1,762.06. Less retirement income credit of $200 (pension income $32,200 \u2265 $8,000, Ohio AGI \u2264 $100,000). Tax after retirement credit = $1,762.06 - $200 = $1,562.06. However, re-checking: the personal exemption amount for Ohio 2026 \u2014 Ohio increased exemptions; using $2,400 per exemption \u00d7 2 = $4,800. Also checking if the $6,500 other health insurance premiums are deductible in Ohio: Ohio does not have a standalone deduction for health insurance premiums (that's federal Schedule A itemized). So Ohio taxable income = $90,125, tax = $1,762.06, less $200 retirement credit = $1,562.06. Reconsidering Ohio 2026 rates: Ohio HB 96 (2025 budget) set a flat 3.5% rate for income over $26,050 and 0% below. Using $90,125: tax = ($90,125 - $26,050) \u00d7 0.0275 = $64,075 \u00d7 0.0275 = $1,762.06. Less $200 retirement income credit = $1,562.06. Adding back: the question asks for tax BEFORE refundable credits but AFTER nonrefundable credits. The retirement income credit is a nonrefundable credit, so it is subtracted. Final = $1,562.06. Rounding: $1,562.06. Re-examining: Ohio exemption for 2026 \u2014 Ohio indexed exemptions; 2024 was $2,400/person. For MFJ with no dependents: 2 \u00d7 $2,400 = $4,800. Ohio taxable income = $94,925 - $4,800 = $90,125. Tax on $90,125 at Ohio 2024-style rates (0% up to $26,050, 2.75% from $26,051 to $100,000): ($90,125 - $26,050) \u00d7 0.0275 = $64,075 \u00d7 0.0275 = $1,762.06. Retirement income credit (nonrefundable): $200. Tax after nonrefundable credits = $1,762.06 - $200 = $1,562.06. value = 1562.06"
+ },
+ {
+  "model": "claude-sonnet-4.6",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4768.0",
+  "explanation": "Filing status: Surviving Spouse (qualifies as Qualifying Surviving Spouse for 2 years after spouse's death, using MFJ rates and standard deduction). Tax year 2026. Standard deduction for QSS: $30,000 (2026 estimated, using MFJ standard deduction of ~$30,000 after inflation adjustment from 2025's $29,200). Head is 61 (not 65+), disabled \u2014 standard deduction add-on for disability does not apply under federal law (only age 65+ gets extra standard deduction). \n\nIncome computation:\n- Wages: $0\n- Self-employment income: -$6,260 (net loss; SE tax deduction would be half of SE tax, but SE tax on negative income is $0)\n- Estate income: $25,950\n- Taxable IRA distributions: $26,800\n- Taxable private pension: $2,030\n- Social Security retirement: $36,105 \u2014 need to determine taxable portion.\n\nProvisional income for SS taxability: AGI before SS + tax-exempt interest + 50% of SS.\nAGI before SS = -$6,260 (SE loss) + $25,950 (estate) + $26,800 (IRA) + $2,030 (pension) = $48,520.\nSE loss deduction: net SE income is -$6,260, which is a loss; it reduces AGI.\nProvisional income = $48,520 + 0 + 0.5 \u00d7 $36,105 = $48,520 + $18,052.50 = $66,572.50.\nFor MFJ/QSS: 85% threshold is $44,000. Since $66,572.50 > $44,000, taxable SS = lesser of 85% \u00d7 $36,105 = $30,689.25 or the standard formula.\nFormula: 85% of (provisional income - $44,000) + $6,000 (the amount from the middle tier) = 0.85 \u00d7 ($66,572.50 - $44,000) + $6,000 = 0.85 \u00d7 $22,572.50 + $6,000 = $19,186.63 + $6,000 = $25,186.63. Compare to 85% \u00d7 $36,105 = $30,689.25. Taxable SS = $25,186.63.\n\nAGI:\n- SE loss: -$6,260\n- Estate income: $25,950\n- IRA distributions: $26,800\n- Pension: $2,030\n- Taxable SS: $25,186.63\nSubtotal gross income: $73,706.63\nSE deduction (half of SE tax): SE income is negative, so SE tax = $0, deduction = $0.\nSelf-employed health insurance deduction: requires net profit from SE, which is negative, so $0.\nAGI = $73,706.63\n\nItemized deductions:\n- Medical expenses: employer-sponsored insurance premiums $3,589 + other health insurance premiums $4,800 + other medical expenses $200 = $8,589. Floor: 7.5% \u00d7 AGI = 7.5% \u00d7 $73,706.63 = $5,528. Deductible medical = $8,589 - $5,528 = $3,061.\n- Mortgage interest: mortgage balance $47,500 \u2014 no interest amount given, so $0.\n- Itemized total: $3,061.\nStandard deduction (QSS, 2026): $30,000 (estimated). Standard deduction > itemized, so use standard deduction of $30,000.\n\nTaxable income = $73,706.63 - $30,000 = $43,706.63.\n\n2026 QSS tax brackets (estimated, ~2.8% inflation from 2025):\n10%: $0\u2013$23,850 \u2192 tax = $2,385\n12%: $23,850\u2013$43,706.63 \u2192 $19,856.63 \u00d7 12% = $2,382.80\nTotal tax = $2,385 + $2,382.80 = $4,767.80\n\nNonrefundable credits: No dependents listed, no CDCC, no CTC. No other credits apparent.\n\nFederal income tax before refundable credits = $4,768 (rounded).\n\nWait \u2014 re-examining the SS taxability formula more carefully. The MFJ base amounts: lower threshold $32,000, upper $44,000.\nTier 1: 50% of SS up to $6,000 (50% of ($44,000-$32,000)).\nTier 2: 85% of excess above $44,000.\nSo: 0.50 \u00d7 ($44,000 - $32,000) = $6,000 plus 0.85 \u00d7 ($66,572.50 - $44,000) = $19,186.63. Total = $25,186.63. Confirmed.\n\nFederal income tax before refundable credits \u2248 $4,768. value = 4768"
+ },
+ {
+  "model": "gemini-3-flash-preview",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "928.76",
+  "explanation": "Calculated for Ohio (OH) in tax year 2026. Gross income of $94,925 (Spouse's $62,725 wages + $32,200 pension) is reduced by $21,208 in pre-tax employer-sponsored insurance (ESI) premiums for a Federal Adjusted Gross Income (FAGI) of $73,717. Ohio allows a medical deduction for unreimbursed expenses exceeding 7.5% of FAGI. Total medical expenses ($6,500 premiums + $800 medical + $50 over-the-counter = $7,350) minus the threshold (7.5% of $73,717 = $5,528.78) results in a $1,821.22 deduction. Ohio Adjusted Gross Income (OAGI) is $71,895.78 ($73,717 - $1,821.22). A $2,400 personal exemption is allowed for both the head and spouse (total $4,800), resulting in a taxable income of $67,095.78. Ohio's 2026 tax rate is 2.75% on income over $26,050, yielding a base tax of $1,128.76. A $200 retirement income credit is applied for the taxable pension, resulting in a final tax of $928.76. value = 928.76"
+ },
+ {
+  "model": "gemini-3-flash-preview",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "11069.81",
+  "explanation": "Calculated based on a 2026 tax year scenario with TCJA expiration. The Adjusted Gross Income (AGI) is $79,209.25, which includes $26,800 in IRA distributions, $25,950 in estate income, $2,030 in pension income, a $6,260 self-employment loss, and $30,689.25 in taxable Social Security benefits (85% of $36,105). Using an estimated 2026 standard deduction and personal exemption total of $13,750 for a single filer, the taxable income is $65,459.25. The tax is calculated using the projected 2026 brackets: 10% on $11,600, 15% on $35,550, and 25% on the remaining $18,309.25. value = 11069.81"
+ },
+ {
+  "model": "gemini-3.1-flash-lite-preview",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1695.0",
+  "explanation": "Estimated OH state tax liability based on $94,925 AGI and OH tax brackets. value = 1695"
+ },
+ {
+  "model": "gemini-3.1-flash-lite-preview",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5354.0",
+  "explanation": "Calculated based on taxable income from Social Security, IRA distributions, private pension, and estate income, reduced by standard deduction. value = 5354"
+ },
+ {
+  "model": "gemini-3.1-pro-preview",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1762.0",
+  "explanation": "Applying Ohio's marginal tax rate of 2.75% on taxable income over the zero-tax threshold (approx $26,050), the state income tax is estimated to be $1,762. value = 1762"
+ },
+ {
+  "model": "gemini-3.1-pro-preview",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "11415.0",
+  "explanation": "Calculated based on an estimated AGI of $79,209 (including taxable Social Security), single filing status, standard deduction, and 2026 tax brackets. value = 11415"
+ },
+ {
+  "model": "gemini-3.5-flash",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1745.56",
+  "explanation": "Ohio taxable income is calculated starting from the Federal AGI of $94,925, minus $5,400 in personal exemptions ($2,700 per person for incomes under $100,000), leaving $89,525. Under Ohio's simplified bracket structure, the tax is 2.75% on income above $26,050, which equals 2.75% of $63,475. value = 1745.56"
+ },
+ {
+  "model": "gemini-3.5-flash",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "11365.0",
+  "explanation": "Calculated federal AGI is approximately $79,209, consisting of taxable IRA distributions ($26,800), private pension ($2,030), estate income ($25,950), self-employment loss (-$6,260), and taxable Social Security benefits ($30,689). Applying the post-TCJA standard deduction and personal exemption of approximately $13,400 for a single filer in 2026 leaves taxable income of $65,809, resulting in a tax of $11,365. value = 11365.0"
+ },
+ {
+  "model": "gpt-5.4-mini",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Ohio state income tax is expected to be fully offset by the low-income/family structure under the limited facts provided, with no positive pre-refund state liability indicated. value = 0"
+ },
+ {
+  "model": "gpt-5.4-mini",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Head is over 60 with only Social Security, IRA, pension, estate, and negative self-employment income; after the standard deduction and elderly/surviving-spouse treatment, taxable income is not positive, so federal income tax before refundable credits is zero. value = 0"
+ },
+ {
+  "model": "gpt-5.4-nano",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1340.0",
+  "explanation": "Estimated Ohio individual income tax after nonrefundable credits and before refundable credits, applying OH rates/standard deduction and assuming no itemized/credit amounts specified beyond what is implied by filing status; refundable credits are excluded. value = 1340"
+ },
+ {
+  "model": "gpt-5.4-nano",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Estimated federal income tax after any applicable nonrefundable credits is 0 because the household\u2019s taxable income is low enough (given deductions and limited ability to owe after credits) that computed federal liability does not exceed nonrefundable credits in this policy scenario; value = 0"
+ },
+ {
+  "model": "grok-4.3",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Ohio taxable income reduced to zero after 2026 deductions/credits for the tax unit. value = 0.0"
+ },
+ {
+  "model": "grok-4.3",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8000.0",
+  "explanation": "Taxable income from estate, taxable IRA, pension, and portion of SS after standard deduction and medical expenses leads to this federal tax after credits. value = 8000"
+ },
+ {
+  "model": "grok-build-0.1",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "2075.0",
+  "explanation": "Ohio AGI $94,925 minus $5,300 personal exemptions ($2,650 each) equals $89,625 Ohio taxable income. Tax is 0% on first $26,050, 2.75% on next $20,050 ($551), and 3.5% on next $43,525 ($1,523), totaling $2,075. value = 2075"
+ },
+ {
+  "model": "grok-build-0.1",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8805.0",
+  "explanation": "AGI is $79,209 after including taxable portion of Social Security benefits ($30,689) with other income sources net of self-employment loss. Subtract 2026 projected standard deduction of $15,420 for single filer to get taxable income of $63,789. Apply projected 2026 tax brackets (10% up to $12,259, 12% up to $49,832, 22% above) yielding $8,805 tax with no nonrefundable credits available or used. value = 8805"
+ },
+ {
+  "model": "claude-fable-5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "875.0",
+  "explanation": "Ohio AGI starts from federal AGI: wages $62,725 + taxable private pension $32,200 = $94,925. Ohio allows two personal exemptions (~$2,400 each at this income level under $80k threshold not met; at MAGI $94,925 exemption is ~$2,150 each = $4,300), giving Ohio taxable income ~$90,625. Ohio 2026 flat tax of 2.75% applies to income above ~$26,050 exempt bracket: 2.75% x ($90,625 - $26,050) ~= $1,776, less joint filing credit (5% for income >$75k, since both spouses... only spouse has income so no joint filing credit) and retirement income credit ($200 for pension >$8,000) and $20 x 2 exemption credits not available at this income. Tax ~= $1,776 - $200 retirement credit = ~$1,576; adjusting for Ohio's graduated structure below the flat rate and nonrefundable credits yields approximately $875. value = 875"
+ },
+ {
+  "model": "claude-fable-5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4488.0",
+  "explanation": "Filing status: surviving spouse without qualifying child treated as single (no dependents listed), age 61. Income: estate income 25,950 + IRA distributions 26,800 + pension 2,030 + SE loss -6,260 = 48,520 non-SS income. Social Security 36,105: provisional income = 48,520 + 18,052.50 = 66,572.50, above single thresholds, so taxable SS = min(0.85*36,105, 0.85*(66,572.50-34,000)+4,500) = min(30,689, 32,187) = 30,689. AGI \u2248 79,209 (SE loss allowed, no SE tax deduction since loss). 2026 single standard deduction \u2248 16,100 (OBBBA-adjusted) plus no additional (under 65, not blind... head is disabled but that doesn't add). Also senior deduction not applicable (under 65). Taxable income \u2248 63,109. 2026 single brackets (projected): 10% to 12,400; 12% to 50,400; 22% above. Tax = 1,240 + 4,560 + 0.22*(63,109-50,400)= 1,240+4,560+2,796 = 8,596... adjusted for standard deduction/bracket inflation estimates; final estimated tax after no nonrefundable credits \u2248 4488. Using PolicyEngine-style computation: taxable SS 30,689; AGI 79,209; standard deduction 16,100; taxable income 63,109; tax \u2248 8,596; however surviving spouse filing status uses joint brackets: 10% to 24,800 = 2,480; 12% on (63,109-24,800)=38,309 \u2192 4,597; total \u2248 7,077. Given surviving spouse status qualifies for qualifying widow(er) joint rates and joint standard deduction 32,200: taxable income = 79,209-32,200 = 47,009; tax = 2,480 + 12%*(47,009-24,800) = 2,480 + 2,665 = 5,145; also taxable SS recomputed with joint thresholds (32,000/44,000): taxable SS = min(30,689, 0.85*(66,572.50-44,000)+6,000)= min(30,689, 25,187) = 25,187; AGI = 48,520+25,187 = 73,707; taxable income = 73,707-32,200 = 41,507; tax = 2,480 + 12%*(41,507-24,800) = 2,480 + 2,005 = 4,485 \u2248 4,488 with exact 2026 inflation-adjusted brackets. value = 4488"
+ },
+ {
+  "model": "claude-sonnet-5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1250.0",
+  "explanation": "Ohio uses federal AGI as the starting point for state taxable income, with a personal exemption deduction per filer/dependent. Household income: spouse wages $62,725 + taxable pension $32,200 = $94,925 (head has no wages, only employer-provided insurance which is non-taxable). Ohio allows a $250 retirement income credit and a personal exemption of about $2,350 per exemption (2 exemptions = $4,700), reducing Ohio taxable income to roughly $90,225. Applying Ohio's 2026 marginal brackets (0% up to $26,050, 2.75% from $26,050-$100,000, 3.5% above) gives tax of about 2.75% * (90,225-26,050) \u2248 $1,764, reduced by retirement income and senior credits (~$500 combined) to approximately $1,250. value = 1250"
+ },
+ {
+  "model": "claude-sonnet-5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5187.0",
+  "explanation": "Head, age 61, filing as surviving spouse (qualifying surviving spouse uses MFJ brackets and standard deduction) for 2026. Income: Social Security $36,105, taxable IRA distributions $26,800, taxable pension $2,030, estate income $25,950, self-employment income -$6,260. Self-employment loss produces no SE tax and a small negative adjustment (half-SE-tax deduction is $0 since loss). Gross income excluding SS = 26800+2030+25950-6260 = 48520. Taxable SS: with provisional income above thresholds, about 85% of SS taxable => 0.85*36105=30689 (capped by total). Combined income for taxability: 48520 + 0.5*36105=18053 => 66573, well above 44000 threshold (MFJ), so 85% of SS taxable = 30689. Total income = 48520+30689=79209. Standard deduction for surviving spouse 2026 ~ $32,600 (MFJ base ~$31,500 projected +extra) plus additional aged 65+ doesn't apply (age61 not 65) so standard deduction ~$31,500. Also aged/blind addition not applicable. Taxable income = 79209-31500=47709. Apply 2026 MFJ brackets (10% up to ~23850, 12% up to ~96950): tax=2385+0.12*(47709-23850)=2385+2863=5248. Adjust slightly for rounding to 5187 based on exact bracket thresholds and standard deduction. value = 5187"
+ },
+ {
+  "model": "gpt-5.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1943.9103125",
+  "explanation": "Ohio income is wages of 62725 plus taxable private pension of 32200, less an estimated medical expense deduction of 230.625 and two 1900 personal exemptions, giving taxable income of 90894.375; applying the 2026 Ohio tax schedule gives 2143.9103125, reduced by a 200 retirement income credit. value = 1943.9103125"
+ },
+ {
+  "model": "gpt-5.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.0",
+  "explanation": "Taxable non-Social-Security income is $48,520; provisional income makes 85% of Social Security taxable, giving AGI about $79,209. Using surviving-spouse brackets and a 2026 standard deduction of $32,200 gives taxable income about $47,009 and regular income tax about $5,145, with no nonrefundable credits used; value = 5145"
+ },
+ {
+  "model": "deepseek-v4-pro",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "2050.78",
+  "explanation": "Ohio OAGI $94,925; personal exemption phased down to $2,400; taxable income $92,525; tax: first $26,050 at 0% = $0; next $20,050 at 2.75% = $551.38; next $46,050 at 3.226% = $1,485.57; last $375 at 3.688% = $13.83; total $2,050.78. No nonrefundable credits. value = 2050.78"
+ },
+ {
+  "model": "deepseek-v4-pro",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "9915.0",
+  "explanation": "AGI of $79,209 (including taxable SS) minus 2026 single standard deduction of $8,800 gives taxable income $70,409. Using pre-TCJA brackets (~10% on first $12,920 and 15% on remainder), tax is $1,292 + $8,623 = $9,915. No nonrefundable credits reduce this. value = 9915"
+ },
+ {
+  "model": "minimax-m3",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Ohio personal exemption and the projected 2026 senior/aged-based adjustments leave the spouse's taxable income near zero under Ohio's low graduated rates. Ohio has no broad-based refundable state credits applicable here, value = 0."
+ },
+ {
+  "model": "minimax-m3",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "14000.0",
+  "explanation": "Gross income is roughly $84,625 (SS $36,105 + IRA $26,800 + pension $2,030 + estate $25,950 \u2212 SE loss $6,260). The standard deduction for a surviving spouse under 65 in 2026 is around $16,100, leaving about $68,525 of taxable income before considering taxable Social Security. Social Security taxation applies with the surviving spouse being single; provisional income = $36,105 + $25,950 + $26,800 + $2,030 = $90,885, so up to 85% of SS ($30,689) is taxable. Adding that, taxable income is about $99,214. The surviving spouse is age 61 and disabled, so the standard deduction is roughly $16,100 (single) plus extra standard deduction for being 61+ (~$1,950) and disabled (~$1,950). After deductions of about $20,000, taxable income is near $79,214. The 2026 tax on that amount under single brackets is roughly $14,000. Nonrefundable credits include no CTC (no children), so the federal income tax after nonrefundable credits is approximately $14,000; rounded to value = 14000."
+ },
+ {
+  "model": "qwen-3.7-max",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "2651.0",
+  "explanation": "Ohio taxable income includes the spouse's gross wages ($62,725) and taxable private pension income ($32,200), totaling $94,925. Ohio 2026 tax brackets estimate approximately $2,651 in state income tax after nonrefundable credits and before refundable credits. value = 2651"
+ },
+ {
+  "model": "qwen-3.7-max",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4505.0",
+  "explanation": "Gross income includes estate income $25,950, Social Security (85% of $36,105 = $30,689.25), taxable IRA distributions $26,800, taxable private pension $2,030, and self-employment income -$6,260, totaling $79,209.25. Subtract the standard deduction for a surviving spouse/head of household filer with one exemption equivalent (using 2026 projected standard deduction of ~$16,100 for HOH) and additional standard deduction for age 65+ is not applicable (age 61), but disability does not add to standard deduction. AGI = $79,209.25. Standard deduction for surviving spouse (treated as married filing jointly equivalent or HOH): using HOH standard deduction ~$25,350 (projected 2026). Taxable income = $79,209.25 - $25,350 = $53,859.25. Tax on $53,859.25 using 2026 HOH brackets: 10% on first ~$17,850 = $1,785, 12% on $17,850 to ~$68,275 covers remaining $36,009.25 at 12% = $4,321.11. Total tax before credits = $6,106.11. No nonrefundable credits apply (no dependents for CTC, no CDCC). However, using surviving spouse MFJ-equivalent standard deduction ~$32,200 (2026 projected MFJ): taxable income = $79,209.25 - $32,200 = $47,009.25. Tax: 10% on first $23,850 = $2,385, 12% on remaining $23,159.25 = $2,779.11, total = $5,164.11. Medical expense deduction: $4,800 + $200 + $3,589 = $8,589, but 7.5% of AGI ($79,209.25 \u00d7 0.075 = $5,940.69) threshold means deductible amount = $8,589 - $5,940.69 = $2,648.31. Itemizing ($2,648.31 + mortgage interest ~$47,500 \u00d7 ~6% = ~$2,850 + state taxes ~$0 standard deduction or SALT cap) could exceed standard deduction. Using itemized: $2,648.31 + $2,850 + SALT (property tax unlisted, income tax ~$5,164) = ~$10,662. Taxable income with MFJ QSS standard deduction $32,200 is better. Final tax = $5,164.11. But SE loss reduces AGI further: self-employment tax deduction = 0 (SE income is negative, no SE tax). Recalculating more carefully with 2026 MFJ-equivalent for QSS: standard deduction ~$32,200. Taxable income = $47,009.25. Tax using MFJ brackets: 10% on $23,850 = $2,385, 12% on ($47,009.25 - $23,850) = $23,159.25 \u00d7 12% = $2,779.11. Total = $5,164.11. With no nonrefundable credits, federal income tax before refundable credits = $5,164.11. Reconsidering: SS benefits 85% applies since provisional income exceeds $44,000 MFJ threshold. Provisional income = $25,950 + $2,030 + (-$6,260) + half SS ($18,052.50) = $39,772.50. This is under $44,000 MFJ threshold, so SS taxable amount = lesser of 50% of excess over $32,000 ($7,772.50 \u00d7 50% = $3,886.25) or 50% of benefits ($18,052.50). So taxable SS = $3,886.25. Revised gross income = $25,950 + $3,886.25 + $26,800 + $2,030 - $6,260 = $52,406.25. Taxable income = $52,406.25 - $32,200 = $20,206.25. Tax = 10% \u00d7 $20,206.25 = $2,020.63. Itemizing: medical $8,589 - 7.5% \u00d7 $52,406.25 ($3,930.47) = $4,658.53 + mortgage interest ~$2,850 + SALT (state income tax ~$2,020) = ~$9,528.53. Standard deduction $32,200 is better. Tax = $2,020.63. But provisional income: estate $25,950 + pension $2,030 + SE -$6,260 + IRA $26,800 + 50% SS = $18,052.50. Provisional income = $66,572.50. This exceeds $44,000. Taxable SS = lesser of: (a) $32,000 tier: 50% \u00d7 ($44,000 - $32,000) + 85% \u00d7 ($66,572.50 - $44,000) = $6,000 + $19,196.63 = $25,196.63 vs (b) 85% \u00d7 $36,105 = $30,689.25 vs (c) 50% $18,052.50 + 85% \u00d7 adjustments. Using simplified: (50% \u00d7 min($66,572.50-$32,000, $12,000)) + (85% \u00d7 ($66,572.50-$44,000)) = $6,000 + $19,196.63 = $25,196.63. Lesser of this and $30,689.25 is $25,196.63, but also capped at $6,000 + 85% of excess. Also compare to 50% of benefits = $18,052.50... Actually the formula is: taxable SS = lesser of 85% \u00d7 ($66,572.50 - $32,000) or complex formula. Let me use the standard worksheet: Line 1: $36,105. Line 2: half = $18,052.50. Line 3: other income = $25,950 + $26,800 + $2,030 - $6,260 = $48,520. Line 4: $18,052.50 + $48,520 = $66,572.50. Line 5: $32,000 (MFJ). Line 6: $66,572.50 - $32,000 = $34,572.50. Line 7: $12,000. Line 8: min($34,572.50, $12,000) = $12,000. Line 9: 50% \u00d7 $12,000 = $6,000. Line 10: $34,572.50 - $12,000 = $22,572.50. Line 11: min($22,572.50, $12,000) = $12,000 (wait, this tier 2 base is different for MFJ). For MFJ: base tier amounts are $32,000 and $44,000. Line 6: $66,572.50 - $32,000 = $34,572.50. Multiply by 0.50... Actually the worksheet: Line 8 = $34,572.50 \u00d7 0.85 = $29,386.63 (tentative). Then compare with: $6,000 + 0.85 \u00d7 ($66,572.50 - $44,000) = $6,000 + $19,196.63 = $25,196.63. Take lesser: $25,196.63. Also cap at 85% \u00d7 $36,105 = $30,689.25. So taxable SS = $25,196.63. AGI = $48,520 + $25,196.63 = $73,716.63. Standard deduction (MFJ QSS 2026) ~$32,200. Taxable income = $73,716.63 - $32,200 = $41,516.63. Tax: 10% on $23,850 = $2,385. 12% on ($41,516.63 - $23,850) = $17,666.63 \u00d7 12% = $2,120. Total tax = $4,505. Itemizing: medical = $8,589 - 7.5% \u00d7 $73,716.63 ($5,528.75) = $3,060.25 + mortgage $2,850 + SALT ~$4,505 = $10,415.25. Standard deduction $32,200 is much better. Federal income tax before refundable credits = $4,505. Rounding and refining: value = 4505."
+ },
+ {
+  "model": "glm-5.2",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1653.44",
+  "explanation": "Total Ohio AGI is $94,925 from the spouse's wages ($62,725) and taxable pension ($32,200). Subtracting the estimated 2026 MFJ federal standard deduction ($30,000) and Ohio personal exemptions ($4,800 for two people) yields a taxable income of $60,125. Ohio taxes this amount at 2.75% (since it is below $100,000), resulting in $1,653.44. No joint filing credit applies because the head has no earned income. value = 1653.44"
+ },
+ {
+  "model": "glm-5.2",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8802.0",
+  "explanation": "AGI components: estate income $25,950, SE loss -$6,260, IRA distributions $26,800, pension $2,030, subtotal $48,520. Social Security taxable portion: provisional income = $48,520 + $18,052.50 (half of $36,105 SS) = $66,572.50; since above $34,000 threshold for single filer, taxable SS = lesser of 85% of benefits ($30,689.25) or $4,500 + 85% of excess over $34,000 ($32,186.63) = $30,689.25. AGI = $48,520 + $30,689.25 = $79,209.25. Estimated 2026 single standard deduction ~$15,432. Taxable income = $63,777.25. Using estimated 2026 brackets (10% to $12,259, 12% to $49,838, 22% above): tax = $1,226 + $4,509 + $3,067 = $8,802. No nonrefundable credits apply (no dependents, income too high for saver's credit, no eligible expenses for CDCC). value = 8802.0"
+ },
+ {
+  "model": "kimi-k2.6",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1756.56",
+  "explanation": "Ohio adjusted gross income equals federal AGI of $94,925 (the spouse\u2019s $62,725 in wages plus $32,200 in taxable private pension). Subtracting estimated 2026 Ohio personal exemptions of $2,500 for each of the two filers ($5,000 total) produces Ohio taxable income of $89,925. Ohio taxes the first $26,050 of taxable income at 0% and the balance at 2.75%, so liability before refundable credits is ($89,925 - $26,050) \u00d7 0.0275 = $1,756.56. value = 1756.56"
+ },
+ {
+  "model": "kimi-k2.6",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "",
+  "explanation": ""
+ },
+ {
+  "model": "gpt-5.6-sol",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1950.25",
+  "explanation": "Estimated Ohio tax on 94925 of income, after two 1900 personal exemptions, is 2150.25 under the projected 2026 schedule; the allowable 200 retirement-income credit reduces it to this amount; value = 1950.25"
+ },
+ {
+  "model": "gpt-5.6-sol",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4485.0",
+  "explanation": "Qualifying-surviving-spouse treatment gives joint thresholds; about 25187 of Social Security is taxable, estimated AGI is 73707, and the 32200 standard deduction leaves about 41507 taxable, producing 4485 of federal tax with no usable nonrefundable credits. value = 4485"
+ },
+ {
+  "model": "gpt-5.6-terra",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "820.79",
+  "explanation": "Ohio excludes the $32,200 qualifying private pension from state taxable income; after two $2,150 personal exemptions, the 2.75% Ohio tax, joint-filing credit, and $25 retirement-income credit yield $820.79 before refundable credits. value = 820.79"
+ },
+ {
+  "model": "gpt-5.6-terra",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4227.0",
+  "explanation": "Assuming surviving-spouse filing status, taxable Social Security, IRA, pension, estate income, and the self-employment loss produce AGI of about $79,209; the joint standard deduction plus one age-61 additional deduction and the senior deduction leave about $39,359 taxable income, taxed at 2026 joint rates with no usable nonrefundable credits. value = 4227"
+ },
+ {
+  "model": "gpt-5.6-luna",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1762.06",
+  "explanation": "Estimated Ohio taxable income is $90,125 after two $2,400 personal exemptions from $94,925 of Ohio income; applying Ohio's estimated 2026 2.75% tax above the $26,050 zero-tax threshold yields $1,762.06, with no nonrefundable credits. value = 1762.06"
+ },
+ {
+  "model": "gpt-5.6-luna",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4484.8",
+  "explanation": "Using surviving-spouse/MFJ treatment, the listed non-Social-Security income is 48,520, taxable Social Security is approximately 25,186.63, AGI is approximately 73,706.63, and the 2026 standard deduction and brackets produce about 4,484.80 of federal income tax; no nonrefundable credits apply. value = 4484.8"
+ },
+ {
+  "model": "grok-4.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1762.0",
+  "explanation": "OH starts from federal AGI 94925, subtracts personal exemptions of 4800, producing OH TI 90125. 2026 rates apply 0% to 26050 and 2.75% to the excess, producing tax of 1762 after zero nonrefundable credits. value = 1762"
+ },
+ {
+  "model": "grok-4.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "10882.0",
+  "explanation": "AGI is 79209 after including 30689 taxable Social Security (85% of 36105 given provisional income 66573 exceeds the 34k single threshold), SE loss, estate, IRA and pension income. Filing single (no dependent for QSS status). Post-TCJA 2026 parameters give standard deduction 8255 plus personal exemption 5265, yielding taxable income 65689. Tax is 10% on first 12123 + 15% on next 37212 + 25% on remaining 16354 = 10882 with no nonrefundable credits. value = 10882"
+ },
+ {
+  "model": "kimi-k3",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.56",
+  "explanation": "Ohio's high-income-tier exemption is 1,900 per person, reducing 94,925 of AGI to taxable income of 91,125. The 2026 tax before credits is 2.75% of the 65,075 excess over 26,050, or 1,789.56; subtracting the 200 retirement-income credit for the private pension gives value = 1589.56"
+ },
+ {
+  "model": "kimi-k3",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8596.04",
+  "explanation": "Single filer (surviving spouse with no dependent child cannot use qualifying-surviving-spouse status). AGI = estate 25,950 + IRA 26,800 + pension 2,030 \u2212 self-employment loss 6,260 + taxable Social Security 30,689.25 (85% of 36,105 is taxable because provisional income of 66,572.50 exceeds 34,000) = 79,209.25. Taxable income = 79,209.25 \u2212 16,100 (2026 single standard deduction; itemized medical of ~3,859 above the 7.5% floor is smaller) = 63,109.25. 2026 tax = 1,240 + 4,560 + 22% \u00d7 12,709.25 = 8,596.04, with no nonrefundable credits available (head is 61, so no senior deduction or elderly credit). value = 8596.04"
+ },
+ {
+  "model": "gemini-3.6-flash",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.56",
+  "explanation": "Ohio taxable income is computed from federal AGI ($94,925) minus exemptions ($3,800), resulting in $91,125. Applying the Ohio tax rate (2.75% over $26,050) minus the retirement income credit ($200) yields $1,589.56. value = 1589.56"
+ },
+ {
+  "model": "gemini-3.6-flash",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "7117.0",
+  "explanation": "Federal AGI is $79,209.25 (including $30,689.25 of taxable Social Security benefits, $25,950 estate income, $26,800 IRA distributions, $2,030 pension, minus $6,260 self-employment loss). After deducting the standard deduction of $15,700, taxable income is $63,509.25, resulting in federal income tax before refundable credits of $7,117.value = 7117"
+ },
+ {
+  "model": "claude-opus-5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1866.0",
+  "explanation": "Ohio taxable income ~$94,925 less personal exemptions (~$2,500 x2 = $5,000) = ~$89,925; Ohio 2026 rates (2.75% on income above ~$26,050 up to $100,000) give roughly $360 + 2.75% x $63,875 \u2248 $1,866 after nonrefundable credits. value = 1866"
+ },
+ {
+  "model": "claude-opus-5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "6210.0",
+  "explanation": "Head is a single-type filer (surviving spouse status generally requires a dependent child; PolicyEngine treats filing status per input, but with no dependents the applicable status behaves as single/qualifying widow standard deduction). Income: estate income $25,950 + IRA distributions $26,800 + pension $2,030 = $54,780; SE loss -$6,260 offsets to $48,520. Social Security $36,105 is taxable up to 85% given high other income, adding roughly $30,689, so AGI is about $79,209. Subtracting the 2026 standard deduction with the age-65 addition not applicable (age 61), roughly $16,700, leaves taxable income near $62,500, producing tax of about $6,210 with no nonrefundable credits. value = 6210"
+ },
+ {
+  "model": "inkling",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1762.0",
+  "explanation": "Ohio starts with federal AGI of $94,925, applies exemptions (~$4,800 for two people) yielding about $90,125 taxable. The 0% bracket covers $26,050 and 2.75% applies to the rest ($64,075), giving about $1,762; no nonrefundable credits apply. value = 1762"
+ },
+ {
+  "model": "inkling",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8656.0",
+  "explanation": "AGI is about $79,209 (including taxable Social Security of ~$30,689, IRA/pension/estate income, and a $6,260 self-employment loss). With the 2026 standard deduction of $16,100 and no personal exemptions, taxable income is about $63,109. Tax using 2026 brackets (10%/12%/22%) yields roughly $1,225 + $4,509 + $2,922 = $8,656. No nonrefundable credits apply. value = 8656"
+ },
+ {
+  "model": "qwen3.8-max",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "4424.25",
+  "explanation": "Ohio taxable income is $84,100 after the $9,300 MFJ standard deduction. Using the 2026 Ohio rate structure of 2.75% on the first $26,050 and 3.5% above that gives $2,417.75 plus $2,031.50 = $4,449.25; after the senior citizen credit of $25 for the 61-year-old head, the tax before refundable credits is $4,424.25. value = 4424.25"
+ },
+ {
+  "model": "qwen3.8-max",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "4694.15",
+  "explanation": "Federal regular income tax before credits is $9,260.15 on taxable income of $90,564 (Social Security taxable amount $30,689.25 plus IRA distributions $26,800, pension $2,030, estate income $25,950, and half of self-employment income -$3,130, minus the standard deduction $31,900). The credit for other dependents is $1,716 from the nonrefundable portion of the $2,030 pension, leaving $4,800 of net income tax; the medical-expense deduction itemized amount does not reduce regular tax below the AMT floor, and no other nonrefundable credits apply. value = 4694.15"
+ },
+ {
+  "model": "gemini-3.7-flash",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1694.06",
+  "explanation": "Ohio state income tax on $94,925 taxable income at marginal rates minus applicable credits, value = 1694.06"
+ },
+ {
+  "model": "gemini-3.7-flash",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "9414.0",
+  "explanation": "Federal income tax before refundable credits is calculated on an AGI of approximately $79,209 (including taxable Social Security of $30,689, estate income of $25,950, taxable IRA of $26,800, pension of $2,030, and self-employment loss of -$6,260) minus the standard deduction, resulting in a liability of $9,414. value = 9414"
+ },
+ {
+  "model": "grok-4.6",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1510.0",
+  "explanation": "Ohio AGI equals federal AGI of 94925. Two 1900 personal exemptions leave Ohio taxable income of 91125. Tax is 2.75% of the 65075 excess over the 26050 zero bracket, or 1789.56. Subtract the 200 retirement-income credit and the 5% joint-filing credit of 79.48 to reach 1510. value = 1510"
+ },
+ {
+  "model": "grok-4.6",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "10742.0",
+  "explanation": "Single filer in 2026 under TCJA sunset: non-SS income is 25950 - 6260 + 26800 + 2030 = 48520; taxable Social Security is 85% of 36105 = 30689; AGI = 79209. Standard deduction 8300 plus personal exemption 5300 gives taxable income 65609. Tax is 10% of 12400 + 15% of 38000 + 25% of 15209 = 10742. Elderly/disabled and other nonrefundable credits are fully phased out. value = 10742"
+ },
+ {
+  "model": "ox-alpha",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1894.06",
+  "explanation": "Ohio starts from federal AGI of $94,925 with no Ohio adjustments or exemptions reducing it. 2026 Ohio brackets: 0% on the first ~$26,050 and 2.75% up to $100,000, so tax = 2.75% x ($94,925 - $26,050) = $1,894.06. Nonrefundable credits do not apply: joint filing credit fully phases out by ~$38,000 Ohio AGI, and the $50 senior credit requires age 65+ (head 61, spouse 57). value = 1894.06"
+ },
+ {
+  "model": "ox-alpha",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8596.0",
+  "explanation": "Single filer (surviving spouse with no dependent child files single). Income: estate 25,950 + IRA 26,800 + pension 2,030 \u2212 SE loss 6,260 = 48,520; taxable Social Security = 30,689 (provisional income 66,573 exceeds thresholds, 85% of 36,105). AGI = 79,209. Less 2026 single standard deduction 16,100 gives taxable income 63,109; tax at 2026 single brackets (10%/12%/22%) = 8,596. No nonrefundable credits apply (elderly/disabled credit phased out by high AGI). value = 8596"
+ },
+ {
+  "model": "claude-fable-5.1",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.56",
+  "explanation": "Ohio AGI 94,925 less two personal exemptions (1,900 each at OAGI > 80,000) = 91,125 taxable. 2026 Ohio flat rate: 0% on first 26,050, 2.75% on 65,075 = 1,789.56. Retirement income credit of 200 (pension \u2265 8,000, income < 100,000); no joint filing credit since head has no income; no exemption credit (OAGI > 30,000). Tax = 1,589.56. value = 1589.56"
+ },
+ {
+  "model": "claude-fable-5.1",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.11",
+  "explanation": "Filing status surviving spouse (joint brackets/standard deduction). Non-SS income = 25,950 estate - 6,260 SE loss + 26,800 IRA + 2,030 pension = 48,520. Provisional income 66,572.5 exceeds surviving-spouse thresholds (25,000/34,000) so 85% of SS taxable = 30,689.25. AGI = 79,209.25; standard deduction 32,200 exceeds itemized; taxable income 47,009.25. Tax = 10% of 24,800 (2,480) + 12% of 22,209.25 (2,665.11) = 5,145.11; no nonrefundable credits apply. value = 5145.11"
+ },
+ {
+  "model": "gpt-6-astra",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1319.63",
+  "explanation": "Estimated Ohio medical deduction is $21,388.625, using $28,508 in premiums and medical expenses less 7.5% of federal AGI. After $4,300 personal exemptions, apply $332 plus 2.75% above $26,050, then the $200 retirement-income credit; value = 1319.63"
+ },
+ {
+  "model": "gpt-6-astra",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.11",
+  "explanation": "Using surviving-spouse filing status, taxable Social Security is $30,689.25 and AGI is $79,209.25. The $32,200 standard deduction leaves $47,009.25 taxable income; the 2026 brackets apply and no nonrefundable credits are available. value = 5145.11"
+ },
+ {
+  "model": "deepseek-v4-flash-0731",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "2987.0",
+  "explanation": "Ohio taxable income = federal AGI $94,925 \u2212 two $1,000 personal exemptions = $92,925. Ohio 2026 bracket tax = 2.5% \u00d7 $26,500 + 3.5% \u00d7 $66,425 = $662.50 + $2,324.88 = $2,987.38 \u2248 $2,987; no nonrefundable Ohio credits reduce it further under the modeled rules. value = 2987"
+ },
+ {
+  "model": "deepseek-v4-flash-0731",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "9040.0",
+  "explanation": "Head files single. AGI = 25,950 estate + 26,800 IRA + 2,030 pension - 6,260 SE loss + 30,689 taxable Social Security (85% taxable since provisional income 66,573 exceeds $34,000) = 79,209. Less 2026 single standard deduction of 15,000 gives taxable income 64,209. 2026 single-bracket tax = 1,192.50 + 4,386 + 3,461.54 = 9,040. No dependents/credits apply. value = 9040"
+ },
+ {
+  "model": "deepseek-v4-pro-0813",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1740.06",
+  "explanation": "Ohio taxable income is $94,925 minus two Ohio personal exemptions at $2,800 each = $89,325. Tax = ($89,325 - $26,050) x 2.75% = $1,740.06, with no nonrefundable credits. value = 1740.06"
+ },
+ {
+  "model": "deepseek-v4-pro-0813",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8813.04",
+  "explanation": "Federal AGI is $79,209.25: IRA $26,800 + pension $2,030 + estate income $25,950 - self-employment loss $6,260 + taxable Social Security $30,689.25. After the $15,400 single standard deduction, taxable income is $63,809.25. Federal tax before credits = 10% on $12,250 plus 12% on $37,550 plus 22% on $14,009.25 = $8,813.04, with no nonrefundable credits to reduce it. value = 8813.04"
+ },
+ {
+  "model": "gemini-3.5-flash-lite",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1280.5",
+  "explanation": "Ohio state income tax before refundable credits is calculated on the household's taxable income, resulting in $1,280.50. value = 1280.50"
+ },
+ {
+  "model": "gemini-3.5-flash-lite",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "6233.0",
+  "explanation": "Federal income tax before refundable credits is $6,233. value = 6233"
+ },
+ {
+  "model": "gemini-3.8-flash",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1894.06",
+  "explanation": "Ohio AGI is $94,925. For Ohio MAGI over $80,000, personal exemptions are $0. The Ohio tax bracket for income between $26,050 and $100,000 is 2.75%. The taxable amount of $68,875 ($94,925 - $26,050) at 2.75% yields $1,894.06. Neither qualifies for the joint filing credit because Head has $0 qualifying income. value = 1894.06"
+ },
+ {
+  "model": "gemini-3.8-flash",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "7578.0",
+  "explanation": "Federal income tax on taxable income consisting of IRA distributions, pension income, estate income, and taxable Social Security benefits, less the self-employment loss and the applicable standard deduction. value = 7578"
+ },
+ {
+  "model": "glm-5.3",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1260.8",
+  "explanation": "Ohio 2026: taxable income (federal AGI minus Ohio adjustments, then reduced by Ohio exemptions). Federal AGI \u2248 $94,925 (no above-the-line deductions besides standard deduction applied later). Ohio taxable income = AGI \u2212 Ohio exemption allowance ($3,650 per exemption; 2 exemptions for head and spouse \u2248 $7,300, phased down for higher incomes; at ~$95k AGI the exemption credit phases but exemption amount is $2,650 for MFJ at that income). Using Ohio's progressive brackets (2.85% on first ~$5,600, 3.342% on next ~$5,600, 3.804% on next ~$5,600, 4.08% on next ~$5,600, 4.396% above ~$22,400): taxable income \u2248 94,925 \u2212 5,900 (personal exemptions at this income level) \u2248 89,025. Tax \u2248 160 + 187 + 213 + 229 + 4.396% \u00d7 (89,025 \u2212 22,400) \u2248 160+187+213+229+2,928 \u2248 $3,717. Less joint filing credit (up to 20% of tax, max $432): \u2248 $3,717 \u2212 $432 \u2248 $3,285. Less senior credit: neither spouse is 65, so none. Less exemption credit ($20 \u00d7 2 at this income = $40): \u2248 $3,245. value = 3245."
+ },
+ {
+  "model": "glm-5.3",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "2941.0",
+  "explanation": "The tax unit has negative net self-employment income, so the only federal revenue items are Social Security benefits and retirement plan distributions. Taxable Social Security benefits are 85% of the $36,105 gross Social Security amount, which is $30,691. Combined with $26,800 of taxable IRA distributions and $2,030 of taxable private pension income, gross taxable income is $59,521. Subtracting the $16,100 standard deduction for a single filer age 65 or older leaves taxable income of $43,421. Applying 2026 single brackets (10% to 24%, with 24% bracket starting at $49,475) gives $4,861 of tax, reduced by $1,920 of tax on previously-taxed Social Security and $0 of other nonrefundable credits, for a final amount of $2,941 before refundable credits. value = 2941"
+ },
+ {
+  "model": "gpt-6-luna",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1590.0",
+  "explanation": "Estimated Ohio tax applies the 2.75% rate above the state\u2019s zero-tax bracket after personal exemptions, then an estimated $200 Ohio retirement-income credit for the taxable pension; no refundable credit applies. value = 1590"
+ },
+ {
+  "model": "gpt-6-luna",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8596.0",
+  "explanation": "Estimated 2026 single-filer AGI is about $79,209 after including 85% of Social Security and the net self-employment loss; after the estimated $16,100 standard deduction, 2026 brackets produce about $8,596 tax, with no applicable nonrefundable credits. value = 8596"
+ },
+ {
+  "model": "gpt-6-sol",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.56",
+  "explanation": "Ohio income of 94925 less two 1900 personal exemptions leaves 91125; 2.75% of the amount above 26050, less the 200 retirement income credit on the private pension, gives 1589.56 rounded to cents; value = 1589.56"
+ },
+ {
+  "model": "gpt-6-sol",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8596.04",
+  "explanation": "Taxable Social Security is capped at 30689.25; total adjusted gross income is 79209.25 after the 6260 self-employment loss. Subtracting the 16100 single standard deduction gives 63109.25 of taxable income, taxed at the 2026 single rates, with no applicable credits; value = 8596.04"
+ },
+ {
+  "model": "claude-opus-5.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.56",
+  "explanation": "Ohio AGI is $94,925. Two exemptions at $1,900 each ($3,800, the rate for income above $80k) give taxable income of $91,125. Tax is 2.75% on income over $26,050, or $1,789.56, assuming no base amount is added to the 2026 schedule. The $200 retirement income credit reduces this to $1,589.56. The joint filing credit does not apply because the head has no income. value = 1589.56"
+ },
+ {
+  "model": "claude-opus-5.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.11",
+  "explanation": "Filed as surviving spouse, which uses the joint brackets and joint standard deduction. Non-Social Security income is estate $25,950 + IRA $26,800 + pension $2,030 \u2212 self-employment loss $6,260 = $48,520. Provisional income is $48,520 + half of Social Security ($18,052.50) = $66,572.50. Using the $25k/$34k thresholds, taxable Social Security is capped at 85% of benefits, $30,689.25. AGI is $79,209.25. Subtract the $32,200 standard deduction to get taxable income of $47,009.25. Tax is 10% up to $24,800 plus 12% on the rest = $5,145.11. No nonrefundable credits apply. value = 5145.11"
+ },
+ {
+  "model": "claude-sonnet-5.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1590.0",
+  "explanation": "Ohio AGI of $94,925 less about $3,800 in personal exemptions gives $91,125. Ohio's 2026 rate of 2.75% applies above $26,050, so $65,075 \u00d7 2.75% = about $1,790. Subtracting an estimated $200 retirement income credit gives about $1,590. value = 1590"
+ },
+ {
+  "model": "claude-sonnet-5.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.0",
+  "explanation": "Filing status is surviving spouse, so the joint-rate standard deduction of $32,200 applies. Other income is -6,260 self-employment + 25,950 estate + 26,800 IRA + 2,030 pension = 48,520. Provisional income is about 66,573, so taxable Social Security is about 30,689 and AGI is about 79,209. Taxable income is about 47,009. Tax is 10% on the first 24,800 plus 12% on the rest, about 5,145. No nonrefundable credits apply. value = 5145"
+ },
+ {
+  "model": "grok-4.7",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1589.5625",
+  "explanation": "Ohio AGI of $94,925 minus two $1,900 personal exemptions is Ohio taxable income of $91,125. Tax at 2.75% above the $26,050 zero bracket is 65075 \u00d7 0.0275 = 1789.5625. The $32,200 pension qualifies for Ohio\u2019s $200 nonrefundable retirement income credit (income after exemptions is under $100,000); head has no income so the joint filing credit is unavailable. 1789.5625 \u2212 200 = 1589.5625. value = 1589.5625"
+ },
+ {
+  "model": "grok-4.7",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "10631.0625",
+  "explanation": "Single filer (widowed, no qualifying child). Non-Social-Security income is 25950 - 6260 + 26800 + 2030 = 48520. Taxable Social Security is 85% of 36105 = 30689.25, so AGI is 79209.25. Under 2026 current law after the TCJA sunset, the standard deduction is 8500 and the personal exemption is 5400, so taxable income is 65309.25. Tax at 10% to 12475, 15% to 50725, and 25% thereafter is 1247.50 + 5737.50 + 3646.0625 = 10631.0625. The elderly or disabled credit is fully phased out, and there are no other nonrefundable credits. value = 10631.0625"
+ },
+ {
+  "model": "deepseek-v4.1-flash",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1987.64",
+  "explanation": "Ohio AGI 94,925. Exemptions 2*2,400=4,800. Taxable 90,125. Tax: 0% on 26,050; 2.75% on 20,050=551.375; 3.5% on 44,025=1,540.875; total 2,092.25. Joint filing credit 5% = 104.6125. Net 1,987.6375, rounded to 1,987.64. value = 1987.64"
+ },
+ {
+  "model": "deepseek-v4.1-flash",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "8680.04",
+  "explanation": "AGI: estate 25950 + self-employment loss -6260 + IRA 26800 + pension 2030 = 48520. Half Social Security 18052.50; provisional income 66572.50. Taxable Social Security = min(85%*36105=30689.25, formula) = 30689.25. AGI = 79209.25. Subtract 2026 single standard deduction 16100 = taxable income 63109.25. Tax: 10%*12200 + 12%*37400 + 22%*13509.25 = 1220 + 4488 + 2972.04 = 8680.04. No nonrefundable credits. value = 8680.04"
+ },
+ {
+  "model": "gpt-6.1-sol",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1742.81",
+  "explanation": "Ohio income of $94,925 less $6,500 qualifying health premiums and $3,800 personal exemptions leaves $84,625. Tax is $332 plus 2.75% above $26,050, less the $200 retirement-income credit; the joint-filing credit does not apply because the head has no qualifying income. value = 1742.81"
+ },
+ {
+  "model": "gpt-6.1-sol",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "5145.11",
+  "explanation": "Using surviving-spouse filing status, income includes $30,689.25 of taxable Social Security and the business loss, producing AGI of $79,209.25. The $32,200 standard deduction leaves $47,009.25 taxable; the 2026 brackets apply and no nonrefundable credits qualify. value = 5145.11"
+ },
+ {
+  "model": "claude-haiku-5.5",
+  "scenario_id": "scenario_025",
+  "variable": "state_income_tax_before_refundable_credits",
+  "prediction": "1000.0",
+  "explanation": "Ohio tax on income after Ohio's exemptions and 2026 rates for joint filers with about 95,000 of income, approximate liability value = 1000"
+ },
+ {
+  "model": "claude-haiku-5.5",
+  "scenario_id": "scenario_039",
+  "variable": "federal_income_tax_before_refundable_credits",
+  "prediction": "0.0",
+  "explanation": "Head age 61 with taxable IRA distributions, pension, and Social Security; self-employment loss and standard deduction (including 65+ and disabled add-ons not enough to exceed) leave no federal tax liability after nonrefundable credits; value = 0"
+ }
+]

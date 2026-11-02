@@ -1,0 +1,83 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.3884563999999997,
+  "duration_ms": 246618,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T04:01:02.010375+00:00",
+  "output_file": "verdict.json",
+  "output_sha256": "1651e0de23cb334ecb7b2b61b8694648140ed5124683fc70d548c2441fba1f16",
+  "prompt_file": "stage2_prompt.md",
+  "prompt_sha256": "6fef896a78df2ce3fcf323c250d86698df81dec83f938bdc06f4a4a1e4026fc5",
+  "session_id": "5d3fd7ff-b954-41b1-9a3f-eb68e18bd6e1",
+  "stage": 2,
+  "stage1_judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "stage1_sha256": "071251d027c3f7d3ecd15bba6441b43e74016ea9d2f1bd385b1cb0dbadc37af5",
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.tax.ny.gov/pit/credits/real_property_tax_credit.htm",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214i.pdf",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214_fill_in.pdf",
+      "https://codes.findlaw.com/ny/tax-law/tax-sect-606.html",
+      "https://assembly.state.ny.us/write/upload/member_files/111/pdfs/20240625_0110946.pdf",
+      "https://www.nysenate.gov/legislation/laws/TAX/606",
+      "https://law.justia.com/codes/new-york/tax/article-22/part-3/606/",
+      "https://www.nysenate.gov/legislation/bills/2025/S3303",
+      "https://www.nysenate.gov/legislation/bills/2025/A10575",
+      "https://www.tax.ny.gov/pdf/current_forms/it/it214_fill_in_2d.pdf",
+      "https://tax.ny.gov/pdf/2013/inc/it214i_2013.pdf",
+      "https://www.ny.gov/services/claim-your-real-property-tax-credit-form-it-214",
+      "https://www.tax.ny.gov/forms/current-forms/it/it201i.htm",
+      "https://www.tax.ny.gov/forms/current-forms/it/it201i.htm",
+      "https://www.tax.ny.gov/legal/2025/",
+      "https://www.tax.ny.gov/legal/2025/income.htm",
+      "https://www.tax.ny.gov/legal/2025/pit-corp-changes.htm",
+      "https://www.tax.ny.gov/legal/2026/income.htm",
+      "https://www.budget.ny.gov/pubs/archive/fy27/ex/ter/fy27ter.pdf",
+      "https://www.budget.ny.gov/pubs/archive/fy27/ex/ter/fy27ter.pdf",
+      "https://bplc.cssny.org/pbm/tax-credits/tax-credit-programs/tax-credits-for-homeowners-or-renters",
+      "https://www.budget.ny.gov/pubs/archive/fy27/ex/ter/fy27ter.pdf"
+    ],
+    "searches": [
+      "IT-214 instructions 2025 real property tax credit federal adjusted gross income 50% excess real property taxes $375",
+      "New York Tax Law 606(e)(2) \"fifty percent of the excess\" real property taxes circuit breaker \"three hundred seventy-five dollars\"",
+      "\"real property tax circuit breaker credit\" \"maximum credit\" \"sixty-five\" \"three hundred seventy-five\" New York tax law 606",
+      "\"IT-214\" \"65 or older\" maximum credit table \"$1,000 or less\" \"$375\" \"$18,000\" real property tax credit computation 50%",
+      "New York real property tax credit IT-214 \"federal adjusted gross income\" instead of \"household gross income\" 2025 change budget",
+      "2025 Form IT-214 \"Table A\" 65 or older maximum credit federal adjusted gross income \"$375\" \"50%\" line",
+      "New York FY2027 enacted budget 2026 personal income tax changes real property tax credit circuit breaker IT-214",
+      "\"real property tax\" circuit breaker New York Part RR 2025 \"federal adjusted gross income\" fixed credit \"$375\" \"$150\" seniors brackets simplified",
+      "\"circuit breaker\" \"fixed credit amount that varies by income\" New York budget"
+    ]
+  }
+}

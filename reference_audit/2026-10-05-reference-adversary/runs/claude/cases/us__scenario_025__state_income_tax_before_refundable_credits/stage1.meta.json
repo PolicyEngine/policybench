@@ -1,0 +1,83 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.801928,
+  "duration_ms": 457120,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T02:43:27.353112+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "3f895f4c6d875429c32dcfcdc9dc7036052c1c392db6a5155d023bdaa6d52e45",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "4d2dd80f5362dda52232ee0225f6f9be75f07d2bc437ca0fb05deff80e614a67",
+  "session_id": "9ff3b95b-9e11-4986-bee8-4df0e99151ae",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.02",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.01",
+      "https://tax.ohio.gov/help-center/faqs/income-medical-and-health-care-expenses",
+      "https://dam.assets.ohio.gov/image/upload/v1767095693/tax.ohio.gov/forms/ohio_individual/individual/2025/it1040-booklet.pdf",
+      "https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/forms/ohio_individual/individual/2024/it1040-booklet.pdf",
+      "https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/forms/ohio_individual/individual/2019/Unreimbursed_Health_Care_Expenses_Worksheet_for_Ohio_Schedule_A.pdf",
+      "https://tax.ohio.gov/help-center/faqs/income-medical-and-health-care-expenses/income-medical-and-health-care-expenses",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.055",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.05",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.025",
+      "https://www.lsc.ohio.gov/assets/legislation/136/hb96/cr/files/hb96-tax-comparison-document-as-reported-by-the-committee-of-conference-136th-general-assembly.pdf",
+      "https://www.lsc.ohio.gov/assets/legislation/136/hb96/ps/files/hb96-tax-bill-analysis-as-passed-by-the-senate-136th-general-assembly.pdf",
+      "https://taxnews.ey.com/news/2025-1744-ohio-legislation-lowers-top-personal-tax-rate-retroactive-to-january-1-2025-implements-flat-tax-in-2026",
+      "https://tax.ohio.gov/individual/resources/annual-tax-rates",
+      "https://tax.ohio.gov/individual/resources/annual-tax-rates",
+      "https://tax.ohio.gov/individual/resources/whatsnew",
+      "https://dam.assets.ohio.gov/image/upload/v1758139619/tax.ohio.gov/forms/ohio_individual/individual/2025/1040-amended-bundle.pdf",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.01",
+      "https://ttlc.intuit.com/community/state-taxes/discussion/ohio-unreimbursed-medical-care-expense-worksheet/00/2969959",
+      "https://ttlc.intuit.com/community/state-taxes/discussion/ohio-deduction-for-unreimbursed-medical-expenses/00/2654748",
+      "https://tax.ohio.gov/help-center/faqs/income-medical-and-health-care-expenses/",
+      "https://www.tax.state.oh.us/email/IFileHelp/help/2004/1040schadedinsumedwks.html",
+      "https://www.law.cornell.edu/uscode/text/26/213",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.055",
+      "https://codes.ohio.gov/ohio-revised-code/section-5747.02"
+    ],
+    "searches": [
+      "Ohio 2026 income tax rate schedule 2.75% flat $26,050 tax table",
+      "Ohio Schedule of Adjustments unreimbursed medical and health care expenses worksheet 7.5% federal adjusted gross income instructions 2025",
+      "2025 Ohio IT 1040 instructions \"Unreimbursed Medical and Health Care Expenses Worksheet\" pdf",
+      "tax.ohio.gov FAQ \"employer-subsidized\" health insurance premiums deductible \"7.5%\" Ohio income tax",
+      "Ohio personal exemption 2025 tax year $2,400 $2,150 $1,900 indexing suspended H.B. 96",
+      "tax.ohio.gov individual income tax rates personal exemption amount 2025 \"1,900\" modified adjusted gross income greater than $80,000",
+      "Ohio Department of Taxation \"annual tax rates\" individual income tax 2025 exemption",
+      "\"5747.025\" \"shall not\" adjust personal exemption \"2025\" \"2026\" H.B. 96 uncodified section inflation indexing brackets",
+      "Ohio unreimbursed medical worksheet line 3 \"subsidized\" premiums \"after-tax\" medicare premiums \"7.5%\" line 4 line 5 IT 1040 instructions"
+    ]
+  }
+}

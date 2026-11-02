@@ -1,0 +1,343 @@
+{
+ "note": "The verdicts release dashboard-data-20261027's adjudication entries name on the cases GPT-6.1 Terra or the move to policyengine-us 2.60.0 re-opened: for each committed decision on such a case, the case's verdict in the exported stage, read by scripts/date_terra_judge_verdicts.py from verdict.json and its sha256-bound verdict.meta.json. The verdict each restatement replaced is release 20261014's entry (git show bf845cbe4e92:annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json). The release decides no wave.",
+ "release": "dashboard-data-20261027",
+ "base_commit": "bf845cbe4e92de495150c8660c35ea357d996a8c",
+ "cases": {
+  "us__scenario_005__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T08:12:09.771450+00:00",
+   "verdict_sha256": "0c978753fab15a01d0f990de6265dc8aa9504c7a2e502704b347ded9c606a4f6"
+  },
+  "us__scenario_008__state_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_later_law",
+   "case_failure_subtype": "state_local_rule",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:24:57.568826+00:00",
+   "verdict_sha256": "346520633a9f38fb13c51ee31287dd2bda6486b42a0a91a5518c8a70069402d8"
+  },
+  "us__scenario_015__local_income_tax": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "prompt_ambiguity",
+   "case_failure_subtype": "state_local_rule",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:33:05.136294+00:00",
+   "verdict_sha256": "527295b54a113f9cb57376ec394065cfdfe0c334aa76778c89720e754ba3663c"
+  },
+  "us__scenario_020__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:36:58.038591+00:00",
+   "verdict_sha256": "7f7683d1eb2f93e859684c7fc5a929551a910dd2fbae8b3c795481296a5d0f3d"
+  },
+  "us__scenario_022__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:39:02.934788+00:00",
+   "verdict_sha256": "3b10ef11f5aec5b7055fc8154c63fc45954ca70d838658a523c5c0b8f6ec77b0"
+  },
+  "us__scenario_023__head_medicaid_eligible": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:43:08.951435+00:00",
+   "verdict_sha256": "b75f1f624e158fcffd4e65937e9ebe3b116c648d438f624116443402f0e89e50"
+  },
+  "us__scenario_023__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "age_disability",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T08:44:59.960258+00:00",
+   "verdict_sha256": "f42089ab7fd0c4e91ea22110c4c4ab07d53f6ec2bcbb3bfc733585e585767b34"
+  },
+  "us__scenario_030__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:04:37.901094+00:00",
+   "verdict_sha256": "6929f3ec5ae85105664f32de13ec221097e55911110bee4b70fae5fb9fdf174d"
+  },
+  "us__scenario_042__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:21:06.155951+00:00",
+   "verdict_sha256": "6d8fb9e4d6da85ba73399a2b8acf9443068232209268c47bbe1e231cbcdcbdc1"
+  },
+  "us__scenario_051__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:29:20.323159+00:00",
+   "verdict_sha256": "9ac95cd65b390cb313db6317e239c70f9f78f4925c7c856e4ec515663cd289ab"
+  },
+  "us__scenario_052__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "thresholds_rates",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T09:33:08.731443+00:00",
+   "verdict_sha256": "0c6899498d59a53d5979bf4bae1ac3c7def8353fde8c7d24b579cee2b5077508"
+  },
+  "us__scenario_056__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_engine_defect",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T09:41:29.899789+00:00",
+   "verdict_sha256": "93fcf4a3e40111e3f6e5bb8f65c2656763581e8d9f63321d0693c79436d2a1f5"
+  },
+  "us__scenario_056__state_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_engine_defect",
+   "case_failure_subtype": "state_local_rule",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T09:43:22.664598+00:00",
+   "verdict_sha256": "8c4ea30db54443bb3bed9c73241e8b221d7f60bb09d8057ccaca101f7187b91b"
+  },
+  "us__scenario_057__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_model_issue_fixed",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T09:47:43.539010+00:00",
+   "verdict_sha256": "8e4ec9d0f06062f4f8304b4f90fc726d3247aa11ea640b3093bd509b0df6a12c"
+  },
+  "us__scenario_057__ssi": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:50:05.346682+00:00",
+   "verdict_sha256": "a9f104bedca8b14eaea9cbf919e8bd183b55e2ce4657c5a1c086aa05da6a6d50"
+  },
+  "us__scenario_062__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:51:32.838733+00:00",
+   "verdict_sha256": "2f5e1dd974f96ea7fc4010574052b31b5f40cc7f2504a0b4e4cd6f6c11d6a0b9"
+  },
+  "us__scenario_064__ssi": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "prompt_ambiguity",
+   "case_failure_subtype": "age_disability",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T09:52:51.661088+00:00",
+   "verdict_sha256": "69b7a7b3008570cc71abf3acc1da2213dddc2327459512bae79b247a8105aa43"
+  },
+  "us__scenario_064__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T09:58:02.824237+00:00",
+   "verdict_sha256": "ef7aabda36bf470b6ab8a84bd7f3c17aa173a9374b88fe66a7d8d10e8442b586"
+  },
+  "us__scenario_067__local_income_tax": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "prompt_ambiguity",
+   "case_failure_subtype": "state_local_rule",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:00:43.703168+00:00",
+   "verdict_sha256": "b90a60b3c9e49b1ff8c1a9533f96a08964dd003f81280ace13ccba5c432f9c14"
+  },
+  "us__scenario_067__ssi": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_data_issue_fixed",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T10:02:35.366499+00:00",
+   "verdict_sha256": "c67d42d01dcaea52700bf5c9e30b32947a9da0165497f2004dbebe03c974d81e"
+  },
+  "us__scenario_076__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "thresholds_rates",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:11:37.479802+00:00",
+   "verdict_sha256": "bd79970aca99d978091ea787f50989946f26d8179c39ba70f13cc253ac4c3991"
+  },
+  "us__scenario_077__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:12:52.667270+00:00",
+   "verdict_sha256": "8eb2ae7523afa32282146fab02850430b7c930e6bf1848b2508bef5e92a0dbc3"
+  },
+  "us__scenario_078__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:14:25.851401+00:00",
+   "verdict_sha256": "f78ebdfc43c1b03500d28957331cfffdaa8b014b0d1f005cf59f824c41899478"
+  },
+  "us__scenario_079__head_medicare_eligible": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "age_disability",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:15:11.086850+00:00",
+   "verdict_sha256": "c5c7f5fc698a1555513dd443fdfe38bba2063edf9b4d1b485e1caccf0f34a482"
+  },
+  "us__scenario_080__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "asset_resource",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:19:22.914567+00:00",
+   "verdict_sha256": "7d7bde92804667adc703671d49ec448642194a34cbb4b7d1ccc3a123ba87fc99"
+  },
+  "us__scenario_081__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:21:33.272540+00:00",
+   "verdict_sha256": "0e6d1ec3f01ff9bc8635059b79a8bb8946e700be8a341c99a67fdee55dd4b07e"
+  },
+  "us__scenario_081__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:23:02.738710+00:00",
+   "verdict_sha256": "cc958ce4f52ce38b54a04fe6ada90552f34289b6413e0f241cae6a734959e5db"
+  },
+  "us__scenario_084__head_medicare_eligible": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "age_disability",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:33:19.851279+00:00",
+   "verdict_sha256": "67deaf0aec81601c64622b74fae4620765a2c996d184b21e135293db0d6161a2"
+  },
+  "us__scenario_086__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:37:01.149265+00:00",
+   "verdict_sha256": "86562502ffd7f3213635d362e3f0ca2dc0b8cdeb2167a7fb6167bb42bc72a095"
+  },
+  "us__scenario_093__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:46:08.690668+00:00",
+   "verdict_sha256": "97ba22512cdda8d7cf37a74591712aeda7bf6fe851fe17e6c9fa977b43da9098"
+  },
+  "us__scenario_093__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:49:30.880718+00:00",
+   "verdict_sha256": "dc532b8460e3b0d4830e1a2da57fc78ef313dd4c4ca0cd7960ed2432416d5996"
+  },
+  "us__scenario_100__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T10:58:43.076908+00:00",
+   "verdict_sha256": "b4c91591599d6685f97ecb9361d1b8703abcd2b2af5cb60744f7730e354a832e"
+  },
+  "us__scenario_108__state_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_model_issue_fixed",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T11:07:06.793214+00:00",
+   "verdict_sha256": "05ad68cab6d07aedb07018dc0410555ddbdae0d833c8f26b04239fedcc2eee04"
+  },
+  "us__scenario_112__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "reference_engine_defect",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T11:15:26.474472+00:00",
+   "verdict_sha256": "96c2037246e47b562ec9ec72c2381c35f9194128ec89959888a99e0178b20ddf"
+  },
+  "us__scenario_114__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T11:17:18.825715+00:00",
+   "verdict_sha256": "d1597f63e9a3965f160960c39da8d794d93dce01da1b6af6ba59db38492e1cde"
+  },
+  "us__scenario_114__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T11:19:13.165355+00:00",
+   "verdict_sha256": "bcb4699b903fd81c4d4442035aae59bba0dd890975b0c903ad4e5df2d4be366a"
+  },
+  "us__scenario_117__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T11:24:06.110748+00:00",
+   "verdict_sha256": "fef99338cf7a976b147eef7c2ef2deb569a35e2b6e1e20bd83c25c6ecfe424d3"
+  },
+  "us__scenario_118__snap": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T11:31:09.475532+00:00",
+   "verdict_sha256": "17dba61df0e885c01d4ebe75e859a5d4e946b3c6e427a50b4ab8eee183fda530"
+  },
+  "us__scenario_118__state_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "categorical_eligibility",
+   "reference_suspect": true,
+   "judged_at_utc": "2026-10-27T11:33:41.075416+00:00",
+   "verdict_sha256": "844503b0b09b871cd25bafad194e13e388960b72c0f4bf922600d6aa686c30e3"
+  },
+  "us__scenario_120__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "taxable_income_or_deductions",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T11:44:26.697549+00:00",
+   "verdict_sha256": "e80b8cba92ded33b007837d853c34c5f1b44f3e78b7d3bea0b267536a547988d"
+  },
+  "us__scenario_123__federal_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T12:04:20.859960+00:00",
+   "verdict_sha256": "c4b0cef76d990bc17ddcf48450ee54a58e7170a09d1c518a43d467f38898f82f"
+  },
+  "us__scenario_123__state_income_tax_before_refundable_credits": {
+   "judge_model": "claude-opus-5-5",
+   "case_failure_source": "llm_error",
+   "case_failure_subtype": "household_unit_or_filing_status",
+   "reference_suspect": false,
+   "judged_at_utc": "2026-10-27T12:09:41.752039+00:00",
+   "verdict_sha256": "c4331e0fbeecd56a846e9ec9afe54922890daef0dcfa0d423e020b0bf0d9f61f"
+  }
+ }
+}

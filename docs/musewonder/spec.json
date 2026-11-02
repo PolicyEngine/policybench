@@ -1,0 +1,17 @@
+{
+  "note": "Inputs of the release after dashboard-data-20261010, read by scripts/finish_musewonder.py. The release folds Meta Muse Wonder onto release dashboard-data-20261010 and moves the references from policyengine-us 2.38.6 to the newest release, regenerating the excluded outputs whose engine defects it fixes (Max 2026-09-28, 2026-10-09 and 2026-10-12). It rules no exclusion: d1252 (VA scenario_039 federal and OH scenario_025 state income tax, held references) and d1263 (the Tax Table against the rate schedule) were open when it was staged, so nothing scored changes on their points.",
+  "release_tag": "dashboard-data-20261013",
+  "base_tag": "dashboard-data-20261010",
+  "base_sha256": "f834478e65191f8426ef479506f9f6fe32c2e7107f30fdbf4e7ba0e6acba6410",
+  "rulings": {
+    "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'; 2026-10-09: 'yes i want to wait for hte fixed engine'; 2026-10-12, of the fixes release 20261010 left excluded: 'If any have shipped, regenerate their cells instead of excluding them.'",
+    "d1252": "open when staged: no change to VA scenario_039 federal or OH scenario_025 state income tax",
+    "d1263": "open when staged: federal references keep the section 1 rate schedule"
+  },
+  "proposals": [],
+  "adjudications": [],
+  "restated_adjudications": [],
+  "upgrade_adjudications": [],
+  "triage_adjudications": [],
+  "snapshot_date": "2026-10-13"
+}

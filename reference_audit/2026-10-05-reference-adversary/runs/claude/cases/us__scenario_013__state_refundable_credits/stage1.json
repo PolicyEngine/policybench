@@ -1,0 +1,66 @@
+{
+  "ambiguity": "Subsection C bases the $25 on persons 'for whom a personal or dependent exemption is allowed', and cites \u00a743-1043, which now returns 404 and seems to have been repealed when Arizona dropped personal exemptions. Read hyper-literally, the filer might not count, which would give $0. However, AZDOR still describes the credit as '$25 for each resident of Arizona', and its forms let single filers claim $25 for themselves. That administrative practice is how the credit actually works, so $0 is not a reasonable reading. The consensus $0 instead seems to come from overlooking the credit or from testing total income, including Social Security, when the statute tests federal AGI.",
+  "citations": [
+    {
+      "pinpoint": "Subsection A (income thresholds)",
+      "pre_freeze": true,
+      "published": "in force since tax years after 2000-12-31 (current ARS text)",
+      "quote": "a credit is allowed ... for a taxpayer who is not claimed as a dependent by any other taxpayer and whose federal adjusted gross income is ... Twelve thousand five hundred dollars or less for a single person or a married person filing separately",
+      "source": "Arizona Revised Statutes \u00a743-1072.01 (Credit for increased excise taxes paid)",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection C (amount)",
+      "pre_freeze": true,
+      "published": "current ARS text",
+      "quote": "The amount of the credit shall not exceed twenty-five dollars for each person who is a resident of this state and for whom a personal or dependent exemption is allowed ... but not more than one hundred dollars for all persons in the taxpayer's household",
+      "source": "Arizona Revised Statutes \u00a743-1072.01",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Subsection D (refundability)",
+      "pre_freeze": true,
+      "published": "current ARS text",
+      "quote": "If the allowable amount of the credit exceeds the income taxes otherwise due on the claimant's income, the amount of the claim not used as an offset against income taxes shall be paid in the same manner as a refund granted under section 42-1118.",
+      "source": "Arizona Revised Statutes \u00a743-1072.01",
+      "url": "https://www.azleg.gov/ars/43/01072-01.htm"
+    },
+    {
+      "pinpoint": "Increased Excise Tax Credit section",
+      "pre_freeze": null,
+      "published": "undated",
+      "quote": "$25 for each resident of Arizona and for whom a personal or dependent exemption is allowed ... This credit cannot exceed $100 per household.",
+      "source": "Arizona Department of Revenue, Tax Credits page",
+      "url": "https://azdor.gov/individuals/income-tax-filing-assistance/tax-credits"
+    },
+    {
+      "pinpoint": "Subsection A, paragraphs 1-3",
+      "pre_freeze": true,
+      "published": "current ARS text",
+      "quote": "Such person paid either property taxes or rent during the taxable year. ... Did not live with a spouse or any other persons and had an income from all sources in the taxable year of less than three thousand seven hundred fifty-one dollars.",
+      "source": "Arizona Revised Statutes \u00a743-1072 (Property tax credit)",
+      "url": "https://www.azleg.gov/ars/43/01072.htm"
+    },
+    {
+      "pinpoint": "Conformity and standard deduction provisions",
+      "pre_freeze": true,
+      "published": "2026-06-13 (signed)",
+      "quote": "Updates the statutory definition of Internal Revenue Code to include all provisions in effect as of January 1, 2026 ... Single person or married filing separately $15,750",
+      "source": "Arizona Legislature, SB1861/HB4168 Senate Fact Sheet (57th Leg., 2nd Reg. Sess., as enacted)",
+      "url": "https://www.azleg.gov/legtext/57leg/2R/summary/S.1861-4168ATT_ASENACTED.DOCX.htm"
+    },
+    {
+      "pinpoint": "\u00a786(b)(1), \u00a786(c)(1)",
+      "pre_freeze": true,
+      "published": "current USC",
+      "quote": "the modified adjusted gross income of the taxpayer for the taxable year, plus ... one-half of the social security benefits received during the taxable year, exceeds ... the base amount ... $25,000",
+      "source": "26 U.S.C. \u00a786 (Social security and tier 1 railroad retirement benefits)",
+      "url": "https://www.law.cornell.edu/uscode/text/26/86"
+    }
+  ],
+  "computation": "1) Federal AGI (needed because the Arizona excise tax credit test uses federal AGI). Non-Social Security income is $6,720 taxable pension + $16 non-qualified dividends + $72 capital gains = $6,808. Under IRC \u00a786(b), $6,808 + one-half of $23,736 Social Security ($11,868) = $18,676. That is below the $25,000 base amount for a single filer (IRC \u00a786(c)(1)), so none of the Social Security is taxable. Federal AGI = $6,808. Filing status is single, since there is no spouse or dependent.\n2) Arizona tax before refundable credits is $0. AZ SB1861 (signed 2026-06-13, before the freeze) conforms to the IRC as of 1/1/2026 and sets the single standard deduction at $15,750. That alone exceeds the $6,808 of AGI, before even counting the $2,100 age-65 exemption or the senior deduction.\n3) Increased excise tax credit (A.R.S. 43-1072.01). This filer is single, is not claimed as a dependent, and has federal AGI of $6,808, which is under the $12,500 limit. The credit is $25 for each resident person in the household, capped at $100. Here that is 1 \u00d7 $25 = $25. Subsection D makes any amount above tax due payable as a refund, so the full $25 is refundable. No 2026 law I found changed this credit: the SB1861 fact sheet lists no change to 43-1072.01 or 43-1072. The amounts are fixed in the statute and are not indexed, so no separate 2026 figure needed to be published.\n4) Property tax credit (A.R.S. 43-1072) = $0. It requires that property taxes or rent were paid during the year, and none are listed (the prompt says to treat unlisted amounts as 0; a mortgage balance is not property tax paid). Also, for a person living alone, income must be under $3,751. Even leaving out Social Security, which the statute excludes, pension and investment income of $6,808 is over that limit.\n5) No other Arizona refundable individual credit applies. The family income tax credit and the dependent credit are nonrefundable and need dependents or other qualifying conditions. SB1861 removed the refundable portion of the R&D credit, which does not apply here anyway.\nTotal refundable Arizona credits = $25.",
+  "confidence": "high",
+  "definition_reading": "I read the definition as the total of every Arizona individual income tax credit that is refundable, meaning any amount above liability is paid out, for this one-person single tax unit. Two credits qualify: the increased excise tax credit (A.R.S. 43-1072.01) and the property tax credit (A.R.S. 43-1072). The excise credit is $25, because federal AGI of $6,808 is under the $12,500 single limit. The property tax credit is $0, because no property tax or rent was paid and income is over the $3,751 limit. Total = $25.",
+  "independent_answer": 25,
+  "law_supports": "reference"
+}

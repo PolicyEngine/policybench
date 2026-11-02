@@ -1,0 +1,1360 @@
+{
+  "published_reproduced": true,
+  "proposals": "proposed_changes.json",
+  "exclude:az_standard_deduction_indexing": {
+    "changed_outputs": [
+      "scenario_018/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1927
+    },
+    "exact_delta_pp": {
+      "min": 0.0339597872358155,
+      "max": 0.06272079169582412,
+      "mean": 0.050194376267838785
+    },
+    "score_delta": {
+      "min": -0.0032286634335321196,
+      "max": 0.062497885644418716
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.01799084707794,
+        "within1pct": 70.01799084707794
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.05283636090158
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 65.063939,
+        "exact_delta": 0.756557,
+        "score_published": 84.205086,
+        "score_proposed": 84.239579,
+        "score_delta": 0.034492,
+        "n_published": 3956,
+        "n_proposed": 3910,
+        "n_delta": -46
+      }
+    }
+  },
+  "regenerate:az_standard_deduction_indexing": {
+    "changed_outputs": [
+      "scenario_018/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1137.302246,
+        "exact_models": 12
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1928
+    },
+    "exact_delta_pp": {
+      "min": 0.0,
+      "max": 0.06272079169582412,
+      "mean": 0.016361945659778044
+    },
+    "score_delta": {
+      "min": -0.0009157955673515517,
+      "max": 0.0004788663442525376
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.06621992741454
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 64.610718,
+        "exact_delta": 0.303337,
+        "score_published": 84.205086,
+        "score_proposed": 84.203022,
+        "score_delta": -0.002064,
+        "n_published": 3956,
+        "n_proposed": 3956,
+        "n_delta": 0
+      }
+    }
+  },
+  "exclude:oh_medical_deduction_premiums": {
+    "changed_outputs": [
+      "scenario_025/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1927
+    },
+    "exact_delta_pp": {
+      "min": 0.034642447695929945,
+      "max": 0.06272079169582412,
+      "mean": 0.05218954620582765
+    },
+    "score_delta": {
+      "min": -0.02152825450238538,
+      "max": 0.06056590673978235
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {
+      "grok-4.3": {
+        "published": 36,
+        "proposed": 35
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.01799084707794,
+        "within1pct": 70.01799084707794
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.06621992741454
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 65.063939,
+        "exact_delta": 0.756557,
+        "score_published": 84.205086,
+        "score_proposed": 84.341584,
+        "score_delta": 0.136498,
+        "n_published": 3956,
+        "n_proposed": 3910,
+        "n_delta": -46
+      }
+    }
+  },
+  "regenerate:oh_medical_deduction_premiums": {
+    "changed_outputs": [
+      "scenario_025/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1916.604,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1928
+    },
+    "exact_delta_pp": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0
+    },
+    "score_delta": {
+      "min": -0.0002527580634108517,
+      "max": 0.00016027416725705734
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.00349913571871
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 64.307381,
+        "exact_delta": 0.0,
+        "score_published": 84.205086,
+        "score_proposed": 84.206095,
+        "score_delta": 0.001009,
+        "n_published": 3956,
+        "n_proposed": 3956,
+        "n_delta": 0
+      }
+    }
+  },
+  "exclude:co_sales_tax_refund_surplus": {
+    "changed_outputs": [
+      "scenario_043/state_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 19.0,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_043/state_refundable_credits": {
+        "scored": false,
+        "reference": 19.0,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1927
+    },
+    "exact_delta_pp": {
+      "min": 0.002642900530062775,
+      "max": 0.005777689994090451,
+      "mean": 0.00458157637017449
+    },
+    "score_delta": {
+      "min": 0.0028274192182777824,
+      "max": 0.005777658165840194
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.98351840359399,
+        "within1pct": 69.98351840359399
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.0092768257128
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 82.787987,
+        "exact_delta": 0.844775,
+        "score_published": 85.494558,
+        "score_proposed": 86.375945,
+        "score_delta": 0.881387,
+        "n_published": 4508,
+        "n_proposed": 4462,
+        "n_delta": -46
+      }
+    }
+  },
+  "regenerate:co_sales_tax_refund_surplus": {
+    "changed_outputs": [
+      "scenario_043/state_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 19.0,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 0.0,
+        "exact_models": 39
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1928
+    },
+    "exact_delta_pp": {
+      "min": 0.0,
+      "max": 0.005777689994090451,
+      "mean": 0.0048984762993332315
+    },
+    "score_delta": {
+      "min": 0.0,
+      "max": 0.005777689994090451
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.98537226368258,
+        "within1pct": 69.98537226368258
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.0092768257128
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 82.808341,
+        "exact_delta": 0.865129,
+        "score_published": 85.494558,
+        "score_proposed": 86.359686,
+        "score_delta": 0.865129,
+        "n_published": 4508,
+        "n_proposed": 4508,
+        "n_delta": 0
+      }
+    }
+  },
+  "exclude:ny_cdcc_606_c2": {
+    "changed_outputs": [
+      "scenario_082/state_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 667.0,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_082/state_refundable_credits": {
+        "scored": false,
+        "reference": 667.0,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1927
+    },
+    "exact_delta_pp": {
+      "min": 0.003122659856359178,
+      "max": 0.006327796420748655,
+      "mean": 0.004835790512000516
+    },
+    "score_delta": {
+      "min": 0.0002129974048443728,
+      "max": 0.006834171349353824
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {
+      "grok-4.3": {
+        "published": 36,
+        "proposed": 35
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.98458968059096,
+        "within1pct": 69.98458968059096
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.00982693213946
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 82.787987,
+        "exact_delta": 0.844775,
+        "score_published": 85.494558,
+        "score_proposed": 86.111385,
+        "score_delta": 0.616827,
+        "n_published": 4508,
+        "n_proposed": 4462,
+        "n_delta": -46
+      }
+    }
+  },
+  "regenerate:ny_cdcc_606_c2": {
+    "changed_outputs": [
+      "scenario_082/state_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 667.0,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 1187.611,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1928
+    },
+    "exact_delta_pp": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0
+    },
+    "score_delta": {
+      "min": -0.0025817040405797798,
+      "max": 0.004255457035853283
+    },
+    "exact_rank_changes": {},
+    "within1pct_rank_changes": {},
+    "score_rank_changes": {},
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.00349913571871
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "programs": {
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 81.943212,
+        "exact_delta": 0.0,
+        "score_published": 85.494558,
+        "score_proposed": 85.433882,
+        "score_delta": -0.060676,
+        "n_published": 4508,
+        "n_proposed": 4508,
+        "n_delta": 0
+      }
+    }
+  },
+  "exclude:household_scope_dependent_returns": {
+    "changed_outputs": [
+      "scenario_093/federal_income_tax_before_refundable_credits",
+      "scenario_093/state_income_tax_before_refundable_credits",
+      "scenario_123/federal_income_tax_before_refundable_credits",
+      "scenario_123/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1924
+    },
+    "exact_delta_pp": {
+      "min": 0.2616067556737818,
+      "max": 0.5141734087848988,
+      "mean": 0.43348310029085846
+    },
+    "score_delta": {
+      "min": 0.0345440628547351,
+      "max": 0.4578642471754222
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      },
+      "claude-opus-4.7": {
+        "published": 29,
+        "proposed": 30
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 29
+      }
+    },
+    "within1pct_rank_changes": {
+      "claude-opus-4.8": {
+        "published": 40,
+        "proposed": 39
+      },
+      "minimax-m3": {
+        "published": 39,
+        "proposed": 40
+      }
+    },
+    "score_rank_changes": {
+      "gpt-5.6-sol": {
+        "published": 6,
+        "proposed": 4
+      },
+      "claude-sonnet-5.5": {
+        "published": 4,
+        "proposed": 6
+      },
+      "kimi-k3": {
+        "published": 19,
+        "proposed": 18
+      },
+      "gpt-5.6-luna": {
+        "published": 18,
+        "proposed": 19
+      },
+      "inkling": {
+        "published": 9,
+        "proposed": 10
+      },
+      "deepseek-v4.1-flash": {
+        "published": 15,
+        "proposed": 16
+      },
+      "grok-4.6": {
+        "published": 16,
+        "proposed": 15
+      },
+      "gemini-3.8-flash": {
+        "published": 10,
+        "proposed": 9
+      },
+      "claude-opus-5": {
+        "published": 24,
+        "proposed": 25
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 22
+      },
+      "gemini-3.7-flash": {
+        "published": 22,
+        "proposed": 21
+      },
+      "gemini-3.1-pro-preview": {
+        "published": 25,
+        "proposed": 24
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.38294050146501,
+        "within1pct": 70.38294050146501
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.51747485624276
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "programs": {
+      "federal_income_tax_before_refundable_credits": {
+        "exact_published": 61.611877,
+        "exact_proposed": 63.097826,
+        "exact_delta": 1.485949,
+        "score_published": 82.701144,
+        "score_proposed": 83.823636,
+        "score_delta": 1.122492,
+        "n_published": 3772,
+        "n_proposed": 3680,
+        "n_delta": -92
+      },
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 65.838509,
+        "exact_delta": 1.531128,
+        "score_published": 84.205086,
+        "score_proposed": 84.838129,
+        "score_delta": 0.633043,
+        "n_published": 3956,
+        "n_proposed": 3864,
+        "n_delta": -92
+      }
+    }
+  },
+  "recommended": {
+    "changed_outputs": [
+      "scenario_018/state_income_tax_before_refundable_credits",
+      "scenario_025/state_income_tax_before_refundable_credits",
+      "scenario_043/state_refundable_credits",
+      "scenario_082/state_refundable_credits",
+      "scenario_093/federal_income_tax_before_refundable_credits",
+      "scenario_093/state_income_tax_before_refundable_credits",
+      "scenario_123/federal_income_tax_before_refundable_credits",
+      "scenario_123/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      },
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      },
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 19.0,
+        "exact_models": 0
+      },
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 667.0,
+        "exact_models": 0
+      },
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1137.302246,
+        "exact_models": 12
+      },
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1916.604,
+        "exact_models": 0
+      },
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 0.0,
+        "exact_models": 39
+      },
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 1187.611,
+        "exact_models": 0
+      },
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1924
+    },
+    "exact_delta_pp": {
+      "min": 0.29792343774524,
+      "max": 0.582671890474785,
+      "mean": 0.4547435222499704
+    },
+    "score_delta": {
+      "min": 0.03339528436497119,
+      "max": 0.4629029442917556
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      },
+      "claude-opus-4.7": {
+        "published": 29,
+        "proposed": 30
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 29
+      }
+    },
+    "within1pct_rank_changes": {
+      "claude-opus-4.8": {
+        "published": 40,
+        "proposed": 39
+      },
+      "minimax-m3": {
+        "published": 39,
+        "proposed": 40
+      }
+    },
+    "score_rank_changes": {
+      "gpt-5.6-sol": {
+        "published": 6,
+        "proposed": 4
+      },
+      "claude-sonnet-5.5": {
+        "published": 4,
+        "proposed": 6
+      },
+      "kimi-k3": {
+        "published": 19,
+        "proposed": 18
+      },
+      "gpt-5.6-luna": {
+        "published": 18,
+        "proposed": 19
+      },
+      "inkling": {
+        "published": 9,
+        "proposed": 10
+      },
+      "deepseek-v4.1-flash": {
+        "published": 15,
+        "proposed": 16
+      },
+      "grok-4.6": {
+        "published": 16,
+        "proposed": 15
+      },
+      "gemini-3.8-flash": {
+        "published": 10,
+        "proposed": 9
+      },
+      "claude-opus-5": {
+        "published": 24,
+        "proposed": 25
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 22
+      },
+      "gemini-3.7-flash": {
+        "published": 22,
+        "proposed": 21
+      },
+      "gemini-3.1-pro-preview": {
+        "published": 25,
+        "proposed": 24
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.3887181914591,
+        "within1pct": 70.3887181914591
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.58597333793266
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "programs": {
+      "federal_income_tax_before_refundable_credits": {
+        "exact_published": 61.611877,
+        "exact_proposed": 63.097826,
+        "exact_delta": 1.485949,
+        "score_published": 82.701144,
+        "score_proposed": 83.823636,
+        "score_delta": 1.122492,
+        "n_published": 3772,
+        "n_proposed": 3680,
+        "n_delta": -92
+      },
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 66.149068,
+        "exact_delta": 1.841687,
+        "score_published": 84.205086,
+        "score_proposed": 84.837049,
+        "score_delta": 0.631962,
+        "n_published": 3956,
+        "n_proposed": 3864,
+        "n_delta": -92
+      },
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 82.808341,
+        "exact_delta": 0.865129,
+        "score_published": 85.494558,
+        "score_proposed": 86.299011,
+        "score_delta": 0.804453,
+        "n_published": 4508,
+        "n_proposed": 4508,
+        "n_delta": 0
+      }
+    }
+  },
+  "exclude_all": {
+    "changed_outputs": [
+      "scenario_018/state_income_tax_before_refundable_credits",
+      "scenario_025/state_income_tax_before_refundable_credits",
+      "scenario_043/state_refundable_credits",
+      "scenario_082/state_refundable_credits",
+      "scenario_093/federal_income_tax_before_refundable_credits",
+      "scenario_093/state_income_tax_before_refundable_credits",
+      "scenario_123/federal_income_tax_before_refundable_credits",
+      "scenario_123/state_income_tax_before_refundable_credits"
+    ],
+    "cells_published": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      },
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      },
+      "scenario_043/state_refundable_credits": {
+        "scored": true,
+        "reference": 19.0,
+        "exact_models": 0
+      },
+      "scenario_082/state_refundable_credits": {
+        "scored": true,
+        "reference": 667.0,
+        "exact_models": 0
+      },
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": true,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "cells_proposed": {
+      "scenario_018/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 1146.05224609375,
+        "exact_models": 0
+      },
+      "scenario_025/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 1921.57275390625,
+        "exact_models": 0
+      },
+      "scenario_043/state_refundable_credits": {
+        "scored": false,
+        "reference": 19.0,
+        "exact_models": 0
+      },
+      "scenario_082/state_refundable_credits": {
+        "scored": false,
+        "reference": 667.0,
+        "exact_models": 0
+      },
+      "scenario_093/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 8628.990234375,
+        "exact_models": 1
+      },
+      "scenario_093/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3388.24560546875,
+        "exact_models": 0
+      },
+      "scenario_123/federal_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 5200.240234375,
+        "exact_models": 1
+      },
+      "scenario_123/state_income_tax_before_refundable_credits": {
+        "scored": false,
+        "reference": 3070.061279296875,
+        "exact_models": 0
+      }
+    },
+    "scored_outputs": {
+      "published": 1928,
+      "proposed": 1920
+    },
+    "exact_delta_pp": {
+      "min": 0.3991538254802407,
+      "max": 0.6517204785913577,
+      "mean": 0.5452843896466996
+    },
+    "score_delta": {
+      "min": 0.04536403645539622,
+      "max": 0.5045932588772217
+    },
+    "exact_rank_changes": {
+      "gpt-6-luna": {
+        "published": 4,
+        "proposed": 5
+      },
+      "claude-sonnet-5.5": {
+        "published": 5,
+        "proposed": 4
+      },
+      "claude-opus-4.7": {
+        "published": 29,
+        "proposed": 30
+      },
+      "gemini-3-flash-preview": {
+        "published": 30,
+        "proposed": 29
+      }
+    },
+    "within1pct_rank_changes": {
+      "claude-opus-4.8": {
+        "published": 40,
+        "proposed": 39
+      },
+      "minimax-m3": {
+        "published": 39,
+        "proposed": 40
+      }
+    },
+    "score_rank_changes": {
+      "gpt-5.6-sol": {
+        "published": 6,
+        "proposed": 4
+      },
+      "claude-sonnet-5.5": {
+        "published": 4,
+        "proposed": 6
+      },
+      "kimi-k3": {
+        "published": 19,
+        "proposed": 18
+      },
+      "gpt-5.6-luna": {
+        "published": 18,
+        "proposed": 19
+      },
+      "inkling": {
+        "published": 9,
+        "proposed": 10
+      },
+      "gpt-5.6-terra": {
+        "published": 13,
+        "proposed": 12
+      },
+      "deepseek-v4.1-flash": {
+        "published": 15,
+        "proposed": 16
+      },
+      "grok-4.6": {
+        "published": 16,
+        "proposed": 15
+      },
+      "gemini-3.8-flash": {
+        "published": 10,
+        "proposed": 9
+      },
+      "claude-opus-5": {
+        "published": 24,
+        "proposed": 25
+      },
+      "deepseek-v4-pro-0813": {
+        "published": 21,
+        "proposed": 22
+      },
+      "gemini-3.7-flash": {
+        "published": 22,
+        "proposed": 21
+      },
+      "gemini-3.6-flash": {
+        "published": 12,
+        "proposed": 13
+      },
+      "gemini-3.1-pro-preview": {
+        "published": 25,
+        "proposed": 24
+      },
+      "glm-5.3": {
+        "published": 34,
+        "proposed": 33
+      },
+      "claude-opus-4.7": {
+        "published": 33,
+        "proposed": 34
+      },
+      "grok-4.3": {
+        "published": 36,
+        "proposed": 35
+      },
+      "gemini-3.1-flash-lite-preview": {
+        "published": 35,
+        "proposed": 36
+      }
+    },
+    "always_zero_baseline": {
+      "published": {
+        "exact": 69.97959457368849,
+        "within1pct": 69.97959457368849
+      },
+      "proposed": {
+        "exact": 70.46865198505186,
+        "within1pct": 70.46865198505186
+      }
+    },
+    "leader": {
+      "model": "gpt-6-sol",
+      "exact_published": 95.00349913571871,
+      "exact_proposed": 95.64163835953627
+    },
+    "top5_exact_published": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "gpt-6-luna",
+      "claude-sonnet-5.5"
+    ],
+    "top5_exact_proposed": [
+      "gpt-6-sol",
+      "claude-opus-5.5",
+      "gpt-5.6-sol",
+      "claude-sonnet-5.5",
+      "gpt-6-luna"
+    ],
+    "programs": {
+      "federal_income_tax_before_refundable_credits": {
+        "exact_published": 61.611877,
+        "exact_proposed": 63.097826,
+        "exact_delta": 1.485949,
+        "score_published": 82.701144,
+        "score_proposed": 83.823636,
+        "score_delta": 1.122492,
+        "n_published": 3772,
+        "n_proposed": 3680,
+        "n_delta": -92
+      },
+      "state_income_tax_before_refundable_credits": {
+        "exact_published": 64.307381,
+        "exact_proposed": 67.444327,
+        "exact_delta": 3.136945,
+        "score_published": 84.205086,
+        "score_proposed": 85.030815,
+        "score_delta": 0.825729,
+        "n_published": 3956,
+        "n_proposed": 3772,
+        "n_delta": -184
+      },
+      "state_refundable_credits": {
+        "exact_published": 81.943212,
+        "exact_proposed": 83.650362,
+        "exact_delta": 1.70715,
+        "score_published": 85.494558,
+        "score_proposed": 87.008379,
+        "score_delta": 1.513821,
+        "n_published": 4508,
+        "n_proposed": 4416,
+        "n_delta": -92
+      }
+    }
+  }
+}

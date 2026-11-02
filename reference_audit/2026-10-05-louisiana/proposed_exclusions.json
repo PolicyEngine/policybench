@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "note": "The exclusion records for Max's ruling d994 (2026-10-06): exclude scenario_051 and scenario_077 state income tax before refundable credits, whose references rest on a 2026 Louisiana standard deduction ($12,835) that no Louisiana publication stated before the 2026-07-03 freeze; keep the published-amounts convention for every other reference. The release after dashboard-data-20261006 installs them (docs/haiku55/spec.json).",
+  "exclusions": [
+    {
+      "scenario_id": "scenario_051",
+      "variable": "state_income_tax_before_refundable_credits",
+      "reason_code": "reference_law_published_after_freeze",
+      "alternative_reading": "R.S. 47:294(B) multiplies 2025's $12,500 by the calendar-2025 CPI-U increase but sets no rounding rule and gives the Department no duty to publish the result. Before the 2026-07-03 freeze Louisiana published only its withholding and estimated-tax amount, $12,875, and said the amount allowed on 2026 returns would differ; its first 2026 return amount, $12,838, came in RIB 26-019 on 2026-09-28, after the freeze. policyengine-us carries $12,835, which PolicyEngine/policyengine-us#8411 computed on 2026-05-24 from published CPI-U values ($12,500 x 324.054 / 315.605, rounded to the dollar): a computation under the statute, not a forecast, but a figure no Louisiana publication stated before the freeze. The reference is 3% of this single filer's Louisiana AGI ($40,180) less $12,835. Both Louisiana outputs that rest on the amount are excluded, and the published-amounts convention stays in force for every other reference (decision d994).",
+      "frozen_value": 820.3499755859375,
+      "alternative_value": 820.260009765625,
+      "engine_version": "policyengine-us 2.15.17",
+      "decided_on": "2026-10-06",
+      "decided_by": "developer",
+      "decision": "d994",
+      "root_cause": "la_2026_standard_deduction_unpublished",
+      "published": "Louisiana Department of Revenue, Revenue Information Bulletin 26-019, dated 2026-09-28: Louisiana's 2026 standard deduction is $12,838 for single and separate filers and $25,676 for the other statuses, the first 2026 return amount Louisiana published",
+      "law": "La. R.S. 47:294(A)-(B) (Act 11 of the 2024 Third Extraordinary Session); BLS CPI-U, series CUUR0000SA0, December 2024 and December 2025 (released 2026-01-13); Louisiana Department of Revenue, Revenue Information Bulletin 26-019 (2026-09-28)",
+      "note": "Found 2026-10-05 while preparing an interview on the board, and audited in reference_audit/2026-10-05-louisiana (PolicyEngine/policybench#192): the sweep (scripts/sweep_la_standard_deduction.py, policyengine-us 2.15.17 with latest_final) reproduces all 1,928 scored references at $12,835 and moves only these two outputs under every candidate amount (verification/sweep_la_standard_deduction.log). Values under the candidates: $12,500 (2025's amount, the last return amount published) $830.40; $12,875 (the withholding amount) $819.15; $12,838 (RIB 26-019) $820.26. Of release dashboard-data-20260930's 46 models, none answered within $1 of the frozen value or of $820.26, and 21 answered within $1 of $830.40 (verification/leaderboard_impact.json)."
+    },
+    {
+      "scenario_id": "scenario_077",
+      "variable": "state_income_tax_before_refundable_credits",
+      "reason_code": "reference_law_published_after_freeze",
+      "alternative_reading": "R.S. 47:294(B) multiplies 2025's $12,500 by the calendar-2025 CPI-U increase but sets no rounding rule and gives the Department no duty to publish the result. Before the 2026-07-03 freeze Louisiana published only its withholding and estimated-tax amount, $12,875, and said the amount allowed on 2026 returns would differ; its first 2026 return amount, $12,838, came in RIB 26-019 on 2026-09-28, after the freeze. policyengine-us carries $12,835, which PolicyEngine/policyengine-us#8411 computed on 2026-05-24 from published CPI-U values ($12,500 x 324.054 / 315.605, rounded to the dollar): a computation under the statute, not a forecast, but a figure no Louisiana publication stated before the freeze. The reference is 3% of this single filer's Louisiana AGI ($23,006.18) less $12,835. Both Louisiana outputs that rest on the amount are excluded, and the published-amounts convention stays in force for every other reference (decision d994).",
+      "frozen_value": 305.13525390625,
+      "alternative_value": 305.0452575683594,
+      "engine_version": "policyengine-us 2.15.17",
+      "decided_on": "2026-10-06",
+      "decided_by": "developer",
+      "decision": "d994",
+      "root_cause": "la_2026_standard_deduction_unpublished",
+      "published": "Louisiana Department of Revenue, Revenue Information Bulletin 26-019, dated 2026-09-28: Louisiana's 2026 standard deduction is $12,838 for single and separate filers and $25,676 for the other statuses, the first 2026 return amount Louisiana published",
+      "law": "La. R.S. 47:294(A)-(B) (Act 11 of the 2024 Third Extraordinary Session); BLS CPI-U, series CUUR0000SA0, December 2024 and December 2025 (released 2026-01-13); Louisiana Department of Revenue, Revenue Information Bulletin 26-019 (2026-09-28)",
+      "note": "Found 2026-10-05 while preparing an interview on the board, and audited in reference_audit/2026-10-05-louisiana (PolicyEngine/policybench#192): the sweep (scripts/sweep_la_standard_deduction.py, policyengine-us 2.15.17 with latest_final) reproduces all 1,928 scored references at $12,835 and moves only these two outputs under every candidate amount (verification/sweep_la_standard_deduction.log). Values under the candidates: $12,500 (2025's amount, the last return amount published) $315.19; $12,875 (the withholding amount) $303.94; $12,838 (RIB 26-019) $305.05. Of release dashboard-data-20260930's 46 models, none answered within $1 of the frozen value or of $305.05, and 19 answered within $1 of $315.19 (verification/leaderboard_impact.json)."
+    }
+  ]
+}

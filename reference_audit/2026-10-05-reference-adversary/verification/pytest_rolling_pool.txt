@@ -1,0 +1,9 @@
+# pytest, rolling-pool runner change, 2026-10-06T03:24:26Z
+# -k 'test_claude_runner_refills_a_slot or test_claude_runner_judges_both_stages_blind or test_claude_runner_stops_when_the_login' (60 s hold; refills failed on the loaded machine, the other two passed):
+tests/test_reference_adversary_runner.py:493: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_reference_adversary_runner.py::test_claude_runner_refills_a_slot_without_exceeding_the_parallel_cap
+1 failed, 2 passed, 13 deselected in 805.72s (0:13:25)
+# -k test_claude_runner_refills_a_slot after raising the hold timeout to 600 s:
+.                                                                        [100%]
+1 passed, 15 deselected in 220.81s (0:03:40)

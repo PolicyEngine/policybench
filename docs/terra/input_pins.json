@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "terra": {
+      "run": "terra-runs/terra/run",
+      "sha256": {
+        "predictions.csv": "6de90940fb3774b4d3c96722e11de33e47b375da1e2bc1a4d5b53dff253b69cb",
+        "run_state.json": "e62631937de319f4dba55de7876dc5f6e12703d6063143630d8b850aa52acb7d"
+      }
+    }
+  },
+  "note": "The sha256 of each new model's supervised run files as the run finished, written by scripts/finish_terra.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}

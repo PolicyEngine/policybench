@@ -1,0 +1,45 @@
+{
+  "citations": [
+    {
+      "pinpoint": "Subd. 1c",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "provide to all students at no cost up to two federally reimbursable meals per school day, with a maximum of one free breakfast and one free lunch.",
+      "source": "Minnesota Statutes, section 124D.111 (School meals policy; free school meals program)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Subd. 1d (Free school meals program aid amount)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "The state aid equals the difference between the applicable federal reimbursement rate at that school site for a free meal, as determined annually by the United States Department of Agriculture, and the actual federal reimbursement received by the participating school for the breakfast or lunch served to the student.",
+      "source": "Minnesota Statutes, section 124D.111",
+      "url": "https://www.revisor.mn.gov/statutes/cite/124D.111"
+    },
+    {
+      "pinpoint": "Definition of 'Free meal'",
+      "pre_freeze": true,
+      "published": "current regulation (long-standing)",
+      "quote": "Free meal means a meal for which neither the child nor any member of his family pays or is required to work in the school or in the school's food service.",
+      "source": "7 CFR 245.2 (Definitions)",
+      "url": "https://www.law.cornell.edu/cfr/text/7/245.2"
+    },
+    {
+      "pinpoint": "Guidelines paragraph",
+      "pre_freeze": true,
+      "published": "2026-04-09",
+      "quote": "The Department's guidelines for free meals and milk, and reduced price meals were obtained by multiplying the year 2026 Federal income poverty guidelines by 1.30 and 1.85, respectively",
+      "source": "USDA FNS, Child Nutrition Programs: Income Eligibility Guidelines, Federal Register Doc. 2026-06842",
+      "url": "https://www.federalregister.gov/documents/full_text/text/2026/04/09/2026-06842.txt"
+    }
+  ],
+  "confidence": "medium",
+  "consensus_value": 1,
+  "engine_step_at_issue": "",
+  "independent_answer": 0,
+  "reference_value": 0,
+  "stage1_error": "",
+  "suggested_adjudication": "affirmed",
+  "summary": "Under federal NSLP rules, this household's income ($42,664, about 156% of the 2026 poverty guideline for 3) would put the child in the reduced-price tier. However, Minn. Stat. 124D.111 subd. 1c requires every participating school to serve all students breakfast and lunch at no cost, and the state pays the gap up to the federal free rate. That makes the household's meal support free meals, which the output definition excludes. The engine assigned tier FREE under Minnesota's universal free meals and returned 0 for reduced-price support. This matches the law and the definition, and it agrees with stage 1's answer of 0. The derivation wrongly says 1.56 is 'above the reduced-price threshold' (it is below 1.85), but that slip does not change the result.",
+  "verdict": "reference_holds"
+}

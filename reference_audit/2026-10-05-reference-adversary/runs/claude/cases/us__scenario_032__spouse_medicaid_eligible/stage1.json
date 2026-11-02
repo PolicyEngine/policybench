@@ -1,0 +1,74 @@
+{
+  "ambiguity": "The only alternative reading treats the married 18-year-old spouse as an adult or parent/caretaker under the 133% FPG limit (138% with the disregard). At about 151\u2013156% FPL that reading gives 0, which is the consensus answer. But neither the Minnesota statute nor 42 CFR 435.118 excludes married people from the under-19 child category, so that reading is not legally supported. The 'PolicyEngine rules' wording does not change the answer, because the law itself gives 1.",
+  "citations": [
+    {
+      "pinpoint": "Subd. 4(e); Subd. 1a (5% FPG disregard)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "a child under age 19 may have income up to 275 percent of the federal poverty guidelines for the household size.",
+      "source": "Minnesota Statutes 256B.056 (Eligibility requirements for MA)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/256B.056"
+    },
+    {
+      "pinpoint": "Subd. 3a (Families with children)",
+      "pre_freeze": true,
+      "published": "2025",
+      "quote": "Medical assistance may be paid for a person who is a child under the age of 19; the parent or stepparent of a child under the age of 19, including a pregnant woman; or a caretaker relative of a child under the age of 19.",
+      "source": "Minnesota Statutes 256B.055 (Eligibility categories)",
+      "url": "https://www.revisor.mn.gov/statutes/cite/256B.055"
+    },
+    {
+      "pinpoint": "2.2.3.3 MA-FCA Income Limit",
+      "pre_freeze": true,
+      "published": "2018-12-01",
+      "quote": "Children 2 through 18: less than or equal to 275% FPG",
+      "source": "Minnesota DHS Eligibility Policy Manual",
+      "url": "https://hcopub.dhs.state.mn.us/epm/2_2_3_3.htm"
+    },
+    {
+      "pinpoint": "2.2.3.1 MA-FCA Asset Limits",
+      "pre_freeze": true,
+      "published": "2016-06-01",
+      "quote": "There is no asset limit for Medical Assistance (MA) for Families with Children and Adults.",
+      "source": "Minnesota DHS Eligibility Policy Manual",
+      "url": "https://hcopub.dhs.state.mn.us/epm/2_2_3_1.htm"
+    },
+    {
+      "pinpoint": "\u00a7 435.118(b)",
+      "pre_freeze": true,
+      "published": "current eCFR text (rule in force before 2026)",
+      "quote": "The agency must provide Medicaid to children under age 19 whose household income is at or below the income standard established by the agency in its State plan",
+      "source": "42 CFR 435.118 (Infants and children under age 19)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.118"
+    },
+    {
+      "pinpoint": "\u00a7 435.603(d)(1), (f)(1)",
+      "pre_freeze": true,
+      "published": "current eCFR text (rule in force before 2026)",
+      "quote": "household income is the sum of the MAGI-based income of every individual included in the individual's household.",
+      "source": "42 CFR 435.603 (Application of MAGI)",
+      "url": "https://www.law.cornell.edu/cfr/text/42/435.603"
+    },
+    {
+      "pinpoint": "\u00a7 36B(d)(2)(B)(iii)",
+      "pre_freeze": true,
+      "published": "current U.S. Code",
+      "quote": "an amount equal to the portion of the taxpayer's social security benefits (as defined in section 86(d)) which is not included in gross income under section 86 for the taxable year.",
+      "source": "26 U.S.C. 36B",
+      "url": "https://www.law.cornell.edu/uscode/text/26/36B"
+    },
+    {
+      "pinpoint": "2026 table, 48 contiguous states, household of 3",
+      "pre_freeze": true,
+      "published": "2026-01-15",
+      "quote": "3 ... $27,320",
+      "source": "HHS ASPE Poverty Guidelines (2026), published in Federal Register 2026-01-15",
+      "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines"
+    }
+  ],
+  "computation": "1) Medicaid household (42 CFR 435.603(f)(1)): the head and spouse file jointly and claim Child 1, so the spouse's MAGI household has 3 people: head, spouse and child.\n2) Household income (42 CFR 435.603(d)(1), (e); 26 USC 36B(d)(2)(B)(iii)): MAGI includes the untaxed part of Social Security benefits, so the head's full $13,664 in Social Security dependent benefits counts. Wages $29,000 + $13,664 = $42,664. No other income is listed, so all other income is 0.\n3) FPL: the HHS 2026 poverty guideline for 3 people is $27,320 (Federal Register, 2026-01-15, before the freeze). $42,664 / $27,320 = 156.2% FPL. Minnesota's 5% FPG disregard (Minn. Stat. 256B.056 subd. 1a) subtracts $1,366, leaving $41,298, or about 151.2% FPL.\n4) Category: the spouse is 18, so under 19. Under Minn. Stat. 256B.055 subd. 3a and 42 CFR 435.118, Medical Assistance covers a child under age 19. Neither rule removes married people from this category. Minn. Stat. 256B.056 subd. 4(e) and DHS EPM 2.2.3.3 set the limit for a child under 19 (ages 2 through 18) at 275% FPG, which is $75,130 for 3 people.\n5) $41,298 (or even $42,664 without the disregard) is well under 275% FPG, so the spouse is income-eligible.\n6) Assets: EPM 2.2.3.1 says there is no asset limit for MA for Families with Children and Adults, so the head's $11,300 in the bank does not matter.\n7) Check against the 2025 guideline ($26,650 for 3), in case Minnesota had not yet adopted the 2026 figure: 160% FPL, still under 275%. Result: eligible = 1.\n\nWhy the consensus got 0: those models applied the 133%/138% adult or parent limit. That limit does apply to the 50-year-old head, but an 18-year-old falls in the under-19 child category with the 275% limit.",
+  "confidence": "high",
+  "definition_reading": "I read this as whether the spouse (age 18) meets any Minnesota Medical Assistance eligibility category for 2026, whether or not they are enrolled. Because the spouse is under 19, the governing category is MA for a child under age 19 (Minn. Stat. 256B.055 subd. 3a; 256B.056 subd. 4(e); 42 CFR 435.118). It uses MAGI household income for the 3-person joint-filing household against a 275% FPG limit, with no asset test.",
+  "independent_answer": 1,
+  "law_supports": "reference"
+}

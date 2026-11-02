@@ -47,6 +47,10 @@ RUNS = {
         "sensitivity-claude-fable-5-1-thinking",
         "claude-fable-5.1",
     ),
+    "claude-haiku-5.5-thinking": (
+        "sensitivity-claude-haiku-5-5-thinking",
+        "claude-haiku-5.5",
+    ),
 }
 
 ASSET_COLUMNS = [

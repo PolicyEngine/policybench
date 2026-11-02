@@ -13,6 +13,7 @@ export const MODEL_ORDER = [
   "claude-sonnet-5.5",
   "claude-sonnet-5",
   "claude-sonnet-4.6",
+  "claude-haiku-5.5",
   "claude-haiku-4.5",
   "grok-4.3",
   "grok-4.5",
@@ -23,6 +24,7 @@ export const MODEL_ORDER = [
   "gpt-6-astra",
   "gpt-6-sol",
   "gpt-6.1-sol",
+  "gpt-6.1-terra",
   "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
@@ -30,6 +32,7 @@ export const MODEL_ORDER = [
   "gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.4-nano",
+  "gemini-4-argon",
   "gemini-3.1-pro-preview",
   "gemini-3.6-flash",
   "gemini-3.8-flash",
@@ -51,6 +54,8 @@ export const MODEL_ORDER = [
   "inkling",
   "qwen3.8-max",
   "qwen-3.7-max",
+  "muse-wonder",
+  "muse-spark-1.3",
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
@@ -60,6 +65,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "claude-opus-5": "Claude Opus 5",
   "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
+  "claude-haiku-5.5": "Claude Haiku 5.5",
   "claude-haiku-4.5": "Claude Haiku 4.5",
   "claude-sonnet-5.5": "Claude Sonnet 5.5",
   "claude-sonnet-5": "Claude Sonnet 5",
@@ -73,6 +79,7 @@ export const MODEL_LABELS: Record<string, string> = {
   "gpt-6-astra": "GPT-6 Astra",
   "gpt-6-sol": "GPT-6 Sol",
   "gpt-6.1-sol": "GPT-6.1 Sol",
+  "gpt-6.1-terra": "GPT-6.1 Terra",
   "gpt-6-luna": "GPT-6 Luna",
   "gpt-5.6-sol": "GPT-5.6 Sol",
   "gpt-5.6-terra": "GPT-5.6 Terra",
@@ -101,6 +108,9 @@ export const MODEL_LABELS: Record<string, string> = {
   "qwen-3.7-max": "Qwen 3.7 Max",
   "qwen3.8-max": "Qwen 3.8 Max",
   inkling: "Inkling",
+  "muse-wonder": "Muse Wonder",
+  "muse-spark-1.3": "Muse Spark 1.3",
+  "gemini-4-argon": "Gemini 4 Argon",
 };
 
 export type ProviderKey =
@@ -108,6 +118,7 @@ export type ProviderKey =
   | "anthropic"
   | "deepseek"
   | "google"
+  | "meta"
   | "minimax"
   | "moonshot"
   | "openai"
@@ -125,6 +136,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "claude-opus-5": "2026-07-24",
   "claude-sonnet-5.5": "2026-09-28",
   "claude-sonnet-5": "2026-06-30",
+  "claude-haiku-5.5": "2026-10-07",
   "claude-opus-4.8": "2026-05-28",
   "claude-opus-4.7": "2026-04-16",
   "claude-haiku-4.5": "2025-10-15",
@@ -136,6 +148,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "gemini-3.8-flash": "2026-09-02",
   "gemini-3.7-flash": "2026-08-13",
   "gemini-3.5-flash-lite": "2026-07-21",
+  "gemini-4-argon": "2026-10-13",
   "gemini-3.1-flash-lite-preview": "2026-03-03",
   "gpt-5.4-mini": "2026-03-17",
   "gpt-5.4-nano": "2026-03-17",
@@ -143,6 +156,7 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "gpt-6-astra": "2026-09-04",
   "gpt-6-sol": "2026-09-22",
   "gpt-6.1-sol": "2026-09-29",
+  "gpt-6.1-terra": "2026-10-26",
   "gpt-6-luna": "2026-09-22",
   "gpt-5.6-sol": "2026-07-09",
   "gpt-5.6-terra": "2026-07-09",
@@ -166,6 +180,8 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "qwen-3.7-max": "2026-05-19",
   "qwen3.8-max": "2026-08-03",
   inkling: "2026-07-15",
+  "muse-wonder": "2026-10-12",
+  "muse-spark-1.3": "2026-09-02",
 };
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
@@ -173,6 +189,7 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   anthropic: "Anthropic",
   deepseek: "DeepSeek",
   google: "Google",
+  meta: "Meta",
   minimax: "MiniMax",
   moonshot: "Moonshot AI",
   openai: "OpenAI",
@@ -192,6 +209,7 @@ export function getProviderForModel(model: string): ProviderKey | null {
   if (model.startsWith("grok-")) return "xai";
   if (model.startsWith("kimi-")) return "moonshot";
   if (model.startsWith("minimax-")) return "minimax";
+  if (model.startsWith("muse-")) return "meta";
   if (model.startsWith("qwen")) return "alibaba";
   if (model.startsWith("inkling")) return "thinkingmachines";
   return null;
@@ -216,13 +234,14 @@ const FRONTIER_MODEL_GROUPS = [
   ["claude-fable-5.1", "claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
   ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
   ["grok-4.5", "grok-4.3"],
-  ["gemini-3.1-pro-preview"],
+  ["gemini-4-argon", "gemini-3.1-pro-preview"],
   ["deepseek-v4-pro-0813", "deepseek-v4-pro"],
   ["kimi-k3", "kimi-k2.6"],
   ["glm-5.3", "glm-5.2"],
   ["minimax-m3"],
   ["inkling"],
   ["qwen3.8-max", "qwen-3.7-max"],
+  ["muse-wonder"],
 ] as const;
 
 export const FRONTIER_MODELS: readonly string[] = FRONTIER_MODEL_GROUPS.map(

@@ -1,0 +1,73 @@
+{
+  "blinding": "tools",
+  "cost_usd": 1.0981954,
+  "duration_ms": 291510,
+  "judge_account_declared": "max@thesisinstitute.org",
+  "judge_auth": {
+    "account": null,
+    "method": "oauth_token",
+    "org": null
+  },
+  "judge_cli_version": "2.1.284 (Claude Code)",
+  "judge_effort": "xhigh",
+  "judge_model_reported": [
+    "claude-haiku-4-5-20251001",
+    "claude-opus-5-5"
+  ],
+  "judge_model_requested": "opus",
+  "judge_runner": "scripts/run_reference_adversary_claude.sh",
+  "judged_at_utc": "2026-10-06T03:26:56.439708+00:00",
+  "output_file": "stage1.json",
+  "output_sha256": "e65a83fe452c2de61da4a0d6cc34903140191ac29b1ca2b1db5041a42bdda378",
+  "prompt_file": "stage1_prompt.md",
+  "prompt_sha256": "08cd4d5a9352d8645f35749129d22164e0208debb137dbab63656516f826b269",
+  "session_id": "a18debb4-7b9b-4484-962d-d25508eea12e",
+  "stage": 1,
+  "tool_policy": {
+    "allowed_tools": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "blocked_domains": [
+      "policybench.org",
+      "www.policybench.org",
+      "policyengine.org",
+      "www.policyengine.org",
+      "github.com",
+      "raw.githubusercontent.com"
+    ],
+    "enforcement": "--tools and --disallowedTools WebFetch(domain:...) rules, then a transcript audit"
+  },
+  "web_activity": {
+    "denied_fetches": [],
+    "fetches": [
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR-Instr.pdf",
+      "https://www.legislature.mi.gov/publications/TaxpayerGuide.pdf",
+      "https://www.michigan.gov/taxes/iit/tax-guidance/credits-exemptions/hptc/renters",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-522",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-508",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-510",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-510",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-510",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2025/MI-1040CR.pdf",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2024/MI-1040CR-Instructions.pdf?rev=82cc0535eb2b4cb2a9bb35e99e803e1d&hash=984BF2B14BF1A8252329AD64393ADC39",
+      "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/IIT/TY2023/MI-1040CR-Instructions.pdf?rev=e7eefec8ce2b40bda05c01a336a1aa63&hash=4CABE8587D55A1E2BD7F0433BFE0AF09",
+      "https://www.legislature.mi.gov/Publications/TaxpayerGuide.pdf",
+      "https://www.taxformfinder.org/michigan/form-mi-1040cr",
+      "https://taxsim.nber.org/historical_state_tax_forms/MI/2016/MI-1040CR_Instructions_545990_7.pdf",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-520",
+      "https://www.legislature.mi.gov/Laws/MCL?objectName=mcl-206-272",
+      "https://www.irs.gov/pub/irs-drop/rp-25-32.pdf"
+    ],
+    "searches": [
+      "2025 MI-1040CR instructions homestead property tax credit renters 23% total household resources 3.2%",
+      "MI-1040CR total household resources \"health insurance premiums\" deduct line instructions 2025",
+      "\"MI-1040CR\" 2025 \"Multiply line\" \"23%\" \"3.2%\" \"60%\" renters total household resources $71,500",
+      "\"2025\" \"Homestead Property Tax Credit Claim\" MI-1040CR pdf \"total household resources\" \"$71,500\" -michigan.gov",
+      "romuluslibrary.org MI-1040CR 2025 pdf",
+      "Rev. Proc. 2025-32 earned income credit 2026 \"no qualifying children\" completed phaseout amount"
+    ]
+  }
+}

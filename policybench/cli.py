@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,10 @@ from policybench.config import (
     MODELS,
     PROGRAMS,
     get_programs,
+)
+from policybench.judge_template import (
+    CURRENT_TEMPLATE_VERSION,
+    JUDGE_TEMPLATE_HEADERS,
 )
 
 
@@ -541,6 +546,11 @@ def main():
         action="store_true",
         help="Only write the combined payload under the run directory",
     )
+    export_parser.add_argument(
+        "--program-set",
+        default=None,
+        help="Output set the run asked for (default: headline)",
+    )
 
     # Failure audit (Codex-backed classifier)
     audit_prepare_parser = subparsers.add_parser(
@@ -563,6 +573,16 @@ def main():
         help="Optional CSV (scenario_id, variable, grounding) of authoritative "
         "engine facts rendered into matching case prompts",
     )
+    audit_prepare_parser.add_argument(
+        "--template-version",
+        type=int,
+        required=True,
+        help="Judge template version for new and re-opened cases "
+        "(policybench.judge_template; a new audit uses the current one, "
+        f"{CURRENT_TEMPLATE_VERSION}). Required: a release reproduces its prompts "
+        "only on the version its verdicts were judged on. A judged case keeps "
+        "the version its verdict records",
+    )
 
     audit_collect_parser = subparsers.add_parser(
         "audit-collect",
@@ -580,6 +600,108 @@ def main():
         action="store_true",
         help="Write CSVs even when some verdicts hedge instead of diagnosing "
         "(default: refuse and list the hedged cases for re-judging)",
+    )
+
+    # Reference adversary: consensus trigger -> law-first judge -> adjudication
+    consensus_parser = subparsers.add_parser(
+        "consensus-flags",
+        help="Flag scored cells where a cluster of models shares a wrong answer",
+    )
+    consensus_parser.add_argument(
+        "--payload",
+        required=True,
+        help="Frozen run payload (data.json.gz) or a release dashboard-data.json",
+    )
+    consensus_parser.add_argument("--output", required=True, help="Report JSON path")
+    consensus_parser.add_argument(
+        "--country",
+        choices=["us", "uk"],
+        default="us",
+        help="Country payload to read (default us)",
+    )
+    consensus_parser.add_argument(
+        "--prototype",
+        action="store_true",
+        help="Use the 2026-10-05 prototype's parameters (answers truncated to "
+        "whole dollars, eligibility outputs never flagged); explicit flags "
+        "still override",
+    )
+    consensus_parser.add_argument("--min-models", type=int, default=None)
+    consensus_parser.add_argument("--top-k", type=int, default=None)
+    consensus_parser.add_argument("--min-top", type=int, default=None)
+    consensus_parser.add_argument("--tolerance", type=float, default=None)
+    consensus_parser.add_argument(
+        "--answer-rounding",
+        choices=["nearest", "truncate", "cents"],
+        default=None,
+    )
+    consensus_parser.add_argument("--zero-cluster-min-models", type=int, default=None)
+    consensus_parser.add_argument(
+        "--binary-outputs",
+        choices=["mismatch", "skip"],
+        default=None,
+        help="Eligibility outputs: wrong when the flag differs (mismatch, the "
+        "default) or judged by the dollar tolerance and so never flagged (skip)",
+    )
+
+    adversary_prepare_parser = subparsers.add_parser(
+        "adversary-prepare",
+        help="Write two-stage reference-adversary prompts for consensus-flagged cells",
+    )
+    adversary_prepare_parser.add_argument("--payload", required=True)
+    adversary_prepare_parser.add_argument(
+        "--country",
+        choices=["us", "uk"],
+        default="us",
+        help="Country payload to read (default us)",
+    )
+    adversary_prepare_parser.add_argument(
+        "--flags", required=True, help="consensus-flags report JSON"
+    )
+    adversary_prepare_parser.add_argument("--adversary-dir", required=True)
+    adversary_prepare_parser.add_argument(
+        "--annotations-dir",
+        default=None,
+        help="Frozen annotations holding us_case_reference_explanations.csv "
+        "(the stage-2 derivations); default: the payload's referenceExplanation",
+    )
+    adversary_prepare_parser.add_argument(
+        "--skip-cells",
+        default=None,
+        help="JSON list of {scenario_id, variable, covered_by} cells another "
+        "audit already covers; they get no adversary case",
+    )
+    adversary_prepare_parser.add_argument(
+        "--held-references",
+        default=None,
+        help="Held-references JSON (reference_audit/held_references.json): a "
+        "flagged cell an earlier check held gets no adversary case while its "
+        "prompt and reference are the ones checked and every triggering "
+        "consensus answer is one the record explains; "
+        "<adversary-dir>/held_references.json lists those cells and every "
+        "record that no longer applies",
+    )
+
+    adversary_collect_parser = subparsers.add_parser(
+        "adversary-collect",
+        help="Fold reference-adversary verdicts into a verdict table and an "
+        "adjudication queue (changes no score)",
+    )
+    adversary_collect_parser.add_argument(
+        "--adversary-dir",
+        action="append",
+        required=True,
+        metavar="LABEL=DIR",
+        help="One judge's adversary directory, optionally labeled LABEL=DIR, "
+        "where LABEL is letters, digits, '.', '_' or '-' and not 'merged' "
+        "(repeatable; pass a bare directory containing '=' as ./NAME=...)",
+    )
+    adversary_collect_parser.add_argument("--output-dir", required=True)
+    adversary_collect_parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="Exit 0 even when a case has no usable verdict (by default such "
+        "a case fails the command after the tables are written)",
     )
 
     # Population weights
@@ -917,6 +1039,11 @@ def main():
     )
     run_parser.add_argument("--max-workers", type=int, default=4)
     run_parser.add_argument(
+        "--program-set",
+        default=None,
+        help="Benchmark output set the workers request (default: headline)",
+    )
+    run_parser.add_argument(
         "--max-rounds",
         type=int,
         default=4,
@@ -935,6 +1062,16 @@ def main():
     onboard_parser.add_argument(
         "--report-output", default=None, help="Optional path for the report"
     )
+
+    uk_audit_parser = subparsers.add_parser(
+        "uk-audit-sample",
+        help="Draw the stratified UK household sample for the policyengine-uk "
+        "audit and write its scenario manifest",
+    )
+    uk_audit_parser.add_argument(
+        "-o", "--output", default="results/local/uk_audit/scenarios.csv"
+    )
+    uk_audit_parser.add_argument("--seed", type=int, default=None)
 
     fold_parser = subparsers.add_parser(
         "fold-board",
@@ -993,9 +1130,22 @@ def main():
         args.command in {"retry-failed-responses", "repair-failed-rows"}
         and args.use_cache
     ):
-        from policybench.cache import enable_cache
+        from policybench.cache import CacheDirError, enable_cache
 
-        enable_cache()
+        try:
+            enable_cache()
+        except CacheDirError as exc:
+            raise SystemExit(str(exc)) from exc
+
+    if args.command == "uk-audit-sample":
+        from policybench.uk_audit import UK_AUDIT_SEED, write_uk_audit_sample
+
+        meta = write_uk_audit_sample(
+            args.output, seed=UK_AUDIT_SEED if args.seed is None else args.seed
+        )
+        print(json.dumps(meta["counts"], indent=1))
+        print(f"UK audit sample saved to {args.output}")
+        return
 
     if args.command == "reference-outputs":
         from policybench.ground_truth import calculate_ground_truth
@@ -1104,6 +1254,7 @@ def main():
                 budget_usd=args.budget_usd,
                 max_workers=args.max_workers,
                 max_rounds=args.max_rounds,
+                program_set=args.program_set,
             )
             state = supervisor.run()
         except ValueError as exc:
@@ -1282,6 +1433,7 @@ def main():
                 reference_digest=parse_reference_digest_args(args.reference_digest),
                 app_data_output=args.app_data_output,
                 skip_app_data=args.skip_app_data,
+                program_set=args.program_set,
             )
         except (FileNotFoundError, ReferenceProvenanceError) as exc:
             raise SystemExit(str(exc)) from exc
@@ -1299,13 +1451,21 @@ def main():
                 for row in grounding_df.itertuples()
                 if str(row.grounding).strip()
             }
+        template_version = args.template_version
+        if template_version not in JUDGE_TEMPLATE_HEADERS:
+            raise SystemExit(
+                f"audit-prepare: no judge template version {template_version}; "
+                f"the versions are {sorted(JUDGE_TEMPLATE_HEADERS)}"
+            )
         cases = prepare_audit(
             Path(args.country_dir),
             Path(args.audit_dir),
             grounding_lookup=grounding_lookup,
+            template_version=template_version,
         )
         print(
-            f"Prepared {len(cases)} audit cases under {args.audit_dir}. "
+            f"Prepared {len(cases)} audit cases under {args.audit_dir}; new and "
+            f"re-opened cases are on judge template v{template_version}. "
             f"Run scripts/run_audit_codex.sh {args.audit_dir} to classify."
         )
 
@@ -1314,6 +1474,20 @@ def main():
 
         country_dir = Path(args.country_dir)
         out = collect_audit(country_dir, Path(args.audit_dir))
+        template, prompt_hash = out["template"], out["prompt_hash"]
+        if not (template.empty and prompt_hash.empty):
+            # A verdict judged on other words than its prompt.md's is not
+            # this case's verdict.
+            for case_id, problem in template.itertuples(index=False):
+                print(f"TEMPLATE: {case_id}: {problem}")
+            for case_id, problem in prompt_hash.itertuples(index=False):
+                print(f"PROMPT: {case_id}: {problem}")
+            disagree = {*template["case_id"], *prompt_hash["case_id"]}
+            raise SystemExit(
+                f"{len(disagree)} verdicts disagree with their prompt.md on the "
+                "judge template version or the bytes their judge read; re-run "
+                "audit-prepare, which re-opens them, and re-judge"
+            )
         hedged = out["hedged"]
         if not hedged.empty and not args.allow_hedged:
             for case_id in hedged["case_id"]:
@@ -1344,6 +1518,271 @@ def main():
             f"{len(out['hedged'])} hedged; "
             f"{n_suspect} cases flag the PolicyEngine reference as suspect."
         )
+
+    elif args.command == "consensus-flags":
+        from dataclasses import replace
+
+        from policybench.consensus import (
+            PROTOTYPE_PARAMS,
+            ConsensusParams,
+            consensus_report,
+            file_sha256,
+            load_payload,
+        )
+
+        params = PROTOTYPE_PARAMS if args.prototype else ConsensusParams()
+        overrides = {
+            name: getattr(args, name)
+            for name in (
+                "min_models",
+                "top_k",
+                "min_top",
+                "tolerance",
+                "answer_rounding",
+                "zero_cluster_min_models",
+                "binary_outputs",
+            )
+            if getattr(args, name) is not None
+        }
+        params = replace(params, **overrides)
+        payload_path = Path(args.payload)
+        report = consensus_report(
+            load_payload(payload_path, args.country),
+            params,
+            source=str(payload_path),
+            source_sha256=file_sha256(payload_path),
+        )
+        _ensure_parent_dir(args.output)
+        Path(args.output).write_text(json.dumps(report, indent=2) + "\n")
+        print(
+            f"Flagged {report['flagged_cells']} of {report['scored_cells']} scored "
+            f"cells ({report['models']} models) -> {args.output}"
+        )
+
+    elif args.command == "adversary-prepare":
+        from policybench.consensus import load_payload
+        from policybench.reference_adversary import (
+            build_adversary_cases,
+            load_derivations,
+            prepare_adversary,
+        )
+
+        flags_report = json.loads(Path(args.flags).read_text())
+        flags = flags_report["flags"]
+        payload_path = Path(args.payload)
+        payload = load_payload(payload_path, args.country)
+        adversary_dir = Path(args.adversary_dir)
+        skipped: dict[tuple[str, str], str] = {}
+        if args.skip_cells:
+            for cell in json.loads(Path(args.skip_cells).read_text()):
+                key = (str(cell["scenario_id"]), str(cell["variable"]))
+                skipped[key] = str(cell.get("covered_by", ""))
+        # Held references first, so "not flagged" means not flagged at all.
+        unheld = flags
+        held_report = None
+        if args.held_references:
+            from policybench.consensus import (
+                ConsensusParams,
+                consensus_flags,
+                file_sha256,
+            )
+            from policybench.held_references import (
+                apply_held_references,
+                load_held_references,
+            )
+            from policybench.reference_adversary import STAGE1_PROMPT
+
+            # A hold is checked against the payload it is applied with, so the
+            # flags must be that payload's: flags from an older payload would
+            # lack a consensus that has formed since, and a hold would hide it.
+            payload_sha256 = file_sha256(payload_path)
+            source_sha256 = flags_report.get("source_sha256")
+            if source_sha256 != payload_sha256:
+                raise SystemExit(
+                    f"adversary-prepare: --held-references needs flags computed "
+                    f"from {payload_path} (sha256 {payload_sha256}), and "
+                    f"{args.flags} records "
+                    + (f"sha256 {source_sha256}" if source_sha256 else "no payload")
+                    + "; recompute them with policybench consensus-flags"
+                )
+            # The recorded hash is a claim. The flags themselves must be what
+            # the trigger computes from this payload at their own parameters.
+            try:
+                flag_params = ConsensusParams(**flags_report["params"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} carries no usable "
+                    f"consensus parameters ({exc}); recompute the flags"
+                ) from exc
+            if consensus_flags(payload, flag_params) != flags:
+                raise SystemExit(
+                    f"adversary-prepare: {args.flags} is not what the consensus "
+                    f"trigger computes from {payload_path} at its recorded "
+                    "parameters; recompute it with policybench consensus-flags"
+                )
+            unheld, held_report = apply_held_references(
+                flags, load_held_references(args.held_references), payload
+            )
+            # The held flags' cases are built only for their ids.
+            unheld_ids = {id(flag) for flag in unheld}
+            held_cases = build_adversary_cases(
+                payload, [flag for flag in flags if id(flag) not in unheld_ids]
+            )
+            # Preparing removes the directory of a case no longer listed.
+            # Preparation itself writes only the stage-1 prompt there, so
+            # anything else is a runner's: a verdict, or what an interrupted
+            # run left behind.
+            runner_files = [
+                case.case_id
+                for case in held_cases
+                if (adversary_dir / "cases" / case.case_id).is_dir()
+                and any(
+                    child.name != STAGE1_PROMPT
+                    for child in (adversary_dir / "cases" / case.case_id).iterdir()
+                )
+            ]
+            if runner_files:
+                raise SystemExit(
+                    f"adversary-prepare: {adversary_dir} holds a runner's files "
+                    f"for cells now listed as held ({', '.join(runner_files)}), and "
+                    "preparing would delete them; prepare into a new directory "
+                    "or move those case directories aside"
+                )
+            for row in held_report["not_applied"]:
+                # A record that no longer applies leaves its cell to the pass,
+                # which judges it unless another audit covers it.
+                cell = (row["scenario_id"], row["variable"])
+                row["case"] = "covered_elsewhere" if cell in skipped else "prepared"
+            held_report = {
+                "held_references": str(args.held_references),
+                "held_references_sha256": file_sha256(args.held_references),
+                "flags": str(args.flags),
+                "flags_sha256": file_sha256(args.flags),
+                "payload_sha256": payload_sha256,
+                **held_report,
+            }
+        kept = [f for f in unheld if (f["scenario_id"], f["variable"]) not in skipped]
+        derivations = (
+            load_derivations(Path(args.annotations_dir), args.country)
+            if args.annotations_dir
+            else None
+        )
+        cases = build_adversary_cases(payload, kept, derivations=derivations)
+        prepare_adversary(adversary_dir, cases)
+        # The directory describes this preparation, so a listing left by an
+        # earlier one with --held-references does not outlive it.
+        held_path = adversary_dir / "held_references.json"
+        held_note = ""
+        if held_report is None:
+            held_path.unlink(missing_ok=True)
+        else:
+            held_path.write_text(json.dumps(held_report, indent=2) + "\n")
+            held_note = (
+                f"; {len(held_report['held'])} listed as checked and held in "
+                f"{held_path}"
+            )
+            stale = [
+                f"{row['scenario_id']} {row['variable']} ({row['reason']}; "
+                + ("judged" if row["case"] == "prepared" else "covered elsewhere")
+                + ")"
+                for row in held_report["not_applied"]
+            ]
+            if stale:
+                held_note += f"; held records that no longer apply: {', '.join(stale)}"
+        print(
+            f"Prepared {len(cases)} adversary cases under {args.adversary_dir} "
+            f"({len(unheld) - len(kept)} flagged cells skipped as covered "
+            f"elsewhere{held_note}). "
+            "Run scripts/run_reference_adversary_claude.sh or "
+            "scripts/run_reference_adversary_codex.sh inside a Subfleet lane."
+        )
+
+    elif args.command == "adversary-collect":
+        import pandas as pd
+
+        from policybench.reference_adversary import (
+            adjudication_queue,
+            collect_adversary,
+            merge_judges,
+        )
+
+        specs = []
+        for spec in args.adversary_dir:
+            # LABEL=DIR splits at the first "=", so a directory may contain
+            # "="; text before it that is not a label is part of a bare DIR.
+            label, separator, directory = spec.partition("=")
+            if not (separator and re.fullmatch(r"[A-Za-z0-9._-]+", label)):
+                label, directory = Path(spec).name, spec
+            if not directory:
+                raise SystemExit(
+                    f"adversary-collect: {spec!r} names no directory after '='"
+                )
+            specs.append((label, directory))
+        absent = [
+            directory
+            for _, directory in specs
+            if not (Path(directory) / "cases.jsonl").is_file()
+        ]
+        if absent:
+            # A mistyped directory would otherwise collect as an empty judge.
+            raise SystemExit(
+                f"adversary-collect: no cases.jsonl in {', '.join(absent)}; "
+                "not a prepared adversary directory"
+            )
+        # Each label names its judge's files, adversary_<label>_<table>.csv. A
+        # repeated label would overwrite one judge's files with another's, and
+        # so would two that differ only in case on a case-insensitive file
+        # system (macOS by default); "merged" would collide with the merged
+        # table.
+        folded = [label.casefold() for label, _ in specs]
+        repeated = sorted(
+            {label for label, _ in specs if folded.count(label.casefold()) > 1}
+        )
+        if repeated:
+            raise SystemExit(
+                f"adversary-collect: judge label(s) {', '.join(repeated)} given "
+                "more than once (labels ignore case); label each directory "
+                "(LABEL=DIR) uniquely"
+            )
+        if "merged" in folded:
+            raise SystemExit(
+                "adversary-collect: the judge label 'merged' is reserved for "
+                "the merged table; label that directory otherwise (LABEL=DIR)"
+            )
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        by_judge = {}
+        inconsistent = []
+        missing = 0
+        for label, directory in specs:
+            out = collect_adversary(Path(directory))
+            by_judge[label] = out["verdicts"]
+            inconsistent.append(out["inconsistent"].assign(judge=label))
+            missing += len(out["missing"])
+            for key in ("verdicts", "missing", "inconsistent"):
+                out[key].to_csv(
+                    output_dir / f"adversary_{label}_{key}.csv", index=False
+                )
+            print(
+                f"{label}: {len(out['verdicts'])} verdicts, "
+                f"{len(out['missing'])} missing, "
+                f"{len(out['inconsistent'])} inconsistent"
+            )
+        merged = merge_judges(by_judge)
+        merged.to_csv(output_dir / "adversary_merged_verdicts.csv", index=False)
+        queue = adjudication_queue(merged, pd.concat(inconsistent, ignore_index=True))
+        queue.to_csv(output_dir / "adversary_adjudication_queue.csv", index=False)
+        print(
+            f"{len(queue)} of {len(merged)} cases go to developer adjudication "
+            f"(a verdict other than reference_holds, or an inconsistent one) "
+            f"-> {output_dir}"
+        )
+        if missing and not args.allow_missing:
+            raise SystemExit(
+                f"adversary-collect: {missing} case(s) have no usable verdict "
+                "(see adversary_<label>_missing.csv); re-run the judge, or pass "
+                "--allow-missing to accept an incomplete collection"
+            )
 
     elif args.command == "population-weights":
         from policybench.config import TAX_YEAR

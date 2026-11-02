@@ -1,0 +1,160 @@
+{
+  "slug": "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
+  "date": "2026-10-06",
+  "title": "PolicyBench stops scoring eight tax outputs whose references turn on facts the prompts never state",
+  "paragraphs": [
+    "PolicyBench stops scoring {newExclusions:words} tax outputs, in {newHouseholds:words} households, whose references turn on facts the prompts never state. The {newExclusions:words} are federal income tax for households in California, Massachusetts, and Virginia; the Virginia household's state income tax; and payroll tax for the Massachusetts household and households in Minnesota, Colorado, and New York. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs, down from {previousScoredOutputs}, and PolicyBench excludes {excluded}.",
+    "The {federalOutputs:words} federal outputs depend on the state income tax each household paid during 2026, which the federal deduction for state and local taxes counts and no prompt lists. policyengine-us {engineVersion}, which built the references, fills that amount with its own estimate of state income tax withheld, a formula on federal adjusted gross income. If each household paid its 2026 state income tax as the engine computes it, the outputs are ${fed022Alt} in California, ${fed081Alt} in Massachusetts, and ${fed114Alt} in Virginia, against references of ${fed022Ref}, ${fed081Ref}, and ${fed114Ref}.",
+    "The Virginia household's head is {va114Age}, and the prompt lists no Medicare enrollment or premium. policyengine-us treats everyone eligible for Medicare as enrolled and counts the standard Part B premium, ${partBPremium} for 2026, as a medical expense. The household itemizes, and Virginia's itemized deductions start from the federal ones, so the premium lowers its Virginia income tax: without it, that output is ${va114Alt} rather than the reference's ${va114Ref}. The premium lowers the household's federal income tax too, and that output's exclusion record names both unstated facts.",
+    "The {payrollOutputs:words} payroll outputs count an employee share of a state paid-leave or disability premium: {optionalPrograms}. In each of these states the premium is the employer's, and the employer may deduct up to a set share of it from wages but need not, so the law requires no amount of the employee. The prompts ask for mandatory employee state payroll taxes, and the references count the largest share each state's published 2026 rates let the employer deduct, without the prompts saying whether it does. Without that share, the outputs are ${mnAlt} in Minnesota, ${coAlt} in Colorado, ${maAlt} in Massachusetts, and ${nyAlt} in New York, against references of ${mnRef}, ${coRef}, ${maRef}, and ${nyRef}. PolicyBench still scores the payroll outputs of {mandatoryScored:words} households in {mandatoryStates}, where the law puts the contribution on the worker and requires the employer to withhold it.",
+    "No model's answer is within $1 of the reference on any of the {incomeTaxOutputs:words} income tax outputs. On the {payrollOutputs:words} payroll outputs, {payrollHits} answers match the reference within $1: {mnHits:words} for Minnesota, {coHits} for Colorado, {maHits:words} for Massachusetts, and {nyHits:words} for New York. Another {payrollAltHits} match the amount without the state share.",
+    "Every model's exact rate, its share of answers within $1 weighted by household impact, rises by {riseMin} to {riseMax} points. GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%). Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for fourth. Further down, {riserTwo} moves above {riserTwoPassed}, {riserThree} above {riserThreePassed}, and {riserFour} above {riserFourPassed}. Every other pair keeps its order.",
+    "PolicyBench's next prompt contract remains an unactivated draft (PolicyEngine/policybench#173). It states the state income tax paid for each tax unit or a named convention for estimating withholding; each person's Medicare Part B enrollment and annual net premium; and whether each person's employer withholds the employee share of state paid-leave or disability premiums. Its payroll output definition counts optional employee shares only when the employer withholds them. A later run can score these outputs after its reference builder and a fresh input sweep validate the stated conventions.",
+    "Two corrections in this release move no score. PolicyBench now reports that it collected model responses from {responseStart} to {responseEnd}, 2026, ending on the UTC date of the last answer; release dashboard-data-20260930 gave {previousResponseEnd}, the date of that release. The audit text for a California household head's Medicaid eligibility now explains the head's income test as the engine applies it: California's ${medicaidDisregard} monthly income disregard, which takes the place of SSI's ${ssiExclusion} general income exclusion, brings countable income under the limit. The earlier text said the engine subtracts a Medicare Part B premium from income, which it does not."
+  ],
+  "facts": {
+    "newExclusions": 8,
+    "newHouseholds": 6,
+    "scoredOutputs": 1920,
+    "totalOutputs": 1984,
+    "previousScoredOutputs": 1928,
+    "excluded": 64,
+    "federalOutputs": 3,
+    "engineVersion": "2.15.17",
+    "fed022Alt": "11,895.23",
+    "fed081Alt": "26,991.31",
+    "fed114Alt": "11,137.31",
+    "fed022Ref": "11,113.57",
+    "fed081Ref": "26,932.27",
+    "fed114Ref": "10,729.61",
+    "va114Age": 69,
+    "partBPremium": "2,434.80",
+    "va114Alt": "3,654.15",
+    "va114Ref": "3,514.15",
+    "payrollOutputs": 4,
+    "optionalPrograms": "Minnesota Paid Leave, Colorado FAMLI, Massachusetts Paid Family and Medical Leave, and New York Paid Family Leave and Disability Benefits",
+    "mnAlt": "2,218.50",
+    "coAlt": "312.74",
+    "maAlt": "13,387.65",
+    "nyAlt": "7,664.92",
+    "mnRef": "2,346.10",
+    "coRef": "330.73",
+    "maRef": "14,192.66",
+    "nyRef": "8,108.03",
+    "mandatoryScored": 7,
+    "mandatoryStates": "California, Connecticut, and Pennsylvania",
+    "incomeTaxOutputs": 4,
+    "payrollHits": 35,
+    "mnHits": 6,
+    "coHits": 16,
+    "maHits": 9,
+    "nyHits": 4,
+    "payrollAltHits": 82,
+    "riseMin": 0.67,
+    "riseMax": 1.35,
+    "solExact": 95.8,
+    "opusExact": 95.1,
+    "sol56Exact": 94.4,
+    "sonnetExact": 93.3,
+    "lunaExact": 93.0,
+    "riserTwo": "Inkling",
+    "riserTwoPassed": "Grok 4.7",
+    "riserThree": "Gemini 3 Flash Preview",
+    "riserThreePassed": "Claude Opus 4.7",
+    "riserFour": "Gemini 3.1 Flash Lite Preview",
+    "riserFourPassed": "DeepSeek V4 Pro",
+    "responseStart": "June 12",
+    "responseEnd": "September 29",
+    "previousResponseEnd": "September 30",
+    "medicaidDisregard": 230,
+    "ssiExclusion": 20
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261006"
+    },
+    {
+      "label": "Previous release dashboard-data-20260930",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20260930"
+    },
+    {
+      "label": "Exclusion record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "Developer adjudications",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json"
+    },
+    {
+      "label": "Audit of the state income tax in the federal deduction",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-05/README.md"
+    },
+    {
+      "label": "Audit of the Medicare Part B premium",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-05-medicare-part-b/README.md"
+    },
+    {
+      "label": "Audit of the state payroll contributions",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-05-payroll/README.md"
+    },
+    {
+      "label": "Correction of the Medicaid audit text",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-05-medicaid-031-annotations/README.md"
+    },
+    {
+      "label": "Draft prompt contract (policybench#173)",
+      "href": "https://github.com/PolicyEngine/policybench/pull/173"
+    },
+    {
+      "label": "Draft v2 contract conventions (reviewed source)",
+      "href": "https://github.com/PolicyEngine/policybench/blob/41061fcaa1727a284e279fb763728dc3b36b8cbf/docs/prompt_contract_v2.md#october-5-calculation-conventions"
+    },
+    {
+      "label": "California household (federal income tax)",
+      "href": "/?country=us&scenario=scenario_022#scenarios"
+    },
+    {
+      "label": "Massachusetts household",
+      "href": "/?country=us&scenario=scenario_081#scenarios"
+    },
+    {
+      "label": "Virginia household",
+      "href": "/?country=us&scenario=scenario_114#scenarios"
+    },
+    {
+      "label": "Minnesota household",
+      "href": "/?country=us&scenario=scenario_032#scenarios"
+    },
+    {
+      "label": "Colorado household",
+      "href": "/?country=us&scenario=scenario_043#scenarios"
+    },
+    {
+      "label": "New York household",
+      "href": "/?country=us&scenario=scenario_082#scenarios"
+    },
+    {
+      "label": "California household head (Medicaid eligibility)",
+      "href": "/?country=us&scenario=scenario_031#scenarios"
+    }
+  ],
+  "v2ContractEvidence": {
+    "pullRequest": 173,
+    "commit": "41061fcaa1727a284e279fb763728dc3b36b8cbf",
+    "path": "docs/prompt_contract_v2.md",
+    "sha256": "c532a028b562a7358480ffd872501a70f6d04842df640747983cc667565a8dc6",
+    "version": "2.1.0",
+    "excerpts": {
+      "activation": "`policybench.prompt_contract_v2` adds an **opt-in, unactivated household-fact\ncontract**",
+      "salt": "For each supplied tax unit, state the annual input\n`state_withheld_income_tax`, or follow the declared model's per-state AGI-based\nwithholding estimate and treat that estimate as paid during the year.",
+      "medicareEnrollment": "Every person's text states `takes_up_medicare_if_eligible`: enrollment includes\nPart B and is assumed if eligible unless a supplied boolean overrides it.",
+      "medicarePremium": "The annual enrollee payment `medicare_part_b_premium` is\nemployee after-tax spending. When absent, it follows the declared model's\nstandard premium plus IRMAA, net of Medicare Savings Program support, and is\npaid only while enrolled.",
+      "employerChoice": "For each person in MN Paid Leave, CO FAMLI, MA PFML, NY PFL/DBL, DE Paid Leave,\nME PFML, VT child-care contribution, or WA PFML, the prompt states whether\nthe employer withholds the employee share.",
+      "payrollScope": "The v2 payroll definition covers all listed people's employee-side payroll\ntax, including dependent wages, mandatory state contributions, and optional\nemployee shares that the employer chooses to withhold under the stated\nconvention.",
+      "validation": "Before activation, adapt the reference builder to the stated conventions and\nrun the complete sweep"
+    }
+  },
+  "boardSnapshot": "2026-09-30",
+  "release": "dashboard-data-20261006"
+}

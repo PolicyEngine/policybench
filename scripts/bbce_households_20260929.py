@@ -1,15 +1,16 @@
 """Every model's SNAP answer for the BBCE households on release 20260929.
 
-The September 29 update to the note on SNAP households that qualify only
-through broad-based categorical eligibility reads these files:
+The September 29 release note's facts count these files' households, and
+``tests/test_notes.py`` regenerates them. The October 5 note on SNAP households
+that qualify only through broad-based categorical eligibility reads the
+20260930 files that ``scripts/bbce_households_20260930.py`` writes instead.
 
 - ``notes/data/bbce_households_20260929.csv``: the households held back by
-  income. The note's four (Connecticut, Texas, Michigan, Wisconsin) and the
-  Arizona household the policyengine-us 2.15.17 references add, which qualifies
-  from March 2026, when Arizona raised its BBCE gross limit to 200% of the
-  poverty guideline.
-- ``notes/data/bbce_asset_households_20260929.csv``: the note's four
-  households held back by savings.
+  income: Connecticut, Texas, Michigan and Wisconsin, and the Arizona household
+  the policyengine-us 2.15.17 references add, which qualifies from March 2026,
+  when Arizona raised its BBCE gross limit to 200% of the poverty guideline.
+- ``notes/data/bbce_asset_households_20260929.csv``: the four households held
+  back by savings.
 
 Each row has one board model's answer and the mention flags the note's
 patterns give its explanation, as ``scripts/bbce_household_rows.py`` writes
