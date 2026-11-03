@@ -3408,12 +3408,13 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
         "2026-09-29, bringing it to {nModels} models.",
-        "Claude Sonnet 5.5 gets {sonnetExact}% of answers right, weighted by "
-        "household impact, and ranks #{sonnetRank} of {nModels}.",
+        "Claude Sonnet 5.5 gets {sonnetExact}% of answers right and ranks "
+        "#{sonnetRank} of {nModels}.",
     )
     _assert_score_definition()
     pin(
         SCORE_DEFINITION,
+        SCORE_WEIGHTING,
         "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}% and sits about level "
         "with Claude Sonnet 5.5, less than {lunaSonnetGapBelow} points ahead.",
         "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
@@ -3724,9 +3725,8 @@ def test_release_20260929_note() -> None:
     # The drift's two causes, as the drift baseline test rebuilds them.
     test_previous_release_scores_rebuild_from_this_snapshot()
     pin(
-        "With the new references and the Medicaid exclusion together, every one "
-        "of the {incumbents} earlier models rises, by {driftMin} to {driftMax} "
-        "points.",
+        "Together, the new references and the Medicaid exclusion lift every one "
+        "of the {incumbents} earlier models, by {driftMin} to {driftMax} points.",
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
@@ -4450,12 +4450,12 @@ def test_release_20261006_note() -> None:
         assert rank_now(passed[0]) == rank_then(riser)
     pin(
         # The headline the board ranks by, as the September 29 note states it.
-        "Every model's share of answers right, weighted by household impact, "
-        "rises by {riseMin} to {riseMax} points.",
+        "Every model's share of answers right rises by {riseMin} to {riseMax} points.",
     )
     _assert_score_definition()
     pin(
         SCORE_DEFINITION,
+        SCORE_WEIGHTING,
         "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
         "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
         "Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for "
@@ -5327,8 +5327,9 @@ def test_release_20261013_note_claims() -> None:
     assert set(scoring["now"]) == {row["model"] for row in board}
     for row in board:
         assert scoring["now"][row["model"]] == pytest.approx(row["exact"], abs=1e-9)
-    # "Without them, every earlier model's rate would be the previous
-    # release's": leaving the restored outputs unscored gives release 20261010.
+    # "Without them, every earlier model would keep its share of answers right
+    # from the previous release": leaving the restored outputs unscored gives
+    # release 20261010.
     for model, exact in then.items():
         assert scoring["without"][model] == pytest.approx(exact, abs=1e-9), model
     # The restored outputs are all ones release 20261010 excluded (none was
@@ -6175,9 +6176,8 @@ SCORE_DEFINITION = (
     "the reference PolicyEngine computes, and an eligibility answer as right "
     "when it matches."
 )
-# The America.gov note (#254) gives its score as "scores {agovExact}% on
-# PolicyBench", without "weighted by household impact", so it states the
-# weighting in a sentence after the definition.
+# "Weighted by household impact" leaves out who weights, so each note says
+# it in a sentence of its own, after the definition.
 SCORE_WEIGHTING = "It weights each answer by household impact."
 
 
@@ -6197,7 +6197,8 @@ def _assert_score_definition() -> None:
 def test_no_note_gives_the_score_as_answers_within_one_dollar():
     """The board scores eligibility flags by exact match, not within $1, so no
     note gives an all-outputs score as answers within $1, and a note that
-    gives a score as answers right defines it."""
+    gives a score as answers right defines it and says how PolicyBench
+    weights the answers."""
     _assert_score_definition()
     # PR #254 rewrites this note's opening; drop it from here once that merges.
     pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
@@ -6209,16 +6210,22 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
             # second drops the exemption.
             assert "answers within $1" in text, (path.name, "drop from pending")
             continue
-        for phrase in ("answers within $1", "of answers within"):
+        for phrase in (
+            "answers within $1",
+            "of answers within",
+            "weighted by household impact",
+        ):
             assert phrase not in text, (path.name, phrase)
         # A note that gives a score as answers right also says, in the same
-        # words as every other note, what PolicyBench counts as right.
+        # words as every other note, what PolicyBench counts as right, and
+        # says how it weights the answers.
         if "of answers right" in text:
             assert SCORE_DEFINITION in text, path.name
+        if SCORE_DEFINITION in text:
+            assert "weights each answer by household impact" in text, path.name
         # Paragraph 0 doubles as the page description and the list blurb, so
-        # the news leads and the definition closes it, after every sentence
-        # that leans on an earlier one. Only the weighting may follow it.
+        # the news leads, and the definition and the weighting close it, after
+        # every sentence that leans on an earlier one.
         opening = note["paragraphs"][0]
         if SCORE_DEFINITION in opening:
-            tail = opening.split(SCORE_DEFINITION, 1)[1]
-            assert tail in ("", f" {SCORE_WEIGHTING}"), path.name
+            assert opening.endswith(f"{SCORE_DEFINITION} {SCORE_WEIGHTING}"), path.name

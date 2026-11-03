@@ -13,6 +13,10 @@ import artifact from "../src/data.artifact.json";
 import paperSnapshot from "../src/paperSnapshot.json";
 
 describe("notes", () => {
+  // The score definition and the weighting close each release note's opening.
+  const closing =
+    "PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches. It weights each answer by household impact.";
+
   test("the index is newest first", () => {
     expect(notes.map((note) => note.date)).toEqual(
       [...notes].map((note) => note.date).sort().reverse(),
@@ -141,13 +145,13 @@ describe("notes", () => {
     );
     // Board rates keep one decimal.
     expect(markup).toContain(
-      "It gets 93.1% of answers right, weighted by household impact, and ranks #3 of 51.",
-    );
-    expect(markup).toContain(
-      "PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches.",
+      "GPT-6.1 Terra gets 93.1% of answers right and ranks #3 of 51.",
     );
     expect(markup).toContain("GPT-6.1 Terra ranks #5.");
-    expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
+    expect(markup).toContain(
+      "GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% of answers right (#10).",
+    );
+    expect(markup).toContain(closing);
     // Costs keep their cents.
     expect(markup).toContain(
       "the 100 households cost $1.25, against $2.30 for GPT-6.1 Sol and $2.71 for GPT-6 Sol.",
@@ -180,10 +184,13 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "GPT-6 Sol, which leads the board at 95.2% of answers right, weighted by household impact, gets 99.2% with the tool.",
+      "GPT-6 Sol, which leads the board at 95.2% of answers right, gets 99.2% with the tool.",
     );
     expect(markup).toContain(
       "Claude Opus 5.5 goes from 94.1% to 99.8%, and Gemini 4 Argon from 88.7% to 99.9%.",
+    );
+    expect(markup).toContain(
+      "PolicyBench weights each answer by household impact, on the board and with the tool.",
     );
     expect(markup).toContain(
       "Of the 187 nonzero amounts, GPT-6 Sol gets 67.4% within $1 on its own and 96.8% with the tool",
@@ -251,13 +258,18 @@ describe("notes", () => {
       "Google&#x27;s Gemini 4 Argon joined the board on 2026-10-14, the day after Google opened it to the public Gemini API, and Meta&#x27;s Muse Spark 1.3 joined with it, bringing the board to 50 models.",
     );
     // Board rates keep one decimal.
-    expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers right");
-    expect(markup).toContain("ranks #12 of 50, the highest of any Gemini model");
-    expect(markup).toContain("Gemini 3.8 Flash, the previous best, gets 85.6% (#21)");
+    expect(markup).toContain(
+      "Gemini 4 Argon gets 88.7% of answers right and ranks #12 of 50, the highest of any Gemini model. Gemini 3.8 Flash, the previous best, gets 85.6% (#21).",
+    );
     expect(markup).toContain(
       "Muse Spark 1.3 gets 87.2% (#18), behind Meta&#x27;s Muse Wonder (90.1%, #10)",
     );
     expect(markup).toContain("it ranks #6.");
+    // After the bounded rank, the leader's rate names its metric.
+    expect(markup).toContain(
+      "GPT-6 Sol still leads at 95.2% of answers right, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
+    );
+    expect(markup).toContain(closing);
     expect(markup).toContain(
       "With the forced tool Gemini 4 Argon returned reasoning tokens on 80 of them, and on 85 in the board&#x27;s own run; with an automatic tool choice, on 82.",
     );
@@ -282,15 +294,18 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "Muse Wonder joined the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models, the first of them from Meta.",
+      "PolicyBench added Muse Wonder, its first Meta model, to the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models.",
     );
     // Board rates keep one decimal.
-    expect(markup).toContain("It gets 90.1% of answers right");
-    expect(markup).toContain("and ranks #10 of 48.");
-    expect(markup).toContain("Muse Wonder ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
+    expect(markup).toContain("Muse Wonder gets 90.1% of answers right and ranks #10 of 48.");
     expect(markup).toContain(
-      "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
+      "On the bounded score, which gives partial credit for amounts close to the reference, it ranks #3, behind only GPT-6 Sol and Claude Opus 5.5.",
     );
+    // After the bounded rank, the leader's rate names its metric.
+    expect(markup).toContain(
+      "GPT-6 Sol still leads at 95.2% of answers right, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
+    );
+    expect(markup).toContain(closing);
     expect(markup).toContain("so Muse Wonder Full is not on the board");
     expect(markup).toContain(
       "Of the outputs the previous release excluded, nine return to scoring",
@@ -308,6 +323,9 @@ describe("notes", () => {
     expect(markup).toContain(
       "half of them are answered within $1 by at most one of the 48 models, and four by none. Muse Wonder answers one of them within $1.",
     );
+    expect(markup).toContain(
+      "Without them, every earlier model would keep its share of answers right from the previous release.",
+    );
     expect(markup).toContain('href="/model/muse-wonder"');
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261013"',
@@ -318,20 +336,33 @@ describe("notes", () => {
   test("the rewritten score sentences render", () => {
     const expected: Record<string, string[]> = {
       "2026-09-01-claude-fable-5-1-added": [
-        "Anthropic released Claude Fable 5.1 on 2026-09-01, and it joined the board the same day.",
-        "PolicyBench parsed 1,984 of the model&#x27;s 1,984 answers.",
+        "Anthropic released Claude Fable 5.1 on 2026-09-01, and PolicyBench added it to the board the same day and parsed 1,984 of the model&#x27;s 1,984 answers.",
+        "Claude Fable 5.1 gets 86.3% of answers right and ranks #2 of 33.",
+        closing,
       ],
       "2026-09-05-gpt-6-astra-debuts-second": [
-        "PolicyBench scores every row on 1,973 of its 1,984 requested outputs. It excludes the other 11 for every model, since their references depend on an engine input the household facts never list.",
+        "It gets 88.0% of answers right and ranks #2 of 39, behind GPT-5.6 Sol (89.2%) and ahead of Claude Fable 5.1 (86.9%, #3).",
+        "PolicyBench scores every model on 1,973 of its 1,984 requested outputs and excludes the other 11, since their references depend on an engine input the household facts never list.",
+        closing,
       ],
       "2026-09-22-gpt-6-sol-debuts-first": [
-        "GPT-6 Sol gets 94.2% of answers right, weighted by household impact, 1.3 points above Claude Opus 5.5 (92.9%, #2), and ranks #1 of 42. GPT-5.6 Sol, the previous leader, ranks #3 at 92.7%.",
+        "GPT-6 Sol gets 94.2% of answers right, 1.3 points above Claude Opus 5.5 (92.9%, #2), and ranks #1 of 42. GPT-5.6 Sol, the previous leader, ranks #3 at 92.7%.",
+        closing,
       ],
       "2026-09-29-claude-sonnet-5-5-debuts-fifth": [
-        "With the new references and the Medicaid exclusion together, every one of the 42 earlier models rises, by 0.14 to 0.83 points.",
+        "Claude Sonnet 5.5 gets 92.1% of answers right and ranks #5 of 45.",
+        closing,
+        "Together, the new references and the Medicaid exclusion lift every one of the 42 earlier models, by 0.14 to 0.83 points.",
+      ],
+      "2026-10-06-policybench-stops-scoring-eight-tax-outputs": [
+        "Every model&#x27;s share of answers right rises by 0.67 to 1.35 points.",
+        `${closing} GPT-6 Sol still leads at 95.8%`,
       ],
       "2026-10-10-claude-haiku-5-5-joins-the-board": [
+        "Claude Haiku 5.5 joined the board on 2026-10-10, bringing the board to 47 models. It gets 79.6% of answers right, 4.8 points above Claude Haiku 4.5 (74.8%, #43), and ranks #37 of 47.",
+        closing,
         "Against the previous release, every one of the 46 earlier models falls, by 0.24 to 1.37 points.",
+        "Had they stayed excluded, every earlier model&#x27;s share of answers right would have risen, by 0.39 to 0.71 points.",
       ],
       "2026-10-13-muse-wonder-joins-the-board": [
         "Against the previous release, every one of the 47 earlier models falls, by 0.18 to 0.42 points.",
