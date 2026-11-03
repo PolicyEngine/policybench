@@ -89,6 +89,8 @@ def household_board(tmp_path_factory):
         "generate_scenarios",
         lambda n, seed, country, **kwargs: sampled[:n],
     )
+    # The frozen references hold cents, so this build compares them unrounded.
+    patch.setattr(scenarios_module, "canonical_us_scenario", lambda scenario: scenario)
     patch.setattr(runtime, "materialize_certified_us_dataset", lambda: str(dataset))
     patch.setattr(
         runtime,

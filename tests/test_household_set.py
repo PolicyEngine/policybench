@@ -9,6 +9,7 @@ writes must equal the frozen ones on the frozen engine (policyengine-us
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib.metadata
 import json
 import sys
@@ -290,6 +291,393 @@ def test_stated_filing_status_is_read_from_the_tax_unit_table(tmp_path):
     not_h5 = tmp_path / "x.h5"
     not_h5.write_bytes(b"placeholder")
     assert hs.stated_filing_status(not_h5) is None
+
+
+def test_a_reference_situation_states_citizenship_and_ssn():
+    scenario = hs.load_scenarios(hs.FROZEN_BOARD)[0]
+    people = hs.situation_for(scenario)["people"]
+    assert people
+    for person in people.values():
+        assert person["immigration_status"] == {"2026": "CITIZEN"}
+        assert person["ssn_card_type"] == {"2026": "CITIZEN"}
+
+
+def test_a_stated_status_outranks_the_default():
+    scenario = hs.load_scenarios(hs.FROZEN_BOARD)[0]
+    head = scenario.adults[0]
+    stated = dataclasses.replace(
+        scenario,
+        adults=[
+            dataclasses.replace(head, inputs={**head.inputs, "ssn_card_type": "NONE"}),
+            *scenario.adults[1:],
+        ],
+    )
+    assert hs.situation_for(stated)["people"][head.name]["ssn_card_type"] == {
+        "2026": "NONE"
+    }
+
+
+def test_the_stated_statuses_are_the_engine_defaults():
+    """d1970 keeps every reference, so stating them must change none."""
+    from policyengine_us.variables.household.demographic.person import (
+        immigration_status,
+        ssn_card_type,
+    )
+
+    assert hs.STATED_STATUSES == {
+        "immigration_status": immigration_status.immigration_status.default_value.name,
+        "ssn_card_type": ssn_card_type.ssn_card_type.default_value.name,
+    }
+
+
+@pytest.fixture(scope="module")
+def engine_system():
+    return hs.reference_system()
+
+
+def _dependent_scenario(state: str, child_income: float = 0.0, **child_inputs):
+    from policybench.scenarios import Person, Scenario
+
+    return Scenario(
+        id=f"{state.lower()}_{int(child_income)}",
+        state=state,
+        filing_status=None,
+        adults=[Person("adult1", 40, 50_000.0)],
+        children=[Person("child1", 16, child_income, dict(child_inputs))],
+    )
+
+
+def test_the_build_check_names_each_dependent_the_engine_gives_return_income(
+    engine_system,
+):
+    """d1029's last check reads the reference engine's own measures for every
+    person but the head and spouse, so it holds whichever inputs produce the
+    income (Sol review r2). Partnership self-employment earnings are not gross
+    income, but they require a return from $400; the head's own earnings never
+    count (review r3)."""
+    from policybench.scenarios import Person, Scenario
+
+    head_earns = Scenario(
+        id="tx_head_earns",
+        state="TX",
+        filing_status=None,
+        adults=[
+            Person("adult1", 40, 0.0, {"self_employment_income": 30_000.0}),
+            Person(
+                "adult2",
+                38,
+                0.0,
+                {"is_tax_unit_spouse": True, "self_employment_income": 20_000.0},
+            ),
+        ],
+        children=[Person("child1", 16, 0.0)],
+    )
+    found = hs.dependents_with_return_income(
+        [
+            _dependent_scenario("TX", 5_117.0),
+            _dependent_scenario("PA", 0.0, taxable_interest_income=40.0),
+            _dependent_scenario("TX"),
+            _dependent_scenario("TX", 0.0, child_support_received=3_000.0),
+            _dependent_scenario(
+                "FL", 0.0, partnership_self_employment_net_earnings=10_000.0
+            ),
+            head_earns,
+        ],
+        engine_system,
+    )
+    assert found == [
+        "tx_5117 child1 gross income $5,117.00",
+        "pa_0 child1 gross income $40.00",
+        # 92.35% of $10,000 (26 U.S.C. 1402(a)(12)).
+        "fl_0 child1 self-employment earnings $9,235.00",
+    ]
+
+
+def test_the_build_check_reads_the_engine_it_is_given(monkeypatch):
+    """The check runs on the engine the references use, fixes included
+    (review r3, reviewer mutant R4)."""
+    from types import SimpleNamespace
+
+    import numpy as np
+    import policyengine_us
+
+    engines = []
+
+    class Simulation:
+        def __init__(self, tax_benefit_system=None, situation=None):
+            engines.append(tax_benefit_system)
+            self.populations = {"person": SimpleNamespace(ids=["adult1", "child1"])}
+
+        def calculate(self, variable, period):
+            return np.zeros(2)
+
+    monkeypatch.setattr(policyengine_us, "Simulation", Simulation)
+    found = hs.dependents_with_return_income(
+        [_dependent_scenario("TX")], "the reference engine"
+    )
+    assert found == []
+    assert engines == ["the reference engine"]
+
+
+def test_alaska_alone_gives_income_with_no_input(engine_system):
+    """The draw's state list checked against the reference engine: an adult and
+    a child with no inputs get gross income in Alaska, from the Permanent Fund
+    Dividend, and nowhere else."""
+    from policybench.scenarios import STATES_WITH_UNSTATED_INCOME, US_STATE_CODES
+
+    assert STATES_WITH_UNSTATED_INCOME == {"AK"}
+    assert (
+        hs.states_with_unstated_income(sorted(US_STATE_CODES), engine_system)
+        == STATES_WITH_UNSTATED_INCOME
+    )
+
+
+@pytest.mark.parametrize("amount", [1.0, -1.0], ids=["income", "loss"])
+@pytest.mark.parametrize(
+    ("variable", "child"),
+    [("irs_gross_income", False), ("dependent_gross_income", True)],
+    ids=["head", "dependent"],
+)
+def test_the_state_check_reads_the_head_and_the_dependent(
+    monkeypatch, variable, child, amount
+):
+    """A state counts when the engine gives an adult or a child any amount on
+    either measure, a loss included, and the check reads the engine it
+    receives. The mock engine pays only people the probe holds, so a probe
+    without a child misses a payment to children (review r5)."""
+    import numpy as np
+    import policyengine_us
+
+    engines = []
+
+    class Simulation:
+        def __init__(self, tax_benefit_system=None, situation=None):
+            engines.append(tax_benefit_system)
+            year = str(hs.YEAR)
+            self.state = situation["households"]["household"]["state_code"][year]
+            self.children = [
+                person["age"][year] < 18 for person in situation["people"].values()
+            ]
+
+        def calculate(self, name, period):
+            paid = name == variable and self.state == "NM"
+            return np.array(
+                [
+                    amount if paid and is_child == child else 0.0
+                    for is_child in self.children
+                ]
+            )
+
+    monkeypatch.setattr(policyengine_us, "Simulation", Simulation)
+    found = hs.states_with_unstated_income(["NM", "TX"], "the reference engine")
+    assert found == {"NM"}
+    assert engines == ["the reference engine"] * 2
+
+
+def test_every_input_the_engine_counts_for_a_dependent_is_listed(engine_system):
+    """d1029's list checked against the reference engine (review r3): a
+    dependent who has one promptable person input alone, at $10,000 or
+    $200,000, gets gross income or self-employment earnings only from a listed
+    input, or from Social Security, which follows its own rule. One simulation
+    holds a Texas household for each input and amount."""
+    from policyengine_us import Simulation
+
+    from policybench.scenarios import (
+        DEPENDENT_RETURN_INCOME_FIELDS,
+        SOCIAL_SECURITY_FIELDS,
+        get_promptable_input_specs,
+    )
+
+    specs = [
+        spec
+        for spec in get_promptable_input_specs()
+        if spec.entity == "person" and spec.value_type == "float"
+    ]
+    units = ("tax_units", "families", "spm_units", "households", "marital_units")
+    people, groups, cases = {}, {unit: {} for unit in units}, []
+    for amount in (10_000.0, 200_000.0):
+        for spec in specs:
+            i = len(cases)
+            head, child = f"h{i}", f"c{i}"
+            # Wages under the input's own name: an input set on any person
+            # stops that variable's formula for every person.
+            people[head] = {
+                "age": {hs.YEAR: 40},
+                "employment_income_before_lsr": {hs.YEAR: 50_000.0},
+            }
+            people[child] = {"age": {hs.YEAR: 16}, spec.source_name: {hs.YEAR: amount}}
+            for unit in ("tax_units", "families", "spm_units"):
+                groups[unit][f"{unit}{i}"] = {"members": [head, child]}
+            groups["households"][f"household{i}"] = {
+                "members": [head, child],
+                "state_code": {hs.YEAR: "TX"},
+            }
+            groups["marital_units"][f"head{i}"] = {"members": [head]}
+            groups["marital_units"][f"child{i}"] = {"members": [child]}
+            cases.append(spec.output_name)
+    simulation = Simulation(
+        tax_benefit_system=engine_system, situation={"people": people, **groups}
+    )
+    people_ids = list(simulation.populations["person"].ids)
+    counted = set()
+    for variable in ("dependent_gross_income", "taxable_self_employment_income"):
+        amounts = dict(zip(people_ids, simulation.calculate(variable, hs.YEAR)))
+        counted |= {name for i, name in enumerate(cases) if amounts[f"c{i}"] != 0}
+    # The probe reaches both measures.
+    assert {"employment_income", "partnership_self_employment_net_earnings"} <= counted
+    assert counted - set(SOCIAL_SECURITY_FIELDS) <= DEPENDENT_RETURN_INCOME_FIELDS
+
+
+def _certified_build(tmp_path, monkeypatch):
+    """A build with a certified bundle and dataset, both faked."""
+    import policybench.policyengine_runtime as runtime
+
+    version = importlib.metadata.version("policyengine-us")
+    dataset = tmp_path / "d.h5"
+    dataset.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        runtime, "materialize_certified_us_dataset", lambda: str(dataset)
+    )
+    monkeypatch.setattr(
+        runtime,
+        "policyengine_bundles_for_countries",
+        lambda countries: {
+            "us": {
+                "certified_data_artifact_sha256": hs.sha256_file(dataset),
+                "bundled_model_version": version,
+                "model_version": version,
+            }
+        },
+    )
+    monkeypatch.setattr(hs, "fix_module_pins", lambda fix_module: [])
+
+
+def test_the_build_refuses_a_draw_that_kept_a_dependent_with_return_income(
+    tmp_path, monkeypatch
+):
+    import policybench.scenarios as scenarios_module
+
+    _certified_build(tmp_path, monkeypatch)
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:1]
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: "system")
+    monkeypatch.setattr(
+        scenarios_module, "generate_scenarios", lambda **kwargs: sampled
+    )
+    checked = []
+
+    def with_income(scenarios, system):
+        checked.append((scenarios, system))
+        return ["mc_000 child1 gross income $6,944.00"]
+
+    def references(scenarios, programs, system):
+        raise AssertionError("the build computed references before the check")
+
+    monkeypatch.setattr(hs, "dependents_with_return_income", with_income)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
+    out = tmp_path / "set"
+    refusal = r"kept dependents with income.*mc_000 child1 gross income \$6,944"
+    with pytest.raises(SystemExit, match=refusal):
+        hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
+    assert not out.exists()
+    ((scenarios, system),) = checked
+    assert system == "system"
+    assert [s.id for s in scenarios] == ["mc_000"]
+
+
+def test_the_build_refuses_a_draw_in_a_state_with_unstated_income(
+    tmp_path, monkeypatch
+):
+    import policybench.scenarios as scenarios_module
+
+    _certified_build(tmp_path, monkeypatch)
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:2]
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: "system")
+    monkeypatch.setattr(
+        scenarios_module, "generate_scenarios", lambda **kwargs: sampled
+    )
+    checked = []
+
+    def unstated(states, system):
+        checked.append((states, system))
+        return {"NM"}
+
+    def references(scenarios, programs, system):
+        raise AssertionError("the build computed references before the check")
+
+    monkeypatch.setattr(hs, "dependents_with_return_income", lambda *args: [])
+    monkeypatch.setattr(hs, "states_with_unstated_income", unstated)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
+    out = tmp_path / "set"
+    with pytest.raises(SystemExit, match="income with no input.*states: NM"):
+        hs.main(["build", "--n", "2", "--seed", "7", "--out", str(out)])
+    assert not out.exists()
+    # Each drawn state, once.
+    assert checked == [(sorted({s.state for s in sampled}), "system")]
+
+
+def test_the_build_filters_the_draw_and_rounds_before_the_references(
+    tmp_path, monkeypatch
+):
+    import policybench.scenarios as scenarios_module
+    from policybench.scenarios import STATES_WITH_UNSTATED_INCOME
+
+    _certified_build(tmp_path, monkeypatch)
+    drawn = {}
+    sampled = hs.load_scenarios(hs.FROZEN_BOARD)[:1]
+
+    def draw(**kwargs):
+        drawn.update(kwargs)
+        return sampled
+
+    seen = []
+
+    def references(scenarios, programs, system):
+        seen.extend(scenarios)
+        return pd.DataFrame(
+            columns=["scenario_id", "variable", "value", "impact_weight"]
+        )
+
+    checked = []
+    monkeypatch.setattr(scenarios_module, "generate_scenarios", draw)
+    monkeypatch.setattr(hs, "compute_references", references)
+    monkeypatch.setattr(hs, "reference_system", lambda fix_module: None)
+    monkeypatch.setattr(
+        hs,
+        "dependents_with_return_income",
+        lambda scenarios, system: checked.extend(scenarios) or [],
+    )
+    monkeypatch.setattr(hs, "states_with_unstated_income", lambda states, system: set())
+    monkeypatch.setattr(hs, "stated_filing_status", lambda path: {})
+    monkeypatch.setattr(hs, "filing_status_mismatches", lambda scenarios, stated: [])
+    out = tmp_path / "set"
+    hs.main(["build", "--n", "1", "--seed", "7", "--out", str(out)])
+    assert drawn["head_spouse_returns_only"] is True
+    assert drawn["excluded_states"] == STATES_WITH_UNSTATED_INCOME
+
+    def amounts(scenario):
+        return [
+            value
+            for person in (*scenario.adults, *scenario.children)
+            for value in (person.employment_income, *person.inputs.values())
+            if not isinstance(value, bool | str)
+        ]
+
+    (scenario,) = seen
+    assert amounts(scenario)
+    assert all(float(amount).is_integer() for amount in amounts(scenario))
+    # The draw had cents to round, and the check read the rounded households
+    # the references read (review r3, reviewer mutant R5).
+    assert not all(float(amount).is_integer() for amount in amounts(sampled[0]))
+    assert checked == [scenario]
+    meta = json.loads((out / "scenarios.csv.meta.json").read_text())
+    # The metadata names both filters the draw applies and the states it left
+    # out (review r5).
+    assert meta["household_filter"] == hs.HOUSEHOLD_FILTER
+    for source in ("DEPENDENT_RETURN_INCOME_FIELDS", "STATES_WITH_UNSTATED_INCOME"):
+        assert f"policybench.scenarios.{source}" in meta["household_filter"]
+    assert meta["excluded_states"] == ["AK"]
 
 
 def test_a_dataset_is_named_by_repo_file_and_tag_together(tmp_path):
