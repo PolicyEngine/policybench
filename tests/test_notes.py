@@ -3408,8 +3408,12 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
         "2026-09-29, bringing it to {nModels} models.",
-        "Claude Sonnet 5.5 scores {sonnetExact}% of answers within $1, weighted by "
+        "Claude Sonnet 5.5 scores {sonnetExact}% of answers right, weighted by "
         "household impact, #{sonnetRank} of {nModels}.",
+    )
+    _assert_score_definition()
+    pin(
+        SCORE_DEFINITION,
         "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}% and sits about level "
         "with it, less than {lunaSonnetGapBelow} points ahead.",
         "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
@@ -4446,8 +4450,13 @@ def test_release_20261006_note() -> None:
         assert rank_now(passed[0]) == rank_then(riser)
     pin(
         # The headline the board ranks by, as the September 29 note states it.
-        "Every model's exact rate, its share of answers within $1 weighted by "
+        "Every model's exact rate, its share of answers right weighted by "
         "household impact, rises by {riseMin} to {riseMax} points.",
+    )
+    _assert_score_definition()
+    pin(
+        "The rate counts dollar amounts within $1 of PolicyEngine's reference and "
+        "eligibility answers that match it.",
         "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
         "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
         "Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for "
@@ -6160,3 +6169,37 @@ def test_release_20261027_note_claims() -> None:
         ):
             if href.startswith(prefix):
                 assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+SCORE_DEFINITION = (
+    "The score counts dollar amounts within $1 of PolicyEngine's reference and "
+    "eligibility answers that match it."
+)
+
+
+def _assert_score_definition() -> None:
+    """The headline exact score, as ``row_hit_scores`` computes it: a dollar
+    amount hits within $1 of the reference, and an eligibility flag hits only
+    when it matches."""
+    from policybench.analysis import BINARY_PROGRAMS, row_hit_scores
+
+    assert row_hit_scores("snap", 100.0, 101.0)["exact"] == 1.0
+    assert row_hit_scores("snap", 100.0, 101.5)["exact"] == 0.0
+    assert "person_medicaid_eligible" in BINARY_PROGRAMS
+    assert row_hit_scores("person_medicaid_eligible", 1.0, 1.0)["exact"] == 1.0
+    assert row_hit_scores("person_medicaid_eligible", 1.0, 0.0)["exact"] == 0.0
+
+
+def test_no_note_gives_the_score_as_answers_within_one_dollar():
+    """The board scores eligibility flags by exact match, not within $1, so no
+    note gives an all-outputs score as answers within $1."""
+    _assert_score_definition()
+    # PR #254 rewrites this note's opening; drop it from here once that merges.
+    pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
+    for path in sorted(NOTES_DIR.glob("*.json")):
+        note = _load_json(path)
+        if note["slug"] in pending:
+            continue
+        text = " ".join([note["title"], *note["paragraphs"]])
+        for phrase in ("answers within $1", "of answers within"):
+            assert phrase not in text, (path.name, phrase)

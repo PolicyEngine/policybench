@@ -64,7 +64,7 @@ describe("notes", () => {
     expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
     expect(markup).toContain("release dashboard-data-20260905c");
     // Whole-number board rates keep one decimal.
-    expect(markup).toContain("at 88.0% of answers within $1");
+    expect(markup).toContain("at 88.0% of answers right");
     expect(markup).not.toContain("at 88% of answers");
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
@@ -141,7 +141,7 @@ describe("notes", () => {
     );
     // Board rates keep one decimal.
     expect(markup).toContain(
-      "It gets 93.1% of answers within $1, weighted by household impact, #3 of 51.",
+      "It gets 93.1% of answers right, weighted by household impact, #3 of 51.",
     );
     expect(markup).toContain("GPT-6.1 Terra ranks #5.");
     expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
@@ -177,7 +177,7 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "GPT-6 Sol, which leads the board at 95.2% of answers within $1, weighted by household impact, gets 99.2% with the tool.",
+      "GPT-6 Sol, which leads the board at 95.2% of answers right, weighted by household impact, gets 99.2% with the tool.",
     );
     expect(markup).toContain(
       "Claude Opus 5.5 goes from 94.1% to 99.8%, and Gemini 4 Argon from 88.7% to 99.9%.",
@@ -248,7 +248,7 @@ describe("notes", () => {
       "Google&#x27;s Gemini 4 Argon joined the board on 2026-10-14, the day after Google opened it to the public Gemini API, and Meta&#x27;s Muse Spark 1.3 joined with it, bringing the board to 50 models.",
     );
     // Board rates keep one decimal.
-    expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers within $1");
+    expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers right");
     expect(markup).toContain("#12 of 50 and the highest of any Gemini model");
     expect(markup).toContain("Gemini 3.8 Flash, the previous best, gets 85.6% (#21)");
     expect(markup).toContain(
@@ -282,11 +282,11 @@ describe("notes", () => {
       "Meta&#x27;s Muse Wonder joined the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models.",
     );
     // Board rates keep one decimal.
-    expect(markup).toContain("It gets 90.1% of answers within $1");
+    expect(markup).toContain("It gets 90.1% of answers right");
     expect(markup).toContain("#10 of 48");
     expect(markup).toContain("it ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
     expect(markup).toContain(
-      "GPT-6 Sol still leads on answers within $1 at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
+      "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
     );
     expect(markup).toContain("so Muse Wonder Full is not on the board");
     expect(markup).toContain(
