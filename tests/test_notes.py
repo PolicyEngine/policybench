@@ -6197,11 +6197,11 @@ def _assert_score_definition() -> None:
 
 
 def test_no_note_gives_the_score_as_answers_within_one_dollar():
-    """The board scores eligibility flags by exact match, not within $1, so no
-    note gives an all-outputs score as answers within $1, a note that gives a
-    rate within $1 says the rate covers amounts, and a note that gives a
-    score as answers right defines it and says how PolicyBench weights the
-    answers."""
+    """PolicyBench scores eligibility flags by exact match, not within $1. So no
+    note gives an all-outputs score as answers within $1. A title or sentence
+    that gives a percentage or a share within $1, or within a dollar, also
+    names the amounts that figure covers. A note that gives a score as answers
+    right defines it and says how PolicyBench weights the answers."""
     _assert_score_definition()
     # PR #254 rewrites this note's opening; drop it from here once that merges.
     pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
@@ -6219,15 +6219,14 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
             "weighted by household impact",
         ):
             assert phrase not in text, (path.name, phrase)
-        # A rate within $1 covers dollar amounts only, so its sentence
-        # names them.
-        for paragraph in note["paragraphs"]:
-            for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z])", paragraph):
-                if (
-                    re.search(r"\{\w+(?:Exact|Rate)\}%", sentence)
-                    and "within $1" in sentence
-                ):
-                    assert "amount" in sentence, (path.name, sentence)
+        # A percentage or share within $1 covers dollar amounts only, so the
+        # title or sentence that gives one names them.
+        for part in (note["title"], *note["paragraphs"]):
+            for sentence in re.split(r"(?<=[.!?])\s+|(?<=[.!?][\"”’)])\s+", part):
+                if re.search(
+                    r"(?:\{\w+(?:Exact|Rate)\}|\b\d+(?:\.\d+)?)%|\bshare\b", sentence
+                ) and re.search(r"within (?:\$1\b|a dollar|one dollar)", sentence):
+                    assert re.search(r"\bamounts\b", sentence), (path.name, sentence)
         # A note that gives a score as answers right also says, in the same
         # words as every other note, what PolicyBench counts as right, and
         # says how it weights the answers.
