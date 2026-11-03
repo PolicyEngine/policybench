@@ -5810,6 +5810,10 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
         u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
     ]
     assert len(citing) == note["facts"]["peRefusals"]
+    # "refused prompts for five households": a split prompt's two halves
+    # count once.
+    assert "refused prompts for {firstRefusalHouseholds:words} households" in text
+    assert len({u[:12] for u in first_refusals}) == facts["firstRefusalHouseholds"]
     assert truncated <= set(first_refusals) and not truncated & set(citing)
 
     # America.gov's own words. The opening attributes how it answers to its

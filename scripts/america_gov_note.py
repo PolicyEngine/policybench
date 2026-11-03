@@ -421,6 +421,9 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "agovFirstExact": one(weighted_exact(first, ref, w)),
         "agovFirstRank": rank(weighted_exact(first, ref, w), others),
         "firstRefusals": len(first_refused),
+        "firstRefusalHouseholds": len(
+            {by_unit[u][1][0]["scenario_id"] for u in first_refused}
+        ),
         "answeredOnRetry": len(retry_answered),
         "refusedThrice": sum(
             all(not answered(by_unit[u][a]) for a in (1, 2, 3) if a in by_unit[u])

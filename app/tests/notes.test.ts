@@ -221,7 +221,9 @@ describe("notes", () => {
     expect(markup).toContain(
       "GPT-5.5, which OpenAI released in April, matches that score with AI alone and no web access, while GPT-6 Sol leads at 95.2%, also with AI alone.",
     );
-    expect(markup).toContain("would rank #14 of 51, but PolicyBench keeps its board to AI alone.");
+    expect(markup).toContain(
+      "America.gov would rank #14 of 51, but PolicyBench keeps its board to AI alone.",
+    );
     // Rates keep one decimal, so GPT-6 Sol's state income tax rate reads 72.0%.
     expect(markup).toContain(
       "On income taxes, America.gov falls between GPT-5.5 and GPT-6 Sol: it gets 72.6% of federal amounts within $1, against their 70.2% and 90.5%, and 66.7% of state amounts, against 65.6% and 72.0%.",
@@ -234,7 +236,9 @@ describe("notes", () => {
     );
     expect(interpolateNoteText(note, note.paragraphs[0]).length).toBeLessThan(600);
     // Whole numbers under ten are spelled out; thousands get separators.
-    expect(markup).toContain("America.gov refused five prompts the first time it saw them.");
+    expect(markup).toContain(
+      "America.gov refused prompts for five households the first time it saw them.",
+    );
     expect(markup).toContain(
       "Six prompts run past the 8,000 characters America.gov asks a message to stay within, so PolicyBench split each across two chats asking for half the outputs apiece.",
     );
@@ -269,6 +273,9 @@ describe("notes", () => {
     );
     expect(markup).toContain(
       "If PolicyBench left all four out for every model, America.gov would rank #13 of 51.",
+    );
+    expect(markup).toContain(
+      "America.gov&#x27;s terms say the answers it generates with AI &quot;can be incomplete or wrong.&quot;",
     );
     expect(markup).toContain(
       "PolicyBench tested America.gov once and skipped the last retry it gives board models, in which it asks again, one at a time, for each answer still missing.",
