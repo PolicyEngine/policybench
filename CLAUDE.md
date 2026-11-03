@@ -26,7 +26,7 @@ ruff format .             # Format
 - `policybench/analysis.py` — Metrics and reporting
 
 ## Testing
-- All tests mock external calls (LiteLLM, PE-US API), except the `tests/test_scenarios.py` tests that download the certified US dataset from Hugging Face
+- All tests mock external calls (LiteLLM, provider batch adapters, `gh`), except the `tests/test_scenarios.py` tests that download the certified US dataset from Hugging Face. Tests that need policyengine-us run it in-process.
 - `pytest -m "not slow"` to skip slow tests
 - `pytest -m "not slow" -n 4 --dist loadfile` to run the same tests on four workers (CI starts one per logical CPU)
 - Some tests read git history, so run the suite from a full clone (`git fetch --unshallow`)

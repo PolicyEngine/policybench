@@ -30,11 +30,12 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # Serially, the test job on main took 29.5 minutes at b0c8f2e and hit
-    # this limit at ec5413c (2026-11-02). In parallel it took 12.3 and 15.7
-    # minutes with -n logical (4 workers, runs 41526298328 and 41529016470),
-    # and 12.5 to 16.2 minutes in three attempts with -n auto (run
-    # 41490222217). Fail a hung job instead of holding a shared runner for
+    # Serially, the test job on main took 29.5 minutes at b0c8f2e, hit this
+    # limit at ec5413c and took 22.3 minutes at f4c3c38 (2026-11-02). In
+    # parallel it took 12.5 to 16.2 minutes in three attempts with -n auto on
+    # a merge with b0c8f2e (run 41490222217). With -n logical (4 workers) on
+    # merges with f4c3c38 it took 12.3 and 15.7 minutes (runs 41526298328 and
+    # 41529016470). Fail a hung job instead of holding a shared runner for
     # GitHub's 6-hour default.
     timeout-minutes: 30
     steps:
