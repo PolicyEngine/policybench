@@ -3,7 +3,7 @@
   "date": "2026-09-01",
   "title": "Claude Fable 5.1 added",
   "paragraphs": [
-    "Claude Fable 5.1 was released on 2026-09-01 and joined the board the same day. It gets {exactRate}% of answers right, weighted by household impact, #{rank} of {nModels}. The score counts dollar amounts within $1 of PolicyEngine's reference and eligibility answers that match it. {parsed} of {answers} answers parsed.",
+    "Claude Fable 5.1 was released on 2026-09-01 and joined the board the same day. It gets {exactRate}% of answers right, weighted by household impact, and ranks #{rank} of {nModels}. PolicyBench counts a dollar amount as right when it falls within $1 of PolicyEngine's reference, and an eligibility answer as right when it matches. {parsed} of {answers} answers parsed.",
     "The model's API rejects forced tool calls, which is how the board collects most models' answers, so its row answers as a JSON object and reasons at the provider default. The serving-configuration table in the paper records the transport for every row.",
     "Sensitivity: with the answer tool declared under tool_choice auto, Fable 5.1 scores {autoRate}% (would rank #{autoRank}). Under the same request Claude Fable 5 scores {fable5AutoRate}%. Fable 5's board row ({fable5BoardRate}%) ran chunked under a forced tool call, which switches off its thinking, so the {boardGap}-point gap between the two board rows is mostly request shape.",
     "The next board version moves every model to tool_choice auto so each provider's default reasoning engages under the recorded request shape (policybench#139)."

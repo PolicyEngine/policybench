@@ -3408,14 +3408,14 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
         "2026-09-29, bringing it to {nModels} models.",
-        "Claude Sonnet 5.5 scores {sonnetExact}% of answers right, weighted by "
-        "household impact, #{sonnetRank} of {nModels}.",
+        "Claude Sonnet 5.5 gets {sonnetExact}% of answers right, weighted by "
+        "household impact, and ranks #{sonnetRank} of {nModels}.",
     )
     _assert_score_definition()
     pin(
         SCORE_DEFINITION,
         "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}% and sits about level "
-        "with it, less than {lunaSonnetGapBelow} points ahead.",
+        "with Claude Sonnet 5.5, less than {lunaSonnetGapBelow} points ahead.",
         "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
         "{flashExact}% (#{flashRank}).",
         # The previous release's leader, recomputed on its references.
@@ -4450,13 +4450,12 @@ def test_release_20261006_note() -> None:
         assert rank_now(passed[0]) == rank_then(riser)
     pin(
         # The headline the board ranks by, as the September 29 note states it.
-        "Every model's exact rate, its share of answers right weighted by "
-        "household impact, rises by {riseMin} to {riseMax} points.",
+        "Every model's share of answers right, weighted by household impact, "
+        "rises by {riseMin} to {riseMax} points.",
     )
     _assert_score_definition()
     pin(
-        "The rate counts dollar amounts within $1 of PolicyEngine's reference and "
-        "eligibility answers that match it.",
+        SCORE_DEFINITION,
         "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
         "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
         "Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for "
@@ -6172,8 +6171,9 @@ def test_release_20261027_note_claims() -> None:
 
 
 SCORE_DEFINITION = (
-    "The score counts dollar amounts within $1 of PolicyEngine's reference and "
-    "eligibility answers that match it."
+    "PolicyBench counts a dollar amount as right when it falls within $1 of "
+    "PolicyEngine's reference, and an eligibility answer as right when it "
+    "matches."
 )
 
 
@@ -6192,7 +6192,8 @@ def _assert_score_definition() -> None:
 
 def test_no_note_gives_the_score_as_answers_within_one_dollar():
     """The board scores eligibility flags by exact match, not within $1, so no
-    note gives an all-outputs score as answers within $1."""
+    note gives an all-outputs score as answers within $1, and a note that
+    gives a score as answers right defines it."""
     _assert_score_definition()
     # PR #254 rewrites this note's opening; drop it from here once that merges.
     pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
@@ -6203,3 +6204,12 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
         text = " ".join([note["title"], *note["paragraphs"]])
         for phrase in ("answers within $1", "of answers within"):
             assert phrase not in text, (path.name, phrase)
+        # A note that gives a score as answers right also says what
+        # PolicyBench counts as right.
+        if "of answers right" in text:
+            for clause in (
+                "PolicyBench counts a dollar amount as right when it falls within "
+                "$1 of PolicyEngine's reference",
+                "an eligibility answer as right when it matches",
+            ):
+                assert clause in text, (path.name, clause)

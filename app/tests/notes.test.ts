@@ -64,8 +64,8 @@ describe("notes", () => {
     expect(markup).toContain("GPT-6 Astra debuts second: the two rules it invented");
     expect(markup).toContain("release dashboard-data-20260905c");
     // Whole-number board rates keep one decimal.
-    expect(markup).toContain("at 88.0% of answers right");
-    expect(markup).not.toContain("at 88% of answers");
+    expect(markup).toContain("It gets 88.0% of answers right");
+    expect(markup).not.toContain("gets 88% of answers");
     expect(markup).toContain("release dashboard-data-20260901c");
     expect(markup).toContain("Six SNAP households the top three models deny");
     expect(markup).toContain(
@@ -141,7 +141,10 @@ describe("notes", () => {
     );
     // Board rates keep one decimal.
     expect(markup).toContain(
-      "It gets 93.1% of answers right, weighted by household impact, #3 of 51.",
+      "It gets 93.1% of answers right, weighted by household impact, and ranks #3 of 51.",
+    );
+    expect(markup).toContain(
+      "PolicyBench counts a dollar amount as right when it falls within $1 of PolicyEngine&#x27;s reference, and an eligibility answer as right when it matches.",
     );
     expect(markup).toContain("GPT-6.1 Terra ranks #5.");
     expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
@@ -249,7 +252,7 @@ describe("notes", () => {
     );
     // Board rates keep one decimal.
     expect(markup).toContain("Gemini 4 Argon gets 88.7% of answers right");
-    expect(markup).toContain("#12 of 50 and the highest of any Gemini model");
+    expect(markup).toContain("ranks #12 of 50, the highest of any Gemini model");
     expect(markup).toContain("Gemini 3.8 Flash, the previous best, gets 85.6% (#21)");
     expect(markup).toContain(
       "Muse Spark 1.3 gets 87.2% (#18), behind Meta&#x27;s Muse Wonder (90.1%, #10)",
@@ -283,7 +286,7 @@ describe("notes", () => {
     );
     // Board rates keep one decimal.
     expect(markup).toContain("It gets 90.1% of answers right");
-    expect(markup).toContain("#10 of 48");
+    expect(markup).toContain("and ranks #10 of 48.");
     expect(markup).toContain("it ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
     expect(markup).toContain(
       "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
