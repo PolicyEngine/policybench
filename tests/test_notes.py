@@ -5651,9 +5651,9 @@ def test_america_gov_split_units_partition_the_prompt() -> None:
 
 def test_america_gov_note_quotes_are_verbatim() -> None:
     """The note's quote of America.gov's refusal to the Virginia household
-    (scenario_119) is its first reply, verbatim. (Its quotes of America.gov's
-    pages are checked against the data's metadata in
-    test_america_gov_note_predicates.)"""
+    (scenario_119) is its first reply, verbatim. (test_america_gov_note_predicates
+    checks its terms quote, and the how-it-works page behind its opening,
+    against the data's metadata.)"""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     text = " ".join(note["paragraphs"])
@@ -5684,6 +5684,18 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     meta = _load_json(agov.META_PATH)
     ref, _ = agov.references()
     board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
+
+    # The note's ranks set America.gov against each board model's score as
+    # the script computes it, which must match the score the release publishes.
+    w = agov.weights(ref.keys(), payload["globalWeights"]["household"])
+    computed = {
+        model: agov.weighted_exact(predictions, ref, w)
+        for model, predictions in agov.board_predictions(payload).items()
+    }
+    published = {r["model"]: r["exact"] for r in board}
+    assert computed.keys() == published.keys()
+    for model, score in computed.items():
+        assert abs(score - published[model]) < 1e-9, model
 
     # "GPT-6 Sol leads".
     assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
@@ -5720,6 +5732,10 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     assert len(gaps) - len(trailing) == facts["peLeads"]
     assert 0 < facts["peLeads"] < facts["peOutputs"]
     assert max(trailing) <= float(facts["peMaxGap"]) < max(trailing) + 0.1
+    # The note quotes the board's prompts, and every prompt carries both phrases.
+    for phrase in ("under PolicyEngine rules", "whether PolicyEngine returns"):
+        assert f'"{phrase}' in text
+        assert all(phrase in s["prompt"]["json"] for s in payload["scenarios"].values())
     # The note compares America.gov with models it names, each at its own rate.
     assert "median" not in text
     # "which PolicyBench weights most heavily".
@@ -5740,7 +5756,7 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
         # "It called both adults in a New York couple eligible".
         assert retried[("scenario_004", f"{adult}_medicaid_eligible")] == 1
 
-    # "the reference and 49 of the 50 models say $0" / "say neither qualifies":
+    # "PolicyEngine and 49 of the 50 models give $0" / "find neither eligible":
     # exactly 0.
     def exact_zeros(sid: str, variable: str) -> int:
         rows = payload["scenarioPredictions"][sid][variable].values()
@@ -5762,7 +5778,8 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     )
     assert over == sorted(meta["split_units"])
 
-    # "came back word for word the same": the three units refused at every attempt.
+    # "repeated its refusal word for word on the other three": the three units
+    # refused at every attempt.
     by_unit = agov.units(agov.load_rows())
     refused_every_time = [
         u
@@ -5773,6 +5790,17 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     for unit in refused_every_time:
         texts = {by_unit[unit][a][0]["refusal_text"] for a in (1, 2, 3)}
         assert len(texts) == 1
+    # "answered two of those prompts in full ... on the other three": the units
+    # answered on a retry and the units refused every time make up the first
+    # refusals.
+    answered_on_retry = [
+        u
+        for u, attempts in by_unit.items()
+        if not agov.answered(attempts[1])
+        and any(agov.answered(attempts[a]) for a in attempts if a > 1)
+    ]
+    assert len(answered_on_retry) == facts["answeredOnRetry"]
+    assert len(answered_on_retry) + len(refused_every_time) == facts["firstRefusals"]
 
     # "At least two ... cited PolicyEngine": two complete refusals do; the one
     # refusal cut off in capture does not in the text that was kept.
