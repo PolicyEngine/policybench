@@ -237,7 +237,7 @@ describe("notes", () => {
     expect(interpolateNoteText(note, note.paragraphs[0]).length).toBeLessThan(600);
     // Whole numbers under ten are spelled out; thousands get separators.
     expect(markup).toContain(
-      "America.gov refused prompts for five households the first time it saw them.",
+      "America.gov refused prompts for five households on the first attempt.",
     );
     expect(markup).toContain(
       "Six prompts run past the 8,000 characters America.gov asks a message to stay within, so PolicyBench split each across two chats asking for half the outputs apiece.",
