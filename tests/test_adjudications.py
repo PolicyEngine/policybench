@@ -5,17 +5,24 @@ import subprocess
 from collections import Counter
 from functools import cache
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 import pytest
 
+from policybench import adjudications
 from policybench.adjudications import (
     AdjudicationError,
     apply_adjudications,
     judge_ever_flagged,
     load_adjudications,
+    parse_adjudications,
     unresolved_suspect_cases,
     verify_adjudications_applied,
+)
+from policybench.annotation_taxonomy import (
+    FAILURE_SOURCE_VALUES,
+    FAILURE_SUBTYPE_VALUES,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -538,6 +545,82 @@ def test_verify_requires_agreement_with_the_complete_record():
     bad_rows.loc[1, "failure_subtype"] = "thresholds_rates"
     with pytest.raises(AdjudicationError, match="subtype other than"):
         verify_adjudications_applied(bad_rows, out_cases, [_entry()])
+
+
+def _ceiling_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """_frames, with m3's missing answer on scenario_001 recorded by the run as
+    ceiling exhaustion rather than a parse failure."""
+    rows, cases = _frames()
+    rows.loc[2, ["failure_source", "failure_subtype"]] = [
+        "budget_exhausted_at_ceiling",
+        "missing_output",
+    ]
+    return rows, cases
+
+
+def test_apply_leaves_a_recorded_ceiling_exhaustion_alone():
+    """Like a parse failure, a recorded ceiling exhaustion keeps its class and
+    subtype through an adjudication of its case; collect_audit and the
+    dashboard export force it onto the row, so the CSVs must keep it too."""
+    rows, cases = _ceiling_frames()
+    out_rows, out_cases, report = apply_adjudications(rows, cases, [_entry()])
+
+    case_rows = out_rows[out_rows["scenario_id"] == "scenario_001"]
+    assert case_rows[["failure_source", "failure_subtype"]].values.tolist() == [
+        ["llm_error", "age_disability"],
+        ["llm_error", "age_disability"],
+        ["budget_exhausted_at_ceiling", "missing_output"],
+    ]
+    assert report[0]["rows_rewritten"] == 2
+    assert out_cases.loc[0, "case_failure_sources"] == "llm_error"
+    verify_adjudications_applied(out_rows, out_cases, [_entry()])
+
+
+def test_verify_does_not_hold_a_ceiling_row_to_the_adjudicated_class():
+    """The verifier's substantive rows are apply's: a recorded ceiling row is
+    neither off the adjudicated class nor a stray judge verdict, even when the
+    judge chose ceiling exhaustion for the case. The rows apply does rewrite
+    are still held to the record."""
+    rows, cases = _ceiling_frames()
+    entry = _entry(judge_failure_source="budget_exhausted_at_ceiling")
+    out_rows, out_cases, _ = apply_adjudications(rows, cases, [entry])
+    verify_adjudications_applied(out_rows, out_cases, [entry])
+
+    with pytest.raises(AdjudicationError, match="still carry"):
+        verify_adjudications_applied(rows, cases, [_entry()])
+    bad_rows = out_rows.copy()
+    bad_rows.loc[0, "failure_source"] = "reference_model_issue_fixed"
+    with pytest.raises(AdjudicationError, match="source other than"):
+        verify_adjudications_applied(bad_rows, out_cases, [entry])
+
+
+def test_skipping_ceiling_rows_moves_no_committed_annotation():
+    """No committed row records ceiling exhaustion, so the committed record
+    gives the committed annotations whether or not apply skips those rows."""
+    entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
+    cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
+    decided = {(str(e["scenario_id"]), str(e["variable"])) for e in entries}
+    in_decided = (
+        rows[["scenario_id", "variable"]].astype(str).apply(tuple, axis=1).isin(decided)
+    )
+    assert not (
+        in_decided & (rows["failure_source"] == "budget_exhausted_at_ceiling")
+    ).any(), (
+        "a committed adjudicated case now records ceiling exhaustion; this "
+        "differential no longer applies (see PR #224), delete it"
+    )
+    with mock.patch.object(
+        adjudications, "NON_SUBSTANTIVE_SOURCES", frozenset({"parse_contract_failure"})
+    ):
+        before = apply_adjudications(rows, cases, entries)
+    after = apply_adjudications(rows, cases, entries)
+    for old, new in zip(before, after):
+        if isinstance(old, pd.DataFrame):
+            pd.testing.assert_frame_equal(new, old)
+        else:
+            assert new == old
+    verify_adjudications_applied(*after[:2], entries)
 
 
 def _suspect_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -1672,6 +1755,241 @@ def test_release_20261013_restates_only_the_cases_muse_wonder_reopened(tmp_path)
         if history[:-1] == before.get("judge_previous", []) and history:
             replaced += 1
     assert replaced == len(verdicts) == 50
+
+
+# The rows an adjudication skips, spelled out so the oracle below does not
+# share the module's constant. They are drawn more often than their share of
+# the taxonomy, so most examples hold a row an adjudication must skip.
+_SKIPPED = ("budget_exhausted_at_ceiling", "parse_contract_failure")
+_ROW_SOURCES = st.one_of(
+    st.sampled_from(_SKIPPED),
+    st.sampled_from(FAILURE_SOURCE_VALUES),
+)
+_SUBTYPES = st.sampled_from(FAILURE_SUBTYPE_VALUES)
+# Every adjudicated class a valid record admits, each with the reference
+# verdicts parse_adjudications accepts beside it (None: no verdict) and whether
+# it removes the output from scoring. Spelled out, like _SKIPPED, so the
+# generator does not share the module's constants.
+_OUTCOMES = {
+    "llm_error": ((None, "affirmed", "regenerated"), False),
+    "parse_contract_failure": ((None, "affirmed", "regenerated"), False),
+    "prompt_ambiguity": ((None, "unlisted_input"), True),
+    "reference_engine_defect": (("engine_defect",), True),
+    "reference_later_law": (("later_law",), True),
+}
+
+
+@st.composite
+def _adjudicated_annotations(draw):
+    """Row annotations and case notes for one to three cases of one to four
+    rows, each row of any class, subtype and reference-suspect flag, and a
+    valid adjudication of any judge verdict, to any adjudicated class with
+    any reference verdict that class admits, for some of the cases."""
+    rows, cases, entries = [], [], []
+    for n in range(draw(st.integers(1, 3))):
+        scenario = f"scenario_{n:03d}"
+        count = draw(st.integers(1, 4))
+        for m in range(count):
+            rows.append(
+                (
+                    "us",
+                    scenario,
+                    "ssi",
+                    f"m{m}",
+                    draw(_ROW_SOURCES),
+                    draw(_SUBTYPES),
+                    draw(st.booleans()),
+                )
+            )
+        cases.append(
+            (
+                "us",
+                scenario,
+                "ssi",
+                count,
+                draw(_ROW_SOURCES),
+                draw(_SUBTYPES),
+                f"note {n}.",
+                draw(st.booleans()),
+            )
+        )
+        if draw(st.booleans()):
+            adjudicated = draw(st.sampled_from(sorted(_OUTCOMES)))
+            verdicts, excluded = _OUTCOMES[adjudicated]
+            entry = _entry(
+                scenario_id=scenario,
+                judge_failure_source=draw(st.sampled_from(FAILURE_SOURCE_VALUES)),
+                judge_failure_subtype=draw(_SUBTYPES),
+                adjudicated_failure_source=adjudicated,
+                adjudicated_failure_subtype=draw(_SUBTYPES),
+            )
+            if excluded:
+                entry["excluded_from_scoring"] = True
+            verdict = draw(st.sampled_from(verdicts))
+            if verdict is not None:
+                entry["reference_verdict"] = verdict
+                entry["reference_basis"] = "recorded basis"
+                entry["judge_reference_suspect"] = draw(st.booleans())
+            entries.append(entry)
+    row_frame = pd.DataFrame(
+        rows,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "model",
+            "failure_source",
+            "failure_subtype",
+            "reference_suspect",
+        ],
+    )
+    row_frame["annotation"] = "diagnosis"
+    case_frame = pd.DataFrame(
+        cases,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "wrong_model_count",
+            "case_failure_sources",
+            "case_failure_subtypes",
+            "case_annotation",
+            "reference_suspect",
+        ],
+    )
+    return row_frame, case_frame, parse_adjudications({"adjudications": entries}, "")
+
+
+def _check_adjudication(
+    rows: pd.DataFrame, cases: pd.DataFrame, entries: list[dict]
+) -> None:
+    """The oracle the property and the outcome-by-outcome test share:
+    - a parse-failure or ceiling-exhaustion row keeps its class and subtype,
+      and a row of a case no entry decides is untouched;
+    - every other row of a decided case takes the adjudicated class;
+    - a reference verdict clears the flag on every row of its case, skipped
+      rows included, and on its case note, and touches no other row's or
+      note's flag;
+    - the report counts exactly the rows whose class or subtype changed;
+    - the verifier accepts what apply builds, and a second apply changes
+      nothing.
+    """
+    out_rows, out_cases, report = apply_adjudications(rows, cases, entries)
+
+    decided = {e["scenario_id"]: e for e in entries}
+    classes = ["failure_source", "failure_subtype"]
+    expected = rows.copy()
+    for index, row in rows.iterrows():
+        entry = decided.get(row["scenario_id"])
+        if entry and row["failure_source"] not in _SKIPPED:
+            expected.loc[index, classes] = [
+                entry["adjudicated_failure_source"],
+                entry["adjudicated_failure_subtype"],
+            ]
+        if entry and entry.get("reference_verdict"):
+            expected.loc[index, "reference_suspect"] = False
+    pd.testing.assert_frame_equal(out_rows, expected)
+    expected_flags = cases["reference_suspect"].copy()
+    for index, case in cases.iterrows():
+        entry = decided.get(case["scenario_id"])
+        if entry and entry.get("reference_verdict"):
+            expected_flags.loc[index] = False
+    pd.testing.assert_series_equal(out_cases["reference_suspect"], expected_flags)
+    changed = (rows[classes] != out_rows[classes]).any(axis=1)
+    assert [item["rows_rewritten"] for item in report] == [
+        int(changed[rows["scenario_id"] == e["scenario_id"]].sum()) for e in entries
+    ]
+
+    verify_adjudications_applied(out_rows, out_cases, entries)
+    again_rows, again_cases, _ = apply_adjudications(out_rows, out_cases, entries)
+    pd.testing.assert_frame_equal(again_rows, out_rows)
+    pd.testing.assert_frame_equal(again_cases, out_cases)
+
+
+@settings(max_examples=300, deadline=None)
+@given(data=_adjudicated_annotations())
+def test_adjudication_skips_non_substantive_rows_properties(data):
+    """For any annotations and valid record, whatever class it adjudicates,
+    apply meets the oracle in _check_adjudication."""
+    _check_adjudication(*data)
+
+
+@pytest.mark.parametrize(
+    ("adjudicated", "verdict"),
+    [
+        (adjudicated, verdict)
+        for adjudicated, (verdicts, _) in sorted(_OUTCOMES.items())
+        for verdict in verdicts
+    ],
+)
+def test_every_outcome_and_verdict_leaves_skipped_rows_alone(adjudicated, verdict):
+    """Each adjudicated class with each reference verdict it admits, on a
+    decided case holding a ceiling row, a parse row and a substantive row,
+    all flagged, beside an undecided case with the same rows. The judge chose
+    ceiling exhaustion, so the verifier must not take the recorded ceiling
+    row for its stray verdict."""
+    rows, cases = [], []
+    for scenario in ("scenario_000", "scenario_001"):
+        for model, source, subtype in (
+            ("m0", "budget_exhausted_at_ceiling", "missing_output"),
+            ("m1", "parse_contract_failure", "missing_output"),
+            ("m2", "needs_review", "other"),
+        ):
+            rows.append(("us", scenario, "ssi", model, source, subtype, True))
+        cases.append(
+            (
+                "us",
+                scenario,
+                "ssi",
+                3,
+                "needs_review",
+                "other",
+                f"note {scenario}.",
+                True,
+            )
+        )
+    rows = pd.DataFrame(
+        rows,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "model",
+            "failure_source",
+            "failure_subtype",
+            "reference_suspect",
+        ],
+    )
+    rows["annotation"] = "diagnosis"
+    cases = pd.DataFrame(
+        cases,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "wrong_model_count",
+            "case_failure_sources",
+            "case_failure_subtypes",
+            "case_annotation",
+            "reference_suspect",
+        ],
+    )
+    _, excluded = _OUTCOMES[adjudicated]
+    entry = _entry(
+        scenario_id="scenario_000",
+        judge_failure_source="budget_exhausted_at_ceiling",
+        judge_failure_subtype="missing_output",
+        adjudicated_failure_source=adjudicated,
+        adjudicated_failure_subtype="age_disability",
+    )
+    if excluded:
+        entry["excluded_from_scoring"] = True
+    if verdict is not None:
+        entry["reference_verdict"] = verdict
+        entry["reference_basis"] = "recorded basis"
+        entry["judge_reference_suspect"] = True
+    entries = parse_adjudications({"adjudications": [entry]}, "")
+    _check_adjudication(rows, cases, entries)
 
 
 def test_release_20261014_restates_only_the_reopened_cases_and_adds_its_wave(
