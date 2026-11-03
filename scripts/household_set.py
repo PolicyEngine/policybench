@@ -11,8 +11,11 @@ can reach engine paths the frozen 100 households never did.
     household_set.py check-frozen --out FILE
 
 ``build`` samples households from the dataset the installed policyengine.py
-bundle certifies (:func:`policybench.scenarios.generate_scenarios`, the board's
-own sampler and eligibility rules), renames them ``mc_000`` onward so they
+bundle certifies, with the board's own sampler and eligibility rules
+(:func:`policybench.scenarios.generate_scenarios`) and two filters the board's
+v1 draw lacks: it leaves out households where a dependent has income that could
+require a return of their own (d1029), and households in
+``STATES_WITH_UNSTATED_INCOME``. It renames them ``mc_000`` onward so they
 never share an id with the frozen board, computes every output on the
 installed policyengine-us with the reference conventions
 (reference_audit/2026-09-28/fixes/latest_final.py), and writes a board
@@ -63,6 +66,17 @@ YEAR = 2026
 # frozen households still carry the old name (reference_audit/2026-09-28/
 # scripts/sweep.py build_situation). Harmless for a household without it.
 RENAME = {"partnership_se_income": "partnership_self_employment_net_earnings"}
+# d1970 (Max, 2026-11-01): the v2 prompt says everyone is a citizen with an SSN
+# unless stated otherwise. policyengine-us defaults both to CITIZEN; the
+# references state them, as canonical_uk_person states the UK's.
+STATED_STATUSES = {"immigration_status": "CITIZEN", "ssn_card_type": "CITIZEN"}
+HOUSEHOLD_FILTER = (
+    "Households where a dependent has income that could require a return of "
+    "their own are left out of the draw (d1029; "
+    "policybench.scenarios.DEPENDENT_RETURN_INCOME_FIELDS), and so are households "
+    "in states where the engine gives income with no input "
+    "(policybench.scenarios.STATES_WITH_UNSTATED_INCOME)."
+)
 EXCLUSIONS_RULE = (
     "An output is excluded from scoring for every model when review finds its "
     "reference wrong in law or undetermined by the stated facts. A fresh household "
@@ -146,7 +160,70 @@ def situation_for(scenario) -> dict:
         for old, new in RENAME.items():
             if old in person:
                 person[new] = person.pop(old)
+        for name, value in STATED_STATUSES.items():
+            person.setdefault(name, {str(scenario.year): value})
     return situation
+
+
+# The engine's own measures of a dependent's income that can require a return:
+# gross income as a dependent, and net earnings from self-employment, which
+# require a return from $400 (26 U.S.C. 6017) though partnership earnings are
+# not gross income (review r3).
+RETURN_INCOME_MEASURES = (
+    ("gross income", "dependent_gross_income"),
+    ("self-employment earnings", "taxable_self_employment_income"),
+)
+
+
+def dependents_with_return_income(scenarios, system) -> list[str]:
+    """Each person other than the head or spouse whom ``system`` gives income
+    that can require a return of their own, as "scenario person measure
+    $amount". d1029's filter drops such households before the draw, so a build
+    stops if any remain."""
+    from policyengine_us import Simulation
+
+    found = []
+    for scenario in scenarios:
+        simulation = Simulation(
+            tax_benefit_system=system, situation=situation_for(scenario)
+        )
+        people = simulation.populations["person"].ids
+        head_or_spouse = simulation.calculate("is_tax_unit_head_or_spouse", YEAR)
+        for measure, variable in RETURN_INCOME_MEASURES:
+            amounts = simulation.calculate(variable, YEAR)
+            for person, counted, amount in zip(people, head_or_spouse, amounts):
+                if not counted and amount != 0:
+                    found.append(
+                        f"{scenario.id} {person} {measure} ${float(amount):,.2f}"
+                    )
+    return found
+
+
+def states_with_unstated_income(states, system) -> set[str]:
+    """Each of ``states`` where ``system`` gives an adult or a child gross income
+    with no input at all. No prompt states that income, and each prompt says to
+    treat an unlisted amount as 0, so the draw leaves out
+    STATES_WITH_UNSTATED_INCOME and a build stops if it holds any other."""
+    from policyengine_us import Simulation
+
+    from policybench.scenarios import Person, Scenario
+
+    found = set()
+    for state in states:
+        no_inputs = Scenario(
+            id=state,
+            state=state,
+            filing_status=None,
+            adults=[Person("adult1", 40, 0.0)],
+            children=[Person("child1", 8, 0.0)],
+        )
+        simulation = Simulation(
+            tax_benefit_system=system, situation=situation_for(no_inputs)
+        )
+        for variable in ("irs_gross_income", "dependent_gross_income"):
+            if simulation.calculate(variable, YEAR).any():
+                found.add(state)
+    return found
 
 
 def compute_references(scenarios, programs: list[str], system) -> pd.DataFrame:
@@ -311,7 +388,12 @@ def command_build(args) -> None:
         materialize_certified_us_dataset,
         policyengine_bundles_for_countries,
     )
-    from policybench.scenarios import generate_scenarios, scenario_manifest
+    from policybench.scenarios import (
+        STATES_WITH_UNSTATED_INCOME,
+        canonical_us_scenario,
+        generate_scenarios,
+        scenario_manifest,
+    )
 
     out = Path(args.out)
     if out.exists() and any(out.iterdir()):
@@ -353,6 +435,7 @@ def command_build(args) -> None:
             "--purpose test, or install a bundle that certifies the engine"
         )
     dataset_sha256 = sha256_file(dataset_path)
+    system = reference_system(Path(args.fix_module))
 
     sampled = generate_scenarios(
         n=args.n,
@@ -360,12 +443,29 @@ def command_build(args) -> None:
         country="us",
         dataset=str(dataset_path) if all(named) else None,
         dataset_label=dataset_label,
+        head_spouse_returns_only=True,
+        excluded_states=STATES_WITH_UNSTATED_INCOME,
     )
-    scenarios = rename_scenarios(sampled, args.id_prefix)
+    scenarios = [
+        canonical_us_scenario(scenario)
+        for scenario in rename_scenarios(sampled, args.id_prefix)
+    ]
+    with_income = dependents_with_return_income(scenarios, system)
+    if with_income:
+        raise SystemExit(
+            "the draw kept dependents with income that can require a return, "
+            "which d1029's filter should have dropped: " + "; ".join(with_income)
+        )
+    unstated = states_with_unstated_income(
+        sorted({scenario.state for scenario in scenarios}), system
+    )
+    if unstated:
+        raise SystemExit(
+            "the draw holds states where the engine gives income with no input, "
+            "which no prompt states: " + ", ".join(sorted(unstated))
+        )
     mismatches = filing_status_mismatches(scenarios, stated_filing_status(dataset_path))
-    references = compute_references(
-        scenarios, programs, reference_system(Path(args.fix_module))
-    )
+    references = compute_references(scenarios, programs, system)
 
     out.mkdir(parents=True, exist_ok=True)
     manifest = scenario_manifest(scenarios)
@@ -399,6 +499,8 @@ def command_build(args) -> None:
         "requested_num_scenarios": args.n,
         "seed": args.seed,
         "id_prefix": args.id_prefix,
+        "household_filter": HOUSEHOLD_FILTER,
+        "excluded_states": sorted(STATES_WITH_UNSTATED_INCOME),
         "program_set": "headline",
         "programs": programs,
         "policyengine_bundles": bundles,
