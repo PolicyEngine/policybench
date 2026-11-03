@@ -3408,10 +3408,15 @@ def test_release_20260929_note() -> None:
     pin(
         "Claude Sonnet 5.5, Grok 4.7 and DeepSeek V4.1 Flash joined the board on "
         "2026-09-29, bringing it to {nModels} models.",
-        "Claude Sonnet 5.5 scores {sonnetExact}% of answers within $1, weighted by "
-        "household impact, #{sonnetRank} of {nModels}.",
+        "Claude Sonnet 5.5 gets {sonnetExact}% of answers right and ranks "
+        "#{sonnetRank} of {nModels}.",
+    )
+    _assert_score_definition()
+    pin(
+        SCORE_DEFINITION,
+        SCORE_WEIGHTING,
         "GPT-6 Luna, #{lunaRank}, also rounds to {lunaExact}% and sits about level "
-        "with it, less than {lunaSonnetGapBelow} points ahead.",
+        "with Claude Sonnet 5.5, less than {lunaSonnetGapBelow} points ahead.",
         "Grok 4.7 scores {grokExact}% (#{grokRank}) and DeepSeek V4.1 Flash "
         "{flashExact}% (#{flashRank}).",
         # The previous release's leader, recomputed on its references.
@@ -3720,9 +3725,8 @@ def test_release_20260929_note() -> None:
     # The drift's two causes, as the drift baseline test rebuilds them.
     test_previous_release_scores_rebuild_from_this_snapshot()
     pin(
-        "Together, the new references and the Medicaid exclusion raise the exact "
-        "rate of every one of the {incumbents} earlier models, by {driftMin} to "
-        "{driftMax} points.",
+        "Together, the new references and the Medicaid exclusion lift every one "
+        "of the {incumbents} earlier models, by {driftMin} to {driftMax} points.",
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
@@ -4446,8 +4450,12 @@ def test_release_20261006_note() -> None:
         assert rank_now(passed[0]) == rank_then(riser)
     pin(
         # The headline the board ranks by, as the September 29 note states it.
-        "Every model's exact rate, its share of answers within $1 weighted by "
-        "household impact, rises by {riseMin} to {riseMax} points.",
+        "Every model's share of answers right rises by {riseMin} to {riseMax} points.",
+    )
+    _assert_score_definition()
+    pin(
+        SCORE_DEFINITION,
+        SCORE_WEIGHTING,
         "GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 "
         "({opusExact}%) and GPT-5.6 Sol ({sol56Exact}%).",
         "Claude Sonnet 5.5 ({sonnetExact}%) passes GPT-6 Luna ({lunaExact}%) for "
@@ -5319,8 +5327,9 @@ def test_release_20261013_note_claims() -> None:
     assert set(scoring["now"]) == {row["model"] for row in board}
     for row in board:
         assert scoring["now"][row["model"]] == pytest.approx(row["exact"], abs=1e-9)
-    # "Without them, every earlier model's rate would be the previous
-    # release's": leaving the restored outputs unscored gives release 20261010.
+    # "Without them, every earlier model would keep its share of answers right
+    # from the previous release": leaving the restored outputs unscored gives
+    # release 20261010.
     for model, exact in then.items():
         assert scoring["without"][model] == pytest.approx(exact, abs=1e-9), model
     # The restored outputs are all ones release 20261010 excluded (none was
@@ -6138,7 +6147,7 @@ def test_release_20261027_note_claims() -> None:
     assert (date.fromisoformat(note["boardSnapshot"]) - released).days == 1
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
     # "Only GPT-6 Sol and Claude Opus 5.5 score higher", and GPT-5.6 Sol, at
-    # the same rounded rate, is less than a tenth of a point behind.
+    # the same rounded rate, trails by less than a tenth of a point.
     assert names[:4] == ["gpt-6-sol", "claude-opus-5.5", TERRA, "gpt-5.6-sol"]
     assert facts["sol56Exact"] == facts["terraExact"]
     assert 0 < exact[TERRA] - exact["gpt-5.6-sol"] < 0.1
@@ -6238,3 +6247,67 @@ def test_release_20261027_note_claims() -> None:
         ):
             if href.startswith(prefix):
                 assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+SCORE_DEFINITION = (
+    "PolicyBench counts a dollar amount as right when it falls within $1 of "
+    "the reference PolicyEngine computes, and an eligibility answer as right "
+    "when it matches."
+)
+# "Weighted by household impact" leaves out who weights, so each note says
+# it in a sentence of its own, most often this one, after the definition.
+# The October 20 note gives its weighted scores before the definition, so
+# its sentence names PolicyBench and the six scores it covers.
+SCORE_WEIGHTING = "It weights each answer by household impact."
+
+
+def _assert_score_definition() -> None:
+    """The headline exact score, as ``row_hit_scores`` computes it: a dollar
+    amount hits within $1 of the reference, and an eligibility flag hits only
+    when it matches."""
+    from policybench.analysis import BINARY_PROGRAMS, row_hit_scores
+
+    assert row_hit_scores("snap", 100.0, 101.0)["exact"] == 1.0
+    assert row_hit_scores("snap", 100.0, 101.5)["exact"] == 0.0
+    assert "person_medicaid_eligible" in BINARY_PROGRAMS
+    assert row_hit_scores("person_medicaid_eligible", 1.0, 1.0)["exact"] == 1.0
+    assert row_hit_scores("person_medicaid_eligible", 1.0, 0.0)["exact"] == 0.0
+
+
+def test_no_note_gives_the_score_as_answers_within_one_dollar():
+    """PolicyBench scores eligibility flags by exact match, not within $1. So no
+    note gives an all-outputs score as answers within $1. A title or sentence
+    that gives a percentage or a share within $1, or within a dollar, also
+    names the amounts that figure covers. A note that gives a score as answers
+    right defines it and says how PolicyBench weights the answers."""
+    _assert_score_definition()
+    for path in sorted(NOTES_DIR.glob("*.json")):
+        note = _load_json(path)
+        text = " ".join([note["title"], *note["paragraphs"]])
+        for phrase in (
+            "answers within $1",
+            "of answers within",
+            "weighted by household impact",
+        ):
+            assert phrase not in text.lower(), (path.name, phrase)
+        # A percentage or share within $1 covers dollar amounts only, so the
+        # title or sentence that gives one names them.
+        for part in (note["title"], *note["paragraphs"]):
+            for sentence in re.split(r"(?<=[.!?])\s+|(?<=[.!?][\"”’)])\s+", part):
+                if re.search(
+                    r"(?:\{\w+(?::\w+)?\}|\b\d+(?:\.\d+)?)%|(?i:\bshares?\b)", sentence
+                ) and re.search(r"[Ww]ithin (?:a |one )?(?:\$1\b|dollar\b)", sentence):
+                    assert re.search(r"\bamounts\b", sentence), (path.name, sentence)
+        # A note that gives a score as answers right also says, in the same
+        # words as every other note, what PolicyBench counts as right, and
+        # says how it weights the answers.
+        if "of answers right" in text:
+            assert SCORE_DEFINITION in text, path.name
+        if SCORE_DEFINITION in text:
+            assert "weights each answer by household impact" in text, path.name
+        # Paragraph 0 doubles as the page description and the list blurb, so
+        # the news leads, and the definition and the weighting close it, after
+        # every sentence that leans on an earlier one.
+        opening = note["paragraphs"][0]
+        if SCORE_DEFINITION in opening:
+            assert opening.endswith(f"{SCORE_DEFINITION} {SCORE_WEIGHTING}"), path.name
