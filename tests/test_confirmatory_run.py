@@ -2527,7 +2527,8 @@ def test_the_runner_sends_the_treatment_conversation(
     world, label, model, completion, api, contract
 ):
     """Compare every provider request and calculation against the unchanged
-    treatment harness at 6b00a6f0, including the tool-result continuation.
+    treatment harness at the treatment commit, including the tool-result
+    continuation.
 
     Gemini 3.1's board profile exercises JSON; both confirmatory Geminis use
     the tool contract. No contract or model card is replaced for this test."""

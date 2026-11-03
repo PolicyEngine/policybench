@@ -90,7 +90,7 @@ this runner on fakes and checks that its records pass the report.
 
 The runner runs the treatment harness's code. It refuses to start unless its
 ``tool_pilot_argon.py``, ``policybench`` package and fix module are the
-treatment commit's (6b00a6f0), its tree is clean at the design's run commit,
+treatment commit's (1c8c645b), its tree is clean at the design's run commit,
 the machine is on AC power with the lid open, and the runs folder holds no
 records: a run is never resumed. ``--workers`` must equal the design's
 engine workers per model. An interrupt (SIGINT or SIGTERM) only notes the
@@ -131,7 +131,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 
 import tool_pilot_argon as pilot  # noqa: E402
 
-TREATMENT_COMMIT = "6b00a6f0c4997e73b9968b412b57646957cad631"
+TREATMENT_COMMIT = "1c8c645bcd7219a76d09bb8c24e5fca51305d149"
 # The treatment's code, which must be the treatment commit's.
 TREATMENT_PATHS = (
     "scripts/tool_pilot_argon.py",
