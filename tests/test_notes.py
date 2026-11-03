@@ -6175,6 +6175,10 @@ SCORE_DEFINITION = (
     "the reference PolicyEngine computes, and an eligibility answer as right "
     "when it matches."
 )
+# The America.gov note (#254) gives its score as "scores {agovExact}% on
+# PolicyBench", without "weighted by household impact", so it states the
+# weighting in a sentence after the definition.
+SCORE_WEIGHTING = "It weights each answer by household impact."
 
 
 def _assert_score_definition() -> None:
@@ -6213,6 +6217,8 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
             assert SCORE_DEFINITION in text, path.name
         # Paragraph 0 doubles as the page description and the list blurb, so
         # the news leads and the definition closes it, after every sentence
-        # that leans on an earlier one.
-        if SCORE_DEFINITION in note["paragraphs"][0]:
-            assert note["paragraphs"][0].endswith(SCORE_DEFINITION), path.name
+        # that leans on an earlier one. Only the weighting may follow it.
+        opening = note["paragraphs"][0]
+        if SCORE_DEFINITION in opening:
+            tail = opening.split(SCORE_DEFINITION, 1)[1]
+            assert tail in ("", f" {SCORE_WEIGHTING}"), path.name
