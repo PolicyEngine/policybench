@@ -6177,7 +6177,9 @@ SCORE_DEFINITION = (
     "when it matches."
 )
 # "Weighted by household impact" leaves out who weights, so each note says
-# it in a sentence of its own, after the definition.
+# it in a sentence of its own, most often this one, after the definition.
+# The October 20 note gives its weighted scores before the definition, so
+# its sentence names PolicyBench and the six scores it covers.
 SCORE_WEIGHTING = "It weights each answer by household impact."
 
 
@@ -6196,9 +6198,10 @@ def _assert_score_definition() -> None:
 
 def test_no_note_gives_the_score_as_answers_within_one_dollar():
     """The board scores eligibility flags by exact match, not within $1, so no
-    note gives an all-outputs score as answers within $1, and a note that
-    gives a score as answers right defines it and says how PolicyBench
-    weights the answers."""
+    note gives an all-outputs score as answers within $1, a note that gives a
+    rate within $1 says the rate covers amounts, and a note that gives a
+    score as answers right defines it and says how PolicyBench weights the
+    answers."""
     _assert_score_definition()
     # PR #254 rewrites this note's opening; drop it from here once that merges.
     pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
@@ -6216,6 +6219,15 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
             "weighted by household impact",
         ):
             assert phrase not in text, (path.name, phrase)
+        # A rate within $1 covers dollar amounts only, so its sentence
+        # names them.
+        for paragraph in note["paragraphs"]:
+            for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z])", paragraph):
+                if (
+                    re.search(r"\{\w+(?:Exact|Rate)\}%", sentence)
+                    and "within $1" in sentence
+                ):
+                    assert "amount" in sentence, (path.name, sentence)
         # A note that gives a score as answers right also says, in the same
         # words as every other note, what PolicyBench counts as right, and
         # says how it weights the answers.

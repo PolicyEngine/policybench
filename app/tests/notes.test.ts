@@ -190,10 +190,14 @@ describe("notes", () => {
       "Claude Opus 5.5 goes from 94.1% to 99.8%, and Gemini 4 Argon from 88.7% to 99.9%.",
     );
     expect(markup).toContain(
-      "PolicyBench weights each answer by household impact, on the board and with the tool.",
+      "PolicyBench weights each answer by household impact in these six scores.",
     );
     expect(markup).toContain(
       "Of the 187 nonzero amounts, GPT-6 Sol gets 67.4% within $1 on its own and 96.8% with the tool",
+    );
+    // The nonzero-amount rates count each amount once.
+    expect(markup).toContain(
+      "and Gemini 4 Argon, 46.5% and 99.5%. PolicyBench gives each amount the same weight in these six rates.",
     );
     // Whole numbers under ten are spelled out; costs keep their cents.
     expect(markup).toContain(
@@ -364,7 +368,7 @@ describe("notes", () => {
         "Claude Haiku 5.5 joined the board on 2026-10-10, bringing the board to 47 models. It gets 79.6% of answers right, 4.8 points above Claude Haiku 4.5 (74.8%, #43), and ranks #37 of 47.",
         closing,
         "Against the previous release, every one of the 46 earlier models falls, by 0.24 to 1.37 points.",
-        "Had they stayed excluded, every earlier model&#x27;s share of answers right would have risen, by 0.39 to 0.71 points.",
+        "Without those outputs, every earlier model&#x27;s share of answers right would have risen, by 0.39 to 0.71 points.",
       ],
       "2026-10-13-muse-wonder-joins-the-board": [
         "Against the previous release, every one of the 47 earlier models falls, by 0.18 to 0.42 points.",
