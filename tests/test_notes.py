@@ -5673,9 +5673,10 @@ def test_america_gov_note_quotes_are_verbatim() -> None:
 
 def test_america_gov_note_predicates(monkeypatch) -> None:
     """The America.gov note's claims beyond its numeric facts: who leads, the
-    households it describes, the heaviest output, the over-limit prompts, the
-    repeated refusals, and its quotes of America.gov's own pages as the data's
-    metadata records them (fetched 2026-10-19)."""
+    households it describes and America.gov's answers for them, the heaviest
+    output, the over-limit prompts, the repeated refusals, and the America.gov
+    pages behind its opening and its terms quote, as the data's metadata records
+    them (fetched 2026-10-19)."""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     text = " ".join(note["paragraphs"])
@@ -5736,6 +5737,8 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     assert ref[("scenario_072", "snap")] == 0
     for adult in ("head", "spouse"):
         assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
+        # "It called both adults in a New York couple eligible".
+        assert retried[("scenario_004", f"{adult}_medicaid_eligible")] == 1
 
     # "the reference and 49 of the 50 models say $0" / "say neither qualifies":
     # exactly 0.
@@ -5781,8 +5784,13 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     assert len(citing) == note["facts"]["peRefusals"]
     assert truncated <= set(first_refusals) and not truncated & set(citing)
 
-    # America.gov's own words, as quoted.
+    # America.gov's own words. The opening attributes how it answers to its
+    # how-it-works page, and the last paragraph quotes its terms.
     quotes = meta["site_quotes"]
+    assert (
+        "which says it answers questions with AI and information from "
+        "government websites" in text
+    )
     assert quotes["how_it_works"]["quote"] == (
         "Super Intelligence (SI) to find and explain information from official "
         "government sources"
