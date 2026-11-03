@@ -5810,6 +5810,9 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
         u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
     ]
     assert len(citing) == note["facts"]["peRefusals"]
+    # "of America.gov's five refusals": P4 counts refused prompts, so it takes
+    # firstRefusals, not firstRefusalHouseholds.
+    assert "of America.gov's {firstRefusals:words} refusals" in text
     # "refused prompts for five households": a split prompt's two halves
     # count once.
     assert "refused prompts for {firstRefusalHouseholds:words} households" in text
