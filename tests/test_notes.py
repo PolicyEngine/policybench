@@ -5768,6 +5768,10 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
             exact_zeros("scenario_004", f"{adult}_medicaid_eligible")
             == note["facts"]["medicaid004Models"]
         )
+    # Both counts render as 49 on this run, so only the raw text shows which
+    # sentence takes which.
+    assert "PolicyEngine and {snap072Models} of the {nModels} models give $0" in text
+    assert "PolicyEngine and {medicaid004Models} models find neither eligible" in text
 
     # "Six prompts run past the 8,000 characters": exactly these six.
     limit = meta["message_limit_characters"]
@@ -5801,6 +5805,12 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     ]
     assert len(answered_on_retry) == facts["answeredOnRetry"]
     assert len(answered_on_retry) + len(refused_every_time) == facts["firstRefusals"]
+    # answeredOnRetry, peRefusals and peLeads all render as "two" on this run, so
+    # only the raw text shows which fact paragraph 2 counts.
+    assert (
+        "answered {answeredOnRetry:words} of those prompts in full and repeated "
+        "its refusal word for word on the other {refusedThrice:words}" in text
+    )
 
     # "At least two ... cited PolicyEngine": two complete refusals do; the one
     # refusal cut off in capture does not in the text that was kept.
@@ -5810,9 +5820,13 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
         u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
     ]
     assert len(citing) == note["facts"]["peRefusals"]
-    # "of America.gov's five refusals": P4 counts refused prompts, so it takes
-    # firstRefusals, not firstRefusalHouseholds.
-    assert "of America.gov's {firstRefusals:words} refusals" in text
+    # "At least two of America.gov's five refusals": P4 counts refused chats, so
+    # it takes firstRefusals, not firstRefusalHouseholds, and peRefusals, not
+    # answeredOnRetry or peLeads.
+    assert (
+        "At least {peRefusals:words} of America.gov's {firstRefusals:words} refusals"
+        in text
+    )
     # "refused prompts for five households": a split prompt's two halves
     # count once.
     assert "refused prompts for {firstRefusalHouseholds:words} households" in text
