@@ -600,6 +600,16 @@ def test_skipping_ceiling_rows_moves_no_committed_annotation():
     entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
     rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
     cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
+    decided = {(str(e["scenario_id"]), str(e["variable"])) for e in entries}
+    in_decided = (
+        rows[["scenario_id", "variable"]].astype(str).apply(tuple, axis=1).isin(decided)
+    )
+    assert not (
+        in_decided & (rows["failure_source"] == "budget_exhausted_at_ceiling")
+    ).any(), (
+        "a committed adjudicated case now records ceiling exhaustion; this "
+        "differential no longer applies (see PR #224), delete it"
+    )
     with mock.patch.object(
         adjudications, "NON_SUBSTANTIVE_SOURCES", frozenset({"parse_contract_failure"})
     ):
@@ -1850,20 +1860,20 @@ def _adjudicated_annotations(draw):
     return row_frame, case_frame, parse_adjudications({"adjudications": entries}, "")
 
 
-@settings(max_examples=300, deadline=None)
-@given(data=_adjudicated_annotations())
-def test_adjudication_skips_non_substantive_rows_properties(data):
-    """For any annotations and valid record, whatever class it adjudicates:
+def _check_adjudication(
+    rows: pd.DataFrame, cases: pd.DataFrame, entries: list[dict]
+) -> None:
+    """The oracle the property and the outcome-by-outcome test share:
     - a parse-failure or ceiling-exhaustion row keeps its class and subtype,
       and a row of a case no entry decides is untouched;
     - every other row of a decided case takes the adjudicated class;
     - a reference verdict clears the flag on every row of its case, skipped
-      rows included, and touches no other row's flag;
+      rows included, and on its case note, and touches no other row's or
+      note's flag;
     - the report counts exactly the rows whose class or subtype changed;
     - the verifier accepts what apply builds, and a second apply changes
       nothing.
     """
-    rows, cases, entries = data
     out_rows, out_cases, report = apply_adjudications(rows, cases, entries)
 
     decided = {e["scenario_id"]: e for e in entries}
@@ -1879,6 +1889,12 @@ def test_adjudication_skips_non_substantive_rows_properties(data):
         if entry and entry.get("reference_verdict"):
             expected.loc[index, "reference_suspect"] = False
     pd.testing.assert_frame_equal(out_rows, expected)
+    expected_flags = cases["reference_suspect"].copy()
+    for index, case in cases.iterrows():
+        entry = decided.get(case["scenario_id"])
+        if entry and entry.get("reference_verdict"):
+            expected_flags.loc[index] = False
+    pd.testing.assert_series_equal(out_cases["reference_suspect"], expected_flags)
     changed = (rows[classes] != out_rows[classes]).any(axis=1)
     assert [item["rows_rewritten"] for item in report] == [
         int(changed[rows["scenario_id"] == e["scenario_id"]].sum()) for e in entries
@@ -1888,6 +1904,92 @@ def test_adjudication_skips_non_substantive_rows_properties(data):
     again_rows, again_cases, _ = apply_adjudications(out_rows, out_cases, entries)
     pd.testing.assert_frame_equal(again_rows, out_rows)
     pd.testing.assert_frame_equal(again_cases, out_cases)
+
+
+@settings(max_examples=300, deadline=None)
+@given(data=_adjudicated_annotations())
+def test_adjudication_skips_non_substantive_rows_properties(data):
+    """For any annotations and valid record, whatever class it adjudicates,
+    apply meets the oracle in _check_adjudication."""
+    _check_adjudication(*data)
+
+
+@pytest.mark.parametrize(
+    ("adjudicated", "verdict"),
+    [
+        (adjudicated, verdict)
+        for adjudicated, (verdicts, _) in sorted(_OUTCOMES.items())
+        for verdict in verdicts
+    ],
+)
+def test_every_outcome_and_verdict_leaves_skipped_rows_alone(adjudicated, verdict):
+    """Each adjudicated class with each reference verdict it admits, on a
+    decided case holding a ceiling row, a parse row and a substantive row,
+    all flagged, beside an undecided case with the same rows. The judge chose
+    ceiling exhaustion, so the verifier must not take the recorded ceiling
+    row for its stray verdict."""
+    rows, cases = [], []
+    for scenario in ("scenario_000", "scenario_001"):
+        for model, source, subtype in (
+            ("m0", "budget_exhausted_at_ceiling", "missing_output"),
+            ("m1", "parse_contract_failure", "missing_output"),
+            ("m2", "needs_review", "other"),
+        ):
+            rows.append(("us", scenario, "ssi", model, source, subtype, True))
+        cases.append(
+            (
+                "us",
+                scenario,
+                "ssi",
+                3,
+                "needs_review",
+                "other",
+                f"note {scenario}.",
+                True,
+            )
+        )
+    rows = pd.DataFrame(
+        rows,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "model",
+            "failure_source",
+            "failure_subtype",
+            "reference_suspect",
+        ],
+    )
+    rows["annotation"] = "diagnosis"
+    cases = pd.DataFrame(
+        cases,
+        columns=[
+            "country",
+            "scenario_id",
+            "variable",
+            "wrong_model_count",
+            "case_failure_sources",
+            "case_failure_subtypes",
+            "case_annotation",
+            "reference_suspect",
+        ],
+    )
+    _, excluded = _OUTCOMES[adjudicated]
+    entry = _entry(
+        scenario_id="scenario_000",
+        judge_failure_source="budget_exhausted_at_ceiling",
+        judge_failure_subtype="missing_output",
+        adjudicated_failure_source=adjudicated,
+        adjudicated_failure_subtype="age_disability",
+    )
+    if excluded:
+        entry["excluded_from_scoring"] = True
+    if verdict is not None:
+        entry["reference_verdict"] = verdict
+        entry["reference_basis"] = "recorded basis"
+        entry["judge_reference_suspect"] = True
+    entries = parse_adjudications({"adjudications": [entry]}, "")
+    _check_adjudication(rows, cases, entries)
 
 
 def test_release_20261014_restates_only_the_reopened_cases_and_adds_its_wave(
