@@ -11,8 +11,11 @@ can reach engine paths the frozen 100 households never did.
     household_set.py check-frozen --out FILE
 
 ``build`` samples households from the dataset the installed policyengine.py
-bundle certifies (:func:`policybench.scenarios.generate_scenarios`, the board's
-own sampler and eligibility rules), renames them ``mc_000`` onward so they
+bundle certifies, with the board's own sampler and eligibility rules
+(:func:`policybench.scenarios.generate_scenarios`) and two filters the board's
+v1 draw lacks: it leaves out households where a dependent has income that could
+require a return of their own (d1029), and households in
+``STATES_WITH_UNSTATED_INCOME``. It renames them ``mc_000`` onward so they
 never share an id with the frozen board, computes every output on the
 installed policyengine-us with the reference conventions
 (reference_audit/2026-09-28/fixes/latest_final.py), and writes a board
@@ -497,6 +500,7 @@ def command_build(args) -> None:
         "seed": args.seed,
         "id_prefix": args.id_prefix,
         "household_filter": HOUSEHOLD_FILTER,
+        "excluded_states": sorted(STATES_WITH_UNSTATED_INCOME),
         "program_set": "headline",
         "programs": programs,
         "policyengine_bundles": bundles,

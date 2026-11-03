@@ -432,16 +432,19 @@ def test_alaska_alone_gives_income_with_no_input(engine_system):
     )
 
 
+@pytest.mark.parametrize("amount", [1.0, -1.0], ids=["income", "loss"])
 @pytest.mark.parametrize(
-    ("variable", "person"),
-    [("irs_gross_income", 0), ("dependent_gross_income", 1)],
+    ("variable", "child"),
+    [("irs_gross_income", False), ("dependent_gross_income", True)],
     ids=["head", "dependent"],
 )
 def test_the_state_check_reads_the_head_and_the_dependent(
-    monkeypatch, variable, person
+    monkeypatch, variable, child, amount
 ):
-    """A state counts when the engine gives income to either person on either
-    measure, and the check reads the engine it receives."""
+    """A state counts when the engine gives an adult or a child any amount on
+    either measure, a loss included, and the check reads the engine it
+    receives. The mock engine pays only people the probe holds, so a probe
+    without a child misses a payment to children (review r5)."""
     import numpy as np
     import policyengine_us
 
@@ -450,15 +453,20 @@ def test_the_state_check_reads_the_head_and_the_dependent(
     class Simulation:
         def __init__(self, tax_benefit_system=None, situation=None):
             engines.append(tax_benefit_system)
-            self.state = situation["households"]["household"]["state_code"][
-                str(hs.YEAR)
+            year = str(hs.YEAR)
+            self.state = situation["households"]["household"]["state_code"][year]
+            self.children = [
+                person["age"][year] < 18 for person in situation["people"].values()
             ]
 
         def calculate(self, name, period):
-            amounts = np.zeros(2)
-            if name == variable and self.state == "NM":
-                amounts[person] = 1.0
-            return amounts
+            paid = name == variable and self.state == "NM"
+            return np.array(
+                [
+                    amount if paid and is_child == child else 0.0
+                    for is_child in self.children
+                ]
+            )
 
     monkeypatch.setattr(policyengine_us, "Simulation", Simulation)
     found = hs.states_with_unstated_income(["NM", "TX"], "the reference engine")
@@ -664,7 +672,12 @@ def test_the_build_filters_the_draw_and_rounds_before_the_references(
     assert not all(float(amount).is_integer() for amount in amounts(sampled[0]))
     assert checked == [scenario]
     meta = json.loads((out / "scenarios.csv.meta.json").read_text())
+    # The metadata names both filters the draw applies and the states it left
+    # out (review r5).
     assert meta["household_filter"] == hs.HOUSEHOLD_FILTER
+    for source in ("DEPENDENT_RETURN_INCOME_FIELDS", "STATES_WITH_UNSTATED_INCOME"):
+        assert f"policybench.scenarios.{source}" in meta["household_filter"]
+    assert meta["excluded_states"] == ["AK"]
 
 
 def test_a_dataset_is_named_by_repo_file_and_tag_together(tmp_path):

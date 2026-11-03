@@ -1478,6 +1478,76 @@ def test_generate_scenarios_passes_the_state_filter_on(monkeypatch):
         )
 
 
+V2_FILTERS = {
+    "head_spouse_returns_only": True,
+    "excluded_states": STATES_WITH_UNSTATED_INCOME,
+}
+
+
+def test_the_filters_keep_the_household_weights():
+    """v2's draw stays weighted after both filters (review r5). Beside a
+    household of weight 1, one of weight 999 wins almost every draw; with the
+    weights reset, each would win about half. The filters drop the two
+    households of weight 1e6."""
+    frame = _frame(
+        _household_rows(1, weight=1.0),
+        _household_rows(2, weight=999.0),
+        _household_rows(3, {"employment_income": 5_000.0}, weight=1e6),
+        _in_state("AK", _household_rows(4, weight=1e6)),
+    )
+    drawn = [
+        scenarios_from_cps_frame(frame, n=1, seed=seed, **V2_FILTERS)[0].metadata[
+            "household_id"
+        ]
+        for seed in range(200)
+    ]
+    assert drawn.count(2) >= 190
+
+
+@settings(deadline=None, max_examples=40)
+@given(
+    st.lists(
+        st.tuples(
+            st.sampled_from(["AK", "PA", "TX"]),
+            st.booleans(),
+            st.floats(min_value=1.0, max_value=1e6),
+        ),
+        min_size=1,
+        max_size=8,
+    ),
+    st.integers(min_value=0, max_value=2**31),
+)
+def test_the_filters_draw_as_if_the_left_out_households_were_never_there(
+    households, seed
+):
+    """Invariant: v2's draw equals an unfiltered draw from the frame without
+    the households its filters leave out, in the same order, so the filters
+    change nothing but the frame. Each household has a state, a weight and a
+    dependent who may earn $5,000; a last Ohio household keeps the rest from
+    emptying."""
+
+    def rows(index, state, earns, weight):
+        dependent = {"employment_income": 5_000.0} if earns else None
+        return _in_state(state, _household_rows(index, dependent, weight=weight))
+
+    every = [rows(index, *household) for index, household in enumerate(households, 1)]
+    kept = [
+        household_rows
+        for household_rows, (state, earns, _) in zip(every, households)
+        if state not in STATES_WITH_UNSTATED_INCOME and not earns
+    ]
+    last = _in_state("OH", _household_rows(99))
+    n = len(kept) + 1
+
+    def ids(frame, **kwargs):
+        return [
+            scenario.metadata["household_id"]
+            for scenario in scenarios_from_cps_frame(frame, n=n, seed=seed, **kwargs)
+        ]
+
+    assert ids(_frame(*every, last), **V2_FILTERS) == ids(_frame(*kept, last))
+
+
 def test_every_taxable_input_counts_as_return_income():
     promptable = {
         spec.output_name
