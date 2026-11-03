@@ -1663,6 +1663,14 @@ def test_the_upgrade_sentences_name_what_the_sidecar_records():
         assert sum(count for _, count, _ in fixes) == len(entries)
         assert len(entries) == view.engine_upgrade_restored_count
         sentence = view.engine_upgrade_restored_sentence
+        # The sentence covers every output the move fixes. It calls them
+        # "fixed" when some were ruled on 2026-10-06 while still scored and
+        # never left scoring, and "restored" only when every one returns
+        # (round-2 final review nit 2).
+        kind = "fixed" if view.engine_upgrade_restored_ruled_count else "restored"
+        assert sentence.startswith(
+            f"The {kind} outputs take the upstream fixes for " if entries else ""
+        )
         for entry in entries:
             for cause in entry["record"]["root_cause"].split("+"):
                 assert ROOT_CAUSE_LABELS[cause] in sentence
@@ -1700,6 +1708,10 @@ def test_the_upgrade_sentences_name_what_the_sidecar_records():
     assert [view.engine_upgrade_new_exclusion_count for view in views] == [2, 0, 0]
     assert [view.engine_upgrade_restored_count for view in views] == [18, 9, 0]
     assert [view.engine_upgrade_scored_change_count for view in views] == [1, 0, 4]
+    assert [view.engine_upgrade_restored_ruled_count for view in views] == [4, 0, 0]
+    assert views[0].engine_upgrade_restored_sentence.startswith("The fixed outputs ")
+    assert views[1].engine_upgrade_restored_sentence.startswith("The restored ")
+    assert views[2].engine_upgrade_restored_sentence == ""
     paper = (ROOT / "paper/index.qmd").read_text()
     assert "`{python} r12.engine_upgrade_restored_sentence`" in paper
     # The change sentences render inside one non-empty accessor, so an empty
@@ -1722,10 +1734,11 @@ def test_the_upgrade_sentences_name_what_the_sidecar_records():
         assert f"{{view.{accessor}}}" in paper
     assert "`{python} r12.engine_upgrade_restored_target_sentence`" in paper
     assert "RELEASE AUTHOR" not in paper
+    assert "restored outputs take" not in paper
 
 
 def _MOCK_fix_modules_target(entry: dict, engine: str = "policyengine-us 9.9.9"):
-    """MOCK: turn a restored output's target into the fix-module kind, with a
+    """MOCK: turn a fixed output's target into the fix-module kind, with a
     record value and a defective engine value both beyond the tolerance."""
     value = entry["regenerated"]
     entry["record"]["alternative_value"] = value + 50.0
@@ -1743,8 +1756,31 @@ def _MOCK_fix_modules_target(entry: dict, engine: str = "policyengine-us 9.9.9")
 RESTORING_MOVE = "2.41.0"
 
 
+def test_one_ruled_output_makes_the_fix_sentence_say_fixed(monkeypatch):
+    """The fix sentence says "fixed" from the first output the rulings decided
+    while still scored. No frozen move has exactly one, so this gives the
+    October 13 move (nine fixed, none ruled) a MOCK ruled count of one (#209
+    review r2, finding 1)."""
+    from policybench.paper_results import PaperResults
+
+    view = r.upgrade_view(RESTORING_MOVE)
+    assert (
+        view.engine_upgrade_restored_count,
+        view.engine_upgrade_restored_ruled_count,
+    ) == (9, 0)
+    assert view.engine_upgrade_restored_sentence.startswith(
+        "The restored outputs take "
+    )
+    monkeypatch.setattr(
+        PaperResults,
+        "engine_upgrade_restored_ruled_count",
+        property(lambda self: 1),  # MOCK
+    )
+    assert view.engine_upgrade_restored_sentence.startswith("The fixed outputs take ")
+
+
 def _native_fix_modules() -> tuple[set[int], str]:
-    """The frozen sidecar's restored entries already held to fix modules, and
+    """The frozen sidecar's fixed-output entries already held to fix modules, and
     the engine a MOCK target must name to sit beside them (the sentence names
     one engine)."""
     restoring = r.upgrade_view(RESTORING_MOVE).last_engine_upgrade
@@ -1813,10 +1849,34 @@ def test_the_fixed_outputs_split_into_returned_and_still_scored():
         "values; the other four, ruled on 2026-10-06 while still scored, stay "
         "scored at those values."
     )
+    # The upgrades table's clause gives the same splits in the cell's numerals
+    # (round-2 final review nit 1).
+    assert october_10.engine_upgrade_restored_split_clause == (
+        "fixes the engine defects behind 18 outputs (14 that earlier releases "
+        "excluded return to scoring at the new version's values; the 4 ruled on "
+        "2026-10-06 while still scored stay scored)"
+    )
+    assert restoring.engine_upgrade_restored_split_clause == (
+        "fixes the engine defects behind 9 outputs (earlier releases excluded "
+        "them, and they return to scoring at the new version's values)"
+    )
+    assert r.engine_upgrade_restored_split_clause == (
+        "returns no excluded output to scoring"
+    )
     paper = (ROOT / "paper/index.qmd").read_text()
     assert "`{python} r12.engine_upgrade_restored_split_sentence`" in paper
     assert "excluded outputs to scoring" not in paper
     assert "PolicyBench excluded `{python} r.ruled_exclusion_count_word`" not in paper
+    # Each move's table row builds its split from the helper, not inline
+    # arithmetic (october_upgrade_row).
+    assert (
+        'f"The move from policyengine-us {move.previous_engine_version} "\n'
+        '        f"{view.engine_upgrade_restored_split_clause}. "' in paper
+    )
+    assert "restored - ruled" not in paper
+    assert "engine_upgrade_restored_count -" not in paper
+    assert "{ruled} ruled on" not in paper
+    assert "{r.engine_upgrade_restored_ruled_count}" not in paper
 
 
 @given(st.integers(0, 40), st.data())
@@ -1844,8 +1904,71 @@ def test_the_split_sentence_counts_both_kinds(restored, data):
         restored_split_sentence(restored, restored + 1, "2026-10-06")
 
 
+@given(st.integers(0, 40), st.data())
+def test_the_split_clause_counts_both_kinds(restored, data):
+    """For any split, the upgrades table's clause names the total in numerals
+    with a matching noun, says "return" only when some outputs return and
+    "stay" only when some stay (as the split sentence does), agrees each verb
+    with its count, and never prints "the 0", "the 1" or a lone "1" in the
+    split (round-2 final review nit 1). The fix sentence calls the outputs
+    "fixed" from the first ruled one (#209 review r2)."""
+    from policybench.paper_results import (
+        fixed_or_restored,
+        restored_split_clause,
+        restored_split_sentence,
+    )
+
+    ruled = data.draw(st.integers(0, restored))
+    date = data.draw(st.sampled_from(["2026-10-06", "2027-01-02"]))
+    clause = restored_split_clause(restored, ruled, date)
+    sentence = restored_split_sentence(restored, ruled, date)
+    with pytest.raises(ValueError):
+        restored_split_clause(restored, restored + 1, date)
+    with pytest.raises(ValueError):
+        restored_split_clause(restored, -1, date)
+    assert fixed_or_restored(ruled) == ("fixed" if ruled > 0 else "restored")
+    with pytest.raises(ValueError):
+        fixed_or_restored(-1)
+    if not restored:
+        # As the table row for a move that fixes nothing has always said it.
+        assert clause == "returns no excluded output to scoring"
+        assert sentence == ""
+        return
+    returned = restored - ruled
+    noun = "output" if restored == 1 else "outputs"
+    defects = "defect" if restored == 1 else "defects"
+    assert clause.startswith(f"fixes the engine {defects} behind {restored} {noun} (")
+    assert clause.endswith(")") and clause.count("(") == clause.count(")") == 1
+    split = clause[clause.index("(") + 1 : -1]
+    for kind in ("return", "stay"):
+        assert (kind in clause) == (kind in sentence)
+    assert ("return" in split) == (returned > 0)
+    assert ("stay" in split) == (ruled > 0)
+    assert (date in split) == (ruled > 0)
+    if returned and ruled:
+        back = (
+            "one that earlier releases excluded returns to scoring"
+            if returned == 1
+            else f"{returned} that earlier releases excluded return to scoring"
+        )
+        kept = (
+            f"the one ruled on {date} while still scored stays scored"
+            if ruled == 1
+            else f"the {ruled} ruled on {date} while still scored stay scored"
+        )
+        assert split.startswith(back) and split.endswith(kept)
+    elif returned:
+        verb = "it returns" if restored == 1 else "they return"
+        assert f"{verb} to scoring" in split
+    else:
+        verb = "it stays" if ruled == 1 else "they stay"
+        assert f"{verb} scored" in split
+    assert re.search(r"\b(the [01]|[01] that)\b", split) is None, split
+    assert re.search(r"(?<![\d-])1(?![\d-])", split) is None, split
+
+
 def test_the_restored_target_sentence_follows_the_frozen_sidecar():
-    """Every restored output is counted under how its corrected value is
+    """Every fixed output is counted under how its corrected value is
     known, and lands within its tolerance of that value."""
     from policybench.paper_results import moves_beyond_tolerance
 
@@ -1873,7 +1996,7 @@ def test_the_restored_target_sentence_follows_the_frozen_sidecar():
 @given(st.data())
 @settings(max_examples=40, deadline=None)
 def test_the_restored_target_sentence_counts_each_kind(data):
-    """MOCK edits: whichever restored outputs are held to fix modules, the
+    """MOCK edits: whichever fixed outputs are held to fix modules, the
     sentence counts both kinds, names the fix modules' engine and never
     starts with a numeral."""
     from policybench.paper_results import count_word
@@ -1935,7 +2058,7 @@ def test_a_flag_held_to_fix_modules_that_move_it_is_described():
 
 
 def test_a_restored_output_off_its_target_stops_the_sentence():
-    """MOCK edits: each way a restored entry can contradict the sentence is
+    """MOCK edits: each way a fixed output's entry can contradict the sentence is
     refused instead of described."""
 
     def off_target(entries):
@@ -1964,11 +2087,11 @@ def test_a_restored_output_off_its_target_stops_the_sentence():
         entries[0]["target"]["kind"] = "MOCK_kind"
 
     for edit, message in (
-        (off_target, "is restored off its target"),
-        (loose, "is restored on a tolerance of 2.0"),
+        (off_target, "is fixed off its target"),
+        (loose, "is fixed on a tolerance of 2.0"),
         (not_the_records, "target is not its record's value"),
         (no_defect, "fix modules move nothing there"),
-        (flag_off_its_target, "is restored off its target"),
+        (flag_off_its_target, "is fixed off its target"),
         (unknown_kind, "unknown target kind 'MOCK_kind'"),
     ):
         with pytest.raises(ValueError, match=message):
@@ -1995,7 +2118,7 @@ def test_every_engine_defect_still_excluded_has_a_paper_name():
 
 
 def test_an_unnamed_root_cause_or_change_stops_the_sentence():
-    """MOCK edits of the frozen sidecar: a restored record whose root cause,
+    """MOCK edits of the frozen sidecar: a fixed output's record whose root cause,
     or a scored change whose cause, the paper has no name for is refused."""
 
     def unnamed(entries):
