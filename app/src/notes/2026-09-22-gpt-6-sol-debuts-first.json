@@ -3,7 +3,7 @@
   "date": "2026-09-22",
   "title": "GPT-6 Sol debuts first, Claude Opus 5.5 second",
   "paragraphs": [
-    "GPT-6 Sol, GPT-6 Luna and Claude Opus 5.5 joined the board on 2026-09-22. GPT-6 Sol leads at {solExact}% of answers within $1, weighted by household impact, #{solRank} of {nModels} and {solLead} points above Claude Opus 5.5 ({opusExact}%, #{opusRank}). GPT-5.6 Sol, the previous leader, is #{sol56Rank} at {sol56Exact}%.",
+    "GPT-6 Sol, GPT-6 Luna and Claude Opus 5.5 joined the board on 2026-09-22. GPT-6 Sol leads at {solExact}% of answers right, weighted by household impact, #{solRank} of {nModels} and {solLead} points above Claude Opus 5.5 ({opusExact}%, #{opusRank}). The score counts dollar amounts within $1 of PolicyEngine's reference and eligibility answers that match it. GPT-5.6 Sol, the previous leader, is #{sol56Rank} at {sol56Exact}%.",
     "GPT-6 Luna scores {lunaExact}% (#{lunaRank}) at ${lunaCost} a household, against ${solCost} for GPT-6 Sol and ${opusCost} for Claude Opus 5.5.",
     "Claude Opus 5.5's API rejects forced tool calls, as Claude Fable 5.1's does, so its row answers as a JSON object and reasons at the provider default. Claude Opus 5's board row runs the forced tool call, which switches that model's thinking off, and scores {opus5BoardExact}%; its tool_choice auto re-run, where it reasons, scores {opus5AutoExact}%. The two Opus rows differ in serving shape as well as in model, so the {opusGap}-point gap between them is not a measure of the model change alone.",
     "Every row is scored on {scoredOutputs} of its {totalOutputs} requested outputs. This release regenerated {regenerated} references and excludes {excluded} outputs from scoring for every model; the reference audit note explains both.",
