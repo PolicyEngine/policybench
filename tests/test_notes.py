@@ -6281,16 +6281,9 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
     names the amounts that figure covers. A note that gives a score as answers
     right defines it and says how PolicyBench weights the answers."""
     _assert_score_definition()
-    # PR #254 rewrites this note's opening; drop it from here once that merges.
-    pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
     for path in sorted(NOTES_DIR.glob("*.json")):
         note = _load_json(path)
         text = " ".join([note["title"], *note["paragraphs"]])
-        if note["slug"] in pending:
-            # Fails once #254 lands, so whichever of the two PRs merges
-            # second drops the exemption.
-            assert "answers within $1" in text, (path.name, "drop from pending")
-            continue
         for phrase in (
             "answers within $1",
             "of answers within",
