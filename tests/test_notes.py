@@ -3724,9 +3724,9 @@ def test_release_20260929_note() -> None:
     # The drift's two causes, as the drift baseline test rebuilds them.
     test_previous_release_scores_rebuild_from_this_snapshot()
     pin(
-        "Together, the new references and the Medicaid exclusion raise the exact "
-        "rate of every one of the {incumbents} earlier models, by {driftMin} to "
-        "{driftMax} points.",
+        "With the new references and the Medicaid exclusion together, every one "
+        "of the {incumbents} earlier models rises, by {driftMin} to {driftMax} "
+        "points.",
         "None of the {incumbents} matched any of the {newExclusions:words} federal "
         "outputs now excluded, and all {incumbents} had matched the Arizona "
         "household's old ${azBefore} SNAP reference, which none matches now.",
@@ -6068,7 +6068,7 @@ def test_release_20261027_note_claims() -> None:
     assert (date.fromisoformat(note["boardSnapshot"]) - released).days == 1
     assert MODEL_RELEASE_DATES["gpt-6.1-sol"] == "2026-09-29"
     # "Only GPT-6 Sol and Claude Opus 5.5 score higher", and GPT-5.6 Sol, at
-    # the same rounded rate, is less than a tenth of a point behind.
+    # the same rounded rate, trails by less than a tenth of a point.
     assert names[:4] == ["gpt-6-sol", "claude-opus-5.5", TERRA, "gpt-5.6-sol"]
     assert facts["sol56Exact"] == facts["terraExact"]
     assert 0 < exact[TERRA] - exact["gpt-5.6-sol"] < 0.1
@@ -6172,8 +6172,8 @@ def test_release_20261027_note_claims() -> None:
 
 SCORE_DEFINITION = (
     "PolicyBench counts a dollar amount as right when it falls within $1 of "
-    "PolicyEngine's reference, and an eligibility answer as right when it "
-    "matches."
+    "the reference PolicyEngine computes, and an eligibility answer as right "
+    "when it matches."
 )
 
 
@@ -6199,17 +6199,20 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
     pending = {"2026-10-19-america-gov-scores-level-with-gpt-5-5"}
     for path in sorted(NOTES_DIR.glob("*.json")):
         note = _load_json(path)
-        if note["slug"] in pending:
-            continue
         text = " ".join([note["title"], *note["paragraphs"]])
+        if note["slug"] in pending:
+            # Fails once #254 lands, so whichever of the two PRs merges
+            # second drops the exemption.
+            assert "answers within $1" in text, (path.name, "drop from pending")
+            continue
         for phrase in ("answers within $1", "of answers within"):
             assert phrase not in text, (path.name, phrase)
-        # A note that gives a score as answers right also says what
-        # PolicyBench counts as right.
+        # A note that gives a score as answers right also says, in the same
+        # words as every other note, what PolicyBench counts as right.
         if "of answers right" in text:
-            for clause in (
-                "PolicyBench counts a dollar amount as right when it falls within "
-                "$1 of PolicyEngine's reference",
-                "an eligibility answer as right when it matches",
-            ):
-                assert clause in text, (path.name, clause)
+            assert SCORE_DEFINITION in text, path.name
+        # Paragraph 0 doubles as the page description and the list blurb, so
+        # the news leads and the definition closes it, after every sentence
+        # that leans on an earlier one.
+        if SCORE_DEFINITION in note["paragraphs"][0]:
+            assert note["paragraphs"][0].endswith(SCORE_DEFINITION), path.name

@@ -144,7 +144,7 @@ describe("notes", () => {
       "It gets 93.1% of answers right, weighted by household impact, and ranks #3 of 51.",
     );
     expect(markup).toContain(
-      "PolicyBench counts a dollar amount as right when it falls within $1 of PolicyEngine&#x27;s reference, and an eligibility answer as right when it matches.",
+      "PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches.",
     );
     expect(markup).toContain("GPT-6.1 Terra ranks #5.");
     expect(markup).toContain("GPT-6.1 Sol, which OpenAI released on September 29, gets 90.2% (#10).");
@@ -161,7 +161,7 @@ describe("notes", () => {
       "gives the same value as 2.60.0 for all 1,935; it moves one excluded output",
     );
     expect(markup).toContain(
-      "the exact rates of 47 of the 50 earlier models fall, by 0.03 to 0.07 points, and three rise by 0.02.",
+      "Against the previous release, 47 of the 50 earlier models fall, by 0.03 to 0.07 points, and three rise by 0.02.",
     );
     expect(markup).toContain("only three give the Californian&#x27;s new SNAP");
     expect(markup).toContain('href="/model/gpt-6.1-terra"');
@@ -282,12 +282,12 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "Meta&#x27;s Muse Wonder joined the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models.",
+      "Muse Wonder joined the board on 2026-10-13, the day after Meta released it, bringing the board to 48 models, the first of them from Meta.",
     );
     // Board rates keep one decimal.
     expect(markup).toContain("It gets 90.1% of answers right");
     expect(markup).toContain("and ranks #10 of 48.");
-    expect(markup).toContain("it ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
+    expect(markup).toContain("Muse Wonder ranks #3, behind only GPT-6 Sol and Claude Opus 5.5");
     expect(markup).toContain(
       "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-5.6 Sol (93.1%).",
     );
@@ -313,6 +313,43 @@ describe("notes", () => {
       'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261013"',
     );
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
+  });
+
+  test("the rewritten score sentences render", () => {
+    const expected: Record<string, string[]> = {
+      "2026-09-01-claude-fable-5-1-added": [
+        "Anthropic released Claude Fable 5.1 on 2026-09-01, and it joined the board the same day.",
+        "PolicyBench parsed 1,984 of the model&#x27;s 1,984 answers.",
+      ],
+      "2026-09-05-gpt-6-astra-debuts-second": [
+        "PolicyBench scores every row on 1,973 of its 1,984 requested outputs. It excludes the other 11 for every model, since their references depend on an engine input the household facts never list.",
+      ],
+      "2026-09-22-gpt-6-sol-debuts-first": [
+        "GPT-6 Sol gets 94.2% of answers right, weighted by household impact, 1.3 points above Claude Opus 5.5 (92.9%, #2), and ranks #1 of 42. GPT-5.6 Sol, the previous leader, ranks #3 at 92.7%.",
+      ],
+      "2026-09-29-claude-sonnet-5-5-debuts-fifth": [
+        "With the new references and the Medicaid exclusion together, every one of the 42 earlier models rises, by 0.14 to 0.83 points.",
+      ],
+      "2026-10-10-claude-haiku-5-5-joins-the-board": [
+        "Against the previous release, every one of the 46 earlier models falls, by 0.24 to 1.37 points.",
+      ],
+      "2026-10-13-muse-wonder-joins-the-board": [
+        "Against the previous release, every one of the 47 earlier models falls, by 0.18 to 0.42 points.",
+      ],
+      "2026-10-20-given-a-policyengine-tool-three-models-score-above-99": [
+        "With or without the tool, PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches.",
+      ],
+      "2026-10-31-gpt-6-1-terra-joins-the-board": [
+        "and GPT-5.6 Sol, which also rounds to 93.1%, trails by less than a tenth of a point.",
+      ],
+    };
+    for (const [slug, sentences] of Object.entries(expected)) {
+      const note = notes.find((n) => n.slug === slug)!;
+      const markup = renderToStaticMarkup(
+        createElement(NoteArticle, { note, titleLevel: "h1" }),
+      );
+      for (const sentence of sentences) expect(markup).toContain(sentence);
+    }
   });
 
   test("a words placeholder spells out whole numbers under ten", () => {
