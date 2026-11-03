@@ -4,16 +4,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
+from policybench import audit
 from policybench.annotation_taxonomy import (
     FAILURE_SOURCE_VALUES,
     FAILURE_SUBTYPE_VALUES,
 )
 from policybench.audit import (
     AUDIT_OUTPUT_SCHEMA,
+    MISSING_VALUE,
+    AuditCase,
+    WrongModel,
     _row_failure_source,
     build_audit_cases,
     collect_audit,
@@ -23,6 +30,7 @@ from policybench.audit import (
     render_case_prompt,
 )
 from policybench.judge_template import CURRENT_TEMPLATE_VERSION
+from policybench.spec import metric_type_for_output
 
 
 @pytest.fixture
@@ -591,6 +599,244 @@ def test_collect_audit_coerces_parse_source_for_parsed_predictions(tmp_path: Pat
     out = collect_audit(d, audit_dir)
 
     assert out["row"].iloc[0]["failure_source"] == "llm_error"
+
+
+def _parsed(model: str) -> WrongModel:
+    return WrongModel(model, "$250.00", "Derived 0, submitted 250. value = 250")
+
+
+def _missing(model: str, recorded: str = "") -> WrongModel:
+    return WrongModel(model, MISSING_VALUE, "", failure_source=recorded)
+
+
+def _judged_case(
+    audit_dir: Path,
+    wrong_models: list[WrongModel],
+    case_source: str,
+    model_sources: dict[str, str],
+    case_subtype: str = "other",
+    model_subtypes: dict[str, str] | None = None,
+) -> dict:
+    """Write one case's manifest row and verdict as prepare_audit and a judge
+    leave them, and return the manifest row. A model absent from
+    ``model_sources`` has no per-model entry in the verdict."""
+    case = AuditCase(
+        case_id="us__s0__snap",
+        country="us",
+        scenario_id="s0",
+        variable="snap",
+        metric_type=metric_type_for_output("snap"),
+        reference_value="$0.00",
+        reference_derivation="",
+        question="",
+        wrong_models=tuple(wrong_models),
+    )
+    meta = case.to_manifest_row()
+    case_dir = audit_dir / "cases" / case.case_id
+    case_dir.mkdir(parents=True, exist_ok=True)
+    (audit_dir / "cases.jsonl").write_text(json.dumps(meta) + "\n")
+    verdict = {
+        "reference_suspect": False,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": case_source,
+        "case_failure_subtype": case_subtype,
+        "rationale": "The submitted value contradicts the derivation.",
+        "models": [
+            {
+                "model": model,
+                "failure_source": source,
+                "failure_subtype": (model_subtypes or {}).get(model, "other"),
+                "diagnosis": f"{model} submitted a value its derivation rejects.",
+            }
+            for model, source in model_sources.items()
+        ],
+    }
+    (case_dir / "verdict.json").write_text(json.dumps(verdict))
+    return meta
+
+
+def _collect(audit_dir: Path) -> dict[str, pd.DataFrame]:
+    return collect_audit(audit_dir.parent / "us", audit_dir)
+
+
+def test_judged_case_label_needs_a_missing_model(tmp_path: Path):
+    """The published shape of 012, 015 and 044 at bc305793: the only wrong model
+    derived 0, submitted 1, and the judge called case and row a parse failure."""
+    audit_dir = tmp_path / "audit"
+    meta = _judged_case(
+        audit_dir,
+        [_parsed("m1")],
+        "parse_contract_failure",
+        {"m1": "parse_contract_failure"},
+    )
+    assert not meta["parse_failure_only"]
+
+    out = _collect(audit_dir)
+
+    assert out["row"]["failure_source"].tolist() == ["llm_error"]
+    note = out["case"].iloc[0]
+    assert note["case_failure_source"] == "llm_error"
+    assert note["case_failure_subtype"] == "other"
+    assert note["case_annotation"] == "The submitted value contradicts the derivation."
+
+
+@pytest.mark.parametrize(
+    ("needs", "case_source"),
+    [("any", "parse_contract_failure"), ("all", "llm_error")],
+)
+def test_mixed_case_label_follows_the_d1514_option(
+    tmp_path: Path, needs: str, case_source: str
+):
+    """080 head CHIP at bc305793: one model returned nothing, one derived 0 and
+    submitted 1. Option 1 ("any") keeps the judge's parse failure; option 2
+    ("all") makes it an LLM error. The rows are the same either way."""
+    audit_dir = tmp_path / "audit"
+    _judged_case(
+        audit_dir,
+        [_parsed("claude"), _missing("glm")],
+        "parse_contract_failure",
+        {"claude": "llm_error", "glm": "parse_contract_failure"},
+        model_subtypes={"glm": "missing_output"},
+    )
+
+    with mock.patch.object(audit, "CASE_PARSE_FAILURE_NEEDS_MISSING", needs):
+        out = _collect(audit_dir)
+
+    assert out["case"].iloc[0]["case_failure_source"] == case_source
+    rows = out["row"].set_index("model")
+    assert rows["failure_source"].to_dict() == {
+        "claude": "llm_error",
+        "glm": "parse_contract_failure",
+    }
+    assert rows.loc["glm", "failure_subtype"] == "missing_output"
+
+
+def test_case_label_may_match_no_row_while_a_model_is_missing(tmp_path: Path):
+    """Intended under option 1, and why no property says a case's class is
+    among its rows' (sol_review_r3 finding 4): a parsed miss becomes an LLM
+    error and a missing answer keeps its recorded ceiling exhaustion, so the
+    judge's case-level parse failure stands while no row carries it."""
+    audit_dir = tmp_path / "audit"
+    _judged_case(
+        audit_dir,
+        [_parsed("m1"), _missing("m2", recorded="budget_exhausted_at_ceiling")],
+        "parse_contract_failure",
+        {"m1": "parse_contract_failure", "m2": "parse_contract_failure"},
+    )
+
+    out = _collect(audit_dir)
+
+    assert out["row"].set_index("model")["failure_source"].to_dict() == {
+        "m1": "llm_error",
+        "m2": "budget_exhausted_at_ceiling",
+    }
+    assert out["case"].iloc[0]["case_failure_source"] == "parse_contract_failure"
+
+
+def test_unlabelled_row_falls_back_to_the_judges_case_class(tmp_path: Path):
+    """The demotion is the case note's only: a model the verdict leaves
+    unlabelled takes the judge's case class, so a missing model stays a parse
+    failure even when option 2 makes its case an LLM error."""
+    audit_dir = tmp_path / "audit"
+    _judged_case(
+        audit_dir,
+        [_parsed("m1"), _missing("m2")],
+        "parse_contract_failure",
+        {},
+    )
+
+    with mock.patch.object(audit, "CASE_PARSE_FAILURE_NEEDS_MISSING", "all"):
+        out = _collect(audit_dir)
+
+    assert out["case"].iloc[0]["case_failure_source"] == "llm_error"
+    assert out["row"].set_index("model")["failure_source"].to_dict() == {
+        "m1": "llm_error",
+        "m2": "parse_contract_failure",
+    }
+
+
+def test_other_judged_case_classes_publish_unchanged(tmp_path: Path):
+    for source in FAILURE_SOURCE_VALUES:
+        if source in ("parse_contract_failure", "budget_exhausted_at_ceiling"):
+            continue
+        audit_dir = tmp_path / source / "audit"
+        _judged_case(audit_dir, [_parsed("m1")], source, {"m1": source})
+        assert _collect(audit_dir)["case"].iloc[0]["case_failure_source"] == source
+
+
+_MODELS = ["m1", "m2", "m3", "m4"]
+
+
+@st.composite
+def _judged_cases(draw):
+    """A case of one to four wrong models, each with or without a value (a
+    missing one may record ceiling exhaustion), and any verdict the schema
+    allows: any case class and, per model, any class and subtype or no
+    entry at all."""
+    wrong = []
+    for model in _MODELS[: draw(st.integers(1, len(_MODELS)))]:
+        if draw(st.booleans()):
+            wrong.append(_parsed(model))
+        else:
+            recorded = draw(st.sampled_from(["", "budget_exhausted_at_ceiling"]))
+            wrong.append(_missing(model, recorded))
+    sources = st.sampled_from(FAILURE_SOURCE_VALUES)
+    subtypes = st.sampled_from(FAILURE_SUBTYPE_VALUES)
+    labelled = [m.model for m in wrong if draw(st.booleans())]
+    return {
+        "wrong_models": wrong,
+        "case_source": draw(sources),
+        "case_subtype": draw(subtypes),
+        "model_sources": {model: draw(sources) for model in labelled},
+        "model_subtypes": {model: draw(subtypes) for model in labelled},
+    }
+
+
+@settings(max_examples=300, deadline=None)
+@given(case=_judged_cases())
+def test_judged_case_parse_label_properties(tmp_path_factory, case):
+    """For any judged case:
+    - option 1 (the default): with no wrong model in missing_models, the
+      published case_failure_source is never parse_contract_failure;
+    - option 2: with any wrong model holding a value, it never is;
+    - each option changes only case_failure_source, and only from the
+      judge's parse_contract_failure to llm_error: the rows, and every other
+      case column, are what collect_audit published before the rule.
+    """
+    audit_dir = tmp_path_factory.mktemp("case") / "audit"
+    meta = _judged_case(audit_dir, **case)
+    missing = set(meta["missing_models"])
+    wrong = meta["wrong_models"]
+
+    with mock.patch.object(audit, "_case_failure_source", lambda meta, s: s):
+        before = _collect(audit_dir)
+    after = {}
+    for needs in ("any", "all"):
+        with mock.patch.object(audit, "CASE_PARSE_FAILURE_NEEDS_MISSING", needs):
+            after[needs] = _collect(audit_dir)
+    pd.testing.assert_frame_equal(_collect(audit_dir)["case"], after["any"]["case"])
+
+    source = after["any"]["case"].iloc[0]["case_failure_source"]
+    if meta["parse_failure_only"]:
+        # Classified without a judge; the rule does not reach these.
+        assert source == before["case"].iloc[0]["case_failure_source"]
+    elif not missing:
+        assert source != "parse_contract_failure"
+    if not meta["parse_failure_only"]:
+        assert after["all"]["case"].iloc[0]["case_failure_source"] != (
+            "parse_contract_failure"
+        )
+
+    judged = before["case"].iloc[0]["case_failure_source"]
+    for needs, out in after.items():
+        pd.testing.assert_frame_equal(out["row"], before["row"])
+        others = [c for c in before["case"].columns if c != "case_failure_source"]
+        pd.testing.assert_frame_equal(out["case"][others], before["case"][others])
+        published = out["case"].iloc[0]["case_failure_source"]
+        if published != judged:
+            assert (judged, published) == ("parse_contract_failure", "llm_error")
+            kept = (any if needs == "any" else all)(m in missing for m in wrong)
+            assert not kept
 
 
 def test_parse_verdict_survives_brace_in_leading_prose(tmp_path: Path):
