@@ -906,22 +906,9 @@ def october_upgrade_row(view) -> list[str]:
     """A discrepancy-table row for one October engine move (``view``'s last
     upgrade): what it fixes and restores, what it changes, and its rechecks."""
     move = view.last_engine_upgrade
-    restored = view.engine_upgrade_restored_count
-    ruled = view.engine_upgrade_restored_ruled_count
-    split = (
-        f"{restored - ruled} that earlier releases excluded return to scoring at "
-        f"the new version's values; the {ruled} ruled on {r.ruling_date} while "
-        "still scored stay scored"
-        if ruled
-        else "earlier releases excluded them, and they return to scoring at the "
-        "new version's values"
-    )
     fixes = (
-        f"The move from policyengine-us {move.previous_engine_version} fixes the "
-        f"engine defects behind {restored} outputs ({split}). "
-        if restored
-        else f"The move from policyengine-us {move.previous_engine_version} "
-        "returns no excluded output to scoring. "
+        f"The move from policyengine-us {move.previous_engine_version} "
+        f"{view.engine_upgrade_restored_split_clause}. "
     )
     return [
         f"US references on policyengine-us {move.engine_version} "

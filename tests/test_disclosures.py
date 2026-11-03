@@ -741,6 +741,35 @@ def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
         assert _across_page_breaks(sentence).search(text), sentence
 
 
+def test_rendered_html_calls_the_upgrade_fixes_fixed_not_restored():
+    """Round-2 final review nits: each October move's upgrades-table row
+    renders its split from restored_split_clause, and the sentence naming the
+    upstream fixes, in the table and in the move's paragraph, calls the outputs
+    "fixed" when some were ruled on 2026-10-06 while still scored and never
+    left scoring (the October 10 move), and "restored" when every one returns
+    to scoring (the October 13 move)."""
+    text = _html_text()
+    for version, kind in (("2.38.6", "fixed"), ("2.41.0", "restored")):
+        view = r.upgrade_view(version)
+        assert (view.engine_upgrade_restored_ruled_count > 0) == (kind == "fixed")
+        assert view.engine_upgrade_restored_split_clause in text
+        sentence = view.engine_upgrade_restored_sentence
+        assert sentence.startswith(f"The {kind} outputs take the upstream fixes for ")
+        assert text.count(sentence) == 2, version
+    assert r.engine_upgrade_restored_split_clause == (
+        "returns no excluded output to scoring"
+    )
+    assert r.engine_upgrade_restored_split_clause in text
+    assert text.count("fixed outputs take the upstream fixes for") == 2
+    assert text.count("restored outputs take the upstream fixes for") == 2
+
+
+def test_rendered_pdf_calls_the_upgrade_fixes_fixed_not_restored():
+    text = _straight_quotes(re.sub(r"\s+", " ", _pdf_running_text()))
+    assert text.count("fixed outputs take the upstream fixes for") == 2
+    assert text.count("restored outputs take the upstream fixes for") == 2
+
+
 def _engine_groups(exclusions) -> list[tuple[str, int]]:
     """Excluded outputs by the engine version of their value, oldest first."""
     by_engine = Counter(
@@ -1014,13 +1043,13 @@ def test_card_counts_follow_the_frozen_records():
 
     r = PaperResults()
     card = re.sub(r"\s+", " ", BENCHMARK_CARD.read_text())
-    # The October 10 move to 2.38.6: what it restores, from where, and why.
+    # The October 10 move to 2.38.6: what it fixes, from where, and why.
     v10 = r.upgrade_view("2.38.6")
-    restored, ruled = v10.engine_upgrade_restored_count, r.ruled_regenerated_count
+    fixed, ruled = v10.engine_upgrade_restored_count, r.ruled_regenerated_count
     assert ruled == v10.engine_upgrade_restored_ruled_count
     assert (
-        f"That version fixes the defects behind {count_word(restored)} outputs. "
-        f"Release 20261006 excluded {count_word(restored - ruled)} of them, which "
+        f"That version fixes the defects behind {count_word(fixed)} outputs. "
+        f"Release 20261006 excluded {count_word(fixed - ruled)} of them, which "
         f"return to scoring; the other {count_word(ruled)} are the 2026-10-06 "
         "defects below, which stay scored."
     ) in card
