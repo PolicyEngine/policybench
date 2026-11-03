@@ -6224,8 +6224,8 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
         for part in (note["title"], *note["paragraphs"]):
             for sentence in re.split(r"(?<=[.!?])\s+|(?<=[.!?][\"”’)])\s+", part):
                 if re.search(
-                    r"(?:\{\w+(?:Exact|Rate)\}|\b\d+(?:\.\d+)?)%|\bshare\b", sentence
-                ) and re.search(r"within (?:\$1\b|a dollar|one dollar)", sentence):
+                    r"(?:\{\w+(?::\w+)?\}|\b\d+(?:\.\d+)?)%|(?i:\bshares?\b)", sentence
+                ) and re.search(r"within (?:a |one )?(?:\$1\b|dollar\b)", sentence):
                     assert re.search(r"\bamounts\b", sentence), (path.name, sentence)
         # A note that gives a score as answers right also says, in the same
         # words as every other note, what PolicyBench counts as right, and
