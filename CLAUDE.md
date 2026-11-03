@@ -27,8 +27,8 @@ ruff format .             # Format
 
 ## Testing
 - Tests mock LiteLLM's model calls, the provider batch adapters and `gh`, and the tests that need policyengine-us run it in-process.
-- LiteLLM fetches its model cost map from GitHub when a pytest process imports it, and falls back to its bundled copy if the fetch fails. Set `LITELLM_LOCAL_MODEL_COST_MAP=True` to skip the fetch.
-- The `tests/test_scenarios.py` tests download the certified US dataset from Hugging Face.
+- LiteLLM fetches its model cost map from GitHub in every process that imports it, and falls back to its bundled copy if the fetch fails. Each pytest process imports it, and so do the `policybench.cli` runs that some slow tests start. Set `LITELLM_LOCAL_MODEL_COST_MAP=True` to skip the fetch.
+- Some `tests/test_scenarios.py` tests download the certified US dataset from Hugging Face.
 - `pytest -m "not slow"` to skip slow tests
 - `pytest -m "not slow" -n 4 --dist loadfile` to run the same tests on four workers (CI starts one per logical CPU)
 - Some tests read git history, so run the suite from a full clone (`git fetch --unshallow`)
