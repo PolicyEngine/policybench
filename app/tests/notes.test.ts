@@ -213,24 +213,76 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "gets 87.9% of PolicyBench answers within $1, weighted by household impact.",
+      "America.gov, which says it answers questions with AI and information from government websites, scores 87.9% on PolicyBench.",
     );
     expect(markup).toContain(
-      "On the board it would rank #14 of 51, level with GPT-5.5 (87.9%); GPT-6 Sol leads at 95.2%.",
+      "PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches. It weights each answer by household impact.",
     );
+    expect(markup).toContain(
+      "GPT-5.5, which OpenAI released in April, matches that score with AI alone and no web access, while GPT-6 Sol leads at 95.2%, also with AI alone.",
+    );
+    expect(markup).toContain(
+      "America.gov would rank #14 of 51, but PolicyBench keeps its board to AI alone.",
+    );
+    // Rates keep one decimal, so GPT-6 Sol's state income tax rate reads 72.0%.
+    expect(markup).toContain(
+      "On income taxes, America.gov falls between GPT-5.5 and GPT-6 Sol: it gets 72.6% of federal amounts within $1, against their 70.2% and 90.5%, and 66.7% of state amounts, against 65.6% and 72.0%.",
+    );
+    expect(markup).toContain(
+      "It trails both on SNAP amounts and Medicaid eligibility. On SNAP it gets 81.7%, against 84.9% and 89.2%,",
+    );
+    expect(markup).toContain(
+      "On Medicaid eligibility, which PolicyBench weights most heavily, it gets 92.5%, against 96.5% and 97.7%. It called both adults in a New York couple eligible, where PolicyEngine and 49 models find neither eligible.",
+    );
+    expect(interpolateNoteText(note, note.paragraphs[0]).length).toBeLessThan(600);
     // Whole numbers under ten are spelled out; thousands get separators.
-    expect(markup).toContain("America.gov&#x27;s first replies included five refusals.");
-    expect(markup).toContain("Six prompts run past the 8,000 characters");
-    expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
     expect(markup).toContain(
-      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board declined a household on that ground, though some models&#x27; recorded reasoning notes that they cannot run PolicyEngine.",
+      "America.gov refused prompts for five households on the first attempt.",
+    );
+    expect(markup).toContain(
+      "Six prompts run past the 8,000 characters America.gov asks a message to stay within, so PolicyBench split each across two chats asking for half the outputs apiece.",
+    );
+    expect(markup).toContain(
+      "When PolicyBench asked again, America.gov answered two of those prompts in full and repeated its refusal word for word on the other three, which leaves 3.7% of its scored answers blank. Of the 50 models on the board, 46 answer every one.",
+    );
+    expect(markup).toContain(
+      "and it put a Michigan couple&#x27;s SNAP at $6,432 a year, where PolicyEngine and 49 of the 50 models give $0.",
+    );
+    expect(markup).toContain(
+      "The board&#x27;s prompts name PolicyEngine, the open-source tax and benefit model behind the references, in four output definitions.",
+    );
+    // React writes the note's straight double quotes as &quot;.
+    expect(markup).toContain(
+      "They ask about Medicaid and CHIP eligibility &quot;under PolicyEngine rules,&quot; and ask &quot;whether PolicyEngine returns&quot; support for free and for reduced-price school meals.",
+    );
+    expect(markup).toContain(
+      "PolicyBench is revising that wording. At least two of America.gov&#x27;s five refusals cited PolicyEngine, and no model on the board declined a household on that ground.",
     );
     expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
-    expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
     expect(markup).toContain(
-      "never more than 0.8 points below the median model on those four outputs, and without them it would rank #13 of 51.",
+      "The General Services Administration has run America.gov since September 29.",
     );
-    expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
+    expect(markup).toContain(
+      "Between October 14 and 18, PolicyBench sent each of its 100 households to America.gov in a new chat, with the board&#x27;s own prompt in the JSON answer format. It scored every reply as it scores the board.",
+    );
+    expect(markup).toContain(
+      "Before publishing a run, PolicyBench asks again whenever a board model leaves answers out. America.gov got the same kind of retry: PolicyBench sent each refused prompt again, word for word, in a fresh chat, up to twice. On first attempts alone, America.gov gets 86.6% (#19).",
+    );
+    expect(markup).toContain(
+      "On the answers each gave, America.gov leads GPT-5.5 on two of those four outputs and trails it by at most 1.3 points on the others.",
+    );
+    expect(markup).toContain(
+      "If PolicyBench left all four out for every model, America.gov would rank #13 of 51.",
+    );
+    expect(markup).toContain(
+      "America.gov&#x27;s terms say the answers it generates with AI &quot;can be incomplete or wrong.&quot;",
+    );
+    expect(markup).toContain(
+      "PolicyBench tested America.gov once and skipped the last retry it gives board models, in which it asks again, one at a time, for each answer still missing.",
+    );
+    expect(markup).toContain(
+      "If PolicyBench ran that retry, it would need at least 73 more chats, and America.gov could rise to 89.8% at most.",
+    );
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/blob/main/notes/data/america_gov_20261019.csv"',
     );

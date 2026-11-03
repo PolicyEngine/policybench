@@ -39,7 +39,6 @@ import gzip
 import hashlib
 import json
 import math
-import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -79,6 +78,9 @@ POLICYENGINE_GROUPS = (
     "reduced_price_school_meals_eligible",
 )
 ROUNDS = (1, 2)
+FEDERAL_TAX = "federal_income_tax_before_refundable_credits"
+STATE_TAX = "state_income_tax_before_refundable_credits"
+MEDICAID = "person_medicaid_eligible"
 # America.gov's own words, as its pages read on 2026-10-19.
 SITE_QUOTES = {
     "fetched_utc": "2026-10-19",
@@ -364,6 +366,7 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
     gw = payload["globalWeights"]["household"]
     w = weights(ref.keys(), gw)
     board = board_predictions(payload)
+    gpt55, sol = board["gpt-5.5"], board["gpt-6-sol"]
     first = view(rows, payload, meta, retried=False)
     retried = view(rows, payload, meta, retried=True)
     board_exact = {m: weighted_exact(p, ref, w) for m, p in board.items()}
@@ -371,9 +374,6 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
     by_model = {
         r["model"]: r for r in payload["modelStats"] if r["condition"] == "no_tools"
     }
-
-    def median_group(group: str) -> float:
-        return statistics.median(group_rate(p, ref, group) for p in board.values())
 
     def models_right(key) -> int:
         return sum(
@@ -400,14 +400,12 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
     }
     w_no_pe = weights(no_pe.keys(), gw)
     no_pe_others = [weighted_exact(p, no_pe, w_no_pe) for p in board.values()]
-    # Answered cells on both sides: America.gov's, and each board model's own.
-    pe_gap = max(
-        statistics.median(
-            group_rate(p, ref, g, answered_only=True) for p in board.values()
-        )
+    # Answered cells on both sides: America.gov's, and GPT-5.5's own.
+    pe_gaps = [
+        group_rate(gpt55, ref, g, answered_only=True)
         - group_rate(retried, ref, g, answered_only=True)
         for g in POLICYENGINE_GROUPS
-    )
+    ]
     best = {**retried, **{k: ref[k] for k in unanswered}}
 
     def one(x: float) -> float:
@@ -417,13 +415,15 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "agovExact": one(weighted_exact(retried, ref, w)),
         "agovRank": rank(weighted_exact(retried, ref, w), others),
         "nRanked": len(board) + 1,
-        "gpt55Exact": one(by_model["gpt-5.5"]["exact"]),
         "solExact": one(by_model["gpt-6-sol"]["exact"]),
         "households": len({k[0] for k in ref}),
         "charLimit": meta["message_limit_characters"],
         "agovFirstExact": one(weighted_exact(first, ref, w)),
         "agovFirstRank": rank(weighted_exact(first, ref, w), others),
         "firstRefusals": len(first_refused),
+        "firstRefusalHouseholds": len(
+            {by_unit[u][1][0]["scenario_id"] for u in first_refused}
+        ),
         "answeredOnRetry": len(retry_answered),
         "refusedThrice": sum(
             all(not answered(by_unit[u][a]) for a in (1, 2, 3) if a in by_unit[u])
@@ -433,24 +433,20 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "unansweredRate": one(100 * len(unanswered) / len(ref)),
         "fullModels": sum(r["nParsed"] == r["n"] for r in by_model.values()),
         "nModels": len(by_model),
-        "fedTaxRate": one(
-            group_rate(retried, ref, "federal_income_tax_before_refundable_credits")
-        ),
-        "fedTaxMedianRate": one(
-            median_group("federal_income_tax_before_refundable_credits")
-        ),
-        "stateTaxRate": one(
-            group_rate(retried, ref, "state_income_tax_before_refundable_credits")
-        ),
-        "stateTaxMedianRate": one(
-            median_group("state_income_tax_before_refundable_credits")
-        ),
+        "fedTaxRate": one(group_rate(retried, ref, FEDERAL_TAX)),
+        "gpt55FedTaxRate": one(group_rate(gpt55, ref, FEDERAL_TAX)),
+        "solFedTaxRate": one(group_rate(sol, ref, FEDERAL_TAX)),
+        "stateTaxRate": one(group_rate(retried, ref, STATE_TAX)),
+        "gpt55StateTaxRate": one(group_rate(gpt55, ref, STATE_TAX)),
+        "solStateTaxRate": one(group_rate(sol, ref, STATE_TAX)),
         "snapRate": one(group_rate(retried, ref, "snap")),
-        "snapMedianRate": one(median_group("snap")),
+        "gpt55SnapRate": one(group_rate(gpt55, ref, "snap")),
+        "solSnapRate": one(group_rate(sol, ref, "snap")),
         "snap072": int(retried[("scenario_072", "snap")]),
         "snap072Models": models_right(("scenario_072", "snap")),
-        "medicaidRate": one(group_rate(retried, ref, "person_medicaid_eligible")),
-        "medicaidMedianRate": one(median_group("person_medicaid_eligible")),
+        "medicaidRate": one(group_rate(retried, ref, MEDICAID)),
+        "gpt55MedicaidRate": one(group_rate(gpt55, ref, MEDICAID)),
+        "solMedicaidRate": one(group_rate(sol, ref, MEDICAID)),
         # Models right on both adults.
         "medicaid004Models": sum(
             all(
@@ -465,8 +461,10 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "peRefusals": sum(
             "PolicyEngine" in by_unit[u][1][0]["refusal_text"] for u in first_refused
         ),
-        # A bound ("never more than X points below"), so it rounds up.
-        "peMaxGap": f"{math.ceil(max(pe_gap, 0) * 10) / 10:.1f}",
+        # "leads GPT-5.5 on two of those four outputs".
+        "peLeads": sum(gap < 0 for gap in pe_gaps),
+        # "trails it by at most X points on the others": a bound, so it rounds up.
+        "peMaxGap": f"{math.ceil(max(max(pe_gaps), 0) * 10) / 10:.1f}",
         "noPeRank": rank(weighted_exact(retried, no_pe, w_no_pe), no_pe_others),
         "rowRepairChats": sum(
             len(unit_requested(u, payload, meta)) for u in still_refused
@@ -516,46 +514,6 @@ def board_declined_households(predictions_path: Path) -> tuple[list, list]:
         sorted(k for k in none_answered if text[k]),
         sorted(k for k in none_answered if not text[k]),
     )
-
-
-def board_cannot_run_policyengine(predictions_path: Path) -> list[tuple]:
-    """(model, household) pairs whose recorded response or explanations say the model
-    cannot run, use or access PolicyEngine. A floor: many models record no reasoning,
-    and other wordings exist."""
-    import re
-
-    pe = r"policy\s*engine"
-    patterns = [
-        re.compile(
-            r"(?:can't|cannot|can not|unable to)\s+(?:\w+\s+){0,2}?"
-            r"(?:run|access|invoke|use|call|execute)\s+(?:the\s+)?(?:\w+\s+){0,2}?"
-            + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"(?:don't|do not)\s+have\s+(?:access\s+to\s+)?(?:the\s+)?" + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"without\s+(?:access\s+to\s+|running\s+)(?:the\s+)?(?:\w+\s+){0,2}?" + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            pe + r"[^.\n]{0,40}\.\s*But\s+(?:I\s+)?(?:can't|cannot|can not)\s+run",
-            re.IGNORECASE,
-        ),
-    ]
-    found = set()
-    for row in _board_rows(predictions_path):
-        key = (row["model"], row["scenario_id"])
-        if key in found:
-            continue
-        text = (row["raw_response"] or "") + " " + (row["explanation"] or "")
-        # Stored responses can carry escaped apostrophes and newlines.
-        text = text.replace("\\u2019", "'").replace("\u2019", "'").replace("\\n", "\n")
-        if any(pattern.search(text) for pattern in patterns):
-            found.add(key)
-    return sorted(found)
 
 
 if __name__ == "__main__":

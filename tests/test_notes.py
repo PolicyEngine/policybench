@@ -5651,9 +5651,9 @@ def test_america_gov_split_units_partition_the_prompt() -> None:
 
 def test_america_gov_note_quotes_are_verbatim() -> None:
     """The note's quote of America.gov's refusal to the Virginia household
-    (scenario_119) is its first reply, verbatim. (Its quotes of America.gov's
-    pages are checked against the data's metadata in
-    test_america_gov_note_predicates.)"""
+    (scenario_119) is its first reply, verbatim. (test_america_gov_note_predicates
+    checks its terms quote, and the how-it-works page behind its opening,
+    against the data's metadata.)"""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     text = " ".join(note["paragraphs"])
@@ -5673,9 +5673,10 @@ def test_america_gov_note_quotes_are_verbatim() -> None:
 
 def test_america_gov_note_predicates(monkeypatch) -> None:
     """The America.gov note's claims beyond its numeric facts: who leads, the
-    households it describes, the heaviest output, the over-limit prompts, the
-    repeated refusals, and its quotes of America.gov's own pages as the data's
-    metadata records them (fetched 2026-10-19)."""
+    households it describes and America.gov's answers for them, the heaviest
+    output, the over-limit prompts, the repeated refusals, and the America.gov
+    pages behind its opening and its terms quote, as the data's metadata records
+    them (fetched 2026-10-19)."""
     agov = _america_gov()
     note = _note(AGOV_NOTE)
     text = " ".join(note["paragraphs"])
@@ -5684,9 +5685,60 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     ref, _ = agov.references()
     board = [r for r in payload["modelStats"] if r["condition"] == "no_tools"]
 
+    # The note's ranks set America.gov against each board model's score as
+    # the script computes it, which must match the score the release publishes.
+    w = agov.weights(ref.keys(), payload["globalWeights"]["household"])
+    computed = {
+        model: agov.weighted_exact(predictions, ref, w)
+        for model, predictions in agov.board_predictions(payload).items()
+    }
+    published = {r["model"]: r["exact"] for r in board}
+    assert computed.keys() == published.keys()
+    for model, score in computed.items():
+        assert abs(score - published[model]) < 1e-9, model
+
     # "GPT-6 Sol leads".
     assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
-    # "the output that carries the most weight".
+    # "GPT-5.5, which OpenAI released in April, matches that score".
+    from policybench.paper_results import MODEL_RELEASE_DATES
+
+    assert MODEL_RELEASE_DATES["gpt-5.5"].startswith("2026-04-")
+    facts = note["facts"]
+    gpt55 = next(r for r in board if r["model"] == "gpt-5.5")
+    assert round(gpt55["exact"], 1) == facts["agovExact"]
+    # "falls between GPT-5.5 and GPT-6 Sol".
+    assert facts["gpt55FedTaxRate"] < facts["fedTaxRate"] < facts["solFedTaxRate"]
+    assert facts["gpt55StateTaxRate"] < facts["stateTaxRate"] < facts["solStateTaxRate"]
+    # "It trails both on SNAP amounts and Medicaid eligibility".
+    for name in ("Snap", "Medicaid"):
+        rate = facts[f"{name.lower()}Rate"]
+        assert rate < min(facts[f"gpt55{name}Rate"], facts[f"sol{name}Rate"])
+    # "leads GPT-5.5 on two of those four outputs and trails it by at most 1.3
+    # points on the others": each output's gap on the answers each gave.
+    assert (
+        "leads GPT-5.5 on {peLeads:words} of those {peOutputs:words} outputs and "
+        "trails it by at most {peMaxGap} points on the others" in text
+    )
+    retried = agov.view(agov.load_rows(), payload, meta, retried=True)
+    gpt55_predictions = agov.board_predictions(payload)["gpt-5.5"]
+    gaps = [
+        agov.group_rate(gpt55_predictions, ref, g, answered_only=True)
+        - agov.group_rate(retried, ref, g, answered_only=True)
+        for g in agov.POLICYENGINE_GROUPS
+    ]
+    assert len(gaps) == facts["peOutputs"]
+    assert all(gap != 0 for gap in gaps)
+    trailing = [gap for gap in gaps if gap > 0]
+    assert len(gaps) - len(trailing) == facts["peLeads"]
+    assert 0 < facts["peLeads"] < facts["peOutputs"]
+    assert max(trailing) <= float(facts["peMaxGap"]) < max(trailing) + 0.1
+    # The note quotes the board's prompts, and every prompt carries both phrases.
+    for phrase in ("under PolicyEngine rules", "whether PolicyEngine returns"):
+        assert f'"{phrase}' in text
+        assert all(phrase in s["prompt"]["json"] for s in payload["scenarios"].values())
+    # The note compares America.gov with models it names, each at its own rate.
+    assert "median" not in text
+    # "which PolicyBench weights most heavily".
     weights = payload["globalWeights"]["household"]
     assert max(weights, key=weights.get) == "person_medicaid_eligible"
 
@@ -5701,8 +5753,11 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     assert ref[("scenario_072", "snap")] == 0
     for adult in ("head", "spouse"):
         assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
+        # "It called both adults in a New York couple eligible".
+        assert retried[("scenario_004", f"{adult}_medicaid_eligible")] == 1
 
-    # "the reference and 49 of the 50 models say $0" / "say neither is": exactly 0.
+    # "PolicyEngine and 49 of the 50 models give $0" / "find neither eligible":
+    # exactly 0.
     def exact_zeros(sid: str, variable: str) -> int:
         rows = payload["scenarioPredictions"][sid][variable].values()
         return sum(r.get("parsed") and r.get("prediction") == 0 for r in rows)
@@ -5713,6 +5768,10 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
             exact_zeros("scenario_004", f"{adult}_medicaid_eligible")
             == note["facts"]["medicaid004Models"]
         )
+    # Both counts render as 49 on this run, so only the raw text shows which
+    # sentence takes which.
+    assert "PolicyEngine and {snap072Models} of the {nModels} models give $0" in text
+    assert "PolicyEngine and {medicaid004Models} models find neither eligible" in text
 
     # "Six prompts run past the 8,000 characters": exactly these six.
     limit = meta["message_limit_characters"]
@@ -5723,7 +5782,8 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     )
     assert over == sorted(meta["split_units"])
 
-    # "came back word for word the same": the three units refused at every attempt.
+    # "repeated its refusal word for word on the other three": the three units
+    # refused at every attempt.
     by_unit = agov.units(agov.load_rows())
     refused_every_time = [
         u
@@ -5734,6 +5794,23 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     for unit in refused_every_time:
         texts = {by_unit[unit][a][0]["refusal_text"] for a in (1, 2, 3)}
         assert len(texts) == 1
+    # "answered two of those prompts in full ... on the other three": the units
+    # answered on a retry and the units refused every time make up the first
+    # refusals.
+    answered_on_retry = [
+        u
+        for u, attempts in by_unit.items()
+        if not agov.answered(attempts[1])
+        and any(agov.answered(attempts[a]) for a in attempts if a > 1)
+    ]
+    assert len(answered_on_retry) == facts["answeredOnRetry"]
+    assert len(answered_on_retry) + len(refused_every_time) == facts["firstRefusals"]
+    # answeredOnRetry, peRefusals and peLeads all render as "two" on this run, so
+    # only the raw text shows which fact paragraph 2 counts.
+    assert (
+        "answered {answeredOnRetry:words} of those prompts in full and repeated "
+        "its refusal word for word on the other {refusedThrice:words}" in text
+    )
 
     # "At least two ... cited PolicyEngine": two complete refusals do; the one
     # refusal cut off in capture does not in the text that was kept.
@@ -5743,13 +5820,25 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
         u for u in first_refusals if "PolicyEngine" in by_unit[u][1][0]["refusal_text"]
     ]
     assert len(citing) == note["facts"]["peRefusals"]
+    # "At least two of America.gov's five refusals": P4 counts refused chats, so
+    # it takes firstRefusals, not firstRefusalHouseholds, and peRefusals, not
+    # answeredOnRetry or peLeads.
+    assert (
+        "At least {peRefusals:words} of America.gov's {firstRefusals:words} refusals"
+        in text
+    )
+    # "refused prompts for five households": a split prompt's two halves
+    # count once.
+    assert "refused prompts for {firstRefusalHouseholds:words} households" in text
+    assert len({u[:12] for u in first_refusals}) == facts["firstRefusalHouseholds"]
     assert truncated <= set(first_refusals) and not truncated & set(citing)
 
-    # America.gov's own words, as quoted.
+    # America.gov's own words. The opening attributes how it answers to its
+    # how-it-works page, and the last paragraph quotes its terms.
     quotes = meta["site_quotes"]
     assert (
-        "Super Intelligence (SI) to find and explain information from official "
-        "government sources" in text
+        "which says it answers questions with AI and information from "
+        "government websites" in text
     )
     assert quotes["how_it_works"]["quote"] == (
         "Super Intelligence (SI) to find and explain information from official "
@@ -5872,8 +5961,7 @@ def test_tool_pilot_note_predicates(monkeypatch) -> None:
 
 def test_no_board_model_declined_a_household_over_policyengine() -> None:
     """The America.gov note says no board model declined a household on PolicyEngine
-    grounds, though some models' recorded reasoning notes they cannot run
-    PolicyEngine. No board model left a household fully unanswered with text in its
+    grounds. No board model left a household fully unanswered with text in its
     response, so none declined one on any ground; the households some models left
     fully unanswered hold no response text at all."""
     agov = _america_gov()
@@ -5885,16 +5973,6 @@ def test_no_board_model_declined_a_household_over_policyengine() -> None:
     assert no_text  # the check reaches the fully unanswered households
     text = " ".join(note["paragraphs"])
     assert "no model on the board declined a household on that ground" in text
-    # A floor: the pairs whose recorded reasoning says so, from more than one model.
-    cannot = set(agov.board_cannot_run_policyengine(predictions))
-    assert {
-        ("grok-4.6", "scenario_007"),
-        ("kimi-k2.6", "scenario_053"),
-        ("kimi-k2.6", "scenario_119"),
-        ("qwen3.8-max", "scenario_121"),
-    } <= cannot
-    assert len({model for model, _ in cannot}) >= 2
-    assert "some models' recorded reasoning notes that they cannot run" in text
 
 
 def test_methodology_quotes_the_policyengine_named_definitions() -> None:
