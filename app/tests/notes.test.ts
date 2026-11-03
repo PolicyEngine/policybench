@@ -341,6 +341,7 @@ describe("notes", () => {
         closing,
       ],
       "2026-09-05-gpt-6-astra-debuts-second": [
+        "GPT-6 Astra reached the API on 2026-09-04 and joined the board on 2026-09-05.",
         "It gets 88.0% of answers right and ranks #2 of 39, behind GPT-5.6 Sol (89.2%) and ahead of Claude Fable 5.1 (86.9%, #3).",
         "PolicyBench scores every model on 1,973 of its 1,984 requested outputs and excludes the other 11, since their references depend on an engine input the household facts never list.",
         closing,
@@ -351,6 +352,7 @@ describe("notes", () => {
       ],
       "2026-09-29-claude-sonnet-5-5-debuts-fifth": [
         "Claude Sonnet 5.5 gets 92.1% of answers right and ranks #5 of 45.",
+        "GPT-6 Luna, #4, also rounds to 92.1% and sits about level with Claude Sonnet 5.5, less than 0.02 points ahead.",
         closing,
         "Together, the new references and the Medicaid exclusion lift every one of the 42 earlier models, by 0.14 to 0.83 points.",
       ],
@@ -371,7 +373,7 @@ describe("notes", () => {
         "With or without the tool, PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches.",
       ],
       "2026-10-31-gpt-6-1-terra-joins-the-board": [
-        "and GPT-5.6 Sol, which also rounds to 93.1%, trails by less than a tenth of a point.",
+        "Only GPT-6 Sol (95.2%) and Claude Opus 5.5 (94.1%) score higher, and GPT-5.6 Sol, which also rounds to 93.1%, trails by less than a tenth of a point.",
       ],
     };
     for (const [slug, sentences] of Object.entries(expected)) {
