@@ -3,7 +3,7 @@
 ## Quick start
 ```bash
 pip install -e ".[dev]"
-pytest                    # Run tests (all external calls mocked)
+pytest                    # Run tests (see "Testing" for the one download)
 ruff check .              # Lint
 ruff format .             # Format
 ```
@@ -26,9 +26,9 @@ ruff format .             # Format
 - `policybench/analysis.py` — Metrics and reporting
 
 ## Testing
-- All tests mock external calls (LiteLLM, PE-US API)
+- All tests mock external calls (LiteLLM, PE-US API), except the `tests/test_scenarios.py` tests that download the certified US dataset from Hugging Face
 - `pytest -m "not slow"` to skip slow tests
-- `pytest -m "not slow" -n 4 --dist loadfile` to split them across four workers (CI starts one per CPU)
+- `pytest -m "not slow" -n 4 --dist loadfile` to run the same tests on four workers (CI starts one per logical CPU)
 - Some tests read git history, so run the suite from a full clone (`git fetch --unshallow`)
 - Full benchmark runs are manual and expensive
 
