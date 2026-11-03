@@ -5686,24 +5686,42 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
 
     # "GPT-6 Sol leads".
     assert max(board, key=lambda r: r["exact"])["model"] == "gpt-6-sol"
-    # "GPT-5.5, which OpenAI released in April, matches it".
+    # "GPT-5.5, which OpenAI released in April, matches that score".
     from policybench.paper_results import MODEL_RELEASE_DATES
 
     assert MODEL_RELEASE_DATES["gpt-5.5"].startswith("2026-04-")
     facts = note["facts"]
-    assert facts["gpt55Exact"] == facts["agovExact"]
-    # "exceeding GPT-5.5's ... and trailing GPT-6 Sol's", "between their".
+    gpt55 = next(r for r in board if r["model"] == "gpt-5.5")
+    assert round(gpt55["exact"], 1) == facts["agovExact"]
+    # "falls between GPT-5.5 and GPT-6 Sol".
     assert facts["gpt55FedTaxRate"] < facts["fedTaxRate"] < facts["solFedTaxRate"]
     assert facts["gpt55StateTaxRate"] < facts["stateTaxRate"] < facts["solStateTaxRate"]
     # "It trails both on SNAP amounts and Medicaid eligibility".
     for name in ("Snap", "Medicaid"):
         rate = facts[f"{name.lower()}Rate"]
         assert rate < min(facts[f"gpt55{name}Rate"], facts[f"sol{name}Rate"])
-    # "trails GPT-5.5 by at most": a real gap, on one of the four outputs.
-    assert float(facts["peMaxGap"]) > 0
+    # "leads GPT-5.5 on two of those four outputs and trails it by at most 1.3
+    # points on the others": each output's gap on the answers each gave.
+    assert (
+        "leads GPT-5.5 on {peLeads:words} of those {peOutputs:words} outputs and "
+        "trails it by at most {peMaxGap} points on the others" in text
+    )
+    retried = agov.view(agov.load_rows(), payload, meta, retried=True)
+    gpt55_predictions = agov.board_predictions(payload)["gpt-5.5"]
+    gaps = [
+        agov.group_rate(gpt55_predictions, ref, g, answered_only=True)
+        - agov.group_rate(retried, ref, g, answered_only=True)
+        for g in agov.POLICYENGINE_GROUPS
+    ]
+    assert len(gaps) == facts["peOutputs"]
+    assert all(gap != 0 for gap in gaps)
+    trailing = [gap for gap in gaps if gap > 0]
+    assert len(gaps) - len(trailing) == facts["peLeads"]
+    assert 0 < facts["peLeads"] < facts["peOutputs"]
+    assert max(trailing) <= float(facts["peMaxGap"]) < max(trailing) + 0.1
     # The note compares America.gov with models it names, each at its own rate.
     assert "median" not in text
-    # "the output that carries the most weight".
+    # "which PolicyBench weights most heavily".
     weights = payload["globalWeights"]["household"]
     assert max(weights, key=weights.get) == "person_medicaid_eligible"
 
@@ -5719,7 +5737,8 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
     for adult in ("head", "spouse"):
         assert ref[("scenario_004", f"{adult}_medicaid_eligible")] == 0
 
-    # "the reference and 49 of the 50 models say $0" / "say neither is": exactly 0.
+    # "the reference and 49 of the 50 models say $0" / "say neither qualifies":
+    # exactly 0.
     def exact_zeros(sid: str, variable: str) -> int:
         rows = payload["scenarioPredictions"][sid][variable].values()
         return sum(r.get("parsed") and r.get("prediction") == 0 for r in rows)
@@ -5764,10 +5783,6 @@ def test_america_gov_note_predicates(monkeypatch) -> None:
 
     # America.gov's own words, as quoted.
     quotes = meta["site_quotes"]
-    assert (
-        "Super Intelligence (SI) to find and explain information from official "
-        "government sources" in text
-    )
     assert quotes["how_it_works"]["quote"] == (
         "Super Intelligence (SI) to find and explain information from official "
         "government sources"
@@ -5889,8 +5904,7 @@ def test_tool_pilot_note_predicates(monkeypatch) -> None:
 
 def test_no_board_model_declined_a_household_over_policyengine() -> None:
     """The America.gov note says no board model declined a household on PolicyEngine
-    grounds, though some models' recorded reasoning notes they cannot run
-    PolicyEngine. No board model left a household fully unanswered with text in its
+    grounds. No board model left a household fully unanswered with text in its
     response, so none declined one on any ground; the households some models left
     fully unanswered hold no response text at all."""
     agov = _america_gov()
@@ -5902,16 +5916,6 @@ def test_no_board_model_declined_a_household_over_policyengine() -> None:
     assert no_text  # the check reaches the fully unanswered households
     text = " ".join(note["paragraphs"])
     assert "no model on the board declined a household on that ground" in text
-    # A floor: the pairs whose recorded reasoning says so, from more than one model.
-    cannot = set(agov.board_cannot_run_policyengine(predictions))
-    assert {
-        ("grok-4.6", "scenario_007"),
-        ("kimi-k2.6", "scenario_053"),
-        ("kimi-k2.6", "scenario_119"),
-        ("qwen3.8-max", "scenario_121"),
-    } <= cannot
-    assert len({model for model, _ in cannot}) >= 2
-    assert "some models' recorded reasoning notes that they cannot run" in text
 
 
 def test_methodology_quotes_the_policyengine_named_definitions() -> None:

@@ -401,11 +401,11 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
     w_no_pe = weights(no_pe.keys(), gw)
     no_pe_others = [weighted_exact(p, no_pe, w_no_pe) for p in board.values()]
     # Answered cells on both sides: America.gov's, and GPT-5.5's own.
-    pe_gap = max(
+    pe_gaps = [
         group_rate(gpt55, ref, g, answered_only=True)
         - group_rate(retried, ref, g, answered_only=True)
         for g in POLICYENGINE_GROUPS
-    )
+    ]
     best = {**retried, **{k: ref[k] for k in unanswered}}
 
     def one(x: float) -> float:
@@ -415,7 +415,6 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "agovExact": one(weighted_exact(retried, ref, w)),
         "agovRank": rank(weighted_exact(retried, ref, w), others),
         "nRanked": len(board) + 1,
-        "gpt55Exact": one(by_model["gpt-5.5"]["exact"]),
         "solExact": one(by_model["gpt-6-sol"]["exact"]),
         "households": len({k[0] for k in ref}),
         "charLimit": meta["message_limit_characters"],
@@ -459,8 +458,10 @@ def facts(payload: dict, rows: list[dict], meta: dict) -> dict:
         "peRefusals": sum(
             "PolicyEngine" in by_unit[u][1][0]["refusal_text"] for u in first_refused
         ),
-        # A bound ("by at most X points"), so it rounds up.
-        "peMaxGap": f"{math.ceil(max(pe_gap, 0) * 10) / 10:.1f}",
+        # "leads GPT-5.5 on two of those four outputs".
+        "peLeads": sum(gap < 0 for gap in pe_gaps),
+        # "trails it by at most X points on the others": a bound, so it rounds up.
+        "peMaxGap": f"{math.ceil(max(max(pe_gaps), 0) * 10) / 10:.1f}",
         "noPeRank": rank(weighted_exact(retried, no_pe, w_no_pe), no_pe_others),
         "rowRepairChats": sum(
             len(unit_requested(u, payload, meta)) for u in still_refused
@@ -510,46 +511,6 @@ def board_declined_households(predictions_path: Path) -> tuple[list, list]:
         sorted(k for k in none_answered if text[k]),
         sorted(k for k in none_answered if not text[k]),
     )
-
-
-def board_cannot_run_policyengine(predictions_path: Path) -> list[tuple]:
-    """(model, household) pairs whose recorded response or explanations say the model
-    cannot run, use or access PolicyEngine. A floor: many models record no reasoning,
-    and other wordings exist."""
-    import re
-
-    pe = r"policy\s*engine"
-    patterns = [
-        re.compile(
-            r"(?:can't|cannot|can not|unable to)\s+(?:\w+\s+){0,2}?"
-            r"(?:run|access|invoke|use|call|execute)\s+(?:the\s+)?(?:\w+\s+){0,2}?"
-            + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"(?:don't|do not)\s+have\s+(?:access\s+to\s+)?(?:the\s+)?" + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            r"without\s+(?:access\s+to\s+|running\s+)(?:the\s+)?(?:\w+\s+){0,2}?" + pe,
-            re.IGNORECASE,
-        ),
-        re.compile(
-            pe + r"[^.\n]{0,40}\.\s*But\s+(?:I\s+)?(?:can't|cannot|can not)\s+run",
-            re.IGNORECASE,
-        ),
-    ]
-    found = set()
-    for row in _board_rows(predictions_path):
-        key = (row["model"], row["scenario_id"])
-        if key in found:
-            continue
-        text = (row["raw_response"] or "") + " " + (row["explanation"] or "")
-        # Stored responses can carry escaped apostrophes and newlines.
-        text = text.replace("\\u2019", "'").replace("\u2019", "'").replace("\\n", "\n")
-        if any(pattern.search(text) for pattern in patterns):
-            found.add(key)
-    return sorted(found)
 
 
 if __name__ == "__main__":

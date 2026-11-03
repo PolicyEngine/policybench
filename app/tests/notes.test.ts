@@ -213,15 +213,24 @@ describe("notes", () => {
       createElement(NoteArticle, { note, titleLevel: "h1" }),
     );
     expect(markup).toContain(
-      "it scores 87.9% on PolicyBench, which weights each answer by household impact and counts dollar amounts within $1 of PolicyEngine&#x27;s reference and eligibility answers that match it.",
+      "America.gov, which answers questions with AI and information from government websites, scores 87.9% on PolicyBench.",
     );
     expect(markup).toContain(
-      "GPT-5.5, which OpenAI released in April, matches it at 87.9% with AI alone and no web access, while GPT-6 Sol leads at 95.2%, also with AI alone.",
+      "PolicyBench counts a dollar amount as right when it falls within $1 of PolicyEngine&#x27;s reference and an eligibility answer as right when it matches, and it weights each answer by household impact.",
     );
-    expect(markup).toContain("would rank #14 of 51 but does not join the board");
+    expect(markup).toContain(
+      "GPT-5.5, which OpenAI released in April, matches that score with AI alone and no web access, while GPT-6 Sol leads at 95.2%, also with AI alone.",
+    );
+    expect(markup).toContain("would rank #14 of 51, but PolicyBench keeps its board to AI alone.");
     // Rates keep one decimal, so GPT-6 Sol's state income tax rate reads 72.0%.
     expect(markup).toContain(
-      "exceeding GPT-5.5&#x27;s 70.2% and trailing GPT-6 Sol&#x27;s 90.5%, and 66.7% of state income tax amounts, between their 65.6% and 72.0%.",
+      "On income taxes, America.gov falls between GPT-5.5 and GPT-6 Sol: it gets 72.6% of federal amounts within $1, against their 70.2% and 90.5%, and 66.7% of state amounts, against 65.6% and 72.0%.",
+    );
+    expect(markup).toContain(
+      "It trails both on SNAP amounts and Medicaid eligibility. On SNAP it gets 81.7%, against 84.9% and 89.2%,",
+    );
+    expect(markup).toContain(
+      "On Medicaid eligibility, which PolicyBench weights most heavily, it gets 92.5%, against 96.5% and 97.7%.",
     );
     expect(interpolateNoteText(note, note.paragraphs[0]).length).toBeLessThan(600);
     // Whole numbers under ten are spelled out; thousands get separators.
@@ -229,12 +238,18 @@ describe("notes", () => {
     expect(markup).toContain("Six prompts run past the 8,000 characters");
     expect(markup).toContain("put a Michigan couple&#x27;s SNAP at $6,432 a year");
     expect(markup).toContain(
-      "At least two of America.gov&#x27;s five refusals cited PolicyEngine; no model on the board declined a household on that ground, though some models&#x27; recorded reasoning notes that they cannot run PolicyEngine.",
+      "At least two of America.gov&#x27;s five refusals cited PolicyEngine, and no model on the board declined a household on that ground.",
     );
     expect(markup).toContain("it replied to the prompt for a Virginia single parent of two.");
     expect(markup).toContain("Between October 14 and 18, PolicyBench sent");
     expect(markup).toContain(
-      "trails GPT-5.5 by at most 1.3 points on those four outputs, and without them it would rank #13 of 51.",
+      "On the answers each gave, America.gov leads GPT-5.5 on two of those four outputs and trails it by at most 1.3 points on the others.",
+    );
+    expect(markup).toContain(
+      "If PolicyBench left all four out for every model, America.gov would rank #13 of 51.",
+    );
+    expect(markup).toContain(
+      "PolicyBench tested America.gov once and skipped the board&#x27;s last retry",
     );
     expect(markup).toContain("would take at least 73 more chats and could lift America.gov to 89.8% at most.");
     expect(markup).toContain(
