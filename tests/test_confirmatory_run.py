@@ -996,6 +996,7 @@ class World:
             "preregistration": str(prereg),
             "frozen_sha256": frozen,
             "runs": str(tmp / "runs"),
+            "development_runs": str(tmp / "development-runs"),
             "stage": "confirm",
             "board": str(board_path),
             "engine": f"policyengine-us {ENGINE}",
@@ -2402,7 +2403,14 @@ def test_the_preflight_names_a_missing_field():
 
 
 INVALID_SAVED_COSTS = [
-    "missing-totals", "missing-cost", None, False, True, "0", math.nan, -0.01,
+    "missing-totals",
+    "missing-cost",
+    None,
+    False,
+    True,
+    "0",
+    math.nan,
+    -0.01,
 ]
 
 
@@ -2420,9 +2428,11 @@ def invalidate_saved_cost(record, fault):
 @pytest.mark.parametrize("fault", INVALID_SAVED_COSTS)
 def test_saved_attempt_cost_requires_an_explicit_valid_total(kind, record_kind, fault):
     record = {
-        "scenario_id": "last-household", "kind": kind,
+        "scenario_id": "last-household",
+        "kind": kind,
         "status": "harness_error" if record_kind == "stub" else "complete",
-        "attempts": [], "totals": {"cost_usd": 0.0},
+        "attempts": [],
+        "totals": {"cost_usd": 0.0},
     }
     assert cr.attempt_cost(record) == 0.0
     invalidate_saved_cost(record, fault)
@@ -2431,13 +2441,48 @@ def test_saved_attempt_cost_requires_an_explicit_valid_total(kind, record_kind, 
         cr.attempt_cost(record)
     except ValueError:
         refused = True
-    assert refused, "saved attempt costs require a present nonboolean finite nonnegative number"
+    assert refused, (
+        "saved attempt costs require a present nonboolean finite nonnegative number"
+    )
 
 
 def test_live_attempt_cost_keeps_recording_a_missing_total():
     assert cr.attempt_cost({}, saved=False) == 0.0, (
         "live accounting retains records before saved-evidence validation"
     )
+
+
+def synthetic_development_tree(root, kind, expected):
+    """Only invented costs; retain the registered development folder counts."""
+    stage = cr.STAGES[kind]
+    for model in stage.models:
+        if kind == "web":
+            unit = expected[model] / (2 * cr.HOUSEHOLDS)
+            groups = [
+                (root / model / arm / board / "households", 50)
+                for arm in ("web", "web-pe3")
+                for board in ("mctest", "mafree")
+            ]
+        else:
+            unit = expected[model] / (cr.HOUSEHOLDS * len(stage.arms_for(model)))
+            arms = (
+                ["pe3", *(f"abl-{n:02}" for n in range(15))]
+                if model in cr.CHEAP
+                else ["pe"]
+            )
+            groups = [
+                (
+                    root / model / arm / "mctest/households",
+                    20 if model in cr.CHEAP else 10,
+                )
+                for arm in arms
+            ]
+        for folder, count in groups:
+            folder.mkdir(parents=True, exist_ok=True)
+            for n in range(count):
+                (folder / f"synthetic-{n:03}.json").write_text(
+                    json.dumps({"totals": {"cost_usd": unit}})
+                )
 
 
 def complete_preflight_design(w, tmp_path):
@@ -2486,6 +2531,10 @@ def complete_preflight_design(w, tmp_path):
             "folder": "none",
             "stage": "confirm",
         },
+        development_runs=str(tmp_path / "development-runs"),
+    )
+    synthetic_development_tree(
+        Path(design["development_runs"]), "calculator", design["expected_costs"]
     )
     for model in cr.CHEAP:
         for sid in design["draw_order"]:
@@ -2510,16 +2559,18 @@ def test_preflight_refuses_invalid_saved_no_tools_cost_on_the_last_household(
     w, web = complete_web_design(world, tmp_path, monkeypatch)
     design, models = fresh_stage_design(w, web, tmp_path, kind)
     path = (
-        Path(design["no_tools"]["runs"]) / cr.CHEAP[-1]
-        / "none/confirm/households" / f"{w.draw_order[-1]}.json"
+        Path(design["no_tools"]["runs"])
+        / cr.CHEAP[-1]
+        / "none/confirm/households"
+        / f"{w.draw_order[-1]}.json"
     )
     record = json.loads(path.read_text())
     invalidate_saved_cost(record, fault)
     path.write_text(json.dumps(record))
     problems = cr.preflight(design, models)
-    assert problems and any("cost" in problem or "totals" in problem for problem in problems), (
-        "preflight refuses invalid saved costs even on a model's final household"
-    )
+    assert problems and any(
+        "cost" in problem or "totals" in problem for problem in problems
+    ), "preflight refuses invalid saved costs even on a model's final household"
 
 
 def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(
@@ -2681,6 +2732,9 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         ),
     )
     del design["frontier_arms"]
+    synthetic_development_tree(
+        Path(design["development_runs"]), "web", design["expected_costs"]
+    )
     monkeypatch.setattr(
         pilot, "_git", lambda *args: "0" * 40 if args[0] == "rev-parse" else ""
     )
@@ -2701,6 +2755,157 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         )
     assert cr.preflight(design, cr.WEB_MODELS) == []
     return w, design
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+def test_preflight_requires_expected_costs_to_match_the_development_projection(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    if kind == "linked":
+        design, models = copy.deepcopy(web), cr.WEB_MODELS
+        path = Path(design["calculator"]["path"])
+        changed = json.loads(path.read_text())
+    else:
+        design, models = fresh_stage_design(w, web, tmp_path, kind)
+        changed = design
+    for field in ("expected_costs", "reserves"):
+        changed[field] = {model: value * 2 for model, value in changed[field].items()}
+    if kind == "linked":
+        path.write_text(json.dumps(changed))
+        design["calculator"]["sha256"] = cr.sha256_file(path)
+    problems = cr.preflight(design, models)
+    assert problems and all(
+        "development projection gives" in problem for problem in problems
+    ), "expected costs must match the registered development projection"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("fault", INVALID_SAVED_COSTS)
+def test_development_projection_refuses_an_invalid_saved_attempt_cost(
+    world, tmp_path, monkeypatch, kind, fault
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    folder = "web" if kind == "web" else "pe3"
+    path = next((Path(design["development_runs"]) / models[0] / folder).rglob("*.json"))
+    record = json.loads(path.read_text())
+    invalidate_saved_cost(record, fault)
+    path.write_text(json.dumps(record))
+    problems = cr.preflight(design, models)
+    assert len(problems) == 1 and "expected-cost projection" in problems[0], (
+        "development projection requires every saved attempt cost to be valid"
+    )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_development_projection_requires_the_registered_record_count(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    folder = "web" if kind == "web" else "pe3"
+    path = next((Path(design["development_runs"]) / models[0] / folder).rglob("*.json"))
+    path.unlink()
+    problems = cr.preflight(design, models)
+    assert (
+        len(problems) == 1
+        and "development" in problems[0]
+        and "expected" in problems[0]
+    ), "development projection requires the registered final-record counts"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize("direction", [-1, 1])
+def test_development_projection_accepts_its_tolerance_and_refuses_the_next_float(
+    world, tmp_path, monkeypatch, kind, direction
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    if kind == "linked":
+        design, models = copy.deepcopy(web), cr.WEB_MODELS
+        path = Path(design["calculator"]["path"])
+        changed = json.loads(path.read_text())
+        stage = cr.STAGES["calculator"]
+    else:
+        design, models = fresh_stage_design(w, web, tmp_path, kind)
+        changed, stage = design, cr.STAGES[kind]
+    model = stage.models[0]
+    projected = cr.registered_expected_costs(Path(changed["development_runs"]), stage)[
+        model
+    ]
+    boundary = projected + direction * 1e-6
+    # The greatest representable displacement that stays within the tolerance.
+    if abs(boundary - projected) > 1e-6:
+        boundary = math.nextafter(boundary, projected)
+    outward = math.inf if direction > 0 else -math.inf
+    for value, accepted in (
+        (boundary, True),
+        (math.nextafter(boundary, outward), False),
+    ):
+        changed["expected_costs"][model] = value
+        total = math.fsum(changed["expected_costs"].values())
+        share = cr.WEB_CAP if stage.kind == "web" else cr.CALCULATOR_CAP
+        changed["caps"] = {
+            m: share * c / total for m, c in changed["expected_costs"].items()
+        }
+        changed["reserves"] = {
+            m: 3 * c / cr.HOUSEHOLDS for m, c in changed["expected_costs"].items()
+        }
+        if kind == "linked":
+            path.write_text(json.dumps(changed))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        problems = cr.preflight(design, models)
+        assert (problems == []) is accepted, (
+            "development projection uses the inclusive one-microdollar tolerance"
+        )
+        if not accepted:
+            assert len(problems) == 1 and "development projection gives" in problems[0]
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_development_projection_accepts_the_exact_one_microdollar_tolerance(
+    tmp_path, kind
+):
+    stage = cr.STAGES[kind]
+    synthetic_development_tree(tmp_path, kind, {model: 1e-9 for model in stage.models})
+    projected = cr.registered_expected_costs(tmp_path, stage)
+    model = stage.models[0]
+    boundary = projected[model] + 1e-6
+    assert boundary - projected[model] == 1e-6
+    design = {"development_runs": str(tmp_path), "expected_costs": dict(projected)}
+    design["expected_costs"][model] = boundary
+    assert cr.projection_problems(design, stage) == [], (
+        "development projection accepts exactly its one-microdollar tolerance"
+    )
+    design["expected_costs"][model] = math.nextafter(boundary, math.inf)
+    assert len(cr.projection_problems(design, stage)) == 1, (
+        "development projection refuses one float beyond its one-microdollar tolerance"
+    )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_development_projection_uses_the_registered_mean_and_arm_arithmetic(
+    tmp_path, kind
+):
+    stage = cr.STAGES[kind]
+    expected = {model: 2.0 for model in stage.models}
+    synthetic_development_tree(tmp_path, kind, expected)
+    model = stage.models[0]
+    folder = "web" if kind == "web" else "pe3"
+    path = next((tmp_path / model / folder).rglob("*.json"))
+    record = json.loads(path.read_text())
+    record["totals"]["cost_usd"] += 1.0
+    path.write_text(json.dumps(record))
+    got = cr.registered_expected_costs(tmp_path, stage)
+    increment = (
+        cr.HOUSEHOLDS
+        / (100 if kind == "web" else 320)
+        * (1 if kind == "web" else len(cr.ARMS))
+    )
+    assert math.isclose(got[model], expected[model] + increment, abs_tol=1e-12), (
+        "development projection preserves per-arm means "
+        "and registered household multipliers"
+    )
 
 
 def fresh_stage_design(w, web, tmp_path, kind):
@@ -2785,8 +2990,12 @@ def test_linked_calculator_design_refuses_a_start_at_its_175_dollar_ceiling(
         path.write_text(json.dumps(calculator))
         design["calculator"]["sha256"] = cr.sha256_file(path)
         assert cr.preflight(design, cr.WEB_MODELS) == (
-            ["linked calculator: spent_before must be finite and below the stage ceiling"]
-            if refused else []
+            [
+                "linked calculator: spent_before must be finite "
+                "and below the stage ceiling"
+            ]
+            if refused
+            else []
         ), "a linked calculator design must have started below its $175 ceiling"
 
 
@@ -3518,9 +3727,7 @@ def test_web_preflight_counts_all_attempts_stubs_and_late_spend_in_one_fsum(
     calculator = json.loads(Path(design["calculator"]["path"]).read_text())
     calculator["spent_before"] = 0.0
     Path(design["calculator"]["path"]).write_text(json.dumps(calculator))
-    design["calculator"]["sha256"] = cr.sha256_file(
-        Path(design["calculator"]["path"])
-    )
+    design["calculator"]["sha256"] = cr.sha256_file(Path(design["calculator"]["path"]))
     # A flat sum retains tiny costs that per-model subtotals would round away.
     monkeypatch.setattr(cr, "calculator_evidence", lambda _: [1e16, 1.0, 1.0])
     design["spent_before"] = 1e16
@@ -3656,9 +3863,9 @@ def test_web_execute_patches_gemini_before_its_first_completion(
     observed = []
 
     def completion(**kwargs):
-        assert all(config.__dict__[name] is not value for name, value in original.items()), (
-            "execute must install both Gemini patch methods before completion"
-        )
+        assert all(
+            config.__dict__[name] is not value for name, value in original.items()
+        ), "execute must install both Gemini patch methods before completion"
         observed.append(True)
 
     def converse(lanes, sid, label, tool_call, spend):

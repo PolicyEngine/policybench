@@ -352,6 +352,7 @@ REQUIRED = (
     "preregistration",
     "frozen_sha256",
     "runs",
+    "development_runs",
     "stage",
     "board",
     "engine",
@@ -982,9 +983,7 @@ class Ceiling(pilot.Spend):
 
     def __init__(self, ceiling_usd: float, spent_before: float):
         super().__init__(ceiling_usd, spent_before)
-        self.crossed_at: float | None = (
-            clock() if spent_before >= ceiling_usd else None
-        )
+        self.crossed_at: float | None = clock() if spent_before >= ceiling_usd else None
         self.closed = False  # the records are final: spend is no longer counted
         self.unrecorded_usd = 0.0  # spend after that, in no record
 
@@ -2626,6 +2625,11 @@ def web_preflight(design: dict) -> list[str]:
         f"linked calculator: {p}"
         for p in allocation_problems(calculator, STAGES["calculator"])
     )
+    if not allocation_problems(calculator, STAGES["calculator"]):
+        problems.extend(
+            f"linked calculator: {p}"
+            for p in projection_problems(calculator, STAGES["calculator"])
+        )
     for field in SHARED_STAGE_FIELDS:
         if field not in calculator or design.get(field) != calculator[field]:
             problems.append(f"web and calculator designs differ in {field}")
@@ -2699,11 +2703,7 @@ def stage_start_problems(design: dict) -> list[str]:
 
 
 def allocation_problems(design: dict, stage: Stage) -> list[str]:
-    """Check the registered proportional cap split and three-times reserves.
-
-    The independent report also compares expected costs with its development
-    projection. The runner has no access to that development evidence.
-    """
+    """Check the registered proportional cap split and three-times reserves."""
     problems = []
     expected = {}
     for model in stage.models:
@@ -2743,6 +2743,104 @@ def allocation_problems(design: dict, stage: Stage) -> list[str]:
     return problems
 
 
+def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str, float]:
+    """Use exactly the report's development inventory and projection arithmetic.
+
+    Calculator cheap models use all 320 finals in pe3/abl-* mctest folders;
+    frontier models use 10 pe/mctest finals. Web models use 100 finals per
+    arm across mctest and mafree, projecting the sum of the two arm means.
+    """
+    from confirmatory_no_tools import read_regular, saved_children, saved_json_paths
+
+    def costs(paths):
+        amounts = []
+        for path in paths:
+            try:
+                record = json.loads(read_regular(path).decode("utf-8"))
+                if not isinstance(record, dict):
+                    raise ValueError("development record must be an object")
+                amounts.append(attempt_cost(record))
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                OverflowError,
+            ) as error:
+                raise ValueError(f"{path}: {error}") from error
+        return amounts
+
+    expected = {}
+    for model in stage.models:
+        root = development_runs / model
+        if stage.kind == "web":
+            means = []
+            for folder in ("web", "web-pe3"):
+                paths = [
+                    path
+                    for board in ("mctest", "mafree")
+                    for path in saved_json_paths(root / folder / board / "households")
+                ]
+                if len(paths) != 100:
+                    raise ValueError(
+                        f"{model}/{folder}: {len(paths)} development finals, "
+                        "expected 100"
+                    )
+                means.append(math.fsum(costs(paths)) / len(paths))
+            expected[model] = math.fsum(means) * HOUSEHOLDS
+        else:
+            arms = (
+                sorted(
+                    p
+                    for p in saved_children(root)
+                    if p.name == "pe3" or p.name.startswith("abl-")
+                )
+                if model in CHEAP
+                else [root / "pe"]
+            )
+            paths = [
+                path
+                for arm in arms
+                for path in saved_json_paths(arm / "mctest" / "households")
+            ]
+            required = 320 if model in CHEAP else 10
+            if len(paths) != required:
+                raise ValueError(
+                    f"{model}: {len(paths)} development records for the cost "
+                    f"projection, expected {required}"
+                )
+            amounts = costs(paths)
+            expected[model] = (
+                sum(amounts)
+                / len(amounts)
+                * HOUSEHOLDS
+                * (len(ARMS) if model in CHEAP else len(FRONTIER_ARMS))
+            )
+    return expected
+
+
+def projection_problems(design: dict, stage: Stage) -> list[str]:
+    """Require declared expected costs to match the development projection."""
+    try:
+        expected = registered_expected_costs(Path(design["development_runs"]), stage)
+        return [
+            f"{model}: expected cost ${design['expected_costs'][model]}, "
+            f"and the development projection gives ${cost:.6f}"
+            for model, cost in expected.items()
+            if abs(float(design["expected_costs"][model]) - cost) > 1e-6
+        ]
+    except (
+        OSError,
+        KeyError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ) as error:
+        return [f"the registered expected-cost projection: {error}"]
+
+
 def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
@@ -2755,10 +2853,16 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     if stage.kind == "calculator" and "frontier_arms" not in design:
         return ["the design has no frontier_arms"]
     problems = []
-    if stage.kind == "calculator" and design.get("overall_cap") != CALCULATOR_OVERALL_CAP:
+    if (
+        stage.kind == "calculator"
+        and design.get("overall_cap") != CALCULATOR_OVERALL_CAP
+    ):
         problems.append("the calculator design's overall_cap must be 150")
     problems.extend(stage_start_problems(design))
-    problems.extend(allocation_problems(design, stage))
+    allocation = allocation_problems(design, stage)
+    problems.extend(allocation)
+    if not allocation:
+        problems.extend(projection_problems(design, stage))
     from confirmatory_no_tools import (
         BOARD_INPUT_ERRORS,
         _board_input,
