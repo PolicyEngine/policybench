@@ -2401,6 +2401,45 @@ def test_the_preflight_names_a_missing_field():
     assert cr.preflight({}, cr.CHEAP) == [f"the design has no {', '.join(cr.REQUIRED)}"]
 
 
+INVALID_SAVED_COSTS = [
+    "missing-totals", "missing-cost", None, False, True, "0", math.nan, -0.01,
+]
+
+
+def invalidate_saved_cost(record, fault):
+    if fault == "missing-totals":
+        record.pop("totals")
+    elif fault == "missing-cost":
+        record["totals"].pop("cost_usd")
+    else:
+        record["totals"]["cost_usd"] = fault
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("record_kind", ["final", "replaced", "stub"])
+@pytest.mark.parametrize("fault", INVALID_SAVED_COSTS)
+def test_saved_attempt_cost_requires_an_explicit_valid_total(kind, record_kind, fault):
+    record = {
+        "scenario_id": "last-household", "kind": kind,
+        "status": "harness_error" if record_kind == "stub" else "complete",
+        "attempts": [], "totals": {"cost_usd": 0.0},
+    }
+    assert cr.attempt_cost(record) == 0.0
+    invalidate_saved_cost(record, fault)
+    refused = False
+    try:
+        cr.attempt_cost(record)
+    except ValueError:
+        refused = True
+    assert refused, "saved attempt costs require a present nonboolean finite nonnegative number"
+
+
+def test_live_attempt_cost_keeps_recording_a_missing_total():
+    assert cr.attempt_cost({}, saved=False) == 0.0, (
+        "live accounting retains records before saved-evidence validation"
+    )
+
+
 def complete_preflight_design(w, tmp_path):
     """Each calculator preflight starts after standing no-tools finals that pass
     the no-tools script's treatment checks: built through the harness from the
@@ -2461,6 +2500,26 @@ def complete_preflight_design(w, tmp_path):
                 final,
             )
     return design
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("fault", INVALID_SAVED_COSTS)
+def test_preflight_refuses_invalid_saved_no_tools_cost_on_the_last_household(
+    world, tmp_path, monkeypatch, kind, fault
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    path = (
+        Path(design["no_tools"]["runs"]) / cr.CHEAP[-1]
+        / "none/confirm/households" / f"{w.draw_order[-1]}.json"
+    )
+    record = json.loads(path.read_text())
+    invalidate_saved_cost(record, fault)
+    path.write_text(json.dumps(record))
+    problems = cr.preflight(design, models)
+    assert problems and any("cost" in problem or "totals" in problem for problem in problems), (
+        "preflight refuses invalid saved costs even on a model's final household"
+    )
 
 
 def test_the_preflight_refuses_a_changed_draw_and_a_dirty_runner(

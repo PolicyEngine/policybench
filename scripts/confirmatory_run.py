@@ -573,8 +573,28 @@ def action(cls: str, attempt: int) -> str:
     return "stands"
 
 
-def attempt_cost(record: dict) -> float:
-    return float((record.get("totals") or {}).get("cost_usd") or 0.0)
+def attempt_cost(record: dict, *, saved: bool = True) -> float:
+    """A saved attempt must account explicitly for its whole recorded cost.
+
+    Live accounting keeps its existing behavior: the harness writes the total,
+    including error/deadline stubs, and malformed output still gets recorded.
+    Validation of evidence read back from disk must never invent a zero cost.
+    """
+    if not saved:
+        return float((record.get("totals") or {}).get("cost_usd") or 0.0)
+    totals = record.get("totals")
+    if not isinstance(totals, dict):
+        raise ValueError("attempt totals must be an object with cost_usd")
+    value = totals.get("cost_usd")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("attempt cost_usd must be a present number")
+    try:
+        cost = float(value)
+    except OverflowError as error:
+        raise ValueError("attempt cost_usd must be finite and nonnegative") from error
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("attempt cost_usd must be finite and nonnegative")
+    return cost
 
 
 _clock_lock = threading.Lock()
@@ -1305,7 +1325,7 @@ class Lanes:
         abandoned at its deadline."""
         with self.cond:
             end = clock()
-            self.spent[sid] += attempt_cost(record)
+            self.spent[sid] += attempt_cost(record, saved=False)
             attempt = Attempt(label, n, start, end, record)
             if retained is not None:
                 retained.append(attempt)  # recovery owns it before any event I/O
@@ -1546,7 +1566,7 @@ class Lanes:
                 write_json(in_flight / f"{label}-{n}.json", record)
                 self.run.say(
                     f"{self.model} lane {lane} {sid} {label} #{n}: "
-                    f"{record.get('status')} ${attempt_cost(record):.4f} "
+                    f"{record.get('status')} ${attempt_cost(record, saved=False):.4f} "
                     f"(total ${self.run.ceiling.spent_usd:.2f})"
                 )
             if not done:

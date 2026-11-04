@@ -989,7 +989,7 @@ class Stage:
                     cls, _ = classify(record, 0.0, 0.0, None)
                     outcome = action(cls, n)
                     self.say(
-                        f"{model} {sid} {n} {cls} {outcome} ${attempt_cost(record):.6f}"
+                        f"{model} {sid} {n} {cls} {outcome} ${attempt_cost(record, saved=False):.6f}"
                     )
                     if self.interrupted.is_set():
                         self.states[model] = "interrupted"
