@@ -2447,7 +2447,9 @@ def calculator_evidence(design: dict) -> list[float]:
                 record, digest = attempt_record(path)
                 links = record["attempts"]
                 if any(
-                    not isinstance(link, dict) or link.get("n") != n
+                    not isinstance(link, dict)
+                    or type(link.get("n")) is not int
+                    or link["n"] != n
                     for n, link in enumerate(links, 1)
                 ):
                     raise ValueError(f"{path}: calculator archive links are invalid")
@@ -2545,6 +2547,7 @@ def calculator_evidence(design: dict) -> list[float]:
         not pushes
         or pushes[-1].get("anchor") != final_head
         or pushes[-1].get("outcome") != "success"
+        or type(pushes[-1].get("returncode")) is not int
         or pushes[-1].get("returncode") != 0
     ):
         raise ValueError("calculator final anchor has no successful final push")

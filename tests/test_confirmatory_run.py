@@ -2485,11 +2485,20 @@ def test_resume_writes_the_operator_s_note(tmp_path):
     assert note["note"] == "key rotated"
 
 
-def complete_web_design(world, tmp_path, monkeypatch):
+def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
     """A web preflight with a genuinely ended synthetic calculator stage."""
     from types import SimpleNamespace
 
     w = world()
+    if archives:
+        model, sid = cr.CHEAP[0], w.draw_order[0]
+        w.provider.specs = {
+            (model, "pe", sid, n): {
+                "status": "provider_error",
+                "error": "RateLimitError: synthetic",
+            }
+            for n in (1, 2)
+        }
     w.design.update(complete_preflight_design(w, tmp_path))
     w.execute()
     calculator = tmp_path / "calculator-design.json"
@@ -2526,6 +2535,93 @@ def complete_web_design(world, tmp_path, monkeypatch):
         )
     assert cr.preflight(design, cr.WEB_MODELS) == []
     return w, design
+
+
+def rewritten_chain(path, rows, seed):
+    """Write synthetic evidence while preserving every intended chain link."""
+    texts, heads = [], [seed]
+    for row in rows:
+        text = json.dumps({**row, "prev": heads[-1]})
+        texts.append(text)
+        heads.append(cr.line_sha(text))
+    path.write_text("\n".join(texts) + "\n")
+    return texts, heads
+
+
+def rewrite_calculator_anchors(w, anchors):
+    """Keep pushes and snapshots bound when a test changes an anchor's data."""
+    path = w.runs() / "anchors.jsonl"
+    old_heads = [cr.line_sha(line) for line in path.read_text().splitlines()]
+    texts, heads = rewritten_chain(
+        path, anchors, cr.chain_seed(w.design["frozen_sha256"], "", path.name)
+    )
+    positions = {head: i for i, head in enumerate(old_heads)}
+    pushes = w.runs() / "anchor-pushes.jsonl"
+    rows = [json.loads(line) for line in pushes.read_text().splitlines()]
+    for row in rows:
+        position = positions[row["anchor"]]
+        row["anchor"] = heads[position + 1]
+        snapshot = w.runs() / f"anchors.{row['anchor']}.push-snapshot.jsonl"
+        snapshot.write_text("\n".join(texts[: position + 1]) + "\n")
+    pushes.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+
+
+def rewrite_calculator_log(w, model, name, rows):
+    """Update a changed log's anchor prefixes and final pushed snapshot too."""
+    path = w.runs() / model / name
+    _, heads = rewritten_chain(
+        path, rows, cr.chain_seed(w.design["frozen_sha256"], model, name)
+    )
+    anchors = [
+        json.loads(line)
+        for line in (w.runs() / "anchors.jsonl").read_text().splitlines()
+    ]
+    for i, anchor in enumerate(anchors):
+        count = (
+            len(rows)
+            if i == len(anchors) - 1
+            else min(anchor["models"][model][name]["lines"], len(rows))
+        )
+        anchor["models"][model][name] = {"lines": count, "sha256": heads[count]}
+    rewrite_calculator_anchors(w, anchors)
+
+
+def rewrite_calculator_record(w, model, label, sid, value, *, archive=None):
+    """Keep a deliberately malformed payload's surrounding hashes valid."""
+    folder = w.folder(model, label)
+    path = folder / (
+        f"{sid}.json" if archive is None else f"attempts/{sid}-{archive}.json"
+    )
+    if isinstance(value, bytes):
+        path.write_bytes(value)
+    else:
+        path.write_text(json.dumps(value))
+    rows = w.lines(model)
+    number = archive or max(
+        row["attempt"]
+        for row in rows
+        if row.get("household") == sid and row.get("arm") == label
+    )
+    for row in rows:
+        if (row.get("household"), row.get("arm"), row.get("attempt")) == (
+            sid,
+            label,
+            number,
+        ):
+            row["sha256"] = cr.sha256_file(path)
+    if archive is not None:
+        final_path = folder / f"{sid}.json"
+        final = json.loads(final_path.read_text())
+        final["attempts"][archive - 1]["sha256"] = cr.sha256_file(path)
+        final_path.write_text(json.dumps(final))
+        for row in rows:
+            if (row.get("household"), row.get("arm"), row.get("attempt")) == (
+                sid,
+                label,
+                len(final["attempts"]) + 1,
+            ):
+                row["sha256"] = cr.sha256_file(final_path)
+    rewrite_calculator_log(w, model, "run-log.jsonl", rows)
 
 
 @pytest.mark.parametrize("fault", ["missing", "wrong", "unreadable", "kind"])
@@ -2587,21 +2683,21 @@ def test_web_preflight_refuses_each_overlapping_runs_root_alone(
 
 
 @pytest.mark.parametrize(
-    "fault",
+    "fault,detail",
     [
-        "summary",
-        "unresolved",
-        "in-flight",
-        "host",
-        "chain",
-        "anchor",
-        "push",
-        "snapshot",
-        "record",
+        ("summary", "calculator stage has no run summary"),
+        ("unresolved", "calculator summary leaves a request unresolved"),
+        ("in-flight", "calculator attempts remain in flight"),
+        ("host", "'end'"),
+        ("chain", "invalid hash chain"),
+        ("anchor", "calculator stage has no final anchor"),
+        ("push", "calculator final anchor has no successful final push"),
+        ("snapshot", "calculator final push snapshot differs from its anchors"),
+        ("record", "calculator run log differs from attempt records"),
     ],
 )
 def test_web_preflight_refuses_each_unended_calculator_evidence_rule_alone(
-    world, tmp_path, monkeypatch, fault
+    world, tmp_path, monkeypatch, fault, detail
 ):
     w, design = complete_web_design(world, tmp_path, monkeypatch)
     model = cr.CHEAP[0]
@@ -2646,6 +2742,348 @@ def test_web_preflight_refuses_each_unended_calculator_evidence_rule_alone(
     problems = cr.web_preflight(design)
     assert len(problems) == 1 and problems[0].startswith(
         "the calculator stage has not ended:"
+    )
+    assert detail in problems[0], f"calculator closed-evidence rule: {fault}"
+
+
+@pytest.mark.parametrize(
+    "fault,detail",
+    [
+        ("summary/object", "expected a JSON object"),
+        ("summary/model", "calculator summary leaves a request unresolved"),
+        ("summary/boolean-zero", "calculator summary leaves a request unresolved"),
+        ("summary/missing-abandoned", "calculator summary leaves a request unresolved"),
+        ("summary/missing-utc", "'finished_at_utc'"),
+        ("summary/invalid-utc", "does not match format"),
+        ("summary/null-utc", "strptime() argument 1 must be str"),
+        ("summary/attempt-count", "calculator summary or log leaves out attempts"),
+        ("summary/final-count", "calculator summary or log leaves out attempts"),
+        ("summary/supervisors", "calculator admitted households have not finished"),
+        ("host/object", "expected a JSON object"),
+        ("host/reversed-span", "calculator host log has no closed span"),
+        ("host/boolean-time", "calculator end evidence holds a nonfinite number"),
+        ("host/infinite-time", "calculator end evidence holds a nonfinite number"),
+        ("chain/admission", "invalid hash chain"),
+        ("chain/host", "invalid hash chain"),
+        ("chain/anchors", "invalid hash chain"),
+        ("chain/run-row-object", "invalid hash chain"),
+        ("run/unsettled", "calculator requests are unresolved or unsettled"),
+        ("run/late-unresolved", "calculator requests are unresolved or unsettled"),
+        ("payload/object", "invalid calculator attempt record"),
+        ("payload/prior-attempts", "invalid calculator attempt record"),
+        ("payload/attempts-type", "calculator attempts must be a list"),
+        ("payload/missing-attempts", "'attempts'"),
+        ("payload/totals-type", "calculator totals must be an object"),
+        ("payload/missing-cost", "calculator cost must be a present number"),
+        ("payload/boolean-cost", "calculator cost must be a present number"),
+        ("payload/string-cost", "calculator cost must be a present number"),
+        ("payload/negative-cost", "calculator cost must be finite and nonnegative"),
+        ("payload/nan-cost", "calculator cost must be finite and nonnegative"),
+        ("payload/infinite-cost", "calculator cost must be finite and nonnegative"),
+        ("payload/overflow-cost", "int too large to convert to float"),
+        ("payload/malformed-json", "Expecting property name"),
+        ("payload/invalid-utf8", "utf-8"),
+        ("archive-payload/object", "invalid calculator attempt record"),
+        ("archive-payload/boolean-cost", "calculator cost must be a present number"),
+        ("link/object", "calculator archive links are invalid"),
+        ("link/number-gap", "calculator archive links are invalid"),
+        ("link/boolean-number", "calculator archive links are invalid"),
+        ("link/missing-file", "calculator archives differ from final links"),
+        ("link/extra-file", "calculator archives differ from final links"),
+        ("link/path", "calculator archive hash or path differs"),
+        ("link/hash", "calculator archive hash or path differs"),
+        ("link/orphan", "calculator archive has no final"),
+        ("log/duplicate-attempt", "calculator run log differs from attempt records"),
+        ("log/unknown-attempt", "calculator run log differs from attempt records"),
+        ("log/omitted-attempt", "calculator summary or log leaves out attempts"),
+        ("log/reversed-attempt", "calculator attempt has not ended"),
+        ("log/boolean-time", "calculator end evidence holds a nonfinite number"),
+        ("log/nonfinite-time", "calculator end evidence holds a nonfinite number"),
+        ("late/negative-cost", "calculator late spend is negative"),
+        ("late/boolean-cost", "calculator end evidence holds a nonfinite number"),
+        ("late/nonfinite-cost", "calculator end evidence holds a nonfinite number"),
+        ("manifest/missing", "calculator stage needs exactly one manifest"),
+        ("manifest/extra", "calculator stage needs exactly one manifest"),
+        ("manifest/hash", "calculator anchor manifest differs"),
+        ("anchor/missing-model", "calculator anchor does not cover every model"),
+        ("anchor/extra-model", "calculator anchor does not cover every model"),
+        ("anchor/manifest", "calculator anchor manifest differs"),
+        ("anchor/boolean-count", "calculator anchor differs from its logs"),
+        ("anchor/outside-count", "calculator anchor differs from its logs"),
+        ("anchor/head", "calculator anchor differs from its logs"),
+        ("anchor/stale-run", "calculator final anchor omits log lines"),
+        ("anchor/stale-admission", "calculator final anchor omits log lines"),
+        ("anchor/stale-host", "calculator final anchor omits log lines"),
+        ("push/missing", "calculator final anchor has no successful final push"),
+        ("push/row-object", "invalid hash chain"),
+        ("push/returncode", "calculator final anchor has no successful final push"),
+        (
+            "push/boolean-returncode",
+            "calculator final anchor has no successful final push",
+        ),
+        ("push/anchor", "calculator final anchor has no successful final push"),
+        ("push/reversed-time", "calculator final push has invalid times"),
+        ("push/before-anchor", "calculator final push has invalid times"),
+        ("push/boolean-time", "calculator end evidence holds a nonfinite number"),
+        ("push/nonfinite-time", "calculator end evidence holds a nonfinite number"),
+    ],
+)
+def test_web_preflight_refuses_each_closed_calculator_evidence_fault_alone(
+    world, tmp_path, monkeypatch, fault, detail
+):
+    """Every closure refusal identifies its own fault in otherwise valid evidence.
+
+    Log and anchor mutations retain valid chains and matching push snapshots.
+    Malformed payloads retain their surrounding record and archive digests, so
+    a generic downstream hash failure cannot stand in for the named refusal.
+    """
+    group, change = fault.split("/", 1)
+    w, design = complete_web_design(
+        world, tmp_path, monkeypatch, archives=group in ("archive-payload", "link")
+    )
+    model, sid = cr.CHEAP[0], w.draw_order[0]
+    folder = w.runs() / model
+    record_path = w.folder(model, "pe") / f"{sid}.json"
+    if group == "summary":
+        path = next(folder.glob("run-summary-*.json"))
+        value = json.loads(path.read_text())
+        if change == "object":
+            value = []
+        elif change == "model":
+            value["model"] = "different-model"
+        elif change == "boolean-zero":
+            value["abandoned_running"] = False
+        elif change == "missing-abandoned":
+            del value["abandoned_running"]
+        elif change == "missing-utc":
+            del value["finished_at_utc"]
+        elif change in ("invalid-utc", "null-utc"):
+            value["finished_at_utc"] = (
+                "invalid UTC" if change == "invalid-utc" else None
+            )
+        elif change in ("attempt-count", "final-count"):
+            value["attempts" if change == "attempt-count" else "final_records"] += 1
+        else:
+            value["households_finished"].remove(sid)
+        path.write_text(json.dumps(value))
+    elif group == "host":
+        path = w.runs() / "host" / "host.json"
+        value = json.loads(path.read_text())
+        if change == "object":
+            value = []
+        else:
+            value["end"] = {
+                "reversed-span": value["start"] - 1,
+                "boolean-time": True,
+                "infinite-time": math.inf,
+            }[change]
+        path.write_text(json.dumps(value))
+    elif group == "chain":
+        path = {
+            "admission": folder / "admission-log.jsonl",
+            "host": w.runs() / "host" / "host-log.jsonl",
+            "anchors": w.runs() / "anchors.jsonl",
+            "run-row-object": folder / "run-log.jsonl",
+        }[change]
+        texts = path.read_text().splitlines()
+        if change == "run-row-object":
+            texts[0] = "[]"
+        else:
+            first = json.loads(texts[0])
+            first["prev"] = "0" * 64
+            texts[0] = json.dumps(first)
+        path.write_text("\n".join(texts) + "\n")
+    elif group in ("run", "log", "late"):
+        rows = w.lines(model)
+        position = next(i for i, row in enumerate(rows) if "event" not in row)
+        row = rows[position]
+        if group == "run":
+            if change == "unsettled":
+                row["class"] = "unsettled"
+            else:
+                rows.append(
+                    {
+                        "event": "late-unresolved",
+                        "time": row["end"],
+                        "household": row["household"],
+                        "arm": row["arm"],
+                        "attempt": row["attempt"],
+                        "counted_usd": 0.0,
+                        "outcome": "unresolved-at-ledger-close",
+                    }
+                )
+        elif group == "late":
+            cost = {
+                "negative-cost": -0.01,
+                "boolean-cost": True,
+                "nonfinite-cost": math.inf,
+            }[change]
+            rows.append(
+                {
+                    "event": "late-cost",
+                    "time": row["end"],
+                    "household": row["household"],
+                    "arm": row["arm"],
+                    "attempt": row["attempt"],
+                    "cost_usd": cost,
+                }
+            )
+        elif change == "duplicate-attempt":
+            rows.append(dict(row))
+        elif change == "unknown-attempt":
+            row["attempt"] = 99
+        elif change == "omitted-attempt":
+            del rows[position]
+        elif change == "reversed-attempt":
+            row["end"] = row["start"] - 1
+        else:
+            row["end"] = True if change == "boolean-time" else math.inf
+        if group == "log" and change in ("duplicate-attempt", "omitted-attempt"):
+            summary_path = next(folder.glob("run-summary-*.json"))
+            summary = json.loads(summary_path.read_text())
+            summary["attempts"] = sum("event" not in item for item in rows)
+            summary_path.write_text(json.dumps(summary))
+        rewrite_calculator_log(w, model, "run-log.jsonl", rows)
+    elif group in ("payload", "archive-payload"):
+        archive = 1 if group == "archive-payload" else None
+        path = (
+            record_path
+            if archive is None
+            else record_path.parent / "attempts" / f"{sid}-1.json"
+        )
+        value = json.loads(path.read_text())
+        if change == "object":
+            value = []
+        elif change == "prior-attempts":
+            value["prior_attempts"] = []
+        elif change == "attempts-type":
+            value["attempts"] = 1
+        elif change == "missing-attempts":
+            del value["attempts"]
+        elif change == "totals-type":
+            value["totals"] = []
+        elif change == "missing-cost":
+            del value["totals"]["cost_usd"]
+        elif change == "malformed-json":
+            value = b"{"
+        elif change == "invalid-utf8":
+            value = b"\xff"
+        else:
+            value["totals"]["cost_usd"] = {
+                "boolean-cost": True,
+                "string-cost": "0.01",
+                "negative-cost": -0.01,
+                "nan-cost": math.nan,
+                "infinite-cost": math.inf,
+                "overflow-cost": 10**400,
+            }[change]
+        rewrite_calculator_record(w, model, "pe", sid, value, archive=archive)
+    elif group == "link":
+        final = json.loads(record_path.read_text())
+        archive_path = record_path.parent / "attempts" / f"{sid}-1.json"
+        if change == "object":
+            final["attempts"][0] = None
+        elif change == "number-gap":
+            final["attempts"][0]["n"] = 2
+        elif change == "boolean-number":
+            final["attempts"][0]["n"] = True
+        elif change == "missing-file":
+            archive_path.unlink()
+        elif change == "extra-file":
+            (archive_path.parent / f"{sid}-3.json").write_bytes(
+                archive_path.read_bytes()
+            )
+        elif change == "orphan":
+            (archive_path.parent / "orphan-1.json").write_bytes(
+                archive_path.read_bytes()
+            )
+        else:
+            final["attempts"][0]["file" if change == "path" else "sha256"] = "different"
+        if change in ("object", "number-gap", "boolean-number", "path", "hash"):
+            rewrite_calculator_record(w, model, "pe", sid, final)
+    elif group == "manifest":
+        path = next(folder.glob("manifest-*.json"))
+        if change == "missing":
+            path.unlink()
+        elif change == "extra":
+            path.with_name("manifest-extra.json").write_bytes(path.read_bytes())
+        else:
+            value = json.loads(path.read_text())
+            value["synthetic_change"] = True
+            path.write_text(json.dumps(value))
+    elif group == "anchor":
+        anchors = [
+            json.loads(line)
+            for line in (w.runs() / "anchors.jsonl").read_text().splitlines()
+        ]
+        final = anchors[-1]
+        if change == "missing-model":
+            del final["models"][model]
+        elif change == "extra-model":
+            final["models"]["different-model"] = dict(final["models"][model])
+        elif change == "manifest":
+            final["models"][model]["manifest"] = "0" * 64
+        elif change in ("boolean-count", "outside-count", "head"):
+            entry = final["models"][model]["run-log.jsonl"]
+            if change == "head":
+                entry["sha256"] = "0" * 64
+            else:
+                entry["lines"] = (
+                    True if change == "boolean-count" else entry["lines"] + 1
+                )
+        else:
+            name = {
+                "stale-run": "run-log.jsonl",
+                "stale-admission": "admission-log.jsonl",
+                "stale-host": "host-log.jsonl",
+            }[change]
+            path = w.runs() / ("host" if change == "stale-host" else model) / name
+            seed = (
+                cr.HOST_SEED
+                if change == "stale-host"
+                else cr.chain_seed(w.design["frozen_sha256"], model, name)
+            )
+            texts = path.read_text().splitlines()
+            entry = {
+                "lines": len(texts) - 1,
+                "sha256": cr.line_sha(texts[-2]) if len(texts) > 1 else seed,
+            }
+            if change == "stale-host":
+                final[name] = entry
+            else:
+                final["models"][model][name] = entry
+        rewrite_calculator_anchors(w, anchors)
+    else:
+        path = w.runs() / "anchor-pushes.jsonl"
+        pushes = [json.loads(line) for line in path.read_text().splitlines()]
+        if change == "missing":
+            pushes = []
+        elif change == "row-object":
+            pushes[-1] = []
+        else:
+            final = pushes[-1]
+            if change == "returncode":
+                final["returncode"] = 1
+            elif change == "boolean-returncode":
+                final["returncode"] = False
+            elif change == "anchor":
+                final["anchor"] = "0" * 64
+            elif change == "reversed-time":
+                final["ended"] = final["started"] - 1
+            elif change == "before-anchor":
+                final["started"] = final["anchor_time"] - 1
+            else:
+                final["ended"] = True if change == "boolean-time" else math.inf
+        path.write_text(
+            "\n".join(json.dumps(row) for row in pushes) + ("\n" if pushes else "")
+        )
+    problems = cr.web_preflight(design)
+    assert len(problems) == 1, (
+        f"one calculator closed-evidence refusal for {fault}: {problems}"
+    )
+    assert problems[0].startswith("the calculator stage has not ended:")
+    assert detail in problems[0], (
+        f"calculator closed-evidence rule {fault}: {problems[0]}"
     )
 
 
