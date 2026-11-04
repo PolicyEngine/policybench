@@ -273,6 +273,12 @@ PRESSURE_WINDOW = 60.0  # seconds
 HOST_LOG_GAP = 90.0  # seconds
 SAMPLE_SECONDS = 30.0
 CEILING_MARGIN = 25.0  # dollars above the overall cap
+CALCULATOR_OVERALL_CAP = 150.0
+CALCULATOR_CAP = 145.0
+WEB_OVERALL_CAP = 270.0
+WEB_CAP = 120.0
+CAP_TOLERANCE = 0.005  # dollars: a cap rounded to the cent
+RESERVE_TOLERANCE = 0.0005  # dollars: a reserve rounded to a tenth of a cent
 ADMISSION_SLACK = 1e-9  # dollars
 EXCERPT_LEAD = 86_400.0  # host logs are kept from a day before the run's start
 WAIT_SECONDS = 1.0  # how often a waiting lane looks again
@@ -956,7 +962,9 @@ class Ceiling(pilot.Spend):
 
     def __init__(self, ceiling_usd: float, spent_before: float):
         super().__init__(ceiling_usd, spent_before)
-        self.crossed_at: float | None = None
+        self.crossed_at: float | None = (
+            clock() if spent_before >= ceiling_usd else None
+        )
         self.closed = False  # the records are final: spend is no longer counted
         self.unrecorded_usd = 0.0  # spend after that, in no record
 
@@ -2578,7 +2586,7 @@ def web_preflight(design: dict) -> list[str]:
     )
 
     problems = []
-    if design.get("overall_cap") != 270:
+    if design.get("overall_cap") != WEB_OVERALL_CAP:
         problems.append("the web design's overall_cap must be 270")
     try:
         link = design["calculator"]
@@ -2591,6 +2599,13 @@ def web_preflight(design: dict) -> list[str]:
             return [*problems, "the linked calculator design's kind must be calculator"]
     except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
         return [*problems, f"the calculator design cannot be read: {error}"]
+    if calculator.get("overall_cap") != CALCULATOR_OVERALL_CAP:
+        problems.append("the linked calculator design's overall_cap must be 150")
+    problems.extend(f"linked calculator: {p}" for p in stage_start_problems(calculator))
+    problems.extend(
+        f"linked calculator: {p}"
+        for p in allocation_problems(calculator, STAGES["calculator"])
+    )
     for field in SHARED_STAGE_FIELDS:
         if field not in calculator or design.get(field) != calculator[field]:
             problems.append(f"web and calculator designs differ in {field}")
@@ -2613,7 +2628,8 @@ def web_preflight(design: dict) -> list[str]:
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
         problems.append(f"the web runs roots are invalid: {error}")
     try:
-        costs = calculator_evidence(calculator)
+        calculator_costs = calculator_evidence(calculator)
+        costs = list(calculator_costs)
         spec = design["no_tools"]
         for model in saved_children(Path(spec["runs"])):
             if listed_is_dir(model):
@@ -2624,7 +2640,14 @@ def web_preflight(design: dict) -> list[str]:
                     / "households"
                 )
                 costs.extend(saved)
-        spent, declared = exact_spend(costs), float(design["spent_before"])
+        calculator_spent_before = float(calculator["spent_before"])
+        if not math.isfinite(calculator_spent_before) or calculator_spent_before < 0:
+            raise ValueError("calculator spent_before must be finite and nonnegative")
+        spent = max(
+            exact_spend([calculator_spent_before, *calculator_costs]),
+            exact_spend(costs),
+        )
+        declared = float(design["spent_before"])
         if not 0 <= declared < math.inf or declared < spent - 1e-6:
             problems.append(
                 f"web spent_before ${declared} is below no-tools and calculator "
@@ -2643,6 +2666,60 @@ def web_preflight(design: dict) -> list[str]:
     return problems
 
 
+def stage_start_problems(design: dict) -> list[str]:
+    """No provider request may start once the whole-run ceiling is reached."""
+    try:
+        spent_before = float(design["spent_before"])
+        ceiling = float(design["overall_cap"]) + CEILING_MARGIN
+        if math.isfinite(spent_before) and spent_before < ceiling:
+            return []
+    except (KeyError, TypeError, ValueError, OverflowError):
+        pass
+    return ["spent_before must be finite and below the stage ceiling"]
+
+
+def allocation_problems(design: dict, stage: Stage) -> list[str]:
+    """Check the registered proportional cap split and three-times reserves.
+
+    The independent report also compares expected costs with its development
+    projection. The runner has no access to that development evidence.
+    """
+    problems = []
+    expected = {}
+    for model in stage.models:
+        try:
+            value = design["expected_costs"][model]
+            cost = float(value)
+            if isinstance(value, bool) or not math.isfinite(cost) or cost <= 0:
+                raise ValueError("expected cost is not finite and positive")
+            expected[model] = cost
+        except (KeyError, TypeError, ValueError, OverflowError):
+            problems.append(f"{model}: expected_costs must be finite and positive")
+    if problems:
+        return problems
+    total = sum(expected.values())
+    if not math.isfinite(total):
+        return ["the expected costs do not sum to a finite positive amount"]
+    stage_cap = WEB_CAP if stage.kind == "web" else CALCULATOR_CAP
+    for model, cost in expected.items():
+        for field, want, tolerance, rule in (
+            ("caps", stage_cap * cost / total, CAP_TOLERANCE, "split"),
+            ("reserves", 3 * cost / HOUSEHOLDS, RESERVE_TOLERANCE, "rule"),
+        ):
+            try:
+                value = design[field][model]
+                got = float(value)
+                if isinstance(value, bool) or not math.isfinite(got):
+                    raise ValueError("allocation is not finite")
+            except (KeyError, TypeError, ValueError, OverflowError):
+                problems.append(f"{model}: {field} needs a finite allocation")
+                continue
+            if abs(got - want) > tolerance:
+                name = "cap" if field == "caps" else "reserve"
+                problems.append(f"{model}: {name} ${got}, and the {rule} gives ${want}")
+    return problems
+
+
 def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
@@ -2655,6 +2732,10 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     if stage.kind == "calculator" and "frontier_arms" not in design:
         return ["the design has no frontier_arms"]
     problems = []
+    if stage.kind == "calculator" and design.get("overall_cap") != CALCULATOR_OVERALL_CAP:
+        problems.append("the calculator design's overall_cap must be 150")
+    problems.extend(stage_start_problems(design))
+    problems.extend(allocation_problems(design, stage))
     from confirmatory_no_tools import (
         BOARD_INPUT_ERRORS,
         _board_input,

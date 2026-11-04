@@ -2434,6 +2434,10 @@ def complete_preflight_design(w, tmp_path):
     baseline.write_text('{"exclusions": []}\n')
     design = dict(
         w.design,
+        overall_cap=150.0,
+        expected_costs={m: 1.0 for m in cr.STAGES["calculator"].models},
+        caps={m: 145.0 / 6 for m in cr.STAGES["calculator"].models},
+        reserves={m: 3.0 / 120 for m in cr.STAGES["calculator"].models},
         eligible_pool={"path": str(pool), "sha256": cr.sha256_file(pool)},
         baseline_exclusions={"path": str(baseline), "sha256": cr.sha256_file(baseline)},
         treatment_harness=str(cr.ROOT),
@@ -2582,7 +2586,11 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
     """A web preflight with a genuinely ended synthetic calculator stage."""
     from types import SimpleNamespace
 
-    w = world()
+    w = world(
+        overall_cap=150.0,
+        caps={m: 145.0 / 6 for m in cr.STAGES["calculator"].models},
+        reserve=3.0 / 120,
+    )
     if archives:
         model, sid = cr.CHEAP[0], w.draw_order[0]
         w.provider.specs = {
@@ -2602,10 +2610,13 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         runs=str(tmp_path / "web-runs"),
         arms={a: a.replace("+", "-") for a in cr.WEB_ARMS},
         calculator={"path": str(calculator), "sha256": cr.sha256_file(calculator)},
-        caps={m: 40.0 for m in cr.WEB_MODELS},
-        reserves={m: 0.06 for m in cr.WEB_MODELS},
+        expected_costs=dict(zip(cr.WEB_MODELS, (3.0, 5.0, 12.0))),
+        caps=dict(zip(cr.WEB_MODELS, (18.0, 30.0, 72.0))),
+        reserves=dict(zip(cr.WEB_MODELS, (0.075, 0.125, 0.3))),
         overall_cap=270.0,
-        spent_before=math.fsum(cr.calculator_evidence(w.design)),
+        spent_before=math.fsum(
+            [w.design["spent_before"], *cr.calculator_evidence(w.design)]
+        ),
     )
     del design["frontier_arms"]
     monkeypatch.setattr(
@@ -2628,6 +2639,196 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         )
     assert cr.preflight(design, cr.WEB_MODELS) == []
     return w, design
+
+
+def fresh_stage_design(w, web, tmp_path, kind):
+    """Keep every unrelated preflight input valid for an isolated budget fault."""
+    if kind == "web":
+        return copy.deepcopy(web), cr.WEB_MODELS
+    design = copy.deepcopy(w.design)
+    design["runs"] = str(tmp_path / "fresh-calculator-runs")
+    return design, cr.STAGES["calculator"].models
+
+
+def test_web_spent_before_covers_calculator_declaration_and_all_saved_costs(
+    world, tmp_path, monkeypatch
+):
+    w, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    calculator["spent_before"] = 6.0
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    final = next(Path(design["no_tools"]["runs"]).rglob("households/*.json"))
+    record = json.loads(final.read_text())
+    record["totals"]["cost_usd"] = 1.0
+    final.write_text(json.dumps(record))
+    monkeypatch.setattr(cr, "calculator_evidence", lambda _: [88.0])
+    for refused in (89.0, 93.99):
+        design["spent_before"] = refused
+        problems = cr.preflight(design, cr.WEB_MODELS)
+        assert len(problems) == 1 and "recorded spend $94.0" in problems[0], (
+            "web spent_before must cover the calculator declaration plus its costs"
+        )
+    design["spent_before"] = 94.0
+    assert cr.preflight(design, cr.WEB_MODELS) == [], (
+        "web spent_before accepts the complete $94 declared-and-recorded floor"
+    )
+    calculator["spent_before"] = 0.0
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    design["spent_before"] = 88.0
+    problems = cr.preflight(design, cr.WEB_MODELS)
+    assert len(problems) == 1 and "recorded spend $89.0" in problems[0], (
+        "web spent_before also covers the complete saved-cost inventory"
+    )
+
+
+def test_calculator_preflight_requires_the_registered_150_dollar_cap(
+    world, tmp_path, monkeypatch
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, "calculator")
+    assert cr.preflight(design, models) == []
+    for cap in (149.99, 150.01, 270.0):
+        design["overall_cap"] = cap
+        assert cr.preflight(design, models) == [
+            "the calculator design's overall_cap must be 150"
+        ], "calculator preflight fixes the whole-run cap at $150"
+
+
+def test_linked_calculator_design_requires_the_registered_150_dollar_cap(
+    world, tmp_path, monkeypatch
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    calculator["overall_cap"] = 270.0
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    assert cr.preflight(design, cr.WEB_MODELS) == [
+        "the linked calculator design's overall_cap must be 150"
+    ], "the web preflight also fixes its linked calculator cap at $150"
+
+
+def test_linked_calculator_design_refuses_a_start_at_its_175_dollar_ceiling(
+    world, tmp_path, monkeypatch
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    design["spent_before"] = 200.0
+    for spent, refused in ((174.99, False), (175.0, True), (175.01, True)):
+        calculator["spent_before"] = spent
+        path.write_text(json.dumps(calculator))
+        design["calculator"]["sha256"] = cr.sha256_file(path)
+        assert cr.preflight(design, cr.WEB_MODELS) == (
+            ["linked calculator: spent_before must be finite and below the stage ceiling"]
+            if refused else []
+        ), "a linked calculator design must have started below its $175 ceiling"
+
+
+@pytest.mark.parametrize("field", ["expected_costs", "caps", "reserves"])
+def test_linked_calculator_design_requires_registered_allocations(
+    world, tmp_path, monkeypatch, field
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    model = cr.CHEAP[0]
+    calculator[field][model] = (
+        0.0 if field == "expected_costs" else calculator[field][model] + 0.1
+    )
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    problems = cr.preflight(design, cr.WEB_MODELS)
+    assert len(problems) == 1 and problems[0].startswith("linked calculator: "), (
+        "a linked calculator design must use its registered allocations"
+    )
+
+
+@pytest.mark.parametrize("kind,ceiling", [("calculator", 175.0), ("web", 295.0)])
+def test_stage_preflight_refuses_start_at_or_above_the_ceiling(
+    world, tmp_path, monkeypatch, kind, ceiling
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    design["spent_before"] = ceiling - 0.01
+    assert cr.preflight(design, models) == [], "a start below the ceiling is accepted"
+    for amount in (ceiling, ceiling + 0.01):
+        design["spent_before"] = amount
+        assert cr.preflight(design, models) == [
+            "spent_before must be finite and below the stage ceiling"
+        ], "the stage preflight refuses a start at or above its ceiling"
+
+
+@pytest.mark.parametrize("ceiling", [175.0, 295.0])
+def test_ceiling_is_exhausted_at_construction_at_or_above_its_limit(ceiling):
+    below = cr.Ceiling(ceiling, ceiling - 0.01)
+    assert not below.exhausted() and below.crossed_at is None
+    for amount in (ceiling, ceiling + 0.01):
+        spent = cr.Ceiling(ceiling, amount)
+        assert spent.exhausted() and spent.crossed_at is not None, (
+            "a ceiling reached before construction is already exhausted"
+        )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("cost", [None, 0.0, -1.0, math.inf, math.nan, True])
+def test_stage_allocation_requires_each_expected_cost_to_be_finite_and_positive(
+    world, tmp_path, monkeypatch, kind, cost
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    model = models[0]
+    if cost is None:
+        del design["expected_costs"][model]
+    else:
+        design["expected_costs"][model] = cost
+    assert cr.preflight(design, models) == [
+        f"{model}: expected_costs must be finite and positive"
+    ], "each stage model needs a finite positive expected cost"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_stage_allocation_requires_caps_to_follow_the_proportional_split(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    model = models[0]
+    design["caps"][model] += 0.01
+    problems = cr.preflight(design, models)
+    assert len(problems) == 1 and "and the split gives" in problems[0], (
+        "each stage cap must follow its registered proportional split"
+    )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_stage_allocation_requires_three_times_expected_cost_reserves(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    model = models[0]
+    design["reserves"][model] += 0.001
+    problems = cr.preflight(design, models)
+    assert len(problems) == 1 and "and the rule gives" in problems[0], (
+        "each stage reserve is three times its expected cost over 120 households"
+    )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_stage_allocation_accepts_the_reports_cap_and_reserve_tolerances(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, kind)
+    design["caps"][models[0]] += 0.0049
+    design["reserves"][models[0]] += 0.00049
+    assert cr.preflight(design, models) == [], (
+        "stage allocation checks use the report's $0.005/$0.0005 tolerances"
+    )
 
 
 def test_web_gemini_preflight_refuses_the_wrong_litellm_alone_before_writes(
@@ -2804,7 +3005,7 @@ def test_web_preflight_refuses_each_shared_input_difference_alone(
 def test_web_preflight_refuses_each_overlapping_runs_root_alone(
     world, tmp_path, monkeypatch, root, direction
 ):
-    w, design = complete_web_design(world, tmp_path, monkeypatch)
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
     other = Path(design["no_tools"]["runs"] if root == "no_tools" else w.design["runs"])
     design["runs"] = str(
         other
@@ -3226,7 +3427,13 @@ def test_web_preflight_refuses_each_closed_calculator_evidence_fault_alone(
 def test_web_preflight_counts_all_attempts_stubs_and_late_spend_in_one_fsum(
     world, tmp_path, monkeypatch
 ):
-    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    w, design = complete_web_design(world, tmp_path, monkeypatch)
+    calculator = json.loads(Path(design["calculator"]["path"]).read_text())
+    calculator["spent_before"] = 0.0
+    Path(design["calculator"]["path"]).write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(
+        Path(design["calculator"]["path"])
+    )
     # A flat sum retains tiny costs that per-model subtotals would round away.
     monkeypatch.setattr(cr, "calculator_evidence", lambda _: [1e16, 1.0, 1.0])
     design["spent_before"] = 1e16
