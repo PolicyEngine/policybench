@@ -2845,6 +2845,20 @@ def test_stage_allocation_accepts_the_reports_cap_and_reserve_tolerances(
     )
 
 
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_stage_allocation_refuses_an_overflowing_expected_cost_total(kind):
+    stage = cr.STAGES[kind]
+    design = {
+        "kind": kind,
+        "expected_costs": {model: 1e308 for model in stage.models},
+        "caps": {model: 20.0 for model in stage.models},
+        "reserves": {model: 0.1 for model in stage.models},
+    }
+    assert cr.allocation_problems(design, stage) == [
+        "the expected costs do not sum to a finite positive amount"
+    ], "each stage allocation must refuse an overflowing expected-cost total"
+
+
 def test_web_gemini_preflight_refuses_the_wrong_litellm_alone_before_writes(
     world, tmp_path, monkeypatch, capsys
 ):

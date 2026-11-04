@@ -2697,7 +2697,10 @@ def allocation_problems(design: dict, stage: Stage) -> list[str]:
             problems.append(f"{model}: expected_costs must be finite and positive")
     if problems:
         return problems
-    total = sum(expected.values())
+    try:
+        total = math.fsum(expected.values())
+    except OverflowError:
+        total = math.inf
     if not math.isfinite(total):
         return ["the expected costs do not sum to a finite positive amount"]
     stage_cap = WEB_CAP if stage.kind == "web" else CALCULATOR_CAP
