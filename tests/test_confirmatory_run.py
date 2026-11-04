@@ -2437,7 +2437,7 @@ def complete_preflight_design(w, tmp_path):
         overall_cap=150.0,
         expected_costs={m: 1.0 for m in cr.STAGES["calculator"].models},
         caps={m: 145.0 / 6 for m in cr.STAGES["calculator"].models},
-        reserves={m: 3.0 / 120 for m in cr.STAGES["calculator"].models},
+        reserves={m: 3.0 / cr.HOUSEHOLDS for m in cr.STAGES["calculator"].models},
         eligible_pool={"path": str(pool), "sha256": cr.sha256_file(pool)},
         baseline_exclusions={"path": str(baseline), "sha256": cr.sha256_file(baseline)},
         treatment_harness=str(cr.ROOT),
@@ -2589,7 +2589,7 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
     w = world(
         overall_cap=150.0,
         caps={m: 145.0 / 6 for m in cr.STAGES["calculator"].models},
-        reserve=3.0 / 120,
+        reserve=3.0 / cr.HOUSEHOLDS,
     )
     if archives:
         model, sid = cr.CHEAP[0], w.draw_order[0]
@@ -2612,7 +2612,10 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         calculator={"path": str(calculator), "sha256": cr.sha256_file(calculator)},
         expected_costs=dict(zip(cr.WEB_MODELS, (3.0, 5.0, 12.0))),
         caps=dict(zip(cr.WEB_MODELS, (18.0, 30.0, 72.0))),
-        reserves=dict(zip(cr.WEB_MODELS, (0.075, 0.125, 0.3))),
+        reserves={
+            m: 3.0 * cost / cr.HOUSEHOLDS
+            for m, cost in zip(cr.WEB_MODELS, (3.0, 5.0, 12.0))
+        },
         overall_cap=270.0,
         spent_before=math.fsum(
             [w.design["spent_before"], *cr.calculator_evidence(w.design)]
@@ -2793,7 +2796,7 @@ def test_stage_allocation_requires_each_expected_cost_to_be_finite_and_positive(
                 for m, value in design["expected_costs"].items()
             }
             design["reserves"] = {
-                m: 3 * value / 120
+                m: 3 * value / cr.HOUSEHOLDS
                 for m, value in design["expected_costs"].items()
             }
     assert cr.preflight(design, models) == [
@@ -3016,7 +3019,7 @@ def test_web_preflight_refuses_each_shared_input_difference_alone(
 def test_web_preflight_refuses_each_overlapping_runs_root_alone(
     world, tmp_path, monkeypatch, root, direction
 ):
-    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    w, design = complete_web_design(world, tmp_path, monkeypatch)
     other = Path(design["no_tools"]["runs"] if root == "no_tools" else w.design["runs"])
     design["runs"] = str(
         other
