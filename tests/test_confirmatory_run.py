@@ -3322,3 +3322,31 @@ def test_a_final_push_log_failure_is_stopped_and_locally_anchored(world, monkeyp
     last = json.loads((w.runs() / "anchors.jsonl").read_text().splitlines()[-1])
     assert last["models"][model]["run-log.jsonl"]["lines"] == len(w.lines(model))
     assert last["host-log.jsonl"] == w.run.host.heads()
+
+
+def test_the_treatment_code_is_the_treatment_commits():
+    """The preflight refuses a run whose treatment code differs from the
+    treatment commit's, so this fails in CI first, while the confirmatory run
+    is pending. It comes out after that run, before v2-microcosm-batches
+    reaches main, where it would fail every unrelated change to policybench/
+    (#249, reply 6596821678)."""
+    root = Path(cr.__file__).resolve().parents[1]
+    git = ["git", "-C", str(root)]
+    if subprocess.run(
+        [*git, "cat-file", "-e", f"{cr.TREATMENT_COMMIT}^{{commit}}"]
+    ).returncode:
+        pytest.skip("this checkout lacks the treatment commit")
+    changed = subprocess.run(
+        [
+            *git,
+            "diff",
+            "--quiet",
+            cr.TREATMENT_COMMIT,
+            "HEAD",
+            "--",
+            *cr.TREATMENT_PATHS,
+        ]
+    ).returncode
+    assert changed == 0, (
+        "move TREATMENT_COMMIT to the last commit that touches TREATMENT_PATHS"
+    )
