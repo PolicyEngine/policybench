@@ -174,6 +174,24 @@ class Stage:
     order_stream: str
     profile_rule: str
     calculator_label: str
+    fallback_arms: tuple[str, ...] | None = None
+    fallback_folder_key: str | None = None
+
+    def arms_for(self, model: str) -> tuple[str, ...]:
+        """Keep calculator-only explicit model overrides on the frontier arms."""
+        if model in self.model_arms:
+            return self.model_arms[model]
+        if self.fallback_arms is not None:
+            return self.fallback_arms
+        raise KeyError(f"{model}: no model in the {self.kind} stage")
+
+    def folder_key_for(self, model: str) -> str:
+        """The model's registered mapping, or the calculator override mapping."""
+        if model in self.folder_keys:
+            return self.folder_keys[model]
+        if self.fallback_folder_key is not None:
+            return self.fallback_folder_key
+        raise KeyError(f"{model}: no model in the {self.kind} stage")
 
 
 STAGES = {
@@ -185,6 +203,8 @@ STAGES = {
         "order/{model}",
         "calculator",
         "pe3",
+        FRONTIER_ARMS,
+        "frontier_arms",
     ),
     "web": Stage(
         "web",
@@ -1784,8 +1804,8 @@ class Run:
             model: Lanes(
                 self,
                 model,
-                self.stage.model_arms[model],
-                design[self.stage.folder_keys[model]],
+                self.stage.arms_for(model),
+                design[self.stage.folder_key_for(model)],
             )
             for model in self.models
         }
@@ -2757,7 +2777,7 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     for model in models:
         if model not in design["caps"] or model not in design["reserves"]:
             problems.append(f"{model}: no cap or reserve")
-        for label in stage.model_arms[model]:
+        for label in stage.arms_for(model):
             try:
                 arm_profile(model, label)
             except (ValueError, SystemExit) as error:

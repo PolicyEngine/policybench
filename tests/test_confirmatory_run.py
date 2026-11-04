@@ -139,11 +139,17 @@ def test_stage_table_registers_the_calculator_and_web_models_arms_and_folders():
     }
     assert calculator.order_stream == "order/{model}"
     assert calculator.profile_rule == "calculator"
+    assert calculator.arms_for("gemini-3.1-pro-preview") == cr.FRONTIER_ARMS
+    assert calculator.folder_key_for("gemini-3.1-pro-preview") == "frontier_arms"
     assert web.models == ("gpt-6-luna", "gemini-3.5-flash-lite", "claude-sonnet-5.5")
     assert web.model_arms == {m: ("web", "web+pe3") for m in web.models}
     assert web.folder_keys == {m: "arms" for m in web.models}
     assert web.order_stream == "order/web/{model}"
     assert web.profile_rule == "web"
+    with pytest.raises(KeyError, match="no model in the web stage"):
+        web.arms_for("gemini-3.1-pro-preview")
+    with pytest.raises(KeyError, match="no model in the web stage"):
+        web.folder_key_for("gemini-3.1-pro-preview")
 
 
 @pytest.mark.parametrize("kind", [None, "", "unknown", [], 7])
@@ -951,7 +957,7 @@ class World:
         ]
 
     def folder(self, model, label) -> Path:
-        arms = self.design[cr.STAGES[self.kind].folder_keys[model]]
+        arms = self.design[cr.STAGES[self.kind].folder_key_for(model)]
         return self.runs() / model / arms[label] / "confirm" / "households"
 
 
@@ -1068,7 +1074,7 @@ def run_problems(world: World) -> list[str]:
     all_attempts = []
     ceiling_events = {}
     for model in world.models:
-        labels = cr.STAGES[world.kind].model_arms[model]
+        labels = cr.STAGES[world.kind].arms_for(model)
         drawn = cr.orders(master, model, world.draw_order, labels, kind=world.kind)
         lines = world.attempts(model)
         events = world.events(model)
