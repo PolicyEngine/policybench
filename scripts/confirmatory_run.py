@@ -2654,6 +2654,7 @@ def web_preflight(design: dict) -> list[str]:
     try:
         calculator_costs = calculator_evidence(calculator)
         costs = list(calculator_costs)
+        no_tools_costs = []
         spec = design["no_tools"]
         for model in saved_children(Path(spec["runs"])):
             if listed_is_dir(model):
@@ -2664,9 +2665,16 @@ def web_preflight(design: dict) -> list[str]:
                     / "households"
                 )
                 costs.extend(saved)
+                no_tools_costs.extend(saved)
         calculator_spent_before = float(calculator["spent_before"])
         if not math.isfinite(calculator_spent_before) or calculator_spent_before < 0:
             raise ValueError("calculator spent_before must be finite and nonnegative")
+        no_tools_spent = exact_spend(no_tools_costs)
+        if calculator_spent_before < no_tools_spent - 1e-6:
+            problems.append(
+                f"linked calculator spent_before ${calculator_spent_before} is "
+                f"below no-tools recorded spend ${no_tools_spent}"
+            )
         spent = max(
             exact_spend([calculator_spent_before, *calculator_costs]),
             exact_spend(costs),

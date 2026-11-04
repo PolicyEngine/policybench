@@ -2946,9 +2946,44 @@ def test_web_spent_before_covers_calculator_declaration_and_all_saved_costs(
     design["calculator"]["sha256"] = cr.sha256_file(path)
     design["spent_before"] = 88.0
     problems = cr.preflight(design, cr.WEB_MODELS)
-    assert len(problems) == 1 and "recorded spend $89.0" in problems[0], (
+    assert len(problems) == 2 and "recorded spend $89.0" in problems[1], (
         "web spent_before also covers the complete saved-cost inventory"
     )
+    assert "linked calculator spent_before" in problems[0], (
+        "the linked calculator declaration independently covers saved no-tools costs"
+    )
+
+
+def test_linked_calculator_spent_before_covers_its_own_no_tools_floor(
+    world, tmp_path, monkeypatch
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    calculator["spent_before"] = 0.0
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    final = next(Path(design["no_tools"]["runs"]).rglob("households/*.json"))
+    record = json.loads(final.read_text())
+    record["totals"]["cost_usd"] = 1.0
+    final.write_text(json.dumps(record))
+    monkeypatch.setattr(cr, "calculator_evidence", lambda _: [88.0])
+    design["spent_before"] = 89.0
+    problems = cr.preflight(design, cr.WEB_MODELS)
+    assert len(problems) == 1 and "linked calculator spent_before" in problems[0], (
+        "a linked calculator declaration must cover its own saved no-tools floor"
+    )
+    for amount, accepted in (
+        (1.0 - 1e-6, True),
+        (math.nextafter(1.0 - 1e-6, -math.inf), False),
+    ):
+        calculator["spent_before"] = amount
+        path.write_text(json.dumps(calculator))
+        design["calculator"]["sha256"] = cr.sha256_file(path)
+        problems = cr.preflight(design, cr.WEB_MODELS)
+        assert (problems == []) is accepted, (
+            "the linked calculator floor uses the inclusive one-microdollar tolerance"
+        )
 
 
 def test_calculator_preflight_requires_the_registered_150_dollar_cap(
