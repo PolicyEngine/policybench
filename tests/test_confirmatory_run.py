@@ -58,6 +58,21 @@ ANCHOR_SLACK = 30.0
 TRIGGER_BOUND = 5.0
 
 
+@pytest.fixture(autouse=True)
+def keep_litellm_gemini_config(monkeypatch):
+    """Restore the class descriptors after every test, including fake web runs."""
+    from litellm.llms.vertex_ai.gemini.vertex_and_google_ai_studio_gemini import (
+        VertexGeminiConfig,
+    )
+
+    for name in (
+        "_resolve_search_tool_conflict",
+        "_drop_search_tools_mixed_with_functions",
+    ):
+        monkeypatch.setattr(VertexGeminiConfig, name, VertexGeminiConfig.__dict__[name])
+    return VertexGeminiConfig
+
+
 # ---------------------------------------------------------------- streams
 
 
@@ -173,6 +188,84 @@ def test_web_arm_profile_keeps_search_the_benchmark_rule_and_its_calculator(
     assert profile.uses_calculator == (label == "web+pe3")
     assert set(profile.tool_features) == (
         set(pilot.TOOL_FEATURES) if profile.uses_calculator else set()
+    )
+
+
+def first_gemini_http_body(monkeypatch, label):
+    """Run the harness's initial request through the real LiteLLM HTTP path."""
+    import httpx
+
+    class BodyCaptured(BaseException):
+        pass
+
+    captured = []
+
+    def capture(self, request, **kwargs):
+        assert request.method == "POST"
+        assert request.url.host == "generativelanguage.googleapis.com"
+        captured.append(json.loads(request.content))
+        raise BodyCaptured
+
+    monkeypatch.setenv("GEMINI_API_KEY", "synthetic-no-network")
+    monkeypatch.setattr(httpx.Client, "send", capture)
+    profile = cr.arm_profile("gemini-3.5-flash-lite", label)
+    # run_household calls build_initial_request and assembles the actual first
+    # turn, including submit_outputs and the arm's calculator/search tools.
+    with pytest.raises(BodyCaptured):
+        pilot.run_household(
+            scenario("h00"),
+            VARIABLES,
+            lambda arguments: pytest.fail("the captured request cannot call a tool"),
+            cr.default_completion(profile),
+            pilot.Spend(1.0),
+            profile=profile,
+        )
+    assert len(captured) == 1
+    return captured[0]
+
+
+@pytest.mark.parametrize("label", cr.WEB_ARMS)
+def test_gemini_web_http_body_keeps_search_beside_function_declarations(
+    monkeypatch, label, world
+):
+    world(kind="web", models=("gemini-3.5-flash-lite",)).execute()
+    body = first_gemini_http_body(monkeypatch, label)
+    assert any("googleSearch" in tool for tool in body["tools"]), (
+        "the patched Gemini HTTP body must offer googleSearch"
+    )
+    functions = {
+        function["name"]
+        for tool in body["tools"]
+        for function in tool.get("function_declarations", [])
+    }
+    assert functions == (
+        {"submit_outputs", "calculate_household"}
+        if label == "web+pe3"
+        else {"submit_outputs"}
+    ), "the Gemini HTTP body must retain every function declaration"
+
+
+@pytest.mark.parametrize("label", cr.WEB_ARMS)
+def test_unpatched_gemini_web_http_body_drops_search_beside_functions(
+    monkeypatch, label, keep_litellm_gemini_config
+):
+    config = keep_litellm_gemini_config
+    original = {
+        name: config.__dict__[name]
+        for name in (
+            "_resolve_search_tool_conflict",
+            "_drop_search_tools_mixed_with_functions",
+        )
+    }
+    pilot.allow_gemini_search_with_functions()
+    for name, descriptor in original.items():
+        monkeypatch.setattr(config, name, descriptor)
+    body = first_gemini_http_body(monkeypatch, label)
+    assert not any("googleSearch" in tool for tool in body["tools"]), (
+        "the unpatched control must expose LiteLLM's removal of googleSearch"
+    )
+    assert any("function_declarations" in tool for tool in body["tools"]), (
+        "the unpatched control must still reach Gemini's function declarations"
     )
 
 
@@ -2537,6 +2630,49 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
     return w, design
 
 
+def test_web_gemini_preflight_refuses_the_wrong_litellm_alone_before_writes(
+    world, tmp_path, monkeypatch, capsys
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    real_version = cr.importlib.metadata.version
+    monkeypatch.setattr(
+        cr.importlib.metadata,
+        "version",
+        lambda name: "9.9.9" if name == "litellm" else real_version(name),
+    )
+    problem = (
+        "litellm 9.9.9 is installed; the Gemini search patch was "
+        f"checked against {pilot.GEMINI_SEARCH_PATCH_LITELLM} only"
+    )
+    assert cr.preflight(design, cr.WEB_MODELS) == [problem], (
+        "an otherwise valid Gemini web design must have only the litellm refusal"
+    )
+    path = tmp_path / "web-design.json"
+    path.write_text(json.dumps(design))
+    monkeypatch.setattr(pilot, "_require_engine", lambda board: None)
+    assert cr.main(["run", str(path)]) == 1
+    assert f"The run cannot start:\n- {problem}" in capsys.readouterr().out
+    assert not Path(design["runs"]).exists(), (
+        "the litellm refusal must precede every web startup write"
+    )
+
+
+def test_calculator_gemini_preflight_has_no_web_litellm_version_check(
+    world, tmp_path, monkeypatch
+):
+    w, _ = complete_web_design(world, tmp_path, monkeypatch)
+    calculator = {**w.design, "runs": str(tmp_path / "fresh-calculator-runs")}
+    real_version = cr.importlib.metadata.version
+    monkeypatch.setattr(
+        cr.importlib.metadata,
+        "version",
+        lambda name: "9.9.9" if name == "litellm" else real_version(name),
+    )
+    assert cr.preflight(calculator, ("gemini-3.5-flash-lite",)) == [], (
+        "a calculator design must remain valid regardless of the web patch version"
+    )
+
+
 def rewritten_chain(path, rows, seed):
     """Write synthetic evidence while preserving every intended chain link."""
     texts, heads = [], [seed]
@@ -3209,6 +3345,38 @@ def test_web_preflight_requires_the_registered_whole_run_cap(
     for cap in (150, 270.01, "270", True, None, math.inf):
         design["overall_cap"] = cap
         assert cr.web_preflight(design) == ["the web design's overall_cap must be 270"]
+
+
+def test_web_execute_patches_gemini_before_its_first_completion(
+    world, keep_litellm_gemini_config
+):
+    config = keep_litellm_gemini_config
+    original = {
+        name: config.__dict__[name]
+        for name in (
+            "_resolve_search_tool_conflict",
+            "_drop_search_tools_mixed_with_functions",
+        )
+    }
+    w = world(kind="web", models=("gemini-3.5-flash-lite",))
+    observed = []
+
+    def completion(**kwargs):
+        assert all(config.__dict__[name] is not value for name, value in original.items()), (
+            "execute must install both Gemini patch methods before completion"
+        )
+        observed.append(True)
+
+    def converse(lanes, sid, label, tool_call, spend):
+        lanes.completion()
+        return w.provider(lanes, sid, label, tool_call, spend)
+
+    w.run.completion_for = lambda profile: completion
+    w.run.converse = converse
+    w.execute()
+    assert len(observed) == N_DRAW * len(cr.WEB_ARMS), (
+        "the patched Gemini completion must run for every web arm and household"
+    )
 
 
 def test_web_stage_lanes_caps_provider_rerun_and_operator_resume(

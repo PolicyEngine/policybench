@@ -101,7 +101,11 @@ The runner runs the treatment harness's code. It refuses to start unless its
 treatment commit's (c0a2885b), its tree is clean at the design's run commit,
 the machine is on AC power with the lid open, and the runs folder holds no
 records: a run is never resumed. ``--workers`` must equal the design's
-engine workers per model. An interrupt (SIGINT or SIGTERM) only notes the
+engine workers per model. A Gemini web model also requires the exact LiteLLM
+version checked by the treatment's search patch at preflight. During execute,
+after setup-start and before the completion factory or any completion call,
+the runner applies that patch so search survives beside function tools.
+An interrupt (SIGINT or SIGTERM) only notes the
 signal; the main loop then stops every model's lanes with cause
 ``interrupt`` and lets the conversations under way end. A second interrupt
 exits at once until cleanup ignores signals before its final check. Signals
@@ -113,6 +117,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import math
 import os
@@ -2663,6 +2668,16 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     problems.extend(stage_problems(design))
     if stage.kind == "web":
         problems.extend(web_preflight(design))
+        if any(pilot.model_profile(model).provider == "gemini" for model in models):
+            try:
+                version = importlib.metadata.version("litellm")
+            except importlib.metadata.PackageNotFoundError:
+                version = "not installed"
+            if version != pilot.GEMINI_SEARCH_PATCH_LITELLM:
+                problems.append(
+                    f"litellm {version} is installed; the Gemini search patch was "
+                    f"checked against {pilot.GEMINI_SEARCH_PATCH_LITELLM} only"
+                )
     try:
         no_tools_root = Path(design["no_tools"]["runs"]).resolve()
         calculator_root = Path(design["runs"]).resolve()
