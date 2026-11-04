@@ -2820,8 +2820,6 @@ def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str,
         for path in paths:
             try:
                 record = json.loads(read_regular(path).decode("utf-8"))
-                if not isinstance(record, dict):
-                    raise ValueError("development record must be an object")
                 amounts.append(attempt_cost(record))
             except (
                 OSError,

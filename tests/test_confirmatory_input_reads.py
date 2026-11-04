@@ -435,9 +435,10 @@ def test_preflight_refuses_numeric_text_and_booleans_as_spend(
     """A declaration must be a nonboolean JSON number before conversion."""
     world, design = pool_design(tmp_path, monkeypatch)
     saved_spend(world, design)
+    assert nt.stage_problems(design) == []
     design["spent_before"] = declared
-    problems = cr.preflight(design, (cr.CHEAP[0],))
-    assert any("finite, nonnegative" in p for p in problems), (
+    problems = nt.stage_problems(design)
+    assert len(problems) == 1 and "finite, nonnegative" in problems[0], (
         "saved no-tools spend refuses nonnumeric or boolean declarations"
     )
 

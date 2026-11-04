@@ -3363,6 +3363,95 @@ def test_stage_allocation_accepts_the_reports_cap_and_reserve_tolerances(
     )
 
 
+def allocation_guard_design(kind, *, target_cost=1.0):
+    stage = cr.STAGES[kind]
+    expected = {model: 1.0 for model in stage.models}
+    expected[stage.models[0]] = target_cost
+    return allocated_design(stage, expected)
+
+
+def allocated_design(stage, expected):
+    total = math.fsum(expected.values())
+    share = cr.WEB_CAP if stage.kind == "web" else cr.CALCULATOR_CAP
+    return {
+        "kind": stage.kind,
+        "expected_costs": expected,
+        "caps": {model: share * cost / total for model, cost in expected.items()},
+        "reserves": {
+            model: 3 * cost / cr.HOUSEHOLDS for model, cost in expected.items()
+        },
+    }
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("field", ["caps", "reserves"])
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, True, False])
+def test_each_stage_allocation_is_finite_and_nonboolean_alone(kind, field, value):
+    stage = cr.STAGES[kind]
+    model = stage.models[0]
+    design = allocation_guard_design(kind)
+    if value is True:
+        if field == "caps":
+            share = cr.WEB_CAP if kind == "web" else cr.CALCULATOR_CAP
+            expected = {m: (share - 1) / (len(stage.models) - 1) for m in stage.models}
+            expected[model] = 1.0
+            design = allocated_design(stage, expected)
+        else:
+            design = allocation_guard_design(kind, target_cost=cr.HOUSEHOLDS / 3)
+    elif value is False:
+        design = allocation_guard_design(kind, target_cost=1e-12)
+    assert cr.allocation_problems(design, stage) == []
+    if isinstance(value, bool):
+        tolerance = 0.005 if field == "caps" else 0.0005
+        assert abs(float(value) - design[field][model]) <= tolerance
+    design[field][model] = value
+    assert cr.allocation_problems(design, stage) == [
+        f"{model}: {field} needs a finite allocation"
+    ], "each allocation must be finite and nonboolean even when its formula agrees"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("field", ["caps", "reserves"])
+@pytest.mark.parametrize("side", [-1, 1])
+def test_each_stage_allocation_accepts_exact_tolerance_and_refuses_next_float(
+    kind, field, side
+):
+    stage = cr.STAGES[kind]
+    model = stage.models[0]
+    design = allocation_guard_design(kind, target_cost=1e-9)
+    want = design[field][model]
+    tolerance = 0.005 if field == "caps" else 0.0005
+    boundary = want + side * tolerance
+    assert abs(boundary - want) == tolerance
+    design[field][model] = boundary
+    assert cr.allocation_problems(design, stage) == [], (
+        "allocation formulas include their exact tolerance on both sides"
+    )
+    design[field][model] = math.nextafter(boundary, math.inf if side > 0 else -math.inf)
+    problems = cr.allocation_problems(design, stage)
+    assert len(problems) == 1 and f"{model}: " in problems[0], (
+        "allocation formulas refuse one representable step beyond either tolerance"
+    )
+
+
+def test_web_declared_calculator_floor_uses_one_flat_fsum(world, tmp_path, monkeypatch):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    monkeypatch.setattr(cr, "CEILING_MARGIN", 1e17)
+    costs, declared_prior = [1e16, 1.0], 1.0
+    calculator = json.loads(Path(design["calculator"]["path"]).read_text())
+    assert calculator["spent_before"] == declared_prior
+    assert declared_prior + math.fsum(costs) == 1e16
+    assert math.fsum([declared_prior, *costs]) == 1e16 + 2
+    monkeypatch.setattr(cr, "calculator_evidence", lambda _: costs)
+    design["spent_before"] = 1e16
+    problems = cr.preflight(design, cr.WEB_MODELS)
+    assert len(problems) == 1 and "recorded spend" in problems[0], (
+        "the calculator declaration and all calculator costs require one flat fsum"
+    )
+    design["spent_before"] = math.fsum([declared_prior, *costs])
+    assert cr.preflight(design, cr.WEB_MODELS) == []
+
+
 @pytest.mark.parametrize("kind", ["calculator", "web"])
 def test_stage_allocation_refuses_an_overflowing_expected_cost_total(kind):
     stage = cr.STAGES[kind]
