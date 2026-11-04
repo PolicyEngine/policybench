@@ -7,6 +7,8 @@ real tool system are marked slow.
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -2293,6 +2295,9 @@ def test_web_notices_name_search_and_keep_the_answer_instruction():
         "pe": "gpt-6-sol+pe-tool",
         "web": "gpt-6-sol+web",
         "web+pe": "gpt-6-sol+web+pe-tool",
+        "pe2": "gpt-6-sol+pe-tool-v2",
+        "pe3": "gpt-6-sol+pe-tool-v3",
+        "web+pe3": "gpt-6-sol+web+pe-tool-v3",
     }
     with pytest.raises(SystemExit):
         pilot.model_profile(SOL, "search")
@@ -3240,9 +3245,10 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
             assert "policyengine" not in new.lower()
             assert "policyengine" not in json.dumps(kwargs["_answer_tool"]).lower()
             # Only the rewritten lines differ: the four PolicyEngine-naming
-            # definitions, the two federal lines and the state tax line (rate
-            # schedule, Idaho's fund tax), the intro (law date), and the two
-            # relabeled facts.
+            # definitions, the two federal and two state lines (rate schedule,
+            # EITC formula, Idaho's fund tax, the return covered), the intro
+            # (law date, citizenship, periods, Louisiana, qualified business
+            # income), and the relabeled facts.
             old_lines, new_lines = old.splitlines(), new.splitlines()
             assert len(old_lines) == len(new_lines)
             changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
@@ -3252,9 +3258,14 @@ def test_the_v2_pilot_prompt_names_policyengine_nowhere_in_any_household():
             )
             other = (
                 "- state_income_tax_before_refundable_credits:",
+                "- state_refundable_credits:",
                 "Estimate the requested tax and benefit outputs",
                 "- employer sponsored insurance premiums: ",
                 "- spm unit energy subsidy: ",
+                "- partnership income: ",
+                "- partnership self employment net earnings: ",
+                "- educational assistance: ",
+                "- schedule d capital gain distributions: ",
             )
             assert all(
                 "PolicyEngine" in a or a.startswith(federal + other) for a, _ in changed
@@ -3319,7 +3330,7 @@ def test_the_school_meal_wording_matches_every_reference():
 
 
 def test_the_benchmark_search_rule_rides_only_on_web_notices():
-    for arm in ("web", "web+pe"):
+    for arm in ("web", "web+pe", "web+pe3"):
         for name in (SOL, OPUS):
             with_rule = pilot.model_profile(name, arm, "v2-pilot", True)
             without = pilot.model_profile(name, arm, "v2-pilot")
@@ -3550,6 +3561,175 @@ def test_the_meal_wording_names_breakfast_and_lunch():
     assert "reduced-price charge for both breakfast and lunch" in text
 
 
+def _labeled_household():
+    """scenario_000 holding every input the v2 labels rewrite."""
+    board = pilot.load_board()
+    scenario = board["scenarios"]["scenario_000"]
+    head, *others = scenario.adults
+    labeled = {
+        "educational_assistance": 1000.0,
+        "employer_sponsored_insurance_premiums": 1000.0,
+        "partnership_income": 1000.0,
+        "partnership_self_employment_net_earnings": 400.0,
+        "schedule_d_capital_gain_distributions": 300.0,
+    }
+    household = dataclasses.replace(
+        scenario,
+        adults=[
+            dataclasses.replace(head, inputs={**head.inputs, **labeled}),
+            *others,
+        ],
+        spm_unit_inputs={**scenario.spm_unit_inputs, "spm_unit_energy_subsidy": 50.0},
+    )
+    return household, board["variables"]["scenario_000"]
+
+
+def _rendered(profile) -> str:
+    household, variables = _labeled_household()
+    prompt, _ = pilot.build_initial_request(household, variables, profile)
+    return _board_part(prompt, profile)
+
+
+def _output_line(text: str, output: str) -> str:
+    (line,) = [x for x in text.splitlines() if x.startswith(f"- {output}:")]
+    return line
+
+
+def test_every_v2_rewrite_matches_the_rendered_us_prompt():
+    """A rewrite whose pattern drifts from the rendered text changes nothing and
+    raises nothing, so each one must find its text."""
+    text = _rendered(pilot.model_profile(SOL, "web"))
+    for pattern, _ in (*pilot.V2_PILOT_DEFINITIONS, *pilot.V2_PILOT_CONVENTIONS):
+        assert pattern.search(text), pattern.pattern
+
+
+def test_the_v2_prompt_states_each_ruling():
+    text = _rendered(pilot.model_profile(SOL, "web", "v2-pilot", True))
+    # d1970, in the words Max ruled.
+    assert (
+        "Everyone listed is a U.S. citizen with a valid Social Security number "
+        "issued before the return's due date, unless stated otherwise." in text
+    )
+    # d1029: all four income tax definitions.
+    assert text.count(pilot.HEAD_SPOUSE_RETURN) == 4
+    # d1971: the federal credit line, and the two lines a state EITC can reach.
+    assert "formula in 26 U.S.C. 32, to the cent, not from the IRS EIC table" in (
+        _output_line(text, "federal_refundable_credits")
+    )
+    for output in (
+        "state_income_tax_before_refundable_credits",
+        "state_refundable_credits",
+    ):
+        assert pilot.STATE_USES_EITC_FORMULA in _output_line(text, output)
+    assert "26 U.S.C. 32" not in _output_line(
+        text, "federal_income_tax_before_refundable_credits"
+    )
+    # d1972(2): the period of every amount, with rent named.
+    assert "Every dollar amount is an annual total, including rent" in text
+    assert "Gross wage and salary amounts are annual totals" not in text
+    assert "hourly wage is a straight-time rate" in text
+    # d1972(3): each income's character, and the self-employment line as a part.
+    assert "- partnership income (Schedule E; no self-employment earnings" in text
+    assert "(part of partnership income, not added to it): $400" in text
+    assert "- educational assistance (tax-free scholarships and grants): " in text
+    assert "(already included in long-term capital gains): $300" in text
+    assert "schedule d capital gain distributions" not in text
+
+
+def test_only_a_person_line_takes_an_income_label():
+    line = "- taxable partnership income: $1"
+    assert pilot.v2_pilot_text(line) == line
+    assert "Schedule E" in pilot.v2_pilot_text("Head:\n- partnership income: $1")
+
+
+def _engine_file(*parts: str) -> Path:
+    import policyengine_us
+
+    return Path(policyengine_us.__file__).parent.joinpath(*parts)
+
+
+def test_louisianas_stated_amounts_are_the_engines():
+    """d1972(4) states the reference's amounts outright, so an engine that
+    moves them must move the sentence."""
+    import yaml
+
+    amounts = yaml.safe_load(
+        _engine_file(
+            "parameters/gov/states/la/tax/income/deductions/standard/amount.yaml"
+        ).read_text()
+    )
+    latest = {
+        status: max(values.items())[1]
+        for status, values in amounts.items()
+        if status
+        in {"SINGLE", "SEPARATE", "JOINT", "HEAD_OF_HOUSEHOLD", "SURVIVING_SPOUSE"}
+    }
+    if max(amounts["SINGLE"]).year != 2026:
+        pytest.skip("this engine has no 2026 Louisiana amount")
+    text = pilot.v2_pilot_text(
+        "Do not infer unlisted income, expenses, assets, "
+        "benefit receipt, rent, or health coverage."
+    )
+    assert latest["SINGLE"] == latest["SEPARATE"] == 12_838
+    assert latest["JOINT"] == latest["HEAD_OF_HOUSEHOLD"] == 25_676
+    assert latest["SURVIVING_SPOUSE"] == 25_676
+    assert "$12,838 for single and separate filers and $25,676 for all other" in text
+
+
+QBI_SENTENCE = (
+    "Treat rental, farm rent, partnership and S corporation income as qualified "
+    "business income under section 199A."
+)
+# The incomes the sentence names, as the engine's QBI sources.
+QBI_NAMED = {
+    "rental": "rental_income",
+    "farm rent": "farm_rent_income",
+    "partnership and S corporation": "partnership_s_corp_income",
+}
+# QBI sources that are a trade or business by their nature, so the prompt needs
+# no sentence for them.
+QBI_BUSINESS_BY_NATURE = {"self_employment_income", "farm_operations_income"}
+
+
+def test_the_stated_qualified_business_income_is_the_engines():
+    """The prompt calls these qualified business income because the engine does
+    and no prompt can set the flags (`_would_be_qualified` is never promptable).
+    Both ways: every source the sentence names defaults to qualified, and every
+    source that defaults to qualified is named or a business by its nature."""
+    import yaml
+
+    text = pilot.v2_pilot_text(
+        "Do not infer unlisted income, expenses, assets, "
+        "benefit receipt, rent, or health coverage."
+    )
+    assert QBI_SENTENCE in text
+    named = QBI_SENTENCE.removeprefix("Treat ").split(" income as qualified")[0]
+    assert named == "rental, farm rent, partnership and S corporation"
+    assert all(words in named for words in QBI_NAMED)
+    sources = yaml.safe_load(
+        _engine_file(
+            "parameters/gov/irs/deductions/qbi/income_definition.yaml"
+        ).read_text()
+    )["values"]
+    (listed,) = sources.values()
+    qualified = set()
+    for name in listed:
+        (path,) = _engine_file("variables").rglob(f"{name}_would_be_qualified.py")
+        if "default_value = True" in path.read_text():
+            qualified.add(name)
+    assert set(QBI_NAMED.values()) <= qualified
+    assert qualified - set(QBI_NAMED.values()) <= QBI_BUSINESS_BY_NATURE
+
+
+def test_the_v2_wording_refuses_a_uk_household():
+    """TASK_PREFACE is shared, so the rewrites would state US law in a UK prompt."""
+    scenario = dataclasses.replace(make_scenario(), country="uk")
+    with pytest.raises(ValueError, match="US scenarios only"):
+        pilot.build_initial_request(
+            scenario, ["income_tax"], pilot.model_profile(SOL, "web", "v2-pilot", True)
+        )
+
+
 def test_the_audit_keeps_source_objects_and_counts_reference_engine_entries():
     action = SimpleNamespace(
         type="search",
@@ -3756,3 +3936,135 @@ def test_the_law_date_sentence_states_the_fallback_and_the_snap_split():
     assert "asset limits through December 2026" in prompt
     assert "2026 HHS poverty guidelines from October 2026" in prompt
     assert "fiscal year 2026 values for all of 2026" not in prompt
+
+
+def test_web_and_tool_v3_is_tool_v3_with_web_search_named_in_its_opening():
+    # web+pe3 is to pe3 what web+pe is to pe: the same calculator, features,
+    # schema and notice, with web search named in the notice's first sentence.
+    for name in (SOL, OPUS):
+        both = pilot.model_profile(name, "web+pe3")
+        alone = pilot.model_profile(name, "pe3")
+        assert both.uses_web and both.uses_calculator and not alone.uses_web
+        assert (
+            both.tool_features == alone.tool_features == frozenset(pilot.TOOL_FEATURES)
+        )
+        assert pilot.profile_treatment(both) == pilot.profile_treatment(alone)
+        assert both.notice != alone.notice and "web search" in both.notice
+        assert (
+            both.notice.split("function. ", 1)[1]
+            == alone.notice.split("function. ", 1)[1]
+        )
+        assert both.notice == alone.notice.replace(
+            pilot._CALCULATE_OPENING, pilot._WEB_CALCULATE_OPENING
+        )
+        ruled = pilot.model_profile(name, "web+pe3", "v2-pilot", True)
+        assert ruled.notice.endswith(pilot.BENCHMARK_SEARCH_RULE)
+    # web+pe's notice is unchanged by the refactor into with_web_opening.
+    assert pilot.WEB_TOOL_NOTICE == pilot.TOOL_NOTICE.replace(
+        pilot._CALCULATE_OPENING,
+        "You also have web search, which searches the public web, and a "
+        "`calculate_household` function.",
+    )
+    with pytest.raises(ValueError):
+        pilot.with_web_opening("no calculator here")
+
+
+def test_a_gemini_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(pilot.MODEL_NAME, "web+pe3", "v2-pilot", True)
+    model = FakeModel(
+        [
+            with_fields(
+                response([submit({"snap": 2553, VARIABLES[1]: 0})]),
+                gemini_searches(("g1", ["co snap 2026"])),
+            )
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    (request,) = model.requests
+    assert request["tools"][0] == {"googleSearch": {}}
+    assert [t["function"]["name"] for t in request["tools"][1:]] == [
+        pilot.TOOL_NAME,
+        "submit_outputs",
+    ]
+    assert request["include_server_side_tool_invocations"] is True
+    assert request["messages"][0]["content"].endswith(profile.notice)
+    assert record["totals"]["web_searches"] == 1
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(pilot.MODEL_NAME, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None
+
+
+def test_an_anthropic_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(OPUS, "web+pe3", "v2-pilot", True)
+    model = FakeModel(
+        [response([], content=json_answer({"snap": 2553, VARIABLES[1]: 0}))]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    (request,) = model.requests
+    assert [t.get("name") or t["function"]["name"] for t in request["tools"]] == [
+        "web_search",
+        pilot.TOOL_NAME,
+    ]
+    system = request["messages"][0]["content"]  # text blocks on Anthropic
+    assert "".join(part["text"] for part in system).endswith(profile.notice)
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(OPUS, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None
+
+
+def test_a_responses_web_and_tool_v3_arm_offers_search_and_the_v3_calculator():
+    profile = pilot.model_profile(SOL, "web+pe3", "v2-pilot", True)
+    model = FakeResponses(
+        [
+            responses_response(
+                [
+                    web_search_call(
+                        "ws_1", SimpleNamespace(type="search", query="co snap")
+                    ),
+                    sol_submit({"snap": 2553, VARIABLES[1]: 0}),
+                ],
+                "resp_1",
+            ),
+        ]
+    )
+    record = pilot.run_household(
+        make_scenario(), VARIABLES, fake_tool, model, pilot.Spend(50.0), profile=profile
+    )
+    assert record["status"] == "complete" and record["arm"] == "web+pe3"
+    assert record["tool_features"] == sorted(pilot.TOOL_FEATURES)
+    assert (
+        record["tool_notice_sha256"]
+        == hashlib.sha256(profile.notice.encode()).hexdigest()
+    )
+    (first,) = model.requests
+    assert first["tools"][0] == {
+        "type": "web_search",
+        "filters": {"blocked_domains": list(pilot.BLOCKED_DOMAINS)},
+    }
+    assert [t.get("name") for t in first["tools"][1:]] == [
+        pilot.TOOL_NAME,
+        "submit_outputs",
+    ]
+    assert (
+        record["calculate_tool_sha256"]
+        == pilot.profile_treatment(pilot.model_profile(SOL, "pe3"))[
+            "calculate_tool_sha256"
+        ]
+    )
+    assert pilot.record_treatment_problem(record, profile) is None

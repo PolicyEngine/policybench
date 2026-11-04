@@ -5,7 +5,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -262,6 +262,102 @@ MONETARY_INCOME_FIELDS = {
     "workers_compensation",
     "long_term_capital_gains",
 }
+
+# d1029 (Max, 2026-11-01): the US income tax outputs cover the head and spouse's
+# return, and household sets drop households whose dependents must file.
+# policyengine-us models no dependent's own return, and state rules reach far:
+# Pennsylvania requires a return from anyone, minors included, with more than
+# $33 of PA-taxable income or a loss from any transaction as an individual,
+# sole proprietor, partner or S corporation shareholder (2025 PA-40
+# instructions, page 4), and it taxes interest on other states' bonds (61 Pa.
+# Code 103.16(e)). So the draw drops every household where a dependent has any
+# of this income, or a loss on it, as the prompt prints it, and every household
+# where the engine counts gross income for a dependent, which takes in income
+# the inputs produce together, such as state unemployment insurance modeled
+# from base-period wages (Sol review r2). That catches the dependents who must
+# file and some who need not. household_set.py build refuses a draw whose
+# references still give a dependent gross income or net earnings from
+# self-employment. Child support, SSI, veterans' benefits and workers'
+# compensation are never gross income; Social Security follows its own rule.
+SOCIAL_SECURITY_FIELDS = (
+    "social_security_dependents",
+    "social_security_disability",
+    "social_security_retirement",
+    "social_security_survivors",
+)
+NON_RETURN_INCOME_FIELDS = {
+    "child_support_received",
+    *SOCIAL_SECURITY_FIELDS,
+    "ssi_reported",
+    "veterans_benefits",
+    "workers_compensation",
+}
+# Social Security is gross income only in the part 26 U.S.C. 86 taxes, which
+# stays zero for an unmarried taxpayer until other income plus half the
+# benefits passes the $25,000 base amount (86(c)(1)(A)). Other income already
+# drops the household, so a dependent's benefits count above $50,000. A married
+# dependent who lives with a spouse has no base amount (86(c)(1)(C)); the
+# frame shows no marriages, so this takes the unmarried base.
+DEPENDENT_SOCIAL_SECURITY_LIMIT = 50_000
+# The frame column holding the engine's own count of each person's gross income
+# as a dependent (policyengine-us's dependent_gross_income).
+DEPENDENT_GROSS_INCOME_COLUMN = "engine_dependent_gross_income"
+# The list holds every input the engine turns into a dependent's gross income
+# or net earnings from self-employment; a test gives a dependent each promptable
+# input in turn and checks this. Partnership self-employment earnings are not
+# gross income, but net earnings of $400 or more require a return (26 U.S.C.
+# 6017), and the engine taxes them on the dependent (review r3). The list also
+# holds each part of a listed income that the prompt prints on a line of its
+# own, such as capital gain distributions or an overtime premium. A record can
+# hold the part without the whole, and the prompt then prints income that the
+# reference ignores: on policyengine-us 2.41.0's certified frame, two kept
+# households print a dependent's capital gain distributions with no long-term
+# gains.
+DEPENDENT_RETURN_INCOME_FIELDS = (MONETARY_INCOME_FIELDS - NON_RETURN_INCOME_FIELDS) | {
+    "collectibles_gain_or_loss",
+    "csrs_retirement_pay",
+    "debt_relief",
+    "eitc_passive_income_also_in_earned_income",
+    "fsla_overtime_premium",
+    "ga_rla_hourly_component_overtime",
+    "gambling_winnings",
+    "illicit_income",
+    "keogh_distributions",
+    "long_term_capital_gains_on_collectibles",
+    "long_term_capital_gains_on_small_business_stock",
+    "military_basic_pay",
+    "military_retirement_pay",
+    "military_retirement_pay_survivors",
+    "military_service_income",
+    "non_sch_d_capital_gains",
+    "partnership_income",
+    "partnership_self_employment_net_earnings",
+    "passive_estate_income",
+    "passive_partnership_s_corp_income",
+    "pension_survivors",
+    "pfml_benefits",
+    "qualified_bdc_income",
+    "qualified_reit_and_ptp_income",
+    "s770_active_fica_income",
+    "s770_passive_se_income",
+    "s_corp_income",
+    "schedule_d_capital_gain_distributions",
+    "section_1202_gain",
+    "sstb_self_employment_income_before_lsr",
+    "state_or_federal_salary",
+    "strike_benefits",
+    "taxable_403b_distributions",
+    "taxable_federal_pension_income",
+    "taxable_public_pension_income",
+    "taxable_roth_conversions",
+    "tip_income",
+    "total_disability_payments",
+}
+# The engine gives each Alaska resident the Permanent Fund Dividend as gross
+# income with no input (policyengine-us's ak_permanent_fund_dividend), and no
+# prompt states it, so an Alaska reference holds income the prompt says to treat
+# as 0. A test checks this list against every state.
+STATES_WITH_UNSTATED_INCOME = frozenset({"AK"})
 
 BASE_PERSON_COLUMNS = {
     "person_id": "person_id",
@@ -786,6 +882,53 @@ def _canonical_uk_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
     return canonical
 
 
+def round_us_prompt_amount(value: float) -> float:
+    """The whole number the prompt prints for an amount (``,.0f``), so the
+    prompt's rounding and this one agree; never negative zero."""
+    return float(f"{float(value):.0f}") + 0.0
+
+
+def _canonical_us_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Each amount as the prompt shows it. Rates and ratios stay as they are:
+    the prompt shows them as fractions or, for the Marketplace plan ratio, in
+    words."""
+    return {
+        key: (
+            value
+            if isinstance(value, (bool, np.bool_, str))
+            or value is None
+            or key.endswith(RATE_OR_RATIO_FIELD_SUFFIXES)
+            else round_us_prompt_amount(value)
+        )
+        for key, value in inputs.items()
+    }
+
+
+def canonical_us_scenario(scenario: "Scenario") -> "Scenario":
+    """A US scenario holding the amounts its prompt shows, for references that
+    compute from the prompt's facts (d1972, Max 2026-11-01). The board's v1
+    references hold cents; only household sets start from this."""
+    if scenario.country != "us":
+        raise ValueError("canonical_us_scenario takes a US scenario")
+
+    def canonical(person: Person) -> Person:
+        return Person(
+            name=person.name,
+            age=person.age,
+            employment_income=round_us_prompt_amount(person.employment_income),
+            inputs=_canonical_us_inputs(person.inputs),
+        )
+
+    return replace(
+        scenario,
+        adults=[canonical(person) for person in scenario.adults],
+        children=[canonical(person) for person in scenario.children],
+        tax_unit_inputs=_canonical_us_inputs(scenario.tax_unit_inputs),
+        spm_unit_inputs=_canonical_us_inputs(scenario.spm_unit_inputs),
+        household_inputs=_canonical_us_inputs(scenario.household_inputs),
+    )
+
+
 def canonical_uk_person(person: Person) -> Person:
     """A UK person holding exactly the facts the prompt states about them.
 
@@ -918,19 +1061,29 @@ def scenario_from_dict(data: dict[str, Any]) -> Scenario:
     )
 
 
-def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
+def load_certified_us_person_frame(
+    dataset: str | None = None, dataset_label: str | None = None
+) -> tuple[pd.DataFrame, int, str]:
     """Load a person-level frame from the certified US microsimulation dataset.
 
     Returns ``(person_df, dataset_year, dataset_label)``. The label is read
     from the live simulation's PolicyEngine bundle (``default_dataset``), so it
     reflects the dataset the run actually materialized -- the certified
     populace build (``populace_us_2024``) -- rather than a hardcoded name.
+
+    ``dataset`` (a local H5 path) replaces the certified dataset, for test
+    household sets only; ``dataset_label`` then names it.
     """
     from policybench.policyengine_runtime import make_us_microsimulation
 
-    sim = make_us_microsimulation()
+    if dataset is None:
+        sim = make_us_microsimulation()
+        dataset_label = str(sim.policyengine_bundle["default_dataset"])
+    else:
+        if not dataset_label:
+            raise ValueError("an explicit dataset needs a dataset_label")
+        sim = make_us_microsimulation(dataset=dataset)
     dataset_year = sim.default_input_period
-    dataset_label = str(sim.policyengine_bundle["default_dataset"])
     input_specs = get_promptable_input_specs()
 
     values = {}
@@ -953,6 +1106,15 @@ def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
                 use_weights=False,
             )
         )
+    # d1029's filter reads it (_households_with_dependent_return_income).
+    values[DEPENDENT_GROSS_INCOME_COLUMN] = np.asarray(
+        sim.calculate(
+            "dependent_gross_income",
+            dataset_year,
+            map_to="person",
+            use_weights=False,
+        )
+    )
 
     return pd.DataFrame(values), dataset_year, dataset_label
 
@@ -1368,6 +1530,44 @@ def _eligible_households(person_df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
+def _households_with_dependent_return_income(person_df: pd.DataFrame) -> set[int]:
+    """Households where someone other than the head or spouse has income or a
+    loss that could require a return of their own (d1029): listed income or a
+    loss as the prompt prints it, Social Security past the section 86 base, or
+    any gross income the engine counts for them."""
+    if DEPENDENT_GROSS_INCOME_COLUMN not in person_df.columns:
+        raise ValueError(
+            f"the d1029 filter needs the frame's {DEPENDENT_GROSS_INCOME_COLUMN} "
+            "column (load_certified_us_person_frame)"
+        )
+    dependents = person_df[
+        ~(person_df["is_tax_unit_head"] | person_df["is_tax_unit_spouse"])
+    ]
+
+    def printed(fields) -> pd.DataFrame:
+        # The prompt prints nothing for a missing amount (_extract_entity_inputs).
+        present = sorted(set(fields) & set(person_df.columns))
+        return (
+            dependents[present]
+            .fillna(0.0)
+            .apply(lambda column: column.map(round_us_prompt_amount))
+        )
+
+    engine_income = pd.to_numeric(
+        dependents[DEPENDENT_GROSS_INCOME_COLUMN], errors="coerce"
+    )
+    flagged = (
+        (printed(DEPENDENT_RETURN_INCOME_FIELDS) != 0).any(axis=1)
+        | (
+            printed(SOCIAL_SECURITY_FIELDS).sum(axis=1)
+            > DEPENDENT_SOCIAL_SECURITY_LIMIT
+        )
+        # A missing amount counts, since it can't show the dependent has none.
+        | engine_income.ne(0)
+    )
+    return set(dependents.loc[flagged, "household_id"])
+
+
 def _sample_household_ids(
     eligible_households: pd.DataFrame,
     n: int,
@@ -1540,6 +1740,8 @@ def scenarios_from_cps_frame(
     dataset_year: int | None = None,
     dataset_label: str | None = None,
     excluded_household_ids: set[int] | None = None,
+    head_spouse_returns_only: bool = False,
+    excluded_states: frozenset[str] = frozenset(),
 ) -> list[Scenario]:
     """Sample benchmark scenarios from a person-level US source frame.
 
@@ -1547,12 +1749,31 @@ def scenarios_from_cps_frame(
     (e.g. ``populace_us_2024``); when provided it is recorded verbatim as each
     scenario's ``source_dataset``. When omitted, a neutral populace default is
     used so generated scenarios are never mislabeled.
+
+    ``head_spouse_returns_only`` leaves out households whose dependents have
+    income or a loss of their own (d1029); the frame then needs
+    ``DEPENDENT_GROSS_INCOME_COLUMN``. The board's v1 draw predates it.
+
+    ``excluded_states`` leaves out every household in those states, as v2's draw
+    does for ``STATES_WITH_UNSTATED_INCOME``.
     """
     df = _prepare_cps_frame(person_df)
     eligible_households = _eligible_households(df)
     if excluded_household_ids:
         eligible_households = eligible_households[
             ~eligible_households["household_id"].isin(excluded_household_ids)
+        ].copy()
+    if head_spouse_returns_only:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(
+                _households_with_dependent_return_income(df)
+            )
+        ].copy()
+    if excluded_states:
+        eligible_households = eligible_households[
+            ~eligible_households["household_id"].isin(
+                df.loc[df["state_code"].isin(excluded_states), "household_id"]
+            )
         ].copy()
     sampled_household_ids = _sample_household_ids(eligible_households, n=n, seed=seed)
 
@@ -1822,10 +2043,30 @@ def generate_scenarios(
     seed: int = SEED,
     excluded_household_ids: set[int] | None = None,
     country: str = DEFAULT_COUNTRY,
+    dataset: str | None = None,
+    dataset_label: str | None = None,
+    head_spouse_returns_only: bool = False,
+    excluded_states: frozenset[str] = frozenset(),
 ) -> list[Scenario]:
-    """Generate benchmark scenarios for a country."""
+    """Generate benchmark scenarios for a country.
+
+    ``dataset`` and ``dataset_label`` replace the certified US dataset (see
+    :func:`load_certified_us_person_frame`); test household sets only.
+    ``head_spouse_returns_only`` and ``excluded_states`` apply
+    :func:`scenarios_from_cps_frame`'s filters, US only.
+    """
+    if dataset is not None and country != "us":
+        raise ValueError("an explicit dataset is supported for the US only")
+    if head_spouse_returns_only and country != "us":
+        raise ValueError("head_spouse_returns_only is a US filter")
+    if excluded_states and country != "us":
+        raise ValueError("excluded_states is a US filter")
     if country == "us":
-        person_df, dataset_year, dataset_label = load_certified_us_person_frame()
+        person_df, dataset_year, dataset_label = (
+            load_certified_us_person_frame()
+            if dataset is None
+            else load_certified_us_person_frame(dataset, dataset_label)
+        )
         return scenarios_from_cps_frame(
             person_df,
             n=n,
@@ -1834,6 +2075,8 @@ def generate_scenarios(
             dataset_year=dataset_year,
             dataset_label=dataset_label,
             excluded_household_ids=excluded_household_ids,
+            head_spouse_returns_only=head_spouse_returns_only,
+            excluded_states=excluded_states,
         )
     if country == "uk":
         person_df, household_df, dataset_year = load_uk_transfer_frames()
