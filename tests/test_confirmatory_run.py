@@ -2785,6 +2785,17 @@ def test_stage_allocation_requires_each_expected_cost_to_be_finite_and_positive(
         del design["expected_costs"][model]
     else:
         design["expected_costs"][model] = cost
+        if isinstance(cost, float) and math.isfinite(cost):
+            total = sum(design["expected_costs"].values())
+            stage_cap = 120.0 if kind == "web" else 145.0
+            design["caps"] = {
+                m: stage_cap * value / total
+                for m, value in design["expected_costs"].items()
+            }
+            design["reserves"] = {
+                m: 3 * value / 120
+                for m, value in design["expected_costs"].items()
+            }
     assert cr.preflight(design, models) == [
         f"{model}: expected_costs must be finite and positive"
     ], "each stage model needs a finite positive expected cost"
