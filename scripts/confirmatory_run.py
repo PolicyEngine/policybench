@@ -2594,6 +2594,25 @@ def calculator_evidence(design: dict) -> list[float]:
 
 
 def web_preflight(design: dict) -> list[str]:
+    """Record malformed web designs as refusals before a provider can run."""
+    try:
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
+        return _web_preflight(design)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        RuntimeError,
+    ) as error:
+        return [f"the web design is malformed: {error}"]
+
+
+def _web_preflight(design: dict) -> list[str]:
     """The web stage follows its hashed, closed calculator stage and all spend."""
     from confirmatory_no_tools import (
         component,
@@ -2621,11 +2640,9 @@ def web_preflight(design: dict) -> list[str]:
     if calculator.get("overall_cap") != CALCULATOR_OVERALL_CAP:
         problems.append("the linked calculator design's overall_cap must be 150")
     problems.extend(f"linked calculator: {p}" for p in stage_start_problems(calculator))
-    problems.extend(
-        f"linked calculator: {p}"
-        for p in allocation_problems(calculator, STAGES["calculator"])
-    )
-    if not allocation_problems(calculator, STAGES["calculator"]):
+    allocation = allocation_problems(calculator, STAGES["calculator"])
+    problems.extend(f"linked calculator: {p}" for p in allocation)
+    if not allocation:
         problems.extend(
             f"linked calculator: {p}"
             for p in projection_problems(calculator, STAGES["calculator"])
@@ -2666,6 +2683,8 @@ def web_preflight(design: dict) -> list[str]:
                 )
                 costs.extend(saved)
                 no_tools_costs.extend(saved)
+        if type(calculator["spent_before"]) not in (int, float):
+            raise ValueError("calculator spent_before must be a nonboolean number")
         calculator_spent_before = float(calculator["spent_before"])
         if not math.isfinite(calculator_spent_before) or calculator_spent_before < 0:
             raise ValueError("calculator spent_before must be finite and nonnegative")
@@ -2679,6 +2698,8 @@ def web_preflight(design: dict) -> list[str]:
             exact_spend([calculator_spent_before, *calculator_costs]),
             exact_spend(costs),
         )
+        if type(design["spent_before"]) not in (int, float):
+            raise ValueError("web spent_before must be a nonboolean number")
         declared = float(design["spent_before"])
         if not 0 <= declared < math.inf or declared < spent - 1e-6:
             problems.append(
@@ -2701,9 +2722,19 @@ def web_preflight(design: dict) -> list[str]:
 def stage_start_problems(design: dict) -> list[str]:
     """No provider request may start once the whole-run ceiling is reached."""
     try:
+        if any(
+            type(design[field]) not in (int, float)
+            for field in ("spent_before", "overall_cap")
+        ):
+            raise ValueError("stage money must be nonboolean numbers")
         spent_before = float(design["spent_before"])
-        ceiling = float(design["overall_cap"]) + CEILING_MARGIN
-        if math.isfinite(spent_before) and spent_before < ceiling:
+        overall_cap = float(design["overall_cap"])
+        ceiling = overall_cap + CEILING_MARGIN
+        if (
+            math.isfinite(overall_cap)
+            and math.isfinite(spent_before)
+            and 0 <= spent_before < ceiling
+        ):
             return []
     except (KeyError, TypeError, ValueError, OverflowError):
         pass
@@ -2713,12 +2744,24 @@ def stage_start_problems(design: dict) -> list[str]:
 def allocation_problems(design: dict, stage: Stage) -> list[str]:
     """Check the registered proportional cap split and three-times reserves."""
     problems = []
+    for field in ("expected_costs", "caps", "reserves"):
+        values = design.get(field)
+        if not isinstance(values, dict) or set(values) != set(stage.models):
+            problems.append(
+                f"{field} must be an object with exactly the registered model keys"
+            )
+    if problems:
+        return problems
     expected = {}
     for model in stage.models:
         try:
-            value = design["expected_costs"][model]
-            cost = float(value)
-            if isinstance(value, bool) or not math.isfinite(cost) or cost <= 0:
+            raw_cost = design["expected_costs"][model]
+            cost = float(raw_cost)
+            if (
+                type(raw_cost) not in (int, float)
+                or not math.isfinite(cost)
+                or cost <= 0
+            ):
                 raise ValueError("expected cost is not finite and positive")
             expected[model] = cost
         except (KeyError, TypeError, ValueError, OverflowError):
@@ -2738,9 +2781,9 @@ def allocation_problems(design: dict, stage: Stage) -> list[str]:
             ("reserves", 3 * cost / HOUSEHOLDS, RESERVE_TOLERANCE, "rule"),
         ):
             try:
-                value = design[field][model]
-                got = float(value)
-                if isinstance(value, bool) or not math.isfinite(got):
+                raw_allocation = design[field][model]
+                got = float(raw_allocation)
+                if type(raw_allocation) not in (int, float) or not math.isfinite(got):
                     raise ValueError("allocation is not finite")
             except (KeyError, TypeError, ValueError, OverflowError):
                 problems.append(f"{model}: {field} needs a finite allocation")
@@ -2758,7 +2801,19 @@ def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str,
     frontier models use 10 pe/mctest finals. Web models use 100 finals per
     arm across mctest and mafree, projecting the sum of the two arm means.
     """
-    from confirmatory_no_tools import read_regular, saved_children, saved_json_paths
+    from confirmatory_no_tools import read_regular, saved_children
+
+    def development_paths(folder):
+        # Match the report's projection-only empty-inventory semantics.
+        try:
+            with os.scandir(folder) as entries:
+                return sorted(
+                    Path(entry.path)
+                    for entry in entries
+                    if entry.name.endswith(".json")
+                )
+        except (FileNotFoundError, NotADirectoryError):
+            return []
 
     def costs(paths):
         amounts = []
@@ -2787,7 +2842,7 @@ def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str,
                 paths = [
                     path
                     for board in ("mctest", "mafree")
-                    for path in saved_json_paths(root / folder / board / "households")
+                    for path in development_paths(root / folder / board / "households")
                 ]
                 if len(paths) != 100:
                     raise ValueError(
@@ -2809,7 +2864,7 @@ def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str,
             paths = [
                 path
                 for arm in arms
-                for path in saved_json_paths(arm / "mctest" / "households")
+                for path in development_paths(arm / "mctest" / "households")
             ]
             required = 320 if model in CHEAP else 10
             if len(paths) != required:
@@ -2850,6 +2905,25 @@ def projection_problems(design: dict, stage: Stage) -> list[str]:
 
 
 def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
+    """Return recorded input problems for every malformed design."""
+    try:
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
+        return _preflight(design, models)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        RuntimeError,
+    ) as error:
+        return [f"the design is malformed: {error}"]
+
+
+def _preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
     if missing:
@@ -3009,8 +3083,6 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         return saved_json_paths(stage / "households")
 
     for model in models:
-        if model not in design["caps"] or model not in design["reserves"]:
-            problems.append(f"{model}: no cap or reserve")
         for label in stage.arms_for(model):
             try:
                 arm_profile(model, label)

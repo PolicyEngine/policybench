@@ -2883,6 +2883,65 @@ def test_development_projection_accepts_the_exact_one_microdollar_tolerance(
     )
 
 
+def test_development_projection_ignores_a_non_directory_unused_arm(tmp_path):
+    stage = cr.STAGES["calculator"]
+    synthetic_development_tree(
+        tmp_path, "calculator", {model: 1.0 for model in stage.models}
+    )
+    before = cr.registered_expected_costs(tmp_path, stage)
+    (tmp_path / stage.models[0] / "abl-unused").write_text("unused")
+    raised, after = None, None
+    try:
+        after = cr.registered_expected_costs(tmp_path, stage)
+    except (OSError, ValueError) as error:
+        raised = error
+    assert raised is None and after == before, (
+        "development projection preserves the report's empty non-directory inventories"
+    )
+
+
+def test_web_development_projection_counts_the_other_board_when_one_is_a_file(tmp_path):
+    stage = cr.STAGES["web"]
+    synthetic_development_tree(tmp_path, "web", {model: 1.0 for model in stage.models})
+    before = cr.registered_expected_costs(tmp_path, stage)
+    arm = tmp_path / stage.models[0] / "web"
+    mctest = arm / "mctest"
+    for path in (mctest / "households").iterdir():
+        path.rename(arm / "mafree/households" / f"moved-{path.name}")
+    (mctest / "households").rmdir()
+    mctest.rmdir()
+    mctest.write_text("unused")
+    raised, after = None, None
+    try:
+        after = cr.registered_expected_costs(tmp_path, stage)
+    except (OSError, ValueError) as error:
+        raised = error
+    assert raised is None and after == before, (
+        "web development projection preserves the report's "
+        "empty non-directory inventories"
+    )
+
+
+@pytest.mark.parametrize("linked", [False, True])
+def test_web_preflight_spend_declarations_require_nonboolean_numbers(
+    world, tmp_path, monkeypatch, linked
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    target = calculator if linked else design
+    original = target["spent_before"]
+    for value in (str(original), False):
+        target["spent_before"] = value
+        if linked:
+            path.write_text(json.dumps(calculator))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        problems = cr.web_preflight(design)
+        assert any("must be a nonboolean number" in problem for problem in problems), (
+            "web floor declarations require nonboolean numbers before conversion"
+        )
+
+
 @pytest.mark.parametrize("kind", ["calculator", "web"])
 def test_development_projection_uses_the_registered_mean_and_arm_arithmetic(
     tmp_path, kind
@@ -2984,6 +3043,160 @@ def test_linked_calculator_spent_before_covers_its_own_no_tools_floor(
         assert (problems == []) is accepted, (
             "the linked calculator floor uses the inclusive one-microdollar tolerance"
         )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize("field", ["expected_costs", "caps", "reserves"])
+def test_design_money_containers_have_exactly_the_registered_model_keys(
+    world, tmp_path, monkeypatch, kind, field
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
+    path = Path(web["calculator"]["path"])
+    original = (
+        json.loads(path.read_text()) if kind == "linked" else copy.deepcopy(design)
+    )
+    for fault in (None, [], "invalid", "extra-good", "extra-bad"):
+        changed = copy.deepcopy(original)
+        if isinstance(fault, str) and fault.startswith("extra-"):
+            changed[field]["unused"] = 1.0 if fault == "extra-good" else "bad"
+        else:
+            changed[field] = fault
+        if kind == "linked":
+            path.write_text(json.dumps(changed))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        else:
+            design = changed
+        problems = cr.preflight(design, models)
+        prefix = "linked calculator: " if kind == "linked" else ""
+        assert problems == [
+            prefix + f"{field} must be an object with exactly the registered model keys"
+        ], "money containers must be objects with exactly the registered model keys"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize("field", ["expected_costs", "caps", "reserves"])
+def test_design_money_values_are_numbers_before_conversion(
+    world, tmp_path, monkeypatch, kind, field
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
+    path = Path(web["calculator"]["path"])
+    original = (
+        json.loads(path.read_text()) if kind == "linked" else copy.deepcopy(design)
+    )
+    model = cr.STAGES["calculator" if kind == "linked" else kind].models[0]
+    for value in (str(original[field][model]), True):
+        changed = copy.deepcopy(original)
+        changed[field][model] = value
+        if kind == "linked":
+            path.write_text(json.dumps(changed))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        else:
+            design = changed
+        problems = cr.preflight(design, models)
+        assert (
+            len(problems) == 1
+            and (
+                "finite and positive"
+                if field == "expected_costs"
+                else "finite allocation"
+            )
+            in problems[0]
+        ), "money values must be nonboolean numbers before conversion"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize("field", ["overall_cap", "spent_before"])
+def test_design_money_scalars_refuse_malformed_values_without_raising(
+    world, tmp_path, monkeypatch, kind, field
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
+    path = Path(web["calculator"]["path"])
+    original = (
+        json.loads(path.read_text()) if kind == "linked" else copy.deepcopy(design)
+    )
+    for value in (10**400, str(original[field]), None, True, math.nan):
+        changed = copy.deepcopy(original)
+        changed[field] = value
+        if kind == "linked":
+            path.write_text(json.dumps(changed))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        else:
+            design = changed
+        raised, problems = None, []
+        try:
+            problems = cr.preflight(design, models)
+            if kind == "web":
+                assert cr.web_preflight(design)
+        except (TypeError, ValueError, OverflowError, AttributeError) as error:
+            raised = error
+        assert raised is None and problems, (
+            "malformed monetary scalars must produce recorded refusals without raising"
+        )
+
+
+@pytest.mark.parametrize("field", ["overall_cap", "spent_before"])
+def test_stage_money_scalars_require_nonboolean_numbers(field):
+    for value in ("1", True, False):
+        design = {"overall_cap": 150.0, "spent_before": 1.0}
+        design[field] = value
+        assert cr.stage_start_problems(design), (
+            "stage monetary scalars require nonboolean numbers before conversion"
+        )
+
+
+def test_stage_money_scalars_are_finite_and_prior_spend_is_nonnegative():
+    for field, value in (
+        ("overall_cap", math.inf),
+        ("overall_cap", math.nan),
+        ("spent_before", math.inf),
+        ("spent_before", math.nan),
+        ("spent_before", -0.01),
+    ):
+        design = {"overall_cap": 150.0, "spent_before": 1.0}
+        design[field] = value
+        assert cr.stage_start_problems(design), (
+            "stage money must be finite and prior spend must be nonnegative"
+        )
+
+
+@pytest.mark.parametrize("check", ["preflight", "web_preflight"])
+def test_malformed_design_objects_become_recorded_problems(check):
+    for design in (None, [], "invalid", True):
+        raised, problems = None, []
+        try:
+            problems = (
+                cr.preflight(design, cr.WEB_MODELS)
+                if check == "preflight"
+                else cr.web_preflight(design)
+            )
+        except (TypeError, ValueError, OverflowError, AttributeError) as error:
+            raised = error
+        assert raised is None and len(problems) == 1 and "malformed" in problems[0], (
+            "malformed design objects must become recorded problems without raising"
+        )
+
+
+def test_malformed_design_paths_become_recorded_problems(world, tmp_path):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    design["preregistration"] = None
+    raised, problems = None, []
+    try:
+        problems = cr.preflight(design, (cr.CHEAP[0],))
+    except (TypeError, ValueError, OverflowError, AttributeError) as error:
+        raised = error
+    assert raised is None and len(problems) == 1 and "malformed" in problems[0], (
+        "malformed design paths must become recorded problems without raising"
+    )
 
 
 def test_calculator_preflight_requires_the_registered_150_dollar_cap(
@@ -3103,7 +3316,9 @@ def test_stage_allocation_requires_each_expected_cost_to_be_finite_and_positive(
                 for m, value in design["expected_costs"].items()
             }
     assert cr.preflight(design, models) == [
-        f"{model}: expected_costs must be finite and positive"
+        "expected_costs must be an object with exactly the registered model keys"
+        if cost is None
+        else f"{model}: expected_costs must be finite and positive"
     ], "each stage model needs a finite positive expected cost"
 
 
