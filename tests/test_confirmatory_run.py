@@ -5478,3 +5478,75 @@ def test_development_projection_refuses_a_fifo_without_blocking(tmp_path, kind):
         and "FIFO" in str(outcome[0])
     ), "development record reads refuse FIFO inputs promptly with a path-bearing error"
 
+@pytest.mark.parametrize(
+    "inventory,count,linked",
+    [
+        (inventory, count, linked)
+        for inventory, counts in (("cheap", (319, 321)), ("frontier", (9, 11)))
+        for count in counts
+        for linked in (False, True)
+    ]
+    + [
+        (inventory, count, False)
+        for inventory in ("web", "web-pe3")
+        for count in (99, 101)
+    ],
+    ids=[
+        f"{inventory}-{count}-{'linked' if linked else 'direct'}"
+        for inventory, counts in (("cheap", (319, 321)), ("frontier", (9, 11)))
+        for count in counts
+        for linked in (False, True)
+    ]
+    + [f"{inventory}-{count}-direct" for inventory in ("web", "web-pe3") for count in (99, 101)],
+)
+def test_projection_refuses_missing_and_extra_finals_for_each_inventory(
+    world, tmp_path, monkeypatch, inventory, count, linked
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    kind = "web" if inventory.startswith("web") else "calculator"
+    design, models = fresh_stage_design(w, web, tmp_path, "web" if linked else kind)
+    if inventory == "cheap":
+        model, arm, required = cr.CHEAP[0], "pe3", 320
+    elif inventory == "frontier":
+        model, arm, required = cr.FRONTIER[0], "pe", 10
+    else:
+        model, arm, required = cr.WEB_MODELS[0], inventory, 100
+    folder = Path(design["development_runs"]) / model / arm / "mctest/households"
+    if count < required:
+        next(folder.glob("*.json")).unlink()
+    else:
+        source = next(folder.glob("*.json"))
+        (folder / "extra-final.json").write_bytes(source.read_bytes())
+    problems = cr.preflight(design, models)
+    assert (
+        len(problems) == 1
+        and "expected-cost projection" in problems[0]
+        and f"expected {required}" in problems[0]
+        and str(count) in problems[0]
+        and (not linked or problems[0].startswith("linked calculator: "))
+    ), "development projection requires exact cheap, frontier and per-web-arm final counts, directly and through the link"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+def test_projection_ignores_unregistered_paths(world, tmp_path, monkeypatch, kind):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(w, web, tmp_path, "web" if kind == "linked" else kind)
+    root = Path(design["development_runs"])
+    decoys = [
+        root / cr.CHEAP[0] / "ablX/mctest/households/extra.json",
+        root / cr.FRONTIER[0] / "abl-unregistered/mctest/households/extra.json",
+        root / cr.CHEAP[0] / "pe3/unregistered-board/households/extra.json",
+        root / cr.CHEAP[0] / "pe3/mctest/households/not-json.txt",
+        root / cr.CHEAP[0] / "pe3/mctest/households/attempts/extra.json",
+        root / cr.WEB_MODELS[0] / "web/unregistered-board/households/extra.json",
+        root / cr.WEB_MODELS[0] / "web/mctest/households/not-json.txt",
+        root / cr.WEB_MODELS[0] / "web/mctest/households/attempts/extra.json",
+        root / cr.WEB_MODELS[0] / "unregistered-arm/mctest/households/extra.json",
+    ]
+    for path in decoys:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"totals": {"cost_usd": 1e12}}))
+    assert cr.preflight(design, models) == [], (
+        "development projection ignores populated unregistered arms, boards, non-JSON files and nested attempts"
+    )
+
