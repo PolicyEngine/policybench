@@ -2692,7 +2692,7 @@ def test_resume_writes_the_operator_s_note(tmp_path):
     assert note["note"] == "key rotated"
 
 
-def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
+def complete_web_design(world, tmp_path, monkeypatch, *, archives=False, validate=True):
     """A web preflight with a genuinely ended synthetic calculator stage."""
     from types import SimpleNamespace
 
@@ -2753,7 +2753,8 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False):
         monkeypatch.setenv(
             pilot.provider_key(cr.arm_profile(model, "web").model_id), "synthetic"
         )
-    assert cr.preflight(design, cr.WEB_MODELS) == []
+    if validate:
+        assert cr.preflight(design, cr.WEB_MODELS) == []
     return w, design
 
 
@@ -5435,6 +5436,7 @@ def test_command_line_resume_refuses_a_design_without_usable_runs(
         and capsys.readouterr().out.startswith("The run cannot start: ")
     ), "resume reports missing or unusable runs folders as startup refusals"
 
+
 @pytest.mark.parametrize("kind", ["calculator", "web"])
 def test_development_projection_refuses_a_fifo_without_blocking(tmp_path, kind):
     stage = cr.STAGES[kind]
@@ -5477,6 +5479,7 @@ def test_development_projection_refuses_a_fifo_without_blocking(tmp_path, kind):
         and str(path) in str(outcome[0])
         and "FIFO" in str(outcome[0])
     ), "development record reads refuse FIFO inputs promptly with a path-bearing error"
+
 
 @pytest.mark.parametrize(
     "inventory,count,linked",
@@ -5550,3 +5553,80 @@ def test_projection_ignores_unregistered_paths(world, tmp_path, monkeypatch, kin
         "development projection ignores populated unregistered arms, boards, non-JSON files and nested attempts"
     )
 
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+def test_projection_preserves_registered_summation_and_pooling(
+    world, tmp_path, monkeypatch, kind
+):
+    # A changed multiplier must reach this test's independent arithmetic oracle.
+    w, web = complete_web_design(world, tmp_path, monkeypatch, validate=False)
+    design, models = fresh_stage_design(w, web, tmp_path, "web" if kind == "linked" else kind)
+    link = Path(web["calculator"]["path"])
+    target = json.loads(link.read_text()) if kind == "linked" else design
+    root = Path(target["development_runs"])
+
+    def replace_inventory(model, arms):
+        import shutil
+
+        for existing in (root / model).iterdir():
+            if (kind == "web" and existing.name in ("web", "web-pe3")) or (
+                kind != "web"
+                and (existing.name in ("pe", "pe3") or existing.name.startswith("abl-"))
+            ):
+                shutil.rmtree(existing)
+        for arm, costs in arms:
+            # Both boards have nonuniform costs in each web arm.
+            for n, cost in enumerate(costs):
+                board = "mafree" if kind == "web" and n >= 50 else "mctest"
+                path = root / model / arm / board / "households" / f"{n:03}.json"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps({"totals": {"cost_usd": cost}}))
+
+    if kind == "web":
+        model = cr.WEB_MODELS[0]
+        costs = [1e16, 1.0] + [1e-16] * 98
+        assert sum(costs) == 1e16 and math.fsum(costs) == 1e16 + 2
+        replace_inventory(
+            model,
+            [("web", costs), ("web-pe3", list(range(1, 101)))],
+        )
+        # Tiny positive costs move fsum across a rounding tie, including on
+        # Python 3.12, whose ordinary sum already compensates simple losses.
+        expected = {model: math.fsum([(1e16 + 2) / 100, 5050 / 100]) * 120}
+    else:
+        cheap, frontier = cr.CHEAP[0], cr.FRONTIER[0]
+        costs = [1e16, 1.0] + [1e-16] * 318
+        assert sum(costs) == 1e16 and math.fsum(costs) == 1e16 + 2
+        replace_inventory(
+            cheap,
+            [("abl-alpha", costs[:1]), ("abl-beta", costs[1:3]), ("pe3", costs[3:])],
+        )
+        replace_inventory(frontier, [("pe", list(range(1, 11)))])
+        # The registered calculator arithmetic uses ordinary sum and a pooled
+        # record mean despite unequal arm sizes of 1, 2 and 317 (320 total).
+        expected = {cheap: 1e16 / 320 * 120 * 7, frontier: 55 / 10 * 120 * 2}
+    # world uses six households to keep fake end-to-end stages small. Assert
+    # the real registered projection with its literal 120 households first.
+    stage = cr.STAGES["web" if kind == "web" else "calculator"]
+    fake_households = cr.HOUSEHOLDS
+    monkeypatch.setattr(cr, "HOUSEHOLDS", 120)
+    try:
+        got = cr.registered_expected_costs(root, stage)
+    finally:
+        monkeypatch.setattr(cr, "HOUSEHOLDS", fake_households)
+    assert {model: got[model] for model in expected} == expected, (
+        "development projections preserve registered sum, fsum, pooled means and literal 120, 7 and 2 multipliers"
+    )
+    target["expected_costs"].update(
+        {model: cost / 120 * fake_households for model, cost in expected.items()}
+    )
+    total = math.fsum(target["expected_costs"].values())
+    share = 120 if kind == "web" else 145
+    target["caps"] = {m: share * c / total for m, c in target["expected_costs"].items()}
+    target["reserves"] = {m: 3 * c / cr.HOUSEHOLDS for m, c in target["expected_costs"].items()}
+    if kind == "linked":
+        link.write_text(json.dumps(target))
+        design["calculator"]["sha256"] = cr.sha256_file(link)
+    assert cr.preflight(design, models) == [], (
+        "development projections preserve registered sum, fsum, pooled means and literal 120, 7 and 2 multipliers"
+    )
