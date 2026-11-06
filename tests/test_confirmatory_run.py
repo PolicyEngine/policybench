@@ -5435,3 +5435,46 @@ def test_command_line_resume_refuses_a_design_without_usable_runs(
         and capsys.readouterr().out.startswith("The run cannot start: ")
     ), "resume reports missing or unusable runs folders as startup refusals"
 
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_development_projection_refuses_a_fifo_without_blocking(tmp_path, kind):
+    stage = cr.STAGES[kind]
+    synthetic_development_tree(tmp_path, kind, {model: 1.0 for model in stage.models})
+    arm = "web" if kind == "web" else "pe3"
+    path = next((tmp_path / stage.models[0] / arm).rglob("*.json"))
+    path.unlink()
+    os.mkfifo(path)
+    done = threading.Event()
+    outcome = []
+
+    def read_projection():
+        try:
+            outcome.append(cr.registered_expected_costs(tmp_path, stage))
+        except Exception as error:
+            outcome.append(error)
+        finally:
+            done.set()
+
+    reader = threading.Thread(target=read_projection, daemon=True)
+    reader.start()
+    finished = done.wait(2)
+    if not finished:
+        # Release an ordinary blocking open in a reverted reader, so even a
+        # failing guard test leaves no stuck reader or pytest process behind.
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError:
+            descriptor = None
+        if descriptor is not None:
+            try:
+                os.write(descriptor, b'{"totals":{"cost_usd":0}}')
+            finally:
+                os.close(descriptor)
+        reader.join(2)
+    assert (
+        finished
+        and len(outcome) == 1
+        and isinstance(outcome[0], ValueError)
+        and str(path) in str(outcome[0])
+        and "FIFO" in str(outcome[0])
+    ), "development record reads refuse FIFO inputs promptly with a path-bearing error"
+
