@@ -3420,19 +3420,20 @@ def test_each_stage_allocation_accepts_exact_tolerance_and_refuses_next_float(
     stage = cr.STAGES[kind]
     model = stage.models[0]
     tolerance = 0.005 if field == "caps" else 0.0005
+    allocation = 2 * tolerance if side < 0 else tolerance
     if field == "caps":
         share = 120 if kind == "web" else 145
         expected = {
-            m: (share - tolerance) / (len(stage.models) - 1) for m in stage.models
+            m: (share - allocation) / (len(stage.models) - 1) for m in stage.models
         }
-        expected[model] = tolerance
+        expected[model] = allocation
         design = allocated_design(stage, expected)
     else:
         design = allocation_guard_design(
-            kind, target_cost=tolerance * cr.HOUSEHOLDS / 3
+            kind, target_cost=allocation * cr.HOUSEHOLDS / 3
         )
     want = design[field][model]
-    assert want == tolerance
+    assert want == allocation
     boundary = want + side * tolerance
     assert abs(boundary - want) == tolerance
     design[field][model] = boundary
