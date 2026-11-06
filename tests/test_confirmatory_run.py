@@ -5379,10 +5379,15 @@ def test_command_line_reports_unreadable_or_nonobject_designs(
     except Exception as error:
         raised = error
         result = None
+    output = capsys.readouterr().out
     assert (
         raised is None
         and result == 1
-        and capsys.readouterr().out.startswith("The run cannot start: ")
+        and output.startswith("The run cannot start: ")
+        and (
+            fault not in ("null", "list")
+            or output.strip() == "The run cannot start: the design must be an object"
+        )
     ), (
         "the command line reports unreadable JSON and non-object designs as startup refusals"
     )
