@@ -3418,9 +3418,21 @@ def test_each_stage_allocation_accepts_exact_tolerance_and_refuses_next_float(
 ):
     stage = cr.STAGES[kind]
     model = stage.models[0]
-    design = allocation_guard_design(kind, target_cost=1e-9)
-    want = design[field][model]
     tolerance = 0.005 if field == "caps" else 0.0005
+    if field == "caps":
+        share = 120 if kind == "web" else 145
+        expected = {
+            m: (share - tolerance) / (len(stage.models) - 1)
+            for m in stage.models
+        }
+        expected[model] = tolerance
+        design = allocated_design(stage, expected)
+    else:
+        design = allocation_guard_design(
+            kind, target_cost=tolerance * cr.HOUSEHOLDS / 3
+        )
+    want = design[field][model]
+    assert want == tolerance
     boundary = want + side * tolerance
     assert abs(boundary - want) == tolerance
     design[field][model] = boundary
@@ -5335,7 +5347,7 @@ def test_preflight_refuses_negative_allocations_even_inside_formula_tolerances(
     total = math.fsum(expected.values())
     share = 120 if stage.kind == "web" else 145
     target["caps"] = {m: share * c / total for m, c in expected.items()}
-    target["reserves"] = {m: 3 * c / 120 for m, c in expected.items()}
+    target["reserves"] = {m: 3 * c / cr.HOUSEHOLDS for m, c in expected.items()}
     prefix = "linked calculator: " if kind == "linked" else ""
     for value, want in (
         (0.0, []),
