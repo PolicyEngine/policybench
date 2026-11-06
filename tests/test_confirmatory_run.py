@@ -3423,8 +3423,7 @@ def test_each_stage_allocation_accepts_exact_tolerance_and_refuses_next_float(
     if field == "caps":
         share = 120 if kind == "web" else 145
         expected = {
-            m: (share - tolerance) / (len(stage.models) - 1)
-            for m in stage.models
+            m: (share - tolerance) / (len(stage.models) - 1) for m in stage.models
         }
         expected[model] = tolerance
         design = allocated_design(stage, expected)
@@ -5360,7 +5359,8 @@ def test_preflight_refuses_negative_allocations_even_inside_formula_tolerances(
             path.write_text(json.dumps(target))
             design["calculator"]["sha256"] = cr.sha256_file(path)
         assert cr.preflight(design, models) == want, (
-            "allocations must be nonnegative even inside their formula tolerance; signed zero is allowed"
+            "allocations must be nonnegative even inside their formula tolerance; "
+            "signed zero is allowed"
         )
 
 
@@ -5389,7 +5389,8 @@ def test_command_line_reports_unreadable_or_nonobject_designs(
             or output.strip() == "The run cannot start: the design must be an object"
         )
     ), (
-        "the command line reports unreadable JSON and non-object designs as startup refusals"
+        "the command line reports unreadable JSON and non-object designs "
+        "as startup refusals"
     )
 
 
@@ -5505,7 +5506,11 @@ def test_development_projection_refuses_a_fifo_without_blocking(tmp_path, kind):
         for count in counts
         for linked in (False, True)
     ]
-    + [f"{inventory}-{count}-direct" for inventory in ("web", "web-pe3") for count in (99, 101)],
+    + [
+        f"{inventory}-{count}-direct"
+        for inventory in ("web", "web-pe3")
+        for count in (99, 101)
+    ],
 )
 def test_projection_refuses_missing_and_extra_finals_for_each_inventory(
     world, tmp_path, monkeypatch, inventory, count, linked
@@ -5532,13 +5537,18 @@ def test_projection_refuses_missing_and_extra_finals_for_each_inventory(
         and f"expected {required}" in problems[0]
         and str(count) in problems[0]
         and (not linked or problems[0].startswith("linked calculator: "))
-    ), "development projection requires exact cheap, frontier and per-web-arm final counts, directly and through the link"
+    ), (
+        "development projection requires exact cheap, frontier and per-web-arm "
+        "final counts, directly and through the link"
+    )
 
 
 @pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
 def test_projection_ignores_unregistered_paths(world, tmp_path, monkeypatch, kind):
     w, web = complete_web_design(world, tmp_path, monkeypatch)
-    design, models = fresh_stage_design(w, web, tmp_path, "web" if kind == "linked" else kind)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
     root = Path(design["development_runs"])
     decoys = [
         root / cr.CHEAP[0] / "ablX/mctest/households/extra.json",
@@ -5555,7 +5565,8 @@ def test_projection_ignores_unregistered_paths(world, tmp_path, monkeypatch, kin
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"totals": {"cost_usd": 1e12}}))
     assert cr.preflight(design, models) == [], (
-        "development projection ignores populated unregistered arms, boards, non-JSON files and nested attempts"
+        "development projection ignores populated unregistered arms, boards, "
+        "non-JSON files and nested attempts"
     )
 
 
@@ -5565,7 +5576,9 @@ def test_projection_preserves_registered_summation_and_pooling(
 ):
     # A changed multiplier must reach this test's independent arithmetic oracle.
     w, web = complete_web_design(world, tmp_path, monkeypatch, validate=False)
-    design, models = fresh_stage_design(w, web, tmp_path, "web" if kind == "linked" else kind)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
     link = Path(web["calculator"]["path"])
     target = json.loads(link.read_text()) if kind == "linked" else design
     root = Path(target["development_runs"])
@@ -5620,7 +5633,8 @@ def test_projection_preserves_registered_summation_and_pooling(
     finally:
         monkeypatch.setattr(cr, "HOUSEHOLDS", fake_households)
     assert {model: got[model] for model in expected} == expected, (
-        "development projections preserve registered sum, fsum, pooled means and literal 120, 7 and 2 multipliers"
+        "development projections preserve registered sum, fsum, pooled means "
+        "and literal 120, 7 and 2 multipliers"
     )
     target["expected_costs"].update(
         {model: cost / 120 * fake_households for model, cost in expected.items()}
@@ -5628,10 +5642,13 @@ def test_projection_preserves_registered_summation_and_pooling(
     total = math.fsum(target["expected_costs"].values())
     share = 120 if kind == "web" else 145
     target["caps"] = {m: share * c / total for m, c in target["expected_costs"].items()}
-    target["reserves"] = {m: 3 * c / cr.HOUSEHOLDS for m, c in target["expected_costs"].items()}
+    target["reserves"] = {
+        m: 3 * c / cr.HOUSEHOLDS for m, c in target["expected_costs"].items()
+    }
     if kind == "linked":
         link.write_text(json.dumps(target))
         design["calculator"]["sha256"] = cr.sha256_file(link)
     assert cr.preflight(design, models) == [], (
-        "development projections preserve registered sum, fsum, pooled means and literal 120, 7 and 2 multipliers"
+        "development projections preserve registered sum, fsum, pooled means "
+        "and literal 120, 7 and 2 multipliers"
     )
