@@ -425,20 +425,22 @@ def test_preflight_refuses_a_design_without_spent_before(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "declared, refused",
-    [("1", False), ("0.1", True), (True, False), (False, True)],
+    "declared",
+    ["1", "0.1", True, False],
     ids=["text-enough", "text-short", "true", "false"],
 )
-def test_preflight_counts_numeric_text_and_booleans_as_numbers(
-    tmp_path, monkeypatch, declared, refused
+def test_preflight_refuses_numeric_text_and_booleans_as_spend(
+    tmp_path, monkeypatch, declared
 ):
-    """As the report does: float() decides what a spent_before is worth."""
+    """A declaration must be a nonboolean JSON number before conversion."""
     world, design = pool_design(tmp_path, monkeypatch)
     saved_spend(world, design)
+    assert nt.stage_problems(design) == []
     design["spent_before"] = declared
-    problems = cr.preflight(design, (cr.CHEAP[0],))
-    assert any(p.startswith("no-tools spend") for p in problems) is refused, problems
-    assert not any("finite, nonnegative" in p for p in problems), problems
+    problems = nt.stage_problems(design)
+    assert len(problems) == 1 and "finite, nonnegative" in problems[0], (
+        "saved no-tools spend refuses nonnumeric or boolean declarations"
+    )
 
 
 @pytest.mark.parametrize(
