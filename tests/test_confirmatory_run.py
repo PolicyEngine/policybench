@@ -5312,3 +5312,40 @@ def test_web_preflight_refuses_a_linked_development_root_difference_alone(
     assert cr.preflight(design, cr.WEB_MODELS) == [
         "web and calculator designs differ in development_runs"
     ], "linked calculator and web designs must share their development root"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize("field", ["caps", "reserves"])
+def test_preflight_refuses_negative_allocations_even_inside_formula_tolerances(
+    world, tmp_path, monkeypatch, kind, field
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
+    path = Path(web["calculator"]["path"])
+    target = json.loads(path.read_text()) if kind == "linked" else design
+    stage = cr.STAGES["calculator" if kind == "linked" else kind]
+    model = stage.models[0]
+    expected = {m: 1.0 for m in stage.models}
+    expected[model] = 0.0
+    synthetic_development_tree(Path(target["development_runs"]), stage.kind, expected)
+    expected[model] = 1e-20
+    target["expected_costs"] = expected
+    total = math.fsum(expected.values())
+    share = 120 if stage.kind == "web" else 145
+    target["caps"] = {m: share * c / total for m, c in expected.items()}
+    target["reserves"] = {m: 3 * c / 120 for m, c in expected.items()}
+    prefix = "linked calculator: " if kind == "linked" else ""
+    for value, want in (
+        (0.0, []),
+        (-0.0, []),
+        (-0.0001, [prefix + f"{model}: {field} needs a nonnegative allocation"]),
+    ):
+        target[field][model] = value
+        if kind == "linked":
+            path.write_text(json.dumps(target))
+            design["calculator"]["sha256"] = cr.sha256_file(path)
+        assert cr.preflight(design, models) == want, (
+            "allocations must be nonnegative even inside their formula tolerance; signed zero is allowed"
+        )

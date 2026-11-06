@@ -2799,6 +2799,9 @@ def allocation_problems(design: dict, stage: Stage) -> list[str]:
             except (KeyError, TypeError, ValueError, OverflowError):
                 problems.append(f"{model}: {field} needs a finite allocation")
                 continue
+            if got < 0:
+                problems.append(f"{model}: {field} needs a nonnegative allocation")
+                continue
             if abs(got - want) > tolerance:
                 name = "cap" if field == "caps" else "reserve"
                 problems.append(f"{model}: {name} ${got}, and the {rule} gives ${want}")
