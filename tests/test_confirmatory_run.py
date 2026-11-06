@@ -5272,3 +5272,43 @@ def test_the_treatment_code_is_the_treatment_commits():
     assert changed == 0, (
         "move TREATMENT_COMMIT to the last commit that touches TREATMENT_PATHS"
     )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web", "linked"])
+@pytest.mark.parametrize(
+    "field,value", [("schema_hash_exempt", []), ("stated_engine_overrides", {})]
+)
+def test_preflight_refuses_the_presence_of_each_rehearsal_option(
+    world, tmp_path, monkeypatch, kind, field, value
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, models = fresh_stage_design(
+        w, web, tmp_path, "web" if kind == "linked" else kind
+    )
+    path = Path(web["calculator"]["path"])
+    target = json.loads(path.read_text()) if kind == "linked" else design
+    target[field] = value
+    if kind == "linked":
+        path.write_text(json.dumps(target))
+        design["calculator"]["sha256"] = cr.sha256_file(path)
+    prefix = "linked calculator: " if kind == "linked" else ""
+    assert cr.preflight(design, models) == [
+        prefix + f"the confirmatory design cannot contain the rehearsal option {field}"
+    ], "preflight refuses rehearsal-option presence even when its value is empty"
+
+
+def test_web_preflight_refuses_a_linked_development_root_difference_alone(
+    world, tmp_path, monkeypatch
+):
+    _, design = complete_web_design(world, tmp_path, monkeypatch)
+    path = Path(design["calculator"]["path"])
+    calculator = json.loads(path.read_text())
+    calculator["development_runs"] = str(tmp_path / "other-development-runs")
+    synthetic_development_tree(
+        Path(calculator["development_runs"]), "calculator", calculator["expected_costs"]
+    )
+    path.write_text(json.dumps(calculator))
+    design["calculator"]["sha256"] = cr.sha256_file(path)
+    assert cr.preflight(design, cr.WEB_MODELS) == [
+        "web and calculator designs differ in development_runs"
+    ], "linked calculator and web designs must share their development root"

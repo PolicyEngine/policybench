@@ -234,6 +234,7 @@ SHARED_STAGE_FIELDS = (
     "run_commit",
     "workers",
     "no_tools",
+    "development_runs",
 )
 WEB_SCORING_FIELDS = (
     "build",
@@ -2639,6 +2640,7 @@ def _web_preflight(design: dict) -> list[str]:
         return [*problems, f"the calculator design cannot be read: {error}"]
     if calculator.get("overall_cap") != CALCULATOR_OVERALL_CAP:
         problems.append("the linked calculator design's overall_cap must be 150")
+    problems.extend(f"linked calculator: {p}" for p in rehearsal_problems(calculator))
     problems.extend(f"linked calculator: {p}" for p in stage_start_problems(calculator))
     allocation = allocation_problems(calculator, STAGES["calculator"])
     problems.extend(f"linked calculator: {p}" for p in allocation)
@@ -2717,6 +2719,15 @@ def _web_preflight(design: dict) -> list[str]:
     ) as error:
         problems.append(f"the calculator stage has not ended: {error}")
     return problems
+
+
+def rehearsal_problems(design: dict) -> list[str]:
+    """Rehearsal-only options cannot be present in a frozen design."""
+    return [
+        f"the confirmatory design cannot contain the rehearsal option {field}"
+        for field in ("schema_hash_exempt", "stated_engine_overrides")
+        if field in design
+    ]
 
 
 def stage_start_problems(design: dict) -> list[str]:
@@ -2982,8 +2993,7 @@ def _preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         or shutil.which(str(command[0])) is None
     ):
         problems.append(f"the anchor command {command!r} is not a command here")
-    if design.get("stated_engine_overrides"):
-        problems.append("the confirmatory run states the board's engine: no overrides")
+    problems.extend(rehearsal_problems(design))
     preregistration = Path(design["preregistration"])
     try:
         if (
