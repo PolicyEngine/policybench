@@ -5349,3 +5349,77 @@ def test_preflight_refuses_negative_allocations_even_inside_formula_tolerances(
         assert cr.preflight(design, models) == want, (
             "allocations must be nonnegative even inside their formula tolerance; signed zero is allowed"
         )
+
+
+@pytest.mark.parametrize("command", ["run", "resume"])
+@pytest.mark.parametrize("fault", ["missing", "invalid-json", "null", "list"])
+def test_command_line_reports_unreadable_or_nonobject_designs(
+    tmp_path, capsys, command, fault
+):
+    path = tmp_path / "design.json"
+    if fault != "missing":
+        path.write_text({"invalid-json": "{", "null": "null", "list": "[]"}[fault])
+    argv = [command, str(path)] + (["gpt-6-luna"] if command == "resume" else [])
+    raised = None
+    try:
+        result = cr.main(argv)
+    except Exception as error:
+        raised = error
+        result = None
+    assert (
+        raised is None
+        and result == 1
+        and capsys.readouterr().out.startswith("The run cannot start: ")
+    ), (
+        "the command line reports unreadable JSON and non-object designs as startup refusals"
+    )
+
+
+@pytest.mark.parametrize("board", ["missing", None])
+def test_command_line_prints_preflight_refusals_before_reading_the_board(
+    tmp_path, capsys, monkeypatch, board
+):
+    path = tmp_path / "design.json"
+    design = {"kind": "calculator"}
+    if board is None:
+        design["board"] = None
+    path.write_text(json.dumps(design))
+    monkeypatch.setattr(
+        pilot,
+        "_require_engine",
+        lambda _: pytest.fail("engine check must follow a successful preflight"),
+    )
+    raised = None
+    try:
+        result = cr.main(["run", str(path)])
+    except Exception as error:
+        raised = error
+        result = None
+    assert (
+        raised is None
+        and result == 1
+        and "The run cannot start:\n- the design has no" in capsys.readouterr().out
+    ), "the command line prints preflight refusals before dependent board reads"
+
+
+@pytest.mark.parametrize("runs", ["missing", None, "", [], {}])
+def test_command_line_resume_refuses_a_design_without_usable_runs(
+    tmp_path, capsys, runs
+):
+    path = tmp_path / "design.json"
+    design = {"kind": "calculator"}
+    if runs != "missing":
+        design["runs"] = runs
+    path.write_text(json.dumps(design))
+    raised = None
+    try:
+        result = cr.main(["resume", str(path), "gpt-6-luna"])
+    except Exception as error:
+        raised = error
+        result = None
+    assert (
+        raised is None
+        and result == 1
+        and capsys.readouterr().out.startswith("The run cannot start: ")
+    ), "resume reports missing or unusable runs folders as startup refusals"
+

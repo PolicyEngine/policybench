@@ -3146,15 +3146,24 @@ def main(argv=None) -> int:
     resume.add_argument("model")
     resume.add_argument("--note", default="the account was fixed")
     args = parser.parse_args(argv)
-    design = json.loads(args.design.read_text())
     try:
+        design = json.loads(args.design.read_text())
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
         stage = stage_for(design)
-    except ValueError as error:
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError) as error:
         print(f"The run cannot start: {error}")
         return 1
     if args.command == "resume":
-        folder = Path(design["runs"]) / args.model
-        write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
+        try:
+            runs = design.get("runs")
+            if not isinstance(runs, str) or not runs.strip():
+                raise ValueError("the design must name a usable runs folder")
+            folder = Path(runs) / args.model
+            write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
+        except (OSError, ValueError, TypeError) as error:
+            print(f"The run cannot start: {error}")
+            return 1
         print(f"{args.model}: resume requested; the runner resumes within a second")
         return 0
     if args.workers is not None and args.workers != design.get("workers"):
@@ -3165,6 +3174,9 @@ def main(argv=None) -> int:
         return 1
     models = stage.models
     problems = preflight(design, models)
+    if problems:
+        print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
+        return 1
     from confirmatory_no_tools import BOARD_INPUT_ERRORS
 
     board = Path(design["board"])
