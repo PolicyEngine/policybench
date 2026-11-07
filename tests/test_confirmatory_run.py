@@ -2561,6 +2561,71 @@ def synthetic_development_tree(root, kind, expected):
                 )
 
 
+def synthetic_anchor_clone(tmp_path, kind):
+    """A local clone with synthetic history and registered remote metadata."""
+    branches = {
+        "calculator": "anchors/v2-confirmatory",
+        "web": "anchors/v2-confirmatory-web",
+    }
+    source = tmp_path.parent / "anchor-fixture-source"
+    if not source.exists():
+        subprocess.run(
+            [
+                "git",
+                "init",
+                "--quiet",
+                "--template=",
+                "--initial-branch=fixture",
+                str(source),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(source),
+                "-c",
+                "user.name=Anchor fixture",
+                "-c",
+                "user.email=fixture@example.invalid",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--quiet",
+                "--allow-empty",
+                "-m",
+                "Create synthetic anchor history.",
+            ],
+            check=True,
+        )
+    repo = tmp_path / f"anchor-clone-{kind}"
+    if not repo.exists():
+        subprocess.run(
+            ["git", "clone", "--quiet", "--shared", str(source), str(repo)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "--quiet", "-b", branches[kind]],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "remote",
+                "set-url",
+                "origin",
+                "https://github.com/PolicyEngine/policybench-v2-anchors.git",
+            ],
+            check=True,
+        )
+    return repo
+
+
 def complete_preflight_design(w, tmp_path):
     """Each calculator preflight starts after standing no-tools finals that pass
     the no-tools script's treatment checks: built through the harness from the
@@ -2608,6 +2673,13 @@ def complete_preflight_design(w, tmp_path):
             "stage": "confirm",
         },
         development_runs=str(tmp_path / "development-runs"),
+        anchor_command=[
+            sys.executable,
+            str(ANCHOR_SCRIPT),
+            "--repo",
+            str(synthetic_anchor_clone(tmp_path, "calculator")),
+            str(tmp_path),
+        ],
     )
     synthetic_development_tree(
         Path(design["development_runs"]), "calculator", design["expected_costs"]
@@ -2806,6 +2878,13 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False, validat
         spent_before=math.fsum(
             [w.design["spent_before"], *cr.calculator_evidence(w.design)]
         ),
+        anchor_command=[
+            sys.executable,
+            str(ANCHOR_SCRIPT),
+            "--repo",
+            str(synthetic_anchor_clone(tmp_path, "web")),
+            str(tmp_path),
+        ],
     )
     del design["frontier_arms"]
     synthetic_development_tree(
@@ -2817,7 +2896,7 @@ def complete_web_design(world, tmp_path, monkeypatch, *, archives=False, validat
     real = subprocess.run
 
     def git_pins(args, *a, **kw):
-        if args and args[0] == "git":
+        if list(args) == ["git", "-C", str(cr.ROOT), "rev-parse", "HEAD"]:
             return SimpleNamespace(returncode=0, stdout=cr.TREATMENT_COMMIT + "\n")
         return real(args, *a, **kw)
 
@@ -5729,3 +5808,183 @@ def test_projection_preserves_registered_summation_and_pooling(
         "development projections preserve registered sum, fsum, pooled means "
         "and literal 120, 7 and 2 multipliers"
     )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        prefix + "PolicyEngine/policybench-v2-anchors" + suffix
+        for prefix in (
+            "https://github.com/",
+            "git@github.com:",
+            "ssh://git@github.com/",
+        )
+        for suffix in ("", ".git")
+    ],
+)
+def test_anchor_clone_accepts_registered_branch_and_origin(tmp_path, kind, origin):
+    repo = synthetic_anchor_clone(tmp_path, kind)
+    subprocess.run(
+        ["git", "-C", str(repo), "remote", "set-url", "origin", origin], check=True
+    )
+    command = [sys.executable, "anchor.py", "--repo", str(repo)]
+    assert cr.anchor_clone_problems(command, cr.STAGES[kind]) == [], (
+        "anchor clone registered branch and SSH or HTTPS origin rule"
+    )
+    command[-2:] = [f"--repo={repo}"]
+    assert cr.anchor_clone_problems(command, cr.STAGES[kind]) == [], (
+        "anchor clone registered branch and SSH or HTTPS origin rule"
+    )
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "branch",
+        "detached",
+        "origin",
+        "no-origin",
+        "no-repo",
+        "two-repos",
+        "missing-value",
+    ],
+)
+def test_anchor_clone_refuses_unregistered_metadata(tmp_path, kind, fault):
+    repo = synthetic_anchor_clone(tmp_path, kind)
+    command = [sys.executable, "anchor.py", "--repo", str(repo)]
+    expected_ref = {
+        "calculator": "refs/heads/anchors/v2-confirmatory",
+        "web": "refs/heads/anchors/v2-confirmatory-web",
+    }[kind]
+    if fault == "branch":
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "--quiet", "-b", "unregistered"],
+            check=True,
+        )
+    elif fault == "detached":
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "--quiet", "--detach"], check=True
+        )
+    elif fault == "origin":
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "remote",
+                "set-url",
+                "origin",
+                "https://github.com/example/unregistered.git",
+            ],
+            check=True,
+        )
+    elif fault == "no-origin":
+        subprocess.run(
+            ["git", "-C", str(repo), "remote", "remove", "origin"], check=True
+        )
+    elif fault == "no-repo":
+        command = command[:2]
+    elif fault == "two-repos":
+        command += [f"--repo={repo}"]
+    else:
+        command.pop()
+    if fault in ("no-repo", "two-repos", "missing-value"):
+        expected = "the anchor command must name exactly one --repo clone"
+        rule = "anchor command names exactly one repo clone rule"
+    elif fault in ("branch", "detached"):
+        expected = f"the anchor clone {repo}: checked-out branch must be {expected_ref}"
+        rule = "anchor clone registered checked-out stage branch rule"
+    else:
+        expected = (
+            f"the anchor clone {repo}: origin must name "
+            "PolicyEngine/policybench-v2-anchors over SSH or HTTPS"
+        )
+        rule = "anchor clone registered origin rule"
+    raised, problems = None, None
+    try:
+        problems = cr.anchor_clone_problems(command, cr.STAGES[kind])
+    except (IndexError, OSError) as error:
+        raised = error
+    assert raised is None and problems == [expected], rule
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+@pytest.mark.parametrize("fault", ["bare", "unborn"])
+def test_anchor_clone_requires_a_working_tree_and_commit(tmp_path, kind, fault):
+    repo = tmp_path / "anchor"
+    branch = {
+        "calculator": "anchors/v2-confirmatory",
+        "web": "anchors/v2-confirmatory-web",
+    }[kind]
+    if fault == "bare":
+        source = synthetic_anchor_clone(tmp_path, kind)
+        subprocess.run(
+            ["git", "clone", "--quiet", "--bare", str(source), str(repo)], check=True
+        )
+    else:
+        subprocess.run(
+            [
+                "git",
+                "init",
+                "--quiet",
+                "--template=",
+                f"--initial-branch={branch}",
+                str(repo),
+            ],
+            check=True,
+        )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "config",
+            "remote.origin.url",
+            "https://github.com/PolicyEngine/policybench-v2-anchors.git",
+        ],
+        check=True,
+    )
+    assert cr.anchor_clone_problems(
+        ["anchor", "--repo", str(repo)], cr.STAGES[kind]
+    ) == [f"the anchor clone {repo}: needs a working tree with a checked-out commit"], (
+        "anchor clone requires a working tree and checked-out commit rule"
+    )
+
+
+def test_anchor_clone_git_read_failure_is_a_refusal(tmp_path, monkeypatch):
+    repo = tmp_path / "clone"
+
+    def denied(*args, **kwargs):
+        raise PermissionError("synthetic anchor metadata denial")
+
+    monkeypatch.setattr(cr.subprocess, "run", denied)
+    raised, problems = None, None
+    try:
+        problems = cr.anchor_clone_problems(
+            ["anchor", "--repo", str(repo)], cr.STAGES["web"]
+        )
+    except OSError as error:
+        raised = error
+    assert raised is None and problems == [
+        f"the anchor clone {repo}: cannot read Git metadata: "
+        "synthetic anchor metadata denial"
+    ], "anchor clone Git read errors become recorded refusals rule"
+
+
+def test_preflight_checks_registered_anchor_clone(world, tmp_path, monkeypatch):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    sentinel = "synthetic registered anchor clone refusal"
+    seen = []
+
+    def refused(command, stage):
+        seen.append((command, stage.kind))
+        return [sentinel]
+
+    monkeypatch.setattr(cr, "anchor_clone_problems", refused)
+    problems = cr.preflight(design, (cr.CHEAP[0],))
+    assert (
+        seen == [(design["anchor_command"], "calculator")] and sentinel in problems
+    ), "preflight applies registered anchor clone checks rule"

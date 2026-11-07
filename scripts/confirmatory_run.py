@@ -145,6 +145,11 @@ sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 import tool_pilot_argon as pilot  # noqa: E402
 
 TREATMENT_COMMIT = "c0a2885bfc8f5df59a93458230c445befb986dcb"
+ANCHOR_REPOSITORY = "PolicyEngine/policybench-v2-anchors"
+ANCHOR_REFS = {
+    "calculator": "refs/heads/anchors/v2-confirmatory",
+    "web": "refs/heads/anchors/v2-confirmatory-web",
+}
 # The treatment's code, which must be the treatment commit's.
 TREATMENT_PATHS = (
     "scripts/tool_pilot_argon.py",
@@ -2921,6 +2926,65 @@ def projection_problems(design: dict, stage: Stage) -> list[str]:
         return [f"the registered expected-cost projection: {error}"]
 
 
+def anchor_clone_problems(command, stage: Stage) -> list[str]:
+    """Check only local anchor-clone metadata; never fetch or push."""
+    arguments = [str(value) for value in command] if isinstance(command, list) else []
+    repositories = []
+    for index, argument in enumerate(arguments):
+        if argument == "--repo":
+            repositories.append(
+                arguments[index + 1] if index + 1 < len(arguments) else ""
+            )
+        elif argument.startswith("--repo="):
+            repositories.append(argument.removeprefix("--repo="))
+    if (
+        len(repositories) != 1
+        or not repositories[0]
+        or repositories[0].startswith("--")
+    ):
+        return ["the anchor command must name exactly one --repo clone"]
+    repo = Path(repositories[0]).expanduser()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], capture_output=True, text=True
+        )
+
+    try:
+        tree = git("rev-parse", "--is-inside-work-tree")
+        head = git("rev-parse", "--verify", "HEAD^{commit}")
+        if tree.returncode or tree.stdout.strip() != "true" or head.returncode:
+            return [
+                f"the anchor clone {repo}: needs a working tree "
+                "with a checked-out commit"
+            ]
+        problems = []
+        branch = git("symbolic-ref", "--quiet", "HEAD")
+        expected = ANCHOR_REFS[stage.kind]
+        if branch.returncode or branch.stdout.strip() != expected:
+            problems.append(
+                f"the anchor clone {repo}: checked-out branch must be {expected}"
+            )
+        origin = git("config", "--get", "remote.origin.url")
+        accepted = {
+            f"{prefix}{ANCHOR_REPOSITORY}{suffix}"
+            for prefix in (
+                "https://github.com/",
+                "git@github.com:",
+                "ssh://git@github.com/",
+            )
+            for suffix in ("", ".git")
+        }
+        if origin.returncode or origin.stdout.strip() not in accepted:
+            problems.append(
+                f"the anchor clone {repo}: origin must name {ANCHOR_REPOSITORY} "
+                "over SSH or HTTPS"
+            )
+        return problems
+    except OSError as error:
+        return [f"the anchor clone {repo}: cannot read Git metadata: {error}"]
+
+
 def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     """Return recorded input problems for every malformed design."""
     try:
@@ -3001,6 +3065,7 @@ def _preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         or shutil.which(str(command[0])) is None
     ):
         problems.append(f"the anchor command {command!r} is not a command here")
+    problems.extend(anchor_clone_problems(command, stage))
     problems.extend(rehearsal_problems(design))
     preregistration = Path(design["preregistration"])
     try:
