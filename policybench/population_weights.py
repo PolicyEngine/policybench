@@ -3,7 +3,7 @@
 The benchmark evaluates a fixed sample of households, but the output weights
 should reflect policy importance in the full source populations. This module
 loads a committed weight artifact and contains the generator used to rebuild it
-from the certified PolicyEngine US populace dataset and the UK enhanced FRS
+from the certified PolicyEngine US Microcosm dataset and the UK enhanced FRS
 microsimulation dataset.
 """
 
@@ -194,7 +194,7 @@ def _us_population_contributions(year: int) -> dict[str, Any]:
     # A failed certified-dataset download makes Microsimulation() silently
     # fall back to a small bundled sample; population weights derived from it
     # would be quietly wrong. Full US datasets have tens of thousands of
-    # households; the certified populace dataset has about 75k.
+    # households; the certified Microcosm dataset has about 75k.
     if len(household_ids) < 20_000:
         raise RuntimeError(
             f"US microsimulation loaded only {len(household_ids)} households — "

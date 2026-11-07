@@ -924,7 +924,7 @@ def load_certified_us_person_frame() -> tuple[pd.DataFrame, int, str]:
     Returns ``(person_df, dataset_year, dataset_label)``. The label is read
     from the live simulation's PolicyEngine bundle (``default_dataset``), so it
     reflects the dataset the run actually materialized -- the certified
-    populace build (``populace_us_2024``) -- rather than a hardcoded name.
+    Microcosm build (``populace_us_2024``) -- rather than a hardcoded name.
     """
     from policybench.policyengine_runtime import make_us_microsimulation
 
@@ -1545,7 +1545,7 @@ def scenarios_from_cps_frame(
 
     ``dataset_label`` is the certified dataset name reported by the runtime
     (e.g. ``populace_us_2024``); when provided it is recorded verbatim as each
-    scenario's ``source_dataset``. When omitted, a neutral populace default is
+    scenario's ``source_dataset``. When omitted, a neutral Microcosm default is
     used so generated scenarios are never mislabeled.
     """
     df = _prepare_cps_frame(person_df)

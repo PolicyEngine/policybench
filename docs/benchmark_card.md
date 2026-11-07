@@ -508,7 +508,7 @@ leave out replayed households is an open methodology decision.
 ### United States
 
 The US benchmark uses households sampled from the certified PolicyEngine
-populace dataset and scores outputs against PolicyEngine US reference outputs.
+Microcosm dataset and scores outputs against PolicyEngine US reference outputs.
 
 ### United Kingdom
 

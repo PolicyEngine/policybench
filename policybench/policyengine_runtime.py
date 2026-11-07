@@ -476,7 +476,7 @@ def materialize_certified_us_dataset() -> str:
 
     ``policyengine_us.Microsimulation()`` defaults to the country package's
     own dataset, silently ignoring the dataset the installed policyengine.py
-    bundle certifies (populace as of 4.16.1). Resolve the
+    bundle certifies (Microcosm as of 4.16.1). Resolve the
     bundle's ``hf://org/repo/file[@rev]`` URI explicitly and fail loudly on
     any error — a quiet fallback here would put the wrong population under
     every weight, sample, and reference output.
@@ -500,7 +500,7 @@ def materialize_certified_us_dataset() -> str:
         "token": os.environ.get("HUGGING_FACE_TOKEN") or None,
     }
     try:
-        # populace lives in a dataset-type repo; older artifacts were
+        # Microcosm lives in a dataset-type repo; older artifacts were
         # model-type. Mirror policyengine 4.16's retry order.
         return hf_hub_download(repo_type="dataset", **kwargs)
     except RepositoryNotFoundError:

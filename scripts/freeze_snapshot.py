@@ -5,7 +5,7 @@ from a finished run under ``results/``. It is deterministic and idempotent:
 re-running it on the same source run produces byte-identical frozen artifacts
 and the same manifest hashes.
 
-The June 2026 refresh is US-only (populace dataset, policyengine.py 4.16.1).
+The June 2026 refresh is US-only (Microcosm dataset, policyengine.py 4.16.1).
 There is no UK leg in this refresh, so all UK artifacts are removed.
 
 What it freezes (all paths relative to the repo root):
@@ -79,7 +79,7 @@ from policybench.snapshot_payload import (
 from policybench.spec import net_income_sign_for_output
 
 # ---------------------------------------------------------------------------
-# Configuration for the September 2026 US-only populace refresh (42-model
+# Configuration for the September 2026 US-only Microcosm refresh (42-model
 # board, September 22 references: regenerated under the publication rules).
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]

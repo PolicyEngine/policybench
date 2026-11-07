@@ -13,7 +13,7 @@ export const SENSITIVITY_VIEWS: SensitivityView[] = [
     id: "household",
     label: "Household",
     description:
-      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full weighting population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full populace dataset.",
+      "Population household-impact weights — each output group's share is |ref| / max(|household_net_income|, Σ|ref|) in the full weighting population, averaged with household weights and renormalized before scoring each benchmark household. US weights use the full Microcosm dataset.",
   },
   {
     id: "aggregate",
