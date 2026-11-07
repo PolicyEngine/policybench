@@ -837,7 +837,10 @@ def test_a_two_second_wall_clock_step_keeps_the_run_procedure(
     def start_host(folder):
         host = make_host(folder)
         # Time the step from a sampled run, so a slow startup cannot hide it.
-        started.append((time.monotonic(), real_time()))
+        # This unused pre-step reading also fixes the clock's high-water mark
+        # when host construction or scheduling took longer than two seconds.
+        before = cr.clock()
+        started.append((time.monotonic(), before))
         return host
 
     def stepped_time():
@@ -850,7 +853,7 @@ def test_a_two_second_wall_clock_step_keeps_the_run_procedure(
                 return started[0][1] + elapsed
             readings_after.append(now)
             if state["recovered"]:
-                return now - 2.0
+                return state["recovery_wall"] + now - state["recovery_real"]
             # Advance synthetic time while keeping the first overlap inside
             # the two-second correction, even if this host pauses for a minute.
             state["ticks"] += 1
@@ -866,10 +869,13 @@ def test_a_two_second_wall_clock_step_keeps_the_run_procedure(
 
     def end_attempt(lanes, sid, arm, n, *args, **kwargs):
         result = real_end(lanes, sid, arm, n, *args, **kwargs)
-        if n == 1 and initial.get(sid) == arm:
+        if n == 1 and sid in initial:
             with state_lock:
                 state["ended"] += 1
-                state["recovered"] = state["ended"] == 2
+                if state["ended"] == len(initial) * len(labels_of(model)):
+                    state["recovery_real"] = real_time()
+                    state["recovery_wall"] = started[0][1] + after + 0.1
+                    state["recovered"] = True
         return result
 
     w.run.host_factory = start_host
