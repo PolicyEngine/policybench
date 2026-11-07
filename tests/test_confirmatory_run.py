@@ -5529,13 +5529,23 @@ def test_preflight_refuses_negative_allocations_even_inside_formula_tolerances(
 
 
 @pytest.mark.parametrize("command", ["run", "resume"])
-@pytest.mark.parametrize("fault", ["missing", "invalid-json", "null", "list"])
+@pytest.mark.parametrize(
+    "fault", ["missing", "invalid-json", "null", "list", "no-kind", "bad-kind"]
+)
 def test_command_line_reports_unreadable_or_nonobject_designs(
     tmp_path, capsys, command, fault
 ):
     path = tmp_path / "design.json"
     if fault != "missing":
-        path.write_text({"invalid-json": "{", "null": "null", "list": "[]"}[fault])
+        path.write_text(
+            {
+                "invalid-json": "{",
+                "null": "null",
+                "list": "[]",
+                "no-kind": "{}",
+                "bad-kind": '{"kind": "unregistered"}',
+            }[fault]
+        )
     argv = [command, str(path)] + (["gpt-6-luna"] if command == "resume" else [])
     raised = None
     try:
@@ -5545,15 +5555,22 @@ def test_command_line_reports_unreadable_or_nonobject_designs(
         result = None
     output = capsys.readouterr().out
     prefix = "No resume requested" if command == "resume" else "The run cannot start"
-    assert (
-        raised is None
-        and result == 1
-        and output.startswith(f"{prefix}: ")
-        and (
-            fault not in ("null", "list")
-            or output.strip() == f"{prefix}: the design must be an object"
+    reason = {
+        "missing": f"[Errno 2] No such file or directory: {str(path)!r}",
+        "invalid-json": (
+            "Expecting property name enclosed in double quotes: "
+            "line 1 column 2 (char 1)"
+        ),
+        "null": "the design must be an object",
+        "list": "the design must be an object",
+        "no-kind": "the design's kind must be calculator or web",
+        "bad-kind": "the design's kind must be calculator or web",
+    }[fault]
+    if fault in ("no-kind", "bad-kind"):
+        assert raised is None and result == 1 and output == f"{prefix}: {reason}\n", (
+            "command line handles stage selection inside the startup guard rule"
         )
-    ), (
+    assert raised is None and result == 1 and output == f"{prefix}: {reason}\n", (
         "the command line reports unreadable JSON and non-object designs "
         "as startup refusals"
     )
@@ -5604,7 +5621,8 @@ def test_command_line_resume_refuses_a_design_without_usable_runs(
     assert (
         raised is None
         and result == 1
-        and capsys.readouterr().out.startswith("No resume requested: ")
+        and capsys.readouterr().out
+        == "No resume requested: the design must name a usable runs folder\n"
     ), "resume reports missing or unusable runs folders as startup refusals"
 
 
