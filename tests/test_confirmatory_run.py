@@ -819,28 +819,62 @@ def test_a_two_second_wall_clock_step_keeps_the_run_procedure(
     monkeypatch.setattr(cr, "_clock_last", 0.0)
     model = "gpt-6-sol"
     w = world(models=(model,))
-    sid = w.draw_order[0]
-    first_arm = cr.orders(w.run.master, model, w.draw_order, labels_of(model))[sid][0]
-    # Keep a real fake-provider request open through either drawn step point.
-    w.provider.specs[(model, first_arm, sid, 1)] = {"sleep": 0.35}
-    real_time, make_host = time.time, w.run.host_factory
+    drawn = cr.orders(w.run.master, model, w.draw_order, labels_of(model))
+    initial = {sid: drawn[sid][0] for sid in w.draw_order[:2]}
+    admitted = threading.Barrier(2)
+    for sid, arm in initial.items():
+        # Both first households must be under way before either can finish.
+        w.provider.specs[(model, arm, sid, 1)] = {
+            "check": lambda _: admitted.wait(timeout=120)
+        }
+    real_time, make_host, make_pool = time.time, w.run.host_factory, w.run.pool_factory
+    real_end = cr.Lanes.end_attempt
     started = []
     readings_after = []
+    state_lock = threading.Lock()
+    state = {"ticks": 0, "ended": 0, "recovered": False}
 
     def start_host(folder):
         host = make_host(folder)
         # Time the step from a sampled run, so a slow startup cannot hide it.
-        started.append(time.monotonic())
+        started.append((time.monotonic(), real_time()))
         return host
 
     def stepped_time():
         now = real_time()
-        if started and time.monotonic() - started[0] >= after:
+        with state_lock:
+            if not started:
+                return now
+            elapsed = time.monotonic() - started[0][0]
+            if elapsed < after:
+                return started[0][1] + elapsed
             readings_after.append(now)
-            return now - 2.0
-        return now
+            if state["recovered"]:
+                return now - 2.0
+            # Advance synthetic time while keeping the first overlap inside
+            # the two-second correction, even if this host pauses for a minute.
+            state["ticks"] += 1
+            return started[0][1] + after - 2.0 + state["ticks"] * 1e-6
+
+    def start_pool(lanes):
+        remaining = after - (time.monotonic() - started[0][0])
+        if remaining > 0:
+            time.sleep(remaining)
+        stepped_time()
+        w.run.host.sample()  # retain both sides of the correction in real evidence
+        return make_pool(lanes)
+
+    def end_attempt(lanes, sid, arm, n, *args, **kwargs):
+        result = real_end(lanes, sid, arm, n, *args, **kwargs)
+        if n == 1 and initial.get(sid) == arm:
+            with state_lock:
+                state["ended"] += 1
+                state["recovered"] = state["ended"] == 2
+        return result
 
     w.run.host_factory = start_host
+    w.run.pool_factory = start_pool
+    monkeypatch.setattr(cr.Lanes, "end_attempt", end_attempt)
     monkeypatch.setattr(time, "time", stepped_time)
     w.execute()
     assert readings_after, "the two-second wall-clock step must occur during the run"
