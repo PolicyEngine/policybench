@@ -3031,10 +3031,11 @@ def preflight(
     design: dict, models: tuple[str, ...], design_sha256: str | None = None
 ) -> list[str]:
     """Return recorded input problems for every malformed design."""
+    problems = []
     try:
         if not isinstance(design, dict):
             raise ValueError("the design must be an object")
-        return _preflight(design, models, design_sha256)
+        return _preflight(design, models, design_sha256, problems)
     except (
         OSError,
         ValueError,
@@ -3045,11 +3046,14 @@ def preflight(
         OverflowError,
         RuntimeError,
     ) as error:
-        return [f"the design is malformed: {error}"]
+        return [*problems, f"the design is malformed: {error}"]
 
 
 def _preflight(
-    design: dict, models: tuple[str, ...], design_sha256: str | None = None
+    design: dict,
+    models: tuple[str, ...],
+    design_sha256: str | None = None,
+    problems: list[str] | None = None,
 ) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
@@ -3061,7 +3065,9 @@ def _preflight(
         return [str(error)]
     if stage.kind == "calculator" and "frontier_arms" not in design:
         return ["the design has no frontier_arms"]
-    problems = restart_manifest_problems(design, stage, design_sha256)
+    if problems is None:
+        problems = []
+    problems.extend(restart_manifest_problems(design, stage, design_sha256))
     if (
         stage.kind == "calculator"
         and design.get("overall_cap") != CALCULATOR_OVERALL_CAP
@@ -3262,6 +3268,9 @@ def main(argv=None) -> int:
     resume.add_argument("model")
     resume.add_argument("--note", default="the account was fixed")
     args = parser.parse_args(argv)
+    refusal_prefix = (
+        "No resume requested" if args.command == "resume" else "The run cannot start"
+    )
     try:
         design_bytes = args.design.read_bytes()
         design = json.loads(design_bytes.decode("utf-8"))
@@ -3270,17 +3279,21 @@ def main(argv=None) -> int:
             raise ValueError("the design must be an object")
         stage = stage_for(design)
     except (OSError, ValueError, TypeError, AttributeError, RecursionError) as error:
-        print(f"The run cannot start: {error}")
+        print(f"{refusal_prefix}: {error}")
         return 1
     if args.command == "resume":
         try:
+            if args.model not in stage.models:
+                raise ValueError(
+                    f"model {args.model!r} is not in the {stage.kind} stage"
+                )
             runs = design.get("runs")
             if not isinstance(runs, str) or not runs.strip():
                 raise ValueError("the design must name a usable runs folder")
             folder = Path(runs) / args.model
             write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
         except (OSError, ValueError, TypeError) as error:
-            print(f"The run cannot start: {error}")
+            print(f"No resume requested: {error}")
             return 1
         print(f"{args.model}: resume requested; the runner resumes within a second")
         return 0

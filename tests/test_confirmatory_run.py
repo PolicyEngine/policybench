@@ -5544,13 +5544,14 @@ def test_command_line_reports_unreadable_or_nonobject_designs(
         raised = error
         result = None
     output = capsys.readouterr().out
+    prefix = "No resume requested" if command == "resume" else "The run cannot start"
     assert (
         raised is None
         and result == 1
-        and output.startswith("The run cannot start: ")
+        and output.startswith(f"{prefix}: ")
         and (
             fault not in ("null", "list")
-            or output.strip() == "The run cannot start: the design must be an object"
+            or output.strip() == f"{prefix}: the design must be an object"
         )
     ), (
         "the command line reports unreadable JSON and non-object designs "
@@ -5603,7 +5604,7 @@ def test_command_line_resume_refuses_a_design_without_usable_runs(
     assert (
         raised is None
         and result == 1
-        and capsys.readouterr().out.startswith("The run cannot start: ")
+        and capsys.readouterr().out.startswith("No resume requested: ")
     ), "resume reports missing or unusable runs folders as startup refusals"
 
 
@@ -6082,3 +6083,67 @@ def test_preflight_binds_every_registered_restart_manifest(
     assert len(problems) == 1 and problems[0].startswith(
         f"{manifest}: cannot read restart manifest: "
     ), "malformed restart manifests become recorded refusals rule"
+
+
+@pytest.mark.parametrize(
+    "kind,model",
+    [
+        ("calculator", "gpt-6-luuna"),
+        ("calculator", "../x"),
+        ("calculator", "claude-sonnet-5.5"),
+        ("web", "gpt-6-sol"),
+    ],
+)
+def test_resume_refuses_models_outside_its_registered_stage(
+    tmp_path, capsys, kind, model
+):
+    design = tmp_path / "design.json"
+    design.write_text(json.dumps({"kind": kind, "runs": str(tmp_path / "runs")}))
+    before = set(tmp_path.rglob("*"))
+    result = cr.main(["resume", str(design), model])
+    assert result == 1 and capsys.readouterr().out == (
+        f"No resume requested: model {model!r} is not in the {kind} stage\n"
+    ), "resume accepts only registered stage models before writing rule"
+    assert set(tmp_path.rglob("*")) == before, (
+        "resume accepts only registered stage models before writing rule"
+    )
+
+
+def test_resume_reports_write_failures_as_no_resume_requested(
+    tmp_path, capsys, monkeypatch
+):
+    design = tmp_path / "design.json"
+    design.write_text(
+        json.dumps({"kind": "calculator", "runs": str(tmp_path / "runs")})
+    )
+
+    def denied(*args, **kwargs):
+        raise PermissionError("synthetic resume write denial")
+
+    monkeypatch.setattr(cr, "write_json", denied)
+    assert cr.main(["resume", str(design), "gpt-6-luna"]) == 1
+    assert (
+        capsys.readouterr().out
+        == "No resume requested: synthetic resume write denial\n"
+    ), "every resume write refusal uses the no-resume prefix rule"
+    assert not (tmp_path / "runs").exists()
+
+
+def test_preflight_catch_all_keeps_earlier_problems(
+    world, tmp_path, monkeypatch, capsys
+):
+    w = world(models=(cr.CHEAP[0],))
+    design = complete_preflight_design(w, tmp_path)
+    design.update(overall_cap=149.0, board=None)
+    path = tmp_path / "malformed-design.json"
+    path.write_text(json.dumps(design))
+    monkeypatch.setattr(
+        pilot, "_require_engine", lambda _: pytest.fail("preflight must refuse first")
+    )
+    assert cr.main(["run", str(path)]) == 1
+    output = capsys.readouterr().out
+    early = "- the calculator design's overall_cap must be 150\n"
+    late = "- the design is malformed: "
+    assert (
+        early in output and late in output and output.index(early) < output.index(late)
+    ), "preflight catch-all retains earlier problems before malformed design rule"
