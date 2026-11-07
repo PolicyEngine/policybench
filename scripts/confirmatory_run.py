@@ -604,13 +604,18 @@ _clock_last = 0.0
 
 
 def clock() -> float:
-    """`time.time()`, never earlier than a time it gave before. The wall clock
-    can step back by about 0.1 ms, even within a thread, and the run records order
-    attempts, stops, admission decisions and the ceiling's crossing by the
-    times this gives; each is taken under the lock that orders it."""
+    """Return a time strictly greater than every earlier runner reading.
+
+    When the wall clock repeats or steps back, advance by one representable
+    float. The lock orders attempts, stops, admission decisions and the
+    ceiling's crossing across all threads.
+    """
     global _clock_last
     with _clock_lock:
-        _clock_last = max(time.time(), _clock_last)
+        now = time.time()
+        _clock_last = (
+            now if now > _clock_last else math.nextafter(_clock_last, math.inf)
+        )
         return _clock_last
 
 

@@ -46,10 +46,10 @@ COST = 0.01
 TZ = "America/New_York"
 PREREG = "A frozen pre-registration for a test.\n"
 ENGINE = "2.60.4"
-# The harness times requests with the raw wall clock, which steps back by
-# about 0.1 ms on this host, even within a thread; the report allows a second, as
-# here, which also covers a small correction of the clock.
-CLOCK_SLACK = 1.0
+# The harness times requests with the raw wall clock. As in the report, allow
+# 0.1 s plus the largest backward step measured from the host's sampled wall
+# and monotonic clocks.
+CLOCK_SLACK = 0.1
 # The anchor command in a test: a copy of the anchors to the test's folder.
 ANCHOR_SCRIPT = Path(__file__).resolve().parent / "fake_anchor.py"
 # How far apart anchors and their triggers' stops may be in a test, on a
@@ -745,11 +745,36 @@ def test_the_clock_never_goes_back(monkeypatch):
     monkeypatch.setattr(time, "time", lambda: next(readings))
     assert [cr.clock() for _ in range(5)] == [
         base,
-        base,
+        math.nextafter(base, math.inf),
         base + 2e-4,
-        base + 2e-4,
+        math.nextafter(base + 2e-4, math.inf),
         base + 3e-4,
     ]
+
+
+def test_a_frozen_wall_clock_is_strictly_increasing_across_threads(monkeypatch):
+    base = time.time() + 1000.0
+    monkeypatch.setattr(cr, "_clock_last", 0.0)
+    monkeypatch.setattr(time, "time", lambda: base)
+    readings = [[] for _ in range(8)]
+    ready = threading.Barrier(len(readings))
+
+    def read(values):
+        ready.wait()
+        values.extend(cr.clock() for _ in range(100))
+
+    threads = [threading.Thread(target=read, args=(values,)) for values in readings]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    values = [value for mine in readings for value in mine]
+    assert len(values) == 800 and len(set(values)) == len(values), (
+        "runner clock values are strictly increasing across threads rule"
+    )
+    assert all(all(a < b for a, b in zip(mine, mine[1:])) for mine in readings), (
+        "runner clock values are strictly increasing across threads rule"
+    )
 
 
 def test_a_backward_wall_clock_does_not_delay_a_due_anchor(monkeypatch):
@@ -785,6 +810,48 @@ def test_a_wall_clock_that_steps_back_keeps_the_run_procedure(world, monkeypatch
     assert run_problems(w) == []
     for model in w.models:
         assert len(w.attempts(model)) == N_DRAW * len(labels_of(model))
+
+
+@pytest.mark.parametrize("after", [0.1, 0.25])
+def test_a_two_second_wall_clock_step_keeps_the_run_procedure(
+    world, monkeypatch, after
+):
+    monkeypatch.setattr(cr, "_clock_last", 0.0)
+    model = "gpt-6-sol"
+    w = world(models=(model,))
+    sid = w.draw_order[0]
+    first_arm = cr.orders(w.run.master, model, w.draw_order, labels_of(model))[sid][0]
+    # Keep a real fake-provider request open through either drawn step point.
+    w.provider.specs[(model, first_arm, sid, 1)] = {"sleep": 0.35}
+    real_time, make_host = time.time, w.run.host_factory
+    started = []
+    readings_after = []
+
+    def start_host(folder):
+        host = make_host(folder)
+        # Time the step from a sampled run, so a slow startup cannot hide it.
+        started.append(time.monotonic())
+        return host
+
+    def stepped_time():
+        now = real_time()
+        if started and time.monotonic() - started[0] >= after:
+            readings_after.append(now)
+            return now - 2.0
+        return now
+
+    w.run.host_factory = start_host
+    monkeypatch.setattr(time, "time", stepped_time)
+    w.execute()
+    assert readings_after, "the two-second wall-clock step must occur during the run"
+    assert host_from_files(w.runs() / "host").back > 1.9
+    problems = run_problems(w)
+    assert problems == [], (
+        f"runner procedure survives a two-second wall-clock step rule: {problems}"
+    )
+    assert len(w.attempts(model)) == N_DRAW * len(labels_of(model)), (
+        "runner procedure survives a two-second wall-clock step rule"
+    )
 
 
 def test_the_ceiling_crosses_at_its_amount_and_stays_crossed():
@@ -1066,6 +1133,11 @@ def host_from_files(folder: Path):
     samples = [
         json.loads(x) for x in (folder / "host-log.jsonl").read_text().splitlines() if x
     ]
+    back = 0.0
+    for first, second in zip(samples, samples[1:]):
+        elapsed = second["monotonic"] - first["monotonic"]
+        if elapsed >= 0:
+            back = max(back, elapsed - (second["time"] - first["time"]))
     spans = cr.guard_spans(
         (folder / "clamshell-guard.log").read_text(), meta["timezone"], end
     )
@@ -1079,6 +1151,9 @@ def host_from_files(folder: Path):
     pressure = [float(s["time"]) for s in good if int(s["pressure"]) > 1]
 
     class Host:
+        def __init__(self):
+            self.back = back
+
         def trouble(self, s, e):
             for a, b, what in spans:
                 if a <= e and b >= s:
@@ -1159,6 +1234,7 @@ def run_problems(world: World) -> list[str]:
     """Every rule of the run procedure, recomputed from the runner's files."""
     problems: list[str] = []
     host = host_from_files(world.runs() / "host")
+    clock_slack = CLOCK_SLACK + host.back
     frozen = world.design["frozen_sha256"]
     problems += chain_problems(world.runs() / "host" / "host-log.jsonl", cr.HOST_SEED)
     problems += anchor_problems(world)
@@ -1255,8 +1331,8 @@ def run_problems(world: World) -> list[str]:
                     for key in ("request_started_at", "request_completed_at")
                 ]
                 if times and (
-                    min(times) < x["start"] - CLOCK_SLACK
-                    or max(times) > x["end"] + CLOCK_SLACK
+                    min(times) < x["start"] - clock_slack
+                    or max(times) > x["end"] + clock_slack
                 ):
                     problems.append(
                         f"{at}#{k}: requests {min(times)!r}-{max(times)!r} outside "
