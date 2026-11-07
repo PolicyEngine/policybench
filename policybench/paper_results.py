@@ -764,9 +764,10 @@ OUTPUT_DISPLAY_NAMES = {
 MICROCOSM_PEOPLE = 160_858
 MICROCOSM_HOUSEHOLDS = 75_112
 MICROCOSM_ELIGIBLE_HOUSEHOLDS = 63_128
-POPULACE_PEOPLE = MICROCOSM_PEOPLE  # compat: populace alias, remove after next release
-POPULACE_HOUSEHOLDS = MICROCOSM_HOUSEHOLDS  # compat: populace alias, remove after next release
-POPULACE_ELIGIBLE_HOUSEHOLDS = MICROCOSM_ELIGIBLE_HOUSEHOLDS  # compat: populace alias, remove after next release
+# compat: populace alias, remove after next release (the three lines below)
+POPULACE_PEOPLE = MICROCOSM_PEOPLE
+POPULACE_HOUSEHOLDS = MICROCOSM_HOUSEHOLDS
+POPULACE_ELIGIBLE_HOUSEHOLDS = MICROCOSM_ELIGIBLE_HOUSEHOLDS
 
 
 def _humanize_variable(variable: str) -> str:
@@ -1558,11 +1559,12 @@ class PaperResults:
         excluded = MICROCOSM_HOUSEHOLDS - MICROCOSM_ELIGIBLE_HOUSEHOLDS
         return f"{100 * excluded / MICROCOSM_HOUSEHOLDS:.1f}"
 
-    populace_people_fmt = microcosm_people_fmt  # compat: populace alias, remove after next release
-    populace_households_fmt = microcosm_households_fmt  # compat: populace alias, remove after next release
-    populace_eligible_households_fmt = microcosm_eligible_households_fmt  # compat: populace alias, remove after next release
-    populace_eligible_pct_fmt = microcosm_eligible_pct_fmt  # compat: populace alias, remove after next release
-    populace_excluded_pct_fmt = microcosm_excluded_pct_fmt  # compat: populace alias, remove after next release
+    # compat: populace alias, remove after next release (the five lines below)
+    populace_people_fmt = microcosm_people_fmt
+    populace_households_fmt = microcosm_households_fmt
+    populace_eligible_households_fmt = microcosm_eligible_households_fmt
+    populace_eligible_pct_fmt = microcosm_eligible_pct_fmt
+    populace_excluded_pct_fmt = microcosm_excluded_pct_fmt
 
     # ----- zero inflation ------------------------------------------------
     @cached_property
