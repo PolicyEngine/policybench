@@ -1688,6 +1688,7 @@ class Lanes:
 
         board_path = Path(design["board"])
         return {
+            "design_sha256": self.run.design_sha256,
             "started_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "git_head": pilot._git("rev-parse", "HEAD"),
             "git_dirty": bool(pilot._git("status", "--porcelain")),
@@ -1824,8 +1825,11 @@ class Run:
         completion_for: Callable = default_completion,
         host_factory: Callable | None = None,
         out=sys.stdout,
+        *,
+        design_sha256: str,
     ):
         self.design, self.out = design, out
+        self.design_sha256 = design_sha256
         self.stage = stage_for(design)
         self.workers = int(design["workers"]) if workers is None else workers
         self.converse, self.pool_factory = converse, pool_factory
@@ -2985,12 +2989,52 @@ def anchor_clone_problems(command, stage: Stage) -> list[str]:
         return [f"the anchor clone {repo}: cannot read Git metadata: {error}"]
 
 
-def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
+def restart_manifest_problems(
+    design: dict, stage: Stage, design_sha256: str | None
+) -> list[str]:
+    """Bind every existing registered-model manifest to the input file's bytes."""
+    from confirmatory_no_tools import read_regular, saved_children
+
+    problems = []
+    valid_hash = isinstance(design_sha256, str) and re.fullmatch(
+        r"[0-9a-f]{64}", design_sha256
+    )
+    for model in stage.models:
+        folder = Path(design["runs"]) / model
+        try:
+            paths = [
+                path
+                for path in saved_children(folder)
+                if path.name.startswith("manifest-") and path.suffix == ".json"
+            ]
+        except ValueError as error:
+            problems.append(str(error))
+            continue
+        for path in paths:
+            try:
+                manifest = json.loads(read_regular(path).decode("utf-8"))
+            except (OSError, ValueError, RecursionError) as error:
+                problems.append(f"{path}: cannot read restart manifest: {error}")
+                continue
+            if (
+                not valid_hash
+                or not isinstance(manifest, dict)
+                or manifest.get("design_sha256") != design_sha256
+            ):
+                problems.append(
+                    f"{path}: design_sha256 is missing or differs from the design file"
+                )
+    return problems
+
+
+def preflight(
+    design: dict, models: tuple[str, ...], design_sha256: str | None = None
+) -> list[str]:
     """Return recorded input problems for every malformed design."""
     try:
         if not isinstance(design, dict):
             raise ValueError("the design must be an object")
-        return _preflight(design, models)
+        return _preflight(design, models, design_sha256)
     except (
         OSError,
         ValueError,
@@ -3004,7 +3048,9 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         return [f"the design is malformed: {error}"]
 
 
-def _preflight(design: dict, models: tuple[str, ...]) -> list[str]:
+def _preflight(
+    design: dict, models: tuple[str, ...], design_sha256: str | None = None
+) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
     if missing:
@@ -3015,7 +3061,7 @@ def _preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         return [str(error)]
     if stage.kind == "calculator" and "frontier_arms" not in design:
         return ["the design has no frontier_arms"]
-    problems = []
+    problems = restart_manifest_problems(design, stage, design_sha256)
     if (
         stage.kind == "calculator"
         and design.get("overall_cap") != CALCULATOR_OVERALL_CAP
@@ -3217,7 +3263,9 @@ def main(argv=None) -> int:
     resume.add_argument("--note", default="the account was fixed")
     args = parser.parse_args(argv)
     try:
-        design = json.loads(args.design.read_text())
+        design_bytes = args.design.read_bytes()
+        design = json.loads(design_bytes.decode("utf-8"))
+        design_sha256 = sha256_bytes(design_bytes)
         if not isinstance(design, dict):
             raise ValueError("the design must be an object")
         stage = stage_for(design)
@@ -3243,7 +3291,7 @@ def main(argv=None) -> int:
         )
         return 1
     models = stage.models
-    problems = preflight(design, models)
+    problems = preflight(design, models, design_sha256)
     if problems:
         print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
         return 1
@@ -3260,7 +3308,7 @@ def main(argv=None) -> int:
     if problems:
         print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
         return 1
-    plan = Run(design)
+    plan = Run(design, design_sha256=design_sha256)
     if args.dry_run:
         for model, lanes in plan.lanes.items():
             sizes = [len(lanes.households(lane)) for lane in (1, 2)]

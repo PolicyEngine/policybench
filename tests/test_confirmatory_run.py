@@ -173,7 +173,7 @@ def test_design_kind_is_required_and_registered_before_any_stage_starts(kind):
     with pytest.raises(ValueError, match="kind must be calculator or web"):
         cr.stage_for(design)
     with pytest.raises(ValueError, match="kind must be calculator or web"):
-        cr.Run(design)
+        cr.Run(design, design_sha256="0" * 64)
 
 
 @pytest.mark.parametrize("label", cr.WEB_ARMS)
@@ -1084,6 +1084,7 @@ class World:
         self.provider = FakeProvider(self, specs)
         self.run = cr.Run(
             self.design,
+            design_sha256=cr.sha256_bytes(json.dumps(self.design).encode("utf-8")),
             models=self.models,
             converse=self.provider,
             pool_factory=pool,
@@ -1093,6 +1094,10 @@ class World:
         )
 
     def execute(self):
+        self.design_path = self.tmp / "design.json"
+        data = json.dumps(self.design).encode("utf-8")
+        self.design_path.write_bytes(data)
+        self.run.design_sha256 = cr.sha256_bytes(data)
         self.run.execute()
         return self
 
@@ -1538,6 +1543,9 @@ def test_an_untouched_run_runs_every_household_and_arm(world):
         manifests = list((w.runs() / model).glob("manifest-*.json"))
         assert len(manifests) == 1
         m = json.loads(manifests[0].read_text())
+        assert m["design_sha256"] == cr.sha256_file(w.design_path), (
+            "every manifest binds the exact design file bytes rule"
+        )
         assert m["arms"] == {
             label: {
                 "arm": cr.arm_string(label),
@@ -5988,3 +5996,89 @@ def test_preflight_checks_registered_anchor_clone(world, tmp_path, monkeypatch):
     assert (
         seen == [(design["anchor_command"], "calculator")] and sentinel in problems
     ), "preflight applies registered anchor clone checks rule"
+
+
+@pytest.mark.parametrize("style", ["lf", "crlf", "spaces"])
+def test_run_manifests_hash_the_design_files_exact_bytes(
+    world, tmp_path, monkeypatch, style
+):
+    """Exercise the real CLI reader and manifest writer with a fake provider."""
+    w = world(models=(cr.FRONTIER[0],))
+    text = json.dumps(w.design, indent=2)
+    if style == "crlf":
+        text = text.replace("\n", "\r\n")
+    elif style == "spaces":
+        text = "  \n" + text + "\n  "
+    data = text.encode("utf-8")
+    path = tmp_path / "cli-design.json"
+    path.write_bytes(data)
+    reads = []
+    real_read = Path.read_bytes
+
+    def counted_read(source):
+        if source == path:
+            reads.append(source)
+        return real_read(source)
+
+    def plan(design, *, design_sha256):
+        assert design == w.design
+        w.run.design_sha256 = design_sha256
+        return w.run
+
+    monkeypatch.setattr(Path, "read_bytes", counted_read)
+    monkeypatch.setattr(cr, "preflight", lambda *args: [])
+    monkeypatch.setattr(pilot, "_require_engine", lambda _: None)
+    monkeypatch.setattr(cr, "Run", plan)
+    assert cr.main(["run", str(path)]) == 0
+    manifests = list(w.runs().glob("*/manifest-*.json"))
+    expected = hashlib.sha256(data).hexdigest()
+    assert manifests and all(
+        json.loads(manifest.read_text())["design_sha256"] == expected
+        for manifest in manifests
+    ), "every manifest binds the exact design file bytes rule"
+    assert reads == [path], "the runner reads the design file bytes once rule"
+
+
+@pytest.mark.parametrize("kind", ["calculator", "web"])
+def test_preflight_binds_every_registered_restart_manifest(
+    world, tmp_path, monkeypatch, kind
+):
+    w, web = complete_web_design(world, tmp_path, monkeypatch)
+    design, _ = fresh_stage_design(w, web, tmp_path, kind)
+    stage = cr.STAGES[kind]
+    models = (stage.models[0],)
+    data = json.dumps(design).encode("utf-8")
+    path = tmp_path / "restart-design.json"
+    path.write_bytes(data)
+    expected = hashlib.sha256(data).hexdigest()
+    assert cr.preflight(design, models, expected) == [], "bound restart control rule"
+    # Inspect every registered folder even when the requested models are a subset.
+    manifest = Path(design["runs"]) / stage.models[-1] / "manifest-prior.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps({"design_sha256": expected}))
+    decoy_model = cr.FRONTIER[0] if kind == "web" else "claude-sonnet-5.5"
+    decoy = Path(design["runs"]) / decoy_model / "manifest-decoy.json"
+    decoy.parent.mkdir(parents=True)
+    decoy.write_text('{"design_sha256": "unregistered"}')
+    assert cr.preflight(design, models, expected) == [], "bound restart control rule"
+    refusal = f"{manifest}: design_sha256 is missing or differs from the design file"
+    for value in ({}, {"design_sha256": "0" * 64}, []):
+        manifest.write_text(json.dumps(value))
+        assert cr.preflight(design, models, expected) == [refusal], (
+            "restart manifests bind every registered model "
+            "to the same design bytes rule"
+        )
+    manifest.write_text(json.dumps({"design_sha256": expected}))
+    path.write_bytes(data + b" \n")
+    changed = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert cr.preflight(design, models, changed) == [refusal], (
+        "restart manifests bind every registered model to the same design bytes rule"
+    )
+    assert cr.preflight(design, models) == [refusal], (
+        "restart manifests require an explicit expected design digest rule"
+    )
+    manifest.write_text("{")
+    problems = cr.preflight(design, models, expected)
+    assert len(problems) == 1 and problems[0].startswith(
+        f"{manifest}: cannot read restart manifest: "
+    ), "malformed restart manifests become recorded refusals rule"
