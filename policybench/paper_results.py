@@ -10,7 +10,7 @@ names, leaderboards) computed from the FROZEN manuscript snapshot under
 Sources, in order of authority:
 
 * ``paper/snapshot/20260501/manifest.json`` -- snapshot/response dates, the
-  US source-run label, PolicyEngine versions, the populace dataset id, and the
+  US source-run label, PolicyEngine versions, the Microcosm dataset id, and the
   declared scope (households, output groups, models).
 * ``paper/snapshot/20260501/runs/<us_label>/data.json.gz`` -- the frozen US
   dashboard payload: the frozen model roster, ``modelStats`` exact-match and
@@ -745,7 +745,7 @@ OUTPUT_DISPLAY_NAMES = {
     "tanf": "TANF",
 }
 
-# Population-construction figures for the certified populace build this run
+# Population-construction figures for the certified Microcosm build this run
 # used (populace-us-2024-5da5a95-20260611, populace_us_2024). These describe
 # the upstream dataset, not the 100-household snapshot, so they cannot be read
 # from the frozen run payload. They are computed once from the dataset and are
@@ -761,9 +761,12 @@ OUTPUT_DISPLAY_NAMES = {
 # every paper render, so the verified values are pinned here against the build
 # id in the manifest. ``test`` is intentionally omitted -- this module stays
 # importable without a test dependency, per the task spec.
-POPULACE_PEOPLE = 160_858
-POPULACE_HOUSEHOLDS = 75_112
-POPULACE_ELIGIBLE_HOUSEHOLDS = 63_128
+MICROCOSM_PEOPLE = 160_858
+MICROCOSM_HOUSEHOLDS = 75_112
+MICROCOSM_ELIGIBLE_HOUSEHOLDS = 63_128
+POPULACE_PEOPLE = MICROCOSM_PEOPLE  # compat: populace alias, remove after next release
+POPULACE_HOUSEHOLDS = MICROCOSM_HOUSEHOLDS  # compat: populace alias, remove after next release
+POPULACE_ELIGIBLE_HOUSEHOLDS = MICROCOSM_ELIGIBLE_HOUSEHOLDS  # compat: populace alias, remove after next release
 
 
 def _humanize_variable(variable: str) -> str:
@@ -1002,12 +1005,12 @@ class PaperResults:
     # reads and which can be a later build.
     @property
     def dataset_id(self) -> str:
-        """Populace dataset name, e.g. ``populace_us_2024``."""
+        """Microcosm dataset name, e.g. ``populace_us_2024``."""
         return self.sample_bundle["default_dataset"]
 
     @property
     def dataset_build_id(self) -> str:
-        """Certified populace build id, e.g. ``populace-us-2024-5da5a95-20260611``."""
+        """Certified Microcosm build id, e.g. ``populace-us-2024-5da5a95-20260611``."""
         return self.sample_bundle["certified_data_build_id"]
 
     @property
@@ -1016,8 +1019,8 @@ class PaperResults:
 
     @property
     def dataset_label(self) -> str:
-        """Short human label for the data source used in prose ('populace')."""
-        return "populace"
+        """Short human label for the data source used in prose ('Microcosm')."""
+        return "Microcosm"
 
     @property
     def n_models(self) -> int:
@@ -1533,27 +1536,33 @@ class PaperResults:
         calls reached the provider."""
         return int((self.latency_replay_audit["replay"] == "partial").sum())
 
-    # ----- populace dataset construction ---------------------------------
+    # ----- Microcosm dataset construction ---------------------------------
     @property
-    def populace_people_fmt(self) -> str:
-        return f"{POPULACE_PEOPLE:,}"
+    def microcosm_people_fmt(self) -> str:
+        return f"{MICROCOSM_PEOPLE:,}"
 
     @property
-    def populace_households_fmt(self) -> str:
-        return f"{POPULACE_HOUSEHOLDS:,}"
+    def microcosm_households_fmt(self) -> str:
+        return f"{MICROCOSM_HOUSEHOLDS:,}"
 
     @property
-    def populace_eligible_households_fmt(self) -> str:
-        return f"{POPULACE_ELIGIBLE_HOUSEHOLDS:,}"
+    def microcosm_eligible_households_fmt(self) -> str:
+        return f"{MICROCOSM_ELIGIBLE_HOUSEHOLDS:,}"
 
     @property
-    def populace_eligible_pct_fmt(self) -> str:
-        return f"{100 * POPULACE_ELIGIBLE_HOUSEHOLDS / POPULACE_HOUSEHOLDS:.1f}"
+    def microcosm_eligible_pct_fmt(self) -> str:
+        return f"{100 * MICROCOSM_ELIGIBLE_HOUSEHOLDS / MICROCOSM_HOUSEHOLDS:.1f}"
 
     @property
-    def populace_excluded_pct_fmt(self) -> str:
-        excluded = POPULACE_HOUSEHOLDS - POPULACE_ELIGIBLE_HOUSEHOLDS
-        return f"{100 * excluded / POPULACE_HOUSEHOLDS:.1f}"
+    def microcosm_excluded_pct_fmt(self) -> str:
+        excluded = MICROCOSM_HOUSEHOLDS - MICROCOSM_ELIGIBLE_HOUSEHOLDS
+        return f"{100 * excluded / MICROCOSM_HOUSEHOLDS:.1f}"
+
+    populace_people_fmt = microcosm_people_fmt  # compat: populace alias, remove after next release
+    populace_households_fmt = microcosm_households_fmt  # compat: populace alias, remove after next release
+    populace_eligible_households_fmt = microcosm_eligible_households_fmt  # compat: populace alias, remove after next release
+    populace_eligible_pct_fmt = microcosm_eligible_pct_fmt  # compat: populace alias, remove after next release
+    populace_excluded_pct_fmt = microcosm_excluded_pct_fmt  # compat: populace alias, remove after next release
 
     # ----- zero inflation ------------------------------------------------
     @cached_property

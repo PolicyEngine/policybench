@@ -28,7 +28,7 @@ FULL_VARS = [f"var_{i}" for i in range(16)]
 
 @pytest.fixture(scope="module")
 def scenario():
-    # Synthetic scenario: generate_scenarios() loads the certified populace
+    # Synthetic scenario: generate_scenarios() loads the certified Microcosm
     # frame, which is far too heavy for CI runners.
     return Scenario(
         id="scenario_000",

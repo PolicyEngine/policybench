@@ -7,7 +7,7 @@ import paperSnapshot from "../../paperSnapshot.json";
 
 const SNAPSHOT_DATE_LABEL = `Snapshot ${paperSnapshot.snapshotDate}`;
 
-const PAPER_DESCRIPTION = `PolicyBench paper: the ${paperSnapshot.snapshotDate} manuscript snapshot reporting the household-impact-weighted exact-match rate, with model responses collected between ${paperSnapshot.responseWindow}, against PolicyEngine reference outputs on the US populace microdata.`;
+const PAPER_DESCRIPTION = `PolicyBench paper: the ${paperSnapshot.snapshotDate} manuscript snapshot reporting the household-impact-weighted exact-match rate, with model responses collected between ${paperSnapshot.responseWindow}, against PolicyEngine reference outputs on the US Microcosm microdata.`;
 
 export const metadata: Metadata = {
   title: "Paper",

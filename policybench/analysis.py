@@ -375,7 +375,7 @@ def bounded_global_variable_weights(
 
     When a country is supplied and a population-weight artifact covers all
     requested output groups, weights come from the full source microsimulation
-    population: the certified PolicyEngine US populace dataset for the US and
+    population: the certified PolicyEngine US Microcosm dataset for the US and
     full enhanced FRS for the UK.
     Otherwise, this falls back to computing the same formula on the supplied
     benchmark rows.
@@ -1860,7 +1860,7 @@ def render_markdown_report(
                 "amount outputs and exact 0/1 matching for binary outputs. "
                 "Canonical country reports use full-population "
                 "output-group weights: US weights come "
-                "from the certified PolicyEngine US populace dataset, UK "
+                "from the certified PolicyEngine US Microcosm dataset, UK "
                 "weights from the full enhanced FRS. Each output group's "
                 "weight is the household-weighted "
                 "mean of "

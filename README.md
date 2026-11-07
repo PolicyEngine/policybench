@@ -9,7 +9,7 @@ For benchmark scope, snapshot policy, and terminology, see the
 [benchmark card](https://github.com/PolicyEngine/policybench/blob/main/docs/benchmark_card.md).
 
 Current public benchmark scenarios are sampled from the certified PolicyEngine
-populace US dataset and evaluated under tax year 2026 rules with
+Microcosm US dataset and evaluated under tax year 2026 rules with
 PolicyEngine-US.
 
 ## Condition
@@ -41,7 +41,7 @@ The current public release covers selected federal taxes, credits, benefits,
 coverage labels, and state-tax outputs in the US. US federal income tax is scored
 as a compact decomposition: tax after nonrefundable credits and before
 refundable credits, plus refundable federal credits excluding the ACA Premium Tax
-Credit. The June 2026 populace source run requested ACA Premium Tax Credit
+Credit. The June 2026 Microcosm source run requested ACA Premium Tax Credit
 responses, but they are excluded from the canonical scored leaderboard because
 explanation audits showed prompt ambiguity without plan-specific Marketplace
 information.
