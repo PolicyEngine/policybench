@@ -1,4 +1,4 @@
-"""The confirmatory calculator-interface run.
+"""The confirmatory calculator-interface and web-search stages.
 
 Usage:
     python scripts/confirmatory_run.py run DESIGN [--workers N] [--dry-run]
@@ -7,13 +7,20 @@ Usage:
 Runs the frozen pre-registration's "Run procedure" and writes its "Run
 records", which the confirmatory report checks before it scores anything.
 DESIGN is the JSON file written at the freeze, the file the report reads.
+Its required ``kind`` selects the registered calculator or web stage. The
+calculator stage keeps the six models and their original arm labels. The web
+stage compares ``web`` and ``web+pe3`` on Luna, Flash-Lite and Sonnet, after
+the hashed calculator design's stage has closed. Its frozen inputs and scoring
+metadata agree with that design, and its prior spend includes both earlier
+stages. Both web profiles prohibit benchmark searches, as in development.
 
 - **Lanes.** Each model has two lanes. Households alternate between them in
   draw order, the first drawn to lane 1. A lane runs one household's arms one
   after another, in the order drawn for that household and model (the stream
-  ``order/<model>``), then its reruns in passes (second attempts before
+  ``order/<model>`` for calculator, ``order/web/<model>`` for web), then its
+  reruns in passes (second attempts before
   third, each pass in the household's order), and only then decides its next
-  household. The six models run at once.
+  household. A stage's models run at once: six calculator models or three web models.
 - **One engine pool per model**, started once, with no features of its own.
   Each call carries its arm's features in a call frame (``tool_call_frame``),
   the message a pool started with those features would send. ``setup-start``
@@ -28,8 +35,9 @@ DESIGN is the JSON file written at the freeze, the file the report reads.
   households has ended a pass whose reruns are undecided, so that whether it
   has finished is known.
 - **Spend.** No conversation is stopped for spend, except at the hard
-  ceiling: the overall cap plus $25, over the spend before the calculator
-  stage and every model's spend since. At the crossing, no attempt starts,
+  ceiling: the overall cap plus $25, over the spend before the selected
+  stage and every model's spend since. The web design's whole-run cap is $270.
+  At the crossing, no attempt starts,
   the conversations under way end ``budget_stop`` at their next turn, and
   every model's run log gets a ``ceiling`` event at the crossing's time.
   The decision to admit a household and the crossing share one lock, so no
@@ -93,7 +101,11 @@ The runner runs the treatment harness's code. It refuses to start unless its
 treatment commit's (c0a2885b), its tree is clean at the design's run commit,
 the machine is on AC power with the lid open, and the runs folder holds no
 records: a run is never resumed. ``--workers`` must equal the design's
-engine workers per model. An interrupt (SIGINT or SIGTERM) only notes the
+engine workers per model. A Gemini web model also requires the exact LiteLLM
+version checked by the treatment's search patch at preflight. During execute,
+after setup-start and before the completion factory or any completion call,
+the runner applies that patch so search survives beside function tools.
+An interrupt (SIGINT or SIGTERM) only notes the
 signal; the main loop then stops every model's lanes with cause
 ``interrupt`` and lets the conversations under way end. A second interrupt
 exits at once until cleanup ignores signals before its final check. Signals
@@ -105,6 +117,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import math
 import os
@@ -132,6 +145,11 @@ sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 import tool_pilot_argon as pilot  # noqa: E402
 
 TREATMENT_COMMIT = "c0a2885bfc8f5df59a93458230c445befb986dcb"
+ANCHOR_REPOSITORY = "PolicyEngine/policybench-v2-anchors"
+ANCHOR_REFS = {
+    "calculator": "refs/heads/anchors/v2-confirmatory",
+    "web": "refs/heads/anchors/v2-confirmatory-web",
+}
 # The treatment's code, which must be the treatment commit's.
 TREATMENT_PATHS = (
     "scripts/tool_pilot_argon.py",
@@ -151,6 +169,99 @@ ARMS = (
     "loo-labels-flat",
 )
 FRONTIER_ARMS = ("pe", "pe3")
+WEB_MODELS = ("gpt-6-luna", "gemini-3.5-flash-lite", "claude-sonnet-5.5")
+WEB_ARMS = ("web", "web+pe3")
+
+
+@dataclass(frozen=True)
+class Stage:
+    """A registered stage's models, labels, folders, stream and profile rule."""
+
+    kind: str
+    models: tuple[str, ...]
+    model_arms: dict[str, tuple[str, ...]]
+    folder_keys: dict[str, str]
+    order_stream: str
+    profile_rule: str
+    calculator_label: str
+    fallback_arms: tuple[str, ...] | None = None
+    fallback_folder_key: str | None = None
+
+    def arms_for(self, model: str) -> tuple[str, ...]:
+        """Keep calculator-only explicit model overrides on the frontier arms."""
+        if model in self.model_arms:
+            return self.model_arms[model]
+        if self.fallback_arms is not None:
+            return self.fallback_arms
+        raise KeyError(f"{model}: no model in the {self.kind} stage")
+
+    def folder_key_for(self, model: str) -> str:
+        """The model's registered mapping, or the calculator override mapping."""
+        if model in self.folder_keys:
+            return self.folder_keys[model]
+        if self.fallback_folder_key is not None:
+            return self.fallback_folder_key
+        raise KeyError(f"{model}: no model in the {self.kind} stage")
+
+
+STAGES = {
+    "calculator": Stage(
+        "calculator",
+        CHEAP + FRONTIER,
+        {m: ARMS if m in CHEAP else FRONTIER_ARMS for m in CHEAP + FRONTIER},
+        {m: "arms" if m in CHEAP else "frontier_arms" for m in CHEAP + FRONTIER},
+        "order/{model}",
+        "calculator",
+        "pe3",
+        FRONTIER_ARMS,
+        "frontier_arms",
+    ),
+    "web": Stage(
+        "web",
+        WEB_MODELS,
+        {m: WEB_ARMS for m in WEB_MODELS},
+        {m: "arms" for m in WEB_MODELS},
+        "order/web/{model}",
+        "web",
+        "web+pe3",
+    ),
+}
+
+# The web stage uses precisely the calculator stage's frozen inputs and settings.
+SHARED_STAGE_FIELDS = (
+    "preregistration",
+    "frozen_sha256",
+    "board",
+    "engine",
+    "eligible_pool",
+    "draw_order",
+    "treatment_harness",
+    "run_commit",
+    "workers",
+    "no_tools",
+    "development_runs",
+)
+WEB_SCORING_FIELDS = (
+    "build",
+    "exclusions_sha256",
+    "baseline_exclusions",
+    "supplementary_exclusions",
+    "disputed",
+    "adjudication",
+    "adjudicator_model",
+    "judge",
+    "published_sources",
+)
+
+
+def stage_for(design: dict) -> Stage:
+    """Refuse a missing or unregistered kind before any stage starts."""
+    kind = design.get("kind")
+    if not isinstance(kind, str) or kind not in STAGES:
+        raise ValueError("the design's kind must be calculator or web")
+    return STAGES[kind]
+
+
 # The features each label drops from pe3; None for the tool v1 arm.
 DROPPED = {
     "pe": None,
@@ -168,6 +279,12 @@ PRESSURE_WINDOW = 60.0  # seconds
 HOST_LOG_GAP = 90.0  # seconds
 SAMPLE_SECONDS = 30.0
 CEILING_MARGIN = 25.0  # dollars above the overall cap
+CALCULATOR_OVERALL_CAP = 150.0
+CALCULATOR_CAP = 145.0
+WEB_OVERALL_CAP = 270.0
+WEB_CAP = 120.0
+CAP_TOLERANCE = 0.005  # dollars: a cap rounded to the cent
+RESERVE_TOLERANCE = 0.0005  # dollars: a reserve rounded to a tenth of a cent
 ADMISSION_SLACK = 1e-9  # dollars
 EXCERPT_LEAD = 86_400.0  # host logs are kept from a day before the run's start
 WAIT_SECONDS = 1.0  # how often a waiting lane looks again
@@ -237,16 +354,17 @@ FINISHED = frozenset({"complete", "incomplete", "turn_limit"})
 EARLY = frozenset({"operator", "harness", "ceiling", "none"})
 
 REQUIRED = (
+    "kind",
     "preregistration",
     "frozen_sha256",
     "runs",
+    "development_runs",
     "stage",
     "board",
     "engine",
     "eligible_pool",
     "draw_order",
     "arms",
-    "frontier_arms",
     "treatment_harness",
     "run_commit",
     "caps",
@@ -281,11 +399,16 @@ def draw(master: int, pool_ids: list[str], n: int | None = None) -> list[str]:
 
 
 def orders(
-    master: int, model: str, draw_order: list[str], arms: tuple[str, ...]
+    master: int,
+    model: str,
+    draw_order: list[str],
+    arms: tuple[str, ...],
+    *,
+    kind: str = "calculator",
 ) -> dict[str, list[str]]:
     """Each drawn household's arm order for a model, drawn for every household
     in draw order, so no order depends on which households run."""
-    generator = stream(master, f"order/{model}")
+    generator = stream(master, STAGES[kind].order_stream.format(model=model))
     return {
         sid: [str(a) for a in generator.permutation(list(arms))] for sid in draw_order
     }
@@ -296,6 +419,8 @@ def orders(
 
 def arm_string(label: str) -> str:
     """The harness's arm string for a design label (`TOOL_FEATURES` order)."""
+    if label in WEB_ARMS:
+        return label
     dropped = DROPPED[label]
     if dropped is None:
         return "pe"
@@ -305,8 +430,36 @@ def arm_string(label: str) -> str:
 
 
 def arm_profile(model: str, label: str) -> pilot.ModelProfile:
-    """The treatment harness's profile for a model and design label; refused
-    unless its calculator features are the ones the label registers."""
+    """The pinned profile, checked by its stage's registered treatment rule.
+
+    Web profiles retain development's benchmark-search prohibition: the pinned
+    harness applies it to both web arms and includes it in their notices.
+    """
+    stage = STAGES["web" if label in WEB_ARMS else "calculator"]
+    if stage.profile_rule == "web":
+        profile = pilot.model_profile(
+            model,
+            arm=label,
+            prompt_version=PROMPT_VERSION,
+            benchmark_search_rule=True,
+        )
+        if not profile.uses_web:
+            raise ValueError(f"{model}/{label}: the harness gives no web search")
+        if label == "web" and profile.uses_calculator:
+            raise ValueError(f"{model}/{label}: the harness gives a calculator")
+        if label == "web+pe3" and (
+            not profile.uses_calculator
+            or set(profile.tool_features) != set(pilot.TOOL_FEATURES)
+        ):
+            raise ValueError(
+                f"{model}/{label}: the harness lacks the full calculator features"
+            )
+        if not profile.benchmark_search_rule:
+            raise ValueError(
+                f"{model}/{label}: the harness omits the benchmark-search rule"
+            )
+        pilot.web_search_tool(profile)
+        return profile
     profile = pilot.model_profile(
         model, arm=arm_string(label), prompt_version=PROMPT_VERSION
     )
@@ -427,8 +580,28 @@ def action(cls: str, attempt: int) -> str:
     return "stands"
 
 
-def attempt_cost(record: dict) -> float:
-    return float((record.get("totals") or {}).get("cost_usd") or 0.0)
+def attempt_cost(record: dict, *, saved: bool = True) -> float:
+    """A saved attempt must account explicitly for its whole recorded cost.
+
+    Live accounting keeps its existing behavior: the harness writes the total,
+    including error/deadline stubs, and malformed output still gets recorded.
+    Validation of evidence read back from disk must never invent a zero cost.
+    """
+    if not saved:
+        return float((record.get("totals") or {}).get("cost_usd") or 0.0)
+    totals = record.get("totals")
+    if not isinstance(totals, dict):
+        raise ValueError("attempt totals must be an object with cost_usd")
+    value = totals.get("cost_usd")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("attempt cost_usd must be a present number")
+    try:
+        cost = float(value)
+    except OverflowError as error:
+        raise ValueError("attempt cost_usd must be finite and nonnegative") from error
+    if not math.isfinite(cost) or cost < 0:
+        raise ValueError("attempt cost_usd must be finite and nonnegative")
+    return cost
 
 
 _clock_lock = threading.Lock()
@@ -436,13 +609,18 @@ _clock_last = 0.0
 
 
 def clock() -> float:
-    """`time.time()`, never earlier than a time it gave before. The wall clock
-    can step back by about 0.1 ms, even within a thread, and the run records order
-    attempts, stops, admission decisions and the ceiling's crossing by the
-    times this gives; each is taken under the lock that orders it."""
+    """Return a time strictly greater than every earlier runner reading.
+
+    When the wall clock repeats or steps back, advance by one representable
+    float. The lock orders attempts, stops, admission decisions and the
+    ceiling's crossing across all threads.
+    """
     global _clock_last
     with _clock_lock:
-        _clock_last = max(time.time(), _clock_last)
+        now = time.time()
+        _clock_last = (
+            now if now > _clock_last else math.nextafter(_clock_last, math.inf)
+        )
         return _clock_last
 
 
@@ -816,7 +994,7 @@ class Ceiling(pilot.Spend):
 
     def __init__(self, ceiling_usd: float, spent_before: float):
         super().__init__(ceiling_usd, spent_before)
-        self.crossed_at: float | None = None
+        self.crossed_at: float | None = clock() if spent_before >= ceiling_usd else None
         self.closed = False  # the records are final: spend is no longer counted
         self.unrecorded_usd = 0.0  # spend after that, in no record
 
@@ -973,7 +1151,9 @@ class Lanes:
         self.profiles = {label: arm_profile(model, label) for label in labels}
         self.cap = float(design["caps"][model])
         self.reserve = float(design["reserves"][model])
-        self.orders = orders(run.master, model, run.draw_order, labels)
+        self.orders = orders(
+            run.master, model, run.draw_order, labels, kind=run.stage.kind
+        )
         self.cond = threading.Condition()
         self._log_lock = threading.Lock()
         self.state: dict[str, str] = {}  # household -> running, settling, finished
@@ -1155,7 +1335,7 @@ class Lanes:
         abandoned at its deadline."""
         with self.cond:
             end = clock()
-            self.spent[sid] += attempt_cost(record)
+            self.spent[sid] += attempt_cost(record, saved=False)
             attempt = Attempt(label, n, start, end, record)
             if retained is not None:
                 retained.append(attempt)  # recovery owns it before any event I/O
@@ -1230,6 +1410,8 @@ class Lanes:
         spend = AttemptSpend(self.run.ceiling)
 
         def tool_call(arguments):
+            if not profile.uses_calculator:
+                raise RuntimeError(f"{self.model}/{label}: no calculator is offered")
             message = (
                 pilot.tool_call_frame(features, arguments) if features else arguments
             )
@@ -1394,7 +1576,7 @@ class Lanes:
                 write_json(in_flight / f"{label}-{n}.json", record)
                 self.run.say(
                     f"{self.model} lane {lane} {sid} {label} #{n}: "
-                    f"{record.get('status')} ${attempt_cost(record):.4f} "
+                    f"{record.get('status')} ${attempt_cost(record, saved=False):.4f} "
                     f"(total ${self.run.ceiling.spent_usd:.2f})"
                 )
             if not done:
@@ -1490,17 +1672,23 @@ class Lanes:
 
     def manifest(self) -> dict:
         board, design = self.run.board, self.run.design
-        pe3 = arm_profile(self.model, "pe3")
+        pe3 = self.profiles[self.run.stage.calculator_label]
         first = sorted(board["scenarios"])[0]
 
         def timeout(profile):
             built = pilot.build_initial_request(
                 board["scenarios"][first], board["variables"][first], profile
             )
-            return built[1].get("timeout")
+            value = built[1].get("timeout")
+            return (
+                max(float(value or 0), pilot.WEB_REQUEST_TIMEOUT_SECONDS)
+                if profile.uses_web
+                else value
+            )
 
         board_path = Path(design["board"])
         return {
+            "design_sha256": self.run.design_sha256,
             "started_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "git_head": pilot._git("rev-parse", "HEAD"),
             "git_dirty": bool(pilot._git("status", "--porcelain")),
@@ -1538,6 +1726,18 @@ class Lanes:
                     **pilot.profile_treatment(profile),
                     "tool_version": profile.tool_version,
                     "request_timeout_seconds": timeout(profile),
+                    **(
+                        {
+                            "web_search_tool": pilot.web_search_tool(profile),
+                            "benchmark_search_rule": profile.benchmark_search_rule,
+                            "web_timeouts_retried": False,
+                            "search_usd_per_1k": pilot.SEARCH_USD_PER_1K[
+                                profile.provider
+                            ],
+                        }
+                        if self.run.stage.kind == "web"
+                        else {}
+                    ),
                 }
                 for label, profile in self.profiles.items()
             },
@@ -1613,7 +1813,7 @@ def default_completion(profile: pilot.ModelProfile):
 
 
 class Run:
-    """The six models' lanes, the host log and the hard ceiling."""
+    """The chosen stage's models and lanes, host log and whole-run ceiling."""
 
     def __init__(
         self,
@@ -1625,8 +1825,12 @@ class Run:
         completion_for: Callable = default_completion,
         host_factory: Callable | None = None,
         out=sys.stdout,
+        *,
+        design_sha256: str,
     ):
         self.design, self.out = design, out
+        self.design_sha256 = design_sha256
+        self.stage = stage_for(design)
         self.workers = int(design["workers"]) if workers is None else workers
         self.converse, self.pool_factory = converse, pool_factory
         self.completion_for = completion_for
@@ -1642,13 +1846,13 @@ class Run:
         self.ceiling = Ceiling(
             float(design["overall_cap"]) + CEILING_MARGIN, float(design["spent_before"])
         )
-        self.models = tuple(models or CHEAP + FRONTIER)
+        self.models = tuple(models or self.stage.models)
         self.lanes = {
             model: Lanes(
                 self,
                 model,
-                ARMS if model in CHEAP else FRONTIER_ARMS,
-                design["arms"] if model in CHEAP else design["frontier_arms"],
+                self.stage.arms_for(model),
+                design[self.stage.folder_key_for(model)],
             )
             for model in self.models
         }
@@ -1928,7 +2132,10 @@ class Run:
                 setup_open.add(lanes.model)
             for model, lanes in self.lanes.items():
                 self.watch(anchor=False)
-                lanes.completion = self.completion_for(lanes.profiles["pe3"])
+                representative = lanes.profiles[self.stage.calculator_label]
+                if representative.uses_web and representative.provider == "gemini":
+                    pilot.allow_gemini_search_with_functions()
+                lanes.completion = self.completion_for(representative)
                 stamp = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
                 lanes.manifest_sha256 = write_json(
                     lanes.folder / f"manifest-{stamp}.json", lanes.manifest(), indent=2
@@ -2163,12 +2370,714 @@ def host_power() -> tuple[bool, bool]:
     return "'AC Power'" in batt, '"AppleClamshellState" = No' in lid
 
 
-def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
+def calculator_evidence(design: dict) -> list[float]:
+    """Require a closed calculator stage and return every recorded cost.
+
+    The existing runner's end evidence is a closed host span, a summary for
+    every model, empty in-flight inventories, complete attempt records, and
+    the final anchor covering all current logs and manifests with a successful
+    final push. Unresolved requests and unsettled attempts prevent closure.
+    A stopped stage may be closed; its confirmatory standing is a report rule.
+    """
+    from confirmatory_no_tools import (
+        read_regular,
+        saved_children,
+        saved_json_paths,
+    )
+
+    root, frozen = Path(design["runs"]), design["frozen_sha256"]
+
+    def document(path):
+        value = json.loads(read_regular(path).decode("utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError(f"{path}: expected a JSON object")
+        return value
+
+    def attempt_record(path):
+        # Calculator archives preserve the harness's original bytes, whose
+        # first attempt need not carry an attempts field. The final adds its
+        # complete links; the no-tools reader's stronger schema is different.
+        data = read_regular(path)
+        record = json.loads(data.decode("utf-8"))
+        if not isinstance(record, dict) or "prior_attempts" in record:
+            raise ValueError(f"{path}: invalid calculator attempt record")
+        if "attempts" in record and not isinstance(record["attempts"], list):
+            raise ValueError(f"{path}: calculator attempts must be a list")
+        totals = record.get("totals")
+        if not isinstance(totals, dict):
+            raise ValueError(f"{path}: calculator totals must be an object")
+        cost = totals.get("cost_usd")
+        if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+            raise ValueError(f"{path}: calculator cost must be a present number")
+        if not math.isfinite(float(cost)) or cost < 0:
+            raise ValueError(f"{path}: calculator cost must be finite and nonnegative")
+        return record, sha256_bytes(data)
+
+    def lines(path, seed=None):
+        texts = read_regular(path).decode("utf-8").splitlines()
+        rows, heads = [], [seed]
+        for text in texts:
+            row = json.loads(text)
+            if not isinstance(row, dict) or (
+                seed is not None and row.get("prev") != heads[-1]
+            ):
+                raise ValueError(f"{path}: invalid hash chain")
+            rows.append(row)
+            heads.append(line_sha(text))
+        return rows, heads
+
+    def finite(value):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (float, int))
+            or not math.isfinite(value)
+        ):
+            raise ValueError("calculator end evidence holds a nonfinite number")
+        return float(value)
+
+    host = document(root / "host" / "host.json")
+    if finite(host["end"]) < finite(host["start"]):
+        raise ValueError("calculator host log has no closed span")
+    _, host_heads = lines(root / "host" / "host-log.jsonl", HOST_SEED)
+    anchors_path = root / "anchors.jsonl"
+    anchors, anchor_heads = lines(anchors_path, chain_seed(frozen, "", "anchors.jsonl"))
+    if not anchors:
+        raise ValueError("calculator stage has no final anchor")
+    costs, heads_by_model = [], {}
+    for model in STAGES["calculator"].models:
+        folder = root / model
+        if saved_children(folder / "in-flight"):
+            raise ValueError(f"{model}: calculator attempts remain in flight")
+        summaries = sorted(
+            p
+            for p in saved_children(folder)
+            if p.name.startswith("run-summary-") and p.suffix == ".json"
+        )
+        if not summaries:
+            raise ValueError(f"{model}: calculator stage has no run summary")
+        summary = document(summaries[-1])
+        if (
+            summary.get("model") != model
+            or type(summary.get("abandoned_running")) is not int
+            or summary["abandoned_running"] != 0
+        ):
+            raise ValueError(f"{model}: calculator summary leaves a request unresolved")
+        datetime.strptime(summary["finished_at_utc"], "%Y-%m-%dT%H:%M:%SZ")
+        run_rows, run_heads = lines(
+            folder / "run-log.jsonl", chain_seed(frozen, model, "run-log.jsonl")
+        )
+        admissions, admission_heads = lines(
+            folder / "admission-log.jsonl",
+            chain_seed(frozen, model, "admission-log.jsonl"),
+        )
+        if any(
+            row.get("event") == "late-unresolved" or row.get("class") == "unsettled"
+            for row in run_rows
+        ):
+            raise ValueError(
+                f"{model}: calculator requests are unresolved or unsettled"
+            )
+        if {
+            row["household"] for row in admissions if row.get("decision") == "admit"
+        } != set(summary.get("households_finished", [])):
+            raise ValueError(
+                f"{model}: calculator admitted households have not finished"
+            )
+        attempts = [row for row in run_rows if "event" not in row]
+        inventory = {}
+        model_costs, final_count = [], 0
+        for label in STAGES["calculator"].model_arms[model]:
+            key = STAGES["calculator"].folder_keys[model]
+            records = folder / design[key][label] / design["stage"] / "households"
+            for path in saved_json_paths(records):
+                final_count += 1
+                record, digest = attempt_record(path)
+                links = record["attempts"]
+                if any(
+                    not isinstance(link, dict)
+                    or type(link.get("n")) is not int
+                    or link["n"] != n
+                    for n, link in enumerate(links, 1)
+                ):
+                    raise ValueError(f"{path}: calculator archive links are invalid")
+                inventory[(path.stem, label, len(links) + 1)] = (digest, record)
+                archives = {
+                    p.name: p
+                    for p in saved_json_paths(records / "attempts")
+                    if p.stem.rsplit("-", 1)[0] == path.stem
+                }
+                expected = {f"{path.stem}-{n}.json" for n in range(1, len(links) + 1)}
+                if set(archives) != expected:
+                    raise ValueError(
+                        f"{path}: calculator archives differ from final links"
+                    )
+                for n, link in enumerate(links, 1):
+                    archive = archives[f"{path.stem}-{n}.json"]
+                    prior, prior_digest = attempt_record(archive)
+                    if (
+                        link.get("file") != f"attempts/{archive.name}"
+                        or link.get("sha256") != prior_digest
+                    ):
+                        raise ValueError(
+                            f"{path}: calculator archive hash or path differs"
+                        )
+                    inventory[(path.stem, label, n)] = (prior_digest, prior)
+            # An archive without a final must not hide a request or its spend.
+            finals = {p.stem for p in saved_json_paths(records)}
+            for archive in saved_json_paths(records / "attempts"):
+                if archive.stem.rsplit("-", 1)[0] not in finals:
+                    raise ValueError(f"{archive}: calculator archive has no final")
+        seen = set()
+        for row in attempts:
+            key = (row["household"], row["arm"], row["attempt"])
+            if (
+                key in seen
+                or key not in inventory
+                or inventory[key][0] != row.get("sha256")
+            ):
+                raise ValueError(
+                    f"{model}: calculator run log differs from attempt records"
+                )
+            seen.add(key)
+            model_costs.append(attempt_cost(inventory[key][1]))
+            if finite(row["end"]) < finite(row["start"]):
+                raise ValueError(f"{model}: calculator attempt has not ended")
+        if (
+            seen != set(inventory)
+            or summary.get("attempts") != len(attempts)
+            or summary.get("final_records") != final_count
+        ):
+            raise ValueError(f"{model}: calculator summary or log leaves out attempts")
+        costs.extend(model_costs)
+        for row in run_rows:
+            if row.get("event") == "late-cost":
+                late = finite(row["cost_usd"])
+                if late < 0:
+                    raise ValueError(f"{model}: calculator late spend is negative")
+                costs.append(late)
+        manifests = sorted(
+            p
+            for p in saved_children(folder)
+            if p.name.startswith("manifest-") and p.suffix == ".json"
+        )
+        if len(manifests) != 1:
+            raise ValueError(f"{model}: calculator stage needs exactly one manifest")
+        heads_by_model[model] = {
+            "run-log.jsonl": run_heads,
+            "admission-log.jsonl": admission_heads,
+            "manifest": sha256_bytes(read_regular(manifests[0])),
+        }
+    for i, anchor in enumerate(anchors):
+        if set(anchor.get("models", {})) != set(heads_by_model):
+            raise ValueError("calculator anchor does not cover every model")
+        covered = [(anchor["host-log.jsonl"], host_heads)]
+        for model, heads in heads_by_model.items():
+            if anchor["models"][model].get("manifest") != heads["manifest"]:
+                raise ValueError(f"{model}: calculator anchor manifest differs")
+            covered.extend(
+                (anchor["models"][model][name], heads[name])
+                for name in ("run-log.jsonl", "admission-log.jsonl")
+            )
+        for got, heads in covered:
+            count = got.get("lines")
+            if (
+                type(count) is not int
+                or not 0 <= count < len(heads)
+                or got.get("sha256") != heads[count]
+            ):
+                raise ValueError("calculator anchor differs from its logs")
+            if i == len(anchors) - 1 and count != len(heads) - 1:
+                raise ValueError("calculator final anchor omits log lines")
+    final_head = anchor_heads[-1]
+    pushes, _ = lines(root / "anchor-pushes.jsonl")
+    if (
+        not pushes
+        or pushes[-1].get("anchor") != final_head
+        or pushes[-1].get("outcome") != "success"
+        or type(pushes[-1].get("returncode")) is not int
+        or pushes[-1].get("returncode") != 0
+    ):
+        raise ValueError("calculator final anchor has no successful final push")
+    if finite(pushes[-1]["ended"]) < finite(pushes[-1]["started"]) or finite(
+        pushes[-1]["started"]
+    ) < finite(anchors[-1]["time"]):
+        raise ValueError("calculator final push has invalid times")
+    snapshot = root / f"anchors.{final_head}.push-snapshot.jsonl"
+    if read_regular(snapshot) != read_regular(anchors_path):
+        raise ValueError("calculator final push snapshot differs from its anchors")
+    return costs
+
+
+def web_preflight(design: dict) -> list[str]:
+    """Record malformed web designs as refusals before a provider can run."""
+    try:
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
+        return _web_preflight(design)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        RuntimeError,
+    ) as error:
+        return [f"the web design is malformed: {error}"]
+
+
+def _web_preflight(design: dict) -> list[str]:
+    """The web stage follows its hashed, closed calculator stage and all spend."""
+    from confirmatory_no_tools import (
+        component,
+        exact_spend,
+        history,
+        listed_is_dir,
+        read_regular,
+        saved_children,
+    )
+
+    problems = []
+    if design.get("overall_cap") != WEB_OVERALL_CAP:
+        problems.append("the web design's overall_cap must be 270")
+    try:
+        link = design["calculator"]
+        path = Path(link["path"])
+        data = read_regular(path)
+        if sha256_bytes(data) != link["sha256"]:
+            return [*problems, "the calculator design does not hash as recorded"]
+        calculator = json.loads(data.decode("utf-8"))
+        if not isinstance(calculator, dict) or calculator.get("kind") != "calculator":
+            return [*problems, "the linked calculator design's kind must be calculator"]
+    except (OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+        return [*problems, f"the calculator design cannot be read: {error}"]
+    if calculator.get("overall_cap") != CALCULATOR_OVERALL_CAP:
+        problems.append("the linked calculator design's overall_cap must be 150")
+    problems.extend(f"linked calculator: {p}" for p in rehearsal_problems(calculator))
+    problems.extend(f"linked calculator: {p}" for p in stage_start_problems(calculator))
+    allocation = allocation_problems(calculator, STAGES["calculator"])
+    problems.extend(f"linked calculator: {p}" for p in allocation)
+    if not allocation:
+        problems.extend(
+            f"linked calculator: {p}"
+            for p in projection_problems(calculator, STAGES["calculator"])
+        )
+    for field in SHARED_STAGE_FIELDS:
+        if field not in calculator or design.get(field) != calculator[field]:
+            problems.append(f"web and calculator designs differ in {field}")
+    for field in WEB_SCORING_FIELDS:
+        if design.get(field) != calculator.get(field):
+            problems.append(f"web and calculator designs differ in {field}")
+    try:
+        roots = [
+            Path(design["runs"]).resolve(),
+            Path(design["no_tools"]["runs"]).resolve(),
+            Path(calculator["runs"]).resolve(),
+        ]
+        if any(
+            roots[0].is_relative_to(other) or other.is_relative_to(roots[0])
+            for other in roots[1:]
+        ):
+            problems.append(
+                "the web runs root overlaps the no-tools or calculator runs root"
+            )
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
+        problems.append(f"the web runs roots are invalid: {error}")
+    try:
+        calculator_costs = calculator_evidence(calculator)
+        costs = list(calculator_costs)
+        no_tools_costs = []
+        spec = design["no_tools"]
+        for model in saved_children(Path(spec["runs"])):
+            if listed_is_dir(model):
+                _, saved = history(
+                    model
+                    / component(spec["folder"])
+                    / component(spec["stage"])
+                    / "households"
+                )
+                costs.extend(saved)
+                no_tools_costs.extend(saved)
+        if type(calculator["spent_before"]) not in (int, float):
+            raise ValueError("calculator spent_before must be a nonboolean number")
+        calculator_spent_before = float(calculator["spent_before"])
+        if not math.isfinite(calculator_spent_before) or calculator_spent_before < 0:
+            raise ValueError("calculator spent_before must be finite and nonnegative")
+        no_tools_spent = exact_spend(no_tools_costs)
+        if calculator_spent_before < no_tools_spent - 1e-6:
+            problems.append(
+                f"linked calculator spent_before ${calculator_spent_before} is "
+                f"below no-tools recorded spend ${no_tools_spent}"
+            )
+        spent = max(
+            exact_spend([calculator_spent_before, *calculator_costs]),
+            exact_spend(costs),
+        )
+        if type(design["spent_before"]) not in (int, float):
+            raise ValueError("web spent_before must be a nonboolean number")
+        declared = float(design["spent_before"])
+        if not 0 <= declared < math.inf or declared < spent - 1e-6:
+            problems.append(
+                f"web spent_before ${declared} is below no-tools and calculator "
+                f"recorded spend ${spent}"
+            )
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ) as error:
+        problems.append(f"the calculator stage has not ended: {error}")
+    return problems
+
+
+def rehearsal_problems(design: dict) -> list[str]:
+    """Rehearsal-only options cannot be present in a frozen design."""
+    return [
+        f"the confirmatory design cannot contain the rehearsal option {field}"
+        for field in ("schema_hash_exempt", "stated_engine_overrides")
+        if field in design
+    ]
+
+
+def stage_start_problems(design: dict) -> list[str]:
+    """No provider request may start once the whole-run ceiling is reached."""
+    try:
+        if any(
+            type(design[field]) not in (int, float)
+            for field in ("spent_before", "overall_cap")
+        ):
+            raise ValueError("stage money must be nonboolean numbers")
+        spent_before = float(design["spent_before"])
+        overall_cap = float(design["overall_cap"])
+        ceiling = overall_cap + CEILING_MARGIN
+        if (
+            math.isfinite(overall_cap)
+            and math.isfinite(spent_before)
+            and 0 <= spent_before < ceiling
+        ):
+            return []
+    except (KeyError, TypeError, ValueError, OverflowError):
+        pass
+    return ["spent_before must be finite and below the stage ceiling"]
+
+
+def allocation_problems(design: dict, stage: Stage) -> list[str]:
+    """Check the registered proportional cap split and three-times reserves."""
+    problems = []
+    for field in ("expected_costs", "caps", "reserves"):
+        values = design.get(field)
+        if not isinstance(values, dict) or set(values) != set(stage.models):
+            problems.append(
+                f"{field} must be an object with exactly the registered model keys"
+            )
+    if problems:
+        return problems
+    expected = {}
+    for model in stage.models:
+        try:
+            raw_cost = design["expected_costs"][model]
+            cost = float(raw_cost)
+            if (
+                type(raw_cost) not in (int, float)
+                or not math.isfinite(cost)
+                or cost <= 0
+            ):
+                raise ValueError("expected cost is not finite and positive")
+            expected[model] = cost
+        except (KeyError, TypeError, ValueError, OverflowError):
+            problems.append(f"{model}: expected_costs must be finite and positive")
+    if problems:
+        return problems
+    try:
+        total = math.fsum(expected.values())
+    except OverflowError:
+        total = math.inf
+    if not math.isfinite(total):
+        return ["the expected costs do not sum to a finite positive amount"]
+    stage_cap = WEB_CAP if stage.kind == "web" else CALCULATOR_CAP
+    for model, cost in expected.items():
+        for field, want, tolerance, rule in (
+            ("caps", stage_cap * cost / total, CAP_TOLERANCE, "split"),
+            ("reserves", 3 * cost / HOUSEHOLDS, RESERVE_TOLERANCE, "rule"),
+        ):
+            try:
+                raw_allocation = design[field][model]
+                got = float(raw_allocation)
+                if type(raw_allocation) not in (int, float) or not math.isfinite(got):
+                    raise ValueError("allocation is not finite")
+            except (KeyError, TypeError, ValueError, OverflowError):
+                problems.append(f"{model}: {field} needs a finite allocation")
+                continue
+            if got < 0:
+                problems.append(f"{model}: {field} needs a nonnegative allocation")
+                continue
+            if abs(got - want) > tolerance:
+                name = "cap" if field == "caps" else "reserve"
+                problems.append(f"{model}: {name} ${got}, and the {rule} gives ${want}")
+    return problems
+
+
+def registered_expected_costs(development_runs: Path, stage: Stage) -> dict[str, float]:
+    """Use exactly the report's development inventory and projection arithmetic.
+
+    Calculator cheap models use all 320 finals in pe3/abl-* mctest folders;
+    frontier models use 10 pe/mctest finals. Web models use 100 finals per
+    arm across mctest and mafree, projecting the sum of the two arm means.
+    """
+    from confirmatory_no_tools import read_regular, saved_children
+
+    def development_paths(folder):
+        # Match the report's projection-only empty-inventory semantics.
+        try:
+            with os.scandir(folder) as entries:
+                return sorted(
+                    Path(entry.path)
+                    for entry in entries
+                    if entry.name.endswith(".json")
+                )
+        except (FileNotFoundError, NotADirectoryError):
+            return []
+
+    def costs(paths):
+        amounts = []
+        for path in paths:
+            try:
+                record = json.loads(read_regular(path).decode("utf-8"))
+                amounts.append(attempt_cost(record))
+            except (
+                OSError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                OverflowError,
+            ) as error:
+                raise ValueError(f"{path}: {error}") from error
+        return amounts
+
+    expected = {}
+    for model in stage.models:
+        root = development_runs / model
+        if stage.kind == "web":
+            means = []
+            for folder in ("web", "web-pe3"):
+                paths = [
+                    path
+                    for board in ("mctest", "mafree")
+                    for path in development_paths(root / folder / board / "households")
+                ]
+                if len(paths) != 100:
+                    raise ValueError(
+                        f"{model}/{folder}: {len(paths)} development finals, "
+                        "expected 100"
+                    )
+                means.append(math.fsum(costs(paths)) / len(paths))
+            expected[model] = math.fsum(means) * HOUSEHOLDS
+        else:
+            arms = (
+                sorted(
+                    p
+                    for p in saved_children(root)
+                    if p.name == "pe3" or p.name.startswith("abl-")
+                )
+                if model in CHEAP
+                else [root / "pe"]
+            )
+            paths = [
+                path
+                for arm in arms
+                for path in development_paths(arm / "mctest" / "households")
+            ]
+            required = 320 if model in CHEAP else 10
+            if len(paths) != required:
+                raise ValueError(
+                    f"{model}: {len(paths)} development records for the cost "
+                    f"projection, expected {required}"
+                )
+            amounts = costs(paths)
+            expected[model] = (
+                sum(amounts)
+                / len(amounts)
+                * HOUSEHOLDS
+                * (len(ARMS) if model in CHEAP else len(FRONTIER_ARMS))
+            )
+    return expected
+
+
+def projection_problems(design: dict, stage: Stage) -> list[str]:
+    """Require declared expected costs to match the development projection."""
+    try:
+        expected = registered_expected_costs(Path(design["development_runs"]), stage)
+        return [
+            f"{model}: expected cost ${design['expected_costs'][model]}, "
+            f"and the development projection gives ${cost:.6f}"
+            for model, cost in expected.items()
+            if abs(float(design["expected_costs"][model]) - cost) > 1e-6
+        ]
+    except (
+        OSError,
+        KeyError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+    ) as error:
+        return [f"the registered expected-cost projection: {error}"]
+
+
+def anchor_clone_problems(command, stage: Stage) -> list[str]:
+    """Check only local anchor-clone metadata; never fetch or push."""
+    arguments = [str(value) for value in command] if isinstance(command, list) else []
+    repositories = []
+    for index, argument in enumerate(arguments):
+        if argument == "--repo":
+            repositories.append(
+                arguments[index + 1] if index + 1 < len(arguments) else ""
+            )
+        elif argument.startswith("--repo="):
+            repositories.append(argument.removeprefix("--repo="))
+    if (
+        len(repositories) != 1
+        or not repositories[0]
+        or repositories[0].startswith("--")
+    ):
+        return ["the anchor command must name exactly one --repo clone"]
+    repo = Path(repositories[0]).expanduser()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(repo), *args], capture_output=True, text=True
+        )
+
+    try:
+        tree = git("rev-parse", "--is-inside-work-tree")
+        head = git("rev-parse", "--verify", "HEAD^{commit}")
+        if tree.returncode or tree.stdout.strip() != "true" or head.returncode:
+            return [
+                f"the anchor clone {repo}: needs a working tree "
+                "with a checked-out commit"
+            ]
+        problems = []
+        branch = git("symbolic-ref", "--quiet", "HEAD")
+        expected = ANCHOR_REFS[stage.kind]
+        if branch.returncode or branch.stdout.strip() != expected:
+            problems.append(
+                f"the anchor clone {repo}: checked-out branch must be {expected}"
+            )
+        origin = git("config", "--get", "remote.origin.url")
+        accepted = {
+            f"{prefix}{ANCHOR_REPOSITORY}{suffix}"
+            for prefix in (
+                "https://github.com/",
+                "git@github.com:",
+                "ssh://git@github.com/",
+            )
+            for suffix in ("", ".git")
+        }
+        if origin.returncode or origin.stdout.strip() not in accepted:
+            problems.append(
+                f"the anchor clone {repo}: origin must name {ANCHOR_REPOSITORY} "
+                "over SSH or HTTPS"
+            )
+        return problems
+    except OSError as error:
+        return [f"the anchor clone {repo}: cannot read Git metadata: {error}"]
+
+
+def restart_manifest_problems(
+    design: dict, stage: Stage, design_sha256: str | None
+) -> list[str]:
+    """Bind every existing registered-model manifest to the input file's bytes."""
+    from confirmatory_no_tools import read_regular, saved_children
+
+    problems = []
+    valid_hash = isinstance(design_sha256, str) and re.fullmatch(
+        r"[0-9a-f]{64}", design_sha256
+    )
+    for model in stage.models:
+        folder = Path(design["runs"]) / model
+        try:
+            paths = [
+                path
+                for path in saved_children(folder)
+                if path.name.startswith("manifest-") and path.suffix == ".json"
+            ]
+        except ValueError as error:
+            problems.append(str(error))
+            continue
+        for path in paths:
+            try:
+                manifest = json.loads(read_regular(path).decode("utf-8"))
+            except (OSError, ValueError, RecursionError) as error:
+                problems.append(f"{path}: cannot read restart manifest: {error}")
+                continue
+            if (
+                not valid_hash
+                or not isinstance(manifest, dict)
+                or manifest.get("design_sha256") != design_sha256
+            ):
+                problems.append(
+                    f"{path}: design_sha256 is missing or differs from the design file"
+                )
+    return problems
+
+
+def preflight(
+    design: dict, models: tuple[str, ...], design_sha256: str | None = None
+) -> list[str]:
+    """Return recorded input problems for every malformed design."""
+    problems = []
+    try:
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
+        return _preflight(design, models, design_sha256, problems)
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        AttributeError,
+        RecursionError,
+        OverflowError,
+        RuntimeError,
+    ) as error:
+        return [*problems, f"the design is malformed: {error}"]
+
+
+def _preflight(
+    design: dict,
+    models: tuple[str, ...],
+    design_sha256: str | None = None,
+    problems: list[str] | None = None,
+) -> list[str]:
     """What stops the run from starting."""
     missing = [k for k in REQUIRED if k not in design]
     if missing:
         return [f"the design has no {', '.join(missing)}"]
-    problems = []
+    try:
+        stage = stage_for(design)
+    except ValueError as error:
+        return [str(error)]
+    if stage.kind == "calculator" and "frontier_arms" not in design:
+        return ["the design has no frontier_arms"]
+    if problems is None:
+        problems = []
+    problems.extend(restart_manifest_problems(design, stage, design_sha256))
+    if (
+        stage.kind == "calculator"
+        and design.get("overall_cap") != CALCULATOR_OVERALL_CAP
+    ):
+        problems.append("the calculator design's overall_cap must be 150")
+    problems.extend(stage_start_problems(design))
+    allocation = allocation_problems(design, stage)
+    problems.extend(allocation)
+    if not allocation:
+        problems.extend(projection_problems(design, stage))
     from confirmatory_no_tools import (
         BOARD_INPUT_ERRORS,
         _board_input,
@@ -2180,13 +3089,25 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
     )
 
     problems.extend(stage_problems(design))
+    if stage.kind == "web":
+        problems.extend(web_preflight(design))
+        if any(pilot.model_profile(model).provider == "gemini" for model in models):
+            try:
+                version = importlib.metadata.version("litellm")
+            except importlib.metadata.PackageNotFoundError:
+                version = "not installed"
+            if version != pilot.GEMINI_SEARCH_PATCH_LITELLM:
+                problems.append(
+                    f"litellm {version} is installed; the Gemini search patch was "
+                    f"checked against {pilot.GEMINI_SEARCH_PATCH_LITELLM} only"
+                )
     try:
         no_tools_root = Path(design["no_tools"]["runs"]).resolve()
         calculator_root = Path(design["runs"]).resolve()
         if no_tools_root.is_relative_to(
             calculator_root
         ) or calculator_root.is_relative_to(no_tools_root):
-            problems.append("the no-tools and calculator runs roots overlap")
+            problems.append(f"the no-tools and {stage.kind} runs roots overlap")
     except (KeyError, TypeError, OSError, ValueError, RuntimeError) as error:
         problems.append(f"the no-tools runs root is invalid: {error}")
     command = design["anchor_command"]
@@ -2196,8 +3117,8 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         or shutil.which(str(command[0])) is None
     ):
         problems.append(f"the anchor command {command!r} is not a command here")
-    if design.get("stated_engine_overrides"):
-        problems.append("the confirmatory run states the board's engine: no overrides")
+    problems.extend(anchor_clone_problems(command, stage))
+    problems.extend(rehearsal_problems(design))
     preregistration = Path(design["preregistration"])
     try:
         if (
@@ -2277,11 +3198,15 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         installed = pilot._versions()["policyengine-us"]
         if installed != engine:
             problems.append(f"policyengine-us {installed} is installed, not {engine}")
-    if set(design["arms"]) != set(ARMS) or set(design["frontier_arms"]) != set(
-        FRONTIER_ARMS
+    mappings = {
+        stage.folder_keys[model]: stage.model_arms[model] for model in stage.models
+    }
+    if any(set(design[key]) != set(labels) for key, labels in mappings.items()) or (
+        stage.kind == "web"
+        and any(key in design for key in ("frontier_arms", "frontier_models"))
     ):
         problems.append("the design's arms are not the registered ones")
-    for name in ("arms", "frontier_arms"):
+    for name in mappings:
         if len(set(design[name].values())) != len(design[name]):
             problems.append(f"two {name} share a folder")
 
@@ -2291,9 +3216,7 @@ def preflight(design: dict, models: tuple[str, ...]) -> list[str]:
         return saved_json_paths(stage / "households")
 
     for model in models:
-        if model not in design["caps"] or model not in design["reserves"]:
-            problems.append(f"{model}: no cap or reserve")
-        for label in ARMS if model in CHEAP else FRONTIER_ARMS:
+        for label in stage.arms_for(model):
             try:
                 arm_profile(model, label)
             except (ValueError, SystemExit) as error:
@@ -2345,10 +3268,33 @@ def main(argv=None) -> int:
     resume.add_argument("model")
     resume.add_argument("--note", default="the account was fixed")
     args = parser.parse_args(argv)
-    design = json.loads(args.design.read_text())
+    refusal_prefix = (
+        "No resume requested" if args.command == "resume" else "The run cannot start"
+    )
+    try:
+        design_bytes = args.design.read_bytes()
+        design = json.loads(design_bytes.decode("utf-8"))
+        design_sha256 = sha256_bytes(design_bytes)
+        if not isinstance(design, dict):
+            raise ValueError("the design must be an object")
+        stage = stage_for(design)
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError) as error:
+        print(f"{refusal_prefix}: {error}")
+        return 1
     if args.command == "resume":
-        folder = Path(design["runs"]) / args.model
-        write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
+        try:
+            if args.model not in stage.models:
+                raise ValueError(
+                    f"model {args.model!r} is not in the {stage.kind} stage"
+                )
+            runs = design.get("runs")
+            if not isinstance(runs, str) or not runs.strip():
+                raise ValueError("the design must name a usable runs folder")
+            folder = Path(runs) / args.model
+            write_json(folder / "RESUME.json", {"time": time.time(), "note": args.note})
+        except (OSError, ValueError, TypeError) as error:
+            print(f"No resume requested: {error}")
+            return 1
         print(f"{args.model}: resume requested; the runner resumes within a second")
         return 0
     if args.workers is not None and args.workers != design.get("workers"):
@@ -2357,8 +3303,11 @@ def main(argv=None) -> int:
             f"runs {design.get('workers')} engine workers per model."
         )
         return 1
-    models = CHEAP + FRONTIER
-    problems = preflight(design, models)
+    models = stage.models
+    problems = preflight(design, models, design_sha256)
+    if problems:
+        print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
+        return 1
     from confirmatory_no_tools import BOARD_INPUT_ERRORS
 
     board = Path(design["board"])
@@ -2372,7 +3321,7 @@ def main(argv=None) -> int:
     if problems:
         print("The run cannot start:\n" + "\n".join(f"- {p}" for p in problems))
         return 1
-    plan = Run(design)
+    plan = Run(design, design_sha256=design_sha256)
     if args.dry_run:
         for model, lanes in plan.lanes.items():
             sizes = [len(lanes.households(lane)) for lane in (1, 2)]

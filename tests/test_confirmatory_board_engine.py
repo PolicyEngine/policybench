@@ -81,19 +81,23 @@ def test_engine_metadata_refuses_full_calculator_start(
 
 
 @pytest.mark.parametrize("fault", ["malformed", "unreadable"])
-def test_main_names_engine_reread_failure_and_preserves_all_problems(
+def test_main_names_an_engine_reread_failure_after_a_clean_preflight(
     world, tmp_path, monkeypatch, capsys, fault
 ):
     w, design, metadata = engine_fault(world, tmp_path, monkeypatch, fault)
-    # Isolate main's final engine reread, which must retain preflight's problems.
-    monkeypatch.setattr(cr, "preflight", lambda *_: ["earlier preflight problem"])
+    # Isolate main's final engine reread. Main reads the board only after a
+    # clean preflight, as test_confirmatory_run.py requires in
+    # test_command_line_prints_preflight_refusals_before_reading_the_board,
+    # so preflight here reports nothing.
+    monkeypatch.setattr(cr, "preflight", lambda *_: [])
     design_path = tmp_path / "design.json"
     design_path.write_text(json.dumps(design))
     assert cr.main(["run", str(design_path)]) == 1
     output = capsys.readouterr().out
-    assert "The run cannot start" in output
-    assert "earlier preflight problem" in output
-    assert str(metadata) in output
+    assert "The run cannot start:\n" in output, output
+    assert f"- {metadata}: the board's engine check failed: " in output, (
+        "main's final engine reread names the board's metadata and its failure"
+    )
     assert not w.provider.count
 
 
@@ -126,17 +130,39 @@ def test_preflight_refuses_an_installed_engine_other_than_the_boards(
     assert not w.provider.count
 
 
-def test_main_rechecks_the_installed_engine_and_preserves_all_problems(
+def test_main_rechecks_the_installed_engine_after_a_clean_preflight(
     world, tmp_path, monkeypatch, capsys
 ):
     w, design = installed_elsewhere(world, tmp_path, monkeypatch)
-    # Isolate main's final engine check, which must retain preflight's problems.
-    monkeypatch.setattr(cr, "preflight", lambda *_: ["earlier preflight problem"])
+    # Isolate main's final engine check, which runs only after a clean preflight.
+    monkeypatch.setattr(cr, "preflight", lambda *_: [])
     design_path = tmp_path / "design.json"
     design_path.write_text(json.dumps(design))
     assert cr.main(["run", str(design_path)]) == 1
     output = capsys.readouterr().out
-    assert "The run cannot start" in output
-    assert "earlier preflight problem" in output
-    assert "the board's engine check failed: policyengine-us 2.41.0" in output
+    assert "The run cannot start:\n" in output, output
+    assert "the board's engine check failed: policyengine-us 2.41.0" in output, (
+        "main's final engine check refuses an installed engine other than the board's"
+    )
+    assert not w.provider.count
+
+
+@pytest.mark.parametrize("fault", ["malformed", "unreadable", "installed-elsewhere"])
+def test_main_prints_every_preflight_problem_and_starts_nothing(
+    world, tmp_path, monkeypatch, capsys, fault
+):
+    if fault == "installed-elsewhere":
+        w, design = installed_elsewhere(world, tmp_path, monkeypatch)
+    else:
+        w, design, _ = engine_fault(world, tmp_path, monkeypatch, fault)
+    problems = ["earlier preflight problem", "a second preflight problem"]
+    monkeypatch.setattr(cr, "preflight", lambda *_: list(problems))
+    design_path = tmp_path / "design.json"
+    design_path.write_text(json.dumps(design))
+    assert cr.main(["run", str(design_path)]) == 1
+    output = capsys.readouterr().out
+    assert "The run cannot start:\n" in output, output
+    assert all(f"- {problem}\n" in output for problem in problems), (
+        "main prints every preflight problem"
+    )
     assert not w.provider.count

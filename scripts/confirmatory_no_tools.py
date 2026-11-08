@@ -661,6 +661,8 @@ def stage_problems(design: dict) -> list[str]:
             problems.append(f"no-tools {model}: {error}")
     spent = exact_spend(costs)
     try:
+        if type(design.get("spent_before")) not in (int, float):
+            raise ValueError("spent_before must be a nonboolean number")
         declared = float(design.get("spent_before"))
     except (TypeError, ValueError, OverflowError):
         declared = math.nan
@@ -989,7 +991,8 @@ class Stage:
                     cls, _ = classify(record, 0.0, 0.0, None)
                     outcome = action(cls, n)
                     self.say(
-                        f"{model} {sid} {n} {cls} {outcome} ${attempt_cost(record):.6f}"
+                        f"{model} {sid} {n} {cls} {outcome} "
+                        f"${attempt_cost(record, saved=False):.6f}"
                     )
                     if self.interrupted.is_set():
                         self.states[model] = "interrupted"
