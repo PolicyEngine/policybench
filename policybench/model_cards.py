@@ -250,11 +250,16 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "this model with a 400 (tool_choice type tool/any 'not supported "
             "for this model'), as on Fable 5.1, and adaptive thinking is "
             "always on, per the model docs, so the row reasons at the "
-            "provider default (effort high) and runs the JSON contract "
-            "whole-scenario on the sync path. Gauntlet: 3/3 and 16/16 parsed "
-            "(1,563 and 3,219 completion tokens, 16s and 30s); the gauntlet's "
-            "cost estimate is $0.143 per scenario at $8/$40 per 1M. The "
-            "timeout matches the other JSON-contract thinking rows."
+            "provider default and runs the JSON contract whole-scenario on "
+            "the sync path. The API's default effort is high, where Opus "
+            "5.5's and Haiku 5.5's is medium (platform.claude.com effort "
+            "docs, read 2026-11-09). With no thinking parameter, the board's "
+            "prompt for the first household drew a thinking block (1,789 of "
+            "2,881 output tokens), though a one-question probe drew none. "
+            "Gauntlet: 3/3 and 16/16 parsed (1,563 and 3,219 completion "
+            "tokens, 16s and 30s); the gauntlet's cost estimate is $0.143 per "
+            "scenario at $8/$40 per 1M. The timeout matches the other "
+            "JSON-contract thinking rows."
         ),
     ),
     "claude-opus-5-5": ModelCard(
