@@ -3520,6 +3520,10 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # platform.claude.com/docs/en/models/fable-5-1/overview ("Released
     # September 1, 2026")
     "claude-fable-5.1": "2026-09-01",
+    # platform.claude.com/docs/en/models/fable-5-2/overview ("Released
+    # November 9, 2026"); Models API created_at 2026-11-09
+    # (api.anthropic.com/v1/models, read 2026-11-09)
+    "claude-fable-5.2": "2026-11-09",
     # Models API created_at 2026-09-21 (api.anthropic.com/v1/models, read
     # 2026-09-22)
     "claude-opus-5.5": "2026-09-21",

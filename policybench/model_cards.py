@@ -237,6 +237,34 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "1,984/1,984 parsed, no budget escalations)."
         ),
     ),
+    "claude-fable-5-2": ModelCard(
+        litellm_id="claude-fable-5-2",
+        answer_contract="json",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.143,
+        notes=(
+            "Onboarded 2026-11-09, release day (the Models API lists the id "
+            "with created_at 2026-11-09). The API rejects forced tool use on "
+            "this model with a 400 (tool_choice type tool/any 'not supported "
+            "for this model'), as on Fable 5.1, and adaptive thinking is "
+            "always on, per the model docs, so the row reasons at the "
+            "provider default and runs the JSON contract whole-scenario on "
+            "the sync path. The API's default effort is high, as on Fable "
+            "5.1 and Sonnet 5.5, where Opus 5.5's and Haiku 5.5's is medium "
+            "(platform.claude.com effort docs, read 2026-11-09). With no "
+            "thinking parameter, the board's prompt for the first household, "
+            "sent directly through Anthropic's SDK, drew a thinking block "
+            "(1,789 of 2,881 output tokens), though a one-question probe "
+            "drew none. Gauntlet: 3/3 and 16/16 parsed (1,563 and 3,219 "
+            "completion tokens, 16s and 30s); the gauntlet's cost estimate "
+            "is $0.143 per scenario at $8/$40 per 1M. The timeout is 600s, "
+            "as on the other Claude JSON-contract rows (Fable 5.1, Opus 5.5, "
+            "Sonnet 5.5); the gauntlet's slowest probe took 30s, under its "
+            "own 150s trigger, so it suggested the 300s class default."
+        ),
+    ),
     "claude-opus-5-5": ModelCard(
         litellm_id="claude-opus-5-5",
         answer_contract="json",

@@ -111,6 +111,7 @@ NO_TOOLS_RESULT_COLUMNS = (
 _LOCAL_CLAUDE_MODELS = (
     "claude-fable-5",
     "claude-fable-5.1",
+    "claude-fable-5.2",
     "claude-opus-5.5",
     "claude-sonnet-5.5",
     "claude-haiku-5.5",
@@ -241,6 +242,7 @@ CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int(
 THINKING_DEFAULT_CLAUDE_MODELS = (
     "claude-fable-5",
     "claude-fable-5-1",
+    "claude-fable-5-2",
     "claude-sonnet-5",
     "claude-opus-5",
     "claude-opus-5-5",

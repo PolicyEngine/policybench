@@ -130,6 +130,7 @@ export type ProviderKey =
 // not). Mirrors policybench/paper_results.py MODEL_RELEASE_DATES, where each
 // date carries its source; update both together.
 export const MODEL_RELEASE_DATES: Record<string, string> = {
+  "claude-fable-5.2": "2026-11-09",
   "claude-fable-5.1": "2026-09-01",
   "claude-fable-5": "2026-06-09",
   "claude-opus-5.5": "2026-09-21",

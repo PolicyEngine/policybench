@@ -51,6 +51,7 @@ GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
 MODELS = {
     "claude-fable-5": "claude-fable-5",
     "claude-fable-5.1": "claude-fable-5-1",
+    "claude-fable-5.2": "claude-fable-5-2",
     "claude-opus-5.5": "claude-opus-5-5",
     "claude-opus-5": "claude-opus-5",
     "claude-opus-4.8": "claude-opus-4-8",
@@ -267,6 +268,18 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
         "output": 50.0,
         "cache_read": 0.25,
         "cache_write": 12.5,
+    },
+    # claude-fable-5-2: $8 / $40 per 1M input/output tokens, $10 five-minute
+    # cache writes and $0.20 cache reads (0.025x base input;
+    # platform.claude.com/docs/en/models/fable-5-2/overview, released
+    # 2026-11-09, read 2026-11-09). The Models API lists the id with
+    # created_at 2026-11-09. eval_no_tools registers it locally if litellm's
+    # map lacks it, as for the rest of the Fable line.
+    "claude-fable-5.2": {
+        "input": 8.0,
+        "output": 40.0,
+        "cache_read": 0.20,
+        "cache_write": 10.0,
     },
     # claude-sonnet-5: $3 / $15 per 1M standard rate (same source). litellm's
     # map carries the same figures; this fallback keeps the leaderboard priced
