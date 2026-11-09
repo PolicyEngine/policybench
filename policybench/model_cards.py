@@ -237,6 +237,26 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "1,984/1,984 parsed, no budget escalations)."
         ),
     ),
+    "claude-fable-5-2": ModelCard(
+        litellm_id="claude-fable-5-2",
+        answer_contract="json",
+        request_timeout_seconds=600,
+        thinking_budget=True,
+        provider_max_completion_tokens=128_000,
+        expected_cost_per_scenario_usd=0.143,
+        notes=(
+            "Onboarded 2026-11-09, release day (the Models API lists the id "
+            "with created_at 2026-11-09). The API rejects forced tool use on "
+            "this model with a 400 (tool_choice type tool/any 'not supported "
+            "for this model'), as on Fable 5.1, and adaptive thinking is "
+            "always on, per the model docs, so the row reasons at the "
+            "provider default (effort high) and runs the JSON contract "
+            "whole-scenario on the sync path. Gauntlet: 3/3 and 16/16 parsed "
+            "(1,563 and 3,219 completion tokens, 16s and 30s); the gauntlet's "
+            "cost estimate is $0.143 per scenario at $8/$40 per 1M. The "
+            "timeout matches the other JSON-contract thinking rows."
+        ),
+    ),
     "claude-opus-5-5": ModelCard(
         litellm_id="claude-opus-5-5",
         answer_contract="json",

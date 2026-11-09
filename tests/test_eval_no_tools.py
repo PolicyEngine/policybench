@@ -2546,6 +2546,7 @@ def test_explanation_repair_rejects_knobs_on_the_responses_transport(
     [
         "claude-fable-5",
         "claude-fable-5-1",
+        "claude-fable-5-2",
         "claude-opus-5-5",
         "claude-sonnet-5-5",
         "claude-haiku-5-5",
@@ -2812,6 +2813,44 @@ def test_claude_fable_5_1_override_reconstructs_cache_costs(
         completion_tokens=0,
         cached_prompt_tokens=cached_prompt_tokens,
         cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached", "cache_write", "expected"),
+    [
+        (1_000_000, 0, 0, 0, 8.0),
+        (0, 1_000_000, 0, 0, 40.0),
+        (1_000_000, 0, 1_000_000, 0, 0.20),
+        (1_000_000, 0, 0, 1_000_000, 10.0),
+    ],
+)
+def test_claude_fable_5_2_override_reconstructs_token_costs(
+    prompt_tokens,
+    completion_tokens,
+    cached,
+    cache_write,
+    expected,
+):
+    """Claude Fable 5.2 is priced at $8 / $40 per 1M input/output tokens, $0.20
+    cache reads and $10 five-minute cache writes
+    (platform.claude.com/docs/en/models/fable-5-2/overview, read 2026-11-09)."""
+    assert PRICE_OVERRIDES_PER_1M["claude-fable-5.2"] == {
+        "input": 8.0,
+        "output": 40.0,
+        "cache_read": 0.20,
+        "cache_write": 10.0,
+    }
+    reconstructed = _reconstruct_token_cost(
+        model_name="claude-fable-5.2",
+        model_id="claude-fable-5-2",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached,
+        cache_write_prompt_tokens=cache_write,
     )
 
     assert reconstructed.usd == pytest.approx(expected)
