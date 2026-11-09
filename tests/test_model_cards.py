@@ -106,6 +106,21 @@ def test_treatment_locked(model_id):
     assert _budget(model_id) == budget
 
 
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "claude-fable-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+    ],
+)
+def test_claude_json_cards_carry_the_thinking_budget(model_id):
+    """The card's ``thinking_budget`` field has its own check, beside the
+    budget EXPECTED locks."""
+    assert card_for(model_id).thinking_budget is True
+
+
 def test_no_chunking_when_explanations_off():
     for model_id in EXPECTED:
         assert _required_explanation_chunk_size(model_id, False) is None

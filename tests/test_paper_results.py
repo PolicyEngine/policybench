@@ -81,6 +81,12 @@ def test_claude_haiku_5_5_release_date_is_recorded():
     assert MODEL_RELEASE_DATES["claude-haiku-5.5"] == "2026-10-07"
 
 
+def test_claude_fable_5_2_release_date_is_recorded():
+    """Claude Fable 5.2's model overview says "Released November 9, 2026",
+    and the Models API lists claude-fable-5-2 with created_at 2026-11-09."""
+    assert MODEL_RELEASE_DATES["claude-fable-5.2"] == "2026-11-09"
+
+
 def test_muse_spark_1_3_release_date_is_recorded():
     """Meta's post "Introducing Muse Spark 1.3" is dated 2026-09-02 and says
     the model is available that day in Muse Code and the Meta Model API;
