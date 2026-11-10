@@ -13,6 +13,7 @@ provider or network service.
 
 from __future__ import annotations
 
+import ast
 import copy
 import functools
 import hashlib
@@ -22,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -2893,3 +2895,428 @@ def test_triage_stops_when_a_case_miscounts_its_rows(triage_stage):
     triage_stage.state.cases.loc[0, "wrong_model_count"] = 2
     with pytest.raises(SystemExit, match="wrong_model_count disagrees"):
         triage_stage.run()
+
+
+# --- The inherited gates are Terra's (review r1, M2) --------------------------
+#
+# The build report lists these functions as kept from Terra's scripts, byte
+# for byte or with only names changed. Terra's suites test those bodies on
+# finish_terra, freeze_terra and date_terra_judge_verdicts; these tests hold
+# the Fable 5.2 copies to them, so an edit to one fails here until it gets
+# tests of its own. A later fix that changes one takes it off these lists and
+# adds its tests, as M6 did for the freeze's finalize.
+
+# driver-build/tools/ndiff.py's rename map, Terra's names to this release's,
+# with two temporary-folder prefixes and two messages that name the base by
+# its role. Applied in order to each line of Terra's source.
+TERRA_RENAMES = (
+    (
+        "judge_previous is not 20261027's plus one item",
+        "judge_previous is not the base's plus one item",
+    ),
+    ('"20261027\'s entry names"', '"the base entry names"'),
+    ("export-stage-terra-", "export-stage-fable52-"),
+    (".terra-judge-provenance-", ".fable52-judge-provenance-"),
+    ("20261027", "@REL_B@"),
+    ("20261014", "@BASE_B@"),
+    ("bf845cbe", "875fe1f6"),
+    ("@REL_B@", "20261110"),
+    ("@BASE_B@", "20261027"),
+    ("finish_terra", "finish_fable52"),
+    ("freeze_terra", "freeze_fable52"),
+    ("date_terra_judge_verdicts", "date_fable52_judge_verdicts"),
+    ("docs/terra/", "docs/fable52/"),
+    ("terra/run", "fable52/run"),
+    ("gpt-6.1-terra", "claude-fable-5.2"),
+    ("GPT-6.1 Terra", "Claude Fable 5.2"),
+    ('"terra"', '"fable52"'),
+)
+SCRIPTS = REPO / "scripts"
+# (Fable 5.2 script, Terra script, kept byte for byte, kept with names only).
+INHERITED = (
+    (
+        "finish_fable52.py",
+        "finish_terra.py",
+        (
+            "NewRun",
+            "_record_amendments",
+            "_reported_models",
+            "_tally_phrase",
+            "account_data",
+            "amend_annotations",
+            "amend_text",
+            "annotation_csv_text",
+            "case_id",
+            "committed_input_pins",
+            "digest",
+            "discover_new_models",
+            "engine_older",
+            "exclusions_text",
+            "grounding_lookup",
+            "head_blob",
+            "incumbent_drift",
+            "judge",
+            "judge_identity_problems",
+            "judge_isolation_problems",
+            "judge_provenance_record",
+            "load_amendments",
+            "load_combined_predictions",
+            "outside_the_judge",
+            "partial_scores",
+            "payload_text",
+            "pin_inputs",
+            "prepare_cases",
+            "prepare_inputs",
+            "record_text",
+            "rejudged_cases",
+            "release_exclusions_sha256",
+            "repository_input_hashes",
+            "require",
+            "require_combined_predictions",
+            "require_release_stage",
+            "resolved_model_id",
+            "restore_run_row_text",
+            "reworded_since_seed",
+            "seed_digest",
+            "seed_prompt_digests",
+            "set_aside",
+            "spec_key",
+            "spec_records",
+            "transcript_problems",
+            "triage_entry",
+            "validate_keys",
+            "validate_stage_path",
+            "validate_verdicts",
+            "verify_call_provenance",
+            "verify_engine_pins",
+            "verify_input_pins",
+            "verify_judge_provenance",
+            "verify_new_model_inputs",
+            "verify_parse_failure_flags",
+            "verify_prepared_inputs",
+            "verify_usage",
+            "verify_verdict_inventory",
+            "withhold_addresses",
+            "write_json",
+        ),
+        (
+            "base_adjudication_record",
+            "base_adjudications",
+            "base_commit_blob",
+            "base_exclusion_record",
+            "base_payload_from_commit",
+            "input_pins_record",
+            "live_pointer",
+            "load_seed",
+            "resolve_base",
+            "resolve_live_base",
+            "seed_digest_text",
+            "verify_base_predictions",
+            "verify_seed",
+            "build_release_exclusions",
+            "export_stage",
+            "new_model_row_differences",
+            "verify_record_form",
+            "verify_reopened_by_predictions",
+            "verify_restatements",
+            "write_judge_provenance",
+        ),
+    ),
+    (
+        "freeze_fable52.py",
+        "freeze_terra.py",
+        (
+            "amendments_text",
+            "annotation_differences",
+            "digest",
+            "evidence_runs",
+            "freeze_amendments",
+            "judged_cases",
+            "manifest_core_digest",
+            "payload_differences",
+            "read_json",
+            "release_pointer",
+            "repository_input_changes",
+            "verify_annotation_amendments",
+            "verify_freezer_destinations",
+            "verify_judge_provenance",
+            "verify_repository_inputs",
+            "verify_verdicts",
+            "write_json",
+        ),
+        (
+            "base_prediction_rows",
+            "base_serving_config",
+            "merge_serving",
+            "serving_problems",
+            "verify_receipt",
+            "committed_amendments",
+            "verify_held_references",
+        ),
+    ),
+    (
+        "date_fable52_judge_verdicts.py",
+        "date_terra_judge_verdicts.py",
+        ("bound_verdict", "case_id", "committed_record", "judge_disagreements"),
+        (),
+    ),
+)
+BYTE_FOR_BYTE = [
+    (ours, terra, name) for ours, terra, kept, _ in INHERITED for name in kept
+]
+NAMES_ONLY = [
+    (ours, terra, name) for ours, terra, _, renamed in INHERITED for name in renamed
+]
+
+
+@functools.cache
+def _top_level_sources(script: str) -> dict[str, list[str]]:
+    """Each top-level function's and class's lines, decorators included."""
+    text = (SCRIPTS / script).read_text()
+    lines = text.splitlines()
+    return {
+        node.name: lines[node.lineno - 1 - len(node.decorator_list) : node.end_lineno]
+        for node in ast.parse(text).body
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef))
+    }
+
+
+def _renamed(lines: list[str]) -> list[str]:
+    out = []
+    for line in lines:
+        for old, new in TERRA_RENAMES:
+            line = line.replace(old, new)
+        out.append(line)
+    return out
+
+
+def _code(lines: list[str]) -> str:
+    """The definition's syntax tree without its docstrings: what it runs."""
+    tree = ast.parse("\n".join(lines))
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree)
+
+
+def test_the_inherited_lists_hold_the_build_reports_counts():
+    counts = [(len(kept), len(renamed)) for _, _, kept, renamed in INHERITED]
+    # The report's 21 driver functions kept with names changed less
+    # provenance_note, whose note this release rewords (tested below), and its
+    # 8 freeze functions less finalize, which M6 changed.
+    assert counts == [(60, 20), (17, 7), (4, 0)]
+    assert len(set(BYTE_FOR_BYTE)) == len(BYTE_FOR_BYTE)
+    assert len(set(NAMES_ONLY)) == len(NAMES_ONLY)
+
+
+@pytest.mark.parametrize("ours, terra, name", BYTE_FOR_BYTE)
+def test_a_function_kept_byte_for_byte_is_terras(ours, terra, name):
+    mine, theirs = _top_level_sources(ours), _top_level_sources(terra)
+    assert name in mine and name in theirs
+    assert mine[name] == theirs[name]
+
+
+@pytest.mark.parametrize("ours, terra, name", NAMES_ONLY)
+def test_a_function_kept_with_names_only_runs_terras_code(ours, terra, name):
+    """After the rename map, its code (docstrings aside) is Terra's."""
+    mine, theirs = _top_level_sources(ours), _top_level_sources(terra)
+    assert name in mine and name in theirs
+    assert _code(mine[name]) == _code(_renamed(theirs[name]))
+
+
+def test_the_comparison_sees_a_one_token_edit():
+    """The differential tests fail on an edit as small as one comparison."""
+    lines = list(_top_level_sources("finish_fable52.py")["verify_usage"])
+    assert _code(lines) == _code(_renamed(lines))
+    edited = [line.replace(">= 0", "> 0", 1) for line in lines]
+    assert edited != lines
+    assert _code(edited) != _code(lines)
+
+
+# provenance_note rewords Terra's note: a case re-opens here only because
+# Claude Fable 5.2 joined it. Terra's tests of the note, ported.
+
+
+def test_the_provenance_note_gives_the_new_model_as_the_only_reason():
+    note = driver.provenance_note([])
+    assert note.startswith(
+        "Provenance of the 0 new judge verdicts in the Claude Fable 5.2 stage: "
+        "the cases it re-opened, each because Claude Fable 5.2 joined it. "
+    )
+    assert "reference build" not in note
+    assert "Terra" not in note
+
+
+def _phrase_counts(note: str, label: str, after: str) -> dict[str, int]:
+    text = note.split(f"{label}: ")[1].split(f". {after}")[0]
+    if text == "none":
+        return {}
+    pairs = re.findall(r"(.+?) \((\d+)\)(?:, |$)", text)
+    return {value: int(count) for value, count in pairs}
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    entries=st.lists(
+        st.fixed_dictionaries(
+            {
+                "judge_effort": st.sampled_from(
+                    [None, "low", "medium", "high", "xhigh", "max"]
+                ),
+                "judge_template_version": st.sampled_from([None, 1, 2]),
+                "isolated": st.booleans(),
+                "judge_model_reported": st.sampled_from(
+                    [[driver.JUDGE_MODEL], ["claude-sonnet-5-5"], [], None]
+                ),
+            }
+        ),
+        max_size=8,
+    )
+)
+def test_the_note_round_trips_to_the_entries_tallies(entries):
+    """Every tally the note states is its entries' tally, and the note names
+    the count of entries: no value appears that no entry records."""
+    note = driver.provenance_note(entries)
+    assert note == driver.provenance_note(copy.deepcopy(entries))
+    assert note.startswith(f"Provenance of the {len(entries)} new judge verdicts")
+    efforts = Counter(
+        e["judge_effort"] if e["judge_effort"] else "none recorded" for e in entries
+    )
+    assert _phrase_counts(note, "Effort recorded", "Judge template") == efforts
+    templates = Counter(
+        f"v{e['judge_template_version']}"
+        if e["judge_template_version"] is not None
+        else "none recorded"
+        for e in entries
+    )
+    assert _phrase_counts(note, "Judge template", "Isolation") == templates
+    isolation = Counter(
+        "isolated" if e["isolated"] else "not isolated" for e in entries
+    )
+    assert _phrase_counts(note, "Isolation", "An isolated") == isolation
+    models = Counter(
+        " and ".join(e["judge_model_reported"])
+        if e["judge_model_reported"]
+        else "none reported"
+        for e in entries
+    )
+    assert _phrase_counts(note, "Judge model reported", "Effort recorded") == models
+
+
+# Export's gate sequence: every gate runs, and refuses, before build_payload.
+
+EXPORT_GATES = (
+    "require_combined_predictions",
+    "verify_verdict_inventory",
+    "stage_upgrade",
+    "verify_reference_pins",
+    "verify_parse_failure_flags",
+    "verify_new_model_inputs",
+    "verify_judge_provenance",
+)
+
+
+class _Built(Exception):
+    """build_payload ran; the spy stops export there."""
+
+
+@pytest.fixture
+def export_spy(monkeypatch):
+    calls = []
+    for name in EXPORT_GATES:
+        monkeypatch.setattr(
+            driver,
+            name,
+            lambda *args, _name=name, **kw: calls.append((_name, args)),
+        )
+    monkeypatch.setattr(driver, "release_exclusions_sha256", lambda: "MOCK sha")
+    monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.BASE_TAG})
+    monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({"MOCK"}))
+
+    def build(*args, **kw):
+        calls.append(("build_payload", args))
+        raise _Built
+
+    monkeypatch.setattr(driver, "build_payload", build)
+    return SimpleNamespace(calls=calls, monkeypatch=monkeypatch)
+
+
+def _export(tmp_path, *, early=False, partial=False):
+    args = SimpleNamespace(stage_dir=tmp_path / "stage", early=early, partial=partial)
+    with pytest.raises(_Built):
+        driver.export(args, tmp_path / "bundle", {"MOCK": "live payload"})
+    return args
+
+
+@pytest.mark.parametrize("tag", [driver.BASE_TAG, driver.RELEASE_TAG])
+def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_path, tag):
+    export_spy.monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": tag})
+    args = _export(tmp_path)
+    assert [name for name, _ in export_spy.calls] == [
+        "require_combined_predictions",
+        "verify_verdict_inventory",
+        "stage_upgrade",
+        "verify_reference_pins",
+        "verify_reference_pins",
+        "verify_parse_failure_flags",
+        "verify_new_model_inputs",
+        "verify_judge_provenance",
+        "build_payload",
+    ]
+    calls = dict(enumerate(export_spy.calls))
+    assert calls[1][1] == (args.stage_dir / "audit",)
+    assert calls[2][1] == (args.stage_dir,)
+    frozen = "MOCK sha" if tag == driver.RELEASE_TAG else None
+    assert calls[3][1] == (driver.SNAPSHOT, "committed reference", frozen)
+    assert calls[4][1] == (tmp_path / "bundle" / "us", "staged reference", "MOCK sha")
+    assert calls[5][1] == calls[6][1] == (args.stage_dir,)
+    assert calls[7][1] == (
+        args.stage_dir / "audit" / "cases",
+        frozenset({"MOCK"}),
+        driver.JUDGE_PROVENANCE,
+    )
+
+
+@pytest.mark.parametrize(
+    "mode, skipped",
+    [
+        # An early rehearsal has no verdicts yet: it skips the judge gates.
+        (
+            {"early": True},
+            {
+                "verify_verdict_inventory",
+                "verify_parse_failure_flags",
+                "verify_new_model_inputs",
+                "verify_judge_provenance",
+            },
+        ),
+        # A partial export previews the common cohort: it skips the stage
+        # binding and the reference pins.
+        ({"partial": True}, {"stage_upgrade", "verify_reference_pins"}),
+    ],
+)
+def test_a_rehearsal_skips_only_its_named_gates(export_spy, tmp_path, mode, skipped):
+    _export(tmp_path, **mode)
+    names = [name for name, _ in export_spy.calls]
+    assert names[-1] == "build_payload"
+    assert set(EXPORT_GATES) - set(names) == skipped
+
+
+@pytest.mark.parametrize("gate", EXPORT_GATES)
+def test_export_builds_nothing_once_a_gate_refuses(export_spy, tmp_path, gate):
+    def refuse(*args, **kw):
+        raise SystemExit(f"MOCK refusal by {gate}")
+
+    export_spy.monkeypatch.setattr(driver, gate, refuse)
+    args = SimpleNamespace(stage_dir=tmp_path / "stage", early=False, partial=False)
+    with pytest.raises(SystemExit, match=f"MOCK refusal by {gate}"):
+        driver.export(args, tmp_path / "bundle", {})
+    assert "build_payload" not in [name for name, _ in export_spy.calls]
+    assert not (tmp_path / "bundle").exists()
