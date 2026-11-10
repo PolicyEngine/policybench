@@ -85,10 +85,15 @@ def real_spec() -> dict:
 
 
 def filled_spec(**changes) -> dict:
-    """The spec as the lead fills it before the freeze."""
+    """The spec as the lead fills it before the freeze, with no triage
+    decision: a test of the triage wave adds its own."""
     spec = real_spec()
     spec.update(
-        {"snapshot_date": SNAPSHOT_DATE, "adjudications_written_on": WRITTEN_ON}
+        {
+            "snapshot_date": SNAPSHOT_DATE,
+            "adjudications_written_on": WRITTEN_ON,
+            "triage_adjudications": [],
+        }
     )
     spec.update(changes)
     return spec
@@ -168,10 +173,20 @@ def test_a_freezer_for_another_run_is_refused(monkeypatch):
 # --- The spec ----------------------------------------------------------------
 
 
-def test_the_committed_spec_stops_the_freeze_until_the_lead_fills_its_days(
-    monkeypatch,
-):
-    monkeypatch.setattr(driver, "load_spec", real_spec)
+@pytest.mark.parametrize(
+    "snapshot",
+    [
+        "[LEAD: the UTC day of the freeze, YYYY-MM-DD]",
+        "",
+        None,
+        "2026-11-1",
+        "2026-13-01",
+        "10 November 2026",
+    ],
+)
+def test_a_spec_without_the_snapshot_day_stops_the_freeze(monkeypatch, snapshot):
+    spec = filled_spec(snapshot_date=snapshot)
+    monkeypatch.setattr(driver, "load_spec", lambda: spec)
     with pytest.raises(SystemExit, match="names no snapshot_date"):
         release.release_spec(driver.RELEASE_TAG)
 

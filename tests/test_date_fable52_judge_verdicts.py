@@ -3,8 +3,9 @@ judge-verdict evidence, uncommitted, and refuses any other wave.
 
 MOCK DATA: the ruled decision, its verdict and its sidecar below are
 synthetic and live in pytest's temporary directory; the written days stand
-in for the lead's. The committed adjudication record and evidence are only
-read.
+in for the lead's. Release 20261027's adjudication record and evidence are
+read from git at the base commit, since the freeze and this step rewrite the
+working tree's copies, and are only read.
 """
 
 from __future__ import annotations
@@ -33,8 +34,15 @@ CASE = f"us__{RULED[0]}__{RULED[1]}"
 
 
 def filled_spec(**changes) -> dict:
+    """The spec as the lead fills it, with no triage decision."""
     spec = json.loads((REPO / driver.SPEC_PATH).read_text())
-    spec.update({"snapshot_date": WRITTEN_ON, "adjudications_written_on": WRITTEN_ON})
+    spec.update(
+        {
+            "snapshot_date": WRITTEN_ON,
+            "adjudications_written_on": WRITTEN_ON,
+            "triage_adjudications": [],
+        }
+    )
     spec.update(changes)
     return spec
 
@@ -57,18 +65,24 @@ def ruled_entry(**changes) -> dict:
     return entry
 
 
+EVIDENCE_PATH = dating.EVIDENCE.relative_to(REPO)
+
+
 def record_with(*entries) -> dict:
-    record = copy.deepcopy(dating.committed_record())
+    record = driver.base_adjudication_record()
     record["adjudications"].extend(entries)
     return record
 
 
 def committed_evidence() -> dict:
-    return json.loads(dating.EVIDENCE.read_text())
+    """Release 20261027's evidence, from git at the base commit."""
+    return json.loads(driver.base_commit_blob(EVIDENCE_PATH))
 
 
 def test_the_base_waves_are_the_committed_records_and_all_published():
-    days = {e["adjudicated_on"] for e in dating.committed_record()["adjudications"]}
+    days = {
+        e["adjudicated_on"] for e in driver.base_adjudication_record()["adjudications"]
+    }
     assert sorted(days) == dating.BASE_WAVES
     waves = committed_evidence()["wave_releases"]
     assert list(waves) == dating.BASE_WAVES
@@ -85,9 +99,9 @@ def test_the_ruled_wave_is_written_on_the_specs_day():
     assert dating.new_waves(record, filled_spec()) == {WAVE: WRITTEN_ON}
 
 
-def test_the_committed_record_before_the_freeze_is_refused():
+def test_the_record_before_the_freeze_is_refused():
     with pytest.raises(SystemExit, match=r"decides the waves \['2026-11-01'\]"):
-        dating.new_waves(dating.committed_record(), filled_spec())
+        dating.new_waves(driver.base_adjudication_record(), filled_spec())
 
 
 @pytest.mark.parametrize(

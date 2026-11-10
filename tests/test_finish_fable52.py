@@ -85,11 +85,23 @@ def real_spec() -> dict:
     return json.loads((REPO / driver.SPEC_PATH).read_text())
 
 
+# The placeholders the committed spec holds until the lead fills each day.
+SNAPSHOT_PLACEHOLDER = "[LEAD: the UTC day of the freeze, YYYY-MM-DD]"
+WRITTEN_PLACEHOLDER = (
+    "[LEAD: the UTC day --step adjudicate-exclusions runs, YYYY-MM-DD]"
+)
+
+
 def filled_spec(**changes) -> dict:
-    """The spec as the lead fills it before the steps that read its days."""
+    """The spec as the lead fills it before the steps that read its days,
+    with no triage decision: a test of the triage wave adds its own."""
     spec = real_spec()
     spec.update(
-        {"snapshot_date": SNAPSHOT_DATE, "adjudications_written_on": WRITTEN_ON}
+        {
+            "snapshot_date": SNAPSHOT_DATE,
+            "adjudications_written_on": WRITTEN_ON,
+            "triage_adjudications": [],
+        }
     )
     spec.update(changes)
     return spec
@@ -403,17 +415,27 @@ def test_the_audits_builder_must_keep_its_pin(engine_root):
 
 
 def test_the_spec_rules_one_proposal_and_leaves_both_days_to_the_lead():
+    """The committed spec as it stands at any point of the release: the lead
+    fills each day before the step that reads it, and may add triage
+    decisions (the gates hold their form), so either state passes here."""
     spec = real_spec()
     assert set(spec) <= driver.SPEC_KEYS
     (proposal,) = spec["proposals"]
     assert proposal["outputs"] == [list(RULED)]
     assert sha(REPO / proposal["path"]) == proposal["sha256"]
     assert [driver.spec_key(item) for item in spec["adjudications"]] == [RULED]
-    assert spec["restated_adjudications"] == [] and spec["triage_adjudications"] == []
+    assert spec["restated_adjudications"] == []
+    assert isinstance(spec["triage_adjudications"], list)
     assert spec["decided_on"] == "2026-11-01"
-    # Until the lead fills them, every gate that reads either day stops.
-    assert driver.utc_day(spec["snapshot_date"]) is None
-    assert driver.utc_day(spec["adjudications_written_on"]) is None
+    # Each day is the lead's placeholder, on which every gate that reads it
+    # stops (the tests below run the gates on copies), or a real UTC day on
+    # or after the ruling's.
+    for key, placeholder in (
+        ("snapshot_date", SNAPSHOT_PLACEHOLDER),
+        ("adjudications_written_on", WRITTEN_PLACEHOLDER),
+    ):
+        day = driver.utc_day(spec[key])
+        assert spec[key] == placeholder or (day is not None and day >= "2026-11-01")
 
 
 def test_the_ruled_record_is_d2180s_on_the_references_engine():
@@ -1972,7 +1994,9 @@ def test_a_missing_or_placeholder_written_day_stops_the_record(monkeypatch, valu
         driver.release_date_conventions(conventions)
 
 
-def test_the_record_gate_stops_while_the_spec_holds_its_placeholder():
+def test_the_record_gate_stops_while_the_spec_holds_its_placeholder(monkeypatch):
+    spec = filled_spec(adjudications_written_on=WRITTEN_PLACEHOLDER)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
     base = driver.base_adjudication_record()
     with pytest.raises(SystemExit, match="names no adjudications_written_on"):
         driver.verify_record_form(driver.record_text(base), base)
