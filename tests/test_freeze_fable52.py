@@ -597,6 +597,13 @@ def base_manifest() -> dict:
     return json.loads(base_blob(release.SNAPSHOT / "manifest.json"))
 
 
+# The manifest pins this release keeps at release 20261027's, spelled out.
+STATED_PINS = [
+    *(("source_run_artifacts", RUN, "files", name) for name in REFERENCES),
+    ("audit_annotation_artifacts", "files", "us_case_reference_explanations.csv"),
+]
+
+
 def set_leaf(manifest: dict, path: tuple, value) -> None:
     cursor = manifest
     for part in path[:-1]:
@@ -604,7 +611,7 @@ def set_leaf(manifest: dict, path: tuple, value) -> None:
     cursor[path[-1]] = value
 
 
-@pytest.mark.parametrize("path", sorted(release.MANIFEST_PINNED))
+@pytest.mark.parametrize("path", STATED_PINS)
 def test_the_manifest_keeps_every_stated_base_pin(path):
     after = base_manifest()
     set_leaf(after, path, "0" * 64)
