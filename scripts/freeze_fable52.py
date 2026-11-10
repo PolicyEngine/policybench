@@ -185,9 +185,10 @@ def release_spec(tag: str) -> dict:
     """docs/fable52/spec.json, with what the freeze reads from it checked.
 
     The snapshot date comes from the spec alone, and so does the day a ruled
-    wave's decisions were written when the spec rules any, so a spec that
-    lacks either, or still holds its "[LEAD: ...]" placeholder for either,
-    stops the freeze here, before any gate reads it: both must be real days
+    wave's decisions were written when the spec rules any, and the day the
+    triage wave's were written when it lists triage decisions. A spec that
+    lacks one of them, or still holds its "[LEAD: ...]" placeholder for one,
+    stops the freeze here, before any gate reads it: each must be a real day
     spelled YYYY-MM-DD (driver.utc_day). The spec must also name the release
     this freeze builds and the base the driver pins.
     """
@@ -203,6 +204,14 @@ def release_spec(tag: str) -> dict:
             f"{driver.SPEC_PATH} names no adjudications_written_on (YYYY-MM-DD), "
             "the UTC day the ruled wave's decisions were written; the record's "
             f"date conventions state it (it reads {written!r})"
+        )
+    triage_written = spec.get("triage_adjudications_written_on")
+    if spec.get("triage_adjudications") and driver.utc_day(triage_written) is None:
+        raise SystemExit(
+            f"{driver.SPEC_PATH} names no triage_adjudications_written_on "
+            "(YYYY-MM-DD), the UTC day the triage wave's decisions were "
+            "written; the record's date conventions state it (it reads "
+            f"{triage_written!r})"
         )
     named = {
         "release_tag": tag,
@@ -747,8 +756,10 @@ def verify_adjudication_record(
     exactly the outputs the staged exclusion record lists. The staged file's
     bytes must be exactly its parsed content, with release 20261027's note,
     and its date conventions with the waves the release adds named
-    (driver.release_date_conventions). Returns how many staged decisions,
-    beyond the spec's, the committed record lacks. The receipt binds the
+    (driver.release_date_conventions). Each wave the release adds was
+    written on or after the day of every verdict its decisions record
+    (driver.verify_written_days). Returns how many staged decisions, beyond
+    the spec's, the committed record lacks. The receipt binds the
     staged record, prompt-changes.json and the amendments, and export writes
     it only after triage applied them.
     """
@@ -770,6 +781,7 @@ def verify_adjudication_record(
         base, after, rejudged, amendments, cases_dir, triage=triage
     )
     driver.verify_restatements(base, after, rejudged, cases_dir)
+    driver.verify_written_days(after)
     decided = excluded_case_keys(after)
     excluded = exclusion_keys(load_reference_exclusions(source_us))
     if decided != excluded:

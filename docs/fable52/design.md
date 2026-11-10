@@ -44,7 +44,7 @@ The seed is `/Users/maxghenis/reviews/policybench-gpt-6-1-terra/worktree-results
 
 **The seed.** Terra's bind-seed bound the seed, before prepare, into the `reference-install.json` its install step wrote. This driver writes nothing before prepare. On a missing `stage.json`, bind-seed checks the seed against `seed_digest.csv` and the grounding against its pin and writes nothing (`check_seed`); prepare then checks and binds the seed in `stage.json` itself. On a stage prepared before prepare bound the seed, bind-seed binds it as Terra's did.
 
-**The spec.** `load_spec` refuses any key outside the set this driver reads (`SPEC_KEYS`), so an install's `upgrade_adjudications` cannot sit in the spec unread. `adjudications_written_on` must be a real `YYYY-MM-DD` day on or after the ruling's; the record gate refuses the `[LEAD: …]` placeholder.
+**The spec.** `load_spec` refuses any key outside the set this driver reads (`SPEC_KEYS`), so an install's `upgrade_adjudications` cannot sit in the spec unread. `adjudications_written_on` must be a real `YYYY-MM-DD` day on or after the ruling's and the ruled verdict's day, and no later than the day `adjudicate-exclusions` runs (`verify_written_days`). `triage_adjudications_written_on` must meet the same tests against the triage wave's day and its cases' verdicts, and the freeze reads it whenever the spec lists a triage decision. The record gate refuses the `[LEAD: …]` placeholder for either.
 
 **The export's scope check.** Haiku 5.5's and Terra's exports held the incumbents with one check: put the base's exclusion record back in a scratch copy, export again, and every incumbent's `modelStats` must equal the base's byte for byte. This driver keeps that check. It adds a second one, `exclusion_scope_problems`, new code in this driver, which compares the release payload with that scope export. The two exports read one bundle and differ only in the exclusion record, so the check refuses any difference the release's added record does not explain:
 
@@ -146,7 +146,7 @@ export CLAUDE_CONFIG_DIR="$HOME/.policybench-judge/pb-judge-config"
 
 The judge command requires the authorized `CLAUDE_CODE_OAUTH_TOKEN` and `AUDIT_ACCOUNT` values that `scripts/run_audit_claude.sh` expects. Export neither credential into a committed file. The restate script updates carried decisions' judge fields from the bound seed and current verdicts and keeps their decisions.
 
-Set `adjudications_written_on` in `docs/fable52/spec.json` to the UTC day the next command runs, then:
+Set `adjudications_written_on` in `docs/fable52/spec.json` to the UTC day the next command runs. The step refuses a day after today's UTC date, and one before the day of the ruled case's verdict, which a re-opened case's re-judge sets; the freeze checks the verdict's day again. Then:
 
 ```bash
 "$PB_PY" scripts/finish_fable52.py --step adjudicate-exclusions --stage-dir "$PB_STAGE"
@@ -154,7 +154,7 @@ Set `adjudications_written_on` in `docs/fable52/spec.json` to the UTC day the ne
 "$PB_PY" scripts/finish_fable52.py --step provenance --stage-dir "$PB_STAGE"
 ```
 
-If triage stops, review the bound verdicts, `reference-flags.csv` and `unresolved-rows.csv`, record any permitted developer decision in the spec with its two days, and decide again as "Adjudicating it" shows. Commit the checked `docs/fable52/judge_provenance.json` with its generated note unedited, and the spec. Set `snapshot_date` in the spec before the freeze. Fill the completion record's placeholders and update the paper's release prose before rendering.
+If triage stops, review the bound verdicts, `reference-flags.csv` and `unresolved-rows.csv`, record any permitted developer decision in the spec with its two days (`triage_decided_on`, and `triage_adjudications_written_on`, which must fall on or after that day and each of its cases' verdict days and no later than the day `adjudicate-exclusions` runs), and decide again as "Adjudicating it" shows. Commit the checked `docs/fable52/judge_provenance.json` with its generated note unedited, and the spec. Set `snapshot_date` in the spec before the freeze. Fill the completion record's placeholders and update the paper's release prose before rendering.
 
 ```bash
 "$PB_PY" scripts/finish_fable52.py --step export --stage-dir "$PB_STAGE"

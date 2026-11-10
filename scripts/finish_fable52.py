@@ -1535,6 +1535,14 @@ def utc_day(value) -> str | None:
     return value
 
 
+def utc_today() -> str:
+    """Today's UTC date, spelled YYYY-MM-DD: the latest day a decision written
+    now can name."""
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).date().isoformat()
+
+
 def release_date_conventions(conventions: str, wave: DecisionWave | None = None) -> str:
     """Release 20261027's date conventions with each wave this release adds
     named; the one definition the adjudicate step writes and the record gate
@@ -1548,9 +1556,11 @@ def release_date_conventions(conventions: str, wave: DecisionWave | None = None)
     sentence takes the number of its records: "decision ... was written" for
     one, "decisions ... were written" for several, so the spec's wave_sentence
     must agree with it (this release's one record reads "follows Max's
-    ruling"). A missing, blank or placeholder wave_sentence or
-    adjudications_written_on stops here, as does a written day before the
-    ruling's: the record would state it.
+    ruling"). A missing, blank or placeholder wave_sentence stops here. So
+    does a written day (the ruled wave's adjudications_written_on, the triage
+    wave's triage_adjudications_written_on) that is not a real day spelled
+    YYYY-MM-DD (utc_day) or that falls before its wave's own day: the record
+    would state it.
     """
     require(
         conventions.count(DATE_CONVENTIONS_BASE) == 1
@@ -1588,11 +1598,17 @@ def release_date_conventions(conventions: str, wave: DecisionWave | None = None)
             f"{'was' if one else 'were'} written on {written} UTC."
         )
     if wave is not None:
-        written = spec.get("triage_adjudications_written_on")
+        written = utc_day(spec.get("triage_adjudications_written_on"))
         require(
-            isinstance(written, str) and written.strip(),
-            f"{SPEC_PATH} names no triage_adjudications_written_on, the UTC day "
-            "this release's triage decisions were written",
+            written is not None,
+            f"{SPEC_PATH} names no triage_adjudications_written_on (YYYY-MM-DD), "
+            "the UTC day this release's triage decisions were written "
+            f"(it reads {spec.get('triage_adjudications_written_on')!r})",
+        )
+        require(
+            written >= wave.day,
+            f"{SPEC_PATH}'s triage_adjudications_written_on ({written}) precedes "
+            f"the triage decisions it records ({wave.day})",
         )
         require(wave.day not in days, f"the {wave.day} wave is named twice")
         days.append(wave.day)
@@ -1621,9 +1637,77 @@ def release_date_conventions(conventions: str, wave: DecisionWave | None = None)
     )
 
 
+def verify_written_days(
+    entries: list[dict], spec: dict | None = None, *, today: str | None = None
+) -> None:
+    """Each wave this release adds was written on or after the day of every
+    verdict its decisions record and, with ``today``, no later than today.
+
+    The record's date conventions say a recorded verdict can postdate
+    adjudicated_on only up to the last day its wave's decisions were written,
+    so a written day before a decision's verdict would make the record state
+    something false. An entry's recorded verdict is dated by
+    judge_rejudged_on when a later wave judged the case again and by
+    judged_on_utc otherwise. The ruled wave's day is the spec's
+    adjudications_written_on, checked on the ruled outputs' entries; the
+    triage wave's is triage_adjudications_written_on, checked on the triage
+    decisions' entries. adjudicate_exclusions passes ``today``, the UTC date
+    it runs, since the day it writes the decisions cannot be a later one; the
+    freeze's record gate checks the verdict days again.
+    """
+    spec = load_spec() if spec is None else spec
+    waves = (
+        ("adjudications_written_on", {spec_key(r) for r in spec_records(spec)}),
+        (
+            "triage_adjudications_written_on",
+            {spec_key(item) for item in triage_items(spec)},
+        ),
+    )
+    for field, keys in waves:
+        if not keys:
+            continue
+        written = utc_day(spec.get(field))
+        require(
+            written is not None,
+            f"{SPEC_PATH} names no {field} (YYYY-MM-DD) (it reads {spec.get(field)!r})",
+        )
+        require(
+            today is None or written <= today,
+            f"{SPEC_PATH}'s {field} ({written}) falls after today's UTC date "
+            f"({today}); set it to the day this step runs",
+        )
+        own = [
+            (
+                spec_key(entry),
+                entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+            )
+            for entry in entries
+            if spec_key(entry) in keys
+        ]
+        undated = [key for key, day in own if utc_day(day) is None]
+        require(
+            not undated,
+            f"a decision {field} dates names no day (YYYY-MM-DD) for the verdict "
+            f"it records: {undated[:8]}",
+        )
+        late = [(key, day) for key, day in own if day > written]
+        require(
+            not late,
+            f"{SPEC_PATH}'s {field} ({written}) precedes the day of a verdict "
+            f"its wave's decisions record: {late[:8]}; the record would say a "
+            "decision was written before the verdict it reviewed",
+        )
+
+
 def adjudicate_exclusions(args) -> None:
     """Decide the ruled outputs in the staged record (after judge and restate),
     and append the spec's triage decisions, if any (triage_items).
+
+    Each wave's written day must fall on or after the day of every verdict
+    its decisions record and no later than today's UTC date
+    (verify_written_days), so the record never says a decision was written
+    before the verdict it reviewed or on a day still to come. When a day
+    fails, the step writes nothing.
 
     It runs once on a restated record: a record that already decides a ruled
     output is refused, so a later spec change (a triage decision) is applied
@@ -1651,6 +1735,7 @@ def adjudicate_exclusions(args) -> None:
     staged = exclusion_adjudications(
         record, args.stage_dir / "audit" / "cases", triage_items()
     )
+    verify_written_days(staged["adjudications"], today=utc_today())
     parse_adjudications(staged, path)
     path.write_text(record_text(staged))
     print(f"Decided {len(keys)} ruled outputs in {path}")

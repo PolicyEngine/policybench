@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import datetime as dt
 import functools
 import hashlib
 import io
@@ -3131,13 +3132,209 @@ def test_utc_day_keeps_every_calendar_day_and_refuses_placeholders(day):
     assert driver.utc_day(text.replace("-", "/")) is None
 
 
+def test_utc_today_is_the_utc_date():
+    before = dt.datetime.now(dt.UTC).date().isoformat()
+    today = driver.utc_today()
+    after = dt.datetime.now(dt.UTC).date().isoformat()
+    assert before <= today <= after
+    assert driver.utc_day(today) == today
+
+
+# --- The triage wave's written day (review r1, M16: E F3) ---------------------
+#
+# The spec starts with no triage decision. These tests give it a MOCK one,
+# dated by a MOCK triage wave, to reach the triage wave's sentence.
+
+TRIAGE_DAY = "2026-11-12"
+MOCK_TRIAGE_ITEM = {
+    "scenario_id": "scenario_901",
+    "variable": "mock_output",
+    "adjudicated_failure_source": "llm_error",
+    "adjudicated_failure_subtype": "thresholds_rates",
+    "adjudicated_on": TRIAGE_DAY,
+    "reference_verdict": None,
+    "reference_basis": None,
+    "reasoning": "MOCK: the rows the judge classed outside the final set.",
+}
+
+
+def triage_spec(written=TRIAGE_DAY, **changes) -> dict:
+    """The filled spec with the MOCK triage decision and its two days."""
+    return filled_spec(
+        triage_adjudications=[dict(MOCK_TRIAGE_ITEM)],
+        triage_decided_on=TRIAGE_DAY,
+        triage_adjudications_written_on=written,
+        **changes,
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "[LEAD: the UTC day the triage decisions were written, YYYY-MM-DD]",
+        "",
+        None,
+        "2026-11-1",
+        "2026-13-01",
+        "12 November 2026",
+        " 2026-11-12",
+    ],
+)
+def test_a_missing_or_placeholder_triage_written_day_stops_the_record(
+    monkeypatch, value
+):
+    """Before M16 any non-blank string passed here, the placeholder too."""
+    spec = triage_spec(written=value)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    wave = driver.decision_wave(driver.triage_items(spec))
+    conventions = driver.base_adjudication_record()["date_conventions"]
+    with pytest.raises(SystemExit, match="names no triage_adjudications_written_on"):
+        driver.release_date_conventions(conventions, wave)
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    wave_day=st.dates(min_value=dt.date(2026, 11, 2), max_value=dt.date(2027, 12, 31)),
+    written=st.dates(min_value=dt.date(2026, 10, 1), max_value=dt.date(2028, 1, 31)),
+)
+@example(wave_day=dt.date(2026, 11, 12), written=dt.date(2026, 11, 2))
+@example(wave_day=dt.date(2026, 11, 12), written=dt.date(2026, 11, 12))
+def test_the_triage_waves_written_day_falls_on_or_after_its_wave(wave_day, written):
+    """The review's case (decided 2026-11-12, written 2026-11-02) stops the
+    record; a day on or after the wave's names the wave and the day once."""
+    item = dict(MOCK_TRIAGE_ITEM, adjudicated_on=wave_day.isoformat())
+    spec = filled_spec(
+        triage_adjudications=[item],
+        triage_decided_on=wave_day.isoformat(),
+        triage_adjudications_written_on=written.isoformat(),
+    )
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+        wave = driver.decision_wave(driver.triage_items(spec))
+        conventions = driver.base_adjudication_record()["date_conventions"]
+        if written < wave_day:
+            with pytest.raises(SystemExit, match="precedes the triage decisions"):
+                driver.release_date_conventions(conventions, wave)
+            return
+        out = driver.release_date_conventions(conventions, wave)
+    assert out.count(f"2026-11-01 or {wave_day.isoformat()}).") == 1
+    sentence = (
+        f" The {wave_day.isoformat()} wave's decisions keep scored outputs on "
+        "cases this release's new models re-opened, resolving rows the judge "
+        f"gave a class outside the final set, and were written on "
+        f"{written.isoformat()} UTC."
+    )
+    assert out.count(sentence) == 1
+
+
+# --- Each wave's written day against its verdicts and today (M16: E F4) -------
+
+
+def _dated(key, judged, rejudged=None) -> dict:
+    """A MOCK entry for ``key`` whose recorded verdict is dated ``judged``
+    (judged_on_utc), or ``rejudged`` (judge_rejudged_on) when given."""
+    entry = {"country": "us", "scenario_id": key[0], "variable": key[1]}
+    if judged is not None:
+        entry["judged_on_utc"] = judged
+    if rejudged is not None:
+        entry["judge_rejudged_on"] = rejudged
+    return entry
+
+
+DAYS = st.dates(min_value=dt.date(2026, 10, 1), max_value=dt.date(2026, 12, 31))
+
+
+@settings(max_examples=120, deadline=None)
+@given(
+    judged=DAYS,
+    rejudged=st.none() | DAYS,
+    written=st.dates(min_value=dt.date(2026, 11, 1), max_value=dt.date(2026, 12, 31)),
+    today=st.none() | DAYS,
+    other=DAYS,
+)
+@example(
+    judged=dt.date(2026, 11, 10),
+    rejudged=None,
+    written=dt.date(2026, 11, 1),
+    today=None,
+    other=dt.date(2026, 10, 1),
+)
+def test_the_ruled_wave_is_written_after_its_verdict_and_by_today(
+    judged, rejudged, written, today, other
+):
+    """Accepted exactly when the ruled entry's recorded verdict (its
+    judge_rejudged_on when present, else judged_on_utc) falls on or before
+    the written day and, with ``today``, the written day on or before today.
+    An entry outside the wave never counts. The explicit example is the
+    review's: the ruling's own day entered for a verdict judged later."""
+    spec = filled_spec(adjudications_written_on=written.isoformat())
+    entries = [
+        _dated(("scenario_902", "mock_other"), other.isoformat()),
+        _dated(
+            RULED,
+            judged.isoformat(),
+            None if rejudged is None else rejudged.isoformat(),
+        ),
+    ]
+    day = judged if rejudged is None else rejudged
+    on = None if today is None else today.isoformat()
+    if today is not None and written > today:
+        with pytest.raises(SystemExit, match="falls after today's UTC date"):
+            driver.verify_written_days(entries, spec, today=on)
+    elif day > written:
+        with pytest.raises(SystemExit, match="precedes the day of a verdict"):
+            driver.verify_written_days(entries, spec, today=on)
+    else:
+        driver.verify_written_days(entries, spec, today=on)
+
+
+@pytest.mark.parametrize(
+    "triage_judged, written, today, message",
+    [
+        ("2026-11-12", "2026-11-12", "2026-11-12", None),
+        ("2026-11-11", "2026-11-13", None, None),
+        ("2026-11-13", "2026-11-12", None, "triage_adjudications_written_on"),
+        ("2026-11-12", "2026-11-14", "2026-11-13", "falls after today"),
+        (None, "2026-11-12", None, "names no day"),
+    ],
+)
+def test_the_triage_wave_is_written_after_its_verdicts_and_by_today(
+    triage_judged, written, today, message
+):
+    spec = triage_spec(written=written)
+    entries = [
+        _dated(RULED, WRITTEN_ON),
+        _dated((MOCK_TRIAGE_ITEM["scenario_id"], MOCK_TRIAGE_ITEM["variable"]), None)
+        if triage_judged is None
+        else _dated(
+            (MOCK_TRIAGE_ITEM["scenario_id"], MOCK_TRIAGE_ITEM["variable"]),
+            triage_judged,
+        ),
+    ]
+    if message is None:
+        driver.verify_written_days(entries, spec, today=today)
+    else:
+        with pytest.raises(SystemExit, match=message):
+            driver.verify_written_days(entries, spec, today=today)
+
+
+def test_a_ruled_entry_without_a_verdict_day_is_refused():
+    spec = filled_spec()
+    with pytest.raises(SystemExit, match="names no day"):
+        driver.verify_written_days([_dated(RULED, None)], spec)
+    with pytest.raises(SystemExit, match="names no day"):
+        driver.verify_written_days([_dated(RULED, "[LEAD: day]")], spec)
+
+
 @pytest.fixture
-def adjudication_stage(stage, filled):
+def adjudication_stage(stage, filled, monkeypatch):
     """The base's adjudication record staged, and a MOCK judged case for the
     ruled output: a MOCK verdict that lists the new model among its MOCK
-    wrong models, judged by Opus 5.5 on v2."""
+    wrong models, judged by Opus 5.5 on v2. Today's UTC date is the MOCK
+    written day, so no test here depends on the clock."""
     from policybench.judge_template import template_header
 
+    monkeypatch.setattr(driver, "utc_today", lambda: WRITTEN_ON)
     annotations = stage / "publish" / RUN / "annotations"
     annotations.mkdir(parents=True)
     path = annotations / driver.ADJUDICATIONS
@@ -3188,6 +3385,43 @@ def test_the_record_gate_refuses_an_edited_note(adjudication_stage):
         driver.verify_record_form(
             driver.record_text(record), driver.base_adjudication_record()
         )
+
+
+@pytest.mark.parametrize(
+    "written, today, message",
+    [
+        ("2026-11-01", WRITTEN_ON, "precedes the day of a verdict"),
+        ("2026-11-09", WRITTEN_ON, "precedes the day of a verdict"),
+        ("2026-11-11", WRITTEN_ON, "falls after today's UTC date"),
+        (WRITTEN_ON, "2026-11-09", "falls after today's UTC date"),
+    ],
+)
+def test_adjudicate_exclusions_refuses_a_written_day_the_record_would_misstate(
+    adjudication_stage, monkeypatch, written, today, message
+):
+    """Review r1, E F4. The MOCK ruled verdict is judged 2026-11-10. Before
+    M16 each of these days passed: the step checked only that the written day
+    is a real day on or after the ruling's (2026-11-01). It writes nothing."""
+    stage, path = adjudication_stage
+    spec = filled_spec(adjudications_written_on=written)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    monkeypatch.setattr(driver, "utc_today", lambda: today)
+    before = path.read_bytes()
+    with pytest.raises(SystemExit, match=message):
+        driver.adjudicate_exclusions(SimpleNamespace(stage_dir=stage))
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("today", [WRITTEN_ON, "2026-12-01"])
+def test_adjudicate_exclusions_takes_the_verdicts_day_up_to_today(
+    adjudication_stage, monkeypatch, today
+):
+    stage, path = adjudication_stage
+    monkeypatch.setattr(driver, "utc_today", lambda: today)
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=stage))
+    record = json.loads(path.read_text())
+    assert record["adjudications"][-1]["judged_on_utc"] == WRITTEN_ON
+    assert WAVE_SENTENCE in record["date_conventions"]
 
 
 # --- The ruled-entry gate at triage and the freeze (review r1, M3) -----------

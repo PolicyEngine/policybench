@@ -217,6 +217,61 @@ def test_a_spec_without_the_ruled_waves_written_day_stops_the_freeze(
         release.release_spec(driver.RELEASE_TAG)
 
 
+# A MOCK triage decision: the spec starts with none (review r1, M16: E F3).
+TRIAGE_DAY = "2026-11-12"
+MOCK_TRIAGE_ITEM = {
+    "scenario_id": "scenario_901",
+    "variable": "mock_output",
+    "adjudicated_failure_source": "llm_error",
+    "adjudicated_failure_subtype": "thresholds_rates",
+    "adjudicated_on": TRIAGE_DAY,
+    "reference_verdict": None,
+    "reference_basis": None,
+    "reasoning": "MOCK: the rows the judge classed outside the final set.",
+}
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "[LEAD: the UTC day the triage decisions were written, YYYY-MM-DD]",
+        "",
+        None,
+        "2026-11-1",
+        "2026-13-01",
+        "12 November 2026",
+    ],
+)
+def test_a_spec_with_triage_decisions_and_no_triage_written_day_stops_the_freeze(
+    monkeypatch, written
+):
+    """Before M16 the freeze read no triage day; the placeholder reached the
+    record's date conventions."""
+    spec = filled_spec(
+        triage_adjudications=[dict(MOCK_TRIAGE_ITEM)],
+        triage_decided_on=TRIAGE_DAY,
+        triage_adjudications_written_on=written,
+    )
+    monkeypatch.setattr(driver, "load_spec", lambda: spec)
+    with pytest.raises(SystemExit, match="names no triage_adjudications_written_on"):
+        release.release_spec(driver.RELEASE_TAG)
+
+
+def test_the_freeze_reads_the_triage_day_only_when_the_spec_lists_triage(
+    monkeypatch,
+):
+    spec = filled_spec(triage_adjudications_written_on="[LEAD: day]")
+    monkeypatch.setattr(driver, "load_spec", lambda: spec)
+    assert release.release_spec(driver.RELEASE_TAG) == spec
+    listed = filled_spec(
+        triage_adjudications=[dict(MOCK_TRIAGE_ITEM)],
+        triage_decided_on=TRIAGE_DAY,
+        triage_adjudications_written_on=TRIAGE_DAY,
+    )
+    monkeypatch.setattr(driver, "load_spec", lambda: listed)
+    assert release.release_spec(driver.RELEASE_TAG) == listed
+
+
 @pytest.mark.parametrize(
     "field, value",
     [
@@ -2058,6 +2113,8 @@ def h_template(tmp_path_factory):
         _h_write_checkout(workspace)
         stage = _h_write_stage(workspace, board)
         mp.setattr(driver, "SEED_DIGEST_SHA256", board.seed_sha256)
+        # Today's UTC date is the MOCK written day: no test depends on the clock.
+        mp.setattr(driver, "utc_today", lambda: WRITTEN_ON)
         args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
         driver.adjudicate_exclusions(args)
         driver.triage(args, stage / BUNDLE)
@@ -2139,6 +2196,45 @@ def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
     assert "references unchanged; 50 exclusions (1 new)" in out
     assert "0 adjudications added beyond the spec's; 0 wording amendments" in out
     assert f"model responses {H_WINDOW}; snapshot {SNAPSHOT_DATE}; nothing" in out
+
+
+def test_the_record_gate_checks_the_ruled_verdicts_day_again(h_stage):
+    """Review r1, M16 (E F4): a staged record whose date conventions and spec
+    agree on a written day before the ruled case's MOCK verdict (judged
+    2026-11-09) is refused at the freeze; on the verdict's own day it
+    passes. Before M16 the freeze took both."""
+    stage = h_stage.stage
+    staged = stage / "publish" / RUN / "annotations" / release.ADJUDICATIONS
+    spec_path = h_stage.workspace / SPEC_PATH
+    rejudged = driver.rejudged_cases(stage)
+    gate = (
+        staged,
+        stage / "publish" / RUN / "us",
+        rejudged,
+        driver.load_amendments(stage, rejudged),
+        stage / "audit" / "cases",
+    )
+    entry = json.loads(staged.read_text())["adjudications"][-1]
+    assert (driver.case_id(entry), entry["judged_on_utc"]) == (
+        H_RULED_CASE,
+        H_JUDGED_AT[:10],
+    )
+
+    def written_on(day: str) -> None:
+        spec = json.loads(spec_path.read_text())
+        spec["adjudications_written_on"] = day
+        spec_path.write_text(json.dumps(spec, indent=2) + "\n")
+        record = json.loads(staged.read_text())
+        record["date_conventions"] = driver.release_date_conventions(
+            driver.base_adjudication_record()["date_conventions"]
+        )
+        staged.write_text(driver.record_text(record))
+
+    written_on(H_JUDGED_AT[:10])
+    assert release.verify_adjudication_record(*gate) == 0
+    written_on("2026-11-08")
+    with pytest.raises(SystemExit, match="precedes the day of a verdict"):
+        release.verify_adjudication_record(*gate)
 
 
 def _h_payload(h_stage) -> dict:
