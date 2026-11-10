@@ -5275,6 +5275,8 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
         "build_payload",
     ]
     calls = dict(enumerate(export_spy.calls))
+    # Review r2, N8 (T P3-1): the first gate's argument too, the bundle.
+    assert calls[0][1] == (tmp_path / "bundle",)
     assert calls[1][1] == (args.stage_dir / "audit",)
     assert calls[2][1] == (args.stage_dir,)
     frozen = "MOCK sha" if tag == driver.RELEASE_TAG else None
