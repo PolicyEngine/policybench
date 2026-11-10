@@ -38,6 +38,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import date_fable52_judge_verdicts as dating  # noqa: E402
 import finish_fable52 as driver  # noqa: E402
 
 # The treatment check is release-independent; reuse it unchanged.
@@ -658,6 +659,35 @@ def verify_judge_provenance(
         )
     driver.verify_judge_provenance(
         stage / "audit" / "cases", rejudged, driver.JUDGE_PROVENANCE
+    )
+
+
+def dating_preview(record_path: Path, rejudged: frozenset[str]) -> str:
+    """Whether the record the freeze commits holds a decision on a re-opened
+    case, as the dating step will find it. It reads and writes nothing else.
+
+    Review r2, N4 (G P3-2, R P3-4). The freeze commits the staged record byte
+    for byte (verify_frozen), and verify_judge_provenance has held the
+    provenance record's cases to ``rejudged``, so
+    date_fable52_judge_verdicts.restatements will read these decisions and
+    these cases (dating.reopened_decisions). When the record holds none, that
+    step stops at require(cases), which stays by ruling, after the freeze has
+    written; the dry run says so first, so the ruling on the saved patch can
+    come before the freeze writes (docs/fable52/design.md, By hand).
+    """
+    cases = dating.reopened_decisions(read_json(record_path), rejudged)
+    if not cases:
+        return (
+            "Dating step: the record the freeze commits holds no decision on a "
+            "re-opened case, and date_fable52_judge_verdicts.py stops on that "
+            '("no committed decision is on a re-opened case"); rule on the '
+            "saved relaxation patch before the freeze (docs/fable52/design.md, "
+            "By hand)"
+        )
+    return (
+        "Dating step: the record the freeze commits holds decisions on "
+        f"{len(cases)} re-opened case{'' if len(cases) == 1 else 's'}, which "
+        f"date_fable52_judge_verdicts.py restates: {', '.join(cases)}"
     )
 
 
@@ -1663,6 +1693,7 @@ def main(argv: list[str] | None = None) -> None:
             f"amendments; model responses {window}; snapshot {snapshot_date}; "
             "nothing written"
         )
+        print(dating_preview(staged_annotations / ADJUDICATIONS, rejudged))
         return
 
     configure_freezer(

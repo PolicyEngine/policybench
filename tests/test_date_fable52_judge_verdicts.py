@@ -453,14 +453,32 @@ def test_a_decision_that_does_not_name_its_verdict_is_refused(
 # --- Review r1, M14 (Z P3-4): restatements -----------------------------------
 
 
+def bind_provenance(stage: Path) -> None:
+    """MOCK: the stage's export receipt binds the provenance record's bytes,
+    as export writes it (release-ready.json's "judge_provenance")."""
+    driver.write_json(
+        stage / "release-ready.json",
+        {
+            "judge_provenance": {
+                "path": driver.JUDGE_PROVENANCE_PATH,
+                "sha256": hashlib.sha256(
+                    driver.JUDGE_PROVENANCE.read_bytes()
+                ).hexdigest(),
+            }
+        },
+    )
+
+
 @pytest.fixture
 def reopened(tmp_path, monkeypatch):
-    """A MOCK judge provenance naming the cases this release re-opened."""
+    """A MOCK judge provenance naming the cases this release re-opened, bound
+    by the stage's MOCK export receipt."""
 
     def name(*cases):
         path = tmp_path / "judge_provenance.json"
         path.write_text(json.dumps({"verdicts": [{"case_id": c} for c in cases]}))
         monkeypatch.setattr(driver, "JUDGE_PROVENANCE", path)
+        bind_provenance(tmp_path)
 
     monkeypatch.setattr(driver, "load_spec", filled_spec)
     return name
@@ -506,6 +524,110 @@ def test_no_committed_decision_on_a_reopened_case_stops_the_step(tmp_path, reope
     reopened("us__scenario_000__snap")
     with pytest.raises(SystemExit, match="no committed decision is on a re-opened"):
         dating.restatements(tmp_path, record_with(ruled_entry()))
+
+
+# --- Review r2, N4 (G P3-2, R P3-4): the bound provenance ---------------------
+
+
+def _rebind(stage: Path, **bound) -> None:
+    """The stage's receipt with its "judge_provenance" entry replaced; with no
+    ``bound``, the entry dropped."""
+    path = stage / "release-ready.json"
+    receipt = json.loads(path.read_text())
+    receipt.pop("judge_provenance")
+    if bound:
+        receipt["judge_provenance"] = bound
+    driver.write_json(path, receipt)
+
+
+NOT_BOUND = "is not the judge provenance record the stage's release-ready.json binds"
+PROVENANCE_DEFECTS = {
+    # The review's case: the record still names the ruled case, so
+    # require(cases) alone passed it.
+    "edited after export": (
+        lambda stage: driver.JUDGE_PROVENANCE.write_text(
+            json.dumps(
+                {"verdicts": [{"case_id": CASE}, {"case_id": "us__scenario_000__snap"}]}
+            )
+        ),
+        NOT_BOUND,
+    ),
+    "missing": (lambda stage: driver.JUDGE_PROVENANCE.unlink(), NOT_BOUND),
+    "no receipt": (
+        lambda stage: (stage / "release-ready.json").unlink(),
+        "the stage holds no release-ready.json",
+    ),
+    "no binding": (lambda stage: _rebind(stage), NOT_BOUND),
+    "another path": (
+        lambda stage: _rebind(
+            stage,
+            path="docs/terra/judge_provenance.json",
+            sha256=hashlib.sha256(driver.JUDGE_PROVENANCE.read_bytes()).hexdigest(),
+        ),
+        NOT_BOUND,
+    ),
+    "another sha256": (
+        lambda stage: _rebind(
+            stage, path=driver.JUDGE_PROVENANCE_PATH, sha256="0" * 64
+        ),
+        NOT_BOUND,
+    ),
+}
+
+
+@pytest.mark.parametrize("defect", list(PROVENANCE_DEFECTS))
+def test_the_step_reads_only_the_provenance_export_bound(tmp_path, reopened, defect):
+    """Review r2, N4 (G P3-2): export binds judge_provenance.json's sha256
+    into the stage's release-ready.json, and the step now holds the bytes it
+    parses to it. Before N4 it read whatever record the working tree held:
+    the record edited after export below still names the ruled case, so it
+    passed."""
+    write_verdict(tmp_path)
+    reopened(CASE)
+    record = record_with(ruled_entry())
+    assert list(dating.restatements(tmp_path, record)["cases"]) == [CASE]
+    edit, message = PROVENANCE_DEFECTS[defect]
+    edit(tmp_path)
+    with pytest.raises(SystemExit, match=message):
+        dating.restatements(tmp_path, record)
+
+
+def test_the_bound_provenance_is_the_record_export_bound(tmp_path, reopened):
+    """The receipt's other fields, which the freeze and finalize add, change
+    nothing: the step reads only the "judge_provenance" entry."""
+    reopened(CASE, "us__scenario_000__snap")
+    receipt = json.loads((tmp_path / "release-ready.json").read_text())
+    receipt.update(repository_postfreeze={"MOCK": "0" * 64}, partial=False)
+    driver.write_json(tmp_path / "release-ready.json", receipt)
+    assert dating.bound_provenance(tmp_path) == json.loads(
+        driver.JUDGE_PROVENANCE.read_text()
+    )
+
+
+@pytest.mark.parametrize(
+    "named, restated",
+    [
+        ((CASE,), [CASE]),
+        ((CASE, "us__scenario_000__snap"), [CASE]),
+        (("us__scenario_000__snap",), []),
+        ((), []),
+    ],
+)
+def test_reopened_decisions_are_the_cases_restatements_restates(
+    tmp_path, reopened, named, restated
+):
+    """Review r2, N4 (R P3-4): the freeze's dry run prints
+    reopened_decisions' list, so it must be the list the step restates, and
+    the step must stop exactly when the list is empty."""
+    write_verdict(tmp_path)
+    reopened(*named)
+    record = record_with(ruled_entry())
+    assert dating.reopened_decisions(record, frozenset(named)) == restated
+    if restated:
+        assert list(dating.restatements(tmp_path, record)["cases"]) == restated
+    else:
+        with pytest.raises(SystemExit, match="no committed decision is on a re-opened"):
+            dating.restatements(tmp_path, record)
 
 
 def test_a_verdict_its_sidecar_does_not_bind_is_refused(tmp_path):

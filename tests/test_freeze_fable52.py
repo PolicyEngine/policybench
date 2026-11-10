@@ -29,6 +29,7 @@ from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+import date_fable52_judge_verdicts as dating  # noqa: E402
 import finish_fable52 as driver  # noqa: E402
 import freeze_fable52 as release  # noqa: E402
 import freeze_snapshot as freezer  # noqa: E402
@@ -2369,6 +2370,43 @@ def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
     assert "references unchanged; 50 exclusions (1 new)" in out
     assert "0 adjudications added beyond the spec's; 0 wording amendments" in out
     assert f"model responses {H_WINDOW}; snapshot {SNAPSHOT_DATE}; nothing" in out
+    assert (
+        "Dating step: the record the freeze commits holds decisions on 1 "
+        "re-opened case, which date_fable52_judge_verdicts.py restates: "
+        f"{H_RULED_CASE}\n"
+    ) in out
+
+
+@pytest.mark.parametrize("state", ["reopened", "kept"])
+def test_the_dry_runs_dating_line_is_the_dating_steps_own_finding(
+    request, capsys, state
+):
+    """Review r2, N4 (R P3-4): the dry run says, before the freeze writes,
+    what the dating step will find. With the ruled case re-opened it names
+    the one case the step's restatements restate; with it carried over
+    (only an undecided case re-opened) it says the step stops, and the
+    step's restatements, run on the record the freeze commits and the bound
+    provenance, stop there."""
+    h_stage = request.getfixturevalue("h_stage_kept" if state == "kept" else "h_stage")
+    stage = h_stage.stage
+    before = h_stage.files()
+    h_stage.run("--dry-run")
+    assert h_stage.files() == before
+    line = capsys.readouterr().out.splitlines()[-1]
+    record = _h_json(stage / BUNDLE / "annotations" / release.ADJUDICATIONS)
+    if state == "kept":
+        assert line.startswith(
+            "Dating step: the record the freeze commits holds no decision on a "
+            "re-opened case, and date_fable52_judge_verdicts.py stops on that"
+        )
+        assert "rule on the saved relaxation patch before the freeze" in line
+        with pytest.raises(
+            SystemExit, match="no committed decision is on a re-opened case"
+        ):
+            dating.restatements(stage, record)
+    else:
+        assert line.endswith(f"restates: {H_RULED_CASE}")
+        assert list(dating.restatements(stage, record)["cases"]) == [H_RULED_CASE]
 
 
 def test_the_record_gate_checks_the_ruled_verdicts_day_again(h_stage):
@@ -2456,6 +2494,9 @@ def test_the_freeze_writes_the_release(h_stage, capsys):
     payload = stage / H_BOARD
     h_stage.run()
     assert f"Built {driver.RELEASE_TAG} locally" in capsys.readouterr().out
+    # Review r2, N4: the freeze rewrites the receipt and keeps the provenance
+    # binding the dating step reads.
+    assert dating.bound_provenance(stage) == _h_json(driver.JUDGE_PROVENANCE)
     pointer = _h_pointer(stage)
     assert (root / release.POINTER).read_text() == (
         json.dumps(pointer, indent=2, sort_keys=True) + "\n"

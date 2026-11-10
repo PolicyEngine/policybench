@@ -201,16 +201,58 @@ def recorded_written_day(record: dict, wave: str) -> str | None:
     return found.group(1) if found else None
 
 
+def bound_provenance(stage: Path) -> dict:
+    """The judge provenance record the stage's strict export bound.
+
+    Review r2, N4 (G P3-2): export writes the record's path and sha256 into
+    the stage's release-ready.json ("judge_provenance"), and the freeze holds
+    the record to them (freeze_fable52.verify_judge_provenance). This step
+    reads the record from the working tree, so it holds the bytes it parses
+    to the same sha256: a stale or edited record stops here, whatever cases
+    it names. The freeze and finalize rewrite the receipt and keep that
+    entry.
+    """
+    receipt_path = stage / "release-ready.json"
+    driver.require(
+        receipt_path.is_file(),
+        "the stage holds no release-ready.json; run this step on the exported "
+        "stage after the freeze",
+    )
+    receipt = json.loads(receipt_path.read_text())
+    bound = receipt.get("judge_provenance") if isinstance(receipt, dict) else None
+    path = driver.JUDGE_PROVENANCE
+    raw = path.read_bytes() if path.is_file() else None
+    driver.require(
+        isinstance(bound, dict)
+        and bound.get("path") == driver.JUDGE_PROVENANCE_PATH
+        and raw is not None
+        and bound.get("sha256") == hashlib.sha256(raw).hexdigest(),
+        f"{driver.JUDGE_PROVENANCE_PATH} is not the judge provenance record the "
+        "stage's release-ready.json binds; restore the record export bound",
+    )
+    return json.loads(raw)
+
+
+def reopened_decisions(record: dict, reopened: set[str] | frozenset[str]) -> list[str]:
+    """The cases of ``record``'s decisions that this release re-opened, sorted:
+    the cases restatements restates.
+
+    Review r2, N4 (R P3-4): when the list is empty this step stops
+    (require(cases), kept by ruling). The freeze's dry run prints the same
+    list from the staged record, which the freeze commits byte for byte, and
+    rejudged_cases, which the provenance record must name, so the lead learns
+    of the stop before the freeze writes."""
+    return sorted({case_id(entry) for entry in record["adjudications"]} & reopened)
+
+
 def restatements(stage: Path, record: dict) -> dict:
     """The current verdict of each committed decision on a re-opened case."""
-    reopened = {
-        entry["case_id"]
-        for entry in json.loads(driver.JUDGE_PROVENANCE.read_text())["verdicts"]
-    }
+    reopened = {entry["case_id"] for entry in bound_provenance(stage)["verdicts"]}
+    restated = set(reopened_decisions(record, reopened))
     cases = {}
     for entry in record["adjudications"]:
         case = case_id(entry)
-        if case not in reopened:
+        if case not in restated:
             continue
         verdict, meta = bound_verdict(stage / "audit" / "cases" / case)
         wrong = judge_disagreements(entry, verdict, meta)
