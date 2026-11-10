@@ -570,12 +570,86 @@ def test_the_live_version_refuses_records_that_are_not_the_releases(records):
         release.release_versions(base_versions(), exclusions, SNAPSHOT_DATE)
 
 
+NEITHER = "neither release 20261027's nor this release's"
+
+
 def test_a_reworded_description_stops_the_count():
     versions = base_versions()
-    live(versions)["description"] = live(versions)["description"].replace(
+    reworded = live(versions)["description"].replace(
         "keep the values they were decided on", "keep their decided values"
     )
+    live(versions)["description"] = reworded
+    with pytest.raises(SystemExit, match=NEITHER):
+        release.release_versions(
+            versions, release_record()["exclusions"], SNAPSHOT_DATE
+        )
     with pytest.raises(SystemExit, match="changed form"):
+        release.count_exclusions(reworded, release_record()["exclusions"])
+
+
+# Review r1, M12 (Z P3-1): the words of the live description are release
+# 20261027's. The review's case: a claim inserted where every pattern of
+# count_exclusions still matches once.
+CLAIM = ("same household facts", "same household facts; checked on 2.90.0")
+
+
+def release_form() -> dict:
+    return release.release_versions(
+        base_versions(), release_record()["exclusions"], SNAPSHOT_DATE
+    )
+
+
+@pytest.mark.parametrize("form", ["base", "release"])
+def test_the_live_description_keeps_the_bases_words(form):
+    versions = base_versions() if form == "base" else release_form()
+    exclusions = release_record()["exclusions"]
+    # Either text the working tree may hold gives the release's description.
+    assert release.release_versions(versions, exclusions, SNAPSHOT_DATE) == (
+        release_form()
+    )
+    assert CLAIM[0] in live(versions)["description"]
+    live(versions)["description"] = live(versions)["description"].replace(*CLAIM)
+    with pytest.raises(SystemExit, match=NEITHER):
+        release.release_versions(versions, exclusions, SNAPSHOT_DATE)
+
+
+def test_the_live_description_comes_from_the_base_commit(monkeypatch):
+    """The text the freeze writes starts from git's copy at BASE_COMMIT: with
+    a claim in that copy and the working tree's text matching it, the claim
+    is what the freeze would publish, so the source is git's, not the
+    working tree's."""
+    claimed = base_versions()
+    live(claimed)["description"] = live(claimed)["description"].replace(*CLAIM)
+    real = driver.base_commit_blob
+
+    def blob(path):
+        if Path(path) == release.VERSIONS:
+            return json.dumps(claimed).encode()
+        return real(path)
+
+    monkeypatch.setattr(driver, "base_commit_blob", blob)
+    result = release.release_versions(
+        copy.deepcopy(claimed), release_record()["exclusions"], SNAPSHOT_DATE
+    )
+    assert CLAIM[1] in live(result)["description"]
+    with pytest.raises(SystemExit, match=NEITHER):
+        release.release_versions(
+            base_versions(), release_record()["exclusions"], SNAPSHOT_DATE
+        )
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    form=st.sampled_from(["base", "release"]),
+    at=st.integers(min_value=0),
+    added=st.text(min_size=1, max_size=12),
+)
+def test_any_text_added_to_the_live_description_is_refused(form, at, added):
+    versions = base_versions() if form == "base" else release_form()
+    text = live(versions)["description"]
+    at %= len(text) + 1
+    live(versions)["description"] = text[:at] + added + text[at:]
+    with pytest.raises(SystemExit, match=NEITHER):
         release.release_versions(
             versions, release_record()["exclusions"], SNAPSHOT_DATE
         )
@@ -2376,6 +2450,27 @@ def test_a_historical_version_entry_changed_is_refused_before_any_write(h_stage)
     entry["description"] += " Edited."
     path.write_text(json.dumps(versions, indent=2) + "\n")
     _h_refused(h_stage, "Historical data.versions.json entries changed")
+
+
+@pytest.mark.parametrize("form", ["base", "release"])
+def test_a_claim_in_the_live_description_is_refused_before_any_write(h_stage, form):
+    """Review r1, M12 (Z P3-1), the review's case end to end: the claim is in
+    data.versions.json before export, so the receipt binds it, and
+    verify_repository_inputs frees the live description. The working tree
+    holds release 20261027's text, or this release's from a first freeze."""
+    path = h_stage.workspace / release.VERSIONS
+    versions = _h_json(path)
+    if form == "release":
+        versions = release.release_versions(
+            versions, release_record()["exclusions"], SNAPSHOT_DATE
+        )
+    live(versions)["description"] = live(versions)["description"].replace(*CLAIM)
+    path.write_text(json.dumps(versions, indent=2) + "\n")
+    receipt_path = h_stage.stage / "release-ready.json"
+    receipt = _h_json(receipt_path)
+    receipt["repository_inputs"] = driver.repository_input_hashes(h_stage.workspace)
+    driver.write_json(receipt_path, receipt)
+    _h_refused(h_stage, NEITHER)
 
 
 @pytest.mark.parametrize("record", ["base", "edited"])

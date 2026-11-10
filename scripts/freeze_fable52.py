@@ -1217,6 +1217,13 @@ def release_versions(
     label carries the spec's snapshot date. The record's engines must be
     exactly RELEASE_EXCLUSION_ENGINES. Nothing else changes, and applying this
     to its own result changes nothing.
+
+    Review r1, M12: the description this writes starts from release
+    20261027's, read from git at BASE_COMMIT. Export binds the working tree's
+    data.versions.json only by hash, and verify_repository_inputs frees the
+    live description, so the working tree's must be release 20261027's text
+    or the text this function makes of it (a second freeze); a word added,
+    dropped or changed anywhere else refuses the freeze.
     """
     out = copy.deepcopy(versions)
     live = [item for item in out["versions"] if item["id"] == out["default"]]
@@ -1228,13 +1235,23 @@ def release_versions(
             "The live version description counts exclusions decided on "
             f"{sorted(EXCLUSION_ENGINES)}; the record's are {sorted(engines)}"
         )
+    base = json.loads(driver.base_commit_blob(VERSIONS))
+    original = [item for item in base["versions"] if item["id"] == base["default"]]
+    if len(original) != 1 or original[0]["id"] != live[0]["id"]:
+        raise SystemExit("The live version is not release 20261027's live version")
     description, changed = re.subn(
         r" - \d+ models$",
         f" - {BOARD_MODELS} models",
-        count_exclusions(live[0]["description"], exclusions),
+        count_exclusions(original[0]["description"], exclusions),
     )
     if changed != 1:
         raise SystemExit("Live version description has an unexpected model-count shape")
+    if live[0].get("description") not in (original[0]["description"], description):
+        raise SystemExit(
+            "The live version description is neither release 20261027's nor "
+            "this release's; restore release 20261027's text in "
+            f"{VERSIONS} and export again"
+        )
     live[0].update(description=description, snapshotLabel=f"Snapshot {snapshot_date}")
     return out
 
