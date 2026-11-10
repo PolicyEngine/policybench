@@ -2256,18 +2256,20 @@ def carry_kept_wording(rows, cases, rejudged: frozenset[str]):
     Review r3, Q1. collect_audit writes a row's annotation from its verdict's
     diagnosis and a case note from its rationale. A case outside
     ``rejudged`` keeps the seed's verdict byte for byte, and release
-    20261027 published that verdict's text with the wording amendments its
-    committed us_wording-amendments.json lists (the last 1,578 of them
-    reword 1,406 rows and 76 case notes on 117 cases). So on such a case each
-    row that release's committed files hold (base_annotation_frames, by
-    country, scenario, output and model) takes their annotation, and the
-    case note takes theirs without its adjudication sentence, which
-    apply_adjudications then writes for each of this release's decisions. A
-    row the files do not hold keeps the text collect_audit built: on a kept
-    case, only a new model's row on a parse-failure-only case, which no
-    prompt re-opens (verify_reopened_by_predictions). Every other column
-    stays collect_audit's; verify_kept_annotations holds the result to the
-    files. Returns copies.
+    20261027's committed files hold that verdict's text with the last 1,578
+    wording amendments its committed us_wording-amendments.json lists,
+    Terra's, applied (their 1,566 text amendments reword 1,406 rows and 76
+    case notes on 117 cases; the other 12 name the reasoning field). So on
+    such a case each row that release's committed files hold
+    (base_annotation_frames, by country, scenario, output and model) takes
+    their annotation, and the case note takes theirs without its
+    adjudication sentence, which apply_adjudications then writes for each of
+    this release's decisions. A row the files do not hold keeps the text
+    collect_audit built: on a kept case, only a new model's row on a
+    parse-failure-only case, which no prompt re-opens
+    (verify_reopened_by_predictions). Every other column stays
+    collect_audit's; verify_kept_annotations holds the result to the files.
+    Returns copies.
     """
     from policybench.adjudications import _strip_adjudication_sentence
 

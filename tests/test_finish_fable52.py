@@ -5049,11 +5049,13 @@ def exported_cells(cells: dict, rows, cases, key: tuple[str, str]) -> dict:
 
 
 # Review r3, Q1: release 20261027's committed wording amendments, the last
-# 1,578 of which (after the first 870) are Terra's, the ones that release
-# publishes. The seed is not in the repository: undoing Terra's text
-# amendments in reverse order on the committed files, and dropping each case
-# note's adjudication sentence, rebuilds the text collect_audit gives the
-# seed (the local test below checks it against the seed itself).
+# 1,578 of which (after the first 870) are Terra's, the ones whose wording
+# that release's committed files carry over the seed's text (1,566 of them
+# amend text; 12 name the reasoning field). The seed is not in the
+# repository: undoing Terra's text amendments in reverse order on the
+# committed files, and dropping each case note's adjudication sentence,
+# rebuilds the text collect_audit gives the seed (the local test below
+# checks it against the seed itself).
 TERRA_AMENDMENTS_START = 870
 
 
