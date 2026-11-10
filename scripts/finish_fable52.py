@@ -4118,8 +4118,8 @@ def stage_upgrade(stage: Path) -> None:
 
     finish_terra required its installed build here at every later step. This
     release installs none, so a stage.json naming references_installed, or a
-    stage holding the install's files, was not staged by this driver. The
-    base's engine pins and the audit's publication record are re-checked
+    stage holding the install's files, came from another driver. It
+    re-checks the base's engine pins and the audit's publication record
     instead, as finish_terra re-gated its build at every step. None is the
     no-upgrade value every gate below takes.
     """
