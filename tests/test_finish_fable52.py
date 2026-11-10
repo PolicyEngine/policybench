@@ -411,6 +411,106 @@ def test_the_audits_builder_must_keep_its_pin(engine_root):
         driver.verify_publication_record(engine_root)
 
 
+# --finalize holds the record to a check of PyPI's newest engine, run on or
+# after the snapshot day. These tests start from release 20261027's record,
+# read from git: the lead's rerun rewrites the working tree's.
+
+
+@pytest.fixture
+def base_timing_root(engine_root):
+    (engine_root / TIMING).write_bytes(base_blob(TIMING))
+    return engine_root
+
+
+def _edit_timing(root: Path, edit) -> None:
+    path = root / TIMING
+    timing = json.loads(path.read_text())
+    edit(timing)
+    path.write_text(json.dumps(timing))
+
+
+def _read(stamp, newest="2.78.0"):
+    return lambda timing: timing["pypi"].update(
+        read_at_utc=stamp, newest_at_read=newest
+    )
+
+
+@pytest.mark.parametrize(
+    "edit, day, accepted",
+    [
+        # Release 20261027's record read PyPI on 2026-10-29, newest 2.78.0.
+        (lambda timing: None, "2026-10-29", True),
+        (lambda timing: None, "2026-10-28", True),
+        (lambda timing: None, "2026-10-30", False),
+        (lambda timing: None, SNAPSHOT_DATE, False),
+        (_read("2026-11-10T00:00:00Z"), SNAPSHOT_DATE, True),
+        (_read("2026-11-09T23:59:59Z"), SNAPSHOT_DATE, False),
+        (_read("2026-11-12T08:00:00Z", newest="2.80.0"), SNAPSHOT_DATE, False),
+        (_read("2026-11-10T12:00:00+00:00"), SNAPSHOT_DATE, False),
+        (_read("2026-11-10 12:00:00"), SNAPSHOT_DATE, False),
+        (_read("2026-11-31T12:00:00Z"), SNAPSHOT_DATE, False),
+        (_read(None), SNAPSHOT_DATE, False),
+        (_read("2026-11-10T12:00:00Z", newest=None), SNAPSHOT_DATE, False),
+        (lambda timing: timing.pop("pypi"), SNAPSHOT_DATE, False),
+        # PyPI's newest is still the reference engine: the check records it.
+        (
+            lambda timing: (
+                timing["publication_check"].update(engine="2.60.0"),
+                timing["pypi"].update(
+                    read_at_utc="2026-11-10T09:00:00Z", newest_at_read="2.60.0"
+                ),
+            ),
+            SNAPSHOT_DATE,
+            True,
+        ),
+    ],
+)
+def test_at_finalize_the_record_checks_pypis_newest_on_the_snapshot_day(
+    base_timing_root, edit, day, accepted
+):
+    _edit_timing(base_timing_root, edit)
+    # The record gate alone takes every one of these records.
+    driver.verify_publication_record(base_timing_root)
+    if accepted:
+        driver.verify_publication_record(base_timing_root, checked_on_or_after=day)
+    else:
+        with pytest.raises(SystemExit, match="does not check the newest"):
+            driver.verify_publication_record(base_timing_root, checked_on_or_after=day)
+
+
+@pytest.mark.parametrize(
+    "day", [SNAPSHOT_PLACEHOLDER, "", "2026-11-1", "10 November 2026", 20261110]
+)
+def test_at_finalize_the_record_needs_a_real_day(base_timing_root, day):
+    with pytest.raises(SystemExit, match="no day to hold the publication check to"):
+        driver.verify_publication_record(base_timing_root, checked_on_or_after=day)
+
+
+@settings(
+    max_examples=60,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(read=st.dates(), day=st.dates())
+def test_the_currency_check_is_the_read_day_against_the_snapshot_day(
+    base_timing_root, read, day
+):
+    """For any PyPI read day and snapshot day, a record of PyPI's newest engine
+    passes exactly when the read falls on or after the snapshot day. Each
+    example rewrites the root's whole record."""
+    (base_timing_root / TIMING).write_bytes(base_blob(TIMING))
+    _edit_timing(base_timing_root, _read(f"{read.isoformat()}T12:00:00Z"))
+    if read >= day:
+        driver.verify_publication_record(
+            base_timing_root, checked_on_or_after=day.isoformat()
+        )
+    else:
+        with pytest.raises(SystemExit, match="does not check the newest"):
+            driver.verify_publication_record(
+                base_timing_root, checked_on_or_after=day.isoformat()
+            )
+
+
 # --- The ruled record and the release's exclusion record ----------------------
 
 

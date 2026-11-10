@@ -440,8 +440,15 @@ def verify_repository_inputs(receipt: dict) -> None:
         raise SystemExit(f"Repository inputs changed since strict export: {changed}")
 
 
-def finalize(stage: Path, receipt: dict, freezer) -> None:
-    """Validate publication and render changes, then atomically bind them."""
+def finalize(stage: Path, receipt: dict, freezer, snapshot_date: str) -> None:
+    """Validate publication and render changes, then atomically bind them.
+
+    The publication check must have rewritten sweep_timing.json since export:
+    every check run rewrites its PyPI read, so an unchanged record means the
+    check did not run, or stopped before it wrote. Its new record must pass
+    the driver's record gate and check PyPI's newest policyengine-us, read on
+    or after ``snapshot_date`` (the spec's).
+    """
     manifest_name = str(SNAPSHOT / "manifest.json")
     timing_name = str(driver.REPOSITORY_INPUT_FILES[2])
     pdf_name = "app/public/paper/policybench.pdf"
@@ -492,11 +499,22 @@ def finalize(stage: Path, receipt: dict, freezer) -> None:
     forbidden = [name for name in changed if not allowed(name)]
     if forbidden:
         raise SystemExit(f"Finalize refuses repository changes: {forbidden}")
-    if timing_name in changed:
-        # The publication check rewrote sweep_timing.json: driver.stage_upgrade
-        # gates its new record again (driver.verify_publication_record), with
-        # the base's engine pins.
-        driver.stage_upgrade(stage)
+    if driver.utc_day(snapshot_date) is None:
+        raise SystemExit(
+            f"Finalize needs the spec's snapshot_date (YYYY-MM-DD): {snapshot_date!r}"
+        )
+    if timing_name not in changed:
+        raise SystemExit(
+            f"Finalize requires the publication check's record: {timing_name} is "
+            "unchanged since export; run sweep_timing.py check as "
+            "docs/fable52/design.md says, then finalize"
+        )
+    # The publication check rewrote sweep_timing.json: driver.stage_upgrade
+    # gates its new record again (driver.verify_publication_record), with the
+    # base's engine pins, and the record must check the newest engine on PyPI,
+    # read on or after the snapshot day.
+    driver.stage_upgrade(stage)
+    driver.verify_publication_record(checked_on_or_after=snapshot_date)
     manifest = read_json(ROOT / manifest_name)
     if manifest_core_digest(manifest) != receipt["postfreeze_manifest_core"]:
         raise SystemExit("Manifest core changed since the completed freeze")
@@ -1420,8 +1438,8 @@ def main(argv: list[str] | None = None) -> None:
     driver.require_combined_predictions(stage / "publish" / RUN)
     receipt = verify_receipt(stage, payload_path, args.tag)
     if args.finalize:
-        release_spec(args.tag)
-        finalize(stage, receipt, freezer)
+        spec = release_spec(args.tag)
+        finalize(stage, receipt, freezer, spec["snapshot_date"])
         return
     verify_repository_inputs(receipt)
     spec = release_spec(args.tag)

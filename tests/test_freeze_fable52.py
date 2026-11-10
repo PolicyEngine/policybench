@@ -922,12 +922,15 @@ def test_the_record_gate_hands_triage_the_specs_decisions(tmp_path, monkeypatch)
 
 
 TIMING = str(driver.REPOSITORY_INPUT_FILES[2])
+# The driver's record gate itself: the finalize fixture replaces the module's.
+PUBLICATION_GATE = driver.verify_publication_record
 
 
 @pytest.fixture
 def finalizing(tmp_path, monkeypatch):
     """A completed freeze's MOCK receipt; the repository's hashes and their
-    changes come from the test, and driver.stage_upgrade records its calls."""
+    changes come from the test, and driver.stage_upgrade and the publication
+    record's currency check record their calls."""
     stage = tmp_path / "stage"
     stage.mkdir()
     (stage / "stage.json").write_text(json.dumps({"early": False, "partial": False}))
@@ -944,8 +947,15 @@ def finalizing(tmp_path, monkeypatch):
         },
         "postfreeze_manifest_core": "0" * 64,
     }
-    made = SimpleNamespace(stage=stage, receipt=receipt, calls=[], changed=[])
+    made = SimpleNamespace(
+        stage=stage, receipt=receipt, calls=[], changed=[], publication=[]
+    )
     monkeypatch.setattr(driver, "stage_upgrade", made.calls.append)
+    monkeypatch.setattr(
+        driver,
+        "verify_publication_record",
+        lambda **kwargs: made.publication.append(kwargs),
+    )
     monkeypatch.setattr(driver, "repository_input_hashes", lambda root: {})
     monkeypatch.setattr(
         release,
@@ -959,14 +969,79 @@ def test_finalize_regates_a_rewritten_publication_record(finalizing):
     finalizing.changed.append(TIMING)
     # The MOCK receipt's manifest core stops it after the re-gate.
     with pytest.raises(SystemExit, match="Manifest core changed"):
-        release.finalize(finalizing.stage, finalizing.receipt, freezer)
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.calls == [finalizing.stage]
+    assert finalizing.publication == [{"checked_on_or_after": SNAPSHOT_DATE}]
+
+
+def test_finalize_refuses_without_a_new_publication_record(finalizing):
+    """A check that did not run, or stopped before it wrote, leaves
+    sweep_timing.json as export bound it: finalize stops before any gate."""
+    with pytest.raises(SystemExit, match="unchanged since export"):
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.calls == [] and finalizing.publication == []
+
+
+@pytest.mark.parametrize("day", [None, "", "[LEAD: the UTC day of the freeze]"])
+def test_finalize_refuses_without_a_snapshot_day(finalizing, day):
+    finalizing.changed.append(TIMING)
+    with pytest.raises(SystemExit, match="Finalize needs the spec's snapshot_date"):
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, day)
+    assert finalizing.calls == [] and finalizing.publication == []
+
+
+def publication_root(root: Path) -> Path:
+    """A synthetic checkout root holding release 20261027's publication record
+    (the 2026-10-29 check of policyengine-us 2.78.0), its builder and the
+    committed reference-build/, from git at the base commit."""
+    timing = json.loads(base_blob(driver.REFERENCE_AUDIT / TIMING_RECORD))
+    built = [n for n in timing["publication_check"]["build_sha256"] if n != "builder"]
+    for relative in (
+        driver.REFERENCE_AUDIT / TIMING_RECORD,
+        driver.REFERENCE_AUDIT / "scripts/build_references_upgrade.py",
+        *(driver.REFERENCE_BUILD_DIR / name for name in built),
+    ):
+        (root / relative).parent.mkdir(parents=True, exist_ok=True)
+        (root / relative).write_bytes(base_blob(relative))
+    return root
+
+
+TIMING_RECORD = Path("verification/sweep_timing.json")
+
+
+def test_finalize_stops_on_the_base_releases_publication_record(
+    finalizing, monkeypatch, tmp_path
+):
+    """The 2026-10-29 record passes the record gate but read PyPI before the
+    snapshot day, so finalize stops on it."""
+    root = publication_root(tmp_path / "root")
+    real = PUBLICATION_GATE
+    finalizing.changed.append(TIMING)
+    monkeypatch.setattr(
+        driver, "verify_publication_record", lambda **kw: real(root, **kw)
+    )
+    real(root)
+    with pytest.raises(SystemExit, match="does not check the newest"):
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
     assert finalizing.calls == [finalizing.stage]
 
 
-def test_finalize_without_a_new_publication_record_regates_nothing(finalizing):
-    with pytest.raises(SystemExit, match="Manifest core changed"):
-        release.finalize(finalizing.stage, finalizing.receipt, freezer)
-    assert finalizing.calls == []
+def test_main_hands_finalize_the_specs_snapshot_day(monkeypatch, tmp_path):
+    seen = {}
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    monkeypatch.setattr(release, "ROOT", tmp_path)
+    monkeypatch.setattr(release, "verify_freezer_destinations", lambda freezer: None)
+    monkeypatch.setattr(driver, "require_combined_predictions", lambda path: None)
+    monkeypatch.setattr(release, "verify_receipt", lambda *args: {"MOCK": "receipt"})
+    monkeypatch.setattr(driver, "load_spec", lambda: filled_spec())
+    monkeypatch.setattr(
+        release, "finalize", lambda *args: seen.setdefault("finalize", args)
+    )
+    release.main(["--stage-dir", str(stage), "--finalize"])
+    assert seen["finalize"][0] == stage.resolve()
+    assert seen["finalize"][1] == {"MOCK": "receipt"}
+    assert seen["finalize"][3] == SNAPSHOT_DATE
 
 
 def test_finalize_stops_on_a_publication_record_the_driver_refuses(
@@ -979,14 +1054,15 @@ def test_finalize_stops_on_a_publication_record_the_driver_refuses(
 
     monkeypatch.setattr(driver, "stage_upgrade", refuse)
     with pytest.raises(SystemExit, match="names an older engine"):
-        release.finalize(finalizing.stage, finalizing.receipt, freezer)
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.publication == []
 
 
 def test_finalize_refuses_a_change_outside_the_render(finalizing):
     finalizing.changed.extend([TIMING, "uv.lock"])
     with pytest.raises(SystemExit, match="Finalize refuses repository changes"):
-        release.finalize(finalizing.stage, finalizing.receipt, freezer)
-    assert finalizing.calls == []
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.calls == [] and finalizing.publication == []
 
 
 def test_finalize_refuses_a_rehearsal_stage(finalizing):
@@ -994,4 +1070,4 @@ def test_finalize_refuses_a_rehearsal_stage(finalizing):
         json.dumps({"early": True, "partial": False})
     )
     with pytest.raises(SystemExit, match="cannot become a release"):
-        release.finalize(finalizing.stage, finalizing.receipt, freezer)
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)

@@ -4053,7 +4053,9 @@ def verify_base_engine(root: Path | None = None) -> None:
     verify_engine_pins(BASE_ENGINE, root=root)
 
 
-def verify_publication_record(root: Path | None = None) -> dict:
+def verify_publication_record(
+    root: Path | None = None, *, checked_on_or_after: str | None = None
+) -> dict:
     """The audit's publication check record agrees with the base's references.
 
     finish_terra's load_build required sweep_timing.json's publication_check
@@ -4066,6 +4068,13 @@ def verify_publication_record(root: Path | None = None) -> dict:
     build's record does, so it counts the output this release newly excludes
     as scored: an engine that moves it stops the release here too. Returns
     the record.
+
+    With ``checked_on_or_after`` (the spec's snapshot_date, which the freeze's
+    --finalize passes), the record must also come from a check run on or
+    after that day of the newest release on PyPI: its engine must equal the
+    newest release the check read (pypi.newest_at_read), and pypi.read_at_utc
+    must be a UTC stamp on or after the day. An older record, such as the
+    2026-10-29 check of 2.78.0, then stops the release.
     """
     root = ROOT if root is None else root
     audit = root / REFERENCE_AUDIT
@@ -4104,6 +4113,30 @@ def verify_publication_record(root: Path | None = None) -> dict:
         "references, engine or builder, or with the committed reference-build/; "
         "rerun sweep_timing.py check as docs/fable52/design.md says",
     )
+    if checked_on_or_after is not None:
+        require(
+            utc_day(checked_on_or_after) is not None,
+            f"no day to hold the publication check to: {checked_on_or_after!r}",
+        )
+        pypi = timing.get("pypi")
+        pypi = pypi if isinstance(pypi, dict) else {}
+        read = pypi.get("read_at_utc")
+        stamped = (
+            isinstance(read, str)
+            and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", read) is not None
+            and utc_day(read[:10]) is not None
+        )
+        require(
+            isinstance(pypi.get("newest_at_read"), str)
+            and str(record.get("engine")) == pypi["newest_at_read"]
+            and stamped
+            and read[:10] >= checked_on_or_after,
+            "the audit's publication record does not check the newest "
+            f"policyengine-us on or after {checked_on_or_after}: it checked "
+            f"{record.get('engine')!r}, and PyPI's newest was "
+            f"{pypi.get('newest_at_read')!r} when it read PyPI at {read!r}; rerun "
+            "sweep_timing.py check as docs/fable52/design.md says",
+        )
     return record
 
 
