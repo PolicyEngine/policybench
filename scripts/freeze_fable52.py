@@ -443,6 +443,8 @@ def verify_repository_inputs(receipt: dict) -> None:
 def finalize(stage: Path, receipt: dict, freezer, snapshot_date: str) -> None:
     """Validate publication and render changes, then atomically bind them.
 
+    Once the receipt shows a completed freeze, the committed references must
+    still be the release's (verify_committed_references, review r1, M13).
     The publication check must have rewritten sweep_timing.json since export:
     every check run rewrites its PyPI read, so an unchanged record means the
     check did not run, or stopped before it wrote. Its new record must pass
@@ -490,6 +492,9 @@ def finalize(stage: Path, receipt: dict, freezer, snapshot_date: str) -> None:
             "Finalize requires a completed freeze with well-formed repository_inputs, "
             "repository_postfreeze and postfreeze_manifest_core; re-freeze this stage"
         )
+    # Review r1, M13: the committed references, as verify_frozen held them
+    # after the freeze, on every finalize and before any other repository read.
+    verify_committed_references(ROOT / SNAPSHOT, driver.release_exclusions_sha256())
     postrender = receipt.get("repository_postrender", {})
     if not hashes(postrender) or any(not allowed(name) for name in postrender):
         raise SystemExit("Strict export receipt has malformed repository render hashes")
@@ -1271,6 +1276,25 @@ def manifest_problems(before: dict, after: dict) -> list[tuple]:
     ]
 
 
+def verify_committed_references(snapshot: Path, exclusions_sha256: str) -> None:
+    """The committed references are the release's: the frozen run's reference
+    files release 20261027's, its exclusion record ``exclusions_sha256``
+    (the release's), and the snapshot's us_reference_outputs.csv release
+    20261027's.
+
+    verify_frozen holds them right after the freezer writes them. Review r1,
+    M13: finalize holds them again, every time, before it reads anything else
+    in the repository, so an edit between the freeze and finalize stops it.
+    """
+    driver.verify_reference_pins(
+        snapshot / "runs" / RUN, "frozen reference", exclusions_sha256
+    )
+    path = snapshot / "us_reference_outputs.csv"
+    csv_pin = driver.BASE_REFERENCE_SHA256[driver.CSV_NAME]
+    if not path.is_file() or digest(path) != csv_pin:
+        raise SystemExit("Frozen us_reference_outputs.csv is not release 20261027's")
+
+
 def verify_frozen(
     *,
     stage: Path,
@@ -1297,12 +1321,7 @@ def verify_frozen(
     counts, artifact and exclusion pin.
     """
     staged_annotations = stage / "publish" / RUN / "annotations"
-    frozen_run = snapshot / "runs" / RUN
-    driver.verify_reference_pins(frozen_run, "frozen reference", exclusions_sha256)
-    path = snapshot / "us_reference_outputs.csv"
-    csv_pin = driver.BASE_REFERENCE_SHA256[driver.CSV_NAME]
-    if not path.is_file() or digest(path) != csv_pin:
-        raise SystemExit("Frozen us_reference_outputs.csv is not release 20261027's")
+    verify_committed_references(snapshot, exclusions_sha256)
     copied = (ADJUDICATIONS, *ANNOTATION_CSVS, EXPLANATIONS)
     frozen = sorted(path.name for path in annotations.iterdir() if path.is_file())
     if frozen != sorted((*copied, COMMITTED_AMENDMENTS)):

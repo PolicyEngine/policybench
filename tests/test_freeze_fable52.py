@@ -1056,7 +1056,19 @@ def finalizing(tmp_path, monkeypatch):
         "postfreeze_manifest_core": "0" * 64,
     }
     made = SimpleNamespace(
-        stage=stage, receipt=receipt, calls=[], changed=[], publication=[]
+        stage=stage,
+        receipt=receipt,
+        calls=[],
+        changed=[],
+        publication=[],
+        references=[],
+    )
+    # The committed snapshot holds release 20261027's record until a freeze:
+    # the reference check records its call here (the H tests run it).
+    monkeypatch.setattr(
+        release,
+        "verify_committed_references",
+        lambda snapshot, sha256: made.references.append((snapshot, sha256)),
     )
     monkeypatch.setattr(driver, "stage_upgrade", made.calls.append)
     monkeypatch.setattr(
@@ -1169,6 +1181,30 @@ def test_finalize_stops_on_a_publication_record_the_driver_refuses(
 def test_finalize_refuses_a_change_outside_the_render(finalizing):
     finalizing.changed.extend([TIMING, "uv.lock"])
     with pytest.raises(SystemExit, match="Finalize refuses repository changes"):
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.calls == [] and finalizing.publication == []
+
+
+def test_finalize_holds_the_committed_references_before_any_other_check(
+    finalizing, monkeypatch
+):
+    """Review r1, M13 (Z P3-2): every finalize of a completed freeze holds the
+    committed references to the release's first, whether or not the timing
+    record changed, and a refusal there stops it before any other check."""
+    with pytest.raises(SystemExit, match="requires the publication check's record"):
+        release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+    assert finalizing.references == [
+        (release.ROOT / release.SNAPSHOT, driver.release_exclusions_sha256())
+    ]
+    assert driver.release_exclusions_sha256() == sha(release_text().encode())
+
+    def refuse(snapshot, sha256):
+        raise SystemExit("frozen reference scenarios.csv does not match its pin")
+
+    monkeypatch.setattr(release, "verify_committed_references", refuse)
+    finalizing.changed.extend([TIMING, "uv.lock"])
+    (finalizing.stage / "stage.json").write_text(json.dumps({"early": True}))
+    with pytest.raises(SystemExit, match="does not match its pin"):
         release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
     assert finalizing.calls == [] and finalizing.publication == []
 
@@ -2312,6 +2348,49 @@ def test_the_freeze_refuses_what_the_freezer_wrote_outside_the_release(h_stage, 
     assert "repository_postfreeze" not in _h_json(h_stage.stage / "release-ready.json")
     with pytest.raises(SystemExit, match="Finalize requires a completed freeze"):
         h_stage.run("--finalize")
+
+
+# Review r1, M13 (Z P3-2): edits between the freeze and finalize to what the
+# freeze committed, and what finalize answers.
+H_COMMITTED_EDITS = {
+    **{
+        name: (
+            FROZEN / name,
+            f"frozen reference {re.escape(name)} does not match its pin",
+        )
+        for name in driver.REFERENCE_FILES
+        if name != driver.EXCLUSIONS_NAME
+    },
+    "the base's record": (
+        FROZEN / driver.EXCLUSIONS_NAME,
+        f"frozen reference {re.escape(driver.EXCLUSIONS_NAME)} does not match",
+    ),
+    "us_reference_outputs.csv": (
+        release.SNAPSHOT / "us_reference_outputs.csv",
+        "Frozen us_reference_outputs.csv is not release 20261027's",
+    ),
+}
+
+
+@pytest.mark.parametrize("edit", [None, *H_COMMITTED_EDITS])
+def test_finalize_refuses_a_committed_reference_edited_after_the_freeze(h_stage, edit):
+    """The review's case: a committed reference edited between the freeze
+    and --finalize. Untouched, finalize passes the check and stops where the
+    publication check has not run."""
+    h_stage.run()
+    if edit is None:
+        message = "requires the publication check's record"
+    else:
+        relative, message = H_COMMITTED_EDITS[edit]
+        path = h_stage.workspace / relative
+        if edit == "the base's record":
+            path.write_bytes(h_blob(relative))
+        else:
+            path.write_bytes(path.read_bytes() + b"\n")
+    before = h_stage.files()
+    with pytest.raises(SystemExit, match=message):
+        h_stage.run("--finalize")
+    assert h_stage.files() == before
 
 
 def _h_frozen_arguments(h_stage) -> dict:
