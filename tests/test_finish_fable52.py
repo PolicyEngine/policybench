@@ -3550,6 +3550,133 @@ def test_export_refuses_explanations_off_the_base_before_it_builds(
     assert "build_payload" not in [name for name, _ in export_spy.calls]
 
 
+# Review r1, M8: export's two reference-pin checks, real, at their call site
+# (verify_reference_pins alone is tested above): the committed snapshot,
+# whose exclusion record follows the live pointer (the base's until the
+# freeze points it at this release), and the bundle, which scores on the
+# release's record.
+
+REAL_REFERENCE_PINS = driver.verify_reference_pins
+REAL_RELEASE_EXCLUSIONS_SHA256 = driver.release_exclusions_sha256
+
+
+def _pinned_export(export_spy, tmp_path, tag) -> tuple[Path, Path]:
+    """The real pin checks; a committed snapshot and a bundle holding their
+    pinned bytes; the live pointer at ``tag``. The record's digest is the
+    real function's value (base_exclusion_record reads git at the committed
+    snapshot's path, which this test moves)."""
+    assert REAL_RELEASE_EXCLUSIONS_SHA256() == RELEASE_EXCLUSIONS_SHA256
+    mp = export_spy.monkeypatch
+    mp.setattr(driver, "verify_reference_pins", REAL_REFERENCE_PINS)
+    mp.setattr(driver, "release_exclusions_sha256", lambda: RELEASE_EXCLUSIONS_SHA256)
+    mp.setattr(driver, "live_pointer", lambda: {"tag": tag})
+    snapshot = base_references(tmp_path / "snapshot")
+    if tag == driver.RELEASE_TAG:
+        (snapshot / EXCLUSIONS_NAME).write_text(release_text())
+    mp.setattr(driver, "SNAPSHOT", snapshot)
+    us = base_references(tmp_path / "bundle" / "us")
+    (us / EXCLUSIONS_NAME).write_text(release_text())
+    return snapshot, us
+
+
+def _refused_before_build(export_spy, tmp_path, message) -> None:
+    export_spy.calls.clear()
+    args = SimpleNamespace(stage_dir=tmp_path / "stage", early=False, partial=False)
+    with pytest.raises(SystemExit, match=message):
+        driver.export(args, tmp_path / "bundle", {})
+    assert "build_payload" not in [name for name, _ in export_spy.calls]
+
+
+@pytest.mark.parametrize("tag", [driver.BASE_TAG, driver.RELEASE_TAG])
+def test_export_passes_pinned_references_to_build_payload(export_spy, tmp_path, tag):
+    _pinned_export(export_spy, tmp_path, tag)
+    _export(tmp_path)
+    assert export_spy.calls[-1][0] == "build_payload"
+
+
+@pytest.mark.parametrize("name", [*driver.REFERENCE_FILES, "base record"])
+def test_export_refuses_a_bundle_reference_off_its_pin_before_it_builds(
+    export_spy, tmp_path, name
+):
+    """Each of the bundle's five reference files one byte off its pin, or the
+    bundle scoring on release 20261027's record in place of the release's."""
+    _, us = _pinned_export(export_spy, tmp_path, driver.BASE_TAG)
+    if name == "base record":
+        name = EXCLUSIONS_NAME
+        (us / name).write_bytes(base_blob(SNAPSHOT_PATH / name))
+    else:
+        (us / name).write_bytes((us / name).read_bytes() + b"\n")
+    _refused_before_build(
+        export_spy, tmp_path, f"staged reference {re.escape(name)} does not match"
+    )
+
+
+@pytest.mark.parametrize("tag", [driver.BASE_TAG, driver.RELEASE_TAG])
+@pytest.mark.parametrize("name", [*driver.REFERENCE_FILES, "other record"])
+def test_export_refuses_a_committed_reference_off_its_pin_before_it_builds(
+    export_spy, tmp_path, tag, name
+):
+    """Each committed reference file one byte off its pin, with the live
+    pointer at the base (before the freeze) and at this release (after it),
+    or the committed record that pointer does not name: the release's
+    before the freeze, the base's after it."""
+    snapshot, _ = _pinned_export(export_spy, tmp_path, tag)
+    if name == "other record":
+        name = EXCLUSIONS_NAME
+        other = (
+            release_text().encode()
+            if tag == driver.BASE_TAG
+            else base_blob(SNAPSHOT_PATH / name)
+        )
+        (snapshot / name).write_bytes(other)
+    else:
+        (snapshot / name).write_bytes((snapshot / name).read_bytes() + b"\n")
+    _refused_before_build(
+        export_spy, tmp_path, f"committed reference {re.escape(name)} does not match"
+    )
+
+
+@pytest.mark.parametrize("name", driver.REFERENCE_FILES)
+def test_prepare_refuses_a_committed_reference_before_it_reads_the_pointer(
+    workspace, monkeypatch, tmp_path, name
+):
+    """resolve_base holds the committed snapshot to its pins before it reads
+    the live pointer (and before prepare stages anything)."""
+    snapshot = base_references(tmp_path / "snapshot")
+    (snapshot / name).write_bytes((snapshot / name).read_bytes() + b"\n")
+    monkeypatch.setattr(driver, "SNAPSHOT", snapshot)
+    monkeypatch.setattr(driver, "discover_new_models", lambda root: [])
+    monkeypatch.setattr(driver, "live_pointer", lambda: pytest.fail("pointer read"))
+    monkeypatch.setattr(
+        driver, "prepare_inputs", lambda *a: pytest.fail("prepare_inputs ran")
+    )
+    with pytest.raises(
+        SystemExit, match=f"committed reference {re.escape(name)} does not match"
+    ):
+        driver.main(
+            ["--stage-dir", str(workspace.stage), "--step", "prepare"]
+            + ["--runs-root", str(workspace.root / "runs")]
+        )
+    assert not workspace.stage.exists()
+
+
+def test_prepare_reads_the_pointer_once_the_committed_references_pass(
+    workspace, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(driver, "SNAPSHOT", base_references(tmp_path / "snapshot"))
+    monkeypatch.setattr(driver, "discover_new_models", lambda root: [])
+
+    def pointer():
+        raise SystemExit("MOCK: the pointer was read")
+
+    monkeypatch.setattr(driver, "live_pointer", pointer)
+    with pytest.raises(SystemExit, match="MOCK: the pointer was read"):
+        driver.main(
+            ["--stage-dir", str(workspace.stage), "--step", "prepare"]
+            + ["--runs-root", str(workspace.root / "runs")]
+        )
+
+
 @pytest.mark.parametrize("gate", EXPORT_GATES)
 def test_export_builds_nothing_once_a_gate_refuses(export_spy, tmp_path, gate):
     def refuse(*args, **kw):
