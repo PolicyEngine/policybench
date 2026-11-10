@@ -2911,10 +2911,10 @@ def test_triage_stops_when_a_case_miscounts_its_rows(triage_stage):
 # its role. Applied in order to each line of Terra's source.
 TERRA_RENAMES = (
     (
-        "judge_previous is not 20261027's plus one item",
+        "judge_previous is not 20261014's plus one item",
         "judge_previous is not the base's plus one item",
     ),
-    ('"20261027\'s entry names"', '"the base entry names"'),
+    ('"20261014\'s entry names"', '"the base entry names"'),
     ("export-stage-terra-", "export-stage-fable52-"),
     (".terra-judge-provenance-", ".fable52-judge-provenance-"),
     ("20261027", "@REL_B@"),
