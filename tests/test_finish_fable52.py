@@ -1259,13 +1259,16 @@ def test_a_half_written_install_takes_no_other_byte_state(workspace, monkeypatch
     assert _files(workspace.stage) == before
 
 
-def test_a_stopped_reinstall_is_still_refused(workspace, monkeypatch):
-    """N3 accepts the release's record in the scoring copy only where no
-    install is recorded, as review r2 ruled. A reinstall, which later steps
-    ask for when the spec's record no longer matches the one installed,
-    stopped between its writes leaves the release's record in the scoring
-    copy beside the earlier record stage.json binds (MOCK bytes here): the
-    rerun stops at the scoring copy's pin, as before N3."""
+STOPPED_REINSTALL = (
+    f"staged scoring {EXCLUSIONS_NAME} is neither the record this stage recorded "
+    "installing nor a first install's, since the stage records an install; a "
+    "reinstall stopped between its writes leaves this; prepare a new stage"
+)
+
+
+def _installed_earlier(workspace) -> str:
+    """MOCK: the stage records an install of an earlier spec's record, whose
+    bytes both copies hold and stage.json binds; return them."""
     earlier = release_text() + "MOCK earlier record\n"
     _resumable(
         workspace.stage,
@@ -1274,11 +1277,55 @@ def test_a_stopped_reinstall_is_still_refused(workspace, monkeypatch):
     for directory in ("scoring", f"publish/{RUN}/us"):
         (workspace.stage / directory / EXCLUSIONS_NAME).write_text(earlier)
     _restamp(workspace.stage, workspace.stage / BOUND)
+    return earlier
+
+
+def test_a_stopped_reinstall_is_still_refused(workspace, monkeypatch):
+    """N3 accepts the release's record in the scoring copy only where no
+    install is recorded, as review r2 ruled. A reinstall, which later steps
+    ask for when the spec's record no longer matches the one installed,
+    stopped between its writes leaves the release's record in the scoring
+    copy beside the earlier record stage.json binds (MOCK bytes here): the
+    rerun stops before any step runs, as before N3. The coordinator's ruling
+    keeps the refusal and has its message name the recovery."""
+    _installed_earlier(workspace)
     (workspace.stage / "scoring" / EXCLUSIONS_NAME).write_text(release_text())
     calls = _record_steps(monkeypatch)
-    with pytest.raises(
-        SystemExit, match=f"staged scoring {EXCLUSIONS_NAME} does not match its pin"
-    ):
+    with pytest.raises(SystemExit, match=re.escape(STOPPED_REINSTALL)):
+        _main_step(workspace, "install-exclusions")
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "held, message",
+    [
+        ("recorded", None),
+        ("release", re.escape(STOPPED_REINSTALL)),
+        ("base", f"staged scoring {EXCLUSIONS_NAME} does not match its pin"),
+        ("recorded_edited", f"staged scoring {EXCLUSIONS_NAME} does not match its pin"),
+    ],
+    ids=["recorded", "release", "base", "recorded_edited"],
+)
+def test_a_reinstall_takes_exactly_the_record_it_recorded(
+    workspace, monkeypatch, held, message
+):
+    """With an install recorded, install-exclusions takes the scoring copy's
+    record only when it is the one recorded: the ruling's message changed
+    which words a refusal uses, not which states pass."""
+    earlier = _installed_earlier(workspace)
+    path = workspace.stage / "scoring" / EXCLUSIONS_NAME
+    if held == "release":
+        path.write_text(release_text())
+    elif held == "base":
+        path.write_bytes(base_blob(SNAPSHOT_PATH / EXCLUSIONS_NAME))
+    elif held == "recorded_edited":
+        path.write_text(earlier + "\n")
+    calls = _record_steps(monkeypatch)
+    if message is None:
+        _main_step(workspace, "install-exclusions")
+        assert calls == ["install_exclusions"]
+        return
+    with pytest.raises(SystemExit, match=message):
         _main_step(workspace, "install-exclusions")
     assert calls == []
 

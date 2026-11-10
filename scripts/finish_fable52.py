@@ -4665,6 +4665,24 @@ def main(argv=None) -> None:
             record = stage / "scoring" / "reference_exclusions.json"
             if record.is_file() and digest(record) == release_exclusions_sha256():
                 scoring = release_exclusions_sha256()
+        elif args.step == "install-exclusions" and recorded is not None:
+            # The coordinator's ruling on N3: a reinstall, which later steps
+            # ask for once the spec's record differs from the one installed,
+            # stopped between its writes leaves the spec's new record in the
+            # scoring source while stage.json still records the earlier
+            # install. The pin check below refuses that state as before; this
+            # names the recovery first. It refuses nothing the pin check
+            # passes.
+            record = stage / "scoring" / "reference_exclusions.json"
+            require(
+                not record.is_file()
+                or digest(record) == recorded
+                or digest(record) != release_exclusions_sha256(),
+                "staged scoring reference_exclusions.json is neither the record "
+                "this stage recorded installing nor a first install's, since "
+                "the stage records an install; a reinstall stopped between its "
+                "writes leaves this; prepare a new stage",
+            )
         verify_reference_pins(stage / "scoring", "staged scoring", scoring)
         verify_reference_pins(bundle / "us", "staged reference", recorded)
         verify_staged_explanations(bundle)
