@@ -3665,8 +3665,8 @@ def exclusion_scope_problems(
       values, the fields keep their order, and the others (the scores) are
       recomputed; the list's order follows the scores;
     - heatmap and programStats: an entry for a record's output group may
-      change, with n and nParsed falling by exactly the records' rows; every
-      other entry keeps its bytes;
+      change, with n and nParsed falling by exactly the records' rows and its
+      fields kept in their order; every other entry keeps its bytes;
     - failureModes: a program entry for a record's output group may change,
       and every other keeps its bytes; a household segment may lose exactly
       the parsed rows of some of the records (the ones whose household is in
@@ -3676,6 +3676,15 @@ def exclusion_scope_problems(
 
     A model's cell counts as parsed as the aggregates count it: a prediction
     that is present (analysis.compute_metrics drops the missing ones).
+
+    The check fails closed on three kinds of exclusion a record could make:
+    one that removes its group's first scored row reorders the exporter's
+    output groups, and so its prompts (scenarios) and globalWeights; one that
+    removes a group's last parsed answer on a nonzero reference drops
+    programStats' mape, which skips zero references; and an eligibility
+    output moves modelStats' accuracy, which STABLE_STATS holds. d2180's
+    output is none of these: a dollar amount, not its group's first row, with
+    a $0 reference.
     """
     from release_20261006 import CHANGED_SECTIONS, STABLE_STATS
 
@@ -3828,9 +3837,10 @@ def exclusion_scope_problems(
             else:
                 rows = group_rows[group] * models
                 fell = sum(n for (_, g), n in group_parsed.items() if g == group)
+            if list(row) != list(old):
+                problems.append(f"{section} {key}: its fields changed")
             if (
-                list(row) != list(old)
-                or not isinstance(old.get("n"), int)
+                not isinstance(old.get("n"), int)
                 or not isinstance(old.get("nParsed"), int)
                 or row.get("n") != old["n"] - rows
                 or row.get("nParsed") != old["nParsed"] - fell

@@ -89,13 +89,24 @@ def filled_spec(**changes) -> dict:
     """The spec as the lead fills it before the steps that read its days."""
     spec = real_spec()
     spec.update(
-        snapshot_date=SNAPSHOT_DATE, adjudications_written_on=WRITTEN_ON, **changes
+        {"snapshot_date": SNAPSHOT_DATE, "adjudications_written_on": WRITTEN_ON}
     )
+    spec.update(changes)
     return spec
 
 
+# Read once under the checkout's own root: several fixtures below move
+# driver.ROOT to a synthetic checkout, as Terra's tests did.
+BASE_RECORD = driver.base_exclusion_record()
+
+
+def base_record() -> dict:
+    """Release 20261027's exclusion record, read and pin-checked by the driver."""
+    return copy.deepcopy(BASE_RECORD)
+
+
 def release_record() -> dict:
-    return driver.build_release_exclusions(driver.base_exclusion_record(), real_spec())
+    return driver.build_release_exclusions(base_record(), real_spec())
 
 
 def release_text() -> str:
@@ -525,7 +536,7 @@ def test_the_driver_refuses_any_record_but_the_ruled_one(
     if case == "pin":
         spec["proposals"][0]["sha256"] = "0" * 64
     with pytest.raises(SystemExit, match=message):
-        driver.build_release_exclusions(driver.base_exclusion_record(), spec)
+        driver.build_release_exclusions(base_record(), spec)
 
 
 def test_the_derivation_takes_its_sentence_once_before_its_marker():
@@ -670,12 +681,14 @@ def workspace(tmp_path, monkeypatch):
     """A synthetic checkout root holding copies of the spec and its proposal.
 
     The base-engine and publication-record gates read this checkout's files
-    (tested above); here they record each call instead."""
+    (tested above); here they record each call instead. The base's record is
+    the one the driver read from git before the root moved."""
     root = tmp_path / "workspace"
     for relative in (driver.SPEC_PATH, Path("docs/fable52/proposed_exclusions.json")):
         (root / relative).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO / relative, root / relative)
     monkeypatch.setattr(driver, "ROOT", root)
+    monkeypatch.setattr(driver, "base_exclusion_record", base_record)
     monkeypatch.setattr(driver, "SEED_DIGEST", root / "docs/fable52/seed_digest.csv")
     calls = []
     monkeypatch.setattr(driver, "verify_base_engine", lambda: calls.append("engine"))
@@ -1055,7 +1068,7 @@ def test_every_incumbent_and_fable52_are_scored_on_1934_outputs(scope, index, n)
 
 @pytest.mark.parametrize("staged", ["base", "another"])
 def test_a_staged_record_adding_anything_but_the_ruled_output_is_refused(scope, staged):
-    doc = driver.base_exclusion_record() if staged == "base" else release_record()
+    doc = base_record() if staged == "base" else release_record()
     if staged == "another":
         doc["exclusions"].insert(-1, _another_record())
     (scope.bundle / "us" / EXCLUSIONS_NAME).write_text(driver.exclusions_text(doc))
@@ -1129,12 +1142,40 @@ ROWS = len(board_references())
 CELLS = ROWS * len(MOCK_MODELS)
 RULED_ROW = board_row(RULED)
 OTHER_ROW = board_row(OTHER)
+# The board's rows the base's record leaves scored.
+OPEN_ROWS = [
+    row
+    for row, key in enumerate(
+        zip(board_references().scenario_id, board_references().variable, strict=True)
+    )
+    if key not in {driver.spec_key(record) for record in BASE_RECORD["exclusions"]}
+]
+
+
+def group_order(reference: pd.DataFrame, doc: dict) -> list[str]:
+    """The scored output groups in the order the exporter first meets them.
+
+    The exporter lists each household's prompted outputs, and the weights'
+    groups, in this order (build_scenario_prompt_map and
+    _output_groups_for_ground_truth in policybench/analysis.py), so an
+    exclusion that reorders it changes the payload's scenarios and weights."""
+    from policybench.spec import output_group_id
+
+    excluded = {driver.spec_key(record) for record in doc["exclusions"]}
+    keys = zip(reference.scenario_id, reference.variable, strict=True)
+    return list(
+        dict.fromkeys(
+            output_group_id(variable)
+            for scenario, variable in keys
+            if (scenario, variable) not in excluded
+        )
+    )
 
 
 def board_docs() -> tuple[dict, dict]:
     """The base's and the release's records, kept to the board's households."""
     docs = []
-    for doc in (driver.base_exclusion_record(), release_record()):
+    for doc in (base_record(), release_record()):
         doc["exclusions"] = [
             r for r in doc["exclusions"] if r["scenario_id"] in HOUSEHOLDS
         ]
@@ -1255,6 +1296,30 @@ def mixed_answers() -> dict:
     return answers
 
 
+def with_a_parsed_answer(answers: dict, doc: dict) -> dict:
+    """``answers`` with a parsed answer left in each model's output groups.
+
+    The exporter's heatmap takes each model's mean absolute error over the
+    parsed answers of an output group: with none it is NaN, and the
+    exporter's JSON dump refuses NaN. A three-household MOCK board leaves a
+    group few scored rows, so where a model would parse none of them, the
+    group's first scored row answers right (MOCK)."""
+    from policybench.spec import output_group_id
+
+    reference = board_references()
+    excluded = {driver.spec_key(record) for record in doc["exclusions"]}
+    groups: dict[str, list[int]] = {}
+    for index, row in reference.iterrows():
+        if (row.scenario_id, row.variable) not in excluded:
+            groups.setdefault(output_group_id(row.variable), []).append(index)
+    kept = dict(answers)
+    for model in MOCK_MODELS:
+        for rows in groups.values():
+            if all(kept[(model, row)] == "missing" for row in rows):
+                kept[(model, rows[0])] = "right"
+    return kept
+
+
 @pytest.fixture
 def board(tmp_path, monkeypatch):
     """The driver's own export (build_payload) on a MOCK board, its counts
@@ -1311,7 +1376,8 @@ def test_the_real_exporter_passes_both_scope_checks_on_a_mock_board(board):
 )
 @given(kinds=st.lists(st.sampled_from(KINDS), min_size=CELLS, max_size=CELLS))
 def test_for_any_answers_the_ruled_record_moves_only_its_own_output(board, kinds):
-    answers = answer_map(kinds)
+    # Any answers that leave each model a parsed answer in each output group.
+    answers = with_a_parsed_answer(answer_map(kinds), board.release_doc)
     payload, base = board.run(answers)
     released = export_board(
         write_board(board.root / "released", answers, board.release_doc)
@@ -1446,7 +1512,7 @@ def test_a_staged_record_adding_another_output_is_refused_by_the_real_export(
     doc["exclusions"].insert(-1, another)
     monkeypatch.setattr(driver, "RELEASE_SCORED", ROWS - len(doc["exclusions"]))
     with pytest.raises(SystemExit, match="not the ruled outputs"):
-        board.run(mixed_answers(), doc=doc)
+        board.run(with_a_parsed_answer(mixed_answers(), doc), doc=doc)
 
 
 @pytest.fixture(scope="module")
@@ -1487,19 +1553,17 @@ def test_any_single_cell_change_is_refused_wherever_it_is(exported_pair, data):
     assert driver.exclusion_scope_problems(mutated, scoped, ruled)
 
 
-@settings(max_examples=12, deadline=None)
-@given(row=st.integers(0, ROWS - 1))
+@settings(max_examples=len(OPEN_ROWS), deadline=None)
+@given(row=st.sampled_from(OPEN_ROWS))
 def test_excluding_any_one_output_never_changes_another_outputs_hit(
-    exported_pair, tmp_path_factory, row
+    tmp_path_factory, row
 ):
-    _, scoped, ruled = exported_pair
     reference = board_references()
     key = (reference.scenario_id[row], reference.variable[row])
-    base_doc, _ = board_docs()
-    if key in {driver.spec_key(r) for r in base_doc["exclusions"]}:
-        return
+    base_doc, release_doc = board_docs()
+    (ruled,) = [r for r in release_doc["exclusions"] if driver.spec_key(r) == RULED]
     value = float(reference.value[row])
-    record = copy.deepcopy(ruled[0])
+    record = copy.deepcopy(ruled)
     record.update(
         scenario_id=key[0],
         variable=key[1],
@@ -1508,9 +1572,10 @@ def test_excluding_any_one_output_never_changes_another_outputs_hit(
     )
     doc = copy.deepcopy(base_doc)
     doc["exclusions"].insert(-1, record)
+    answers = with_a_parsed_answer(mixed_answers(), doc)
     root = tmp_path_factory.getbasetemp() / "any-one-output"
-    excluded = export_board(write_board(root, mixed_answers(), doc))
-    assert driver.exclusion_scope_problems(excluded, scoped, [record]) == []
+    scoped = export_board(write_board(root / "scoped", answers, base_doc))
+    excluded = export_board(write_board(root / "excluded", answers, doc))
     now = excluded["countries"]["us"]["scenarioPredictions"]
     before = scoped["countries"]["us"]["scenarioPredictions"]
     for scenario, outputs in now.items():
@@ -1519,6 +1584,75 @@ def test_excluding_any_one_output_never_changes_another_outputs_hit(
                 assert all(entry["scored"] is False for entry in cell.values())
             else:
                 assert json.dumps(cell) == json.dumps(before[scenario][variable])
+    # The scope check holds the rest of the payload to the base's too, and
+    # the exporter moves three things it holds with some exclusions: removing
+    # a group's first scored row reorders the exporter's groups, and so the
+    # prompts (scenarios) and globalWeights; removing a group's last parsed
+    # answer on a nonzero reference drops programStats' mape; and an
+    # eligibility output moves modelStats' accuracy. The check refuses those
+    # and passes every other exclusion. The ruled output does none of the
+    # three (tested below).
+    from policybench.spec import output_group_id
+
+    group = output_group_id(key[1])
+    reordered = group_order(reference, doc) != group_order(reference, base_doc)
+    refielded = [
+        section
+        for section in ("heatmap", "programStats")
+        if [list(row) for row in group_entries(excluded, section, group)]
+        != [list(row) for row in group_entries(scoped, section, group)]
+    ]
+    binary = is_binary(key[1])
+    problems = driver.exclusion_scope_problems(excluded, scoped, [record])
+
+    def explained(problem: str) -> bool:
+        if problem in ("scenarios changed", "globalWeights changed"):
+            return reordered
+        if problem.endswith(": its fields changed"):
+            return any(problem.startswith(f"{s} (") for s in refielded)
+        if problem.endswith("'s accuracy changed"):
+            return binary
+        return False
+
+    assert all(explained(problem) for problem in problems), problems
+    if reordered:
+        assert "scenarios changed" in problems
+    for section in refielded:
+        assert any(
+            p.startswith(f"{section} (") and p.endswith(": its fields changed")
+            for p in problems
+        )
+    if not (reordered or refielded or binary):
+        assert problems == []
+
+
+def group_entries(payload: dict, section: str, group: str) -> list[dict]:
+    return [
+        row for row in payload["countries"]["us"][section] if row["variable"] == group
+    ]
+
+
+def test_the_ruled_record_keeps_the_exporters_group_order_and_mape():
+    from policybench.analysis import mean_absolute_percentage_error
+
+    reference = pd.read_csv(io.BytesIO(base_blob(SNAPSHOT_PATH / CSV_NAME)))
+    order = group_order(reference, release_record())
+    assert order == group_order(reference, base_record())
+    assert RULED[1] in order
+    assert not is_binary(RULED[1])
+    # Its reference is $0, and MAPE skips zero references, so no model's mape
+    # for the group can move with it.
+    (value,) = reference.loc[
+        (reference.scenario_id == RULED[0]) & (reference.variable == RULED[1]),
+        "value",
+    ]
+    assert value == 0.0
+    with_it = mean_absolute_percentage_error(
+        pd.Series([value, 10.0]).values, pd.Series([1921.0, 11.0]).values
+    )
+    assert with_it == mean_absolute_percentage_error(
+        pd.Series([10.0]).values, pd.Series([11.0]).values
+    )
 
 
 # --- Preparation: the fold ------------------------------------------------------
@@ -1910,9 +2044,7 @@ def test_adjudicate_exclusions_decides_the_ruled_output_once(adjudication_stage)
         "a qualifying Certificate of Rent Paid (mn_renters_credit_qualifying_crp)"
     )
     assert entry["judge_model"] == driver.JUDGE_MODEL
-    assert record["date_conventions"].endswith(WAVE_SENTENCE) or (
-        WAVE_SENTENCE in record["date_conventions"]
-    )
+    assert WAVE_SENTENCE in record["date_conventions"]
     driver.verify_record_form(text, base, driver.decision_wave(driver.triage_items()))
     with pytest.raises(SystemExit, match="already decided"):
         driver.adjudicate_exclusions(args)

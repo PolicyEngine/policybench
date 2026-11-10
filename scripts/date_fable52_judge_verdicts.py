@@ -1,4 +1,4 @@
-"""Record the verdicts release dashboard-data-20261110's adjudications name.
+"""Record the verdicts the Claude Fable 5.2 release's adjudications name.
 
 Adapted from scripts/date_terra_judge_verdicts.py and, for the waves this
 release adds, scripts/date_argon_judge_verdicts.py. The Claude Fable 5.2
