@@ -326,6 +326,26 @@ def verify_reference_pins(
         )
 
 
+def verify_staged_explanations(bundle: Path) -> None:
+    """The bundle's reference explanations are release 20261027's bytes.
+
+    Review r1, M7. Judge prompts render from bundle/annotations ahead of the
+    committed tree, and export binds whatever bytes the file holds, while
+    this release rewords no explanation. prepare_inputs keeps a copy it finds,
+    so a stage that stopped partway can hold an edited one. main checks the
+    file right after prepare_inputs, before a prompt renders, and at every
+    later step; export checks it before it writes release-ready.json; the
+    freeze's verify_explanations checks it again.
+    """
+    path = bundle / "annotations" / REFERENCE_EXPLANATIONS.name
+    require(
+        path.is_file()
+        and path.read_bytes() == base_commit_blob(REFERENCE_EXPLANATIONS),
+        f"staged {REFERENCE_EXPLANATIONS.name} is not release 20261027's; this "
+        "release rewords no reference explanation; prepare a new stage",
+    )
+
+
 @dataclass(frozen=True)
 class NewRun:
     slug: str
@@ -3902,6 +3922,8 @@ def export(args, bundle, live) -> dict:
             SNAPSHOT, "committed reference", release if frozen else None
         )
         verify_reference_pins(bundle / "us", "staged reference", release)
+    # Review r1, M7: export binds these bytes into release-ready.json.
+    verify_staged_explanations(bundle)
     if not args.early:
         verify_parse_failure_flags(args.stage_dir)
         verify_new_model_inputs(args.stage_dir)
@@ -4314,6 +4336,7 @@ def main(argv=None) -> None:
             "or resume judge/triage/export",
         )
         bundle, frames = prepare_inputs(args, runs, base, reference)
+        verify_staged_explanations(bundle)
         if args.partial:
             partial_scores(args, base, reference, frames)
         seed = None
@@ -4361,16 +4384,29 @@ def main(argv=None) -> None:
                 digest(stage / name) == expected,
                 f"staged input changed: {name}; prepare a new stage",
             )
+        # Review r1, M7: stage.json names every input prepare staged, and the
+        # prepare-time hashes in it and in model-provenance.json hold.
+        verify_prepared_inputs(stage)
         if args.step != "export":
             (stage / "release-ready.json").unlink(missing_ok=True)
+        installed = receipt.get("exclusions_installed")
         if args.step not in ("bind-seed", "install-exclusions"):
-            installed = receipt.get("exclusions_installed") or {}
             stage_upgrade(stage)
             require(
-                installed.get("sha256") == release_exclusions_sha256(),
+                (installed or {}).get("sha256") == release_exclusions_sha256(),
                 "the stage's exclusions are not the release's; run "
                 "--step install-exclusions",
             )
+        # Review r1, M7: at every later step the scoring source and the bundle
+        # keep their code-held pins, as finish_terra held its installed build
+        # at every step: release 20261027's, with the exclusion record the
+        # stage has installed (the base's until install-exclusions writes the
+        # release's, which every step after it requires above). The
+        # explanations keep release 20261027's bytes.
+        recorded = installed.get("sha256") if isinstance(installed, dict) else None
+        verify_reference_pins(stage / "scoring", "staged scoring", recorded)
+        verify_reference_pins(bundle / "us", "staged reference", recorded)
+        verify_staged_explanations(bundle)
         if args.step == "bind-seed":
             bind_seed(args)
         elif args.step == "install-exclusions":

@@ -843,11 +843,60 @@ def _record_steps(monkeypatch) -> list[str]:
     return calls
 
 
+EXPLANATIONS_PATH = Path("annotations") / RUN / "us_case_reference_explanations.csv"
+
+
 def _resumable(stage: Path, **receipt) -> None:
-    stage.mkdir(parents=True, exist_ok=True)
+    """A prepared release stage as main's later steps find it (MOCK run
+    files): release 20261027's references in the scoring source and the
+    bundle, the release's exclusion record in both where ``receipt`` records
+    it installed; the base's explanations; the new model's run files and
+    their model-provenance.json entry; and stage.json naming every prepared
+    input (review r1, M7)."""
+    bundle = stage / "publish" / RUN
+    installed = receipt.get("exclusions_installed")
+    for directory in (stage / "scoring", bundle / "us"):
+        base_references(directory)
+        if (installed or {}).get("sha256") == RELEASE_EXCLUSIONS_SHA256:
+            (directory / EXCLUSIONS_NAME).write_text(release_text())
+    (bundle / "us/predictions.csv").write_text("model,scenario_id,variable\n")
+    annotations = bundle / "annotations"
+    annotations.mkdir(parents=True)
+    (annotations / EXPLANATIONS_PATH.name).write_bytes(base_blob(EXPLANATIONS_PATH))
+    inputs = stage / "inputs" / SLUG
+    inputs.mkdir(parents=True)
+    (inputs / "predictions.csv").write_text("MOCK run rows\n")
+    fingerprint = {"MOCK": "treatment"}
     driver.write_json(
-        stage / "stage.json", {"partial": False, "early": False, "files": {}, **receipt}
+        inputs / "run_state.json", {"model": NEW, "treatment_fingerprint": fingerprint}
     )
+    driver.write_json(
+        stage / "model-provenance.json",
+        {
+            NEW: {
+                "predictions_sha256": sha(inputs / "predictions.csv"),
+                "treatment_fingerprint": fingerprint,
+            }
+        },
+    )
+    names = [inputs / name for name in driver.PINNED_INPUTS]
+    names += [bundle / "us" / n for n in (*driver.REFERENCE_FILES, "predictions.csv")]
+    files = {str(path.relative_to(stage)): sha(path) for path in names}
+    driver.write_json(
+        stage / "stage.json",
+        {"partial": False, "early": False, "files": files, **receipt},
+    )
+
+
+def _main_step(workspace, step) -> None:
+    driver.main(["--stage-dir", str(workspace.stage), "--step", step])
+
+
+def _restamp(stage: Path, path: Path) -> None:
+    """stage.json follows ``path``, as an edit made to pass its check would."""
+    receipt = json.loads((stage / "stage.json").read_text())
+    receipt["files"][str(path.relative_to(stage))] = sha(path)
+    driver.write_json(stage / "stage.json", receipt)
 
 
 @pytest.mark.parametrize("step", GATED_STEPS)
@@ -897,23 +946,144 @@ def test_a_staged_record_edited_after_install_stops_every_step(
     workspace, monkeypatch, step
 ):
     calls = _record_steps(monkeypatch)
-    record = workspace.stage / BOUND
-    record.parent.mkdir(parents=True)
-    record.write_text(release_text())
     _resumable(
-        workspace.stage,
-        files={BOUND: RELEASE_EXCLUSIONS_SHA256},
-        exclusions_installed={"sha256": RELEASE_EXCLUSIONS_SHA256},
+        workspace.stage, exclusions_installed={"sha256": RELEASE_EXCLUSIONS_SHA256}
     )
+    record = workspace.stage / BOUND
+    assert record.read_text() == release_text()
     record.write_text(release_text().replace("Certificate", "certificate", 1))
     with pytest.raises(SystemExit, match=f"staged input changed: {re.escape(BOUND)}"):
         driver.main(["--stage-dir", str(workspace.stage), "--step", step])
     assert calls == []
 
 
-def _prepare_mocks(workspace, monkeypatch) -> dict:
+# Review r1, M7: what every later step checks of the prepared stage, before
+# its step runs, beyond stage.json's own hashes (which move with it).
+
+INSTALLED = {"exclusions_installed": {"sha256": RELEASE_EXCLUSIONS_SHA256}}
+
+
+@pytest.mark.parametrize("step", STEP_FUNCTIONS)
+@pytest.mark.parametrize(
+    "dropped",
+    ["all", f"inputs/{SLUG}/run_state.json", f"publish/{RUN}/us/{driver.CSV_NAME}"],
+)
+def test_every_later_step_refuses_a_stage_json_naming_too_few_inputs(
+    workspace, monkeypatch, step, dropped
+):
+    """A stage.json with no files (as the old later-step tests built one), or
+    without one prepared input, stops every later step: before M7 only export
+    required the set."""
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage, **INSTALLED)
+    receipt = json.loads((workspace.stage / "stage.json").read_text())
+    if dropped == "all":
+        receipt["files"] = {}
+    else:
+        del receipt["files"][dropped]
+    driver.write_json(workspace.stage / "stage.json", receipt)
+    with pytest.raises(SystemExit, match="stage.json does not record"):
+        _main_step(workspace, step)
+    assert calls == []
+
+
+@pytest.mark.parametrize("step", STEP_FUNCTIONS)
+def test_every_later_step_rechecks_the_model_provenance(workspace, monkeypatch, step):
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage, **INSTALLED)
+    path = workspace.stage / "model-provenance.json"
+    record = json.loads(path.read_text())
+    record[NEW]["predictions_sha256"] = "0" * 64
+    driver.write_json(path, record)
+    with pytest.raises(SystemExit, match="model-provenance.json disagrees"):
+        _main_step(workspace, step)
+    assert calls == []
+
+
+@pytest.mark.parametrize("step", STEP_FUNCTIONS)
+@pytest.mark.parametrize("where", ["scoring", "bundle"])
+@pytest.mark.parametrize("name", driver.REFERENCE_FILES)
+def test_every_later_step_holds_the_staged_references_to_their_pins(
+    workspace, monkeypatch, step, where, name
+):
+    """A staged reference one byte off its code-held pin stops every later
+    step: in the scoring source, which stage.json does not bind, or in the
+    bundle with stage.json following the edit."""
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage, **INSTALLED)
+    directory = "scoring" if where == "scoring" else f"publish/{RUN}/us"
+    path = workspace.stage / directory / name
+    path.write_bytes(path.read_bytes() + b"\n")
+    if where == "bundle":
+        _restamp(workspace.stage, path)
+    label = "staged scoring" if where == "scoring" else "staged reference"
+    with pytest.raises(SystemExit, match=f"{label} {re.escape(name)} does not match"):
+        _main_step(workspace, step)
+    assert calls == []
+
+
+@pytest.mark.parametrize("step", ["bind-seed", "install-exclusions"])
+@pytest.mark.parametrize("record", ["release", "edited"])
+def test_before_the_install_the_staged_record_is_the_bases(
+    workspace, monkeypatch, step, record
+):
+    """Until install-exclusions records the release's record, the pin is
+    release 20261027's: the release's record in the scoring source, or the
+    base's edited, stops the step."""
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage)
+    path = workspace.stage / "scoring" / EXCLUSIONS_NAME
+    if record == "release":
+        path.write_text(release_text())
+    else:
+        path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(
+        SystemExit, match=f"staged scoring {EXCLUSIONS_NAME} does not match its pin"
+    ):
+        _main_step(workspace, step)
+    assert calls == []
+
+
+def test_a_reinstall_holds_the_record_to_the_one_the_stage_installed(
+    workspace, monkeypatch
+):
+    """install-exclusions run again finds the record it installed, as
+    stage.json records it, in both copies."""
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage, **INSTALLED)
+    _main_step(workspace, "install-exclusions")
+    assert calls == ["install_exclusions"]
+    path = workspace.stage / "scoring" / EXCLUSIONS_NAME
+    path.write_bytes(base_blob(SNAPSHOT_PATH / EXCLUSIONS_NAME))
+    with pytest.raises(SystemExit, match="staged scoring reference_exclusions"):
+        _main_step(workspace, "install-exclusions")
+    assert calls == ["install_exclusions"]
+
+
+@pytest.mark.parametrize("step", STEP_FUNCTIONS)
+@pytest.mark.parametrize("defect", ["edited", "missing"])
+def test_every_later_step_holds_the_explanations_to_the_base(
+    workspace, monkeypatch, step, defect
+):
+    """stage.json does not bind the explanations; every later step holds
+    them to release 20261027's bytes."""
+    calls = _record_steps(monkeypatch)
+    _resumable(workspace.stage, **INSTALLED)
+    path = workspace.stage / f"publish/{RUN}/annotations" / EXPLANATIONS_PATH.name
+    if defect == "edited":
+        path.write_bytes(path.read_bytes() + b"\n")
+    else:
+        path.unlink()
+    with pytest.raises(SystemExit, match="rewords no reference explanation"):
+        _main_step(workspace, step)
+    assert calls == []
+
+
+def _prepare_mocks(workspace, monkeypatch, explanations=None) -> dict:
     """discover_new_models, resolve_base, prepare_inputs and export mocked:
-    prepare_inputs stages release 20261027's references (MOCK runs)."""
+    prepare_inputs stages release 20261027's references (MOCK runs) and its
+    explanations, or ``explanations`` as a stopped prepare could have left
+    them."""
     stage, seen = workspace.stage, {}
     monkeypatch.setattr(driver, "discover_new_models", lambda root: [])
     monkeypatch.setattr(
@@ -927,6 +1097,10 @@ def _prepare_mocks(workspace, monkeypatch) -> dict:
         (bundle / "us/predictions.csv").write_text("model,scenario_id,variable\n")
         (stage / "inputs" / SLUG).mkdir(parents=True)
         (stage / "inputs" / SLUG / "predictions.csv").write_text("MOCK\n")
+        (bundle / "annotations").mkdir()
+        (bundle / "annotations" / EXPLANATIONS_PATH.name).write_bytes(
+            base_blob(EXPLANATIONS_PATH) if explanations is None else explanations
+        )
         return bundle, {}
 
     def exported(args, bundle, live):
@@ -987,6 +1161,40 @@ def test_prepare_checks_the_base_engine_and_publication_record_before_writing(
             + ["--runs-root", str(workspace.root / "runs")]
         )
     assert not workspace.stage.exists()
+
+
+@pytest.mark.parametrize("mode", [[], ["--early"]], ids=["release", "early"])
+def test_prepare_refuses_edited_explanations_before_a_prompt_renders(
+    workspace, monkeypatch, mode
+):
+    """Review r1, M7 (D's case 2): prepare_inputs keeps the explanations a
+    stopped prepare left in the bundle. An edited copy stops prepare right
+    after prepare_inputs: before prepare_cases renders a judge prompt from
+    it, before an early rehearsal exports it, and before stage.json."""
+    seen = _prepare_mocks(workspace, monkeypatch, explanations=b"MOCK edited\n")
+    monkeypatch.setattr(
+        driver, "prepare_cases", lambda *a: pytest.fail("prepare_cases ran")
+    )
+    with pytest.raises(SystemExit, match="rewords no reference explanation"):
+        driver.main(
+            ["--stage-dir", str(workspace.stage), "--step", "prepare", *mode]
+            + ["--runs-root", str(workspace.root / "runs")]
+        )
+    assert seen == {}
+    assert not (workspace.stage / "stage.json").exists()
+
+
+def test_prepare_passes_the_bases_explanations_to_prepare_cases(workspace, monkeypatch):
+    _prepare_mocks(workspace, monkeypatch)
+    rendered = []
+    monkeypatch.setattr(
+        driver, "prepare_cases", lambda args, bundle: rendered.append(bundle) or {}
+    )
+    driver.main(
+        ["--stage-dir", str(workspace.stage), "--step", "prepare"]
+        + ["--runs-root", str(workspace.root / "runs")]
+    )
+    assert rendered == [workspace.stage / "publish" / RUN]
 
 
 @pytest.fixture
@@ -3217,10 +3425,14 @@ EXPORT_GATES = (
     "verify_verdict_inventory",
     "stage_upgrade",
     "verify_reference_pins",
+    "verify_staged_explanations",
     "verify_parse_failure_flags",
     "verify_new_model_inputs",
     "verify_judge_provenance",
 )
+
+
+REAL_STAGED_EXPLANATIONS = driver.verify_staged_explanations
 
 
 class _Built(Exception):
@@ -3265,6 +3477,7 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
         "stage_upgrade",
         "verify_reference_pins",
         "verify_reference_pins",
+        "verify_staged_explanations",
         "verify_parse_failure_flags",
         "verify_new_model_inputs",
         "verify_judge_provenance",
@@ -3276,8 +3489,9 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
     frozen = "MOCK sha" if tag == driver.RELEASE_TAG else None
     assert calls[3][1] == (driver.SNAPSHOT, "committed reference", frozen)
     assert calls[4][1] == (tmp_path / "bundle" / "us", "staged reference", "MOCK sha")
-    assert calls[5][1] == calls[6][1] == (args.stage_dir,)
-    assert calls[7][1] == (
+    assert calls[5][1] == (tmp_path / "bundle",)
+    assert calls[6][1] == calls[7][1] == (args.stage_dir,)
+    assert calls[8][1] == (
         args.stage_dir / "audit" / "cases",
         frozenset({"MOCK"}),
         driver.JUDGE_PROVENANCE,
@@ -3307,6 +3521,33 @@ def test_a_rehearsal_skips_only_its_named_gates(export_spy, tmp_path, mode, skip
     names = [name for name, _ in export_spy.calls]
     assert names[-1] == "build_payload"
     assert set(EXPORT_GATES) - set(names) == skipped
+
+
+@pytest.mark.parametrize("defect", ["edited", "missing"])
+@pytest.mark.parametrize("mode", [{}, {"early": True}, {"partial": True}])
+def test_export_refuses_explanations_off_the_base_before_it_builds(
+    export_spy, tmp_path, defect, mode
+):
+    """Review r1, M7: the real gate, in every export mode, on the bundle's
+    explanations: release 20261027's bytes pass to build_payload; one byte
+    more, or none, stops export before it builds or writes."""
+    export_spy.monkeypatch.setattr(
+        driver, "verify_staged_explanations", REAL_STAGED_EXPLANATIONS
+    )
+    path = tmp_path / "bundle" / "annotations" / EXPLANATIONS_PATH.name
+    path.parent.mkdir(parents=True)
+    path.write_bytes(base_blob(EXPLANATIONS_PATH))
+    _export(tmp_path, **mode)
+    if defect == "edited":
+        path.write_bytes(path.read_bytes() + b"\n")
+    else:
+        path.unlink()
+    export_spy.calls.clear()
+    args = SimpleNamespace(stage_dir=tmp_path / "stage", early=False, partial=False)
+    args.__dict__.update(mode)
+    with pytest.raises(SystemExit, match="rewords no reference explanation"):
+        driver.export(args, tmp_path / "bundle", {})
+    assert "build_payload" not in [name for name, _ in export_spy.calls]
 
 
 @pytest.mark.parametrize("gate", EXPORT_GATES)
