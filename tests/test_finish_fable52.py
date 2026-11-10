@@ -4600,6 +4600,35 @@ def test_triage_carries_a_kept_cases_published_wording(triage_stage):
         assert kept.to_csv(index=False).encode() == files[name]
 
 
+def test_triage_hands_the_carry_and_the_kept_gate_the_cases_it_reopened(
+    triage_stage, monkeypatch
+):
+    """Review r3, Q1: triage builds its frames (annotation_frames, whose
+    carry skips a re-opened case) and runs the kept-case gate with
+    rejudged_cases' cases, on the MOCK board the ruled case. Release
+    20261027's files (MOCK) lack that case, so only the arguments show it."""
+    seen = []
+    build, gate = driver.annotation_frames, driver.verify_kept_annotations
+
+    def build_spy(collected, rejudged, *rest):
+        seen.append(("annotation_frames", rejudged))
+        return build(collected, rejudged, *rest)
+
+    def gate_spy(rows, cases, rejudged, decisions):
+        seen.append(("verify_kept_annotations", rejudged))
+        return gate(rows, cases, rejudged, decisions)
+
+    monkeypatch.setattr(driver, "annotation_frames", build_spy)
+    monkeypatch.setattr(driver, "verify_kept_annotations", gate_spy)
+    triage_stage.run()
+    reopened = driver.rejudged_cases(triage_stage.stage)
+    assert reopened == frozenset({RULED_CASE})
+    assert seen == [
+        ("annotation_frames", reopened),
+        ("verify_kept_annotations", reopened),
+    ]
+
+
 def _second_decided(triage_stage) -> str:
     """A kept case the stage's record decides and the MOCK amendment does
     not reword."""
@@ -4876,6 +4905,18 @@ def _reordered(rows, cases):
     return rows[[*rows.columns[1:], rows.columns[0]]], cases
 
 
+def _double_new_row(rows, cases):
+    rows, cases = _built(rows, cases)
+    joined = rows.iloc[[2, 2]].assign(model=NEW)
+    cases.loc[1, "wrong_model_count"] = 3
+    return pd.concat([rows, joined], ignore_index=True), cases
+
+
+def _double_note(rows, cases):
+    rows, cases = _built(rows, cases)
+    return rows, pd.concat([cases, cases.iloc[[0]]], ignore_index=True)
+
+
 GATE_REFUSALS = {
     "the text collect_audit built": (
         _uncarried,
@@ -4899,6 +4940,14 @@ GATE_REFUSALS = {
         _uncounted_new_row,
         [f"{GATE_PARSE} case note wrong_model_count"],
     ),
+    "a new model's row twice": (
+        _double_new_row,
+        [
+            f"{GATE_PARSE} {NEW}: a row release 20261027 does not hold",
+            f"{GATE_PARSE} case note wrong_model_count",
+        ],
+    ),
+    "a note twice": (_double_note, [f"{GATE_JUDGED} case note: 2 notes, not one"]),
     "a column out of place": (
         _reordered,
         [

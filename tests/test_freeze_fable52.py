@@ -3417,6 +3417,36 @@ def test_the_freeze_holds_every_kept_case_to_release_20261027s_files(h_stage):
     assert f"{case} case note reference_bug_hypothesis" in str(refused.value)
 
 
+def test_the_freeze_hands_the_annotation_gates_the_cases_this_release_reopened(
+    h_stage, monkeypatch
+):
+    """Review r3, Q1: the freeze rebuilds the staged annotations
+    (driver.annotation_frames) and runs the kept-case gate with
+    rejudged_cases' cases (the ruled case, which the MOCK stage judged), as
+    triage and export do. Release 20261027's files (MOCK) lack that case, so
+    only the arguments show it."""
+    seen = []
+    build, gate = driver.annotation_frames, driver.verify_kept_annotations
+
+    def build_spy(collected, rejudged, *rest):
+        seen.append(("annotation_frames", rejudged))
+        return build(collected, rejudged, *rest)
+
+    def gate_spy(rows, cases, rejudged, decisions):
+        seen.append(("verify_kept_annotations", rejudged))
+        return gate(rows, cases, rejudged, decisions)
+
+    monkeypatch.setattr(driver, "annotation_frames", build_spy)
+    monkeypatch.setattr(driver, "verify_kept_annotations", gate_spy)
+    h_stage.run("--dry-run")
+    reopened = driver.rejudged_cases(h_stage.stage)
+    assert reopened == frozenset({H_RULED_CASE})
+    assert seen == [
+        ("annotation_frames", reopened),
+        ("verify_kept_annotations", reopened),
+    ]
+
+
 @pytest.mark.parametrize("case", ["ruled", "kept"])
 def test_the_rebuild_lets_annotations_differ_only_on_reopened_cases(h_stage, case):
     """An incumbent's annotation in release 20261027's payload that the scope
