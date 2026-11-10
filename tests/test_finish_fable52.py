@@ -4991,10 +4991,12 @@ def test_any_one_cell_off_the_base_on_a_kept_case_is_named(
 #
 # Triage applies d2180's decision to the ruled case whether or not the new
 # model re-opened it. These tests apply the entry adjudicate-exclusions builds
-# (its judge fields from the ruled fixture's MOCK verdict) to release
-# 20261027's committed annotations, read from git, and move release
-# 20261027's own payload (from git) where the exporter writes those
-# annotations. They read no prediction of the new model.
+# (its judge fields from the ruled fixture's MOCK verdict), beside release
+# 20261027's decisions, to the frames triage builds (driver.annotation_frames)
+# from text shaped like the seed's: release 20261027's committed annotations,
+# read from git, with Terra's committed text amendments undone (review r3,
+# Q1). They move release 20261027's own payload (from git) where the exporter
+# writes those annotations, and read no prediction of the new model.
 
 # Each annotation field of a cell, and the annotation frame and column the
 # exporter writes it from (policybench.analysis.build_dashboard_payload, by
