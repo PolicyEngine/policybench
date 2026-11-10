@@ -2674,7 +2674,37 @@ def test_the_fold_adds_exactly_1984_fable52_rows_on_the_reference_key_set(
         shutil.rmtree(root, ignore_errors=True)
 
 
-def _prepare_and_check(root, count, value, missing, change, at, extra) -> None:
+# One MOCK run row that prepare_inputs refuses, as Terra's
+# test_real_preparation_checks_provider_identity_and_disclosures refuses a
+# whole run: verify_usage's and verify_call_provenance's own messages.
+ROW_DEFECTS = {
+    "a negative cost": ({"estimated_cost_usd": -0.5}, "invalid estimated_cost_usd"),
+    "an infinite token count": (
+        {"total_tokens": float("inf")},
+        "invalid total_tokens",
+    ),
+    "a negative live call count": ({"live_calls": -1}, "invalid call provenance"),
+    "live time over the elapsed time": (
+        {"live_elapsed_seconds": 9.0},
+        "inconsistent call provenance",
+    ),
+}
+
+
+@pytest.mark.parametrize("defect", ROW_DEFECTS.values(), ids=ROW_DEFECTS)
+def test_preparation_refuses_a_row_with_invalid_usage_or_call_provenance(
+    tmp_path, defect
+):
+    """Review r1, M11 (S P3-5): one bad row of the MOCK run stops
+    prepare_inputs before the treatment check and before it publishes
+    anything. Before M11 no test of the three new files reached verify_usage's
+    validity check."""
+    _prepare_and_check(tmp_path / "prepare", 1, 0, set(), "none", 17, False, defect)
+
+
+def _prepare_and_check(
+    root, count, value, missing, change, at, extra, defect=None
+) -> None:
     import freeze_gpt61sol
     import freeze_snapshot as freezer
 
@@ -2716,6 +2746,10 @@ def _prepare_and_check(root, count, value, missing, change, at, extra) -> None:
         frame = pd.concat([frame, frame.iloc[[at]]], ignore_index=True)
     elif change == "an output renamed":
         frame.loc[at, "variable"] = "mock_unknown_output"
+    if defect is not None:
+        for column, bad in defect[0].items():
+            frame[column] = frame[column].astype(type(bad))
+            frame.loc[frame.index[at], column] = bad
     run_dir = root / "runs" / SLUG / "run"
     run_dir.mkdir(parents=True)
     frame.to_csv(run_dir / "predictions.csv", index=False)
@@ -2739,8 +2773,9 @@ def _prepare_and_check(root, count, value, missing, change, at, extra) -> None:
             lambda freezer, state, path, scenarios: checked.append(path),
         )
         runs = driver.discover_new_models(root / "runs")
-        if KEY_CHANGES[change]:
-            with pytest.raises(SystemExit, match=KEY_CHANGES[change]):
+        refusal = KEY_CHANGES[change] or (defect[1] if defect else None)
+        if refusal:
+            with pytest.raises(SystemExit, match=refusal):
                 driver.prepare_inputs(args, runs, base, reference)
             assert not (stage / "publish").exists()
             assert checked == []
