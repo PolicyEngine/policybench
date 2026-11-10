@@ -623,6 +623,34 @@ STATED_PINS = [
     *(("source_run_artifacts", RUN, "files", name) for name in REFERENCES),
     ("audit_annotation_artifacts", "files", "us_case_reference_explanations.csv"),
 ]
+# The manifest paths this release may change, spelled out (review r1, M10;
+# S P3-4). The property below reads these and STATED_PINS, never the
+# release's own constants, so a widened MANIFEST_CHANGES fails it.
+STATED_CHANGES = (
+    ("audit_annotation_artifacts", "files"),
+    ("audit_annotation_artifacts", "developer_adjudications"),
+    ("audit_annotation_artifacts", "judge_provenance"),
+    ("audit_annotation_artifacts", "note"),
+    ("committed_snapshot_artifacts", "model_serving_config.json"),
+    ("committed_snapshot_artifacts", "us_impact_summary_by_model.csv"),
+    ("description",),
+    ("files",),
+    ("live_dashboard_artifact",),
+    ("model_response_date",),
+    ("published_dashboard_artifact",),
+    ("reference_exclusions",),
+    ("reference_output_refresh", "snapshot_date"),
+    ("rendered_paper_artifacts",),
+    ("reproducibility_notes",),
+    ("scope", "models"),
+    ("snapshot_date",),
+    ("source_run_artifacts", RUN, "files"),
+)
+
+
+def test_the_release_may_change_exactly_the_stated_manifest_paths():
+    assert release.MANIFEST_CHANGES == STATED_CHANGES
+    assert release.MANIFEST_PINNED == set(STATED_PINS)
 
 
 def set_leaf(manifest: dict, path: tuple, value) -> None:
@@ -667,8 +695,8 @@ def test_the_manifest_may_change_only_where_the_release_says(picks):
     expected = {
         path
         for path in changed
-        if path in release.MANIFEST_PINNED
-        or not any(path[: len(prefix)] == prefix for prefix in release.MANIFEST_CHANGES)
+        if path in STATED_PINS
+        or not any(path[: len(prefix)] == prefix for prefix in STATED_CHANGES)
     }
     assert set(release.manifest_problems(before, after)) == expected
 

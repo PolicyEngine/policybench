@@ -29,7 +29,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import HealthCheck, assume, example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -1424,16 +1424,36 @@ def test_the_roster_is_the_51_incumbents_plus_fable52(scope):
 @settings(max_examples=35, deadline=None)
 @given(
     rows=st.lists(
-        st.floats(allow_nan=False, allow_infinity=False), min_size=1, max_size=20
-    )
+        st.one_of(
+            st.integers(min_value=-(10**6), max_value=10**6),
+            st.floats(allow_nan=False, allow_infinity=False),
+        ),
+        min_size=1,
+        max_size=20,
+    ),
+    pick=st.integers(min_value=0, max_value=10**6),
 )
-def test_incumbent_drift_keeps_serialized_types_and_key_order(rows):
+def test_incumbent_drift_keeps_serialized_types_and_key_order(rows, pick):
     previous = {
         f"m{i}": {"model": f"m{i}", "exact": value, "n": 1935}
         for i, value in enumerate(rows)
     }
     stats = copy.deepcopy(list(previous.values()))
     assert driver.incumbent_drift(stats, previous) == []
+    # Review r1, M10 (S P3-4): a value that keeps its number and changes its
+    # serialized type. == calls 1935 and 1935.0 equal; json.dumps tells them
+    # apart, and so does the check.
+    index = pick % len(rows)
+    retyped = copy.deepcopy(stats)
+    retyped[index]["n"] = float(retyped[index]["n"])
+    assert retyped[index] == previous[f"m{index}"]
+    assert driver.incumbent_drift(retyped, previous) == [f"m{index}"]
+    value = rows[index]
+    if isinstance(value, int) or value.is_integer():
+        retyped = copy.deepcopy(stats)
+        retyped[index]["exact"] = float(value) if isinstance(value, int) else int(value)
+        assert retyped[index] == previous[f"m{index}"]
+        assert driver.incumbent_drift(retyped, previous) == [f"m{index}"]
     stats[0] = dict(reversed(list(stats[0].items())))
     assert driver.incumbent_drift(stats, previous) == ["m0"]
     assert driver.incumbent_drift(stats[1:], previous) == ["m0"]
@@ -1952,6 +1972,40 @@ def _bump(row, field, by=1):
     row[field] = row[field] + by
 
 
+def _ruled_cells(us) -> dict:
+    return us["scenarioPredictions"][RULED[0]][RULED[1]]
+
+
+def _ruled_entry(us) -> dict:
+    (entry,) = [
+        e
+        for e in us["referenceExclusions"]
+        if (e["scenarioId"], e["variable"]) == RULED
+    ]
+    return entry
+
+
+def _stat(us, model=NEW) -> dict:
+    (row,) = [row for row in us["modelStats"] if row["model"] == model]
+    return row
+
+
+def _segment(us, label) -> dict:
+    (row,) = [row for row in us["failureModes"]["households"] if row["label"] == label]
+    return row
+
+
+def _reorder(row: dict) -> None:
+    items = list(row.items())
+    row.clear()
+    row.update(reversed(items))
+
+
+# The ruled household (scenario_122) lives in Minnesota, which taxes income,
+# so this segment holds none of the ruled outputs.
+UNRULED_SEGMENT = "No-income-tax states"
+
+
 PAYLOAD_EDITS = {
     "another output's cell": lambda us: _bump(
         us["scenarioPredictions"][OTHER[0]][OTHER[1]][NEW], "exact", 100.0
@@ -1983,6 +2037,26 @@ PAYLOAD_EDITS = {
     "the global weights": lambda us: us.update(
         globalWeights={"edited": us["globalWeights"]}
     ),
+    # Review r1, M10 (S P3-3): the edits the review lists.
+    "the ruled cell scored again": lambda us: _ruled_cells(us)[NEW].update(scored=True),
+    "the ruled cell's excludedReason": lambda us: _ruled_cells(us)[NEW].update(
+        excludedReason="MOCK reason"
+    ),
+    "the ruled cell's excludedInput": lambda us: _ruled_cells(us)[NEW].update(
+        excludedInput="MOCK input"
+    ),
+    "a field added to the ruled cell": lambda us: _ruled_cells(us)[NEW].update(
+        mock=1.0
+    ),
+    "one model's ruled cell removed": lambda us: _ruled_cells(us).pop(NEW),
+    "the ruled group's programStats n": lambda us: _bump(
+        _ruled_group(us["programStats"]), "n"
+    ),
+    "a segment without a ruled household": lambda us: _bump(
+        _segment(us, UNRULED_SEGMENT), "correctPct"
+    ),
+    "a modelStats entry's field order": lambda us: _reorder(_stat(us)),
+    "the ruled exclusion entry": lambda us: _ruled_entry(us).update(note="MOCK edited"),
 }
 
 
@@ -2049,6 +2123,249 @@ def _perturbed(value):
     return f"{value} (edited)"
 
 
+# --- Review r1, M10 (S P3-3): every branch of exclusion_scope_problems --------
+#
+# Each edit moves the MOCK pair's release payload (now) or scope export
+# (before) in one place, and names what the check must report. An edit
+# marked exact reaches one branch alone, so the check reports that branch's
+# line and nothing else; the others cause more lines, among them the branch's.
+
+RULED_CELL = f"{RULED[0]} {RULED[1]}"
+CELL_MOVED = "the record moves more than its scored flag and exclusion fields"
+GROUP = RULED[1]  # state_refundable_credits is its own output group
+
+
+def _scored_last(us) -> None:
+    entry = _ruled_cells(us)[NEW]
+    entry["scored"] = entry.pop("scored")
+
+
+def _without_ruled_cells(now, before) -> None:
+    for us in (now, before):
+        del us["scenarioPredictions"][RULED[0]][RULED[1]]
+
+
+def _without_new_ruled_cell(now, before) -> None:
+    for us in (now, before):
+        _ruled_cells(us).pop(NEW)
+
+
+def _ruled_segment(now, before) -> dict:
+    """The first household segment the ruled output's rows leave."""
+    return next(
+        row
+        for row in now["failureModes"]["households"]
+        if row["n"] != _segment(before, row["label"])["n"]
+    )
+
+
+SCOPE_EDITS = {
+    "the ruled cell scored again": (
+        lambda now, before: _ruled_cells(now)[NEW].update(scored=True),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    "the scope export's ruled cell already unscored": (
+        lambda now, before: _ruled_cells(before)[NEW].update(scored=False),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    "the ruled cell's excludedReason": (
+        lambda now, before: _ruled_cells(now)[NEW].update(excludedReason="MOCK"),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    "the ruled cell's excludedInput": (
+        lambda now, before: _ruled_cells(now)[NEW].update(excludedInput="MOCK"),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    "a field added to the ruled cell": (
+        lambda now, before: _ruled_cells(now)[NEW].update(mock=1.0),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    # Only the key-order clause sees it: the value clause skips scored.
+    "the ruled cell's scored flag moved": (
+        lambda now, before: _scored_last(now),
+        "exact",
+        f"{RULED_CELL} {NEW}: {CELL_MOVED}",
+    ),
+    "one model's ruled cell removed": (
+        lambda now, before: _ruled_cells(now).pop(NEW),
+        "among",
+        f"{RULED_CELL}: its models changed",
+    ),
+    "one model's ruled cell removed from both": (
+        _without_new_ruled_cell,
+        "among",
+        f"{NEW} lacks a cell of a ruled output",
+    ),
+    "the ruled output's cells removed from both": (
+        _without_ruled_cells,
+        "among",
+        f"no cells in the payload for {[RULED]}",
+    ),
+    "a modelStats entry's field order": (
+        lambda now, before: _reorder(_stat(now)),
+        "exact",
+        f"{NEW}'s modelStats fields changed",
+    ),
+    "a modelStats n": (
+        lambda now, before: _bump(_stat(now), "n", -1),
+        "exact",
+        f"{NEW}'s n or nParsed does not fall by its ruled rows",
+    ),
+    "a modelStats nParsed": (
+        lambda now, before: _bump(_stat(now), "nParsed"),
+        "exact",
+        f"{NEW}'s n or nParsed does not fall by its ruled rows",
+    ),
+    "the ruled group's heatmap nParsed": (
+        lambda now, before: _bump(
+            next(
+                row
+                for row in now["heatmap"]
+                if (row["model"], row["variable"]) == (NEW, GROUP)
+            ),
+            "nParsed",
+            -1,
+        ),
+        "exact",
+        f"heatmap {(NEW, GROUP)}: n or nParsed does not fall by its rows",
+    ),
+    "the ruled group's heatmap field order": (
+        lambda now, before: _reorder(
+            next(
+                row
+                for row in now["heatmap"]
+                if (row["model"], row["variable"]) == (NEW, GROUP)
+            )
+        ),
+        "exact",
+        f"heatmap {(NEW, GROUP)}: its fields changed",
+    ),
+    "the ruled group's programStats n": (
+        lambda now, before: _bump(_ruled_group(now["programStats"]), "n"),
+        "exact",
+        f"programStats {(GROUP,)}: n or nParsed does not fall by its rows",
+    ),
+    "the ruled group's programStats nParsed": (
+        lambda now, before: _bump(_ruled_group(now["programStats"]), "nParsed", -1),
+        "exact",
+        f"programStats {(GROUP,)}: n or nParsed does not fall by its rows",
+    ),
+    "a segment without a ruled household": (
+        lambda now, before: _bump(_segment(now, UNRULED_SEGMENT), "correctPct"),
+        "exact",
+        f"failureModes segment {UNRULED_SEGMENT} moves beyond its rows",
+    ),
+    "the ruled exclusion entry": (
+        lambda now, before: _ruled_entry(now).update(note="MOCK edited"),
+        "exact",
+        "referenceExclusions does not add exactly the records",
+    ),
+    "a base exclusion entry": (
+        lambda now, before: now["referenceExclusions"][0].update(note="MOCK"),
+        "exact",
+        "referenceExclusions changes the base's entries",
+    ),
+}
+
+
+def test_the_mock_pair_holds_what_the_scope_edits_assume(exported_pair):
+    released, scoped, _ = exported_pair
+    now, before = released["countries"]["us"], scoped["countries"]["us"]
+    from policybench.spec import output_group_id
+
+    assert output_group_id(RULED[1]) == GROUP
+    # The segment the ruled household is not in keeps its rows; the ones it
+    # is in lose the ruled output's three parsed rows.
+    assert _segment(now, UNRULED_SEGMENT) == _segment(before, UNRULED_SEGMENT)
+    assert before["failureModes"]["households"][0]["n"] > 0
+    assert {
+        _segment(before, row["label"])["n"] - row["n"]
+        for row in now["failureModes"]["households"]
+    } == {0, len(MOCK_MODELS)}
+    assert all(entry["parsed"] is True for entry in _ruled_cells(now).values())
+
+
+@pytest.mark.parametrize("edit", list(SCOPE_EDITS))
+def test_each_branch_of_the_scope_check_refuses_its_edit(exported_pair, edit):
+    released, scoped, ruled = exported_pair
+    now, before = copy.deepcopy(released), copy.deepcopy(scoped)
+    move, kind, line = SCOPE_EDITS[edit]
+    move(now["countries"]["us"], before["countries"]["us"])
+    problems = driver.exclusion_scope_problems(now, before, ruled)
+    if kind == "exact":
+        assert problems == [line]
+    else:
+        assert line in problems, problems
+
+
+def test_a_ruled_segment_may_lose_only_its_rows(exported_pair):
+    released, scoped, ruled = exported_pair
+    now = copy.deepcopy(released)
+    segment = _ruled_segment(now["countries"]["us"], scoped["countries"]["us"])
+    _bump(segment, "n", -1)
+    assert driver.exclusion_scope_problems(now, scoped, ruled) == [
+        f"failureModes segment {segment['label']} moves beyond its rows"
+    ]
+
+
+# The fields of each model's ruled cell on the MOCK pair. mixed_answers has
+# the new model answer the ruled output wrong and the incumbents right, so
+# only the new model's cell carries failure annotations.
+RULED_CELL_FIELDS = (
+    "prediction",
+    "groundTruth",
+    "scored",
+    "error",
+    "parsed",
+    "score",
+    "boundedScore",
+    "thresholdScore",
+    "exact",
+    "within1pct",
+    "within5pct",
+    "within10pct",
+    "excludedReason",
+    "excludedInput",
+    "explanation",
+)
+RULED_CELLS = {
+    NEW: (
+        *RULED_CELL_FIELDS,
+        "annotation",
+        "failureSource",
+        "failureSubtype",
+        "referenceExplanation",
+    ),
+    **{
+        model: (*RULED_CELL_FIELDS, "referenceExplanation") for model in MOCK_INCUMBENTS
+    },
+}
+
+
+def test_the_perturbation_reaches_every_field_of_every_ruled_cell(exported_pair):
+    released, _, _ = exported_pair
+    cells = _ruled_cells(released["countries"]["us"])
+    assert {model: tuple(entry) for model, entry in cells.items()} == RULED_CELLS
+
+
+@pytest.mark.parametrize(
+    "model, field",
+    [(model, field) for model, fields in RULED_CELLS.items() for field in fields],
+)
+def test_a_change_to_any_field_of_a_ruled_cell_is_refused(exported_pair, model, field):
+    released, scoped, ruled = exported_pair
+    now = copy.deepcopy(released)
+    entry = _ruled_cells(now["countries"]["us"])[model]
+    entry[field] = _perturbed(entry[field])
+    problems = driver.exclusion_scope_problems(now, scoped, ruled)
+    assert f"{RULED_CELL} {model}: {CELL_MOVED}" in problems, problems
+
+
 @settings(max_examples=60, deadline=None)
 @given(data=st.data())
 def test_any_single_cell_change_is_refused_wherever_it_is(exported_pair, data):
@@ -2065,11 +2382,10 @@ def test_any_single_cell_change_is_refused_wherever_it_is(exported_pair, data):
     assert driver.exclusion_scope_problems(mutated, scoped, ruled)
 
 
-@settings(max_examples=len(OPEN_ROWS), deadline=None)
-@given(row=st.sampled_from(OPEN_ROWS))
-def test_excluding_any_one_output_never_changes_another_outputs_hit(
-    tmp_path_factory, row
-):
+# Review r1, M10 (S P3-4): every open row runs. Hypothesis draws of
+# len(OPEN_ROWS) examples promise no particular row.
+@pytest.mark.parametrize("row", OPEN_ROWS)
+def test_excluding_any_one_output_never_changes_another_outputs_hit(tmp_path, row):
     reference = board_references()
     key = (reference.scenario_id[row], reference.variable[row])
     base_doc, release_doc = board_docs()
@@ -2085,7 +2401,7 @@ def test_excluding_any_one_output_never_changes_another_outputs_hit(
     doc = copy.deepcopy(base_doc)
     doc["exclusions"].insert(-1, record)
     answers = with_a_parsed_answer(mixed_answers(), doc)
-    root = tmp_path_factory.getbasetemp() / "any-one-output"
+    root = tmp_path / "any-one-output"
     scoped = export_board(write_board(root / "scoped", answers, base_doc))
     excluded = export_board(write_board(root / "excluded", answers, doc))
     now = excluded["countries"]["us"]["scenarioPredictions"]
@@ -2167,70 +2483,184 @@ def test_the_ruled_record_keeps_the_exporters_group_order_and_mape():
     )
 
 
-# --- Preparation: the fold ------------------------------------------------------
+# --- Preparation: prepare_inputs folds a MOCK complete run --------------------
+#
+# Review r1, M10 (S P3-4): the fold's property drives the driver's own
+# prepare_inputs, with the setup of Terra's real-preparation tests
+# (test_finish_terra.py's full_run): release 20261027's references from git
+# as the committed snapshot, the treatment check recorded instead of run,
+# and every answer MOCK.
 
 
-@settings(max_examples=6, deadline=None)
+def _mock_run_rows(reference: pd.DataFrame) -> pd.DataFrame:
+    """A MOCK complete Claude Fable 5.2 run: every reference key, each
+    answered with its reference value, with the runner's call provenance,
+    usage and provider identity."""
+    from policybench.config import MODELS as registry
+
+    frame = reference[driver.KEY].copy()
+    frame.insert(0, "model", NEW)
+    frame["prediction"] = reference["value"].to_numpy()
+    frame["explanation"] = 'MOCK answer, with "quotes".'
+    frame["error"] = None
+    frame["raw_response"] = '{"answer": 1}'
+    frame["live_calls"] = 1
+    frame["cache_hit_calls"] = 0
+    frame["live_elapsed_seconds"] = 1.5
+    frame["elapsed_seconds"] = 1.5
+    frame["estimated_cost_usd"] = 0.001
+    frame["total_tokens"] = 900
+    frame["provider_resolved_model"] = driver.resolved_model_id(registry[NEW])
+    frame["provider_response_id"] = [f"resp_mock_{i}" for i in range(len(frame))]
+    return frame
+
+
+# A run's key set, changed, and what prepare_inputs answers.
+KEY_CHANGES = {
+    "none": None,
+    "an output dropped": "prediction keys differ from reference",
+    "an output repeated": "duplicate prediction keys",
+    "an output renamed": "prediction keys differ from reference",
+}
+
+
+# The first two examples always run: a fold with missing answers and an
+# optional column, and the plainest one.
+@example(count=2, value=7, missing={0, 1983}, change="none", at=0, extra=True)
+@example(count=1, value=0, missing=set(), change="none", at=0, extra=False)
+@settings(max_examples=10, deadline=None)
 @given(
     count=st.integers(1, 3),
     value=st.integers(-10000, 10000),
+    missing=st.sets(st.integers(0, driver.BASE_OUTPUTS - 1), max_size=8),
+    change=st.sampled_from(list(KEY_CHANGES)),
+    at=st.integers(0, driver.BASE_OUTPUTS - 1),
     extra=st.booleans(),
-    record=st.sampled_from(["base", "release"]),
 )
 def test_the_fold_adds_exactly_1984_fable52_rows_on_the_reference_key_set(
-    tmp_path_factory, count, value, extra, record
+    tmp_path_factory, count, value, missing, change, at, extra
 ):
+    """prepare_inputs, for any incumbent count, any missing answers and any
+    change to the run's key set: it refuses a run whose keys are not the
+    reference's, before it publishes anything; otherwise the fold keeps
+    every incumbent row and adds exactly 1,984 Claude Fable 5.2 rows, on the
+    reference key set, its missing answers missing and its cells the run's
+    text. The base's record excludes 49 outputs from scoring, never from the
+    fold."""
+    # One folder, cleared for each example and removed after it: an example
+    # writes about 10 MB, and the basetemp must stay under 1 GB however many
+    # examples Hypothesis runs or shrinks through.
+    root = tmp_path_factory.getbasetemp() / "fable52-prepare"
+    shutil.rmtree(root, ignore_errors=True)
+    try:
+        _prepare_and_check(root, count, value, missing, change, at, extra)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def _prepare_and_check(root, count, value, missing, change, at, extra) -> None:
+    import freeze_gpt61sol
     import freeze_snapshot as freezer
 
-    from policybench.fold_board import fold_board
+    from policybench.config import MODELS as registry
 
-    reference = pd.read_csv(io.BytesIO(base_blob(SNAPSHOT_PATH / CSV_NAME)))[driver.KEY]
-    root = tmp_path_factory.mktemp("fable52-fold")
-    frames = []
-    for index in range(count + 1):
-        frame = reference.copy()
-        frame.insert(0, "model", NEW if index == count else f"incumbent-{index}")
-        frame["prediction"] = float(value)
-        frame["explanation"] = 'MOCK answer, with "quotes".'
-        frame["raw_response"] = "{}"
-        frame["prompt_tokens"] = 100.0
-        frame["completion_tokens"] = 25.0
-        frame["error"] = None
-        frame["provider_resolved_model"] = frame.model
-        frames.append(frame)
-    base = pd.concat(frames[:-1], ignore_index=True)
-    base_path = root / "base.csv"
-    base.to_csv(base_path, index=False)
-    addition = frames[-1]
-    addition["live_calls"] = 1
-    addition["cache_hit_calls"] = 0
-    addition["live_elapsed_seconds"] = 1.0
-    addition["elapsed_seconds"] = 1.0
+    snapshot = base_references(root / "snapshot")
+    reference = pd.read_csv(snapshot / CSV_NAME)
+    assert len(reference) == driver.BASE_OUTPUTS
+    annotations = root / "annotations"
+    annotations.mkdir()
+    for name in driver.ANNOTATION_FILES:
+        (annotations / name).write_text(f"MOCK {name}\n")
+    incumbents = [f"mock-incumbent-{index}" for index in range(count)]
+    base = pd.concat(
+        [
+            reference[driver.KEY].assign(
+                model=model,
+                prediction=float(value),
+                explanation='MOCK answer, with "quotes".',
+                raw_response="{}",
+                provider_resolved_model=model,
+                prompt_tokens=100.0,
+                completion_tokens=25.0,
+                error=None,
+            )
+            for model in incumbents
+        ],
+        ignore_index=True,
+    )[["model", *driver.KEY, *freezer.PREDICTION_EVIDENCE_COLUMNS[2:]]]
+    frame = _mock_run_rows(reference)
+    gaps = sorted(missing)
+    frame.loc[gaps, "prediction"] = None
+    frame.loc[gaps, "error"] = "MOCK: no answer parsed"
     if extra:
-        addition["provider_system_fingerprint"] = "fp_mock"
-    addition_path = root / "fable52.csv"
-    addition.to_csv(addition_path, index=False)
-    scoring = base_references(root / "scoring")
-    if record == "release":
-        # The record decides what export scores, never what the fold keeps.
-        (scoring / EXCLUSIONS_NAME).write_text(release_text())
-    result = fold_board(
-        base_path, [addition_path], scoring, root / "fold", export=False
-    )
-    assert result["models"] == count + 1 and result["excluded"] == {}
-    folded = pd.read_csv(root / "fold/us/predictions.csv", low_memory=False)
+        frame["provider_system_fingerprint"] = "fp_mock"
+    if change == "an output dropped":
+        frame = frame.drop(index=at)
+    elif change == "an output repeated":
+        frame = pd.concat([frame, frame.iloc[[at]]], ignore_index=True)
+    elif change == "an output renamed":
+        frame.loc[at, "variable"] = "mock_unknown_output"
+    run_dir = root / "runs" / SLUG / "run"
+    run_dir.mkdir(parents=True)
+    frame.to_csv(run_dir / "predictions.csv", index=False)
+    state = {
+        "model": NEW,
+        "completed": 100,
+        "total": 100,
+        "stopped_reason": None,
+        "treatment_fingerprint": {"model_id": registry[NEW]},
+    }
+    driver.write_json(run_dir / "run_state.json", state)
+    stage, checked = root / "stage", []
+    args = SimpleNamespace(stage_dir=stage, partial=False)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(driver, "SNAPSHOT", snapshot)
+        patch.setattr(driver, "ANNOTATIONS", annotations)
+        patch.setattr(driver, "BOARD_MODELS", count + 1)
+        patch.setattr(
+            freeze_gpt61sol,
+            "validate_treatment",
+            lambda freezer, state, path, scenarios: checked.append(path),
+        )
+        runs = driver.discover_new_models(root / "runs")
+        if KEY_CHANGES[change]:
+            with pytest.raises(SystemExit, match=KEY_CHANGES[change]):
+                driver.prepare_inputs(args, runs, base, reference)
+            assert not (stage / "publish").exists()
+            assert checked == []
+            return
+        bundle, frames = driver.prepare_inputs(args, runs, base, reference)
+    assert checked == [run_dir / "run_state.json"]
+    assert list(frames) == [NEW] and len(frames[NEW]) == driver.BASE_OUTPUTS
+    folded = pd.read_csv(bundle / "us/predictions.csv", low_memory=False)
+    assert sorted(set(folded.model)) == sorted([*incumbents, NEW])
     new_rows = folded[folded.model == NEW]
-    assert len(new_rows) == 1984
-    assert set(new_rows[driver.KEY].itertuples(index=False, name=None)) == set(
-        reference.itertuples(index=False, name=None)
-    )
-    assert RULED in set(new_rows[driver.KEY].itertuples(index=False, name=None))
-    assert set(addition.columns) <= set(new_rows.columns)
-    for index in range(count):
-        model = f"incumbent-{index}"
+    assert len(new_rows) == 1984 == driver.BASE_OUTPUTS
+    keys = set(new_rows[driver.KEY].itertuples(index=False, name=None))
+    assert keys == set(reference[driver.KEY].itertuples(index=False, name=None))
+    assert RULED in keys
+    assert {driver.spec_key(r) for r in BASE_RECORD["exclusions"]} <= keys
+    unanswered = new_rows[new_rows.prediction.isna()]
+    assert set(unanswered[driver.KEY].itertuples(index=False, name=None)) == {
+        (reference.scenario_id[row], reference.variable[row]) for row in gaps
+    }
+    assert set(frame.columns) <= set(new_rows.columns)
+    # restore_run_row_text: the new model's cells are the run's own text.
+    text = functools.partial(pd.read_csv, dtype=str, keep_default_na=False)
+    source = text(run_dir / "predictions.csv").set_index(driver.KEY)
+    restored = text(bundle / "us/predictions.csv")
+    restored = restored[restored.model == NEW].set_index(driver.KEY)
+    assert restored[list(source.columns)].sort_index().equals(source.sort_index())
+    staged_base = pd.read_csv(io.StringIO(base.to_csv(index=False)))
+    for model in incumbents:
         assert freezer._model_prediction_rows_sha256(
             folded, model
-        ) == freezer._model_prediction_rows_sha256(pd.read_csv(base_path), model)
+        ) == freezer._model_prediction_rows_sha256(staged_base, model)
+    provenance = json.loads((stage / "model-provenance.json").read_text())
+    assert provenance[NEW]["rows"] == 1984 and provenance[NEW]["households"] == 100
+    assert provenance[NEW]["provider_system_fingerprints"] == (
+        ["fp_mock"] if extra else []
+    )
 
 
 # --- Verdicts: a bound sidecar and the template version its case requires -----
