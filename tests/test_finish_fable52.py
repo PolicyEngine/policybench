@@ -1820,18 +1820,34 @@ def board(tmp_path, monkeypatch):
     )
     root = tmp_path / "board"
 
-    def run(answers, *, doc=None, base_answers=None, edit_base=None, reopened=()):
+    def run(
+        answers,
+        *,
+        doc=None,
+        base_answers=None,
+        edit_base=None,
+        reopened=(),
+        decided=(),
+        annotate=None,
+    ):
         """The driver's payload and the base board's export (``edit_base``
-        applied to its US country first)."""
-        base = export_board(
-            write_board(
-                root / "base", base_answers or answers, base_doc, MOCK_INCUMBENTS
-            )
+        applied to its US country first). ``annotate(directory, side)``, when
+        given, edits each board's annotations directory after it is written,
+        ``side`` "base" or "release"."""
+        written = write_board(
+            root / "base", base_answers or answers, base_doc, MOCK_INCUMBENTS
         )
+        if annotate is not None:
+            annotate(written / "annotations", "base")
+        base = export_board(written)
         if edit_base is not None:
             edit_base(base["countries"]["us"])
         bundle = write_board(root / "release", answers, doc or release_doc)
-        payload = driver.build_payload(bundle, base, reopened=frozenset(reopened))
+        if annotate is not None:
+            annotate(bundle / "annotations", "release")
+        payload = driver.build_payload(
+            bundle, base, reopened=frozenset(reopened), decided=frozenset(decided)
+        )
         return payload, base
 
     return SimpleNamespace(
@@ -1943,12 +1959,37 @@ def _first_board_case(board) -> str:
     return f"us__{scenario}__{variable}"
 
 
-@pytest.mark.parametrize("field", ["failureSource", "annotation", "caseAnnotation"])
-def test_check_a_lets_annotations_differ_only_on_reopened_cases(board, field):
+# Each annotation field of a cell, and whether check (a) lets it differ on a
+# case this release decides and did not re-open (review r2, N1).
+DECIDED_MAY_DIFFER = {
+    "failureSource": True,
+    "failureSubtype": True,
+    "caseAnnotation": True,
+    "caseFailureSources": True,
+    "caseFailureSubtypes": True,
+    "annotation": False,
+    "referenceExplanation": False,
+}
+
+
+def test_the_fields_a_decision_may_move_are_the_class_fields_and_the_case_note():
+    assert set(DECIDED_MAY_DIFFER) == (
+        release_20261006.TEXT_CELL_FIELDS | release_20261006.CLASS_CELL_FIELDS
+    )
+    assert {field for field, may in DECIDED_MAY_DIFFER.items() if may} == (
+        release_20261006.CLASS_CELL_FIELDS | {"caseAnnotation"}
+    )
+
+
+@pytest.mark.parametrize("field", DECIDED_MAY_DIFFER)
+def test_check_a_lets_annotations_differ_only_on_reopened_and_decided_cases(
+    board, field
+):
     """An incumbent cell's annotation field that differs from the scope
-    export's passes on a case this release re-opened and stops the build on
-    any other case; a prediction that differs stops it on a re-opened case
-    too."""
+    export's passes on a case this release re-opened; on a case it decides
+    and did not re-open, only the class fields and caseAnnotation pass
+    (review r2, N1); on any other case each stops the build. A prediction
+    that differs stops it on a re-opened or decided case too."""
     case = _first_board_case(board)
 
     def annotate(us: dict) -> None:
@@ -1959,10 +2000,138 @@ def test_check_a_lets_annotations_differ_only_on_reopened_cases(board, field):
         cell["prediction"] = (cell["prediction"] or 0) + 1
 
     board.run(mixed_answers(), edit_base=annotate, reopened=[case])
+    board.run(mixed_answers(), edit_base=annotate, reopened=[case], decided=[case])
+    if DECIDED_MAY_DIFFER[field]:
+        board.run(mixed_answers(), edit_base=annotate, decided=[case])
+    else:
+        with pytest.raises(SystemExit, match="outside modelStats"):
+            board.run(mixed_answers(), edit_base=annotate, decided=[case])
     with pytest.raises(SystemExit, match="outside modelStats"):
         board.run(mixed_answers(), edit_base=annotate)
     with pytest.raises(SystemExit, match="outside modelStats"):
-        board.run(mixed_answers(), edit_base=predict, reopened=[case])
+        board.run(mixed_answers(), edit_base=annotate, decided=["us__MOCK__other"])
+    for cases in ({"reopened": [case]}, {"decided": [case]}):
+        with pytest.raises(SystemExit, match="outside modelStats"):
+            board.run(mixed_answers(), edit_base=predict, **cases)
+
+
+# Review r2, N1, through the real exporter: triage applies a decision to a
+# case the new model did not re-open (here a MOCK decision on the ruled
+# output, which the MOCK incumbents answer wrong and the new model right), so
+# the release bundle's annotations carry the decided classes and sentence
+# where the base board's do not.
+
+MOCK_CASE_NOTE = {
+    "country": "us",
+    "case_annotation": "MOCK case note.",
+    "case_failure_sources": "llm_error",
+    "case_failure_subtypes": "thresholds_rates",
+}
+
+
+def carried_answers() -> dict:
+    """mixed_answers() with the MOCK incumbents wrong on the ruled row and
+    the new model right: the new model joins none of its wrong models."""
+    answers = mixed_answers()
+    for model in MOCK_MODELS:
+        answers[(model, RULED_ROW)] = "right" if model == NEW else "wrong"
+    return answers
+
+
+def mock_decision(key: tuple[str, str]) -> dict:
+    """A MOCK adjudication of ``key`` with d2180's decided class."""
+    return {
+        "country": "us",
+        "scenario_id": key[0],
+        "variable": key[1],
+        "adjudicated_on": "2026-11-01",
+        "judge_model": "MOCK judge",
+        "judge_failure_source": "llm_error",
+        "adjudicated_failure_source": "prompt_ambiguity",
+        "adjudicated_failure_subtype": "state_local_rule",
+        "reasoning": "MOCK reasoning.",
+    }
+
+
+def decide_on_release(*keys, edit=None):
+    """An ``annotate`` hook: a MOCK case note on ``keys`` in both boards, and
+    on the release board each MOCK decision applied as triage applies it
+    (apply_adjudications), then ``edit(rows, cases)``."""
+    from policybench.adjudications import apply_adjudications
+
+    def annotate(directory: Path, side: str) -> None:
+        rows_path = directory / "us_audit_row_annotations.csv"
+        cases_path = directory / "us_case_notes.csv"
+        rows = pd.read_csv(rows_path).assign(country="us")
+        cases = pd.DataFrame(
+            [{"scenario_id": s, "variable": v, **MOCK_CASE_NOTE} for s, v in keys]
+        )
+        if side == "release":
+            rows, cases, _ = apply_adjudications(
+                rows, cases, [mock_decision(key) for key in keys]
+            )
+            if edit is not None:
+                edit(rows, cases)
+        rows.to_csv(rows_path, index=False)
+        cases.to_csv(cases_path, index=False)
+
+    return annotate
+
+
+def test_check_a_passes_a_decision_on_a_carried_case_through_the_real_exporter(
+    board,
+):
+    """With the MOCK decision on the ruled case applied to the release
+    board's annotations, the real exporter moves the MOCK incumbents' cells
+    there in their class fields and caseAnnotation. The build passes with the
+    case decided and not re-opened, and with it re-opened; holding every case
+    to the base, as before review r2's N1, refuses it."""
+    answers = with_a_parsed_answer(carried_answers(), board.release_doc)
+    annotate = decide_on_release(RULED)
+    payload, base = board.run(answers, annotate=annotate, decided=[RULED_CASE])
+    cells = _ruled_cells(payload["countries"]["us"])
+    base_cells = _ruled_cells(base["countries"]["us"])
+    for model in MOCK_INCUMBENTS:
+        moved = {
+            field
+            for field in set(cells[model]) | set(base_cells[model])
+            if cells[model].get(field) != base_cells[model].get(field)
+        }
+        # MOVED: the release's exclusion record unscores the ruled output.
+        assert moved - set(MOVED) == {
+            field for field, may in DECIDED_MAY_DIFFER.items() if may
+        }
+        assert cells[model]["failureSource"] == "prompt_ambiguity"
+        assert "Developer adjudication (2026-11-01)" in cells[model]["caseAnnotation"]
+    board.run(answers, annotate=annotate, reopened=[RULED_CASE])
+    with pytest.raises(SystemExit, match="outside modelStats") as refused:
+        board.run(answers, annotate=annotate)
+    assert f"scenarioPredictions {RULED[0]} {RULED[1]}" in str(refused.value)
+
+
+@pytest.mark.parametrize("what", ["undecided_case", "row_annotation"])
+def test_check_a_refuses_what_a_carried_decision_does_not_explain(board, what):
+    """The same MOCK decision on a case this release does not decide stops the
+    build, though the ruled case is decided; and on the decided ruled case, a
+    row annotation that differs from the base's stops it unless the case was
+    re-opened (review r2, N1)."""
+    answers = with_a_parsed_answer(carried_answers(), board.release_doc)
+    for model in MOCK_INCUMBENTS:
+        answers[(model, OTHER_ROW)] = "wrong"
+    if what == "undecided_case":
+        annotate, case = decide_on_release(RULED, OTHER), OTHER
+    else:
+
+        def reword(rows, cases):
+            mask = (rows.scenario_id == RULED[0]) & (rows.variable == RULED[1])
+            rows.loc[mask, "annotation"] = "MOCK: a wording no decision changed."
+
+        annotate, case = decide_on_release(RULED, edit=reword), RULED
+    with pytest.raises(SystemExit, match="outside modelStats") as refused:
+        board.run(answers, annotate=annotate, decided=[RULED_CASE])
+    assert f"scenarioPredictions {case[0]} {case[1]}" in str(refused.value)
+    reopened = [f"us__{case[0]}__{case[1]}"]
+    board.run(answers, annotate=annotate, decided=[RULED_CASE], reopened=reopened)
 
 
 def _country(**sections) -> dict:
@@ -2002,31 +2171,37 @@ def test_base_restoration_names_at_most_its_limit():
 @given(
     prediction=st.floats(allow_nan=False, allow_infinity=False),
     field=st.sampled_from(["prediction", "groundTruth", "scored", "explanation"]),
-    annotation=st.sampled_from(
-        sorted(release_20261006.TEXT_CELL_FIELDS | release_20261006.CLASS_CELL_FIELDS)
-    ),
-    reopened=st.booleans(),
+    annotation=st.sampled_from(sorted(DECIDED_MAY_DIFFER)),
+    reopened=st.sampled_from(["none", "this", "another"]),
+    decided=st.sampled_from(["none", "this", "another"]),
 )
 def test_base_restoration_holds_every_cell_field_but_reopened_annotations(
-    prediction, field, annotation, reopened
+    prediction, field, annotation, reopened, decided
 ):
-    """Property: an incumbent cell's annotation field may move only on a
-    re-opened case; any other field, never; an unmoved board, always passes."""
+    """Property: an incumbent cell's annotation field may move on a re-opened
+    case, and its class fields and caseAnnotation on a decided case (review
+    r2, N1); a case id that names another case exempts nothing here; any
+    other field, never; an unmoved board, always passes."""
     cell = {"prediction": prediction, "groundTruth": 1.0, "scored": True}
     live = _country(scenarioPredictions={"s": {"v": {"a": cell}}})
-    cases = frozenset({"us__s__v"}) if reopened else frozenset()
-    assert (
-        driver.base_restoration_problems(copy.deepcopy(live), live, {"a"}, cases) == []
+    ids = {"none": frozenset(), "this": frozenset({"us__s__v"})}
+    ids["another"] = frozenset({"us__s__w", "us__t__v"})
+    check = functools.partial(
+        driver.base_restoration_problems,
+        live=live,
+        incumbents={"a"},
+        reopened=ids[reopened],
+        decided=ids[decided],
     )
+    assert check(copy.deepcopy(live)) == []
     moved = copy.deepcopy(live)
     moved["countries"]["us"]["scenarioPredictions"]["s"]["v"]["a"][annotation] = "X"
-    problems = driver.base_restoration_problems(moved, live, {"a"}, cases)
-    assert problems == ([] if reopened else ["scenarioPredictions s v a changed"])
+    may = reopened == "this" or (decided == "this" and DECIDED_MAY_DIFFER[annotation])
+    assert check(moved) == ([] if may else ["scenarioPredictions s v a changed"])
     moved = copy.deepcopy(live)
     entry = moved["countries"]["us"]["scenarioPredictions"]["s"]["v"]["a"]
     entry[field] = "a value no exporter wrote"
-    problems = driver.base_restoration_problems(moved, live, {"a"}, cases)
-    assert problems == ["scenarioPredictions s v a changed"]
+    assert check(moved) == ["scenarioPredictions s v a changed"]
 
 
 @settings(
@@ -4143,6 +4318,206 @@ def test_triage_stops_when_a_case_miscounts_its_rows(triage_stage):
         triage_stage.run()
 
 
+# --- Check (a) on the ruled case carried over, on real data (review r2, N1) ---
+#
+# Triage applies d2180's decision to the ruled case whether or not the new
+# model re-opened it. These tests apply the entry adjudicate-exclusions builds
+# (its judge fields from the ruled fixture's MOCK verdict) to release
+# 20261027's committed annotations, read from git, and move release
+# 20261027's own payload (from git) where the exporter writes those
+# annotations. They read no prediction of the new model.
+
+# Each annotation field of a cell, and the annotation frame and column the
+# exporter writes it from (policybench.analysis.build_dashboard_payload, by
+# way of policybench.full_run_export's loaders): the model's row annotation
+# or the case note, the text stripped. A cell carries a field only when the
+# exporter wrote it, which a decision does not change.
+CELL_SOURCES = (
+    ("annotation", "row", "annotation"),
+    ("failureSource", "row", "failure_source"),
+    ("failureSubtype", "row", "failure_subtype"),
+    ("caseAnnotation", "case", "case_annotation"),
+    ("caseFailureSources", "case", "case_failure_sources"),
+    ("caseFailureSubtypes", "case", "case_failure_subtypes"),
+)
+
+
+@pytest.fixture(scope="module")
+def base_live() -> dict:
+    """Release 20261027's payload, from git (driver.base_payload_from_commit)."""
+    return driver.base_payload_from_commit()
+
+
+def base_annotation_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Release 20261027's row annotations and case notes, from git."""
+    return (
+        pd.read_csv(io.BytesIO(base_blob(ANNOTATIONS_PATH / name)))
+        for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
+    )
+
+
+def exported_cells(cells: dict, rows, cases, key: tuple[str, str]) -> dict:
+    """``cells`` (one output's, by model) with each annotation field a cell
+    carries taken from the frames as the exporter writes it."""
+    scenario, variable = key
+    note = cases[(cases.scenario_id == scenario) & (cases.variable == variable)]
+    assert len(note) == 1
+    rows = rows[(rows.scenario_id == scenario) & (rows.variable == variable)]
+    out = {}
+    for model, cell in cells.items():
+        row = rows[rows.model == model]
+        assert len(row) <= 1
+        frames = {"row": row.iloc[0] if len(row) else None, "case": note.iloc[0]}
+        moved = dict(cell)
+        for field, frame, column in CELL_SOURCES:
+            if field in cell:
+                assert frames[frame] is not None, (model, field)
+                moved[field] = str(frames[frame][column]).strip()
+        out[model] = moved
+    return out
+
+
+def decided_on_the_base(live: dict, entry: dict) -> tuple[dict, dict, list[str]]:
+    """``live`` with the incumbents' cells on ``entry``'s output as the
+    exporter writes them once ``entry`` is applied (apply_adjudications) to
+    release 20261027's annotations; the moved cells; the models whose cells
+    moved. The frames first reproduce release 20261027's own cells there,
+    byte for byte, so the mapping is the exporter's on this output."""
+    from policybench.adjudications import apply_adjudications
+
+    key = driver.spec_key(entry)
+    us = live["countries"]["us"]
+    incumbents = {row["model"] for row in us["modelStats"]}
+    held = {
+        model: cell
+        for model, cell in us["scenarioPredictions"][key[0]][key[1]].items()
+        if model in incumbents
+    }
+    rows, cases = base_annotation_frames()
+    assert json.dumps(exported_cells(held, rows, cases, key)) == json.dumps(held)
+    rows, cases, _ = apply_adjudications(rows, cases, [entry])
+    moved = exported_cells(held, rows, cases, key)
+    country = dict(us)
+    country["scenarioPredictions"] = dict(us["scenarioPredictions"])
+    country["scenarioPredictions"][key[0]] = {
+        **us["scenarioPredictions"][key[0]],
+        key[1]: {**us["scenarioPredictions"][key[0]][key[1]], **moved},
+    }
+    changed = sorted(m for m in held if json.dumps(moved[m]) != json.dumps(held[m]))
+    return {"countries": {"us": country}}, moved, changed
+
+
+def scope_check(scoped: dict, live: dict, reopened=frozenset(), decided=frozenset()):
+    incumbents = {row["model"] for row in live["countries"]["us"]["modelStats"]}
+    return driver.base_restoration_problems(
+        scoped, live, incumbents, frozenset(reopened), decided=decided, limit=100
+    )
+
+
+def problems_on(key: tuple[str, str], models) -> list[str]:
+    scenario, variable = key
+    return [f"scenarioPredictions {scenario} {variable} {m} changed" for m in models]
+
+
+def test_the_release_decides_exactly_the_ruled_case():
+    """decided_cases on the committed spec: its one ruled record and no
+    triage decision."""
+    assert driver.triage_items() == []
+    assert driver.decided_cases() == frozenset({RULED_CASE})
+
+
+def test_decided_cases_names_the_ruled_records_and_the_triage_items():
+    """With a MOCK triage decision in the spec, decided_cases names its case
+    beside the ruled one."""
+    item = MOCK_TRIAGE_ITEM
+    assert driver.decided_cases(triage_spec()) == frozenset(
+        {RULED_CASE, f"us__{item['scenario_id']}__{item['variable']}"}
+    )
+
+
+def test_check_a_passes_the_ruled_decision_on_release_20261027s_own_cells(
+    ruled, base_live
+):
+    """On release 20261027's data, the d2180 entry moves nine incumbent cells
+    of the ruled output: eight wrong answers in their classes and case note,
+    one parse failure in its case note. Only the class fields and
+    caseAnnotation move. Check (a) passes them with the case decided and not
+    re-opened, and with it re-opened; holding every case to the base, the
+    rule before review r2's N1, refuses all nine."""
+    entry = ruled.after[RULED_CASE]
+    scoped, moved, changed = decided_on_the_base(base_live, entry)
+    held = base_live["countries"]["us"]["scenarioPredictions"][RULED[0]][RULED[1]]
+    assert len(changed) == 9
+    reclassed = [
+        m for m in changed if moved[m]["failureSource"] != held[m]["failureSource"]
+    ]
+    assert len(reclassed) == 8
+    fields = {
+        field
+        for model in changed
+        for field in held[model]
+        if moved[model][field] != held[model][field]
+    }
+    assert fields == release_20261006.CLASS_CELL_FIELDS | {"caseAnnotation"}
+    assert scope_check(scoped, base_live, decided=driver.decided_cases()) == []
+    assert scope_check(scoped, base_live, reopened={RULED_CASE}) == []
+    assert scope_check(scoped, base_live) == problems_on(RULED, changed)
+
+
+def _undecided_case(base_record: dict) -> tuple[str, str]:
+    """The first case, in order, with a case note and an incumbent's
+    substantive row that neither release 20261027's record nor this
+    release's spec decides."""
+    from policybench.adjudications import NON_SUBSTANTIVE_SOURCES
+
+    rows, cases = base_annotation_frames()
+    decided = {driver.spec_key(entry) for entry in base_record["adjudications"]}
+    noted = set(zip(cases.scenario_id, cases.variable, strict=True))
+    substantive = rows[~rows.failure_source.isin(NON_SUBSTANTIVE_SOURCES)]
+    keys = set(zip(substantive.scenario_id, substantive.variable, strict=True))
+    return min(keys & noted - decided - {RULED})
+
+
+def test_check_a_refuses_the_same_decision_on_a_case_the_release_does_not_decide(
+    ruled, base_live
+):
+    """The d2180 entry moved to another case (MOCK), one no decision of
+    either release names, moves that case's cells as it moved the ruled
+    case's, and check (a) refuses every one of them while only the ruled
+    case is decided: a decision exempts its own case."""
+    key = _undecided_case(ruled.base)
+    entry = {**ruled.after[RULED_CASE], "scenario_id": key[0], "variable": key[1]}
+    scoped, _, changed = decided_on_the_base(base_live, entry)
+    assert changed
+    decided = driver.decided_cases()
+    assert scope_check(scoped, base_live, decided=decided) == problems_on(key, changed)
+    case = frozenset({f"us__{key[0]}__{key[1]}"})
+    assert scope_check(scoped, base_live, decided=case) == []
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("annotation", "MOCK: a row annotation no decision wrote."),
+        ("referenceExplanation", "MOCK: a reference explanation."),
+        ("prediction", 1.0e9),
+    ],
+)
+def test_check_a_holds_a_decided_cases_row_annotation_and_reference(
+    ruled, base_live, field, value
+):
+    """On the ruled case decided and not re-opened, a row annotation or a
+    referenceExplanation that is not release 20261027's stops check (a);
+    re-opened, either passes. A prediction stops it either way."""
+    scoped, moved, changed = decided_on_the_base(base_live, ruled.after[RULED_CASE])
+    moved[changed[0]][field] = value
+    refused = problems_on(RULED, changed[:1])
+    decided = driver.decided_cases()
+    assert scope_check(scoped, base_live, decided=decided) == refused
+    reopened = scope_check(scoped, base_live, reopened={RULED_CASE}, decided=decided)
+    assert reopened == (refused if field == "prediction" else [])
+
+
 # --- The inherited gates are Terra's (review r1, M2) --------------------------
 #
 # The build report lists these functions as kept from Terra's scripts, byte
@@ -4489,6 +4864,9 @@ def export_spy(monkeypatch):
     monkeypatch.setattr(driver, "release_exclusions_sha256", lambda: "MOCK sha")
     monkeypatch.setattr(driver, "live_pointer", lambda: {"tag": driver.BASE_TAG})
     monkeypatch.setattr(driver, "rejudged_cases", lambda stage: frozenset({"MOCK"}))
+    monkeypatch.setattr(
+        driver, "decided_cases", lambda spec=None: frozenset({"MOCK decided"})
+    )
 
     def build(*args, **kw):
         calls.append(("build_payload", args))
@@ -4716,20 +5094,21 @@ def test_prepare_reads_the_pointer_once_the_committed_references_pass(
 
 
 @pytest.mark.parametrize(
-    "mode, reopened",
+    "mode, reopened, decided",
     [
-        ({}, frozenset({"MOCK"})),
-        ({"early": True}, frozenset()),
-        ({"partial": True}, frozenset()),
+        ({}, frozenset({"MOCK"}), frozenset({"MOCK decided"})),
+        ({"early": True}, frozenset(), frozenset()),
+        ({"partial": True}, frozenset(), frozenset()),
     ],
     ids=["release", "early", "partial"],
 )
-def test_export_hands_the_scope_check_the_cases_it_reopened(
-    export_spy, tmp_path, mode, reopened
+def test_export_hands_the_scope_check_the_cases_it_reopened_and_decides(
+    export_spy, tmp_path, mode, reopened, decided
 ):
-    """Review r1, M9: a release export passes rejudged_cases' cases, whose
-    annotation fields check (a) lets differ from the base's; a rehearsal,
-    which judges none, passes none."""
+    """Review r1, M9, and review r2, N1: a release export passes
+    rejudged_cases' cases and decided_cases' cases, whose annotation fields
+    check (a) lets differ from the base's; a rehearsal, which runs no scope
+    check, passes none."""
     seen = {}
 
     def build(*args, **kw):
@@ -4739,6 +5118,7 @@ def test_export_hands_the_scope_check_the_cases_it_reopened(
     export_spy.monkeypatch.setattr(driver, "build_payload", build)
     _export(tmp_path, **mode)
     assert seen["reopened"] == reopened
+    assert seen["decided"] == decided
 
 
 @pytest.mark.parametrize("gate", EXPORT_GATES)

@@ -846,10 +846,15 @@ def rebuild_payload(
     ``live``) runs again on a scratch copy of the bundle files the receipt
     binds, each checked against its receipt hash, and its bytes must equal the
     staged payload's. That build scores every model on the release's outputs
-    and repeats export's two scope checks: with release 20261027's exclusion
-    record put back, every incumbent's modelStats is that release's, byte for
-    byte; and the release payload differs from that scope build only where
-    the ruled output's exclusion reaches (driver.exclusion_scope_problems).
+    and repeats export's two scope checks, with the cases this release
+    re-judged (driver.rejudged_cases) and the cases it decides
+    (driver.decided_cases) as export passed them: with release 20261027's
+    exclusion record put back, every incumbent's modelStats is that
+    release's, byte for byte, and so is the rest of what the incumbents share
+    with it, outside the annotation fields those cases let differ
+    (driver.base_restoration_problems); and the release payload differs from
+    that scope build only where the ruled output's exclusion reaches
+    (driver.exclusion_scope_problems).
     The copy is the bundle's: export_full_run writes data.json, us/data.json
     and us/analysis/ into the bundle it reads, and its data.json lacks the
     carried usage, so a rebuild in place would rewrite the stage.
@@ -865,10 +870,16 @@ def rebuild_payload(
             shutil.copyfile(stage / name, target)
             if digest(target) != expected:
                 raise SystemExit(f"Staged evidence changed since strict export: {name}")
-        # Review r1, M9: export's own scope check, with the cases this release
-        # re-judged, as export passed them.
+        # Review r1, M9, and review r2, N1: export's own scope check, with the
+        # cases this release re-judged and the cases it decides, as export
+        # passed them.
         rebuilt = driver.payload_text(
-            driver.build_payload(copy_root, live, reopened=driver.rejudged_cases(stage))
+            driver.build_payload(
+                copy_root,
+                live,
+                reopened=driver.rejudged_cases(stage),
+                decided=driver.decided_cases(),
+            )
         )
     staged = payload_path.read_bytes()
     if rebuilt.encode() != staged:

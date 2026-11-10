@@ -1843,6 +1843,21 @@ def rejudged_cases(stage: Path) -> frozenset[str]:
     return frozenset(changes["changed"]) | frozenset(changes["added"])
 
 
+def decided_cases(spec: dict | None = None) -> frozenset[str]:
+    """The cases this release decides, as case ids (rejudged_cases' form).
+
+    Review r2, N1: the spec's ruled records (spec_records) and its triage
+    items (triage_items). Triage applies each decision in the staged record
+    to the stage's audit rows (apply_adjudications) whether or not a new
+    model re-opened the case, so the case's substantive rows and its case
+    note take the decided class, and its case note gains the adjudication
+    sentence.
+    """
+    spec = load_spec() if spec is None else spec
+    decisions = [*spec_records(spec), *triage_items(spec)]
+    return frozenset(f"us__{s}__{v}" for s, v in map(spec_key, decisions))
+
+
 def case_id(entry: dict) -> str:
     """An adjudication entry's audit case id."""
     return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
@@ -3596,6 +3611,8 @@ def base_restoration_problems(
     live: dict,
     incumbents: set[str],
     reopened: frozenset[str] = frozenset(),
+    *,
+    decided: frozenset[str] = frozenset(),
     limit: int = 8,
 ) -> list[str]:
     """Where the scope export is not release 20261027's outside modelStats.
@@ -3608,10 +3625,21 @@ def base_restoration_problems(
     new model moves none of an incumbent's. Each of the five sections, each
     incumbent's heatmap row and each incumbent's cell must be release
     20261027's, serialized as the payload serializes it (key order counts,
-    as in incumbent_drift); a row or cell on one side only counts. On a case
-    in ``reopened`` (case ids, as rejudged_cases gives them) a cell's
-    annotation fields (release_20261006.TEXT_CELL_FIELDS | CLASS_CELL_FIELDS)
-    may differ: this release judged its verdict again. At most ``limit``.
+    as in incumbent_drift); a row or cell on one side only counts.
+
+    Two kinds of case let a cell's annotation fields differ, both as case
+    ids (rejudged_cases' form). On a case in ``reopened`` (rejudged_cases)
+    this release judged the verdict again, so every annotation field may
+    differ (release_20261006.TEXT_CELL_FIELDS | CLASS_CELL_FIELDS). Review
+    r2, N1: on a case in ``decided`` (decided_cases) that is not in
+    ``reopened``, triage applied this release's decision to the carried
+    verdict's rows, and apply_adjudications changes the rows' and the case
+    note's classes and the case note's text and nothing else the exporter
+    writes, so only CLASS_CELL_FIELDS and caseAnnotation may differ; the
+    row's annotation and referenceExplanation stay release 20261027's.
+    Triage's verify_adjudications_applied and the freeze's
+    verify_annotation_amendments hold the annotation files those fields come
+    from. Every other case keeps every field. At most ``limit``.
     """
     from release_20261006 import CLASS_CELL_FIELDS, TEXT_CELL_FIELDS
 
@@ -3649,14 +3677,23 @@ def base_restoration_problems(
             if model in incumbents
         }
 
-    annotation = TEXT_CELL_FIELDS | CLASS_CELL_FIELDS
+    rejudged_fields = TEXT_CELL_FIELDS | CLASS_CELL_FIELDS
+    decided_fields = CLASS_CELL_FIELDS | {"caseAnnotation"}
     scope_cells, base_cells = cells(scope_us), cells(base_us)
     for key in sorted(set(scope_cells) | set(base_cells)):
         scenario, variable, model = key
         got, want = scope_cells.get(key), base_cells.get(key)
-        if f"us__{scenario}__{variable}" in reopened and None not in (got, want):
-            got = {k: v for k, v in got.items() if k not in annotation}
-            want = {k: v for k, v in want.items() if k not in annotation}
+        case = f"us__{scenario}__{variable}"
+        exempt = (
+            rejudged_fields
+            if case in reopened
+            else decided_fields
+            if case in decided
+            else frozenset()
+        )
+        if exempt and None not in (got, want):
+            got = {k: v for k, v in got.items() if k not in exempt}
+            want = {k: v for k, v in want.items() if k not in exempt}
         if text(got) != text(want):
             problems.append(
                 f"scenarioPredictions {scenario} {variable} {model} changed"
@@ -3697,12 +3734,15 @@ def build_payload(
     early: bool = False,
     outputs: dict[str, bytes] | None = None,
     reopened: frozenset[str] = frozenset(),
+    decided: frozenset[str] = frozenset(),
 ) -> dict:
     """Compute and validate every export in a disposable copy of its inputs.
 
-    ``reopened`` names the cases this release re-judged (rejudged_cases), whose
-    annotation fields the scope check lets differ from the base's; none by
-    default, so a caller that leaves it out holds every case to the base."""
+    ``reopened`` names the cases this release re-judged (rejudged_cases), and
+    ``decided`` the cases it decides (decided_cases); the scope check lets
+    their annotation fields differ from the base's as
+    base_restoration_problems says. Both are empty by default, so a caller
+    that leaves them out holds every case to the base."""
     import tempfile
 
     from release_20261006 import EXPORT_INPUTS
@@ -3715,7 +3755,12 @@ def build_payload(
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(bundle / relative, target)
         payload = _build_payload_in_scratch(
-            working, live, partial=partial, early=early, reopened=reopened
+            working,
+            live,
+            partial=partial,
+            early=early,
+            reopened=reopened,
+            decided=decided,
         )
         if outputs is not None:
             generated = [working / "us/data.json"]
@@ -3737,6 +3782,7 @@ def _build_payload_in_scratch(
     partial: bool = False,
     early: bool = False,
     reopened: frozenset[str] = frozenset(),
+    decided: frozenset[str] = frozenset(),
 ) -> dict:
     """The payload export writes, built from ``bundle``; the one definition.
 
@@ -3754,8 +3800,10 @@ def _build_payload_in_scratch(
     20261027's byte for byte, as Haiku 5.5's and Terra's drivers required:
     nothing but the exclusion record moves an incumbent. Review r1, M9: so
     is the rest of what the incumbents share with the base
-    (base_restoration_problems), outside the annotation fields of the
-    ``reopened`` cases. (b) New in this
+    (base_restoration_problems): the five sections, the heatmap rows and
+    the cells, outside every annotation field of the ``reopened`` cases and,
+    review r2, N1, outside the class fields and caseAnnotation of the
+    ``decided`` cases. (b) New in this
     driver: the release payload differs from the scope export only where the
     ruled records reach (exclusion_scope_problems), so every score change, the
     new model's included, comes from the one output this release excludes.
@@ -3813,7 +3861,9 @@ def _build_payload_in_scratch(
             "with release 20261027's exclusion record, incumbent modelStats "
             f"drift: {drift}",
         )
-        restored = base_restoration_problems(scoped, live, set(previous), reopened)
+        restored = base_restoration_problems(
+            scoped, live, set(previous), reopened, decided=decided
+        )
         require(
             not restored,
             "with release 20261027's exclusion record, the scope export is not "
@@ -4118,11 +4168,13 @@ def export(args, bundle, live) -> dict:
             JUDGE_PROVENANCE,
         )
     outputs = {}
-    # Review r1, M9: the cases whose annotation fields the scope check lets
-    # differ from the base's. A rehearsal judges none.
-    reopened = (
-        frozenset() if args.early or args.partial else rejudged_cases(args.stage_dir)
-    )
+    # Review r1, M9, and review r2, N1: the cases whose annotation fields the
+    # scope check lets differ from the base's, the cases this release
+    # re-judged and the cases it decides. A rehearsal, which runs no scope
+    # check, passes none.
+    rehearsal = args.early or args.partial
+    reopened = frozenset() if rehearsal else rejudged_cases(args.stage_dir)
+    decided = frozenset() if rehearsal else decided_cases()
     payload = build_payload(
         bundle,
         live,
@@ -4130,6 +4182,7 @@ def export(args, bundle, live) -> dict:
         early=args.early,
         outputs=outputs,
         reopened=reopened,
+        decided=decided,
     )
     repository_inputs = None if args.early else repository_input_hashes()
     stats = payload["countries"]["us"]["modelStats"]

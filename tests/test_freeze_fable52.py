@@ -1299,6 +1299,14 @@ def test_finalize_refuses_a_rehearsal_stage(finalizing):
 # lookups it makes (_h_freezer_main writes what the freezer writes, from
 # where the freeze configured it). None of these values is a board-run
 # result.
+#
+# Review r2, N1: a second template (h_template_kept) carries the ruled case
+# over. There, MOCK, the incumbent also answers the ruled output wrong, the
+# seed carries that case with a verdict judged before the ruling, the new
+# model answers it right and opens one undecided case instead (H_OTHER_CASE,
+# judged by Opus 5.5 on v2), and release 20261027's payload carries the
+# incumbent's ruled cell as the base's annotations give it, while the
+# exporters' boards carry it as the staged annotations give it.
 
 import io  # noqa: E402
 import shutil  # noqa: E402
@@ -1318,6 +1326,9 @@ H_RULED_CASE = f"us__{RULED[0]}__{RULED[1]}"
 H_ANSWERED = 1794132000.0
 H_WINDOW = f"{freezer.MODEL_RESPONSE_START} to 2026-11-08"
 H_JUDGED_AT = "2026-11-09T12:00:00+00:00"
+# MOCK: the kept board's carried verdict of the ruled case, judged before the
+# 2026-11-01 ruling.
+H_CARRIED_AT = "2026-10-20T12:00:00+00:00"
 H_ROWS, H_NOTES = release.ANNOTATION_CSVS
 H_AMENDMENTS = release.COMMITTED_AMENDMENTS
 EXPLANATIONS = release.EXPLANATIONS
@@ -1426,10 +1437,14 @@ def _h_cell(prediction: float, truth: float, **fields) -> dict:
     }
 
 
-def _h_country(stats: list[dict], records: list[dict], ruled: dict | None) -> dict:
+def _h_country(
+    stats: list[dict], records: list[dict], ruled: dict | None, kept: bool = False
+) -> dict:
     """A board the real dashboard validator accepts, wrong answers annotated:
     one unruled output, and the ruled output with a cell for every model,
-    scored unless ``ruled`` (the d2180 record) excludes it."""
+    scored unless ``ruled`` (the d2180 record) excludes it. MOCK: on the
+    ruled output the new model answers wrong; with ``kept``, the incumbent
+    does instead, its cell's annotation fields left to _h_annotate_ruled."""
     from policybench.analysis import _reference_exclusion_payload
     from policybench.reference_exclusions import exclusion_basis
 
@@ -1445,7 +1460,9 @@ def _h_country(stats: list[dict], records: list[dict], ruled: dict | None) -> di
     cells = {}
     for row in stats:
         model = row["model"]
-        if model == H_NEW:
+        if kept and model == H_INCUMBENT:
+            cells[model] = _h_cell(1000.0, 0.0, **moved)
+        elif model == H_NEW and not kept:
             cells[model] = _h_cell(
                 1000.0,
                 0.0,
@@ -1491,10 +1508,11 @@ def _h_country(stats: list[dict], records: list[dict], ruled: dict | None) -> di
     }
 
 
-def _h_boards() -> SimpleNamespace:
+def _h_boards(kept: bool = False) -> SimpleNamespace:
     """MOCK release 20261027's payload and the exporters' boards: synthetic
     modelStats for the real incumbent roster and Claude Fable 5.2, on the
-    base's record (the scope export) and the release's (export_full_run)."""
+    base's record (the scope export) and the release's (export_full_run).
+    With ``kept``, _h_country's kept ruled cells."""
     incumbents = sorted(release.base_serving_config()["models"])
     scored = driver.RELEASE_SCORED + driver.NEW_EXCLUSIONS
     live_stats = [
@@ -1514,7 +1532,7 @@ def _h_boards() -> SimpleNamespace:
     # record none of it.
     for key in driver.CARRIED_USAGE[H_INCUMBENT]:
         del next(r for r in released if r["model"] == H_INCUMBENT)[key]
-    scope = _h_country(copy.deepcopy([*live_stats, new]), base, None)
+    scope = _h_country(copy.deepcopy([*live_stats, new]), base, None, kept)
     # Release 20261027's payload: the scope export without the new model's
     # rows, as check (a) requires (review r1, M9).
     live = copy.deepcopy(scope)
@@ -1526,7 +1544,9 @@ def _h_boards() -> SimpleNamespace:
     return SimpleNamespace(
         live={"countries": {"us": live}},
         exports={
-            "release": {"countries": {"us": _h_country(released, records, ruled)}},
+            "release": {
+                "countries": {"us": _h_country(released, records, ruled, kept)}
+            },
             "scope": {"countries": {"us": scope}},
         },
     )
@@ -1737,11 +1757,17 @@ def _h_patch(mp, workspace: Path, board) -> None:
         analysis = Path(run_dir) / "us/analysis"
         analysis.mkdir(exist_ok=True)
         (analysis / "metrics.csv").write_text("model,score\nsynthetic,1\n")
-        return copy.deepcopy(board.exports["release"])
+        payload = copy.deepcopy(board.exports["release"])
+        if board.kept:
+            _h_annotate_ruled(payload, Path(run_dir) / "annotations")
+        return payload
 
     def export_payload(bundle, base, exclusions=None, **kwargs):
         assert exclusions is not None
-        return copy.deepcopy(board.exports["scope"])
+        payload = copy.deepcopy(board.exports["scope"])
+        if board.kept:
+            _h_annotate_ruled(payload, Path(bundle) / "annotations")
+        return payload
 
     mp.setattr(policybench.full_run_export, "export_full_run", export_full_run)
     mp.setattr(release_20261006, "export_payload", export_payload)
@@ -1841,16 +1867,99 @@ def _h_verdict(source: str, subtype: str, suspect: bool, model: str) -> dict:
     }
 
 
-def _h_judge_ruled_case(audit: Path) -> None:
-    """The ruled case, which the new model opens on the MOCK board, judged by
-    Opus 5.5 on v2: a MOCK verdict with its full sidecar and a clean
-    transcript."""
+# The cell fields the exporter writes from the row annotation and the case
+# note (policybench.analysis.build_dashboard_payload), and their columns.
+H_ROW_FIELDS = {
+    "annotation": "annotation",
+    "failureSource": "failure_source",
+    "failureSubtype": "failure_subtype",
+}
+H_CASE_FIELDS = {
+    "caseAnnotation": "case_annotation",
+    "caseFailureSources": "case_failure_sources",
+    "caseFailureSubtypes": "case_failure_subtypes",
+}
+
+
+def _h_ruled_fields(rows, cases) -> dict:
+    """The MOCK incumbent's annotation fields on the ruled output, from row
+    annotations and case notes as triage writes them (stripped text, as the
+    exporter writes it on a wrong cell)."""
+    row = rows[
+        (rows.scenario_id == RULED[0])
+        & (rows.variable == RULED[1])
+        & (rows.model == H_INCUMBENT)
+    ]
+    note = cases[(cases.scenario_id == RULED[0]) & (cases.variable == RULED[1])]
+    assert len(row) == len(note) == 1
+    fields = {k: str(row.iloc[0][c]).strip() for k, c in H_ROW_FIELDS.items()}
+    fields.update({k: str(note.iloc[0][c]).strip() for k, c in H_CASE_FIELDS.items()})
+    return fields
+
+
+def _h_annotate_ruled(payload: dict, annotations: Path) -> None:
+    """The kept board's ruled incumbent cell, its annotation fields read from
+    the bundle's annotations, as the exporter reads them."""
+    import pandas as pd
+
+    fields = _h_ruled_fields(
+        pd.read_csv(annotations / H_ROWS), pd.read_csv(annotations / H_NOTES)
+    )
+    cell = payload["countries"]["us"]["scenarioPredictions"][RULED[0]][RULED[1]]
+    cell[H_INCUMBENT].update(fields)
+
+
+def _h_base_ruled_fields(stage: Path) -> dict:
+    """The kept stage's ruled incumbent cell as release 20261027's annotations
+    give it: triage's frames (collect_audit) with release 20261027's 63
+    decisions applied and d2180's not, through triage's CSV writer."""
+    import pandas as pd
+
+    from policybench.adjudications import apply_adjudications
+    from policybench.audit import collect_audit
+
+    collected = collect_audit(stage / BUNDLE / "us", stage / "audit")
+    rows, cases, _ = apply_adjudications(
+        collected["row"],
+        collected["case"].rename(
+            columns={
+                "case_failure_source": "case_failure_sources",
+                "case_failure_subtype": "case_failure_subtypes",
+            }
+        ),
+        driver.base_adjudication_record()["adjudications"],
+    )
+    return _h_ruled_fields(
+        *(
+            pd.read_csv(io.StringIO(driver.annotation_csv_text(frame)))
+            for frame in (rows, cases)
+        )
+    )
+
+
+def _h_other_case(reference: list[dict]) -> str:
+    """The kept board's one opened case: the first undecided output of the
+    ruled variable on another household (MOCK)."""
+    decided = _h_decided_cases()
+    return min(
+        case
+        for row in reference
+        if row["variable"] == RULED[1] and row["scenario_id"] != RULED[0]
+        for case in [f"us__{row['scenario_id']}__{row['variable']}"]
+        if case not in decided
+    )
+
+
+def _h_judge_ruled_case(audit: Path, case_id: str = H_RULED_CASE) -> None:
+    """The ruled case, which the new model opens on the MOCK board (or, on
+    the kept board, ``case_id``), judged by Opus 5.5 on v2: a MOCK verdict
+    with its full sidecar and a clean transcript."""
     from policybench.judge_template import template_header
 
-    case = audit / "cases" / H_RULED_CASE
+    case = audit / "cases" / case_id
     case.mkdir(parents=True)
     prompt = template_header(driver.JUDGE_TEMPLATE_VERSION) + (
-        f"\nClassify the synthetic wrong answer on {H_RULED_CASE}.\n"
+        f"\nClassify the synthetic wrong answer on {case_id}.\n"
     )
     (case / "prompt.md").write_text(prompt)
     verdict = _h_verdict("llm_error", "thresholds_rates", False, H_NEW)
@@ -1927,15 +2036,19 @@ def _h_write_stage(workspace: Path, board) -> Path:
     for name in (driver.ADJUDICATIONS, EXPLANATIONS):
         (annotations / name).write_bytes(h_blob(release.ANNOTATIONS / name))
     # On the MOCK board the new model answers right on every output but the
-    # ruled one, and the incumbent wrong on every decided case.
+    # ruled one, and the incumbent wrong on every decided case. On the kept
+    # board the incumbent answers the ruled output wrong too, and the new
+    # model answers it right and answers H_OTHER_CASE wrong.
     with (us / driver.CSV_NAME).open(newline="") as stream:
         reference = list(csv.DictReader(stream))
     decided = _h_decided_cases()
+    board.other_case = _h_other_case(reference) if board.kept else None
+    opened = board.other_case if board.kept else H_RULED_CASE
     new = []
     for index, row in enumerate(reference):
         started = H_ANSWERED + index * 0.5
         value = row["value"]
-        if (row["scenario_id"], row["variable"]) == RULED:
+        if f"us__{row['scenario_id']}__{row['variable']}" == opened:
             value = str(float(value) + 1000.0)
         new.append(
             [
@@ -1961,8 +2074,9 @@ def _h_write_stage(workspace: Path, board) -> Path:
             ]
         )
     wrong = []
+    carried = {H_RULED_CASE} if board.kept else set()
     for row in reference:
-        if f"us__{row['scenario_id']}__{row['variable']}" in decided:
+        if f"us__{row['scenario_id']}__{row['variable']}" in {*decided, *carried}:
             prediction = float(row["value"]) + 1000.0
             wrong.append(
                 [H_INCUMBENT, row["scenario_id"], row["variable"], prediction]
@@ -2017,18 +2131,48 @@ def _h_write_stage(workspace: Path, board) -> Path:
             directory / "verdict.meta.json",
             {"verdict_sha256": sha(directory / "verdict.json")},
         )
+    if board.kept:
+        # MOCK: the ruled case carried over, judged before the ruling.
+        manifest.append(
+            {
+                "case_id": H_RULED_CASE,
+                "scenario_id": RULED[0],
+                "variable": RULED[1],
+                "wrong_models": [H_INCUMBENT],
+                "parse_failure_only": False,
+            }
+        )
+        directory = audit / "cases" / H_RULED_CASE
+        directory.mkdir()
+        (directory / "prompt.md").write_text(
+            template_header(1) + f"\nClassify the wrong answers on {H_RULED_CASE}.\n"
+        )
+        write_json(
+            directory / "verdict.json",
+            _h_verdict("llm_error", "credit_phaseout", False, H_INCUMBENT),
+        )
+        write_json(
+            directory / "verdict.meta.json",
+            {
+                "verdict_sha256": sha(directory / "verdict.json"),
+                "judge_model_requested": driver.JUDGE_MODEL,
+                "judge_model_reported": [driver.JUDGE_MODEL],
+                "judged_at_utc": H_CARRIED_AT,
+            },
+        )
     seed = driver.seed_digest(audit)
     board.seed_sha256 = hashlib.sha256(
         driver.seed_digest_text(seed).encode()
     ).hexdigest()
-    # The ruled case, which on the MOCK board only the new model answers
-    # wrong: added.
-    _h_judge_ruled_case(audit)
+    # The case only the new model answers wrong on the MOCK board (the ruled
+    # one; on the kept board, H_OTHER_CASE): added.
+    _h_judge_ruled_case(audit, opened)
+    _, scenario, variable = opened.split("__")
     manifest.append(
         {
-            "case_id": H_RULED_CASE,
-            "scenario_id": RULED[0],
-            "variable": RULED[1],
+            "case_id": opened,
+            "scenario_id": scenario,
+            "variable": variable,
             "wrong_models": [H_NEW],
             "parse_failure_only": False,
         }
@@ -2039,7 +2183,7 @@ def _h_write_stage(workspace: Path, board) -> Path:
     )
     driver.write_json(
         stage / driver.PROMPT_CHANGES,
-        {"kept": sorted(seed), "changed": [], "added": [H_RULED_CASE]},
+        {"kept": sorted(seed), "changed": [], "added": [opened]},
     )
     prepared = {
         "partial": False,
@@ -2090,12 +2234,13 @@ def _h_stamp_inputs(stage: Path, board, *, repin=True) -> None:
     board.committed[driver.INPUT_PINS_PATH] = blob
 
 
-@pytest.fixture(scope="module")
-def h_template(tmp_path_factory):
+def _h_build_template(tmp_path_factory, kept: bool) -> SimpleNamespace:
     """The releasable stage, built once: install-exclusions' record, the real
     adjudicate-exclusions, triage, write_judge_provenance and export (section
-    comment)."""
-    boards = _h_boards()
+    comment). With ``kept``, the kept board's, and before export release
+    20261027's payload takes the base's annotation fields on the ruled
+    incumbent cell (_h_base_ruled_fields)."""
+    boards = _h_boards(kept)
     board = SimpleNamespace(
         live=boards.live,
         exports=boards.exports,
@@ -2105,8 +2250,11 @@ def h_template(tmp_path_factory):
         reads=[],
         calls=[],
         defects=set(),
+        kept=kept,
+        other_case=None,
     )
-    workspace = tmp_path_factory.mktemp("h-template") / "workspace"
+    workspace = tmp_path_factory.mktemp("h-template-kept" if kept else "h-template")
+    workspace = workspace / "workspace"
     workspace.mkdir()
     with pytest.MonkeyPatch.context() as mp:
         _h_patch(mp, workspace, board)
@@ -2119,6 +2267,9 @@ def h_template(tmp_path_factory):
         driver.adjudicate_exclusions(args)
         driver.triage(args, stage / BUNDLE)
         driver.write_judge_provenance(args)
+        if kept:
+            cells = board.live["countries"]["us"]["scenarioPredictions"]
+            cells[RULED[0]][RULED[1]][H_INCUMBENT].update(_h_base_ruled_fields(stage))
         driver.export(args, stage / BUNDLE, copy.deepcopy(board.live))
         # The driver reads its committed inputs from REPO while the writable
         # checkout lives here. Bind the actual freeze inputs here.
@@ -2130,13 +2281,35 @@ def h_template(tmp_path_factory):
     return SimpleNamespace(workspace=workspace, board=board)
 
 
+@pytest.fixture(scope="module")
+def h_template(tmp_path_factory):
+    """The releasable stage, the ruled case re-opened (_h_build_template)."""
+    return _h_build_template(tmp_path_factory, kept=False)
+
+
+@pytest.fixture(scope="module")
+def h_template_kept(tmp_path_factory):
+    """The releasable stage, the ruled case carried over (review r2, N1)."""
+    return _h_build_template(tmp_path_factory, kept=True)
+
+
 @pytest.fixture
 def h_stage(h_template, tmp_path, monkeypatch):
     """A copy of the releasable stage and its checkout, the driver, the freeze
     and the freezer pointed at it."""
+    return _h_stage_from(h_template, tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def h_stage_kept(h_template_kept, tmp_path, monkeypatch):
+    """h_stage on the template that carries the ruled case over."""
+    return _h_stage_from(h_template_kept, tmp_path, monkeypatch)
+
+
+def _h_stage_from(template, tmp_path, monkeypatch) -> SimpleNamespace:
     workspace = tmp_path / "workspace"
-    shutil.copytree(h_template.workspace, workspace)
-    board = copy.deepcopy(h_template.board)
+    shutil.copytree(template.workspace, workspace)
+    board = copy.deepcopy(template.board)
     _h_patch(monkeypatch, workspace, board)
     stage = workspace / H_STAGE
 
@@ -2897,11 +3070,8 @@ def test_the_freeze_refuses_a_payload_edited_after_export(h_stage, edit):
         assert repr(path) in str(refused.value)
 
 
-def test_the_rebuild_hands_the_scope_check_the_cases_this_release_reopened(
-    h_stage, monkeypatch
-):
-    """Review r1, M9: the freeze's rebuild passes rejudged_cases' cases (the
-    ruled case, which this stage judged), as export did."""
+def _h_build_arguments(stage, monkeypatch) -> dict:
+    """The keyword arguments the freeze's dry run hands build_payload."""
     seen = {}
     build = driver.build_payload
 
@@ -2910,9 +3080,109 @@ def test_the_rebuild_hands_the_scope_check_the_cases_this_release_reopened(
         return build(*args, **kw)
 
     monkeypatch.setattr(driver, "build_payload", spy)
-    h_stage.run("--dry-run")
+    stage.run("--dry-run")
+    return seen
+
+
+def test_the_rebuild_hands_the_scope_check_the_cases_this_release_reopened(
+    h_stage, monkeypatch
+):
+    """Review r1, M9, and review r2, N1: the freeze's rebuild passes
+    rejudged_cases' cases (the ruled case, which this stage judged) and
+    decided_cases' (the ruled case), as export did."""
+    seen = _h_build_arguments(h_stage, monkeypatch)
     assert seen["reopened"] == driver.rejudged_cases(h_stage.stage)
     assert seen["reopened"] == frozenset({H_RULED_CASE})
+    assert seen["decided"] == driver.decided_cases() == frozenset({H_RULED_CASE})
+
+
+# Review r2, N1: the ruled case carried over (h_template_kept). Triage applies
+# d2180's decision to the carried verdict's rows, so the MOCK incumbent's ruled
+# cell in the scope export carries the decided classes and sentence, and
+# release 20261027's carries the base's.
+
+
+def _h_kept_cells(h_stage_kept) -> tuple[dict, dict]:
+    """The MOCK incumbent's ruled cell in release 20261027's payload and in
+    the scope export the stubbed exporter gives on the staged annotations."""
+    scope = copy.deepcopy(h_stage_kept.board.exports["scope"])
+    _h_annotate_ruled(scope, h_stage_kept.stage / BUNDLE / "annotations")
+    live = h_stage_kept.board.live
+    return tuple(
+        payload["countries"]["us"]["scenarioPredictions"][RULED[0]][RULED[1]][
+            H_INCUMBENT
+        ]
+        for payload in (live, scope)
+    )
+
+
+def test_the_kept_stage_carries_the_ruled_case_and_triage_decides_it(h_stage_kept):
+    """The premise of the kept template: prompt-changes keeps the ruled case,
+    the stage re-opens only H_OTHER_CASE, the release decides the ruled case,
+    triage gave the incumbent's ruled row and the case note d2180's class and
+    sentence, and the incumbent's ruled cell differs from release 20261027's
+    in exactly the class fields and caseAnnotation."""
+    import pandas as pd
+
+    stage, other = h_stage_kept.stage, h_stage_kept.board.other_case
+    changes = _h_json(stage / driver.PROMPT_CHANGES)
+    assert H_RULED_CASE in changes["kept"]
+    assert (changes["changed"], changes["added"]) == ([], [other])
+    assert driver.rejudged_cases(stage) == frozenset({other})
+    assert driver.decided_cases() == frozenset({H_RULED_CASE})
+    annotations = stage / BUNDLE / "annotations"
+    staged = _h_ruled_fields(
+        pd.read_csv(annotations / H_ROWS), pd.read_csv(annotations / H_NOTES)
+    )
+    assert (staged["failureSource"], staged["failureSubtype"]) == (
+        "prompt_ambiguity",
+        "state_local_rule",
+    )
+    assert "Developer adjudication (2026-11-01)" in staged["caseAnnotation"]
+    live, scope = _h_kept_cells(h_stage_kept)
+    assert (live["failureSource"], live["failureSubtype"]) == (
+        "llm_error",
+        "credit_phaseout",
+    )
+    assert "Developer adjudication" not in live["caseAnnotation"]
+    moved = {field for field in live if live[field] != scope.get(field)}
+    assert moved == release_20261006.CLASS_CELL_FIELDS | {"caseAnnotation"}
+    assert list(live) == list(scope)
+
+
+def test_the_kept_stage_passes_every_gate_and_freezes(h_stage_kept, monkeypatch):
+    """With the ruled case carried over, the freeze's rebuild hands the scope
+    check no re-opened ruled case and the ruled case as decided, every gate
+    passes, a dry run writes nothing and the freeze then writes."""
+    before = h_stage_kept.files()
+    seen = _h_build_arguments(h_stage_kept, monkeypatch)
+    assert h_stage_kept.files() == before
+    assert seen["reopened"] == frozenset({h_stage_kept.board.other_case})
+    assert seen["decided"] == frozenset({H_RULED_CASE})
+    h_stage_kept.run()
+    assert h_stage_kept.files() != before
+
+
+def test_without_the_decided_cases_check_a_refuses_the_kept_stage(
+    h_stage_kept, monkeypatch
+):
+    """Holding every case to the base, the rule before review r2's N1, the
+    freeze stops the kept stage at check (a) on the incumbent's ruled cell,
+    before any write."""
+    monkeypatch.setattr(driver, "decided_cases", lambda spec=None: frozenset())
+    refused = _h_refused(h_stage_kept, "is not release 20261027's outside modelStats")
+    cell = f"scenarioPredictions {RULED[0]} {RULED[1]} {H_INCUMBENT} changed"
+    assert cell in str(refused.value)
+
+
+@pytest.mark.parametrize("field", ["annotation", "referenceExplanation"])
+def test_the_kept_rebuild_holds_the_ruled_cells_row_annotation(h_stage_kept, field):
+    """On the ruled case decided and kept, release 20261027's row annotation
+    and referenceExplanation still bind: a MOCK base that carried another
+    stops the freeze at check (a), before any write."""
+    live = h_stage_kept.board.live["countries"]["us"]["scenarioPredictions"]
+    live[RULED[0]][RULED[1]][H_INCUMBENT][field] = "MOCK: a base wording."
+    _h_refused(h_stage_kept, "is not release 20261027's outside modelStats")
 
 
 @pytest.mark.parametrize("case", ["ruled", "kept"])
