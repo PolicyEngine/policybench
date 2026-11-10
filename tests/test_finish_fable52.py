@@ -561,6 +561,121 @@ def test_the_ruled_record_is_d2180s_on_the_references_engine():
     assert value.tolist() == [record["frozen_value"]]
 
 
+# --- The ruled record against its audit's files (review r1, M18: E F6) ---------
+
+CRP_AUDIT = Path("reference_audit/2026-10-29-mn-renters-crp/verification")
+# Each engine's sweep with its trace (the record cites both).
+CRP_RUNS = (
+    ("crp_sweep.json", "trace_122_2_60_0.json", "policyengine-us 2.60.0"),
+    ("crp_sweep_2_41_0.json", "trace_122_2_41_0.json", "policyengine-us 2.41.0"),
+)
+
+
+def _dollars(text: str) -> list[float]:
+    """Each dollar figure in ``text``, in order."""
+    return [
+        float(figure.replace(",", ""))
+        for figure in re.findall(r"\$(\d[\d,]*(?:\.\d+)?)", text)
+    ]
+
+
+def _row(frame: pd.DataFrame) -> list[float]:
+    selected = (frame.scenario_id == RULED[0]) & (frame.variable == RULED[1])
+    return frame.loc[selected, "value"].tolist()
+
+
+def test_the_ruled_record_states_what_its_audit_computed():
+    """A differential check of d2180's record and the spec's reasoning
+    against the 2026-10-29 audit's files, read from release 20261027's
+    commit (the release changes none of them): each engine's sweep moves the
+    ruled output alone, from the committed reference to the record's
+    alternative; each trace gives the record's two values; and each dollar
+    figure the record and the reasoning quote is the 2.60.0 trace's, or the
+    prompt's rent."""
+    from policybench.prompts import describe_household
+    from policybench.scenarios import scenario_from_dict
+
+    spec = real_spec()
+    (record,) = driver.spec_records(spec)
+    (item,) = spec["adjudications"]
+    audit = {}
+    for name in (name for run in CRP_RUNS for name in run[:2]):
+        audit[name] = json.loads(base_blob(CRP_AUDIT / name))
+        assert (REPO / CRP_AUDIT / name).read_bytes() == base_blob(CRP_AUDIT / name)
+    frozen, alternative = record["frozen_value"], record["alternative_value"]
+    committed = pd.read_csv(io.BytesIO(base_blob(SNAPSHOT_PATH / CSV_NAME)))
+    assert _row(committed) == [frozen]
+    for sweep_name, trace_name, engine in CRP_RUNS:
+        sweep, trace = audit[sweep_name], audit[trace_name]
+        assert sweep["engine"] == trace["engine"] == engine
+        assert sweep["harness"]["sha256"] == sha(REPO / sweep["harness"]["path"])
+        assert RULED[0] in sweep["minnesota_households"]
+        assert sweep["baseline_mismatches"] == []
+        (moved,) = sweep["moved"]
+        assert (moved["scenario_id"], moved["variable"], moved["scored"]) == (
+            *RULED,
+            True,
+        )
+        assert moved["reference"] == moved["as_built"] == frozen
+        assert moved["with_crp"] == alternative
+        assert trace["scenario"] == RULED[0]
+        built, crp = trace["as_built"], trace["with_qualifying_crp"]
+        assert (
+            built["mn_renters_credit_qualifying_crp"],
+            crp["mn_renters_credit_qualifying_crp"],
+        ) == (False, True)
+        assert (
+            built["mn_renters_credit_eligible"],
+            crp["mn_renters_credit_eligible"],
+        ) == (
+            False,
+            True,
+        )
+        assert built["mn_renters_credit"] == built["mn_refundable_credits"] == frozen
+        assert crp["mn_renters_credit"] == crp["mn_refundable_credits"] == alternative
+        for name in (
+            "mn_renters_credit_household_income",
+            "mn_rent_constituting_property_taxes",
+            "mn_renters_credit_property_tax_exempt",
+        ):
+            assert built[name] == crp[name], (trace_name, name)
+    # The record's engine is the 2.60.0 sweep's, which ran against the
+    # 2026-10-22 build; that build's row is the committed one.
+    current = audit["crp_sweep.json"]
+    assert record["engine_version"] == current["engine"] == driver.BASE_ENGINE
+    build = Path(current["references"])
+    assert build == Path("reference_audit/2026-10-22-engine-upgrade/reference-build")
+    assert _row(pd.read_csv(io.BytesIO(base_blob(build / CSV_NAME)))) == [frozen]
+    # Every figure the record and the reasoning quote.
+    trace = audit["trace_122_2_60_0.json"]["as_built"]
+    income = trace["mn_renters_credit_household_income"]
+    threshold = audit["trace_122_2_60_0.json"]["max_credit_first_zero_threshold"]
+    assert income < threshold
+    scenarios = pd.read_csv(
+        io.BytesIO(base_blob(SNAPSHOT_PATH / "scenarios.csv")), low_memory=False
+    )
+    (household,) = scenarios.loc[scenarios.scenario_id == RULED[0], "scenario_json"]
+    described = describe_household(scenario_from_dict(json.loads(household)))
+    assert "- state: MN" in described.splitlines()
+    rent_line = [line for line in described.splitlines() if "pre-subsidy rent" in line]
+    assert rent_line == ["- pre-subsidy rent: $28,235"]
+    (rent,) = _dollars(rent_line[0])
+    assert not re.search(r"certificate|\bcrp\b|rent paid", described, re.IGNORECASE)
+    assert _dollars(record["alternative_reading"]) == [
+        rent,
+        income,
+        threshold,
+        trace["mn_rent_constituting_property_taxes"],
+        alternative,
+    ]
+    assert _dollars(record["note"]) == [frozen, alternative]
+    assert item["reasoning"].startswith(
+        f"The frozen reference is {frozen:,.2f}; the alternative is "
+        f"{alternative:,.2f}. "
+    )
+    assert _dollars(item["reasoning"]) == [rent, income, threshold, alternative]
+
+
 def test_the_release_record_is_the_base_with_the_ruled_record_before_its_tail():
     base = driver.base_exclusion_record()
     assert driver.exclusions_text(base).encode() == base_blob(
