@@ -1,5 +1,6 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
+import functools
 import hashlib
 import json
 import logging
@@ -614,6 +615,116 @@ def _aggregate_call_provenance(results: list[dict]) -> dict:
     }
 
 
+# Anthropic reports how many of a response's output tokens went to thinking in
+# ``usage.output_tokens_details.thinking_tokens``. The anthropic SDK's
+# docstrings (types/usage.py, types/output_tokens_details.py) say that
+# ``output_tokens`` stays the inclusive total Anthropic bills and that the
+# thinking count never exceeds it. litellm 1.95.0 builds an Anthropic
+# response's usage in ``AnthropicConfig.calculate_usage`` and never reads that
+# field: it sets ``completion_tokens_details.reasoning_tokens`` by tokenizing
+# the thinking text the response returns, and the usage it builds has no
+# ``output_tokens_details``. The recorded Claude Haiku 5.5 response in
+# tests/fixtures returns its thinking block with empty text, so litellm counts
+# 0 where Anthropic counts 119. The capture below copies the provider's count
+# onto litellm's usage under this name; the usage object serializes it, so a
+# LiteLLM cache replay keeps it.
+ANTHROPIC_THINKING_TOKENS_FIELD = "anthropic_thinking_tokens"
+
+
+def _token_count(value) -> int | None:
+    """Return ``value`` as a whole, non-negative, finite token count, or None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float) and value.is_integer() and value >= 0:
+        return int(value)
+    return None
+
+
+def _anthropic_thinking_tokens(usage):
+    """Return the thinking-token count Anthropic's own usage reports.
+
+    ``usage`` is Anthropic's usage as raw JSON (a dict) or as the anthropic
+    SDK's ``Usage``. Returns None when the response carries no count.
+    """
+    details = _get_usage_value(usage, "output_tokens_details")
+    return _get_usage_value(details, "thinking_tokens")
+
+
+def _bounded_reasoning_tokens(reasoning, completion_tokens) -> int | None:
+    """Return a provider's reasoning count, or None when it cannot be right.
+
+    Reasoning tokens are part of the completion. When a count is not a whole
+    number in ``[0, completion_tokens]``, or comes without a completion count,
+    the harness records it as unknown; clamping it would record a number the
+    provider never reported.
+    """
+    count = _token_count(reasoning)
+    completion = _token_count(completion_tokens)
+    if count is None or completion is None or count > completion:
+        if reasoning is not None:
+            logger.warning(
+                "Recording reasoning_tokens as unknown: the provider reported "
+                "%r reasoning tokens against %r completion tokens.",
+                reasoning,
+                completion_tokens,
+            )
+        return None
+    return count
+
+
+def _capture_anthropic_thinking_tokens(usage, usage_object):
+    """Attach Anthropic's thinking count to litellm's ``usage``; never raise."""
+    thinking = _anthropic_thinking_tokens(usage_object)
+    if thinking is None:
+        return usage
+    try:
+        setattr(usage, ANTHROPIC_THINKING_TOKENS_FIELD, thinking)
+    except Exception as error:  # a usage object that refuses new attributes
+        logger.warning(
+            "Could not record Anthropic's thinking-token count on litellm's "
+            "usage (%s); reasoning_tokens falls back to litellm's count.",
+            error,
+        )
+    return usage
+
+
+def _install_anthropic_thinking_token_capture() -> bool:
+    """Wrap litellm's Anthropic usage builder to keep the thinking count.
+
+    Idempotent. Returns whether the capture is in place; if litellm no longer
+    has ``AnthropicConfig.calculate_usage``, rows fall back to litellm's own
+    reasoning count and tests/test_anthropic_thinking_tokens.py fails.
+    """
+    try:
+        from litellm.llms.anthropic.chat.transformation import AnthropicConfig
+    except ImportError:  # pragma: no cover - only on a litellm layout change
+        logger.warning("litellm has no AnthropicConfig; thinking tokens untracked.")
+        return False
+    calculate_usage = getattr(AnthropicConfig, "calculate_usage", None)
+    if calculate_usage is None:  # pragma: no cover - same
+        logger.warning(
+            "litellm's AnthropicConfig has no calculate_usage; thinking tokens "
+            "untracked."
+        )
+        return False
+    if getattr(calculate_usage, "_policybench_thinking_capture", False):
+        return True
+
+    @functools.wraps(calculate_usage)
+    def calculate_usage_with_thinking(self, usage_object, *args, **kwargs):
+        usage = calculate_usage(self, usage_object, *args, **kwargs)
+        return _capture_anthropic_thinking_tokens(usage, usage_object)
+
+    calculate_usage_with_thinking._policybench_thinking_capture = True
+    AnthropicConfig.calculate_usage = calculate_usage_with_thinking
+    return True
+
+
+ANTHROPIC_THINKING_CAPTURE_INSTALLED = _install_anthropic_thinking_token_capture()
+
+
 def _extract_usage_metadata(
     response, model_id: str, messages: list[dict], content: str
 ) -> dict:
@@ -636,6 +747,13 @@ def _extract_usage_metadata(
     completion_tokens = _get_usage_value(
         usage, "completion_tokens"
     ) or _get_usage_value(usage, "output_tokens")
+    # Anthropic's own count, when the response carried one, replaces litellm's
+    # count of the returned thinking text (see ANTHROPIC_THINKING_TOKENS_FIELD).
+    anthropic_thinking_tokens = _get_usage_value(usage, ANTHROPIC_THINKING_TOKENS_FIELD)
+    if anthropic_thinking_tokens is not None:
+        reasoning_tokens = _bounded_reasoning_tokens(
+            anthropic_thinking_tokens, completion_tokens
+        )
     cached_prompt_tokens = _get_usage_value(prompt_tokens_details, "cached_tokens")
     cache_write_prompt_tokens = _get_usage_value(
         prompt_tokens_details, "cache_write_tokens"

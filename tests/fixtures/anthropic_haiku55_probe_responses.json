@@ -1,0 +1,134 @@
+{
+  "note": "Two recorded Anthropic Messages API responses from Claude Haiku 5.5's onboarding probes on 2026-10-08, the ones docs/haiku55/serving_probes.json summarizes (same source files and sha256). Each response is as recorded except the thinking block's signature, which is replaced with a placeholder (the public summary leaves signatures out). The thinking block's text is empty in the recording, while usage.output_tokens_details.thinking_tokens counts the reasoning.",
+  "probes": {
+    "thinking_default": {
+      "source": "haiku55_thinking_default_probe.json",
+      "source_sha256": "b4e9e415c2867571c63a493c1bdcb14d299a8f3f1195ccf740f6aa15607ad6d0",
+      "probe": "one question, no thinking parameter, no tools (does the default request think?)",
+      "request_body": {
+        "model": "claude-haiku-5-5",
+        "max_tokens": 2048,
+        "messages": [
+          {
+            "role": "user",
+            "content": "A single filer has $52,000 of wages in 2026 and takes the standard deduction. What is their federal taxable income? Reply with the number only."
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "model": "claude-haiku-5-5",
+        "id": "msg_011CfpxFX7LMQXwhoCSjpP9H",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "SIGNATURE-PLACEHOLDER"
+          },
+          {
+            "type": "text",
+            "text": "35900"
+          }
+        ],
+        "container": null,
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 54,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 123,
+          "output_tokens_details": {
+            "thinking_tokens": 119
+          },
+          "service_tier": "standard",
+          "inference_geo": "global"
+        },
+        "diagnostics": null
+      }
+    },
+    "forced_tool": {
+      "source": "haiku55_forced_tool_probe.json",
+      "source_sha256": "4b2ec49ff811e17aa40237b18f3b9eb80db7118686b33ef4912b45ef0c01dea9",
+      "probe": "forced tool_choice type tool, no thinking parameter",
+      "request_body": {
+        "model": "claude-haiku-5-5",
+        "max_tokens": 2048,
+        "messages": [
+          {
+            "role": "user",
+            "content": "A single filer has $52,000 of wages in 2026 and takes the standard deduction. What is their federal taxable income? Reply with the number only."
+          }
+        ],
+        "tools": [
+          {
+            "name": "answer",
+            "description": "Return the answer",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ]
+            }
+          }
+        ],
+        "tool_choice": {
+          "type": "tool",
+          "name": "answer"
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "claude-haiku-5-5",
+        "id": "msg_011CfpxFbsq3B3zCWjJBgNrh",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_017yZvNSD8mKRQxcjaLrZ8Sy",
+            "name": "answer",
+            "input": {
+              "value": 38150
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 529,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 33,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "service_tier": "standard",
+          "inference_geo": "global"
+        },
+        "diagnostics": null
+      }
+    }
+  }
+}
