@@ -177,7 +177,7 @@ If triage stops, review the bound verdicts, `reference-flags.csv` and `unresolve
 
 - Commit `docs/fable52/input_pins.json` before export.
 - Fill `adjudications_written_on` before `adjudicate-exclusions` and `snapshot_date` before the freeze.
-- After the dating step, update `tests/test_adjudications.py`'s wave pins for the 2026-11-01 wave, as each earlier release's dating step has needed.
+- After the dating step, update `tests/test_adjudications.py`'s wave pins for the 2026-11-01 wave, as each earlier release's dating step has needed: `uncommitted == []` and `waves[-3:]` in `test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release`. That test reads the ruled wave's sentence in its singular form ("decision ... was written") already. If the judge step re-opened `us__scenario_122__state_refundable_credits`, Opus 5.5 judged it after 2026-11-01, so the same test also needs that entry's `("2026-11-01", <its judged_on_utc>)` pair beside its `("2026-09-22", "2026-09-23")` exception, and its `later_than_wave` count rises by one. A carried-over verdict predates the wave and needs neither.
 - Seal the release tag at the commit that holds its board (#211).
 - The release note carries the d2397 line staged in `/Users/maxghenis/reviews/policybench-gpt-6-1-terra/worktree-results/NEXT-RELEASE.md`, voice-gated with the rest of the note.
 - After the release ships, run `cos acted-decision d2180 --ruling d9eafca7 "<release tag and PR>"` and `cos acted-decision d2397 --ruling 3f59364d "<release tag and PR>"`.

@@ -3049,6 +3049,35 @@ def test_the_record_names_the_ruled_wave_once_the_lead_fills_its_day(filled):
     assert driver.release_date_conventions(conventions) == expected
 
 
+@pytest.mark.parametrize("written", ["2026-11-01", WRITTEN_ON, "2026-12-31"])
+def test_the_shared_record_test_reads_the_day_the_driver_writes(monkeypatch, written):
+    """A differential check: tests/test_adjudications.py reads each later
+    wave's written day from the committed record's date conventions, one
+    sentence per wave, after the first three waves' sentence. The driver
+    writes the ruled wave's one record as "decision ... was written", a form
+    no earlier release wrote; the shared reader reads the spec's day from it,
+    and every earlier wave's day as before."""
+    from tests.test_adjudications import _wave_written_day
+
+    spec = filled_spec(adjudications_written_on=written)
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    conventions = driver.release_date_conventions(
+        driver.base_adjudication_record()["date_conventions"]
+    )
+    rest = conventions.split("before its decisions were written. ", 1)[1]
+    days = {}
+    for wave in ("2026-10-05", "2026-10-06", "2026-10-10", "2026-10-14", "2026-11-01"):
+        sentence, rest = rest.split(". ", 1)
+        days[wave] = _wave_written_day(sentence, wave)
+    assert days == {
+        "2026-10-05": "2026-10-06",
+        "2026-10-06": "2026-10-09",
+        "2026-10-10": "2026-10-10",
+        "2026-10-14": "2026-10-14",
+        "2026-11-01": written,
+    }
+
+
 @pytest.mark.parametrize(
     "value",
     [

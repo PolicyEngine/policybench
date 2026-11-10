@@ -875,6 +875,67 @@ def _case(entry: dict) -> str:
     return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
 
 
+def _wave_written_day(sentence: str, wave: str) -> str:
+    """The day a later wave's date-convention sentence says its decisions
+    were written. A wave of several decisions reads "The {wave} wave's
+    decisions ... were written on {day} UTC"; a wave of one reads "The {wave}
+    wave's decision ... was written on {day} UTC", the form the Claude Fable
+    5.2 release's driver (scripts/finish_fable52.py) writes for its one ruled
+    record. The number of the noun must match the verb's."""
+    if sentence.startswith(f"The {wave} wave's decisions"):
+        verb = " were written on "
+    else:
+        assert sentence.startswith(f"The {wave} wave's decision "), sentence
+        verb = " was written on "
+    assert verb in sentence, sentence
+    return sentence.rsplit(verb, 1)[1].removesuffix(" UTC")
+
+
+RULED_WAVE_SENTENCE = (
+    "The 2026-11-01 wave's decision follows Max's ruling of 2026-11-01 "
+    "(21:06 UTC) and was written on 2026-11-10 UTC"
+)
+WAVE_SENTENCES = {
+    "several": (
+        "The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 "
+        "(17:11 UTC) and were written on 2026-10-09 UTC",
+        "2026-10-06",
+        "2026-10-09",
+    ),
+    "one": (RULED_WAVE_SENTENCE, "2026-11-01", "2026-11-10"),
+    "one with were": (
+        RULED_WAVE_SENTENCE.replace(" was written", " were written"),
+        "2026-11-01",
+        None,
+    ),
+    "several with was": (
+        RULED_WAVE_SENTENCE.replace("decision follows", "decisions follow"),
+        "2026-11-01",
+        None,
+    ),
+    "another wave": (RULED_WAVE_SENTENCE, "2026-10-14", None),
+    "no written day": (
+        RULED_WAVE_SENTENCE.split(" and was written")[0],
+        "2026-11-01",
+        None,
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "sentence, wave, day", WAVE_SENTENCES.values(), ids=WAVE_SENTENCES
+)
+def test_a_wave_sentence_states_its_written_day_in_either_number(sentence, wave, day):
+    """A wave of one decision may say "decision ... was written"; a sentence
+    whose noun and verb disagree in number, that names another wave or that
+    states no written day is refused."""
+    if day is None:
+        with pytest.raises(AssertionError):
+            _wave_written_day(sentence, wave)
+    else:
+        assert _wave_written_day(sentence, wave) == day
+
+
 def test_each_judge_flag_is_the_flag_of_the_verdict_its_date_names(tmp_path):
     """A recorded verdict carries its bound verdict's judge, classes, UTC day
     and reference-suspect flag. A flag the dated verdict does not raise is
@@ -1105,8 +1166,7 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     rest = record["date_conventions"].split(committed_days, 1)[1]
     for wave in waves[3:]:
         sentence, rest = rest.split(". ", 1)
-        assert sentence.startswith(f"The {wave} wave's decisions"), sentence
-        written = sentence.rsplit(" were written on ", 1)[1].removesuffix(" UTC")
+        written = _wave_written_day(sentence, wave)
         if wave in uncommitted:
             assert written == released[wave], sentence
         else:
