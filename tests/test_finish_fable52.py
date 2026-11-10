@@ -5151,9 +5151,19 @@ def problems_on(key: tuple[str, str], models) -> list[str]:
     return [f"scenarioPredictions {scenario} {variable} {m} changed" for m in models]
 
 
-def test_the_release_decides_exactly_the_ruled_case():
-    """decided_cases on the committed spec: its one ruled record and no
-    triage decision."""
+def test_the_committed_spec_rules_exactly_the_ruled_case():
+    """Review r3, Q2: on the committed spec, only what holds whether or not
+    the lead records a permitted triage decision there during the release:
+    its one ruled record."""
+    records = driver.spec_records(driver.load_spec())
+    assert [driver.spec_key(record) for record in records] == [RULED]
+
+
+def test_the_release_decides_exactly_the_ruled_case(filled):
+    """decided_cases on a spec that lists no triage decision (the filled
+    MOCK spec): its one ruled record and nothing else. A spec with one is
+    the next test's."""
+    assert filled["triage_adjudications"] == []
     assert driver.triage_items() == []
     assert driver.decided_cases() == frozenset({RULED_CASE})
 
