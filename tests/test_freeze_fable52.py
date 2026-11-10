@@ -16,6 +16,7 @@ import csv
 import functools
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1993,3 +1994,1155 @@ def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
     assert "references unchanged; 50 exclusions (1 new)" in out
     assert "0 adjudications added beyond the spec's; 0 wording amendments" in out
     assert f"model responses {H_WINDOW}; snapshot {SNAPSHOT_DATE}; nothing" in out
+
+
+def _h_payload(h_stage) -> dict:
+    return _h_json(h_stage.stage / H_BOARD)
+
+
+def _h_write_payload(h_stage, payload: dict) -> None:
+    (h_stage.stage / H_BOARD).write_text(driver.payload_text(payload))
+
+
+def _h_refused(h_stage, message, modes=((), ("--dry-run",)), error=SystemExit):
+    """Each mode of the freeze refuses with ``message`` and writes nothing."""
+    before = h_stage.files()
+    for mode in modes:
+        with pytest.raises(error, match=message) as refused:
+            h_stage.run(*mode)
+        assert h_stage.files() == before
+    assert h_stage.board.calls == []
+    return refused
+
+
+def _h_pointer(stage: Path) -> dict:
+    payload = stage / H_BOARD
+    tag = driver.RELEASE_TAG
+    return {
+        "version": 1,
+        "repo": "PolicyEngine/policybench",
+        "tag": tag,
+        "asset": "dashboard-data.json",
+        "url": (
+            "https://github.com/PolicyEngine/policybench/releases/download/"
+            f"{tag}/dashboard-data.json"
+        ),
+        "sha256": sha(payload),
+        "bytes": payload.stat().st_size,
+    }
+
+
+def test_the_freeze_writes_the_release(h_stage, capsys):
+    """The pointer and version list, the frozen run's references (release
+    20261027's) and the release's exclusion record, the committed copy of the
+    reference outputs, the annotations (the staged record and CSVs, the
+    base's explanations and its amendments record), the serving rows, the
+    manifest's statements, and the predictions asset and cache."""
+    stage, root = h_stage.stage, h_stage.workspace
+    payload = stage / H_BOARD
+    h_stage.run()
+    assert f"Built {driver.RELEASE_TAG} locally" in capsys.readouterr().out
+    pointer = _h_pointer(stage)
+    assert (root / release.POINTER).read_text() == (
+        json.dumps(pointer, indent=2, sort_keys=True) + "\n"
+    )
+    versions = _h_json(root / release.VERSIONS)
+    previous = json.loads(h_blob(release.VERSIONS))
+    live = next(v for v in versions["versions"] if v["id"] == versions["default"])
+    assert live["snapshotLabel"] == f"Snapshot {SNAPSHOT_DATE}"
+    assert live["description"].endswith(" - 52 models")
+    assert [v for v in versions["versions"] if v is not live] == [
+        v for v in previous["versions"] if v["id"] != previous["default"]
+    ]
+    frozen = root / FROZEN
+    for name, pin in driver.BASE_REFERENCE_SHA256.items():
+        if name != driver.EXCLUSIONS_NAME:
+            assert sha(frozen / name) == pin, name
+    assert (frozen / driver.EXCLUSIONS_NAME).read_text() == release_text()
+    assert (
+        sha(root / release.SNAPSHOT / "us_reference_outputs.csv")
+        == (driver.BASE_REFERENCE_SHA256[driver.CSV_NAME])
+    )
+    annotations = root / release.ANNOTATIONS
+    assert sorted(p.name for p in annotations.iterdir()) == sorted(
+        (driver.ADJUDICATIONS, H_ROWS, H_NOTES, EXPLANATIONS, H_AMENDMENTS)
+    )
+    staged = stage / BUNDLE / "annotations"
+    for name in (driver.ADJUDICATIONS, H_ROWS, H_NOTES, EXPLANATIONS):
+        assert (annotations / name).read_bytes() == (staged / name).read_bytes()
+    record = _h_json(annotations / driver.ADJUDICATIONS)
+    assert len(record["adjudications"]) == 64
+    assert driver.spec_key(record["adjudications"][-1]) == RULED
+    assert (annotations / EXPLANATIONS).read_bytes() == h_blob(
+        release.ANNOTATIONS / EXPLANATIONS
+    )
+    assert (annotations / H_AMENDMENTS).read_bytes() == h_blob(
+        release.ANNOTATIONS / H_AMENDMENTS
+    )
+    serving = _h_json(root / release.SNAPSHOT / "model_serving_config.json")
+    base = release.base_serving_config()
+    for model, row in base["models"].items():
+        assert serving["models"][model] == row
+    assert serving["models"][H_NEW]["evidence"] == {"kind": "run_state", "run": H_RUN}
+    assert serving["evidence_summary"] == {
+        "registry": base["evidence_summary"]["registry"],
+        "run_state": base["evidence_summary"]["run_state"] + 1,
+    }
+    assert serving["registry_commit"] == "f" * 40
+    manifest = _h_json(root / release.SNAPSHOT / "manifest.json")
+    assert manifest["snapshot_date"] == SNAPSHOT_DATE
+    assert manifest["scope"]["models"] == 52
+    assert manifest["model_response_date"] == H_WINDOW
+    assert manifest["reference_exclusions"]["outputs"] == 50
+    assert manifest["reference_exclusions"]["scored_outputs_per_model"] == 1934
+    artifact = {key: pointer[key] for key in ("tag", "asset", "url", "sha256", "bytes")}
+    assert manifest["published_dashboard_artifact"] == artifact
+    base_manifest = json.loads(h_blob(release.SNAPSHOT / "manifest.json"))
+    assert release.manifest_problems(base_manifest, manifest) == []
+    [configured] = h_stage.board.calls
+    assert configured["SNAPSHOT_DATE"] == SNAPSHOT_DATE
+    assert configured["SOURCE_RUN"] == stage / BUNDLE
+    assert configured["SOURCE_ANNOTATIONS"] == staged
+    assert configured["REFERENCE_META_SOURCE"] == (
+        stage / BUNDLE / "us" / driver.META_NAME
+    )
+    assert configured["REFERENCE_PINS"] is None
+    assert configured["PUBLISHED_DASHBOARD_SOURCE"] == payload
+    assert configured["PUBLISHED_DASHBOARD_ARTIFACT"] == artifact
+    assert configured["RUN_STATE_EVIDENCE"] == {
+        H_NEW: str(stage / "inputs" / H_SLUG / "run_state.json")
+    }
+    assert configured["AUDIT_CASES_DIR"] == stage / "audit/cases"
+    assert (stage / "predictions.csv.gz").read_bytes() == (
+        frozen / "predictions.csv.gz"
+    ).read_bytes()
+    cache = root / "app/.cache" / f"dashboard-data-{sha(payload)[:16]}.json"
+    assert cache.read_bytes() == payload.read_bytes()
+    receipt = _h_json(stage / "release-ready.json")
+    assert set(receipt["repository_postfreeze"]) == {
+        str(release.SNAPSHOT / "manifest.json"),
+        str(release.VERSIONS),
+    }
+
+
+def test_freezing_twice_writes_the_same_files(h_stage):
+    """A second freeze of the same stage finds this release's record where
+    release 20261027's was, and writes the same bytes."""
+    h_stage.run()
+    first = h_stage.files()
+    h_stage.run()
+    assert h_stage.files() == first
+
+
+def test_the_rebuild_reads_a_scratch_copy_of_the_bound_bundle(h_stage):
+    """export_full_run writes into the bundle it reads, so the freeze's
+    rebuild hands it a scratch copy outside the checkout and removes it."""
+    h_stage.run("--dry-run")
+    reads = h_stage.board.reads
+    assert len(reads) == 1
+    assert not reads[0].is_relative_to(h_stage.workspace)
+    assert not reads[0].exists()
+
+
+# What the freezer writes outside the release. Terra's defects that the
+# no-build path still has, with each check's message: the references and the
+# committed copy one byte off (Terra froze the base's in place of its build;
+# here the base's are the release's), and the base's 49-record exclusion
+# record frozen in place of the release's 50. With no build, the explanations
+# pin and the refresh record stay release 20261027's, so a change to either
+# lands among the manifest's changes outside the release; Terra's build
+# stated both.
+H_FREEZER_DEFECTS = {
+    "other_exclusions": (
+        r"frozen reference reference_exclusions\.json does not match its pin"
+    ),
+    "base_exclusions": (
+        r"frozen reference reference_exclusions\.json does not match its pin"
+    ),
+    "other_reference": (
+        r"frozen reference reference_outputs\.csv does not match its pin"
+    ),
+    "other_csv_copy": r"Frozen us_reference_outputs\.csv is not release 20261027's",
+    "other_record": f"The frozen {re.escape(driver.ADJUDICATIONS)} is not the staged",
+    "extra_annotation": r"Frozen annotation files are not the release's: \['notes",
+    "serving_row": (
+        f"Frozen serving configuration: .*{H_INCUMBENT} is not release 20261027's"
+    ),
+    "new_registry": f"Missing frozen run-state evidence for {re.escape(H_NEW)}$",
+    "outside": (
+        r"changes outside the release: \['population_weight_artifact\.sha256'\]$"
+    ),
+    "pinned_reference": (
+        r"changes outside the release: \['source_run_artifacts\.[^']+"
+        r"\.files\.scenarios\.csv'\]$"
+    ),
+    "explanations_pin": (
+        r"changes outside the release: \['audit_annotation_artifacts\.files\."
+        f"{re.escape(EXPLANATIONS)}'\\]$"
+    ),
+    "models_51": r"does not state the release: \{'scope\.models': 51\}$",
+    "window": (
+        r"does not state the release: \{'model_response_date': "
+        f"'{freezer.MODEL_RESPONSE_START} to 2026-11-07'\\}}$"
+    ),
+    "refresh": (
+        r"changes outside the release: "
+        r"\['reference_output_refresh\.policyengine_us_version'\]$"
+    ),
+    "other_predictions": "The predictions asset is not the frozen predictions",
+}
+
+
+@pytest.mark.parametrize("defect", H_FREEZER_DEFECTS)
+def test_the_freeze_refuses_what_the_freezer_wrote_outside_the_release(h_stage, defect):
+    """Each defect stops the freeze at its own check. The receipt then
+    records no completed freeze, so finalize refuses the stage."""
+    h_stage.board.defects.add(defect)
+    with pytest.raises(SystemExit, match=H_FREEZER_DEFECTS[defect]):
+        h_stage.run()
+    assert "repository_postfreeze" not in _h_json(h_stage.stage / "release-ready.json")
+    with pytest.raises(SystemExit, match="Finalize requires a completed freeze"):
+        h_stage.run("--finalize")
+
+
+def _h_frozen_arguments(h_stage) -> dict:
+    root = h_stage.workspace
+    serving = release.base_serving_config()
+    return dict(
+        stage=h_stage.stage,
+        snapshot=root / release.SNAPSHOT,
+        annotations=root / release.ANNOTATIONS,
+        exclusions_sha256=driver.release_exclusions_sha256(),
+        pointer=_h_json(root / release.POINTER),
+        window=H_WINDOW,
+        snapshot_date=SNAPSHOT_DATE,
+        previous_serving=serving,
+        incumbents=set(serving["models"]),
+        runs={H_SLUG: H_RUN},
+    )
+
+
+H_FROZEN_CHANGES = {
+    "window": (
+        lambda _: {"window": f"{freezer.MODEL_RESPONSE_START} to 2026-11-07"},
+        "model_response_date",
+    ),
+    "date": (lambda _: {"snapshot_date": "2026-11-11"}, "'snapshot_date'"),
+    "run": (
+        lambda _: {"runs": {H_SLUG: "fable52-runs/elsewhere"}},
+        "evidence names run 'fable52-runs/fable52'",
+    ),
+    "pointer": (
+        lambda _: {
+            "pointer": {"tag": "x", "asset": "x", "url": "x", "sha256": "x", "bytes": 1}
+        },
+        "published_dashboard_artifact",
+    ),
+    "base_exclusion_pin": (
+        lambda _: {
+            "exclusions_sha256": driver.BASE_REFERENCE_SHA256[driver.EXCLUSIONS_NAME]
+        },
+        r"frozen reference reference_exclusions\.json does not match its pin",
+    ),
+    "incumbent_dropped": (
+        lambda arguments: {"incumbents": arguments["incumbents"] - {H_INCUMBENT}},
+        f"roster differs on \\['{H_INCUMBENT}'\\]",
+    ),
+}
+
+
+@pytest.mark.parametrize("change", H_FROZEN_CHANGES)
+def test_verify_frozen_checks_the_release_the_freeze_derived(h_stage, change):
+    """After a freeze, verify_frozen passes on what it wrote and refuses
+    another window, snapshot date, supervised run or artifact than the freeze
+    derived, release 20261027's exclusion pin in place of the release's, and
+    an incumbent roster short of one."""
+    h_stage.run()
+    arguments = _h_frozen_arguments(h_stage)
+    release.verify_frozen(**arguments)
+    edit, message = H_FROZEN_CHANGES[change]
+    with pytest.raises(SystemExit, match=message):
+        release.verify_frozen(**{**arguments, **edit(arguments)})
+
+
+def test_verify_frozen_refuses_an_amendments_record_the_freeze_did_not_write(
+    h_stage,
+):
+    """The committed amendments record is release 20261027's with the stage's
+    list (empty here) appended; one byte more is refused."""
+    h_stage.run()
+    arguments = _h_frozen_arguments(h_stage)
+    path = arguments["annotations"] / H_AMENDMENTS
+    path.write_bytes(path.read_bytes() + b" ")
+    message = f"The frozen {re.escape(H_AMENDMENTS)} is not release 20261027's record"
+    with pytest.raises(SystemExit, match=message):
+        release.verify_frozen(**arguments)
+
+
+# The refusals that must come before any write, through main: each stops the
+# freeze and its dry run with the checkout untouched and the freezer never
+# called. Ported from Terra's harness where the no-build path keeps the gate;
+# the stage's own build gate and the release's exclusion record are new.
+
+
+@pytest.mark.parametrize(
+    "build", ["reference-build", "reference-install.json", "references_installed"]
+)
+def test_a_stage_that_records_a_build_is_refused_before_any_write(h_stage, build):
+    """The no-build path's own gate: a stage holding either of the install's
+    files, or whose stage.json records installed references (its receipt hash
+    following), came from another driver."""
+    stage = h_stage.stage
+    if build == "reference-build":
+        (stage / build).mkdir()
+        (stage / build / driver.CSV_NAME).write_text("scenario_id\n")
+    elif build == "reference-install.json":
+        driver.write_json(stage / build, {})
+    else:
+        prepared = _h_json(stage / "stage.json")
+        prepared[build] = {"sha256": {}}
+        driver.write_json(stage / "stage.json", prepared)
+        h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "the stage records an installed reference build")
+
+
+@pytest.mark.parametrize(
+    "name, message",
+    [
+        (
+            str(driver.BASE_REPOSITORY_INPUT_FILES[0]),
+            "Repository input changed from the base release: policybench/bench",
+        ),
+        (
+            str(driver.BASE_REPOSITORY_INPUT_FILES[1]),
+            "Repository input changed from the base release: policybench/popul",
+        ),
+        ("pyproject.toml", r"changed since strict export: \['pyproject\.toml'\]$"),
+        ("uv.lock", r"changed since strict export: \['uv\.lock'\]$"),
+        (
+            str(driver.REPOSITORY_INPUT_FILES[2]),
+            r"changed since strict export: \['reference_audit/[^']+/sweep_timing",
+        ),
+    ],
+)
+def test_a_repository_input_changed_after_export_is_refused_before_any_write(
+    h_stage, name, message
+):
+    path = h_stage.workspace / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes((path.read_bytes() if path.is_file() else b"") + b"\n")
+    _h_refused(h_stage, message)
+
+
+def test_a_historical_version_entry_changed_is_refused_before_any_write(h_stage):
+    path = h_stage.workspace / release.VERSIONS
+    versions = _h_json(path)
+    (entry,) = [v for v in versions["versions"] if v["id"] != versions["default"]][:1]
+    entry["description"] += " Edited."
+    path.write_text(json.dumps(versions, indent=2) + "\n")
+    _h_refused(h_stage, "Historical data.versions.json entries changed")
+
+
+@pytest.mark.parametrize("record", ["base", "edited"])
+def test_a_staged_exclusion_record_not_the_releases_is_refused_before_any_write(
+    h_stage, record
+):
+    """The bundle's exclusion record, every stage hash following: release
+    20261027's own 49 records, or the release's with the ruled record's
+    frozen value moved."""
+    path = h_stage.stage / BUNDLE / "us" / driver.EXCLUSIONS_NAME
+    if record == "base":
+        path.write_bytes(h_blob(FROZEN / driver.EXCLUSIONS_NAME))
+    else:
+        doc = json.loads(path.read_text())
+        (ruled,) = [r for r in doc["exclusions"] if driver.spec_key(r) == RULED]
+        ruled["frozen_value"] += 1
+        path.write_text(driver.exclusions_text(doc))
+    h_stage.rebind()
+    _h_refused(
+        h_stage,
+        f"Staged {re.escape(driver.EXCLUSIONS_NAME)} is not release 20261027's "
+        "record plus the 1 ruled record",
+    )
+
+
+def _h_kept_case(h_stage) -> str:
+    """A seed case the stage keeps: decided by release 20261027's record, with
+    only the incumbent wrong on it (MOCK)."""
+    return sorted(_h_json(h_stage.stage / driver.PROMPT_CHANGES)["kept"])[0]
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("changed", "Staged evidence changed since strict export: audit/cases/"),
+        ("outside_stage", r"Staged evidence changed since strict export: \.\./"),
+        ("missing_hashes", "missing staged evidence hashes"),
+        ("models", "Strict export receipt does not match"),
+        ("partial", "Strict export receipt does not match"),
+        ("partial_missing", "Strict export receipt does not match"),
+        ("tag", "Strict export receipt does not match"),
+        ("payload", "Strict export receipt does not match"),
+        ("base_tag", "does not name release 20261027 as its base"),
+        ("base_sha256", "does not name release 20261027 as its base"),
+    ],
+)
+def test_the_freeze_refuses_a_receipt_that_does_not_identify_this_stage(
+    h_stage, defect, message
+):
+    stage = h_stage.stage
+    receipt = _h_json(stage / "release-ready.json")
+    if defect == "changed":
+        (stage / "audit/cases" / H_RULED_CASE / "verdict.json").write_text("{}\n")
+    elif defect == "outside_stage":
+        pointer = h_stage.workspace / release.POINTER
+        receipt["files"][f"../../../{release.POINTER}"] = sha(pointer)
+    elif defect == "missing_hashes":
+        receipt["files"] = {}
+    elif defect == "models":
+        receipt["models"] = 51
+    elif defect == "partial":
+        receipt["partial"] = True
+    elif defect == "partial_missing":
+        del receipt["partial"]
+    elif defect == "tag":
+        receipt["release_tag"] = driver.BASE_TAG
+    elif defect == "payload":
+        payload = _h_payload(h_stage)
+        payload["countries"]["us"]["heatmap"] = []
+        (stage / H_BOARD).write_text(driver.payload_text(payload) + " ")
+    elif defect == "base_tag":
+        receipt["base_tag"] = "dashboard-data-20261014"
+    else:
+        receipt["base_sha256"] = "0" * 64
+    driver.write_json(stage / "release-ready.json", receipt)
+    _h_refused(h_stage, message)
+
+
+def _h_required_evidence(h_stage) -> list[str]:
+    names = [BUNDLE / "us" / n for n in (*driver.REFERENCE_FILES, "predictions.csv")]
+    names += [
+        BUNDLE / "annotations" / n
+        for n in (driver.ADJUDICATIONS, H_ROWS, H_NOTES, EXPLANATIONS)
+    ]
+    names += [Path("inputs") / H_SLUG / n for n in driver.PINNED_INPUTS]
+    names += [Path(n) for n in ("model-provenance.json", driver.PROMPT_CHANGES)]
+    names += [Path("stage.json"), Path("audit/cases.jsonl"), Path("audit/schema.json")]
+    for case in (_h_kept_case(h_stage), H_RULED_CASE):
+        names += [
+            Path("audit/cases") / case / n
+            for n in ("prompt.md", "verdict.json", "verdict.meta.json")
+        ]
+    names.append(Path("audit/cases") / H_RULED_CASE / "claude.transcript.jsonl")
+    return [str(name) for name in names]
+
+
+def test_the_receipt_binds_every_file_a_release_gate_reads(h_stage):
+    """Without its receipt entry, a staged file could be edited after export
+    and its other hashes made to follow; the freeze refuses the missing
+    entry, for every file a later gate relies on: the bundle's references,
+    record, annotations and predictions, the new model's run files, the
+    prepare-time hashes, and a kept and the newly judged case's evidence."""
+    stage = h_stage.stage
+    receipt = _h_json(stage / "release-ready.json")
+    required = _h_required_evidence(h_stage)
+    assert set(required) <= set(receipt["files"])
+    before = h_stage.files()
+    for name in required:
+        unbound = copy.deepcopy(receipt)
+        del unbound["files"][name]
+        driver.write_json(stage / "release-ready.json", unbound)
+        with pytest.raises(SystemExit, match="does not bind") as refused:
+            h_stage.run("--dry-run")
+        assert name in str(refused.value)
+    driver.write_json(stage / "release-ready.json", receipt)
+    assert h_stage.files() == before
+
+
+@pytest.mark.parametrize("extra", ["transcript", "amendments"])
+def test_a_transcript_or_amendment_list_in_the_stage_must_be_bound(h_stage, extra):
+    """The provenance gate reads a judged case's transcript, and the record
+    gates the listed wording amendments: either, present and unbound, could be
+    edited after export."""
+    stage = h_stage.stage
+    if extra == "transcript":
+        name = Path("audit/cases") / _h_kept_case(h_stage) / "claude.transcript.jsonl"
+        assert not (stage / name).exists()
+        (stage / name).write_text("{}\n")
+    else:
+        name = Path(driver.AMENDMENTS)
+        (stage / name).write_text(json.dumps({"amendments": []}))
+    _h_refused(h_stage, f"does not bind.*{re.escape(str(name))}")
+
+
+def test_a_bound_bundle_file_edited_without_its_hashes_is_refused(h_stage):
+    path = h_stage.stage / BUNDLE / "annotations" / H_NOTES
+    path.write_text(path.read_text() + "\n")
+    _h_refused(
+        h_stage,
+        f"Staged evidence changed since strict export: {re.escape(str(BUNDLE))}",
+    )
+
+
+@pytest.mark.parametrize("field", ["early", "partial"])
+@pytest.mark.parametrize("value", [True, "missing", None, "false"], ids=repr)
+def test_a_rehearsal_stage_rebound_after_export_is_refused_by_main(
+    h_stage, field, value
+):
+    """An otherwise releasable stage whose stage.json marks it early or
+    partial (or leaves the flag unset or not a boolean), with its receipt hash
+    refreshed, is refused by the freeze and its dry run before either writes
+    anything."""
+    prepared = _h_json(h_stage.stage / "stage.json")
+    if value == "missing":
+        del prepared[field]
+    else:
+        prepared[field] = value
+    driver.write_json(h_stage.stage / "stage.json", prepared)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "early/partial stage cannot become a release")
+
+
+@pytest.mark.parametrize("defect", ["edited", "missing", "unbound", "other_path"])
+def test_the_freeze_refuses_a_provenance_record_export_did_not_bind(h_stage, defect):
+    record = driver.JUDGE_PROVENANCE
+    receipt = _h_json(h_stage.stage / "release-ready.json")
+    if defect == "edited":
+        record.write_text(
+            json.dumps({"note": "Every judge ran isolated.", "verdicts": []})
+        )
+    elif defect == "missing":
+        record.unlink()
+    elif defect == "unbound":
+        del receipt["judge_provenance"]
+    else:
+        receipt["judge_provenance"]["path"] = "docs/elsewhere.json"
+    driver.write_json(h_stage.stage / "release-ready.json", receipt)
+    _h_refused(h_stage, "not the judge provenance record")
+
+
+def test_a_rebound_provenance_record_must_still_describe_the_stage(h_stage):
+    """A record edited after export, its receipt hash refreshed, must still
+    be what the stage's sidecars give."""
+    record = _h_json(driver.JUDGE_PROVENANCE)
+    record["note"] += " Every verdict was also checked by hand."
+    driver.JUDGE_PROVENANCE.write_text(json.dumps(record, indent=1) + "\n")
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "note is not the one its entries give")
+
+
+def _h_stat_index(country: dict, new: bool) -> int:
+    return next(
+        index
+        for index, row in enumerate(country["modelStats"])
+        if (row["model"] == H_NEW) == new
+    )
+
+
+def _h_edit_new_score(country: dict) -> list[str]:
+    index = _h_stat_index(country, new=True)
+    country["modelStats"][index].update(exact=100.0, score=100.0)
+    at = f"payload.countries.us.modelStats[{index} {H_NEW}]"
+    return [f"{at}.score", f"{at}.exact"]
+
+
+def _h_edit_incumbent_cost(country: dict) -> list[str]:
+    index = _h_stat_index(country, new=False)
+    row = country["modelStats"][index]
+    row["costUsd"] *= 2
+    return [f"payload.countries.us.modelStats[{index} {row['model']}].costUsd"]
+
+
+def _h_edit_case_class(country: dict) -> list[str]:
+    case = country["scenarioPredictions"]["scenario_000"]["snap"][H_INCUMBENT]
+    assert case["failureSource"] != "prompt_ambiguity"
+    case["failureSource"] = "prompt_ambiguity"
+    return [
+        f"payload.countries.us.scenarioPredictions.scenario_000.snap.{H_INCUMBENT}"
+        ".failureSource"
+    ]
+
+
+def _h_edit_exclusion_note(country: dict) -> list[str]:
+    index = len(country["referenceExclusions"]) - 2
+    country["referenceExclusions"][index]["note"] = "A note no record carries."
+    return [f"payload.countries.us.referenceExclusions[{index}].note"]
+
+
+H_PAYLOAD_EDITS = {
+    "new_model_score": _h_edit_new_score,
+    "incumbent_cost": _h_edit_incumbent_cost,
+    "case_class": _h_edit_case_class,
+    "exclusion_note": _h_edit_exclusion_note,
+}
+
+
+@pytest.mark.parametrize("edit", H_PAYLOAD_EDITS)
+def test_the_freeze_refuses_a_payload_edited_after_export(h_stage, edit):
+    """The receipt binds the payload by a hash beside it. Claude Fable 5.2's
+    score, an incumbent's cost, a case's class or an exclusion's text edited,
+    with that hash refreshed, passes the schema, roster and count gates;
+    export's own build from the bound bundle does not give it."""
+    payload = _h_payload(h_stage)
+    paths = H_PAYLOAD_EDITS[edit](payload["countries"]["us"])
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind(restamp=False)
+    refused = _h_refused(h_stage, "is not what export builds")
+    for path in paths:
+        assert repr(path) in str(refused.value)
+
+
+@pytest.mark.parametrize(
+    "targets, message",
+    [
+        (
+            ("release", "scope"),
+            "with release 20261027's exclusion record, incumbent modelStats drift",
+        ),
+        (
+            ("release",),
+            "the release payload differs from the scope export beyond the ruled",
+        ),
+    ],
+)
+def test_the_scope_check_refuses_an_incumbent_the_record_does_not_explain(
+    h_stage, targets, message
+):
+    """An incumbent's cost changed in what the exporters give, so that
+    export's build gives the staged payload: with release 20261027's record
+    put back it is not that release's (check a), and against the scope
+    export the release's record does not explain it (check b)."""
+    payload = _h_payload(h_stage)
+    index = _h_stat_index(payload["countries"]["us"], new=False)
+    model = payload["countries"]["us"]["modelStats"][index]["model"]
+    for board in (payload, *(h_stage.board.exports[name] for name in targets)):
+        (row,) = [
+            r for r in board["countries"]["us"]["modelStats"] if r["model"] == model
+        ]
+        row["costUsd"] *= 2
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind(restamp=False)
+    refused = _h_refused(h_stage, message)
+    assert model in str(refused.value)
+
+
+@pytest.mark.parametrize("edit", ["no_heatmap", "unannotated_wrong_answer", "over_100"])
+def test_the_real_dashboard_validator_refuses_the_staged_payload(h_stage, edit):
+    payload = _h_payload(h_stage)
+    country = payload["countries"]["us"]
+    if edit == "no_heatmap":
+        del country["heatmap"]
+    elif edit == "unannotated_wrong_answer":
+        del country["scenarioPredictions"]["scenario_000"]["snap"][H_INCUMBENT][
+            "failureSource"
+        ]
+    else:
+        country["programStats"][0]["score"] = 101.0
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "Strict dashboard gate failed")
+
+
+def _h_swap_exclusions(country):
+    items = country["referenceExclusions"]
+    items[0], items[1] = items[1], items[0]
+
+
+H_ROSTER_EDITS = {
+    "fifty_one_rows": (
+        lambda country: country["modelStats"].pop(),
+        "exactly 52 no-tools model rows",
+    ),
+    "tools_condition": (
+        lambda country: country["modelStats"][3].update(condition="tools"),
+        "exactly 52 no-tools model rows",
+    ),
+    "renamed_incumbent": (
+        lambda country: country["modelStats"][_h_stat_index(country, new=False)].update(
+            model="claude-impostor-1"
+        ),
+        "roster disagree",
+    ),
+    "scored_1935": (
+        lambda country: country["modelStats"][-1].update(n=1935),
+        "scored on 1934 outputs",
+    ),
+    "exclusions_swapped": (_h_swap_exclusions, "their order"),
+}
+
+
+@pytest.mark.parametrize("edit", H_ROSTER_EDITS)
+def test_the_freeze_refuses_another_roster_or_scored_count(h_stage, edit):
+    change, message = H_ROSTER_EDITS[edit]
+    payload = _h_payload(h_stage)
+    change(payload["countries"]["us"])
+    _h_write_payload(h_stage, payload)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, message)
+
+
+def _h_unlisted_verdict(stage: Path) -> Path:
+    """A synthetic unbound sidecar the historical whole-tree tally accepts."""
+    case = stage / "audit/cases/us__extra__invented"
+    write_json(case / "verdict.json", {})
+    write_json(
+        case / "verdict.meta.json",
+        {
+            "verdict_sha256": sha(case / "verdict.json"),
+            "judge_model_requested": "invented-judge",
+            "judge_model_reported": ["invented-judge"],
+            "judge_runner": driver.JUDGE_RUNNER,
+        },
+    )
+    return case
+
+
+@pytest.mark.parametrize("operation", ["export", "freeze", "dry-run"])
+def test_an_unlisted_verdict_added_after_export_is_refused_without_writes(
+    h_stage, operation
+):
+    stage = h_stage.stage
+    _h_unlisted_verdict(stage)
+    before = h_stage.files()
+    with pytest.raises(SystemExit, match="not manifest-listed judged cases"):
+        if operation == "export":
+            args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+            driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage.board.live))
+        else:
+            h_stage.run(*(["--dry-run"] if operation == "dry-run" else []))
+    assert h_stage.files() == before
+    assert h_stage.board.calls == []
+
+
+def _h_rebind_verdict(case: Path) -> None:
+    write_json(
+        case / "verdict.meta.json",
+        {
+            **_h_json(case / "verdict.meta.json"),
+            "verdict_sha256": sha(case / "verdict.json"),
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("edited_kept", "carried-over verdicts differ from the seed's"),
+        ("other_models", "carried-over verdicts differ from the seed's"),
+        ("unbound_sidecar", "carried-over verdicts differ from the seed's"),
+        ("edited_prompt", "incumbent-only case prompts changed against the seed"),
+        ("forged_partition", "prompt-changes.json disagrees with the stage's prompts"),
+        ("other_seed", "audit seed is not release 20261027's"),
+        ("seed_case_dropped", "seed cases vanished from the audit"),
+    ],
+)
+def test_the_freeze_refuses_a_verdict_seed_or_partition_changed_after_export(
+    h_stage, defect, message
+):
+    """Export validates the verdicts against the bound seed before it writes
+    the receipt; the freeze does again. A kept verdict edited with its sidecar
+    and every hash following, a prompt changed under it, a forged
+    kept/changed partition, a seed that is not the committed digest's, or a
+    seed case gone from the audit is refused before anything is written."""
+    stage = h_stage.stage
+    case = stage / "audit/cases" / _h_kept_case(h_stage)
+    if defect == "edited_kept":
+        verdict = _h_json(case / "verdict.json")
+        verdict["rationale"] = "A rationale the judge never wrote."
+        write_json(case / "verdict.json", verdict)
+        _h_rebind_verdict(case)
+    elif defect == "other_models":
+        verdict = _h_json(case / "verdict.json")
+        source = verdict["models"][0]["failure_source"]
+        verdict["models"][0]["failure_source"] = (
+            "llm_error" if source == "prompt_ambiguity" else "prompt_ambiguity"
+        )
+        write_json(case / "verdict.json", verdict)
+        _h_rebind_verdict(case)
+    elif defect == "unbound_sidecar":
+        write_json(case / "verdict.meta.json", {"verdict_sha256": "0" * 64})
+    elif defect == "edited_prompt":
+        prompt = case / "prompt.md"
+        prompt.write_text(prompt.read_text() + "One more fact.\n")
+    elif defect == "forged_partition":
+        changes = _h_json(stage / driver.PROMPT_CHANGES)
+        changes["kept"].remove(case.name)
+        changes["changed"].append(case.name)
+        driver.write_json(stage / driver.PROMPT_CHANGES, changes)
+    elif defect == "other_seed":
+        prepared = _h_json(stage / "stage.json")
+        prepared["seed"][case.name]["verdict_sha256"] = "0" * 64
+        driver.write_json(stage / "stage.json", prepared)
+    else:
+        manifest = (stage / "audit/cases.jsonl").read_text().splitlines()
+        kept = [line for line in manifest if case.name not in line]
+        (stage / "audit/cases.jsonl").write_text("\n".join(kept) + "\n")
+        shutil.rmtree(case)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, message)
+
+
+def test_a_manifest_claiming_the_new_model_on_a_kept_case_is_refused(h_stage):
+    """cases.jsonl is editable: a kept case recorded as one Claude Fable 5.2
+    got wrong (every hash following) is refused, since its staged prediction
+    is right on it."""
+    stage = h_stage.stage
+    case = stage / "audit/cases" / _h_kept_case(h_stage)
+    manifest = [
+        json.loads(line)
+        for line in (stage / "audit/cases.jsonl").read_text().splitlines()
+    ]
+    for item in manifest:
+        if item["case_id"] == case.name:
+            item["wrong_models"].append(H_NEW)
+    (stage / "audit/cases.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in manifest)
+    )
+    changes = _h_json(stage / driver.PROMPT_CHANGES)
+    changes["kept"].remove(case.name)
+    changes["changed"].append(case.name)
+    driver.write_json(stage / driver.PROMPT_CHANGES, changes)
+    prompt = case / "prompt.md"
+    prompt.write_text(prompt.read_text() + "Claude Fable 5.2 answered too.\n")
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "wrong models disagree with the staged predictions")
+
+
+def _h_annotations(h_stage) -> Path:
+    return h_stage.stage / BUNDLE / "annotations"
+
+
+def _h_edit_annotation(path: Path, case: str, column: str, value: str) -> str:
+    import pandas as pd
+
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    _, scenario, variable = case.split("__")
+    mask = (frame.scenario_id == scenario) & (frame.variable == variable)
+    assert mask.sum() == 1
+    old = frame.loc[mask, column].item()
+    assert old != value
+    frame.loc[mask, column] = value
+    path.write_text(frame.to_csv(index=False))
+    return old
+
+
+def test_the_staged_annotations_are_triages_rebuilt_frames(h_stage):
+    """The freeze's rebuild of the row annotations and case notes from the
+    verdicts and the staged record (verify_annotation_amendments) gives the
+    bytes the real triage wrote, every decided case's class applied, the
+    ruled case's included."""
+    import pandas as pd
+
+    annotations = _h_annotations(h_stage)
+    release.verify_annotation_amendments(annotations, [], h_stage.stage / "audit")
+    notes = pd.read_csv(annotations / H_NOTES, dtype=str, keep_default_na=False)
+    decided = _h_decided_cases()
+    record = {
+        driver.spec_key(entry): entry
+        for entry in _h_json(annotations / driver.ADJUDICATIONS)["adjudications"]
+    }
+    assert len(notes) == len(decided) + 1 == len(record)
+    for row in notes.itertuples():
+        entry = record[(row.scenario_id, row.variable)]
+        assert row.case_failure_sources == entry["adjudicated_failure_source"]
+
+
+@pytest.mark.parametrize(
+    "name, column",
+    [
+        (H_NOTES, "case_failure_sources"),
+        (H_ROWS, "failure_source"),
+        (H_NOTES, "reference_suspect"),
+        (H_ROWS, "annotation"),
+    ],
+)
+def test_the_freeze_refuses_an_annotation_no_judge_or_decision_gave(
+    h_stage, name, column
+):
+    """On a kept decided case, a failure class, a flag or a diagnosis edited
+    in the published annotations, with the receipt's hash following, is not
+    what triage builds from the verdicts and the record."""
+    case = _h_kept_case(h_stage)
+    path = _h_annotations(h_stage) / name
+    import pandas as pd
+
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    _, scenario, variable = case.split("__")
+    old = frame.loc[
+        (frame.scenario_id == scenario) & (frame.variable == variable), column
+    ].item()
+    value = {
+        "case_failure_sources": "llm_error|prompt_ambiguity",
+        "failure_source": (
+            "reference_engine_defect"
+            if old != "reference_engine_defect"
+            else "llm_error"
+        ),
+        "reference_suspect": "False" if old == "True" else "True",
+        "annotation": "A diagnosis no judge wrote.",
+    }[column]
+    _h_edit_annotation(path, case, column, value)
+    h_stage.rebind(restamp=False)
+    refused = _h_refused(
+        h_stage, rf"Staged {re.escape(name)} is not what triage builds"
+    )
+    assert column in str(refused.value)
+
+
+def test_the_freeze_refuses_a_case_note_without_its_adjudication_sentence(h_stage):
+    """A decided case's note must carry its decision's exact sentence."""
+    path = _h_annotations(h_stage) / H_NOTES
+    _h_edit_annotation(path, _h_kept_case(h_stage), "case_annotation", "A note.")
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, f"Staged {re.escape(H_NOTES)} is not what triage builds")
+
+
+def _h_record(h_stage) -> dict:
+    return _h_json(_h_annotations(h_stage) / driver.ADJUDICATIONS)
+
+
+def _h_write_record(h_stage, record: dict) -> None:
+    (_h_annotations(h_stage) / driver.ADJUDICATIONS).write_text(
+        driver.record_text(record)
+    )
+
+
+def _h_base_entry(record: dict, excluded: bool) -> dict:
+    return next(
+        e
+        for e in record["adjudications"]
+        if bool(e.get("excluded_from_scoring")) == excluded
+        and driver.spec_key(e) != RULED
+    )
+
+
+def _h_ruled_entry(record: dict) -> dict:
+    (entry,) = [e for e in record["adjudications"] if driver.spec_key(e) == RULED]
+    return entry
+
+
+H_CHANGED_DECISION = "change recorded decisions beyond the re-judged cases' judge"
+H_RECORD_EDITS = {
+    "dropped_decision": (
+        lambda r: r["adjudications"].remove(_h_base_entry(r, excluded=False)),
+        "drop recorded decisions",
+    ),
+    "adjudicated_class": (
+        lambda r: _h_base_entry(r, excluded=False).update(
+            adjudicated_failure_subtype="other"
+        ),
+        H_CHANGED_DECISION,
+    ),
+    "judge_class": (
+        lambda r: _h_base_entry(r, excluded=True).update(judge_failure_subtype="other"),
+        H_CHANGED_DECISION,
+    ),
+    "reasoning": (
+        lambda r: _h_base_entry(r, excluded=False).update(
+            reasoning="Reasoning nobody gave."
+        ),
+        H_CHANGED_DECISION,
+    ),
+    "ruled_reasoning": (
+        lambda r: _h_ruled_entry(r).update(reasoning="Reasoning nobody gave."),
+        "differs from the ruling's entry",
+    ),
+    "ruled_dropped": (
+        lambda r: r["adjudications"].remove(_h_ruled_entry(r)),
+        f"{H_RULED_CASE}: no staged decision",
+    ),
+    "note": (
+        lambda r: r.update(note="Another note."),
+        "changes its note, schema or date conventions",
+    ),
+    # The record's own parser refuses an ambiguous output left scored.
+    "unexcluded": (
+        lambda r: _h_base_entry(r, excluded=True).update(excluded_from_scoring=False),
+        "requires excluded_from_scoring",
+    ),
+}
+
+
+@pytest.mark.parametrize("edit", H_RECORD_EDITS)
+def test_the_freeze_refuses_an_adjudication_record_the_release_does_not_give(
+    h_stage, edit
+):
+    """The staged record is release 20261027's plus the ruling's entry: no
+    base decision dropped, and no adjudicated or judge class, reasoning,
+    note or exclusion changed (no case re-opened), and the ruled entry as the
+    ruling gives it, each with the receipt's hash following."""
+    from policybench.adjudications import AdjudicationError
+
+    change, message = H_RECORD_EDITS[edit]
+    record = _h_record(h_stage)
+    change(record)
+    _h_write_record(h_stage, record)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, message, error=(SystemExit, AdjudicationError))
+
+
+def test_a_record_whose_bytes_hide_text_is_refused(h_stage):
+    """A duplicate key the parser drops, the receipt's hash following."""
+    path = _h_annotations(h_stage) / driver.ADJUDICATIONS
+    text = path.read_text()
+    path.write_text(text.replace('"note":', '"note": "Hidden.", "note":', 1))
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, "is not in the committed form")
+
+
+def test_a_changed_held_reference_record_is_refused(h_stage):
+    path = h_stage.workspace / "reference_audit/held_references.json"
+    path.write_bytes(path.read_bytes() + b" ")
+    _h_refused(h_stage, "held_references.json changed from the base release")
+
+
+def _h_edit_first_row(text: str, column: str, change) -> str:
+    lines = text.splitlines(keepends=True)
+    row = lines[1].split(",")
+    assert row[0] == H_INCUMBENT
+    at = H_COLUMNS.index(column)
+    row[at] = change(row[at])
+    return "".join([lines[0], ",".join(row), *lines[2:]])
+
+
+@pytest.mark.parametrize("where", ["base", "stage"])
+def test_an_incumbent_prediction_change_is_refused_before_mutation(h_stage, where):
+    """The incumbent's rows are release 20261027's (MOCK baseline here),
+    whether the change is in the baseline's rows or in the bundle's, every
+    stage hash following."""
+
+    def bump(value: str) -> str:
+        return str(float(value) + 1)
+
+    if where == "base":
+        board = h_stage.board
+        board.baseline = _h_edit_first_row(board.baseline, "prediction", bump)
+    else:
+        path = h_stage.stage / BUNDLE / "us/predictions.csv"
+        path.write_text(_h_edit_first_row(path.read_text(), "prediction", bump))
+        h_stage.rebind()
+    _h_refused(h_stage, f"Incumbent prediction evidence changed: {H_INCUMBENT}$")
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        {"completed": 99},
+        {"total": 99, "completed": 99},
+        {"stopped_reason": "budget"},
+        {"model": "gpt-6.1-sol"},
+        {"treatment_fingerprint": None},
+    ],
+    ids=repr,
+)
+def test_an_incomplete_run_state_is_refused_before_mutation(h_stage, edit):
+    """Claude Fable 5.2's pinned run itself incomplete, stopped, another
+    model's or without its treatment, every pin and hash following it."""
+    path = h_stage.stage / "inputs" / H_SLUG / "run_state.json"
+    write_json(path, {**_h_json(path), **edit})
+    h_stage.rebind(repin=True)
+    _h_refused(h_stage, "Missing completed run or treatment evidence")
+
+
+def test_a_run_state_treatment_off_the_registry_is_refused(h_stage):
+    path = h_stage.stage / "inputs" / H_SLUG / "run_state.json"
+    state = _h_json(path)
+    state["treatment_fingerprint"]["request_timeout_seconds"] += 1
+    write_json(path, state)
+    h_stage.rebind(repin=True)
+    _h_refused(h_stage, "disagrees with registry")
+
+
+def _h_edit_rows(path: Path, model: str, column: str, value: str) -> None:
+    import pandas as pd
+
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    frame.loc[frame["model"] == model, column] = value
+    path.write_text(frame.to_csv(index=False))
+
+
+def test_an_answer_timed_before_the_response_window_is_refused(h_stage):
+    """A request the run records before the configured response start, every
+    pin and hash following, stops the freeze before it writes the pointer."""
+    for path in (
+        h_stage.stage / "inputs" / H_SLUG / "predictions.csv",
+        h_stage.stage / BUNDLE / "us/predictions.csv",
+    ):
+        _h_edit_rows(path, H_NEW, "request_started_at", "1780000000.0")
+    h_stage.rebind(repin=True)
+    _h_refused(h_stage, "before the configured model response start")
+
+
+@pytest.mark.parametrize(
+    "defect, message",
+    [
+        ("stale_stage_json", "staged input changed since prepare: publish/"),
+        ("unrecorded_input", "stage.json does not record"),
+        ("provenance_hash", "model-provenance.json disagrees with the staged run"),
+        ("fingerprint", "model-provenance.json disagrees with the staged run"),
+    ],
+)
+def test_the_freeze_rechecks_the_prepare_time_hashes(h_stage, defect, message):
+    """stage.json and model-provenance.json, both bound by the receipt, must
+    still describe the staged inputs."""
+    stage = h_stage.stage
+    if defect == "stale_stage_json":
+        path = stage / BUNDLE / "us/predictions.csv"
+        path.write_text(path.read_text() + path.read_text().splitlines()[1] + "\n")
+    elif defect == "unrecorded_input":
+        prepared = _h_json(stage / "stage.json")
+        del prepared["files"][f"inputs/{H_SLUG}/predictions.csv"]
+        driver.write_json(stage / "stage.json", prepared)
+    else:
+        record = _h_json(stage / "model-provenance.json")
+        if defect == "provenance_hash":
+            record[H_NEW]["predictions_sha256"] = "0" * 64
+        else:
+            record[H_NEW]["treatment_fingerprint"]["request_timeout_seconds"] += 1
+        driver.write_json(stage / "model-provenance.json", record)
+    h_stage.rebind(restamp=False)
+    _h_refused(h_stage, message)
+
+
+@pytest.mark.parametrize(
+    "column, value",
+    [("estimated_cost_usd", "0.0002"), ("elapsed_seconds", "9.5"), ("prediction", "1")],
+)
+def test_new_model_rows_edited_in_the_bundle_are_refused(h_stage, column, value):
+    """Claude Fable 5.2's cost, latency or answers changed in the bundle's
+    predictions, with stage.json and model-provenance.json following, are not
+    its pinned run's rows, column by column (verify_new_model_inputs)."""
+    _h_edit_rows(h_stage.stage / BUNDLE / "us/predictions.csv", H_NEW, column, value)
+    h_stage.rebind()
+    refused = _h_refused(
+        h_stage, "rows in the bundle's predictions are not the pinned run's"
+    )
+    assert column in str(refused.value)
+
+
+def test_a_new_model_run_file_edited_with_the_bundle_is_refused(h_stage):
+    """The run file and the bundle edited together, every stage hash
+    following, are not the run file the committed pins name."""
+    for path in (
+        h_stage.stage / "inputs" / H_SLUG / "predictions.csv",
+        h_stage.stage / BUNDLE / "us/predictions.csv",
+    ):
+        _h_edit_rows(path, H_NEW, "estimated_cost_usd", "0.0002")
+    h_stage.rebind()
+    _h_refused(h_stage, f"staged inputs/{H_SLUG}/predictions.csv is not the run file")
+
+
+def test_input_pins_that_differ_from_their_commit_are_refused(h_stage):
+    """The pins file edited in the working tree, not committed, is refused."""
+    path = h_stage.workspace / driver.INPUT_PINS_PATH
+    path.write_text(path.read_text().replace(H_RUN, "fable52-runs/other"))
+    _h_refused(h_stage, "differs from its HEAD commit")
+
+
+def test_input_pins_must_name_the_supervised_run(h_stage):
+    """The frozen serving evidence names Claude Fable 5.2's supervised run from
+    the committed pins, which must give it as <runs root>/fable52/run."""
+    path = h_stage.workspace / driver.INPUT_PINS_PATH
+    path.write_text(path.read_text().replace(f"{H_RUN}/run", "fable52-runs/run"))
+    h_stage.board.committed[driver.INPUT_PINS_PATH] = path.read_bytes()
+    _h_refused(h_stage, f"does not name the supervised run of {H_SLUG}")
