@@ -2687,3 +2687,209 @@ def test_the_spec_must_restate_exactly_the_ruled_outputs_already_decided(
         driver.exclusion_adjudications(
             driver.base_adjudication_record(), stage / "audit" / "cases"
         )
+
+
+# Terra's triage_stage tests, ported: driver.triage itself on the stage after
+# --step adjudicate-exclusions, with MOCK collected annotations.
+
+
+@pytest.fixture
+def triage_stage(ruled, monkeypatch):
+    """The stage after the adjudicate step, ready for triage: the release's
+    exclusion record installed, the ruled case re-opened, and MOCK collected
+    annotations with one MOCK wrong row for each decided case."""
+    import policybench.audit
+
+    stage = ruled.stage
+    bundle = stage / "publish" / RUN
+    (bundle / "us" / EXCLUSIONS_NAME).write_text(release_text())
+    state = SimpleNamespace(pending=[], missing=pd.DataFrame(), hedged=pd.DataFrame())
+
+    def reopen(*cases):
+        (stage / driver.PROMPT_CHANGES).write_text(
+            json.dumps({"added": [], "changed": [RULED_CASE, *cases], "kept": []})
+        )
+
+    reopen()
+    monkeypatch.setattr(driver, "validate_verdicts", lambda *a, **kw: state.pending)
+    monkeypatch.setattr(driver, "load_seed", lambda stage: {})
+    monkeypatch.setattr(driver, "stage_upgrade", lambda stage: None)
+    keys = [
+        {name: entry[name] for name in ("country", "scenario_id", "variable")}
+        for entry in ruled.entries
+    ]
+    state.rows = pd.DataFrame(
+        [
+            {
+                **key,
+                "model": NEW if driver.case_id(key) == RULED_CASE else "incumbent-a",
+                "failure_source": "llm_error",
+                "failure_subtype": "thresholds_rates",
+                "reference_suspect": False,
+                "annotation": "MOCK row note.",
+            }
+            for key in keys
+        ]
+    )
+    state.cases = pd.DataFrame(
+        [
+            {
+                **key,
+                "reference_suspect": False,
+                "wrong_model_count": 1,
+                "case_failure_source": "llm_error",
+                "case_failure_subtype": "thresholds_rates",
+                "reference_bug_hypothesis": "",
+                "case_annotation": "MOCK case note.",
+            }
+            for key in keys
+        ]
+    )
+    monkeypatch.setattr(
+        policybench.audit,
+        "collect_audit",
+        lambda *a, **kw: {
+            "missing": state.missing,
+            "hedged": state.hedged,
+            "row": state.rows.copy(),
+            "case": state.cases.copy(),
+        },
+    )
+
+    def run():
+        driver.triage(SimpleNamespace(stage_dir=stage), bundle)
+
+    return SimpleNamespace(
+        stage=stage,
+        bundle=bundle,
+        record=ruled.path,
+        text=ruled.text,
+        staged=ruled.staged,
+        state=state,
+        reopen=reopen,
+        run=run,
+    )
+
+
+def test_triage_accepts_the_steps_record_unchanged(triage_stage, capsys):
+    triage_stage.run()
+    assert triage_stage.record.read_text() == triage_stage.text
+    assert "Triage complete: 64 rows / 64 cases" in capsys.readouterr().out
+    annotations = triage_stage.bundle / "annotations"
+    notes = pd.read_csv(annotations / "us_case_notes.csv")
+    note = notes[(notes.scenario_id == RULED[0]) & (notes.variable == RULED[1])]
+    assert note[["case_failure_sources", "case_failure_subtypes"]].values.tolist() == [
+        ["prompt_ambiguity", "state_local_rule"]
+    ]
+    assert pd.read_csv(triage_stage.stage / "unresolved-rows.csv").empty
+    assert pd.read_csv(triage_stage.stage / "reference-flags.csv").empty
+
+
+def test_triage_refuses_exclusions_the_decisions_do_not_make(triage_stage):
+    us = triage_stage.bundle / "us" / EXCLUSIONS_NAME
+    us.write_text(driver.exclusions_text(base_record()))
+    with pytest.raises(SystemExit, match="adjudication exclusions differ"):
+        triage_stage.run()
+
+
+def _first_case(triage_stage) -> str:
+    return driver.case_id(triage_stage.staged["adjudications"][0])
+
+
+def _extra_case(triage_stage) -> str:
+    first = triage_stage.staged["adjudications"][0]
+    return driver.case_id({**first, "scenario_id": "scenario_999"})
+
+
+def _judge_subtype_by_hand(record: dict) -> None:
+    entry = record["adjudications"][0]
+    entry["judge_failure_subtype"] = (
+        "credit_phaseout"
+        if entry["judge_failure_subtype"] != "credit_phaseout"
+        else "thresholds_rates"
+    )
+
+
+TRIAGE_REFUSALS = {
+    "a decision the spec does not list": (
+        lambda record: _added(record["adjudications"]),
+        _extra_case,
+        "add decisions the spec does not list",
+    ),
+    "judge fields written by hand": (
+        _judge_subtype_by_hand,
+        _first_case,
+        "not restated by the restate script",
+    ),
+    "another change to a recorded decision": (
+        lambda record: record["adjudications"][0].update(
+            reasoning=record["adjudications"][0]["reasoning"] + " X."
+        ),
+        None,
+        "change recorded decisions beyond",
+    ),
+    "a dropped decision": (
+        lambda record: record["adjudications"].pop(3),
+        None,
+        "drop recorded decisions",
+    ),
+    "an edited date convention": (
+        lambda record: record.update(
+            date_conventions=record["date_conventions"] + " MOCK."
+        ),
+        None,
+        "beyond naming this release's waves",
+    ),
+    "the ruled entry edited after the step": (
+        lambda record: record["adjudications"][-1].update(
+            reasoning=record["adjudications"][-1]["reasoning"] + " X."
+        ),
+        None,
+        "Staged adjudications of the ruled outputs",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "edit, reopened, message",
+    list(TRIAGE_REFUSALS.values()),
+    ids=list(TRIAGE_REFUSALS),
+)
+def test_triage_refuses_a_record_changed_without_a_reason(
+    triage_stage, edit, reopened, message
+):
+    record = copy.deepcopy(triage_stage.staged)
+    edit(record)
+    triage_stage.record.write_text(driver.record_text(record))
+    if reopened is not None:
+        triage_stage.reopen(reopened(triage_stage))
+    with pytest.raises(SystemExit, match=message):
+        triage_stage.run()
+
+
+def test_triage_refuses_bytes_the_entry_gate_cannot_see(triage_stage):
+    first = '"country": "us",'
+    assert first in triage_stage.text
+    doubled = triage_stage.text.replace(first, first + "\n      " + first, 1)
+    triage_stage.record.write_text(doubled)
+    with pytest.raises(SystemExit, match="not in the committed form"):
+        triage_stage.run()
+
+
+def test_triage_stops_on_a_pending_verdict(triage_stage):
+    triage_stage.state.pending = ["MOCK pending case"]
+    with pytest.raises(SystemExit, match="missing or invalid verdicts; run judge"):
+        triage_stage.run()
+
+
+@pytest.mark.parametrize("frame", ["missing", "hedged"])
+def test_triage_stops_on_a_missing_or_hedged_verdict(triage_stage, frame):
+    setattr(triage_stage.state, frame, pd.DataFrame([{"case_id": RULED_CASE}]))
+    with pytest.raises(SystemExit, match="missing/hedged audit; run judge"):
+        triage_stage.run()
+
+
+def test_triage_stops_when_a_case_miscounts_its_rows(triage_stage):
+    triage_stage.state.cases.loc[0, "wrong_model_count"] = 2
+    with pytest.raises(SystemExit, match="wrong_model_count disagrees"):
+        triage_stage.run()
