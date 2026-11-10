@@ -1733,7 +1733,13 @@ def _h_patch(mp, workspace: Path, board) -> None:
 
     import policybench.full_run_export
 
-    mp.setattr(driver, "base_commit_blob", base_blob)
+    def blob(path):
+        # Review r3, Q1: MOCK release 20261027's committed annotation files
+        # (_h_base_files), once the stage writer has built them.
+        found = board.base_files.get(Path(path))
+        return base_blob(Path(path)) if found is None else found
+
+    mp.setattr(driver, "base_commit_blob", blob)
     _h_point_freeze_at(workspace, mp)
     mp.setattr(driver, "SPEC_PATH", workspace / SPEC_PATH)
     mp.setattr(driver, "JUDGE_PROVENANCE", workspace / driver.JUDGE_PROVENANCE_PATH)
@@ -1910,30 +1916,87 @@ def _h_annotate_ruled(payload: dict, annotations: Path) -> None:
     cell[H_INCUMBENT].update(fields)
 
 
-def _h_base_ruled_fields(stage: Path) -> dict:
-    """The kept stage's ruled incumbent cell as release 20261027's annotations
-    give it: triage's frames (collect_audit) with release 20261027's 63
-    decisions applied and d2180's not, through triage's CSV writer."""
-    import pandas as pd
+# Review r3, Q1: MOCK release 20261027's committed wording amendments, each
+# rewording text a MOCK seed verdict gives (_h_verdict): the H_INCUMBENT row's
+# diagnosis and the case note's rationale.
+H_BASE_REWORDS = {
+    "annotation": ("an outdated threshold.", "a threshold an earlier year set."),
+    "case_annotation": ("incorrectly.", "incorrectly (MOCK committed wording)."),
+}
+H_BASE_ROW = "The model applied a threshold an earlier year set."
+H_BASE_NOTE = (
+    "The model applied the rule this case turns on incorrectly (MOCK committed "
+    "wording)."
+)
 
+
+def _h_base_reworded(board) -> list[str]:
+    """The cases MOCK release 20261027's committed amendments reword: the
+    first decided case, and on the kept board the ruled case too."""
+    first = min(_h_decided_cases())
+    return [first, H_RULED_CASE] if board.kept else [first]
+
+
+def _h_base_files(stage: Path, board, opened: str) -> dict[Path, bytes]:
+    """MOCK: release 20261027's committed row annotations, case notes and
+    wording amendments record, by path, as its triage left them for the MOCK
+    seed: collect_audit's frames on every case but ``opened`` (which the new
+    model opens), the MOCK committed amendments (H_BASE_REWORDS) on each case
+    _h_base_reworded names, then release 20261027's 63 decisions."""
     from policybench.adjudications import apply_adjudications
     from policybench.audit import collect_audit
 
     collected = collect_audit(stage / BUNDLE / "us", stage / "audit")
-    rows, cases, _ = apply_adjudications(
-        collected["row"],
-        collected["case"].rename(
-            columns={
-                "case_failure_source": "case_failure_sources",
-                "case_failure_subtype": "case_failure_subtypes",
-            }
-        ),
-        driver.base_adjudication_record()["adjudications"],
+    rows, cases = (
+        frame[
+            [
+                f"us__{s}__{v}" != opened
+                for s, v in zip(frame.scenario_id, frame.variable, strict=True)
+            ]
+        ].copy()
+        for frame in (collected["row"], collected["case"])
     )
+    cases = cases.rename(
+        columns={
+            "case_failure_source": "case_failure_sources",
+            "case_failure_subtype": "case_failure_subtypes",
+        }
+    )
+    amendments = [
+        {
+            "case_id": case,
+            "field": field,
+            **({"model": H_INCUMBENT} if field == "annotation" else {}),
+            "old": old,
+            "new": new,
+            "reason": "MOCK: a committed wording amendment.",
+        }
+        for case in _h_base_reworded(board)
+        for field, (old, new) in H_BASE_REWORDS.items()
+    ]
+    driver.amend_annotations(rows, cases, amendments)
+    rows, cases, _ = apply_adjudications(rows, cases, driver.base_adjudications())
+    record = {
+        "note": "MOCK: release 20261027's wording amendments for the MOCK seed.",
+        "amendments": amendments,
+    }
+    return {
+        release.ANNOTATIONS / H_ROWS: driver.annotation_csv_text(rows).encode(),
+        release.ANNOTATIONS / H_NOTES: driver.annotation_csv_text(cases).encode(),
+        release.ANNOTATIONS / H_AMENDMENTS: release.amendments_text(record).encode(),
+    }
+
+
+def _h_base_ruled_fields(board) -> dict:
+    """The kept stage's ruled incumbent cell as release 20261027's committed
+    files (MOCK, _h_base_files) give it: the ruled row and note a MOCK
+    committed amendment rewords, d2180's decision not applied."""
+    import pandas as pd
+
     return _h_ruled_fields(
         *(
-            pd.read_csv(io.StringIO(driver.annotation_csv_text(frame)))
-            for frame in (rows, cases)
+            pd.read_csv(io.BytesIO(board.base_files[release.ANNOTATIONS / name]))
+            for name in (H_ROWS, H_NOTES)
         )
     )
 
@@ -2182,6 +2245,11 @@ def _h_write_stage(workspace: Path, board) -> Path:
     (audit / "cases.jsonl").write_text(
         "".join(json.dumps(item) + "\n" for item in manifest)
     )
+    # Review r3, Q1: MOCK release 20261027's committed annotation files, which
+    # _h_patch serves at BASE_COMMIT, and the checkout's copies of them.
+    board.base_files = _h_base_files(stage, board, opened)
+    for path, content in board.base_files.items():
+        (workspace / path).write_bytes(content)
     driver.write_json(
         stage / driver.PROMPT_CHANGES,
         {"kept": sorted(seed), "changed": [], "added": [opened]},
@@ -2238,9 +2306,10 @@ def _h_stamp_inputs(stage: Path, board, *, repin=True) -> None:
 def _h_build_template(tmp_path_factory, kept: bool) -> SimpleNamespace:
     """The releasable stage, built once: install-exclusions' record, the real
     adjudicate-exclusions, triage, write_judge_provenance and export (section
-    comment). With ``kept``, the kept board's, and before export release
-    20261027's payload takes the base's annotation fields on the ruled
-    incumbent cell (_h_base_ruled_fields)."""
+    comment), on MOCK release 20261027 committed annotation files
+    (_h_base_files). With ``kept``, the kept board's, and before export
+    release 20261027's payload takes those files' annotation fields on the
+    ruled incumbent cell (_h_base_ruled_fields)."""
     boards = _h_boards(kept)
     board = SimpleNamespace(
         live=boards.live,
@@ -2253,6 +2322,7 @@ def _h_build_template(tmp_path_factory, kept: bool) -> SimpleNamespace:
         defects=set(),
         kept=kept,
         other_case=None,
+        base_files={},
     )
     workspace = tmp_path_factory.mktemp("h-template-kept" if kept else "h-template")
     workspace = workspace / "workspace"
@@ -2270,7 +2340,7 @@ def _h_build_template(tmp_path_factory, kept: bool) -> SimpleNamespace:
         driver.write_judge_provenance(args)
         if kept:
             cells = board.live["countries"]["us"]["scenarioPredictions"]
-            cells[RULED[0]][RULED[1]][H_INCUMBENT].update(_h_base_ruled_fields(stage))
+            cells[RULED[0]][RULED[1]][H_INCUMBENT].update(_h_base_ruled_fields(board))
         driver.export(args, stage / BUNDLE, copy.deepcopy(board.live))
         # The driver reads its committed inputs from REPO while the writable
         # checkout lives here. Bind the actual freeze inputs here.
@@ -2531,9 +2601,10 @@ def test_the_freeze_writes_the_release(h_stage, capsys):
     assert (annotations / EXPLANATIONS).read_bytes() == h_blob(
         release.ANNOTATIONS / EXPLANATIONS
     )
-    assert (annotations / H_AMENDMENTS).read_bytes() == h_blob(
+    # Review r3, Q1: release 20261027's record, here the MOCK base's.
+    assert (annotations / H_AMENDMENTS).read_bytes() == h_stage.board.base_files[
         release.ANNOTATIONS / H_AMENDMENTS
-    )
+    ]
     serving = _h_json(root / release.SNAPSHOT / "model_serving_config.json")
     base = release.base_serving_config()
     for model, row in base["models"].items():
@@ -3140,7 +3211,9 @@ def test_the_rebuild_hands_the_scope_check_the_cases_this_release_reopened(
 # Review r2, N1: the ruled case carried over (h_template_kept). Triage applies
 # d2180's decision to the carried verdict's rows, so the MOCK incumbent's ruled
 # cell in the scope export carries the decided classes and sentence, and
-# release 20261027's carries the base's.
+# release 20261027's carries the base's. Review r3, Q1: a MOCK committed
+# amendment rewords the base's ruled row and note (_h_base_files), and triage
+# carries that wording onto the kept case, so both cells carry it.
 
 
 def _h_kept_cells(h_stage_kept) -> tuple[dict, dict]:
@@ -3186,6 +3259,8 @@ def test_the_kept_stage_carries_the_ruled_case_and_triage_decides_it(h_stage_kep
         "credit_phaseout",
     )
     assert "Developer adjudication" not in live["caseAnnotation"]
+    assert staged["annotation"] == live["annotation"] == H_BASE_ROW
+    assert staged["caseAnnotation"].startswith(H_BASE_NOTE + " Developer adjudication")
     moved = {field for field in live if live[field] != scope.get(field)}
     assert moved == release_20261006.CLASS_CELL_FIELDS | {"caseAnnotation"}
     assert list(live) == list(scope)
@@ -3219,11 +3294,127 @@ def test_without_the_decided_cases_check_a_refuses_the_kept_stage(
 @pytest.mark.parametrize("field", ["annotation", "referenceExplanation"])
 def test_the_kept_rebuild_holds_the_ruled_cells_row_annotation(h_stage_kept, field):
     """On the ruled case decided and kept, release 20261027's row annotation
-    and referenceExplanation still bind: a MOCK base that carried another
-    stops the freeze at check (a), before any write."""
+    and referenceExplanation still bind: with release 20261027's payload
+    (MOCK) holding another than the one its committed files (MOCK) give the
+    staged cell, check (a) stops the freeze, before any write."""
     live = h_stage_kept.board.live["countries"]["us"]["scenarioPredictions"]
     live[RULED[0]][RULED[1]][H_INCUMBENT][field] = "MOCK: a base wording."
     _h_refused(h_stage_kept, "is not release 20261027's outside modelStats")
+
+
+def _h_staged_frames(h_stage) -> tuple:
+    import pandas as pd
+
+    return tuple(
+        pd.read_csv(_h_annotations(h_stage) / name, dtype=str, keep_default_na=False)
+        for name in (H_ROWS, H_NOTES)
+    )
+
+
+def _h_without(frame, cases) -> str:
+    """``frame``'s CSV text without the rows on ``cases``."""
+    keep = [
+        f"us__{s}__{v}" not in cases
+        for s, v in zip(frame.scenario_id, frame.variable, strict=True)
+    ]
+    return frame[keep].to_csv(index=False)
+
+
+@pytest.mark.parametrize("board", ["h_stage", "h_stage_kept"])
+def test_every_kept_case_carries_the_mock_committed_wording(request, board):
+    """Review r3, Q1, on both MOCK boards: the staged row annotations and
+    case notes carry the MOCK committed amendments' wording on each case
+    they reword, beside the decisions; every kept case passes the kept-case
+    gate; and both files are release 20261027's (MOCK) byte for byte outside
+    the case the new model opens and the ruled case this release decides."""
+    import pandas as pd
+
+    from policybench.adjudications import load_adjudications
+
+    h_stage = request.getfixturevalue(board)
+    rows, notes = _h_staged_frames(h_stage)
+    for case in _h_base_reworded(h_stage.board):
+        rows_on = rows[
+            [f"us__{s}__{v}" == case for s, v in zip(rows.scenario_id, rows.variable)]
+        ]
+        notes_on = notes[
+            [f"us__{s}__{v}" == case for s, v in zip(notes.scenario_id, notes.variable)]
+        ]
+        assert rows_on.annotation.tolist() == [H_BASE_ROW]
+        (note,) = notes_on.case_annotation
+        assert note.startswith(H_BASE_NOTE + " Developer adjudication (")
+    stage = h_stage.stage
+    rejudged = driver.rejudged_cases(stage)
+    decisions = load_adjudications(_h_annotations(h_stage) / driver.ADJUDICATIONS)
+    assert driver.kept_annotation_problems(rows, notes, rejudged, decisions) == []
+    skip = {*rejudged, H_RULED_CASE}
+    for name, staged in zip((H_ROWS, H_NOTES), (rows, notes), strict=True):
+        base = pd.read_csv(
+            io.BytesIO(h_stage.board.base_files[release.ANNOTATIONS / name]),
+            dtype=str,
+            keep_default_na=False,
+        )
+        assert _h_without(staged, skip) == _h_without(base, skip)
+
+
+@pytest.mark.parametrize("edit", ["class", "wording", "sentence"])
+def test_export_stops_on_a_decided_kept_case_note_off_its_decision(h_stage_kept, edit):
+    """Review r3, Q3: export holds the bundle's two annotation files to the
+    staged record and to release 20261027's published wording (MOCK) before
+    it builds. The ruled note, decided and kept, with its class, its MOCK
+    committed wording or its adjudication sentence edited stops export
+    before it writes anything."""
+    import pandas as pd
+
+    from policybench.adjudications import AdjudicationError
+
+    stage = h_stage_kept.stage
+    path = _h_annotations(h_stage_kept) / H_NOTES
+    frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+    mask = (frame.scenario_id == RULED[0]) & (frame.variable == RULED[1])
+    note = frame.loc[mask, "case_annotation"].item()
+    if edit == "class":
+        frame.loc[mask, "case_failure_sources"] = "llm_error"
+        error, message = AdjudicationError, "case note for .* carries"
+    elif edit == "wording":
+        frame.loc[mask, "case_annotation"] = note.replace(H_BASE_NOTE, "A MOCK note.")
+        error, message = SystemExit, "a case this release keeps must carry"
+    else:
+        frame.loc[mask, "case_annotation"] = note.split(" Developer adjudication (")[0]
+        error, message = AdjudicationError, "does not carry the recorded adjudication"
+    path.write_text(frame.to_csv(index=False))
+    before = h_stage_kept.files()
+    args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+    with pytest.raises(error, match=message):
+        driver.export(args, stage / BUNDLE, copy.deepcopy(h_stage_kept.board.live))
+    assert h_stage_kept.files() == before
+
+
+def test_the_freeze_holds_every_kept_case_to_release_20261027s_files(h_stage):
+    """Review r3, Q1: with a kept case's hypothesis in release 20261027's
+    committed case notes (MOCK) other than the staged one, the freeze's
+    rebuild still gives the staged bytes (the carry takes only the wording),
+    and its kept-case gate stops the freeze and its dry run before any
+    write, naming the cell."""
+    import pandas as pd
+
+    path = release.ANNOTATIONS / H_NOTES
+    frame = pd.read_csv(
+        io.BytesIO(h_stage.board.base_files[path]), keep_default_na=False
+    )
+    case = _h_kept_case(h_stage)
+    _, scenario, variable = case.split("__")
+    mask = (frame.scenario_id == scenario) & (frame.variable == variable)
+    frame["reference_bug_hypothesis"] = frame["reference_bug_hypothesis"].astype(object)
+    frame.loc[mask, "reference_bug_hypothesis"] = (
+        "MOCK: a hypothesis the base published."
+    )
+    h_stage.board.base_files[path] = driver.annotation_csv_text(frame).encode()
+    refused = _h_refused(
+        h_stage,
+        "a case this release keeps must carry the row annotations and case note",
+    )
+    assert f"{case} case note reference_bug_hypothesis" in str(refused.value)
 
 
 @pytest.mark.parametrize("case", ["ruled", "kept"])
@@ -3487,7 +3678,9 @@ def test_the_staged_annotations_are_triages_rebuilt_frames(h_stage):
     import pandas as pd
 
     annotations = _h_annotations(h_stage)
-    release.verify_annotation_amendments(annotations, [], h_stage.stage / "audit")
+    release.verify_annotation_amendments(
+        annotations, [], h_stage.stage / "audit", driver.rejudged_cases(h_stage.stage)
+    )
     notes = pd.read_csv(annotations / H_NOTES, dtype=str, keep_default_na=False)
     decided = _h_decided_cases()
     record = {
