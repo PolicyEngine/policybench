@@ -62,7 +62,7 @@ from policybench.eval_no_tools import (
     _aggregate_request_results,
     _answer_contract_for_model,
     _anthropic_thinking_tokens,
-    _bounded_reasoning_tokens,
+    _bounded_thinking_tokens,
     _chat_completion_request_kwargs,
     _chunk_variables,
     _enforce_explanation_value_contract,
@@ -315,10 +315,11 @@ def _normalize_anthropic_entry(entry) -> NormalizedResult:
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         # Anthropic's own count of the output tokens the response spent on
-        # thinking (``usage.output_tokens_details.thinking_tokens``).
-        # ``output_tokens`` already includes them, so the count moves no cost
-        # column. Empty when the entry carries no count.
-        reasoning_tokens=_bounded_reasoning_tokens(
+        # thinking (``usage.output_tokens_details.thinking_tokens``), as the
+        # SDK's types hold it. ``output_tokens`` already includes them, so
+        # the count moves no cost column. Empty when the entry carries no
+        # count, or one that is no whole number in ``[0, output_tokens]``.
+        reasoning_tokens=_bounded_thinking_tokens(
             _anthropic_thinking_tokens(usage), completion_tokens
         ),
         cached_prompt_tokens=cached_input_tokens,

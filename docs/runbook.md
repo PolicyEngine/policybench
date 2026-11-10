@@ -507,6 +507,51 @@ predate the columns), with its summed live time. No published figure uses it:
 `latencySeconds` still takes the median of each household's
 `elapsed_seconds`, replays included.
 
+## 8b. Reasoning tokens
+
+`reasoning_tokens` holds the provider's count of the tokens a response spent
+on reasoning. The harness computes no cost from it.
+
+| Rows | Where the count comes from |
+| --- | --- |
+| Claude, sync | Anthropic's `usage.output_tokens_details.thinking_tokens` |
+| Claude, batch | the same field on the Message Batches entry |
+| Other providers | the count their usage reports, as litellm or the batch adapter passes it on |
+
+Anthropic counts thinking inside `output_tokens`, so a Claude row's count
+never exceeds its `completion_tokens`. The SDK describes the count as a
+re-tokenization of the raw reasoning, delimiter tokens included, which can
+differ from the model's exact count by a few tokens. Other providers' counts
+carry no such bound: in the 51-model snapshot (release 20261027), kimi-k2.6
+and deepseek-v4-flash-0731 record more reasoning than completion tokens on
+some rows.
+
+litellm 1.95.0 never reads Anthropic's field. It counts reasoning by
+tokenizing the thinking text a response returns, and a Claude response can
+return a thinking block with empty text, which litellm counts as 0. So
+`eval_no_tools.py` wraps litellm's Anthropic usage builder and copies the
+provider's count onto the usage object, and `batch_eval.py` reads it from the
+SDK's usage.
+
+For Claude rows:
+
+- a count that is a whole number in `[0, output_tokens]` lands on the row
+  exactly; the harness records any other count as empty and never clamps one;
+- a response with no count records what it did before the change: litellm's
+  own count on the sync path, nothing on the batch path;
+- a row sums the counts its responses reported (chunks, repair rounds) and
+  splits the sum over its outputs, as it does `completion_tokens`;
+- a disk-cache replay records what the live call recorded. An entry cached
+  before the change holds no provider count, so its replay records litellm's
+  count, and a run resumed across the change mixes both kinds of row.
+
+Claude rows collected before the change (#261, November 2026) record 0
+whether or not the model reasoned. The 51-model snapshot's Claude rows all
+predate it: ten models record 0 on every row, and Claude Fable 5 records no
+usage. Read a 0 on those rows as "not counted".
+`tests/test_anthropic_thinking_tokens.py` checks these invariants against two
+recorded responses.
+
 ## 9. Publish a release
 
 A release is a GitHub release `dashboard-data-YYYYMMDD[a-z]` that holds

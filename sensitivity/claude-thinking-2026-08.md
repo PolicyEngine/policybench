@@ -33,7 +33,13 @@ Two findings, verified live against the harness's own request builder:
    shape, so their rows reflect provider defaults faithfully.
 2. **The usage CSVs would have hidden it regardless.** The harness records
    usage through litellm, which does not populate reasoning-token fields
-   for Anthropic even when thinking blocks are present.
+   for Anthropic even when thinking blocks are present. litellm 1.95.0
+   counts reasoning from the thinking text a response returns, and a Claude
+   thinking block can return empty text, which counts as 0. Since November
+   2026 the harness records Anthropic's own thinking-token count on new
+   rows (`docs/runbook.md`, "Reasoning tokens"). Every run in this note
+   predates that, so a 0 in its `reasoning_tokens` means the harness did
+   not count.
 
 ## Sensitivity runs
 
@@ -209,8 +215,8 @@ whole scenario, as the board row also requests it. The ranks are on the
 The model called the answer tool on every one of its 1,984 answers under
 `auto`. Its median household used 3,743 completion tokens against the board
 row's 1,199 and took 17.4 seconds against 5.1, as when thinking engages;
-litellm reports no reasoning tokens for Anthropic (above), so the run does
-not count them separately. Scores are on the 1,935 scored outputs; on all
+the harness did not yet read Anthropic's thinking tokens (above), so the run
+does not count them separately. Scores are on the 1,935 scored outputs; on all
 1,984 the auto run scored 85.2. Among the Claude rows only Claude Sonnet 5
 gains more under `auto`. Most of the gain is in payroll tax and federal
 income tax; SNAP, state refundable credits and CHIP eligibility fall by two
