@@ -80,8 +80,13 @@ def cached_base_blobs(monkeypatch):
     monkeypatch.setattr(driver, "base_commit_blob", base_blob)
 
 
+# The committed spec's path, read once: the freeze harness below points
+# driver.SPEC_PATH at a synthetic checkout's copy.
+SPEC_PATH = driver.SPEC_PATH
+
+
 def real_spec() -> dict:
-    return json.loads((REPO / driver.SPEC_PATH).read_text())
+    return json.loads((REPO / SPEC_PATH).read_text())
 
 
 def filled_spec(**changes) -> dict:
@@ -1071,3 +1076,920 @@ def test_finalize_refuses_a_rehearsal_stage(finalizing):
     )
     with pytest.raises(SystemExit, match="cannot become a release"):
         release.finalize(finalizing.stage, finalizing.receipt, freezer, SNAPSHOT_DATE)
+
+
+# --- The freeze of the no-build stage, through the real gates (review r1, M4) -
+#
+# Terra's end-to-end harness (tests/test_freeze_terra.py, "The freeze of an
+# installed-build stage"), ported to this release's path, which installs no
+# reference build. The stage below is written by the driver's own steps where
+# they run offline: write_release_exclusions as --step install-exclusions
+# records it, seed_digest, adjudicate_exclusions (the d2180 entry), triage
+# (the real collect_audit, record gates and annotation writer),
+# write_judge_provenance and export (its pins, inputs, provenance, roster,
+# both scope checks and the real dashboard validator). release.main then runs
+# every one of its gates on that stage, and the tests at the end of the
+# section freeze it.
+#
+# MOCK, each set where named: Claude Fable 5.2's run (an answer for every one
+# of the 1,984 outputs, each the reference but the ruled output's, timed
+# 2026-11-08 UTC); an incumbent's wrong answers on the 63 cases release
+# 20261027's record decides, with seed verdicts classed as each decision
+# records its judge; the seed digest those verdicts give, in place of the
+# committed one; the ruled case's Opus 5.5 verdict, its sidecar and
+# transcript; the spec's two days; the input pins, as if committed at HEAD;
+# release 20261027's payload (synthetic modelStats under the real 51-model
+# roster); the boards export_full_run and release_20261006.export_payload
+# return (scope checks (a) and (b) hold on them); the incumbent's base
+# prediction rows; and freeze_snapshot.main with the serving and registry
+# lookups it makes (_h_freezer_main writes what the freezer writes, from
+# where the freeze configured it). None of these values is a board-run
+# result.
+
+import io  # noqa: E402
+import shutil  # noqa: E402
+
+import release_20261006  # noqa: E402
+
+H_NEW = driver.MODELS["fable52"]
+H_SLUG = "fable52"
+H_INCUMBENT = "claude-fable-5"
+H_STAGE = Path("results/local/fable52-stage")
+BUNDLE = Path("publish") / RUN
+H_BOARD = f"data-board{release.BOARD_MODELS}.json"
+H_RUN = "fable52-runs/fable52"
+H_RULED_CASE = f"us__{RULED[0]}__{RULED[1]}"
+# MOCK: Claude Fable 5.2's first request, 2026-11-08 10:00 UTC; its rows are
+# timed from here, so the response window ends that day.
+H_ANSWERED = 1794132000.0
+H_WINDOW = f"{freezer.MODEL_RESPONSE_START} to 2026-11-08"
+H_JUDGED_AT = "2026-11-09T12:00:00+00:00"
+H_ROWS, H_NOTES = release.ANNOTATION_CSVS
+H_AMENDMENTS = release.COMMITTED_AMENDMENTS
+EXPLANATIONS = release.EXPLANATIONS
+H_COLUMNS = (
+    "model",
+    "scenario_id",
+    "variable",
+    "prediction",
+    "explanation",
+    "raw_response",
+    "provider_resolved_model",
+    "prompt_tokens",
+    "completion_tokens",
+    "error",
+    "estimated_cost_usd",
+    "total_cost_usd",
+    "total_tokens",
+    "live_calls",
+    "cache_hit_calls",
+    "live_elapsed_seconds",
+    "elapsed_seconds",
+    "request_started_at",
+    "request_completed_at",
+)
+# configure_freezer assigns these on the freeze_snapshot module itself; each
+# test puts them back.
+H_CONFIGURED = (
+    "SNAPSHOT_DATE",
+    "SOURCE_RUN",
+    "SOURCE_US",
+    "SOURCE_ANNOTATIONS",
+    "REFERENCE_META_SOURCE",
+    "REFERENCE_PINS",
+    "PUBLISHED_DASHBOARD_SOURCE",
+    "PUBLISHED_DASHBOARD_ARTIFACT",
+    "RUN_STATE_EVIDENCE",
+    "AUDIT_CASES_DIR",
+    "audit_judge_provenance",
+    "developer_adjudications_block",
+    "freeze_serving_configuration",
+)
+# MOCK usage for the incumbent whose usage export carries from the base.
+H_FABLE5_USAGE = {
+    "costUsd": 12.5,
+    "costPerHousehold": 0.125,
+    "totalTokens": 1000000,
+    "latencySeconds": 30.25,
+}
+
+
+def h_blob(path) -> bytes:
+    """A file of release 20261027's tree (BASE_COMMIT), read once."""
+    return base_blob(Path(path))
+
+
+def write_json(path: Path, value) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
+@functools.cache
+def _h_fingerprint() -> str:
+    """The treatment the registry gives Claude Fable 5.2 (validate_treatment's
+    expected), as its run state records it."""
+    captured = []
+
+    def capture(fingerprint, expected, **kwargs):
+        captured.append(expected)
+
+    original = freezer._validate_treatment_fingerprint
+    freezer._validate_treatment_fingerprint = capture
+    try:
+        release.validate_treatment(
+            freezer,
+            {"model": H_NEW, "treatment_fingerprint": {}},
+            Path("run_state.json"),
+            REPO / FROZEN / "scenarios.csv",
+        )
+    finally:
+        freezer._validate_treatment_fingerprint = original
+    return json.dumps({"fingerprint_version": 3, **captured[0]})
+
+
+def h_fingerprint() -> dict:
+    return json.loads(_h_fingerprint())
+
+
+def _h_stat(model: str, exact: float, n: int, **usage) -> dict:
+    return {
+        "model": model,
+        "condition": "no_tools",
+        "score": exact,
+        "exact": exact,
+        "n": n,
+        "nParsed": n - 5,
+        **usage,
+    }
+
+
+def _h_cell(prediction: float, truth: float, **fields) -> dict:
+    return {
+        "prediction": prediction,
+        "groundTruth": truth,
+        "thresholdScore": 100.0 if prediction == truth else 0.0,
+        **fields,
+    }
+
+
+def _h_country(stats: list[dict], records: list[dict], ruled: dict | None) -> dict:
+    """A board the real dashboard validator accepts, wrong answers annotated:
+    one unruled output, and the ruled output with a cell for every model,
+    scored unless ``ruled`` (the d2180 record) excludes it."""
+    from policybench.analysis import _reference_exclusion_payload
+    from policybench.reference_exclusions import exclusion_basis
+
+    moved = (
+        {"scored": True}
+        if ruled is None
+        else {
+            "scored": False,
+            "excludedReason": str(ruled["reason_code"]),
+            "excludedInput": exclusion_basis(ruled),
+        }
+    )
+    cells = {}
+    for row in stats:
+        model = row["model"]
+        if model == H_NEW:
+            cells[model] = _h_cell(
+                1000.0,
+                0.0,
+                failureSource="prompt_ambiguity",
+                failureSubtype="state_local_rule",
+                **moved,
+            )
+        else:
+            cells[model] = _h_cell(0.0, 0.0, **moved)
+    return {
+        "country": "us",
+        "scenarios": {
+            household: {
+                "country": "us",
+                "state": state,
+                "numAdults": 1,
+                "numChildren": 0,
+            }
+            for household, state in (("scenario_000", "CA"), (RULED[0], "MN"))
+        },
+        "modelStats": stats,
+        "programStats": [{"variable": "snap", "score": 50.0}],
+        "heatmap": [],
+        "scenarioPredictions": {
+            "scenario_000": {
+                "snap": {
+                    H_INCUMBENT: _h_cell(
+                        900.0,
+                        1200.0,
+                        failureSource="llm_error",
+                        failureSubtype="thresholds_rates",
+                        scored=True,
+                    ),
+                    H_NEW: _h_cell(1200.0, 1200.0, scored=True),
+                }
+            },
+            RULED[0]: {RULED[1]: cells},
+        },
+        "failureModes": {"programs": [], "households": []},
+        "referenceExclusions": [
+            _reference_exclusion_payload(record) for record in records
+        ],
+    }
+
+
+def _h_boards() -> SimpleNamespace:
+    """MOCK release 20261027's payload and the exporters' boards: synthetic
+    modelStats for the real incumbent roster and Claude Fable 5.2, on the
+    base's record (the scope export) and the release's (export_full_run)."""
+    incumbents = sorted(release.base_serving_config()["models"])
+    scored = driver.RELEASE_SCORED + driver.NEW_EXCLUSIONS
+    live_stats = [
+        _h_stat(model, 40.0 + index * 0.5, scored, costUsd=1.25)
+        for index, model in enumerate(incumbents)
+        if model != H_INCUMBENT
+    ]
+    live_stats.append(_h_stat(H_INCUMBENT, 47.5, scored, **H_FABLE5_USAGE))
+    new = _h_stat(H_NEW, 45.25, scored, costUsd=0.5)
+    base = json.loads(h_blob(FROZEN / release.EXCLUSIONS))["exclusions"]
+    records = release_record()["exclusions"]
+    (ruled,) = [r for r in records if driver.spec_key(r) == RULED]
+    released = copy.deepcopy([*live_stats, new])
+    for row in released:
+        row["n"] -= driver.NEW_EXCLUSIONS
+    # export_full_run reports none of the carried usage: the incumbent's rows
+    # record none of it.
+    for key in driver.CARRIED_USAGE[H_INCUMBENT]:
+        del next(r for r in released if r["model"] == H_INCUMBENT)[key]
+    return SimpleNamespace(
+        live={"countries": {"us": {"modelStats": live_stats}}},
+        exports={
+            "release": {"countries": {"us": _h_country(released, records, ruled)}},
+            "scope": {
+                "countries": {
+                    "us": _h_country(copy.deepcopy([*live_stats, new]), base, None)
+                }
+            },
+        },
+    )
+
+
+def _h_point_freeze_at(workspace: Path, mp) -> None:
+    """The freeze and the freezer both write into ``workspace`` only."""
+    mp.setattr(release, "ROOT", workspace)
+    mp.setattr(freezer, "ROOT", workspace)
+    mp.setattr(freezer, "SNAPSHOT_DIR", workspace / release.SNAPSHOT)
+    mp.setattr(freezer, "RUN_DEST", workspace / FROZEN)
+    mp.setattr(freezer, "ANNOTATIONS_DEST", workspace / release.ANNOTATIONS)
+    mp.setattr(
+        freezer, "PUBLIC_PAPER_PDF", workspace / "app/public/paper/policybench.pdf"
+    )
+    mp.setattr(freezer, "PUBLIC_PAPER_WEB_DIR", workspace / "app/public/paper/web")
+    mp.setattr(freezer, "APP_PAPER_SNAPSHOT", workspace / "app/src/paperSnapshot.json")
+
+
+def _h_serving_from_the_registry(board):
+    """What freeze_serving_configuration writes in a checkout without the
+    historical run directories: every incumbent registry-backed, and Claude
+    Fable 5.2 backed by its run state (or, with the ``new_registry`` defect,
+    not)."""
+
+    def freeze(destination: Path) -> None:
+        base = json.loads(h_blob(release.SNAPSHOT / "model_serving_config.json"))
+        serving = copy.deepcopy(base)
+        for row in serving["models"].values():
+            row["evidence"] = {"kind": "registry"}
+        kind = "registry" if "new_registry" in board.defects else "run_state"
+        serving["models"][H_NEW] = {
+            **copy.deepcopy(base["models"][H_INCUMBENT]),
+            "provider_id": h_fingerprint()["model_id"],
+            "evidence": {"kind": kind, "run": "somewhere/else"},
+        }
+        serving["evidence_summary"] = {"registry": len(base["models"]), kind: 1}
+        serving["registry_commit"] = "the freezer's commit"
+        destination.write_text(json.dumps(serving, indent=2, sort_keys=True) + "\n")
+
+    return freeze
+
+
+def _h_freezer_main(board):
+    """Stand-in for freeze_snapshot.main: it writes what the freezer writes,
+    from where the freeze configured it (freeze_run, the serving rows,
+    freeze_annotations, freeze_committed_artifacts and build_manifest), with
+    ``board.defects`` applied, and records the configuration it found. No
+    build is installed, so the freezer keeps the committed manifest's
+    reference pins (configure_freezer sets REFERENCE_PINS to None)."""
+
+    def main() -> None:
+        defects = board.defects
+        board.calls.append(
+            {
+                name: getattr(freezer, name)
+                for name in (
+                    "SNAPSHOT_DATE",
+                    "SOURCE_RUN",
+                    "SOURCE_US",
+                    "SOURCE_ANNOTATIONS",
+                    "REFERENCE_META_SOURCE",
+                    "REFERENCE_PINS",
+                    "PUBLISHED_DASHBOARD_SOURCE",
+                    "PUBLISHED_DASHBOARD_ARTIFACT",
+                    "RUN_STATE_EVIDENCE",
+                    "AUDIT_CASES_DIR",
+                )
+            }
+        )
+        window = freezer.model_response_window(
+            freezer.SOURCE_US / "predictions.csv",
+            freezer.MODEL_RESPONSE_START,
+            freezer.MODEL_RESPONSE_DATE,
+        )
+        run = freezer.RUN_DEST
+        if run.exists():
+            shutil.rmtree(run)
+        run.mkdir(parents=True)
+        for name in (
+            "scenarios.csv",
+            "scenarios.csv.meta.json",
+            driver.CSV_NAME,
+            driver.EXCLUSIONS_NAME,
+        ):
+            freezer.copy_exact(freezer.SOURCE_US / name, run / name)
+        if "other_reference" in defects:
+            with (run / driver.CSV_NAME).open("a") as stream:
+                stream.write("\n")
+        (run / driver.META_NAME).write_bytes(freezer.REFERENCE_META_SOURCE.read_bytes())
+        committed_csv = freezer.SNAPSHOT_DIR / "us_reference_outputs.csv"
+        freezer.copy_exact(freezer.SOURCE_US / driver.CSV_NAME, committed_csv)
+        if "other_csv_copy" in defects:
+            with committed_csv.open("a") as stream:
+                stream.write("\n")
+        if "other_exclusions" in defects:
+            doc = json.loads((run / driver.EXCLUSIONS_NAME).read_text())
+            doc["exclusions"][-2]["frozen_value"] += 1
+            (run / driver.EXCLUSIONS_NAME).write_text(driver.exclusions_text(doc))
+        if "base_exclusions" in defects:
+            (run / driver.EXCLUSIONS_NAME).write_bytes(
+                h_blob(FROZEN / driver.EXCLUSIONS_NAME)
+            )
+        freezer.gzip_deterministic(
+            freezer.SOURCE_US / "predictions.csv",
+            run / "predictions.csv.gz",
+            stored_name="predictions.csv",
+        )
+        if "other_predictions" in defects:
+            (run / "predictions.csv.gz").write_bytes(b"other predictions")
+        serving = freezer.SNAPSHOT_DIR / "model_serving_config.json"
+        freezer.freeze_serving_configuration(serving)
+        if "serving_row" in defects:
+            rows = json.loads(serving.read_text())
+            rows["models"][H_INCUMBENT]["request_timeout_seconds"] += 1
+            serving.write_text(json.dumps(rows, indent=2, sort_keys=True) + "\n")
+        destination = freezer.ANNOTATIONS_DEST
+        kept = (destination / driver.ADJUDICATIONS).read_bytes()
+        shutil.rmtree(destination)
+        destination.mkdir(parents=True)
+        if "other_record" in defects:
+            kept += b"\n"
+        (destination / driver.ADJUDICATIONS).write_bytes(kept)
+        for name in (H_ROWS, H_NOTES, EXPLANATIONS):
+            freezer.copy_exact(freezer.SOURCE_ANNOTATIONS / name, destination / name)
+        if "extra_annotation" in defects:
+            (destination / "notes.txt").write_text("Left behind.\n")
+        manifest = json.loads(h_blob(release.SNAPSHOT / "manifest.json"))
+        manifest["description"] = manifest["description"].replace(
+            manifest["snapshot_date"], freezer.SNAPSHOT_DATE
+        )
+        manifest["snapshot_date"] = freezer.SNAPSHOT_DATE
+        manifest["reference_output_refresh"] = freezer.read_reference_refresh()
+        manifest["committed_snapshot_artifacts"]["us_reference_outputs.csv"] = (
+            freezer.sha256_file(committed_csv)
+        )
+        manifest["scope"]["models"] = release.BOARD_MODELS - ("models_51" in defects)
+        manifest["model_response_date"] = (
+            f"{freezer.MODEL_RESPONSE_START} to 2026-11-07"
+            if "window" in defects
+            else window
+        )
+        records = json.loads((run / driver.EXCLUSIONS_NAME).read_text())["exclusions"]
+        manifest["reference_exclusions"]["outputs"] = len(records)
+        manifest["reference_exclusions"]["scored_outputs_per_model"] = (
+            driver.BASE_OUTPUTS - len(records)
+        )
+        manifest["published_dashboard_artifact"] = freezer.PUBLISHED_DASHBOARD_ARTIFACT
+        pointer = json.loads((freezer.ROOT / release.POINTER).read_text())
+        manifest["live_dashboard_artifact"].update(
+            {key: pointer[key] for key in ("tag", "asset", "url", "sha256", "bytes")}
+        )
+        files = manifest["source_run_artifacts"][RUN]["files"]
+        assert freezer.REFERENCE_PINS is None
+        for name in (driver.CSV_NAME, driver.EXCLUSIONS_NAME, "predictions.csv.gz"):
+            files[name] = freezer.sha256_file(run / name)
+        committed = manifest["committed_snapshot_artifacts"]
+        committed["model_serving_config.json"] = freezer.sha256_file(serving)
+        audit = manifest["audit_annotation_artifacts"]["files"]
+        for name in (driver.ADJUDICATIONS, H_ROWS, H_NOTES, EXPLANATIONS):
+            audit[name] = freezer.sha256_file(destination / name)
+        if "outside" in defects:
+            manifest["population_weight_artifact"]["sha256"] = "0" * 64
+        if "pinned_reference" in defects:
+            files["scenarios.csv"] = "0" * 64
+        if "explanations_pin" in defects:
+            audit[EXPLANATIONS] = "0" * 64
+        if "refresh" in defects:
+            manifest["reference_output_refresh"]["policyengine_us_version"] = "2.41.0"
+        manifest["rendered_paper_artifacts"] = freezer.rendered_paper_artifacts()
+        (freezer.SNAPSHOT_DIR / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+        freezer.write_app_paper_snapshot(manifest)
+
+    return main
+
+
+def _h_patch(mp, workspace: Path, board) -> None:
+    """Point the driver, the freeze and the freezer at ``workspace`` and at the
+    MOCK sources the section's comment names."""
+    import pandas as pd
+
+    import policybench.full_run_export
+
+    mp.setattr(driver, "base_commit_blob", base_blob)
+    _h_point_freeze_at(workspace, mp)
+    mp.setattr(driver, "SPEC_PATH", workspace / SPEC_PATH)
+    mp.setattr(driver, "JUDGE_PROVENANCE", workspace / driver.JUDGE_PROVENANCE_PATH)
+    mp.setattr(driver, "INPUT_PINS", workspace / driver.INPUT_PINS_PATH)
+    head = driver.head_blob
+    mp.setattr(
+        driver,
+        "head_blob",
+        lambda path: board.committed.get(str(path)) or head(path),
+    )
+    if board.seed_sha256:
+        mp.setattr(driver, "SEED_DIGEST_SHA256", board.seed_sha256)
+    mp.setattr(driver, "base_payload_from_commit", lambda: copy.deepcopy(board.live))
+
+    def export_full_run(run_dir, *, countries, skip_app_data):
+        assert countries == ["us"] and skip_app_data
+        board.reads.append(Path(run_dir))
+        (Path(run_dir) / "data.json").write_text("export_full_run's own payload\n")
+        (Path(run_dir) / "us/data.json").write_text(
+            "export_full_run's country payload\n"
+        )
+        analysis = Path(run_dir) / "us/analysis"
+        analysis.mkdir(exist_ok=True)
+        (analysis / "metrics.csv").write_text("model,score\nsynthetic,1\n")
+        return copy.deepcopy(board.exports["release"])
+
+    def export_payload(bundle, base, exclusions=None, **kwargs):
+        assert exclusions is not None
+        return copy.deepcopy(board.exports["scope"])
+
+    mp.setattr(policybench.full_run_export, "export_full_run", export_full_run)
+    mp.setattr(release_20261006, "export_payload", export_payload)
+    mp.setattr(
+        release,
+        "base_prediction_rows",
+        lambda: pd.read_csv(io.StringIO(board.baseline), low_memory=False),
+    )
+    for name in H_CONFIGURED:
+        mp.setattr(freezer, name, getattr(freezer, name))
+    mp.setattr(
+        freezer, "freeze_serving_configuration", _h_serving_from_the_registry(board)
+    )
+    mp.setattr(freezer, "_serving_registry_commit", lambda serving: "f" * 40)
+    mp.setattr(freezer, "main", _h_freezer_main(board))
+
+
+def engine_pins(workspace: Path, version: str = driver.BASE_ENGINE) -> None:
+    (workspace / "pyproject.toml").write_text(
+        f'[project]\ndependencies = ["policyengine-us=={version}"]\n'
+    )
+    (workspace / "uv.lock").write_text(
+        '[[package]]\nname = "policyengine-us"\n'
+        f'version = "{version}"\n'
+        '[[package]]\nname = "policybench"\nversion = "0.1.0"\n'
+        "[package.metadata]\nrequires-dist = ["
+        f'{{name = "policyengine-us", specifier = "=={version}"}}]\n'
+    )
+
+
+def _h_write_checkout(workspace: Path) -> None:
+    """The checkout as release 20261027 left it, from git: its snapshot,
+    annotations, pointer, version list and held-reference record, and the
+    dependencies pinned to its engine; the filled spec (MOCK days)."""
+    engine_pins(workspace)
+    snapshot = workspace / release.SNAPSHOT
+    names = [release.SNAPSHOT / name for name in ("manifest.json",)]
+    names += [release.SNAPSHOT / "model_serving_config.json"]
+    names += [FROZEN / name for name in driver.BASE_REFERENCE_SHA256]
+    names += [
+        release.ANNOTATIONS / name for name in (*driver.ANNOTATION_FILES, H_AMENDMENTS)
+    ]
+    names += [release.POINTER, release.VERSIONS]
+    names += [Path("reference_audit/held_references.json")]
+    names += list(driver.BASE_REPOSITORY_INPUT_FILES)
+    for name in names:
+        path = workspace / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(h_blob(name))
+    timing = workspace / driver.REPOSITORY_INPUT_FILES[2]
+    timing.parent.mkdir(parents=True, exist_ok=True)
+    timing.write_bytes((REPO / driver.REPOSITORY_INPUT_FILES[2]).read_bytes())
+    paper = workspace / "app/public/paper"
+    (paper / "web").mkdir(parents=True)
+    (paper / "policybench.pdf").write_bytes(b"synthetic rendered PDF\n")
+    (paper / "web/index.html").write_text("<p>Synthetic paper</p>\n")
+    (paper / "web/style.css").write_text("p { color: black; }\n")
+    (snapshot / "us_reference_outputs.csv").write_bytes(
+        h_blob(FROZEN / driver.CSV_NAME)
+    )
+    spec = workspace / SPEC_PATH
+    spec.parent.mkdir(parents=True, exist_ok=True)
+    spec.write_text(json.dumps(filled_spec(), indent=2) + "\n")
+
+
+def _h_csv(rows) -> str:
+    stream = io.StringIO()
+    writer = csv.writer(stream, lineterminator="\n")
+    for row in rows:
+        writer.writerow(row)
+    return stream.getvalue()
+
+
+def _h_decided_cases() -> dict[str, dict]:
+    """Release 20261027's decisions, by case id."""
+    return {
+        driver.case_id(entry): entry
+        for entry in driver.base_adjudication_record()["adjudications"]
+    }
+
+
+def _h_verdict(source: str, subtype: str, suspect: bool, model: str) -> dict:
+    return {
+        "reference_suspect": suspect,
+        "reference_bug_hypothesis": "",
+        "case_failure_source": source,
+        "case_failure_subtype": subtype,
+        "rationale": "The model applied the rule this case turns on incorrectly.",
+        "models": [
+            {
+                "model": model,
+                "failure_source": source,
+                "failure_subtype": subtype,
+                "diagnosis": "The model applied an outdated threshold.",
+            }
+        ],
+    }
+
+
+def _h_judge_ruled_case(audit: Path) -> None:
+    """The ruled case Claude Fable 5.2 opened, judged by Opus 5.5 on v2: a
+    MOCK verdict with its full sidecar and a clean transcript."""
+    from policybench.judge_template import template_header
+
+    case = audit / "cases" / H_RULED_CASE
+    case.mkdir(parents=True)
+    prompt = template_header(driver.JUDGE_TEMPLATE_VERSION) + (
+        f"\nClassify the synthetic wrong answer on {H_RULED_CASE}.\n"
+    )
+    (case / "prompt.md").write_text(prompt)
+    verdict = _h_verdict("llm_error", "thresholds_rates", False, H_NEW)
+    write_json(case / "verdict.json", verdict)
+    write_json(
+        case / "verdict.meta.json",
+        {
+            "verdict_sha256": sha(case / "verdict.json"),
+            "prompt_sha256": sha(case / "prompt.md"),
+            "judge_template_version": driver.JUDGE_TEMPLATE_VERSION,
+            "judge_model_requested": driver.JUDGE_MODEL,
+            "judge_model_reported": [driver.JUDGE_MODEL],
+            "judge_runner": driver.JUDGE_RUNNER,
+            "judged_at_utc": H_JUDGED_AT,
+            "judge_effort": "xhigh",
+            "judge_isolation": {"tools": "none (--tools '')"},
+            "judge_auth": {"method": "oauth_token", "account": None, "org": None},
+            "judge_account_declared": next(iter(driver.PROVENANCE_GROUPS)),
+        },
+    )
+    events = [
+        {"type": "user", "message": {"content": prompt}},
+        {
+            "type": "assistant",
+            "effort": "xhigh",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "answer-1",
+                        "name": "StructuredOutput",
+                        "input": verdict,
+                    }
+                ]
+            },
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "answer-1",
+                        "content": "done",
+                    }
+                ]
+            },
+        },
+    ]
+    (case / "claude.transcript.jsonl").write_text(
+        "".join(json.dumps(event) + "\n" for event in events)
+    )
+
+
+def _h_write_stage(workspace: Path, board) -> Path:
+    """The stage prepare, bind-seed and install-exclusions leave: release
+    20261027's references in the scoring source and the bundle, then the
+    release's exclusion record installed (write_release_exclusions); the
+    base's explanations and adjudication record; Claude Fable 5.2's run and
+    the bundle's predictions; the seed audit and the ruled case's verdict;
+    stage.json, model-provenance.json and prompt-changes.json; and the input
+    pins."""
+    from policybench.audit import AUDIT_OUTPUT_SCHEMA
+    from policybench.judge_template import template_header
+
+    stage = workspace / H_STAGE
+    bundle = stage / BUNDLE
+    us, annotations, scoring = bundle / "us", bundle / "annotations", stage / "scoring"
+    for directory in (us, annotations, scoring):
+        directory.mkdir(parents=True)
+    for target in (us, scoring):
+        for name in driver.BASE_REFERENCE_SHA256:
+            (target / name).write_bytes(h_blob(FROZEN / name))
+    for name in (driver.ADJUDICATIONS, EXPLANATIONS):
+        (annotations / name).write_bytes(h_blob(release.ANNOTATIONS / name))
+    # MOCK: Claude Fable 5.2 right on every output but the ruled one; the
+    # incumbent wrong on every decided case.
+    with (us / driver.CSV_NAME).open(newline="") as stream:
+        reference = list(csv.DictReader(stream))
+    decided = _h_decided_cases()
+    new = []
+    for index, row in enumerate(reference):
+        started = H_ANSWERED + index * 0.5
+        value = row["value"]
+        if (row["scenario_id"], row["variable"]) == RULED:
+            value = str(float(value) + 1000.0)
+        new.append(
+            [
+                H_NEW,
+                row["scenario_id"],
+                row["variable"],
+                value,
+                "Synthetic answer.",
+                "{}",
+                H_NEW,
+                900,
+                40,
+                "",
+                "0.0001",
+                "0.0001",
+                940,
+                1,
+                0,
+                "2.5",
+                "2.5",
+                f"{started:.1f}",
+                f"{started + 2.5:.1f}",
+            ]
+        )
+    wrong = []
+    for row in reference:
+        if f"us__{row['scenario_id']}__{row['variable']}" in decided:
+            prediction = float(row["value"]) + 1000.0
+            wrong.append(
+                [H_INCUMBENT, row["scenario_id"], row["variable"], prediction]
+                + ["Synthetic wrong answer."]
+                + [""] * (len(H_COLUMNS) - 5)
+            )
+    inputs = stage / "inputs" / H_SLUG
+    inputs.mkdir(parents=True)
+    (inputs / "predictions.csv").write_text(_h_csv([H_COLUMNS, *new]))
+    write_json(
+        inputs / "run_state.json",
+        {
+            "model": H_NEW,
+            "total": 100,
+            "completed": 100,
+            "stopped_reason": None,
+            "treatment_fingerprint": h_fingerprint(),
+        },
+    )
+    (us / "predictions.csv").write_text(_h_csv([H_COLUMNS, *wrong, *new]))
+    board.baseline = _h_csv([H_COLUMNS, *wrong])
+    # MOCK: the seed audit, one kept case per decided output, each verdict
+    # classed as its decision records the judge.
+    audit = stage / "audit"
+    (audit / "cases").mkdir(parents=True)
+    write_json(audit / "schema.json", AUDIT_OUTPUT_SCHEMA)
+    manifest = []
+    for case, entry in sorted(decided.items()):
+        verdict = _h_verdict(
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            bool(entry.get("judge_reference_suspect")),
+            H_INCUMBENT,
+        )
+        _, scenario, variable = case.split("__")
+        manifest.append(
+            {
+                "case_id": case,
+                "scenario_id": scenario,
+                "variable": variable,
+                "wrong_models": [H_INCUMBENT],
+                "parse_failure_only": False,
+            }
+        )
+        directory = audit / "cases" / case
+        directory.mkdir()
+        (directory / "prompt.md").write_text(
+            template_header(1) + f"\nClassify the wrong answers on {case}.\n"
+        )
+        write_json(directory / "verdict.json", verdict)
+        write_json(
+            directory / "verdict.meta.json",
+            {"verdict_sha256": sha(directory / "verdict.json")},
+        )
+    seed = driver.seed_digest(audit)
+    board.seed_sha256 = hashlib.sha256(
+        driver.seed_digest_text(seed).encode()
+    ).hexdigest()
+    # The ruled case, which only Claude Fable 5.2 answered wrong: added.
+    _h_judge_ruled_case(audit)
+    manifest.append(
+        {
+            "case_id": H_RULED_CASE,
+            "scenario_id": RULED[0],
+            "variable": RULED[1],
+            "wrong_models": [H_NEW],
+            "parse_failure_only": False,
+        }
+    )
+    manifest.sort(key=lambda item: item["case_id"])
+    (audit / "cases.jsonl").write_text(
+        "".join(json.dumps(item) + "\n" for item in manifest)
+    )
+    driver.write_json(
+        stage / driver.PROMPT_CHANGES,
+        {"kept": sorted(seed), "changed": [], "added": [H_RULED_CASE]},
+    )
+    prepared = {
+        "partial": False,
+        "early": False,
+        "base_tag": driver.BASE_TAG,
+        "base_commit": driver.BASE_COMMIT,
+        "files": {},
+        "seed": seed,
+    }
+    prepared["exclusions_installed"] = driver.write_release_exclusions(stage)
+    names = [BUNDLE / "us" / n for n in (*driver.REFERENCE_FILES, "predictions.csv")]
+    names += [BUNDLE / "annotations" / EXPLANATIONS]
+    names += [Path("inputs") / H_SLUG / n for n in driver.PINNED_INPUTS]
+    prepared["files"] = {str(name): sha(stage / name) for name in names}
+    driver.write_json(stage / "stage.json", prepared)
+    _h_stamp_inputs(stage, board)
+    return stage
+
+
+def _h_stamp_inputs(stage: Path, board, *, repin=True) -> None:
+    """model-provenance.json for the staged run and, with ``repin``, the input
+    pins naming its files, written and committed (board.committed)."""
+    inputs = stage / "inputs" / H_SLUG
+    state = json.loads((inputs / "run_state.json").read_text())
+    driver.write_json(
+        stage / "model-provenance.json",
+        {
+            H_NEW: {
+                "predictions_sha256": sha(inputs / "predictions.csv"),
+                "treatment_fingerprint": state["treatment_fingerprint"],
+            }
+        },
+    )
+    if not repin:
+        return
+    record = {
+        "inputs": {
+            H_SLUG: {
+                "run": f"{H_RUN}/run",
+                "sha256": {name: sha(inputs / name) for name in driver.PINNED_INPUTS},
+            }
+        }
+    }
+    blob = (json.dumps(record, indent=2, sort_keys=True) + "\n").encode()
+    path = release.ROOT / driver.INPUT_PINS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(blob)
+    board.committed[driver.INPUT_PINS_PATH] = blob
+
+
+@pytest.fixture(scope="module")
+def h_template(tmp_path_factory):
+    """The releasable stage, built once: install-exclusions' record, the real
+    adjudicate-exclusions, triage, write_judge_provenance and export (section
+    comment)."""
+    boards = _h_boards()
+    board = SimpleNamespace(
+        live=boards.live,
+        exports=boards.exports,
+        committed={},
+        seed_sha256=None,
+        baseline=None,
+        reads=[],
+        calls=[],
+        defects=set(),
+    )
+    workspace = tmp_path_factory.mktemp("h-template") / "workspace"
+    workspace.mkdir()
+    with pytest.MonkeyPatch.context() as mp:
+        _h_patch(mp, workspace, board)
+        _h_write_checkout(workspace)
+        stage = _h_write_stage(workspace, board)
+        mp.setattr(driver, "SEED_DIGEST_SHA256", board.seed_sha256)
+        args = SimpleNamespace(stage_dir=stage, partial=False, early=False)
+        driver.adjudicate_exclusions(args)
+        driver.triage(args, stage / BUNDLE)
+        driver.write_judge_provenance(args)
+        driver.export(args, stage / BUNDLE, copy.deepcopy(board.live))
+        # The driver reads its committed inputs from REPO while the writable
+        # checkout lives here. Bind the actual freeze inputs here.
+        receipt_path = stage / "release-ready.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["repository_inputs"] = driver.repository_input_hashes(workspace)
+        driver.write_json(receipt_path, receipt)
+    board.reads.clear()
+    return SimpleNamespace(workspace=workspace, board=board)
+
+
+@pytest.fixture
+def h_stage(h_template, tmp_path, monkeypatch):
+    """A copy of the releasable stage and its checkout, the driver, the freeze
+    and the freezer pointed at it."""
+    workspace = tmp_path / "workspace"
+    shutil.copytree(h_template.workspace, workspace)
+    board = copy.deepcopy(h_template.board)
+    _h_patch(monkeypatch, workspace, board)
+    stage = workspace / H_STAGE
+
+    def files():
+        return {
+            path.relative_to(workspace): path.read_bytes()
+            for path in workspace.rglob("*")
+            if path.is_file()
+        }
+
+    def rebind(*, restamp=True, repin=False):
+        """Every hash follows the stage as it now stands: the receipt's and,
+        with ``restamp``, stage.json's and model-provenance.json's (the input
+        pins too, with ``repin``)."""
+        if restamp:
+            prepared = json.loads((stage / "stage.json").read_text())
+            prepared["files"] = {name: sha(stage / name) for name in prepared["files"]}
+            driver.write_json(stage / "stage.json", prepared)
+            _h_stamp_inputs(stage, board, repin=repin)
+        receipt = json.loads((stage / "release-ready.json").read_text())
+        # As a re-export would bind them: the files that still exist.
+        receipt["files"] = {
+            name: sha(stage / name)
+            for name in receipt["files"]
+            if (stage / name).is_file()
+        }
+        receipt["payload_sha256"] = sha(stage / H_BOARD)
+        receipt["judge_provenance"]["sha256"] = sha(driver.JUDGE_PROVENANCE)
+        driver.write_json(stage / "release-ready.json", receipt)
+
+    def run(*options):
+        release.main(["--stage-dir", str(stage), *options])
+
+    return SimpleNamespace(
+        workspace=workspace,
+        stage=stage,
+        board=board,
+        files=files,
+        rebind=rebind,
+        run=run,
+    )
+
+
+def _h_json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def test_the_releasable_stage_passes_every_gate_and_a_dry_run_writes_nothing(
+    h_stage, capsys
+):
+    before = h_stage.files()
+    h_stage.run("--dry-run")
+    assert h_stage.files() == before
+    assert h_stage.board.calls == []
+    out = capsys.readouterr().out
+    assert f"Validated local release inputs: {driver.RELEASE_TAG}, 52 models" in out
+    assert "references unchanged; 50 exclusions (1 new)" in out
+    assert "0 adjudications added beyond the spec's; 0 wording amendments" in out
+    assert f"model responses {H_WINDOW}; snapshot {SNAPSHOT_DATE}; nothing" in out
