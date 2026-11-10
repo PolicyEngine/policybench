@@ -2050,6 +2050,161 @@ def test_carried_verdicts_keep_the_seeds_bytes(audit):
         driver.validate_verdicts(root, seed=seed)
 
 
+# --- The judge's identity and isolation ---------------------------------------
+# validate_verdicts alone holds a new verdict to this release's judge: Claude
+# Opus 5.5, requested and reported, through scripts/run_audit_claude.sh, its
+# verdict stamped in UTC. Each case breaks one field of an otherwise valid
+# MOCK verdict (None drops the field).
+
+NEW_MODEL_API_ID = "claude-fable-5-2"
+IDENTITY_DEFECTS = {
+    "requested the new model": {"judge_model_requested": NEW_MODEL_API_ID},
+    "requested the new model's board id": {"judge_model_requested": NEW},
+    "requested no model": {"judge_model_requested": None},
+    "reported the new model": {"judge_model_reported": [NEW_MODEL_API_ID]},
+    "reported the judge and the new model": {
+        "judge_model_reported": [driver.JUDGE_MODEL, NEW_MODEL_API_ID]
+    },
+    "reported no model": {"judge_model_reported": []},
+    "reported the judge as a string": {"judge_model_reported": driver.JUDGE_MODEL},
+    "reported nothing": {"judge_model_reported": None},
+    "another runner": {"judge_runner": "scripts/run_audit_codex.sh"},
+    "no runner": {"judge_runner": None},
+    "a stamp without an offset": {"judged_at_utc": "2026-11-10T12:00:00"},
+    "a stamp in US Eastern time": {"judged_at_utc": "2026-11-10T07:00:00-05:00"},
+    "a stamp an hour east of UTC": {"judged_at_utc": "2026-11-10T13:00:00+01:00"},
+    "a day without a time": {"judged_at_utc": "2026-11-10"},
+    "an unreadable stamp": {"judged_at_utc": "10 November 2026"},
+    "no stamp": {"judged_at_utc": None},
+}
+
+
+def _set_aside_reason(root: Path, case: Path) -> str:
+    (reason,) = (root.parent / "rejected-verdicts" / case.name).glob("*/reason.txt")
+    return reason.read_text()
+
+
+@pytest.mark.parametrize("stamp", ["2026-11-10T12:00:00Z", "2026-11-10T12:00:00+00:00"])
+def test_a_new_verdict_stamped_in_utc_passes(audit, stamp):
+    root, case, verdict = audit
+    write_verdict(case, verdict, judged_at_utc=stamp)
+    assert driver.validate_verdicts(root) == []
+
+
+@pytest.mark.parametrize("override", IDENTITY_DEFECTS.values(), ids=IDENTITY_DEFECTS)
+def test_a_new_verdict_from_another_judge_is_pending_and_set_aside(audit, override):
+    root, case, verdict = audit
+    write_verdict(case, verdict, **override)
+    assert driver.validate_verdicts(root) == [case.name]
+    assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
+    assert not (case / "verdict.json").exists()
+    assert "Opus 5.5 provenance" in _set_aside_reason(root, case)
+
+
+@pytest.mark.parametrize("override", IDENTITY_DEFECTS.values(), ids=IDENTITY_DEFECTS)
+def test_a_reopened_case_of_incumbents_alone_still_needs_this_releases_judge(
+    tmp_path, override
+):
+    """A case judged anew whose wrong models are MOCK incumbents alone (its
+    prompt changed, so it is not carried) is held to this release's judge."""
+    root = tmp_path / "audit"
+    case = _audit(root, ["incumbent-a"])
+    write_verdict(case, _verdict(["incumbent-a"]))
+    assert driver.validate_verdicts(root) == []
+    write_verdict(case, _verdict(["incumbent-a"]), **override)
+    assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
+    assert "Opus 5.5 provenance" in _set_aside_reason(root, case)
+
+
+@pytest.mark.parametrize("override", IDENTITY_DEFECTS.values(), ids=IDENTITY_DEFECTS)
+def test_a_carried_verdict_naming_the_new_model_needs_this_releases_judge(
+    audit, override
+):
+    """A verdict carried from the seed that names the new model (MOCK: the
+    seed predates it) is held to this release's judge too, and a carried
+    verdict that fails stops the step: a re-judge cannot restore it."""
+    root, case, verdict = audit
+    write_verdict(case, verdict, **override)
+    with pytest.raises(SystemExit, match="Opus 5.5 provenance"):
+        driver.validate_verdicts(root, seed=_seed(case))
+
+
+def _edit_transcript(case: Path, edit) -> None:
+    path = case / "claude.transcript.jsonl"
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+    edit(events)
+    _write_transcript(case, events)
+
+
+def _answer_rationale(events) -> None:
+    events[7]["message"]["content"][0]["input"]["rationale"] += " MOCK edit."
+
+
+ISOLATION_DEFECTS = {
+    "no judge_isolation": lambda case, v: write_verdict(case, v, judge_isolation=None),
+    "an API key login": lambda case, v: write_verdict(
+        case, v, judge_auth={"method": "api_key", "account": None, "org": None}
+    ),
+    "no login record": lambda case, v: write_verdict(case, v, judge_auth=None),
+    "a login record that is not an object": lambda case, v: write_verdict(
+        case, v, judge_auth="oauth_token"
+    ),
+    "no transcript": lambda case, v: (case / "claude.transcript.jsonl").unlink(),
+    "a second user text message": lambda case, v: _edit_transcript(
+        case,
+        lambda events: events.insert(
+            1, _event("user", message={"content": "MOCK second message."})
+        ),
+    ),
+    "a user message other than prompt.md": lambda case, v: _edit_transcript(
+        case, lambda events: events[0]["message"].update(content="MOCK other.")
+    ),
+    "an answer other than verdict.json": lambda case, v: _edit_transcript(
+        case, _answer_rationale
+    ),
+    "a second accepted answer": lambda case, v: _edit_transcript(
+        case,
+        lambda events: events.extend(
+            [_call("StructuredOutput", "call-2", v), _result("call-2")]
+        ),
+    ),
+    "another tool call": lambda case, v: _edit_transcript(
+        case, lambda events: events.insert(7, _call("Bash", "call-0"))
+    ),
+    "a working directory inside a git repository": lambda case, v: _edit_transcript(
+        case, lambda events: events[1]["attachment"]["snapshot"].update(isGitRepo=True)
+    ),
+    "a turn at another effort": lambda case, v: _edit_transcript(
+        case, lambda events: events[6].update(effort="low")
+    ),
+}
+
+
+@pytest.mark.parametrize("defect", ISOLATION_DEFECTS.values(), ids=ISOLATION_DEFECTS)
+def test_a_new_verdict_without_the_judges_isolation_is_pending(audit, defect):
+    root, case, verdict = audit
+    defect(case, verdict)
+    assert driver.validate_verdicts(root) == [case.name]
+    assert driver.validate_verdicts(root, remove_invalid=True) == [case.name]
+    assert "judge isolation" in _set_aside_reason(root, case)
+
+
+@pytest.mark.parametrize("defect", ISOLATION_DEFECTS.values(), ids=ISOLATION_DEFECTS)
+def test_the_provenance_gate_refuses_a_verdict_without_the_judges_isolation(
+    audit, tmp_path, defect
+):
+    """verify_judge_provenance, which export runs, checks each re-opened
+    case's isolation again on the staged files."""
+    root, case, verdict = audit
+    rejudged = frozenset({case.name})
+    record = tmp_path / "judge_provenance.json"
+    driver.write_json(record, driver.judge_provenance_record(root / "cases", rejudged))
+    driver.verify_judge_provenance(root / "cases", rejudged, record)
+    defect(case, verdict)
+    with pytest.raises(SystemExit, match="new verdicts disagree"):
+        driver.verify_judge_provenance(root / "cases", rejudged, record)
+
+
 # --- The ruled wave in the adjudication record ---------------------------------
 
 BASE_WAVES = (
