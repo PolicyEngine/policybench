@@ -848,7 +848,11 @@ def rebuild_payload(
             shutil.copyfile(stage / name, target)
             if digest(target) != expected:
                 raise SystemExit(f"Staged evidence changed since strict export: {name}")
-        rebuilt = driver.payload_text(driver.build_payload(copy_root, live))
+        # Review r1, M9: export's own scope check, with the cases this release
+        # re-judged, as export passed them.
+        rebuilt = driver.payload_text(
+            driver.build_payload(copy_root, live, reopened=driver.rejudged_cases(stage))
+        )
     staged = payload_path.read_bytes()
     if rebuilt.encode() != staged:
         differ = payload_differences(json.loads(rebuilt), json.loads(staged))

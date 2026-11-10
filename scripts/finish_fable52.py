@@ -3496,6 +3496,89 @@ def triage(args, bundle) -> None:
     print(f"Triage complete: {len(rows)} rows / {len(cases)} cases")
 
 
+# Review r1, M9: the sections check (a) holds to release 20261027 whole.
+BASE_RESTORED_SECTIONS = (
+    "country",
+    "scenarios",
+    "policyengineBundles",
+    "globalWeights",
+    "referenceExclusions",
+)
+
+
+def base_restoration_problems(
+    scoped: dict,
+    live: dict,
+    incumbents: set[str],
+    reopened: frozenset[str] = frozenset(),
+    limit: int = 8,
+) -> list[str]:
+    """Where the scope export is not release 20261027's outside modelStats.
+
+    Review r1, M9. With release 20261027's exclusion record put back, the
+    exporter (policybench.analysis.build_dashboard_payload) builds country,
+    scenarios (the prompts), policyengineBundles, globalWeights and
+    referenceExclusions from the references and the scenarios, and the
+    heatmap rows and scenarioPredictions cells one model at a time, so the
+    new model moves none of an incumbent's. Each of the five sections, each
+    incumbent's heatmap row and each incumbent's cell must be release
+    20261027's, serialized as the payload serializes it (key order counts,
+    as in incumbent_drift); a row or cell on one side only counts. On a case
+    in ``reopened`` (case ids, as rejudged_cases gives them) a cell's
+    annotation fields (release_20261006.TEXT_CELL_FIELDS | CLASS_CELL_FIELDS)
+    may differ: this release judged its verdict again. At most ``limit``.
+    """
+    from release_20261006 import CLASS_CELL_FIELDS, TEXT_CELL_FIELDS
+
+    def text(value) -> str:
+        return json.dumps(value, allow_nan=False)
+
+    scope_us, base_us = scoped["countries"]["us"], live["countries"]["us"]
+    problems = [
+        f"{section} changed"
+        for section in BASE_RESTORED_SECTIONS
+        if text(scope_us.get(section)) != text(base_us.get(section))
+    ]
+
+    def heatmap(country: dict) -> dict:
+        return {
+            (row["model"], row["variable"]): row
+            for row in country.get("heatmap", [])
+            if row["model"] in incumbents
+        }
+
+    scope_rows, base_rows = heatmap(scope_us), heatmap(base_us)
+    problems += [
+        f"heatmap {model} {variable} changed"
+        for model, variable in sorted(set(scope_rows) | set(base_rows))
+        if text(scope_rows.get((model, variable)))
+        != text(base_rows.get((model, variable)))
+    ]
+
+    def cells(country: dict) -> dict:
+        return {
+            (scenario, variable, model): cell
+            for scenario, variables in country.get("scenarioPredictions", {}).items()
+            for variable, models in variables.items()
+            for model, cell in models.items()
+            if model in incumbents
+        }
+
+    annotation = TEXT_CELL_FIELDS | CLASS_CELL_FIELDS
+    scope_cells, base_cells = cells(scope_us), cells(base_us)
+    for key in sorted(set(scope_cells) | set(base_cells)):
+        scenario, variable, model = key
+        got, want = scope_cells.get(key), base_cells.get(key)
+        if f"us__{scenario}__{variable}" in reopened and None not in (got, want):
+            got = {k: v for k, v in got.items() if k not in annotation}
+            want = {k: v for k, v in want.items() if k not in annotation}
+        if text(got) != text(want):
+            problems.append(
+                f"scenarioPredictions {scenario} {variable} {model} changed"
+            )
+    return problems[:limit]
+
+
 def incumbent_drift(stats: list[dict], previous: dict[str, dict]) -> list[str]:
     """Incumbents whose modelStats entry is not byte-identical to the base's.
 
@@ -3528,8 +3611,13 @@ def build_payload(
     partial: bool = False,
     early: bool = False,
     outputs: dict[str, bytes] | None = None,
+    reopened: frozenset[str] = frozenset(),
 ) -> dict:
-    """Compute and validate every export in a disposable copy of its inputs."""
+    """Compute and validate every export in a disposable copy of its inputs.
+
+    ``reopened`` names the cases this release re-judged (rejudged_cases), whose
+    annotation fields the scope check lets differ from the base's; none by
+    default, so a caller that leaves it out holds every case to the base."""
     import tempfile
 
     from release_20261006 import EXPORT_INPUTS
@@ -3541,7 +3629,9 @@ def build_payload(
             target = working / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(bundle / relative, target)
-        payload = _build_payload_in_scratch(working, live, partial=partial, early=early)
+        payload = _build_payload_in_scratch(
+            working, live, partial=partial, early=early, reopened=reopened
+        )
         if outputs is not None:
             generated = [working / "us/data.json"]
             generated.extend((working / "us/analysis").rglob("*"))
@@ -3561,6 +3651,7 @@ def _build_payload_in_scratch(
     *,
     partial: bool = False,
     early: bool = False,
+    reopened: frozenset[str] = frozenset(),
 ) -> dict:
     """The payload export writes, built from ``bundle``; the one definition.
 
@@ -3576,7 +3667,10 @@ def _build_payload_in_scratch(
     20261027's exclusion record put back (the scope export) and holds two
     things. (a) Every incumbent's modelStats in the scope export is release
     20261027's byte for byte, as Haiku 5.5's and Terra's drivers required:
-    nothing but the exclusion record moves an incumbent. (b) New in this
+    nothing but the exclusion record moves an incumbent. Review r1, M9: so
+    is the rest of what the incumbents share with the base
+    (base_restoration_problems), outside the annotation fields of the
+    ``reopened`` cases. (b) New in this
     driver: the release payload differs from the scope export only where the
     ruled records reach (exclusion_scope_problems), so every score change, the
     new model's included, comes from the one output this release excludes.
@@ -3633,6 +3727,12 @@ def _build_payload_in_scratch(
             not drift,
             "with release 20261027's exclusion record, incumbent modelStats "
             f"drift: {drift}",
+        )
+        restored = base_restoration_problems(scoped, live, set(previous), reopened)
+        require(
+            not restored,
+            "with release 20261027's exclusion record, the scope export is not "
+            f"release 20261027's outside modelStats: {restored}",
         )
         # (b) The release payload against the scope export: what the release's
         # own record adds must be exactly the spec's ruled records, and the
@@ -3933,8 +4033,18 @@ def export(args, bundle, live) -> dict:
             JUDGE_PROVENANCE,
         )
     outputs = {}
+    # Review r1, M9: the cases whose annotation fields the scope check lets
+    # differ from the base's. A rehearsal judges none.
+    reopened = (
+        frozenset() if args.early or args.partial else rejudged_cases(args.stage_dir)
+    )
     payload = build_payload(
-        bundle, live, partial=args.partial, early=args.early, outputs=outputs
+        bundle,
+        live,
+        partial=args.partial,
+        early=args.early,
+        outputs=outputs,
+        reopened=reopened,
     )
     repository_inputs = None if args.early else repository_input_hashes()
     stats = payload["countries"]["us"]["modelStats"]

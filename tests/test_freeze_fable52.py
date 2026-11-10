@@ -1321,15 +1321,20 @@ def _h_boards() -> SimpleNamespace:
     # record none of it.
     for key in driver.CARRIED_USAGE[H_INCUMBENT]:
         del next(r for r in released if r["model"] == H_INCUMBENT)[key]
+    scope = _h_country(copy.deepcopy([*live_stats, new]), base, None)
+    # Release 20261027's payload: the scope export without the new model's
+    # rows, as check (a) requires (review r1, M9).
+    live = copy.deepcopy(scope)
+    live["modelStats"] = live_stats
+    live["heatmap"] = [row for row in live["heatmap"] if row["model"] != H_NEW]
+    for variables in live["scenarioPredictions"].values():
+        for models in variables.values():
+            del models[H_NEW]
     return SimpleNamespace(
-        live={"countries": {"us": {"modelStats": live_stats}}},
+        live={"countries": {"us": live}},
         exports={
             "release": {"countries": {"us": _h_country(released, records, ruled)}},
-            "scope": {
-                "countries": {
-                    "us": _h_country(copy.deepcopy([*live_stats, new]), base, None)
-                }
-            },
+            "scope": {"countries": {"us": scope}},
         },
     )
 
@@ -2592,6 +2597,41 @@ def test_the_freeze_refuses_a_payload_edited_after_export(h_stage, edit):
     refused = _h_refused(h_stage, "is not what export builds")
     for path in paths:
         assert repr(path) in str(refused.value)
+
+
+def test_the_rebuild_hands_the_scope_check_the_cases_this_release_reopened(
+    h_stage, monkeypatch
+):
+    """Review r1, M9: the freeze's rebuild passes rejudged_cases' cases (the
+    ruled case, which this stage judged), as export did."""
+    seen = {}
+    build = driver.build_payload
+
+    def spy(*args, **kw):
+        seen.update(kw)
+        return build(*args, **kw)
+
+    monkeypatch.setattr(driver, "build_payload", spy)
+    h_stage.run("--dry-run")
+    assert seen["reopened"] == driver.rejudged_cases(h_stage.stage)
+    assert seen["reopened"] == frozenset({H_RULED_CASE})
+
+
+@pytest.mark.parametrize("case", ["ruled", "kept"])
+def test_the_rebuild_lets_annotations_differ_only_on_reopened_cases(h_stage, case):
+    """An incumbent's annotation in release 20261027's payload that the scope
+    export does not give: on the ruled case, which this release re-opened,
+    the freeze passes it; on another case it stops the freeze before any
+    write, at check (a)."""
+    scenario, variable = RULED if case == "ruled" else ("scenario_000", "snap")
+    cell = h_stage.board.live["countries"]["us"]["scenarioPredictions"][scenario][
+        variable
+    ][H_INCUMBENT]
+    cell["annotation"] = "MOCK: an annotation the base carried."
+    if case == "ruled":
+        h_stage.run("--dry-run")
+    else:
+        _h_refused(h_stage, "is not release 20261027's outside modelStats")
 
 
 @pytest.mark.parametrize(

@@ -1668,15 +1668,19 @@ def board(tmp_path, monkeypatch):
     )
     root = tmp_path / "board"
 
-    def run(answers, *, doc=None, base_answers=None):
-        """The driver's payload and the base board's export."""
+    def run(answers, *, doc=None, base_answers=None, edit_base=None, reopened=()):
+        """The driver's payload and the base board's export (``edit_base``
+        applied to its US country first)."""
         base = export_board(
             write_board(
                 root / "base", base_answers or answers, base_doc, MOCK_INCUMBENTS
             )
         )
+        if edit_base is not None:
+            edit_base(base["countries"]["us"])
         bundle = write_board(root / "release", answers, doc or release_doc)
-        return driver.build_payload(bundle, base), base
+        payload = driver.build_payload(bundle, base, reopened=frozenset(reopened))
+        return payload, base
 
     return SimpleNamespace(
         run=run, root=root, base_doc=base_doc, release_doc=release_doc
@@ -1696,6 +1700,181 @@ def test_the_real_exporter_passes_both_scope_checks_on_a_mock_board(board):
     assert [
         (item["scenarioId"], item["variable"]) for item in us["referenceExclusions"]
     ] == [driver.spec_key(record) for record in board.release_doc["exclusions"]]
+
+
+# Review r1, M9: check (a) holds the rest of what the incumbents share with
+# release 20261027. The base here is the real exporter's own export of the
+# incumbents' MOCK board, so an unedited base passes (above); each edit makes
+# the scope export differ from it where no gate lets it.
+
+
+def _first_incumbent_cell(us: dict) -> tuple[str, str, str, dict]:
+    for scenario in sorted(us["scenarioPredictions"]):
+        for variable in sorted(us["scenarioPredictions"][scenario]):
+            models = us["scenarioPredictions"][scenario][variable]
+            for model in MOCK_INCUMBENTS:
+                if model in models:
+                    return scenario, variable, model, models[model]
+    raise AssertionError("no incumbent cell")
+
+
+def _edit_heatmap(us: dict) -> str:
+    row = next(r for r in us["heatmap"] if r["model"] in MOCK_INCUMBENTS)
+    row["score"] += 1
+    return f"heatmap {row['model']} {row['variable']} changed"
+
+
+def _edit_cell(us: dict) -> str:
+    scenario, variable, model, cell = _first_incumbent_cell(us)
+    cell["prediction"] = (cell["prediction"] or 0) + 1
+    return f"scenarioPredictions {scenario} {variable} {model} changed"
+
+
+def _drop_cell(us: dict) -> str:
+    scenario, variable, model, _ = _first_incumbent_cell(us)
+    del us["scenarioPredictions"][scenario][variable][model]
+    return f"scenarioPredictions {scenario} {variable} {model} changed"
+
+
+def _reorder_cell(us: dict) -> str:
+    scenario, variable, model, cell = _first_incumbent_cell(us)
+    reordered = dict(reversed(list(cell.items())))
+    us["scenarioPredictions"][scenario][variable][model] = reordered
+    return f"scenarioPredictions {scenario} {variable} {model} changed"
+
+
+def _edit_first_scenario(us: dict) -> str:
+    us["scenarios"][sorted(us["scenarios"])[0]]["numAdults"] += 1
+    return "scenarios changed"
+
+
+def _edit_weight(us: dict) -> str:
+    weights = us["globalWeights"]["household"]
+    weights[sorted(weights)[0]] += 1.0
+    return "globalWeights changed"
+
+
+BASE_EDITS = {
+    "country": lambda us: us.update(country="uk") or "country changed",
+    "scenarios": _edit_first_scenario,
+    "policyengineBundles": lambda us: (
+        us["policyengineBundles"].update(MOCK="x") or "policyengineBundles changed"
+    ),
+    "globalWeights": _edit_weight,
+    "referenceExclusions": lambda us: (
+        us["referenceExclusions"].append({"scenarioId": "MOCK"})
+        or "referenceExclusions changed"
+    ),
+    "heatmap": _edit_heatmap,
+    "cell": _edit_cell,
+    "cell_dropped": _drop_cell,
+    "cell_key_order": _reorder_cell,
+}
+
+
+@pytest.mark.parametrize("edit", BASE_EDITS)
+def test_check_a_refuses_a_base_section_row_or_cell_the_scope_export_lacks(board, edit):
+    """Each of the five sections, an incumbent's heatmap row, and an
+    incumbent's cell (its value, its presence, its key order) differing
+    from the scope export stops the build at check (a)."""
+    found = []
+    with pytest.raises(SystemExit, match="outside modelStats") as refused:
+        board.run(
+            mixed_answers(), edit_base=lambda us: found.append(BASE_EDITS[edit](us))
+        )
+    assert found[0] in str(refused.value)
+
+
+def _first_board_case(board) -> str:
+    payload, _ = board.run(mixed_answers())
+    scenario, variable, _, _ = _first_incumbent_cell(payload["countries"]["us"])
+    return f"us__{scenario}__{variable}"
+
+
+@pytest.mark.parametrize("field", ["failureSource", "annotation", "caseAnnotation"])
+def test_check_a_lets_annotations_differ_only_on_reopened_cases(board, field):
+    """An incumbent cell's annotation field that differs from the scope
+    export's passes on a case this release re-opened and stops the build on
+    any other case; a prediction that differs stops it on a re-opened case
+    too."""
+    case = _first_board_case(board)
+
+    def annotate(us: dict) -> None:
+        _first_incumbent_cell(us)[3][field] = "MOCK: judged again"
+
+    def predict(us: dict) -> None:
+        cell = _first_incumbent_cell(us)[3]
+        cell["prediction"] = (cell["prediction"] or 0) + 1
+
+    board.run(mixed_answers(), edit_base=annotate, reopened=[case])
+    with pytest.raises(SystemExit, match="outside modelStats"):
+        board.run(mixed_answers(), edit_base=annotate)
+    with pytest.raises(SystemExit, match="outside modelStats"):
+        board.run(mixed_answers(), edit_base=predict, reopened=[case])
+
+
+def _country(**sections) -> dict:
+    return {"countries": {"us": sections}}
+
+
+def test_base_restoration_ignores_the_new_models_rows_and_cells():
+    live = _country(
+        country="us",
+        heatmap=[{"model": "a", "variable": "snap", "score": 1.0}],
+        scenarioPredictions={"s": {"snap": {"a": {"prediction": 1.0}}}},
+    )
+    scoped = copy.deepcopy(live)
+    us = scoped["countries"]["us"]
+    us["heatmap"].append({"model": NEW, "variable": "snap", "score": 9.0})
+    us["scenarioPredictions"]["s"]["snap"][NEW] = {"prediction": 9.0}
+    assert driver.base_restoration_problems(scoped, live, {"a"}) == []
+    us["heatmap"].append({"model": "a", "variable": "eitc", "score": 1.0})
+    us["scenarioPredictions"]["t"] = {"snap": {"a": {"prediction": 1.0}}}
+    assert driver.base_restoration_problems(scoped, live, {"a"}) == [
+        "heatmap a eitc changed",
+        "scenarioPredictions t snap a changed",
+    ]
+
+
+def test_base_restoration_names_at_most_its_limit():
+    live = _country(heatmap=[{"model": "a", "variable": f"v{i}"} for i in range(12)])
+    scoped = _country(heatmap=[])
+    problems = driver.base_restoration_problems(scoped, live, {"a"})
+    assert len(problems) == 8
+    assert driver.base_restoration_problems(scoped, live, {"a"}, limit=20) == [
+        f"heatmap a v{i} changed" for i in sorted(range(12), key=lambda i: f"v{i}")
+    ]
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    prediction=st.floats(allow_nan=False, allow_infinity=False),
+    field=st.sampled_from(["prediction", "groundTruth", "scored", "explanation"]),
+    annotation=st.sampled_from(
+        sorted(release_20261006.TEXT_CELL_FIELDS | release_20261006.CLASS_CELL_FIELDS)
+    ),
+    reopened=st.booleans(),
+)
+def test_base_restoration_holds_every_cell_field_but_reopened_annotations(
+    prediction, field, annotation, reopened
+):
+    """Property: an incumbent cell's annotation field may move only on a
+    re-opened case; any other field, never; an unmoved board, always passes."""
+    cell = {"prediction": prediction, "groundTruth": 1.0, "scored": True}
+    live = _country(scenarioPredictions={"s": {"v": {"a": cell}}})
+    cases = frozenset({"us__s__v"}) if reopened else frozenset()
+    assert (
+        driver.base_restoration_problems(copy.deepcopy(live), live, {"a"}, cases) == []
+    )
+    moved = copy.deepcopy(live)
+    moved["countries"]["us"]["scenarioPredictions"]["s"]["v"]["a"][annotation] = "X"
+    problems = driver.base_restoration_problems(moved, live, {"a"}, cases)
+    assert problems == ([] if reopened else ["scenarioPredictions s v a changed"])
+    moved = copy.deepcopy(live)
+    entry = moved["countries"]["us"]["scenarioPredictions"]["s"]["v"]["a"]
+    entry[field] = "a value no exporter wrote"
+    problems = driver.base_restoration_problems(moved, live, {"a"}, cases)
+    assert problems == ["scenarioPredictions s v a changed"]
 
 
 @settings(
@@ -3675,6 +3854,32 @@ def test_prepare_reads_the_pointer_once_the_committed_references_pass(
             ["--stage-dir", str(workspace.stage), "--step", "prepare"]
             + ["--runs-root", str(workspace.root / "runs")]
         )
+
+
+@pytest.mark.parametrize(
+    "mode, reopened",
+    [
+        ({}, frozenset({"MOCK"})),
+        ({"early": True}, frozenset()),
+        ({"partial": True}, frozenset()),
+    ],
+    ids=["release", "early", "partial"],
+)
+def test_export_hands_the_scope_check_the_cases_it_reopened(
+    export_spy, tmp_path, mode, reopened
+):
+    """Review r1, M9: a release export passes rejudged_cases' cases, whose
+    annotation fields check (a) lets differ from the base's; a rehearsal,
+    which judges none, passes none."""
+    seen = {}
+
+    def build(*args, **kw):
+        seen.update(kw)
+        raise _Built
+
+    export_spy.monkeypatch.setattr(driver, "build_payload", build)
+    _export(tmp_path, **mode)
+    assert seen["reopened"] == reopened
 
 
 @pytest.mark.parametrize("gate", EXPORT_GATES)
