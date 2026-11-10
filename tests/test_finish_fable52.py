@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -2339,4 +2339,351 @@ def test_the_record_gate_refuses_an_edited_note(adjudication_stage):
     with pytest.raises(SystemExit, match="changes its note, schema or date"):
         driver.verify_record_form(
             driver.record_text(record), driver.base_adjudication_record()
+        )
+
+
+# --- The ruled-entry gate at triage and the freeze (review r1, M3) -----------
+#
+# Haiku 5.5's tests of ruled_adjudication_problems, ported to the d2180 entry.
+# The entry carries a MOCK bound verdict's judge fields, and every recorded
+# decision gets a MOCK bound verdict that agrees with its judge fields, as
+# verify_adjudications_keep_judge_verdicts requires.
+
+RULED_CASE = f"us__{RULED[0]}__{RULED[1]}"
+DECIDED_AT = "2026-10-27T02:00:00+00:00"
+JSON_VALUES = st.recursive(
+    st.none() | st.booleans() | st.integers() | st.text(max_size=8),
+    lambda children: (
+        st.lists(children, max_size=3)
+        | st.dictionaries(st.text(max_size=5), children, max_size=3)
+    ),
+    max_leaves=6,
+)
+
+
+def _decided_verdicts(cases: Path, entries) -> Path:
+    """A MOCK bound verdict for each recorded decision whose case has none,
+    agreeing with the decision's judge fields."""
+    for entry in entries:
+        case = cases / driver.case_id(entry)
+        if (case / "verdict.json").is_file():
+            continue
+        case.mkdir(parents=True, exist_ok=True)
+        verdict = _verdict([], source=entry["judge_failure_source"])
+        verdict["case_failure_subtype"] = entry["judge_failure_subtype"]
+        verdict["reference_suspect"] = bool(entry.get("judge_reference_suspect"))
+        write_verdict(case, verdict, judged_at_utc=DECIDED_AT)
+    return cases
+
+
+@pytest.fixture
+def ruled(adjudication_stage):
+    """Release 20261027's record and the record --step adjudicate-exclusions
+    writes from it, both keyed by case, with the stage's cases directory."""
+    from policybench.adjudications import parse_adjudications
+
+    stage, path = adjudication_stage
+    driver.adjudicate_exclusions(SimpleNamespace(stage_dir=stage))
+    text = path.read_text()
+    staged = json.loads(text)
+    entries = parse_adjudications(copy.deepcopy(staged), path)
+    cases = _decided_verdicts(stage / "audit" / "cases", entries)
+    base = driver.base_adjudication_record()
+    return SimpleNamespace(
+        stage=stage,
+        path=path,
+        text=text,
+        staged=staged,
+        base=base,
+        entries=entries,
+        cases=cases,
+        before={driver.case_id(e): e for e in base["adjudications"]},
+        after={driver.case_id(e): e for e in entries},
+    )
+
+
+def test_the_ruled_record_appends_one_entry_and_keeps_every_base_entry(ruled):
+    """64 decisions, 50 of them exclusions: every release 20261027 entry keeps
+    its bytes and place, the d2180 entry follows them, and the top level
+    changes only in its date conventions."""
+    base, staged = ruled.base, ruled.staged
+    entries = staged["adjudications"]
+    assert len(base["adjudications"]) == 63
+    assert len(entries) == 64
+    assert sum(bool(e.get("excluded_from_scoring")) for e in entries) == 50
+    for index, entry in enumerate(base["adjudications"]):
+        assert json.dumps(entries[index]) == json.dumps(entry)
+    assert driver.case_id(entries[-1]) == RULED_CASE
+    assert list(staged) == list(base)
+    assert {
+        k: v
+        for k, v in staged.items()
+        if k not in ("adjudications", "date_conventions")
+    } == {
+        k: v for k, v in base.items() if k not in ("adjudications", "date_conventions")
+    }
+    assert staged["date_conventions"] == driver.release_date_conventions(
+        base["date_conventions"]
+    )
+
+
+def test_the_adjudications_exclude_exactly_the_release_records_outputs(ruled):
+    """Triage's requirement: the decided record excludes exactly the 50
+    outputs the release's exclusion record lists."""
+    from policybench.adjudications import excluded_case_keys
+    from policybench.reference_exclusions import exclusion_keys
+
+    released = release_record()["exclusions"]
+    assert excluded_case_keys(ruled.entries) == exclusion_keys(released)
+    assert len(exclusion_keys(released)) == 50
+    assert excluded_case_keys(ruled.base["adjudications"]) != exclusion_keys(released)
+
+
+def test_the_ruled_gate_passes_the_exact_built_entry(ruled):
+    assert (
+        driver.ruled_adjudication_problems(ruled.before, ruled.after, ruled.cases) == []
+    )
+
+
+def _swap_fields(entry: dict, index: int) -> dict:
+    names = list(entry)
+    a = index % (len(names) - 1)
+    names[a], names[a + 1] = names[a + 1], names[a]
+    return {name: entry[name] for name in names}
+
+
+@settings(
+    max_examples=120,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(kind=st.sampled_from(["value", "order", "extra", "drop"]), data=st.data())
+def test_a_ruled_entry_edited_by_hand_is_refused(ruled, kind, data):
+    """Any edit to the d2180 entry is refused: a value, the key order, an
+    added or a dropped field. The entry is new, so the gate holds its judge
+    fields to its bound verdict as well."""
+    after = copy.deepcopy(ruled.after)
+    entry = after[RULED_CASE]
+    if kind == "value":
+        name = data.draw(st.sampled_from(list(entry)))
+        value = data.draw(JSON_VALUES)
+        assume(json.dumps(value) != json.dumps(entry[name]))
+        entry[name] = value
+    elif kind == "order":
+        after[RULED_CASE] = _swap_fields(entry, data.draw(st.integers(0, 40)))
+    elif kind == "extra":
+        name = data.draw(st.from_regex(r"x_[a-z]{1,6}", fullmatch=True))
+        entry[name] = data.draw(JSON_VALUES)
+    else:
+        del entry[data.draw(st.sampled_from(list(entry)))]
+    assert driver.ruled_adjudication_problems(ruled.before, after, ruled.cases) == [
+        f"{RULED_CASE}: differs from the ruling's entry"
+    ]
+
+
+def test_a_ruled_entry_that_is_missing_is_refused(ruled):
+    after = {k: v for k, v in ruled.after.items() if k != RULED_CASE}
+    assert driver.ruled_adjudication_problems(ruled.before, after, ruled.cases) == [
+        f"{RULED_CASE}: no staged decision"
+    ]
+
+
+# Edits to the d2180 entry that parse_adjudications accepts, so only the
+# ruled-entry gate stands between them and the record.
+RULED_EDITS = {
+    "the judge's subtype as the decision's": (
+        "adjudicated_failure_subtype",
+        "credit_phaseout",
+    ),
+    "a reworded reasoning": ("reasoning", None),
+    "another reference basis": ("reference_basis", "a MOCK basis"),
+    "another decision day": ("adjudicated_on", "2026-11-02"),
+    "another adjudicator": ("adjudicator", "MOCK adjudicator"),
+    "another judge": ("judge_model", "claude-opus-5"),
+    "another judge source": ("judge_failure_source", "prompt_ambiguity"),
+    "another judge subtype": ("judge_failure_subtype", "credit_phaseout"),
+    "a judge flag the verdict lacks": ("judge_reference_suspect", True),
+    "another judged day": ("judged_on_utc", "2026-11-09"),
+}
+# Edits parse_adjudications refuses on its own; the gate refuses them too.
+UNPARSED_RULED_EDITS = {
+    "a scored decision": ("excluded_from_scoring", False),
+    "another reference verdict": ("reference_verdict", "engine_defect"),
+    "another decision source": ("adjudicated_failure_source", "llm_error"),
+}
+
+
+def _edited(record: dict, name: str, value) -> dict:
+    record = copy.deepcopy(record)
+    entry = next(e for e in record["adjudications"] if driver.case_id(e) == RULED_CASE)
+    entry[name] = entry[name] + " MOCK edit." if value is None else value
+    return record
+
+
+@pytest.mark.parametrize(
+    "name, value",
+    list(RULED_EDITS.values()) + list(UNPARSED_RULED_EDITS.values()),
+    ids=list(RULED_EDITS) + list(UNPARSED_RULED_EDITS),
+)
+def test_the_ruled_gate_refuses_each_field_edited(ruled, name, value):
+    record = _edited(ruled.staged, name, value)
+    after = {driver.case_id(e): e for e in record["adjudications"]}
+    assert driver.ruled_adjudication_problems(ruled.before, after, ruled.cases) == [
+        f"{RULED_CASE}: differs from the ruling's entry"
+    ]
+
+
+@pytest.mark.parametrize("rejudged", [frozenset({RULED_CASE}), frozenset()])
+@pytest.mark.parametrize(
+    "name, value", list(RULED_EDITS.values()), ids=list(RULED_EDITS)
+)
+def test_triages_record_gate_refuses_a_ruled_entry_edited_after_the_step(
+    ruled, rejudged, name, value
+):
+    ruled.path.write_text(driver.record_text(_edited(ruled.staged, name, value)))
+    with pytest.raises(SystemExit, match="Staged adjudications of the ruled outputs"):
+        driver.stage_adjudications(ruled.path, rejudged, [], ruled.cases)
+
+
+@pytest.mark.parametrize("rejudged", [frozenset({RULED_CASE}), frozenset()])
+def test_triages_record_gate_passes_the_steps_record(ruled, rejudged):
+    entries = driver.stage_adjudications(ruled.path, rejudged, [], ruled.cases)
+    assert [driver.case_id(e) for e in entries] == list(ruled.after)
+    assert ruled.path.read_text() == ruled.text
+
+
+def _restaged(ruled, edit) -> None:
+    record = copy.deepcopy(ruled.staged)
+    edit(record["adjudications"])
+    ruled.path.write_text(driver.record_text(record))
+
+
+def _other_subtype(entry: dict) -> str:
+    current = entry["adjudicated_failure_subtype"]
+    return "credit_phaseout" if current != "credit_phaseout" else "thresholds_rates"
+
+
+def _added(entries: list) -> None:
+    extra = copy.deepcopy(entries[0])
+    extra["scenario_id"] = "scenario_999"
+    entries.insert(len(entries) - 1, extra)
+
+
+BASE_DECISION_EDITS = {
+    "a reworded reasoning": (
+        lambda entries: entries[0].update(reasoning=entries[0]["reasoning"] + " X."),
+        "change recorded decisions beyond",
+    ),
+    "another decision subtype": (
+        lambda entries: entries[5].update(
+            adjudicated_failure_subtype=_other_subtype(entries[5])
+        ),
+        "change recorded decisions beyond",
+    ),
+    "a dropped decision": (lambda entries: entries.pop(3), "drop recorded decisions"),
+    "two decisions swapped": (
+        lambda entries: entries.insert(1, entries.pop(0)),
+        "change the committed entry order",
+    ),
+    "a decision on a case no new model re-opened": (
+        _added,
+        "add decisions on cases no new model re-opened",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "edit, message", list(BASE_DECISION_EDITS.values()), ids=list(BASE_DECISION_EDITS)
+)
+def test_triages_record_gate_refuses_a_changed_base_decision(ruled, edit, message):
+    _restaged(ruled, edit)
+    with pytest.raises(SystemExit, match=message):
+        driver.stage_adjudications(ruled.path, frozenset({RULED_CASE}), [], ruled.cases)
+
+
+def test_a_reopened_case_keeps_its_decision_fields(ruled):
+    """A case the new model re-opened may move only its judge fields."""
+    first = driver.case_id(ruled.staged["adjudications"][0])
+    _restaged(ruled, lambda entries: entries[0].update(adjudicated_on="2026-11-02"))
+    with pytest.raises(SystemExit, match="change recorded decisions beyond"):
+        driver.stage_adjudications(
+            ruled.path, frozenset({RULED_CASE, first}), [], ruled.cases
+        )
+
+
+def test_a_decision_the_spec_does_not_list_is_refused_on_a_reopened_case(ruled):
+    _restaged(ruled, _added)
+    extra = driver.case_id(
+        {**ruled.staged["adjudications"][0], "scenario_id": "scenario_999"}
+    )
+    with pytest.raises(SystemExit, match="add decisions the spec does not list"):
+        driver.stage_adjudications(
+            ruled.path, frozenset({RULED_CASE, extra}), [], ruled.cases
+        )
+
+
+def test_the_freezes_record_gate_runs_triages_gates_unstubbed(ruled, tmp_path):
+    """freeze_fable52.verify_adjudication_record on the step's record and the
+    release's exclusion record: it passes, and refuses the d2180 entry edited
+    after the step and a record that still excludes only the base's outputs."""
+    import freeze_fable52 as release
+
+    source_us = tmp_path / "source-us"
+    source_us.mkdir()
+    (source_us / EXCLUSIONS_NAME).write_text(release_text())
+    rejudged = frozenset({RULED_CASE})
+    assert (
+        release.verify_adjudication_record(
+            ruled.path, source_us, rejudged, [], ruled.cases
+        )
+        == 0
+    )
+    edited = _edited(ruled.staged, "adjudicated_failure_subtype", "credit_phaseout")
+    ruled.path.write_text(driver.record_text(edited))
+    with pytest.raises(SystemExit, match="Staged adjudications of the ruled outputs"):
+        release.verify_adjudication_record(
+            ruled.path, source_us, rejudged, [], ruled.cases
+        )
+    ruled.path.write_text(ruled.text)
+    (source_us / EXCLUSIONS_NAME).write_text(driver.exclusions_text(base_record()))
+    with pytest.raises(SystemExit, match="the staged exclusion record disagree"):
+        release.verify_adjudication_record(
+            ruled.path, source_us, rejudged, [], ruled.cases
+        )
+
+
+@pytest.mark.parametrize(
+    "adjudications",
+    [
+        pytest.param(lambda item: [], id="no adjudication for the record"),
+        pytest.param(lambda item: [item, item], id="the record decided twice"),
+        pytest.param(
+            lambda item: [item, {**item, "variable": "state_income_tax"}],
+            id="an adjudication with no record",
+        ),
+    ],
+)
+def test_the_spec_must_decide_each_record_exactly_once(
+    adjudication_stage, monkeypatch, adjudications
+):
+    stage, path = adjudication_stage
+    item = filled_spec()["adjudications"][0]
+    spec = filled_spec(adjudications=adjudications(item))
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    with pytest.raises(SystemExit, match="name different outputs"):
+        driver.exclusion_adjudications(
+            driver.base_adjudication_record(), stage / "audit" / "cases"
+        )
+
+
+def test_the_spec_must_restate_exactly_the_ruled_outputs_already_decided(
+    adjudication_stage, monkeypatch
+):
+    stage, path = adjudication_stage
+    item = filled_spec()["adjudications"][0]
+    spec = filled_spec(restated_adjudications=[item])
+    monkeypatch.setattr(driver, "load_spec", lambda: copy.deepcopy(spec))
+    with pytest.raises(SystemExit, match="differ from the spec's restated list"):
+        driver.exclusion_adjudications(
+            driver.base_adjudication_record(), stage / "audit" / "cases"
         )
