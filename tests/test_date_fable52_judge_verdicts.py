@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -155,17 +155,38 @@ def test_a_wave_other_than_the_spec_says_is_refused(entries, spec, message):
         dating.new_waves(record_with(*entries), filled_spec(**spec))
 
 
+def stating_written_day(record: dict, day: str) -> dict:
+    """``record`` with its conventions edited by hand to say the ruled wave
+    was written on ``day``, a day the driver refuses to write before the
+    wave."""
+    old = f" written on {WRITTEN_ON} UTC"
+    assert record["date_conventions"].count(old) == 1
+    record["date_conventions"] = record["date_conventions"].replace(
+        old, f" written on {day} UTC"
+    )
+    return record
+
+
 @settings(max_examples=80, deadline=None)
 @given(day=st.one_of(st.dates().map(str), st.text(max_size=12)))
+@example(day="2026-10-31")
+@example(day=WAVE)
+@example(day="2026-11-1")
 def test_any_real_day_on_or_after_the_wave_is_accepted_and_no_other(day):
+    """A day before the wave is refused even when the frozen record states
+    it too, so the wave's own check is the one that stops it."""
     spec = filled_spec(adjudications_written_on=day)
-    if driver.utc_day(day) is not None and day >= WAVE:
+    if driver.utc_day(day) is None:
+        with pytest.raises(SystemExit, match="names no day"):
+            dating.new_waves(record_with(ruled_entry()), spec)
+    elif day >= WAVE:
         # The frozen record states the same day the spec does.
         record = record_with(ruled_entry(), written=day)
         assert dating.new_waves(record, spec) == {WAVE: day}
     else:
-        with pytest.raises(SystemExit):
-            dating.new_waves(record_with(ruled_entry()), spec)
+        record = stating_written_day(record_with(ruled_entry()), day)
+        with pytest.raises(SystemExit, match="was written before it"):
+            dating.new_waves(record, spec)
 
 
 # --- Review r1, M14 (Z P3-5): the day the frozen record states ---------------
