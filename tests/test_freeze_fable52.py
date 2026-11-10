@@ -1092,8 +1092,8 @@ def test_finalize_refuses_a_rehearsal_stage(finalizing):
 # every one of its gates on that stage, and the tests at the end of the
 # section freeze it.
 #
-# MOCK, each set where named: Claude Fable 5.2's run (an answer for every one
-# of the 1,984 outputs, each the reference but the ruled output's, timed
+# MOCK, each set where named: a run for the new model (an answer for every
+# one of the 1,984 outputs, each the reference but the ruled output's, timed
 # 2026-11-08 UTC); an incumbent's wrong answers on the 63 cases release
 # 20261027's record decides, with seed verdicts classed as each decision
 # records its judge; the seed digest those verdicts give, in place of the
@@ -1120,7 +1120,7 @@ BUNDLE = Path("publish") / RUN
 H_BOARD = f"data-board{release.BOARD_MODELS}.json"
 H_RUN = "fable52-runs/fable52"
 H_RULED_CASE = f"us__{RULED[0]}__{RULED[1]}"
-# MOCK: Claude Fable 5.2's first request, 2026-11-08 10:00 UTC; its rows are
+# MOCK: the new model's first request, 2026-11-08 10:00 UTC; its rows are
 # timed from here, so the response window ends that day.
 H_ANSWERED = 1794132000.0
 H_WINDOW = f"{freezer.MODEL_RESPONSE_START} to 2026-11-08"
@@ -1644,8 +1644,9 @@ def _h_verdict(source: str, subtype: str, suspect: bool, model: str) -> dict:
 
 
 def _h_judge_ruled_case(audit: Path) -> None:
-    """The ruled case Claude Fable 5.2 opened, judged by Opus 5.5 on v2: a
-    MOCK verdict with its full sidecar and a clean transcript."""
+    """The ruled case, which the new model opens on the MOCK board, judged by
+    Opus 5.5 on v2: a MOCK verdict with its full sidecar and a clean
+    transcript."""
     from policybench.judge_template import template_header
 
     case = audit / "cases" / H_RULED_CASE
@@ -1727,8 +1728,8 @@ def _h_write_stage(workspace: Path, board) -> Path:
             (target / name).write_bytes(h_blob(FROZEN / name))
     for name in (driver.ADJUDICATIONS, EXPLANATIONS):
         (annotations / name).write_bytes(h_blob(release.ANNOTATIONS / name))
-    # MOCK: Claude Fable 5.2 right on every output but the ruled one; the
-    # incumbent wrong on every decided case.
+    # On the MOCK board the new model answers right on every output but the
+    # ruled one, and the incumbent wrong on every decided case.
     with (us / driver.CSV_NAME).open(newline="") as stream:
         reference = list(csv.DictReader(stream))
     decided = _h_decided_cases()
@@ -1822,7 +1823,8 @@ def _h_write_stage(workspace: Path, board) -> Path:
     board.seed_sha256 = hashlib.sha256(
         driver.seed_digest_text(seed).encode()
     ).hexdigest()
-    # The ruled case, which only Claude Fable 5.2 answered wrong: added.
+    # The ruled case, which on the MOCK board only the new model answers
+    # wrong: added.
     _h_judge_ruled_case(audit)
     manifest.append(
         {
@@ -2579,7 +2581,7 @@ H_PAYLOAD_EDITS = {
 
 @pytest.mark.parametrize("edit", H_PAYLOAD_EDITS)
 def test_the_freeze_refuses_a_payload_edited_after_export(h_stage, edit):
-    """The receipt binds the payload by a hash beside it. Claude Fable 5.2's
+    """The receipt binds the payload by a hash beside it. The new model's
     score, an incumbent's cost, a case's class or an exclusion's text edited,
     with that hash refreshed, passes the schema, roster and count gates;
     export's own build from the bound bundle does not give it."""
@@ -2783,9 +2785,9 @@ def test_the_freeze_refuses_a_verdict_seed_or_partition_changed_after_export(
 
 
 def test_a_manifest_claiming_the_new_model_on_a_kept_case_is_refused(h_stage):
-    """cases.jsonl is editable: a kept case recorded as one Claude Fable 5.2
-    got wrong (every hash following) is refused, since its staged prediction
-    is right on it."""
+    """cases.jsonl is editable: a kept case recorded as one the new model
+    got wrong (every hash following) is refused, since on the MOCK board its
+    staged prediction there is right."""
     stage = h_stage.stage
     case = stage / "audit/cases" / _h_kept_case(h_stage)
     manifest = [
@@ -2803,7 +2805,9 @@ def test_a_manifest_claiming_the_new_model_on_a_kept_case_is_refused(h_stage):
     changes["changed"].append(case.name)
     driver.write_json(stage / driver.PROMPT_CHANGES, changes)
     prompt = case / "prompt.md"
-    prompt.write_text(prompt.read_text() + "Claude Fable 5.2 answered too.\n")
+    prompt.write_text(
+        prompt.read_text() + "MOCK: one more wrong answer joined this case.\n"
+    )
     h_stage.rebind(restamp=False)
     _h_refused(h_stage, "wrong models disagree with the staged predictions")
 
@@ -3109,7 +3113,7 @@ def test_the_freeze_rechecks_the_prepare_time_hashes(h_stage, defect, message):
     [("estimated_cost_usd", "0.0002"), ("elapsed_seconds", "9.5"), ("prediction", "1")],
 )
 def test_new_model_rows_edited_in_the_bundle_are_refused(h_stage, column, value):
-    """Claude Fable 5.2's cost, latency or answers changed in the bundle's
+    """The new model's cost, latency or answers edited in the bundle's
     predictions, with stage.json and model-provenance.json following, are not
     its pinned run's rows, column by column (verify_new_model_inputs)."""
     _h_edit_rows(h_stage.stage / BUNDLE / "us/predictions.csv", H_NEW, column, value)
