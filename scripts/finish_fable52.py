@@ -4652,7 +4652,20 @@ def main(argv=None) -> None:
         # release's, which every step after it requires above). The
         # explanations keep release 20261027's bytes.
         recorded = installed.get("sha256") if isinstance(installed, dict) else None
-        verify_reference_pins(stage / "scoring", "staged scoring", recorded)
+        scoring = recorded
+        if args.step == "install-exclusions" and installed is None:
+            # Review r2, N3: write_release_exclusions writes the scoring copy
+            # first and the bundle copy second, and install_exclusions writes
+            # stage.json last, so an install stopped after the first write
+            # leaves the release's record in the scoring source with no
+            # install recorded. Run again, the step accepts exactly those
+            # bytes there or release 20261027's; the bundle copy keeps
+            # release 20261027's pin, and the staged-input check holds it to
+            # the bytes stage.json binds.
+            record = stage / "scoring" / "reference_exclusions.json"
+            if record.is_file() and digest(record) == release_exclusions_sha256():
+                scoring = release_exclusions_sha256()
+        verify_reference_pins(stage / "scoring", "staged scoring", scoring)
         verify_reference_pins(bundle / "us", "staged reference", recorded)
         verify_staged_explanations(bundle)
         if args.step == "bind-seed":

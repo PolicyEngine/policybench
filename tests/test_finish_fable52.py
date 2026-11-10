@@ -1155,24 +1155,131 @@ def test_every_later_step_holds_the_staged_references_to_their_pins(
 
 
 @pytest.mark.parametrize("step", ["bind-seed", "install-exclusions"])
-@pytest.mark.parametrize("record", ["release", "edited"])
+@pytest.mark.parametrize("record", ["release", "release_edited", "edited"])
 def test_before_the_install_the_staged_record_is_the_bases(
     workspace, monkeypatch, step, record
 ):
     """Until install-exclusions records the release's record, the pin is
-    release 20261027's: the release's record in the scoring source, or the
-    base's edited, stops the step."""
+    release 20261027's: the base's record edited, or the release's edited,
+    in the scoring source stops either step, and the release's record there
+    stops bind-seed. Review r2, N3: install-exclusions takes the release's
+    exact record there, the state an install stopped after its first write
+    leaves (tested below)."""
     calls = _record_steps(monkeypatch)
     _resumable(workspace.stage)
     path = workspace.stage / "scoring" / EXCLUSIONS_NAME
     if record == "release":
         path.write_text(release_text())
+    elif record == "release_edited":
+        path.write_text(release_text() + "\n")
     else:
         path.write_bytes(path.read_bytes() + b"\n")
+    if (step, record) == ("install-exclusions", "release"):
+        _main_step(workspace, step)
+        assert calls == ["install_exclusions"]
+        return
     with pytest.raises(
         SystemExit, match=f"staged scoring {EXCLUSIONS_NAME} does not match its pin"
     ):
         _main_step(workspace, step)
+    assert calls == []
+
+
+def _stop_at_the_bundle_copy(monkeypatch) -> None:
+    """MOCK: writing the bundle's exclusion record fails, as a full disk
+    would; every other write goes through."""
+    write_text = Path.write_text
+
+    def write(path, *args, **kwargs):
+        if path.name == EXCLUSIONS_NAME and path.parent.name == "us":
+            raise OSError("MOCK: no space left on device")
+        return write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", write)
+
+
+def test_an_install_stopped_after_its_first_write_can_be_run_again(
+    workspace, monkeypatch
+):
+    """Review r2, N3 (G P3-1): an install stopped between its two writes
+    leaves the release's record in the scoring source, release 20261027's in
+    the bundle and no install recorded. The step run again passes main's
+    pins, writes both copies and records the install, and the next step's
+    pins pass. Before N3 the rerun stopped at the scoring copy's pin."""
+    _resumable(workspace.stage)
+    scoring = workspace.stage / "scoring" / EXCLUSIONS_NAME
+    bundle = workspace.stage / BOUND
+    with monkeypatch.context() as patch:
+        _stop_at_the_bundle_copy(patch)
+        with pytest.raises(OSError, match="MOCK: no space left"):
+            _main_step(workspace, "install-exclusions")
+    assert scoring.read_text() == release_text()
+    assert bundle.read_bytes() == base_blob(SNAPSHOT_PATH / EXCLUSIONS_NAME)
+    receipt = json.loads((workspace.stage / "stage.json").read_text())
+    assert "exclusions_installed" not in receipt
+    _main_step(workspace, "install-exclusions")
+    assert scoring.read_text() == bundle.read_text() == release_text()
+    receipt = json.loads((workspace.stage / "stage.json").read_text())
+    assert receipt["exclusions_installed"]["sha256"] == RELEASE_EXCLUSIONS_SHA256
+    assert receipt["files"][BOUND] == RELEASE_EXCLUSIONS_SHA256
+    calls = _record_steps(monkeypatch)
+    _main_step(workspace, "judge")
+    assert calls == ["judge"]
+
+
+@pytest.mark.parametrize("edit", ["bundle", "bound_bundle", "scoring_reference"])
+def test_a_half_written_install_takes_no_other_byte_state(workspace, monkeypatch, edit):
+    """Beside the half-written install's scoring copy, the bundle copy must
+    still be release 20261027's bound bytes and every other scoring
+    reference its pin: an edit to either stops the rerun before it writes.
+    The release's record in the bundle stops it whether or not stage.json
+    follows the edit (an install stopped after both writes leaves the
+    first; "prepare a new stage" recovers it)."""
+    _resumable(workspace.stage)
+    with monkeypatch.context() as patch:
+        _stop_at_the_bundle_copy(patch)
+        with pytest.raises(OSError, match="MOCK: no space left"):
+            _main_step(workspace, "install-exclusions")
+    if edit == "bundle":
+        (workspace.stage / BOUND).write_text(release_text())
+        message = "staged input changed"
+    elif edit == "bound_bundle":
+        (workspace.stage / BOUND).write_text(release_text())
+        _restamp(workspace.stage, workspace.stage / BOUND)
+        message = f"staged reference {EXCLUSIONS_NAME} does not match its pin"
+    else:
+        path = workspace.stage / "scoring" / driver.CSV_NAME
+        path.write_bytes(path.read_bytes() + b"\n")
+        message = f"staged scoring {driver.CSV_NAME} does not match its pin"
+    calls = _record_steps(monkeypatch)
+    before = _files(workspace.stage)
+    with pytest.raises(SystemExit, match=message):
+        _main_step(workspace, "install-exclusions")
+    assert calls == []
+    assert _files(workspace.stage) == before
+
+
+def test_a_stopped_reinstall_is_still_refused(workspace, monkeypatch):
+    """N3 accepts the release's record in the scoring copy only where no
+    install is recorded, as review r2 ruled. A reinstall, which later steps
+    ask for when the spec's record no longer matches the one installed,
+    stopped between its writes leaves the release's record in the scoring
+    copy beside the earlier record stage.json binds (MOCK bytes here): the
+    rerun stops at the scoring copy's pin, as before N3."""
+    earlier = release_text() + "MOCK earlier record\n"
+    _resumable(
+        workspace.stage,
+        exclusions_installed={"sha256": hashlib.sha256(earlier.encode()).hexdigest()},
+    )
+    for directory in ("scoring", f"publish/{RUN}/us"):
+        (workspace.stage / directory / EXCLUSIONS_NAME).write_text(earlier)
+    _restamp(workspace.stage, workspace.stage / BOUND)
+    (workspace.stage / "scoring" / EXCLUSIONS_NAME).write_text(release_text())
+    calls = _record_steps(monkeypatch)
+    with pytest.raises(
+        SystemExit, match=f"staged scoring {EXCLUSIONS_NAME} does not match its pin"
+    ):
+        _main_step(workspace, "install-exclusions")
     assert calls == []
 
 
