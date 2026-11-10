@@ -2171,9 +2171,9 @@ def test_check_a_lets_annotations_differ_only_on_reopened_and_decided_cases(
 
 # Review r2, N1, through the real exporter: triage applies a decision to a
 # case the new model did not re-open (here a MOCK decision on the ruled
-# output, which the MOCK incumbents answer wrong and the new model right), so
-# the release bundle's annotations carry the decided classes and sentence
-# where the base board's do not.
+# output, which the MOCK incumbents answer wrong; on the MOCK board the new
+# model answers it right), so the release bundle's annotations carry the
+# decided classes and sentence where the base board's do not.
 
 MOCK_CASE_NOTE = {
     "country": "us",
@@ -2184,8 +2184,9 @@ MOCK_CASE_NOTE = {
 
 
 def carried_answers() -> dict:
-    """mixed_answers() with the MOCK incumbents wrong on the ruled row and
-    the new model right: the new model joins none of its wrong models."""
+    """mixed_answers() with the MOCK incumbents wrong on the ruled row; on
+    the MOCK board the new model answers it right, so it joins none of the
+    row's wrong models."""
     answers = mixed_answers()
     for model in MOCK_MODELS:
         answers[(model, RULED_ROW)] = "right" if model == NEW else "wrong"
@@ -4985,7 +4986,8 @@ def test_any_one_cell_off_the_base_on_a_kept_case_is_named(
     assert found == ([] if reopened else expected)
 
 
-# --- Check (a) on the ruled case carried over, on real data (review r2, N1) ---
+# --- Check (a) with the ruled case kept, on release 20261027's data from git ---
+# Review r2, N1.
 #
 # Triage applies d2180's decision to the ruled case whether or not the new
 # model re-opened it. These tests apply the entry adjudicate-exclusions builds
