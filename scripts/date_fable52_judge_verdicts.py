@@ -33,6 +33,7 @@ import argparse
 import copy
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -117,6 +118,11 @@ def new_waves(record: dict, spec: dict | None = None) -> dict[str, str]:
     triage_adjudications_written_on), only when the spec lists triage
     decisions, and its decisions are exactly theirs. Each written day must be
     a real YYYY-MM-DD day on or after its wave.
+
+    Review r1, M14 (Z P3-5): the receipt does not bind the spec, so each day
+    must also be the one the record's date conventions state for its wave
+    (recorded_written_day): the frozen record took its sentence from the
+    spec at the freeze, and the evidence must not name another day.
     """
     spec = driver.load_spec() if spec is None else spec
     days = {e["adjudicated_on"] for e in record["adjudications"]}
@@ -156,8 +162,43 @@ def new_waves(record: dict, spec: dict | None = None) -> dict[str, str]:
             f"written: {day!r}",
         )
         driver.require(wave <= day, f"the {wave} wave was written before it")
+        recorded = recorded_written_day(record, wave)
+        driver.require(
+            recorded == day,
+            f"the record's date conventions say the {wave} wave's decisions were "
+            f"written on {recorded!r} and the spec says {day!r}: the spec changed "
+            "since the freeze, or the record is not the frozen one",
+        )
         written[wave] = day
     return written
+
+
+def recorded_written_day(record: dict, wave: str) -> str | None:
+    """The day the record's date conventions say the wave's decisions were
+    written, or None if they name it in no such sentence or in more than one.
+
+    The sentence runs from "The <wave> wave's decision" (decisions for more
+    than one) to the first " UTC.", as driver.release_date_conventions
+    writes it, and ends "was written on <day> UTC." ("were" for more than
+    one). tests/test_adjudications.py parses the same sentence. A span that
+    reaches another wave's sentence names no day of this wave's.
+    """
+    conventions = record.get("date_conventions")
+    opening = f"The {wave} wave's decision"
+    if not isinstance(conventions, str) or conventions.count(opening) != 1:
+        return None
+    start = conventions.index(opening)
+    end = conventions.find(" UTC.", start)
+    if end < 0 or re.search(
+        r"The \d{4}-\d{2}-\d{2} wave's", conventions[start + len(opening) : end]
+    ):
+        return None
+    found = re.fullmatch(
+        re.escape(opening) + r"s? .+ (?:was|were) written on (\d{4}-\d{2}-\d{2}) UTC\.",
+        conventions[start : end + len(" UTC.")],
+        re.DOTALL,
+    )
+    return found.group(1) if found else None
 
 
 def restatements(stage: Path, record: dict) -> dict:
@@ -214,10 +255,21 @@ def restatements(stage: Path, record: dict) -> dict:
     }
 
 
+def base_evidence() -> dict:
+    """Release 20261027's evidence, read from git at BASE_COMMIT. This step
+    rewrites the working tree's copy; the base's has not changed since
+    release 20261027 published it."""
+    return json.loads(driver.base_commit_blob(EVIDENCE.relative_to(ROOT)))
+
+
 def base_wave_releases(waves: dict) -> dict:
     """Release 20261027's waves alone, each naming the commit that published
     it: nothing waits to be filled. Waves after them are this release's own,
-    uncommitted, from an earlier pass; they are dropped and written again."""
+    uncommitted, from an earlier pass; they are dropped and written again.
+
+    Review r1, M14 (Z P3-3): each of release 20261027's waves must be that
+    release's record of it, commit, release, pull request and day, as its
+    evidence file holds them at BASE_COMMIT."""
     driver.require(
         list(waves)[: len(BASE_WAVES)] == BASE_WAVES,
         "the evidence's waves are not release 20261027's",
@@ -237,7 +289,48 @@ def base_wave_releases(waves: dict) -> dict:
         not unfilled,
         f"the evidence leaves release 20261027's waves unfilled: {unfilled}",
     )
+    base = base_evidence()["wave_releases"]
+    driver.require(
+        list(base) == BASE_WAVES, "release 20261027's evidence names other waves"
+    )
+    changed = [wave for wave in BASE_WAVES if waves[wave] != base[wave]]
+    driver.require(
+        not changed,
+        f"the evidence's records of release 20261027's waves {changed} are not "
+        "that release's",
+    )
     return {wave: waves[wave] for wave in BASE_WAVES}
+
+
+def verify_base_cases(evidence: dict, ours: set[str]) -> None:
+    """Review r1, M14 (Z P3-3): every case outside this release's waves is
+    release 20261027's evidence for it, and so is the rest of the file
+    beside the waves. A case this release's waves decide keeps release
+    20261027's fields too, if it has any, besides the two this step writes:
+    'current', the stage verdict, and 'published', which it drops."""
+    base = base_evidence()
+    driver.require(
+        {k: v for k, v in evidence.items() if k not in ("wave_releases", "cases")}
+        == {k: v for k, v in base.items() if k not in ("wave_releases", "cases")},
+        "the evidence's note or fields are not release 20261027's",
+    )
+    cases, before = evidence["cases"], base["cases"]
+    changed = sorted(
+        case
+        for case in set(cases) | set(before)
+        if case not in ours and cases.get(case) != before.get(case)
+    )
+    written = ("current", "published")
+    changed += sorted(
+        case
+        for case in ours & set(cases)
+        if {k: v for k, v in cases[case].items() if k not in written}
+        != {k: v for k, v in before.get(case, {}).items() if k not in written}
+    )
+    driver.require(
+        not changed,
+        f"the evidence's cases {changed[:8]} are not release 20261027's",
+    )
 
 
 def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
@@ -247,7 +340,12 @@ def updated_evidence(evidence: dict, stage: Path, record: dict) -> dict:
     gains the stage verdict it names ('current')."""
     evidence = copy.deepcopy(evidence)
     waves = base_wave_releases(evidence["wave_releases"])
-    for wave, written in new_waves(record).items():
+    new = new_waves(record)
+    verify_base_cases(
+        evidence,
+        {case_id(e) for e in record["adjudications"] if e["adjudicated_on"] in new},
+    )
+    for wave, written in new.items():
         waves[wave] = {
             "commit": None,
             "release": driver.RELEASE_TAG,
