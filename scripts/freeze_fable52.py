@@ -1045,9 +1045,12 @@ def committed_amendments(stage: Path) -> bytes:
     """The wording amendments record this freeze commits.
 
     Release 20261027's committed record (from git at BASE_COMMIT) lists the
-    amendments earlier releases' re-opened cases needed, and that wording is
-    still published, so this freeze never replaces the record. With no
-    stage list, or an empty one, the freeze commits it unchanged. A stage list
+    amendments earlier releases' re-opened cases needed, and this freeze
+    never replaces the record. (Review r3, Q8: release 20261027's committed
+    files still show the old text of the 14 amendments it lists for release
+    20261013b's five cases; the carry, driver.carry_kept_wording, keeps the
+    files' text as they hold it.) With no stage list, or an empty one, the
+    freeze commits it unchanged. A stage list
     (driver.load_amendments checks each item names a case a new model
     re-opened) follows the earlier amendments, in its own order, and the note
     says which items are this release's; a note the stage list carries
