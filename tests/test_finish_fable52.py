@@ -786,13 +786,26 @@ def test_the_derivation_takes_its_sentence_once_before_its_marker():
         driver.build_release_exclusions(driver.base_exclusion_record(), spec)
 
 
+# The two mutations of the ruled record find it by its key. By position,
+# add_another_output followed by drop_the_ruled_record dropped the added
+# record instead, and the mutated record matched the release's.
+def _drop_the_ruled_record(doc: dict) -> None:
+    doc["exclusions"] = [
+        record for record in doc["exclusions"] if driver.spec_key(record) != RULED
+    ]
+
+
+def _edit_the_ruled_value(doc: dict) -> None:
+    for record in doc["exclusions"]:
+        if driver.spec_key(record) == RULED:
+            record.update(alternative_value=1920.0)
+
+
 RECORD_MUTATIONS = {
     "drop_a_base_record": lambda d: d["exclusions"].pop(0),
-    "drop_the_ruled_record": lambda d: d["exclusions"].pop(-2),
+    "drop_the_ruled_record": _drop_the_ruled_record,
     "edit_a_base_note": lambda d: d["exclusions"][3].update(note="edited"),
-    "edit_the_ruled_value": lambda d: d["exclusions"][-2].update(
-        alternative_value=1920.0
-    ),
+    "edit_the_ruled_value": _edit_the_ruled_value,
     "add_another_output": lambda d: d["exclusions"].insert(-1, _another_record()),
     "reorder": lambda d: d["exclusions"].reverse(),
     "edit_the_derivation": lambda d: d.update(derivation=d["derivation"] + " "),
@@ -805,12 +818,15 @@ RECORD_MUTATIONS = {
         st.sampled_from(sorted(RECORD_MUTATIONS)), min_size=1, max_size=3, unique=True
     )
 )
+@example(names=["add_another_output", "drop_the_ruled_record"])
+@example(names=["add_another_output", "edit_the_ruled_value", "drop_the_ruled_record"])
 def test_a_record_that_differs_from_the_releases_is_refused_at_later_steps(
     pinned_directory, names
 ):
     doc = release_record()
     for name in names:
         RECORD_MUTATIONS[name](doc)
+    assert driver.exclusions_text(doc) != release_text(), names
     path = pinned_directory / EXCLUSIONS_NAME
     original = path.read_bytes()
     release = driver.release_exclusions_sha256()
