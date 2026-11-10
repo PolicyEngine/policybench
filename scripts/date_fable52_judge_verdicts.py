@@ -415,10 +415,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--stage-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     record = committed_record()
-    OUT.write_text(json.dumps(restatements(args.stage_dir, record), indent=1) + "\n")
+    # Review r2, N5 (R P3-5): both files' contents, every check run, before
+    # either write, so a refusal leaves both files as they were.
+    restated = restatements(args.stage_dir, record)
     evidence = updated_evidence(
         json.loads(EVIDENCE.read_text()), args.stage_dir, record
     )
+    OUT.write_text(json.dumps(restated, indent=1) + "\n")
     EVIDENCE.write_text(json.dumps(evidence, indent=2) + "\n")
     print(f"Wrote {OUT.relative_to(ROOT)} and {EVIDENCE.relative_to(ROOT)}")
 

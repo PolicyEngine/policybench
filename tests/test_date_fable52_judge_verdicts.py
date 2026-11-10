@@ -16,6 +16,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -640,3 +641,93 @@ def test_a_verdict_its_sidecar_does_not_bind_is_refused(tmp_path):
         dating.updated_evidence(
             committed_evidence(), tmp_path, record_with(ruled_entry())
         )
+
+
+# --- Review r2, N5 (R P3-5): compute both files, then write both -------------
+
+
+@pytest.fixture
+def dated(tmp_path, monkeypatch, reopened):
+    """main on a MOCK stage whose ruled decision the step restates: the MOCK
+    frozen record, release 20261027's evidence as the working copy, and both
+    output files under a MOCK checkout in pytest's temporary directory (each
+    at its real path relative to the checkout)."""
+    write_verdict(tmp_path)
+    reopened(CASE)
+    record = record_with(ruled_entry())
+    root = tmp_path / "checkout"
+    out = root / dating.OUT.relative_to(REPO)
+    evidence = root / dating.EVIDENCE.relative_to(REPO)
+    out.parent.mkdir(parents=True)
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(json.dumps(committed_evidence(), indent=2) + "\n")
+    monkeypatch.setattr(dating, "committed_record", lambda: copy.deepcopy(record))
+    monkeypatch.setattr(dating, "ROOT", root)
+    monkeypatch.setattr(dating, "OUT", out)
+    monkeypatch.setattr(dating, "EVIDENCE", evidence)
+    return SimpleNamespace(
+        stage=tmp_path,
+        out=out,
+        evidence=evidence,
+        record=record,
+        run=lambda: dating.main(["--stage-dir", str(tmp_path)]),
+    )
+
+
+def test_main_writes_both_files_and_a_second_run_the_same_bytes(dated):
+    dated.run()
+    assert json.loads(dated.out.read_text()) == dating.restatements(
+        dated.stage, dated.record
+    )
+    assert json.loads(dated.evidence.read_text()) == dating.updated_evidence(
+        committed_evidence(), dated.stage, dated.record
+    )
+    first = (dated.out.read_bytes(), dated.evidence.read_bytes())
+    dated.run()
+    assert (dated.out.read_bytes(), dated.evidence.read_bytes()) == first
+
+
+def _edit_evidence(dated, edit) -> None:
+    evidence = json.loads(dated.evidence.read_text())
+    edit(evidence)
+    dated.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
+
+
+REFUSALS = {
+    # The review's case: base_wave_releases, after restatements has passed.
+    "a base wave's commit edited": (
+        lambda dated: _edit_evidence(
+            dated, lambda e: e["wave_releases"]["2026-10-14"].update(commit="MOCK")
+        ),
+        r"waves \['2026-10-14'\] are not that",
+    ),
+    # verify_base_cases, after restatements has passed.
+    "a carried case's verdict edited": (
+        lambda dated: _edit_evidence(
+            dated, CASE_EDITS["a carried case's current verdict"]
+        ),
+        "cases .* are not release 20261027's",
+    ),
+    # restatements' own refusal, which stopped the step before N5 too.
+    "the provenance unbound": (lambda dated: _rebind(dated.stage), NOT_BOUND),
+}
+
+
+@pytest.mark.parametrize("refusal", list(REFUSALS))
+@pytest.mark.parametrize("earlier", ["none", "a previous run's"])
+def test_a_refusal_leaves_neither_file_written(dated, refusal, earlier):
+    """Review r2, N5 (R P3-5): main computes the restatements and the updated
+    evidence, every check included, before it writes either file, so a
+    refusal leaves both as they were: absent, or as a previous run wrote
+    them. Before N5 main wrote the restatements first, so an evidence
+    refusal left them written beside unchanged evidence."""
+    paths = (dated.out, dated.evidence)
+    if earlier != "none":
+        dated.run()
+    edit, message = REFUSALS[refusal]
+    edit(dated)
+    before = {path: path.read_bytes() for path in paths if path.is_file()}
+    with pytest.raises(SystemExit, match=message):
+        dated.run()
+    assert {path: path.read_bytes() for path in paths if path.is_file()} == before
+    assert dated.out.is_file() == (earlier != "none")
