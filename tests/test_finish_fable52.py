@@ -3338,6 +3338,21 @@ ISOLATION_DEFECTS = {
     "a turn at another effort": lambda case, v: _edit_transcript(
         case, lambda events: events[6].update(effort="low")
     ),
+    # Review r2, N2: one defect for each set or pattern the check reads
+    # (JUDGE_ATTACHMENTS, JUDGE_EVENT_TYPES, EMAIL_ADDRESS, ACCOUNT_KEY).
+    "an unlisted attachment": lambda case, v: _edit_transcript(
+        case, lambda events: events.insert(2, _attachment("skill_listing"))
+    ),
+    "an unlisted event type": lambda case, v: _edit_transcript(
+        case, lambda events: events.insert(2, _event("system", subtype="init"))
+    ),
+    "an e-mail address in a context attachment": lambda case, v: _edit_transcript(
+        case,
+        lambda events: events[4]["attachment"].update(note="mock.judge@example.com"),
+    ),
+    "an account key in a context attachment": lambda case, v: _edit_transcript(
+        case, lambda events: events[4]["attachment"].update(accountUuid="MOCK")
+    ),
 }
 
 
@@ -4759,6 +4774,212 @@ def test_the_comparison_sees_a_one_token_edit():
     edited = [line.replace(">= 0", "> 0", 1) for line in lines]
     assert edited != lines
     assert _code(edited) != _code(lines)
+
+
+# Review r2, N2: a gate runs on its body and on the module-level values its
+# body reads. Each value an inherited definition reads, and each value such a
+# value reads in turn, bound in either script, must after the rename map be
+# Terra's, save the seven this release sets by design, which the tests at the
+# top of this file pin: the counts (BASE_MODELS, NEW_EXCLUSIONS), the base
+# commit, engine and payload hash, the seed digest and the reference pins.
+BY_DESIGN = frozenset(
+    {
+        "BASE_COMMIT",
+        "BASE_ENGINE",
+        "BASE_MODELS",
+        "NEW_EXCLUSIONS",
+        "BASE_SHA256",
+        "SEED_DIGEST_SHA256",
+        "BASE_REFERENCE_SHA256",
+    }
+)
+
+
+def _bound(target: ast.expr) -> list[str]:
+    """The names an assignment target binds (none for an item or attribute)."""
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return [name for item in target.elts for name in _bound(item)]
+    if isinstance(target, ast.Starred):
+        return _bound(target.value)
+    return []
+
+
+@functools.cache
+def _module_values(script: str) -> dict[str, list[list[str]]]:
+    """Each module-level assignment's lines, under each name it binds."""
+    text = (SCRIPTS / script).read_text()
+    lines = text.splitlines()
+    values: dict[str, list[list[str]]] = {}
+    for node in ast.parse(text).body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        source = lines[node.lineno - 1 : node.end_lineno]
+        for target in targets:
+            for name in _bound(target):
+                values.setdefault(name, []).append(source)
+    return values
+
+
+def _loads(lines: list[str]) -> set[str]:
+    return {
+        node.id
+        for node in ast.walk(ast.parse("\n".join(lines)))
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+    }
+
+
+@functools.cache
+def _read_values(ours: str, terra: str) -> frozenset[str]:
+    """The module-level names the listed definitions of ``ours`` read, and
+    the names those values read in turn, bound in either script."""
+    kept, renamed = next(
+        (kept, renamed) for mine, _, kept, renamed in INHERITED if mine == ours
+    )
+    sources, mine, theirs = (
+        _top_level_sources(ours),
+        _module_values(ours),
+        _module_values(terra),
+    )
+    pending = set().union(*(_loads(sources[name]) for name in (*kept, *renamed)))
+    seen: set[str] = set()
+    while pending:
+        name = pending.pop()
+        if name in seen or (name not in mine and name not in theirs):
+            continue
+        seen.add(name)
+        for block in mine.get(name, []):
+            pending |= _loads(block)
+    return frozenset(seen)
+
+
+def _same_value(ours: str, terra: str, name: str) -> bool:
+    mine, theirs = _module_values(ours).get(name), _module_values(terra).get(name)
+    return (
+        mine is not None
+        and theirs is not None
+        and [_code(block) for block in mine]
+        == [_code(_renamed(block)) for block in theirs]
+    )
+
+
+INHERITED_VALUES = [
+    (ours, terra, name)
+    for ours, terra, _, _ in INHERITED
+    for name in sorted(_read_values(ours, terra) - BY_DESIGN)
+]
+
+
+def test_the_values_the_inherited_gates_read_include_the_reviews_sets():
+    """Review r2's audit: 53 names in the driver (its 54 counted the
+    os.environ item, which binds none), 11 in the freeze, none in the dating
+    step; the 14 policy sets and patterns no fable52 test named among them."""
+    counts = {ours: len(_read_values(ours, terra)) for ours, terra, _, _ in INHERITED}
+    assert counts == {
+        "finish_fable52.py": 53,
+        "freeze_fable52.py": 11,
+        "date_fable52_judge_verdicts.py": 0,
+    }
+    assert _read_values("finish_fable52.py", "finish_terra.py") >= {
+        "JUDGE_ATTACHMENTS",
+        "JUDGE_EVENT_TYPES",
+        "ACCOUNT_KEY",
+        "EMAIL_ADDRESS",
+        "JUDGE_PROMPT_NUDGE",
+        "JUDGE_SIDECAR_FIELDS",
+        "JUDGE_PROVENANCE_KEYS",
+        "JUDGE_PROVENANCE_ENTRY_KEYS",
+        "WITHHELD_ADDRESS",
+        "AMENDABLE_FIELDS",
+        "TRIAGE_FIELDS",
+        "TRIAGE_FINAL_SOURCES",
+        "EXCLUSION_REASON_CODES",
+        "PROVENANCE_GROUPS",
+    }
+
+
+def test_only_the_by_design_values_differ_from_terras():
+    differ = {
+        name
+        for ours, terra, _, _ in INHERITED
+        for name in _read_values(ours, terra)
+        if not _same_value(ours, terra, name)
+    }
+    assert differ == BY_DESIGN
+
+
+@pytest.mark.parametrize("ours, terra, name", INHERITED_VALUES)
+def test_a_value_an_inherited_gate_reads_is_terras(ours, terra, name):
+    """After the rename map, its assignment's code is Terra's."""
+    assert _same_value(ours, terra, name)
+
+
+def test_the_value_comparison_sees_a_widened_set():
+    """Review r2's case: "skill_listing" added to JUDGE_ATTACHMENTS."""
+    (block,) = _module_values("finish_fable52.py")["JUDGE_ATTACHMENTS"]
+    widened = [line.replace('"model",', '"model", "skill_listing",') for line in block]
+    assert widened != block
+    assert _code(widened) != _code(block)
+
+
+# Review r2, N2: the transcript check's sets and patterns are the runner's
+# (scripts/run_audit_claude.sh), and the provenance record's are Terra's
+# driver's, as Terra's tests held Terra's copy.
+
+RUNNER = REPO / "scripts" / "run_audit_claude.sh"
+
+
+def _runner_line(prefix: str) -> str:
+    return next(
+        line for line in RUNNER.read_text().splitlines() if line.startswith(prefix)
+    )
+
+
+def test_the_runners_attachment_allowlist_is_the_gates():
+    line = _runner_line("ATTACHMENTS=")
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_ATTACHMENTS
+
+
+def test_the_runners_event_types_are_the_gates():
+    line = _runner_line("EVENT_TYPES=")
+    assert set(line.split('"')[1].split(",")) == driver.JUDGE_EVENT_TYPES
+
+
+def test_the_runners_account_patterns_are_the_gates():
+    script = RUNNER.read_text()
+    assert driver.ACCOUNT_KEY.flags & re.IGNORECASE
+    assert f'account_key = re.compile(r"{driver.ACCOUNT_KEY.pattern}", re.I)' in script
+    assert f'email_address = re.compile(r"{driver.EMAIL_ADDRESS.pattern}")' in script
+
+
+def test_the_runners_nudge_is_the_gates():
+    assert _runner_line("PROMPT_NUDGE=") == (
+        f'PROMPT_NUDGE="{driver.JUDGE_PROMPT_NUDGE}"'
+    )
+
+
+def test_the_transcript_and_provenance_values_are_terras_drivers():
+    import finish_terra as terra
+
+    for name in (
+        "JUDGE_ATTACHMENTS",
+        "JUDGE_EVENT_TYPES",
+        "JUDGE_PROMPT_NUDGE",
+        "JUDGE_PROVENANCE_KEYS",
+        "JUDGE_PROVENANCE_ENTRY_KEYS",
+        "JUDGE_SIDECAR_FIELDS",
+        "WITHHELD_ADDRESS",
+        "JUDGE_MODEL",
+    ):
+        assert getattr(driver, name) == getattr(terra, name), name
+    for name in ("ACCOUNT_KEY", "EMAIL_ADDRESS"):
+        ours, theirs = getattr(driver, name), getattr(terra, name)
+        assert (ours.pattern, ours.flags) == (theirs.pattern, theirs.flags), name
 
 
 # provenance_note rewords Terra's note: a case re-opens here only because
