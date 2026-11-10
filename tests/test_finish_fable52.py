@@ -4315,9 +4315,7 @@ def _mock_base_files(rows, cases, decisions, amended=None) -> dict[str, bytes]:
     from policybench.adjudications import apply_adjudications
 
     rows, cases = rows.copy(), cases.rename(columns=PLURAL).copy()
-    rows.loc[[c == amended for c in _case_ids(rows)], "annotation"] = (
-        MOCK_PUBLISHED_ROW
-    )
+    rows.loc[[c == amended for c in _case_ids(rows)], "annotation"] = MOCK_PUBLISHED_ROW
     cases.loc[[c == amended for c in _case_ids(cases)], "case_annotation"] = (
         MOCK_PUBLISHED_NOTE
     )
@@ -4602,25 +4600,67 @@ def test_triage_carries_a_kept_cases_published_wording(triage_stage):
 
 
 def _second_decided(triage_stage) -> str:
-    """A kept case the MOCK amendment does not reword."""
-    return driver.case_id(triage_stage.staged["adjudications"][1])
-
-
-def _edit_row_class(state, case: str) -> list[str]:
-    state.rows.loc[_on(state.rows, case).index[0], "failure_subtype"] = (
-        "credit_phaseout"
+    """A kept case the stage's record decides and the MOCK amendment does
+    not reword."""
+    return next(
+        case
+        for case in map(driver.case_id, triage_stage.staged["adjudications"])
+        if case not in (RULED_CASE, triage_stage.state.amended)
     )
-    return [f"{case} incumbent-a failure_subtype"]
 
 
-def _edit_hypothesis(state, case: str) -> list[str]:
+def _add_kept_case(state, scenario: str, source: str, subtype: str) -> tuple:
+    """Give the MOCK board a case release 20261027's files (MOCK) hold and no
+    record decides: one incumbent's wrong row, the files' text in the base
+    and collect_audit's (MOCK) in the stage. Returns the stage's row and
+    note."""
+    case = {"country": "us", "scenario_id": scenario, "variable": "snap"}
+    row = {
+        **case,
+        "model": "incumbent-a",
+        "failure_source": source,
+        "failure_subtype": subtype,
+        "reference_suspect": False,
+        "annotation": "MOCK row note.",
+    }
+    note = {
+        **case,
+        "reference_suspect": False,
+        "wrong_model_count": 1,
+        "case_failure_source": source,
+        "case_failure_subtype": subtype,
+        "reference_bug_hypothesis": "",
+        "case_annotation": "MOCK case note.",
+    }
+    base_rows, base_notes = state.base
+    published_row = {**row, "annotation": MOCK_PUBLISHED_ROW}
+    published_note = {**note, "case_annotation": MOCK_PUBLISHED_NOTE}
+    state.base = (
+        pd.concat([base_rows, pd.DataFrame([published_row])], ignore_index=True),
+        pd.concat([base_notes, pd.DataFrame([published_note])], ignore_index=True),
+    )
+    state.rows = pd.concat([state.rows, pd.DataFrame([row])], ignore_index=True)
+    state.cases = pd.concat([state.cases, pd.DataFrame([note])], ignore_index=True)
+    return row, note
+
+
+def _edit_row_class(triage_stage) -> list[str]:
+    state = triage_stage.state
+    _add_kept_case(state, "scenario_997", "llm_error", "thresholds_rates")
+    state.rows.loc[state.rows.index[-1], "failure_subtype"] = "credit_phaseout"
+    return ["us__scenario_997__snap incumbent-a failure_subtype"]
+
+
+def _edit_hypothesis(triage_stage) -> list[str]:
+    state, case = triage_stage.state, _second_decided(triage_stage)
     state.cases.loc[_on(state.cases, case).index[0], "reference_bug_hypothesis"] = (
         "MOCK: a hypothesis release 20261027 did not publish."
     )
     return [f"{case} case note reference_bug_hypothesis"]
 
 
-def _add_incumbent_row(state, case: str) -> list[str]:
+def _add_incumbent_row(triage_stage) -> list[str]:
+    state, case = triage_stage.state, _second_decided(triage_stage)
     row = _on(state.rows, case).iloc[0].to_dict()
     extra = pd.DataFrame([{**row, "model": "incumbent-b"}])
     state.rows = pd.concat([state.rows, extra], ignore_index=True)
@@ -4639,10 +4679,10 @@ def _add_incumbent_row(state, case: str) -> list[str]:
 def test_triage_stops_before_it_writes_on_a_kept_case_off_release_20261027s(
     triage_stage, edit
 ):
-    """MOCK edits to a kept case's collected frames (a row's class, the
-    note's hypothesis, an incumbent's row release 20261027's files lack)
-    stop triage at the kept-case gate, which names each cell, before it
-    writes either annotation file."""
+    """MOCK edits to a kept case's collected frames (a row's class on a case
+    no record decides; the note's hypothesis, and an incumbent's row release
+    20261027's files lack, on a decided one) stop triage at the kept-case
+    gate, which names each cell, before it writes either annotation file."""
     annotations = triage_stage.bundle / "annotations"
 
     def files():
@@ -4653,7 +4693,7 @@ def test_triage_stops_before_it_writes_on_a_kept_case_off_release_20261027s(
         }
 
     before = files()
-    expected = edit(triage_stage.state, _second_decided(triage_stage))
+    expected = edit(triage_stage)
     with pytest.raises(
         SystemExit, match="a case this release keeps must carry"
     ) as refused:
@@ -4668,49 +4708,31 @@ def test_triage_keeps_a_new_models_row_on_a_kept_parse_failure_only_case(
     """On the MOCK board the new model joins a parse-failure-only case the
     release keeps, which no prompt re-opens: release 20261027's files (MOCK)
     hold the incumbent's row, and the stage holds it and the new model's.
-    Triage passes; the incumbent's row and the case note keep the files'
-    text and classes, the new model's row keeps the text collect_audit
-    built, and the note counts both rows."""
+    Triage passes; the incumbent's row and the case note take the files'
+    text, the new model's row keeps the text collect_audit built, and the
+    note counts both rows."""
     state = triage_stage.state
-    case = {"country": "us", "scenario_id": "scenario_998", "variable": "snap"}
-    row = {
-        **case,
-        "model": "incumbent-a",
-        "failure_source": "parse_contract_failure",
-        "failure_subtype": "missing_output",
-        "reference_suspect": False,
-        "annotation": PARSE_NOTE,
-    }
-    note = {
-        **case,
-        "reference_suspect": False,
-        "wrong_model_count": 1,
-        "case_failure_source": "parse_contract_failure",
-        "case_failure_subtype": "missing_output",
-        "reference_bug_hypothesis": "",
-        "case_annotation": PARSE_NOTE,
-    }
-    base_rows, base_notes = state.base
-    state.base = (
-        pd.concat([base_rows, pd.DataFrame([row])], ignore_index=True),
-        pd.concat([base_notes, pd.DataFrame([note])], ignore_index=True),
+    row, _ = _add_kept_case(
+        state, "scenario_998", "parse_contract_failure", "missing_output"
     )
-    joined = [row, {**row, "model": NEW}]
-    state.rows = pd.concat([state.rows, pd.DataFrame(joined)], ignore_index=True)
-    state.cases = pd.concat(
-        [state.cases, pd.DataFrame([{**note, "wrong_model_count": 2}])],
-        ignore_index=True,
-    )
+    joined = {
+        **row,
+        "model": NEW,
+        "annotation": "MOCK: the new model's row as collect_audit built it.",
+    }
+    state.rows = pd.concat([state.rows, pd.DataFrame([joined])], ignore_index=True)
+    state.cases.loc[state.cases.index[-1], "wrong_model_count"] = 2
     triage_stage.run()
     assert "Triage complete: 66 rows / 65 cases" in capsys.readouterr().out
     rows, notes = _written(triage_stage)
-    written = _on(rows, "us__scenario_998__snap")
-    assert written.to_dict("records") == [
-        {**row, "country": "us"},
-        {**row, "model": NEW},
+    case = "us__scenario_998__snap"
+    assert _on(rows, case).to_dict("records") == [
+        {**row, "annotation": MOCK_PUBLISHED_ROW},
+        joined,
     ]
-    (count,) = _on(notes, "us__scenario_998__snap").wrong_model_count
-    assert count == 2
+    assert _on(notes, case)[
+        ["wrong_model_count", "case_annotation"]
+    ].values.tolist() == [[2, MOCK_PUBLISHED_NOTE]]
 
 
 # The kept-case gate on MOCK frames: a judged case two incumbents answer wrong
@@ -4905,9 +4927,10 @@ def test_the_kept_gate_compares_no_reopened_case(gate_base):
     rows, cases = _uncarried(*_gate_frames())
     both = frozenset({GATE_JUDGED, GATE_PARSE})
     assert driver.kept_annotation_problems(rows, cases, both, []) == []
-    assert driver.kept_annotation_problems(
-        rows, cases, frozenset({GATE_PARSE}), []
-    ) == GATE_REFUSALS["the text collect_audit built"][1]
+    assert (
+        driver.kept_annotation_problems(rows, cases, frozenset({GATE_PARSE}), [])
+        == GATE_REFUSALS["the text collect_audit built"][1]
+    )
 
 
 NON_KEY_ROW_COLUMNS = (
@@ -5049,7 +5072,9 @@ def _seed_shaped_text() -> tuple[str, str]:
     from policybench.adjudications import _strip_adjudication_sentence
 
     rows, cases = (
-        pd.read_csv(io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False)
+        pd.read_csv(
+            io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False
+        )
         for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
     )
     cases["case_annotation"] = [
@@ -5162,8 +5187,9 @@ def test_check_a_passes_the_ruled_decision_on_release_20261027s_own_cells(
     published row annotations. Check (a) passes them with the case decided
     and not re-opened, and with it re-opened; holding every case to the
     base, the rule before review r2's N1, refuses all nine. With the case
-    re-opened, the stage's own text moves the nine annotations too, which
-    only the re-opened rule passes."""
+    re-opened, its rows keep the seed-shaped text, so each cell whose row
+    annotation release 20261027's amendments reworded moves in annotation
+    too, which only the re-opened rule passes."""
     entry = ruled.after[RULED_CASE]
     scoped, moved, changed = decided_on_the_base(base_live, entry)
     held = base_live["countries"]["us"]["scenarioPredictions"][RULED[0]][RULED[1]]
@@ -5181,15 +5207,21 @@ def test_check_a_passes_the_ruled_decision_on_release_20261027s_own_cells(
     scoped, moved, changed = decided_on_the_base(base_live, entry, {RULED_CASE})
     assert len(changed) == 9
     assert _moved_fields(moved, held, changed) == fields | {"annotation"}
+    reworded = [
+        m for m in changed if moved[m].get("annotation") != held[m].get("annotation")
+    ]
+    assert reworded
     assert scope_check(scoped, base_live, decided=decided) == problems_on(
-        RULED, changed
+        RULED, reworded
     )
     assert scope_check(scoped, base_live, {RULED_CASE}, decided) == []
 
 
 def _committed_frames() -> tuple:
     return tuple(
-        pd.read_csv(io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False)
+        pd.read_csv(
+            io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False
+        )
         for name in ANNOTATION_CSVS
     )
 
@@ -5224,21 +5256,13 @@ def test_the_seed_shaped_text_differs_from_release_20261027s_on_terras_cases():
         117,
     )
     assert RULED_CASE in cases
-    assert cases == {item["case_id"] for item in _terra_amendments()} - {
-        item["case_id"]
-        for item in _terra_amendments()
-        if item["field"] == "reasoning"
-        and not any(
-            other["case_id"] == item["case_id"] and other["field"] != "reasoning"
-            for other in _terra_amendments()
-        )
+    assert cases == {
+        item["case_id"] for item in _terra_amendments() if item["field"] != "reasoning"
     }
 
 
 @pytest.mark.parametrize("state", ["kept", "reopened"])
-def test_kept_cases_carry_release_20261027s_wording_on_its_data_from_git(
-    ruled, state
-):
+def test_kept_cases_carry_release_20261027s_wording_on_its_data_from_git(ruled, state):
     """Review r3, Q1, on release 20261027's data from git. From text shaped
     like the seed's, the driver's builder gives every case it keeps release
     20261027's committed rows and case note byte for byte, d2180's decision
@@ -5259,9 +5283,11 @@ def test_kept_cases_carry_release_20261027s_wording_on_its_data_from_git(
     got = _text_frames(*built)
     for want, have in zip(committed, got, strict=True):
         outside = [c != RULED_CASE for c in _case_ids(want)]
-        assert have[[c != RULED_CASE for c in _case_ids(have)]].reset_index(
-            drop=True
-        ).equals(want[outside].reset_index(drop=True))
+        assert (
+            have[[c != RULED_CASE for c in _case_ids(have)]]
+            .reset_index(drop=True)
+            .equals(want[outside].reset_index(drop=True))
+        )
     seed_rows, seed_cases = _text_frames(
         _seed_shaped()["row"], _seed_shaped()["case"].rename(columns=PLURAL)
     )
@@ -5291,7 +5317,9 @@ def test_kept_cases_carry_release_20261027s_wording_on_its_data_from_git(
             )
 
 
-SEED_AUDIT = Path.home() / "reviews/policybench-gpt-6-1-terra/worktree-results/stage/audit"
+SEED_AUDIT = (
+    Path.home() / "reviews/policybench-gpt-6-1-terra/worktree-results/stage/audit"
+)
 
 
 @pytest.mark.skipif(
@@ -5316,9 +5344,12 @@ def test_kept_cases_carry_release_20261027s_wording_on_the_bound_seed():
         assert driver.annotation_csv_text(frame).encode() == base_blob(
             ANNOTATIONS_PATH / name
         )
-    assert driver.kept_annotation_problems(
-        *built, frozenset(), driver.base_adjudications()
-    ) == []
+    assert (
+        driver.kept_annotation_problems(
+            *built, frozenset(), driver.base_adjudications()
+        )
+        == []
+    )
 
 
 def _undecided_case(base_record: dict) -> tuple[str, str]:
