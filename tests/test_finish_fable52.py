@@ -4281,6 +4281,71 @@ def test_the_spec_must_restate_exactly_the_ruled_outputs_already_decided(
         )
 
 
+# Review r3, Q1: release 20261027's two committed annotation files, and the
+# MOCK stand-ins the triage and unit tests below serve in their place.
+ANNOTATION_CSVS = ("us_audit_row_annotations.csv", "us_case_notes.csv")
+PLURAL = {
+    "case_failure_source": "case_failure_sources",
+    "case_failure_subtype": "case_failure_subtypes",
+}
+MOCK_PUBLISHED_ROW = "MOCK: the row annotation as release 20261027 published it."
+MOCK_PUBLISHED_NOTE = "MOCK: the case note as release 20261027 published it."
+PARSE_NOTE = "All wrong responses were missing or unparseable predictions."
+
+
+def _case_ids(frame) -> list[str]:
+    return [
+        f"{country}__{scenario}__{variable}"
+        for country, scenario, variable in zip(
+            frame.country, frame.scenario_id, frame.variable, strict=True
+        )
+    ]
+
+
+def _on(frame, case: str):
+    """``frame``'s rows on ``case`` (an audit case id)."""
+    return frame[[found == case for found in _case_ids(frame)]]
+
+
+def _mock_base_files(rows, cases, decisions, amended=None) -> dict[str, bytes]:
+    """MOCK: release 20261027's two committed annotation files, built from
+    MOCK collected frames (collect_audit's columns) as its triage wrote them:
+    one MOCK committed amendment rewords case ``amended``'s row annotations
+    and case note, then ``decisions`` apply."""
+    from policybench.adjudications import apply_adjudications
+
+    rows, cases = rows.copy(), cases.rename(columns=PLURAL).copy()
+    rows.loc[[c == amended for c in _case_ids(rows)], "annotation"] = (
+        MOCK_PUBLISHED_ROW
+    )
+    cases.loc[[c == amended for c in _case_ids(cases)], "case_annotation"] = (
+        MOCK_PUBLISHED_NOTE
+    )
+    rows, cases, _ = apply_adjudications(rows, cases, decisions)
+    return {
+        name: frame.to_csv(index=False).encode()
+        for name, frame in zip(ANNOTATION_CSVS, (rows, cases), strict=True)
+    }
+
+
+def _serve_mock_base(monkeypatch, state, decisions=None) -> None:
+    """driver.base_commit_blob with release 20261027's two committed
+    annotation files built at each read from ``state.base`` (MOCK collected
+    frames) and ``state.amended`` (_mock_base_files), with its decisions
+    (release 20261027's, unless ``decisions`` names others), and every other
+    path from git."""
+    decisions = driver.base_adjudications() if decisions is None else decisions
+
+    def blob(path):
+        path = Path(path)
+        if path.parent == ANNOTATIONS_PATH and path.name in ANNOTATION_CSVS:
+            files = _mock_base_files(*state.base, decisions, state.amended)
+            return files[path.name]
+        return base_blob(path)
+
+    monkeypatch.setattr(driver, "base_commit_blob", blob)
+
+
 # Terra's triage_stage tests, ported: driver.triage itself on the stage after
 # --step adjudicate-exclusions, with MOCK collected annotations.
 
@@ -4347,6 +4412,15 @@ def triage_stage(ruled, monkeypatch):
             "case": state.cases.copy(),
         },
     )
+    # MOCK: release 20261027's two committed annotation files. They hold the
+    # 63 cases its record decides (on the MOCK board the ruled case is the
+    # new model's alone, so they lack it) as its triage wrote them, its
+    # decisions applied, and one MOCK committed amendment rewords the first
+    # decided case's row annotation and case note (review r3, Q1).
+    kept = [driver.case_id(key) != RULED_CASE for key in keys]
+    state.base = (state.rows[kept].copy(), state.cases[kept].copy())
+    state.amended = driver.case_id(ruled.base["adjudications"][0])
+    _serve_mock_base(monkeypatch, state)
 
     def run():
         driver.triage(SimpleNamespace(stage_dir=stage), bundle)
@@ -4487,6 +4561,407 @@ def test_triage_stops_when_a_case_miscounts_its_rows(triage_stage):
         triage_stage.run()
 
 
+# --- Kept cases carry release 20261027's wording (review r3, Q1) -------------
+#
+# Triage gives every case it keeps the row annotations and case note release
+# 20261027 published, beside this release's decisions (carry_kept_wording),
+# and stops before it writes when a kept case's rows or note differ from that
+# release's files (verify_kept_annotations). Here the files are MOCK
+# (triage_stage's state.base), and a MOCK committed amendment rewords one case.
+
+
+def _written(triage_stage) -> tuple:
+    annotations = triage_stage.bundle / "annotations"
+    return tuple(
+        pd.read_csv(annotations / name, keep_default_na=False)
+        for name in ANNOTATION_CSVS
+    )
+
+
+def test_triage_carries_a_kept_cases_published_wording(triage_stage):
+    """On the MOCK board triage writes the MOCK published row annotation and
+    case note on the kept case the MOCK committed amendment rewords, the
+    case's decision applied again, and keeps the collected text on the ruled
+    case, which the stage re-opened. Every kept case's rows and note are
+    release 20261027's files' (MOCK) byte for byte."""
+    triage_stage.run()
+    rows, notes = _written(triage_stage)
+    amended = triage_stage.state.amended
+    assert _on(rows, amended).annotation.tolist() == [MOCK_PUBLISHED_ROW]
+    (note,) = _on(notes, amended).case_annotation
+    assert note.startswith(MOCK_PUBLISHED_NOTE + " Developer adjudication (")
+    assert _on(rows, RULED_CASE).annotation.tolist() == ["MOCK row note."]
+    (ruled_note,) = _on(notes, RULED_CASE).case_annotation
+    assert ruled_note.startswith("MOCK case note. Developer adjudication (2026-11-01)")
+    files = _mock_base_files(
+        *triage_stage.state.base, driver.base_adjudications(), amended
+    )
+    for name, written in zip(ANNOTATION_CSVS, (rows, notes), strict=True):
+        kept = written[[case != RULED_CASE for case in _case_ids(written)]]
+        assert kept.to_csv(index=False).encode() == files[name]
+
+
+def _second_decided(triage_stage) -> str:
+    """A kept case the MOCK amendment does not reword."""
+    return driver.case_id(triage_stage.staged["adjudications"][1])
+
+
+def _edit_row_class(state, case: str) -> list[str]:
+    state.rows.loc[_on(state.rows, case).index[0], "failure_subtype"] = (
+        "credit_phaseout"
+    )
+    return [f"{case} incumbent-a failure_subtype"]
+
+
+def _edit_hypothesis(state, case: str) -> list[str]:
+    state.cases.loc[_on(state.cases, case).index[0], "reference_bug_hypothesis"] = (
+        "MOCK: a hypothesis release 20261027 did not publish."
+    )
+    return [f"{case} case note reference_bug_hypothesis"]
+
+
+def _add_incumbent_row(state, case: str) -> list[str]:
+    row = _on(state.rows, case).iloc[0].to_dict()
+    extra = pd.DataFrame([{**row, "model": "incumbent-b"}])
+    state.rows = pd.concat([state.rows, extra], ignore_index=True)
+    state.cases.loc[_on(state.cases, case).index[0], "wrong_model_count"] = 2
+    return [
+        f"{case} incumbent-b: a row release 20261027 does not hold",
+        f"{case} case note wrong_model_count",
+    ]
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [_edit_row_class, _edit_hypothesis, _add_incumbent_row],
+    ids=["a row's class", "the note's hypothesis", "a row the base lacks"],
+)
+def test_triage_stops_before_it_writes_on_a_kept_case_off_release_20261027s(
+    triage_stage, edit
+):
+    """MOCK edits to a kept case's collected frames (a row's class, the
+    note's hypothesis, an incumbent's row release 20261027's files lack)
+    stop triage at the kept-case gate, which names each cell, before it
+    writes either annotation file."""
+    annotations = triage_stage.bundle / "annotations"
+
+    def files():
+        return {
+            name: (annotations / name).read_bytes()
+            for name in ANNOTATION_CSVS
+            if (annotations / name).is_file()
+        }
+
+    before = files()
+    expected = edit(triage_stage.state, _second_decided(triage_stage))
+    with pytest.raises(
+        SystemExit, match="a case this release keeps must carry"
+    ) as refused:
+        triage_stage.run()
+    assert str(refused.value).endswith(f"these differ: {expected}")
+    assert files() == before
+
+
+def test_triage_keeps_a_new_models_row_on_a_kept_parse_failure_only_case(
+    triage_stage, capsys
+):
+    """On the MOCK board the new model joins a parse-failure-only case the
+    release keeps, which no prompt re-opens: release 20261027's files (MOCK)
+    hold the incumbent's row, and the stage holds it and the new model's.
+    Triage passes; the incumbent's row and the case note keep the files'
+    text and classes, the new model's row keeps the text collect_audit
+    built, and the note counts both rows."""
+    state = triage_stage.state
+    case = {"country": "us", "scenario_id": "scenario_998", "variable": "snap"}
+    row = {
+        **case,
+        "model": "incumbent-a",
+        "failure_source": "parse_contract_failure",
+        "failure_subtype": "missing_output",
+        "reference_suspect": False,
+        "annotation": PARSE_NOTE,
+    }
+    note = {
+        **case,
+        "reference_suspect": False,
+        "wrong_model_count": 1,
+        "case_failure_source": "parse_contract_failure",
+        "case_failure_subtype": "missing_output",
+        "reference_bug_hypothesis": "",
+        "case_annotation": PARSE_NOTE,
+    }
+    base_rows, base_notes = state.base
+    state.base = (
+        pd.concat([base_rows, pd.DataFrame([row])], ignore_index=True),
+        pd.concat([base_notes, pd.DataFrame([note])], ignore_index=True),
+    )
+    joined = [row, {**row, "model": NEW}]
+    state.rows = pd.concat([state.rows, pd.DataFrame(joined)], ignore_index=True)
+    state.cases = pd.concat(
+        [state.cases, pd.DataFrame([{**note, "wrong_model_count": 2}])],
+        ignore_index=True,
+    )
+    triage_stage.run()
+    assert "Triage complete: 66 rows / 65 cases" in capsys.readouterr().out
+    rows, notes = _written(triage_stage)
+    written = _on(rows, "us__scenario_998__snap")
+    assert written.to_dict("records") == [
+        {**row, "country": "us"},
+        {**row, "model": NEW},
+    ]
+    (count,) = _on(notes, "us__scenario_998__snap").wrong_model_count
+    assert count == 2
+
+
+# The kept-case gate on MOCK frames: a judged case two incumbents answer wrong
+# and a parse-failure-only case one does, collect_audit's columns, and MOCK
+# release 20261027 files that hold both, the judged case's text reworded by a
+# MOCK committed amendment and no decision.
+GATE_JUDGED, GATE_PARSE = "us__scenario_901__snap", "us__scenario_902__snap"
+
+
+def _gate_frames() -> tuple:
+    def row(scenario, model, source, subtype, text):
+        return {
+            "country": "us",
+            "scenario_id": scenario,
+            "variable": "snap",
+            "model": model,
+            "failure_source": source,
+            "failure_subtype": subtype,
+            "reference_suspect": False,
+            "annotation": text,
+        }
+
+    def note(scenario, count, source, subtype, text):
+        return {
+            "country": "us",
+            "scenario_id": scenario,
+            "variable": "snap",
+            "wrong_model_count": count,
+            "case_failure_source": source,
+            "case_failure_subtype": subtype,
+            "reference_suspect": False,
+            "reference_bug_hypothesis": "",
+            "case_annotation": text,
+        }
+
+    judged = ("prompt_ambiguity", "state_local_rule")
+    parse = ("parse_contract_failure", "missing_output")
+    rows = pd.DataFrame(
+        [
+            row("scenario_901", "incumbent-a", *judged, "MOCK diagnosis a."),
+            row("scenario_901", "incumbent-b", *judged, "MOCK diagnosis b."),
+            row("scenario_902", "incumbent-a", *parse, PARSE_NOTE),
+        ]
+    )
+    cases = pd.DataFrame(
+        [
+            note("scenario_901", 2, *judged, "MOCK rationale."),
+            note("scenario_902", 1, *parse, PARSE_NOTE),
+        ]
+    )
+    return rows, cases
+
+
+@pytest.fixture
+def gate_base(monkeypatch):
+    state = SimpleNamespace(base=_gate_frames(), amended=GATE_JUDGED)
+    _serve_mock_base(monkeypatch, state, decisions=[])
+    return state
+
+
+def _built(rows, cases, rejudged=frozenset()):
+    return driver.annotation_frames(
+        {"row": rows, "case": cases}, frozenset(rejudged), [], []
+    )
+
+
+def test_the_carry_gives_kept_cases_the_published_text_by_row(gate_base):
+    """carry_kept_wording on MOCK frames: a kept case's rows and note take
+    the files' text, row by row; a re-opened case keeps the collected text;
+    no other column moves."""
+    rows, cases = _gate_frames()
+    carried_rows, carried_cases = driver.carry_kept_wording(
+        rows, cases.rename(columns=PLURAL), frozenset()
+    )
+    assert carried_rows.annotation.tolist() == [
+        MOCK_PUBLISHED_ROW,
+        MOCK_PUBLISHED_ROW,
+        PARSE_NOTE,
+    ]
+    assert carried_cases.case_annotation.tolist() == [MOCK_PUBLISHED_NOTE, PARSE_NOTE]
+    for carried, frame, column in (
+        (carried_rows, rows, "annotation"),
+        (carried_cases, cases.rename(columns=PLURAL), "case_annotation"),
+    ):
+        assert carried.drop(columns=column).equals(frame.drop(columns=column))
+    reopened_rows, reopened_cases = driver.carry_kept_wording(
+        rows, cases.rename(columns=PLURAL), frozenset({GATE_JUDGED})
+    )
+    assert reopened_rows.annotation.tolist() == rows.annotation.tolist()
+    assert reopened_cases.case_annotation.tolist() == cases.case_annotation.tolist()
+    assert rows.annotation.tolist()[0] == "MOCK diagnosis a."
+
+
+def test_the_kept_gate_passes_the_built_frames_and_a_new_models_parse_row(
+    gate_base,
+):
+    """The frames annotation_frames builds pass; so do they with the new
+    model's row on the parse-failure-only case and the note counting it."""
+    rows, cases = _gate_frames()
+    assert driver.kept_annotation_problems(*_built(rows, cases), frozenset(), []) == []
+    joined = rows.iloc[[2]].assign(model=NEW)
+    rows = pd.concat([rows, joined], ignore_index=True)
+    cases.loc[1, "wrong_model_count"] = 2
+    assert driver.kept_annotation_problems(*_built(rows, cases), frozenset(), []) == []
+
+
+def _uncarried(rows, cases):
+    return rows, cases.rename(columns=PLURAL)
+
+
+def _drop_row(rows, cases):
+    rows, cases = _built(rows, cases)
+    return rows.drop(index=1), cases
+
+
+def _double_row(rows, cases):
+    rows, cases = _built(rows, cases)
+    return pd.concat([rows, rows.iloc[[0]]], ignore_index=True), cases
+
+
+def _drop_note(rows, cases):
+    rows, cases = _built(rows, cases)
+    return rows, cases.drop(index=1)
+
+
+def _extra_incumbent(rows, cases):
+    rows, cases = _built(rows, cases)
+    extra = rows.iloc[[2]].assign(model="incumbent-c")
+    cases.loc[1, "wrong_model_count"] = 2
+    return pd.concat([rows, extra], ignore_index=True), cases
+
+
+def _uncounted_new_row(rows, cases):
+    rows, cases = _built(rows, cases)
+    return pd.concat([rows, rows.iloc[[2]].assign(model=NEW)], ignore_index=True), cases
+
+
+def _reordered(rows, cases):
+    rows, cases = _built(rows, cases)
+    return rows[[*rows.columns[1:], rows.columns[0]]], cases
+
+
+GATE_REFUSALS = {
+    "the text collect_audit built": (
+        _uncarried,
+        [
+            f"{GATE_JUDGED} incumbent-a annotation",
+            f"{GATE_JUDGED} incumbent-b annotation",
+            f"{GATE_JUDGED} case note case_annotation",
+        ],
+    ),
+    "a row gone": (_drop_row, [f"{GATE_JUDGED} incumbent-b: 0 rows, not one"]),
+    "a row twice": (_double_row, [f"{GATE_JUDGED} incumbent-a: 2 rows, not one"]),
+    "a note gone": (_drop_note, [f"{GATE_PARSE} case note: 0 notes, not one"]),
+    "an incumbent's row the base lacks": (
+        _extra_incumbent,
+        [
+            f"{GATE_PARSE} incumbent-c: a row release 20261027 does not hold",
+            f"{GATE_PARSE} case note wrong_model_count",
+        ],
+    ),
+    "a new model's row the note does not count": (
+        _uncounted_new_row,
+        [f"{GATE_PARSE} case note wrong_model_count"],
+    ),
+    "a column out of place": (
+        _reordered,
+        [
+            "the row annotations' columns ['scenario_id', 'variable', 'model', "
+            "'failure_source', 'failure_subtype', 'reference_suspect', "
+            "'annotation', 'country'] are not release 20261027's ['country', "
+            "'scenario_id', 'variable', 'model', 'failure_source', "
+            "'failure_subtype', 'reference_suspect', 'annotation']"
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "edit, expected", list(GATE_REFUSALS.values()), ids=list(GATE_REFUSALS)
+)
+def test_the_kept_gate_names_each_difference(gate_base, edit, expected):
+    rows, cases = edit(*_gate_frames())
+    assert driver.kept_annotation_problems(rows, cases, frozenset(), []) == expected
+    with pytest.raises(SystemExit, match="a case this release keeps must carry"):
+        driver.verify_kept_annotations(rows, cases, frozenset(), [])
+
+
+def test_the_kept_gate_compares_no_reopened_case(gate_base):
+    """The collected text on both MOCK cases, both re-opened: nothing to
+    compare. One kept: only its cells."""
+    rows, cases = _uncarried(*_gate_frames())
+    both = frozenset({GATE_JUDGED, GATE_PARSE})
+    assert driver.kept_annotation_problems(rows, cases, both, []) == []
+    assert driver.kept_annotation_problems(
+        rows, cases, frozenset({GATE_PARSE}), []
+    ) == GATE_REFUSALS["the text collect_audit built"][1]
+
+
+NON_KEY_ROW_COLUMNS = (
+    "failure_source",
+    "failure_subtype",
+    "reference_suspect",
+    "annotation",
+)
+NON_KEY_NOTE_COLUMNS = (
+    "wrong_model_count",
+    "case_failure_sources",
+    "case_failure_subtypes",
+    "reference_suspect",
+    "reference_bug_hypothesis",
+    "case_annotation",
+)
+
+
+@settings(
+    max_examples=80,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(
+    frame=st.sampled_from(["row", "note"]),
+    index=st.integers(0, 2),
+    column=st.integers(0, 5),
+    value=st.text(alphabet="MOCKxyz ", min_size=1, max_size=6),
+    reopened=st.booleans(),
+)
+def test_any_one_cell_off_the_base_on_a_kept_case_is_named(
+    gate_base, frame, index, column, value, reopened
+):
+    """Invariant: on the built MOCK frames, a single non-key cell set to any
+    other value is named alone, as the gate names it, on a kept case, and
+    passes on a re-opened one."""
+    rows, cases = _built(*_gate_frames())
+    target = rows if frame == "row" else cases
+    names = NON_KEY_ROW_COLUMNS if frame == "row" else NON_KEY_NOTE_COLUMNS
+    index %= len(target)
+    name = names[column % len(names)]
+    assume(str(target.loc[index, name]) != value)
+    target[name] = target[name].astype(object)
+    target.loc[index, name] = value
+    case = _case_ids(target)[index]
+    if frame == "row":
+        expected = [f"{case} {target.loc[index, 'model']} {name}"]
+    else:
+        expected = [f"{case} case note {name}"]
+    rejudged = frozenset({case}) if reopened else frozenset()
+    found = driver.kept_annotation_problems(rows, cases, rejudged, [])
+    assert found == ([] if reopened else expected)
+
+
 # --- Check (a) on the ruled case carried over, on real data (review r2, N1) ---
 #
 # Triage applies d2180's decision to the ruled case whether or not the new
@@ -4546,14 +5021,75 @@ def exported_cells(cells: dict, rows, cases, key: tuple[str, str]) -> dict:
     return out
 
 
-def decided_on_the_base(live: dict, entry: dict) -> tuple[dict, dict, list[str]]:
-    """``live`` with the incumbents' cells on ``entry``'s output as the
-    exporter writes them once ``entry`` is applied (apply_adjudications) to
-    release 20261027's annotations; the moved cells; the models whose cells
-    moved. The frames first reproduce release 20261027's own cells there,
-    byte for byte, so the mapping is the exporter's on this output."""
-    from policybench.adjudications import apply_adjudications
+# Review r3, Q1: release 20261027's committed wording amendments, the last
+# 1,578 of which (after the first 870) are Terra's, the ones that release
+# publishes. The seed is not in the repository: undoing Terra's text
+# amendments in reverse order on the committed files, and dropping each case
+# note's adjudication sentence, rebuilds the text collect_audit gives the
+# seed (the local test below checks it against the seed itself).
+TERRA_AMENDMENTS_START = 870
 
+
+@functools.cache
+def _terra_amendments() -> tuple[dict, ...]:
+    record = json.loads(base_blob(ANNOTATIONS_PATH / "us_wording-amendments.json"))
+    assert len(record["amendments"]) == 2448
+    assert (
+        "The last 1578 (after the first 870) are for cases a new model re-opened"
+        in record["note"]
+    )
+    return tuple(record["amendments"][TERRA_AMENDMENTS_START:])
+
+
+@functools.cache
+def _seed_shaped_text() -> tuple[str, str]:
+    """Release 20261027's two committed files with Terra's text amendments
+    undone, last first, and no adjudication sentence: CSV text in triage's
+    column names."""
+    from policybench.adjudications import _strip_adjudication_sentence
+
+    rows, cases = (
+        pd.read_csv(io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False)
+        for name in ("us_audit_row_annotations.csv", "us_case_notes.csv")
+    )
+    cases["case_annotation"] = [
+        _strip_adjudication_sentence(note) for note in cases.case_annotation
+    ]
+    for item in reversed(_terra_amendments()):
+        if item["field"] == "reasoning":
+            continue
+        frame = rows if item["field"] == "annotation" else cases
+        found = [case == item["case_id"] for case in _case_ids(frame)]
+        if item["field"] == "annotation":
+            found = [a and m == item["model"] for a, m in zip(found, frame.model)]
+        (index,) = frame.index[found]
+        text = frame.at[index, item["field"]]
+        assert text.count(item["new"]) == 1, item
+        frame.at[index, item["field"]] = text.replace(item["new"], item["old"])
+    return rows.to_csv(index=False), cases.to_csv(index=False)
+
+
+def _seed_shaped() -> dict:
+    """_seed_shaped_text as collect_audit returns its frames."""
+    rows_text, cases_text = _seed_shaped_text()
+    cases = pd.read_csv(io.StringIO(cases_text), keep_default_na=False)
+    return {
+        "row": pd.read_csv(io.StringIO(rows_text), keep_default_na=False),
+        "case": cases.rename(columns={v: k for k, v in PLURAL.items()}),
+    }
+
+
+def decided_on_the_base(
+    live: dict, entry: dict, rejudged: frozenset[str] = frozenset()
+) -> tuple[dict, dict, list[str]]:
+    """``live`` with the incumbents' cells on ``entry``'s output as the
+    exporter writes them from the frames triage builds
+    (driver.annotation_frames) from text shaped like the seed's
+    (_seed_shaped_text), ``entry`` decided beside release 20261027's
+    decisions and its case kept unless ``rejudged`` names it; the moved
+    cells; the models whose cells moved. Release 20261027's committed frames
+    first reproduce its own cells there, byte for byte, so the mapping is
+    the exporter's on this output."""
     key = driver.spec_key(entry)
     us = live["countries"]["us"]
     incumbents = {row["model"] for row in us["modelStats"]}
@@ -4564,7 +5100,9 @@ def decided_on_the_base(live: dict, entry: dict) -> tuple[dict, dict, list[str]]
     }
     rows, cases = base_annotation_frames()
     assert json.dumps(exported_cells(held, rows, cases, key)) == json.dumps(held)
-    rows, cases, _ = apply_adjudications(rows, cases, [entry])
+    rows, cases = driver.annotation_frames(
+        _seed_shaped(), frozenset(rejudged), [*driver.base_adjudications(), entry], []
+    )
     moved = exported_cells(held, rows, cases, key)
     country = dict(us)
     country["scenarioPredictions"] = dict(us["scenarioPredictions"])
@@ -4604,15 +5142,28 @@ def test_decided_cases_names_the_ruled_records_and_the_triage_items():
     )
 
 
+def _moved_fields(moved: dict, held: dict, changed: list[str]) -> set[str]:
+    return {
+        field
+        for model in changed
+        for field in held[model]
+        if moved[model][field] != held[model][field]
+    }
+
+
 def test_check_a_passes_the_ruled_decision_on_release_20261027s_own_cells(
     ruled, base_live
 ):
-    """On release 20261027's data, the d2180 entry moves nine incumbent cells
-    of the ruled output: eight wrong answers in their classes and case note,
-    one parse failure in its case note. Only the class fields and
-    caseAnnotation move. Check (a) passes them with the case decided and not
-    re-opened, and with it re-opened; holding every case to the base, the
-    rule before review r2's N1, refuses all nine."""
+    """On release 20261027's data from git, from text shaped like the seed's
+    (review r3, Q1), the d2180 entry moves nine incumbent cells of the ruled
+    output as triage builds them with the case kept: eight wrong answers in
+    their classes and case note, one parse failure in its case note. Only
+    the class fields and caseAnnotation move, since triage carries the
+    published row annotations. Check (a) passes them with the case decided
+    and not re-opened, and with it re-opened; holding every case to the
+    base, the rule before review r2's N1, refuses all nine. With the case
+    re-opened, the stage's own text moves the nine annotations too, which
+    only the re-opened rule passes."""
     entry = ruled.after[RULED_CASE]
     scoped, moved, changed = decided_on_the_base(base_live, entry)
     held = base_live["countries"]["us"]["scenarioPredictions"][RULED[0]][RULED[1]]
@@ -4621,16 +5172,153 @@ def test_check_a_passes_the_ruled_decision_on_release_20261027s_own_cells(
         m for m in changed if moved[m]["failureSource"] != held[m]["failureSource"]
     ]
     assert len(reclassed) == 8
-    fields = {
-        field
-        for model in changed
-        for field in held[model]
-        if moved[model][field] != held[model][field]
-    }
+    fields = _moved_fields(moved, held, changed)
     assert fields == release_20261006.CLASS_CELL_FIELDS | {"caseAnnotation"}
-    assert scope_check(scoped, base_live, decided=driver.decided_cases()) == []
+    decided = driver.decided_cases()
+    assert scope_check(scoped, base_live, decided=decided) == []
     assert scope_check(scoped, base_live, reopened={RULED_CASE}) == []
     assert scope_check(scoped, base_live) == problems_on(RULED, changed)
+    scoped, moved, changed = decided_on_the_base(base_live, entry, {RULED_CASE})
+    assert len(changed) == 9
+    assert _moved_fields(moved, held, changed) == fields | {"annotation"}
+    assert scope_check(scoped, base_live, decided=decided) == problems_on(
+        RULED, changed
+    )
+    assert scope_check(scoped, base_live, {RULED_CASE}, decided) == []
+
+
+def _committed_frames() -> tuple:
+    return tuple(
+        pd.read_csv(io.BytesIO(base_blob(ANNOTATIONS_PATH / name)), keep_default_na=False)
+        for name in ANNOTATION_CSVS
+    )
+
+
+def _text_frames(*frames) -> tuple:
+    return tuple(driver.annotation_text_frame(frame) for frame in frames)
+
+
+def test_the_seed_shaped_text_differs_from_release_20261027s_on_terras_cases():
+    """The premise of Q1, measured on git: Terra's text amendments make the
+    committed files differ from the seed-shaped text on 1,406 rows and 76
+    case notes, all on 117 cases, the ruled case among them, and nowhere
+    else; the base's committed CSVs read back as the files spell them."""
+    seed = _seed_shaped()
+    committed = _committed_frames()
+    for frame, name in zip(committed, ANNOTATION_CSVS, strict=True):
+        assert driver.annotation_csv_text(frame).encode() == base_blob(
+            ANNOTATIONS_PATH / name
+        )
+    rows_moved = seed["row"].annotation != committed[0].annotation
+    from policybench.adjudications import _strip_adjudication_sentence
+
+    notes = [_strip_adjudication_sentence(n) for n in committed[1].case_annotation]
+    notes_moved = seed["case"].case_annotation != pd.Series(notes)
+    cases = {
+        *(c for c, moved in zip(_case_ids(committed[0]), rows_moved) if moved),
+        *(c for c, moved in zip(_case_ids(committed[1]), notes_moved) if moved),
+    }
+    assert (int(rows_moved.sum()), int(notes_moved.sum()), len(cases)) == (
+        1406,
+        76,
+        117,
+    )
+    assert RULED_CASE in cases
+    assert cases == {item["case_id"] for item in _terra_amendments()} - {
+        item["case_id"]
+        for item in _terra_amendments()
+        if item["field"] == "reasoning"
+        and not any(
+            other["case_id"] == item["case_id"] and other["field"] != "reasoning"
+            for other in _terra_amendments()
+        )
+    }
+
+
+@pytest.mark.parametrize("state", ["kept", "reopened"])
+def test_kept_cases_carry_release_20261027s_wording_on_its_data_from_git(
+    ruled, state
+):
+    """Review r3, Q1, on release 20261027's data from git. From text shaped
+    like the seed's, the driver's builder gives every case it keeps release
+    20261027's committed rows and case note byte for byte, d2180's decision
+    (the entry the adjudicate step builds, its judge fields from a MOCK
+    verdict) applied beside the base's. With the ruled case kept, its rows
+    and note are the committed ones with the decision applied; re-opened,
+    they keep the stage's text with it. The kept-case gate passes both, and
+    with only the base's decisions the kept build is both committed files
+    exactly."""
+    from policybench.adjudications import adjudication_sentence
+
+    entry = ruled.after[RULED_CASE]
+    rejudged = frozenset() if state == "kept" else frozenset({RULED_CASE})
+    decisions = [*driver.base_adjudications(), entry]
+    built = driver.annotation_frames(_seed_shaped(), rejudged, decisions, [])
+    assert driver.kept_annotation_problems(*built, rejudged, decisions) == []
+    committed = _text_frames(*_committed_frames())
+    got = _text_frames(*built)
+    for want, have in zip(committed, got, strict=True):
+        outside = [c != RULED_CASE for c in _case_ids(want)]
+        assert have[[c != RULED_CASE for c in _case_ids(have)]].reset_index(
+            drop=True
+        ).equals(want[outside].reset_index(drop=True))
+    seed_rows, seed_cases = _text_frames(
+        _seed_shaped()["row"], _seed_shaped()["case"].rename(columns=PLURAL)
+    )
+    source_rows, source_notes = (
+        committed if state == "kept" else (seed_rows, seed_cases)
+    )
+    assert _on(got[0], RULED_CASE).annotation.tolist() == (
+        _on(source_rows, RULED_CASE).annotation.tolist()
+    )
+    (note,) = _on(got[1], RULED_CASE).case_annotation
+    (source,) = _on(source_notes, RULED_CASE).case_annotation
+    assert note == source.rstrip() + adjudication_sentence(entry)
+    (classes,) = _on(got[1], RULED_CASE)[
+        ["case_failure_sources", "case_failure_subtypes"]
+    ].values.tolist()
+    assert classes == [
+        entry["adjudicated_failure_source"],
+        entry["adjudicated_failure_subtype"],
+    ]
+    if state == "kept":
+        base_only = driver.annotation_frames(
+            _seed_shaped(), frozenset(), driver.base_adjudications(), []
+        )
+        for frame, name in zip(base_only, ANNOTATION_CSVS, strict=True):
+            assert driver.annotation_csv_text(frame).encode() == base_blob(
+                ANNOTATIONS_PATH / name
+            )
+
+
+SEED_AUDIT = Path.home() / "reviews/policybench-gpt-6-1-terra/worktree-results/stage/audit"
+
+
+@pytest.mark.skipif(
+    not (SEED_AUDIT / "cases").is_dir(), reason="needs release 20261027's audit seed"
+)
+def test_kept_cases_carry_release_20261027s_wording_on_the_bound_seed():
+    """(local) Review r3, Q1, on the seed itself, held to the committed digest:
+    collect_audit's text is the seed-shaped text rebuilt from git, and with
+    every case kept the driver's builder and release 20261027's 63 decisions
+    rebuild both of that release's committed files byte for byte."""
+    from policybench.audit import collect_audit
+
+    driver.verify_seed(driver.seed_digest(SEED_AUDIT))
+    collected = collect_audit(Path("us"), SEED_AUDIT)
+    rebuilt = _seed_shaped()
+    for frame, column in (("row", "annotation"), ("case", "case_annotation")):
+        assert collected[frame][column].tolist() == rebuilt[frame][column].tolist()
+    built = driver.annotation_frames(
+        collected, frozenset(), driver.base_adjudications(), []
+    )
+    for frame, name in zip(built, ANNOTATION_CSVS, strict=True):
+        assert driver.annotation_csv_text(frame).encode() == base_blob(
+            ANNOTATIONS_PATH / name
+        )
+    assert driver.kept_annotation_problems(
+        *built, frozenset(), driver.base_adjudications()
+    ) == []
 
 
 def _undecided_case(base_record: dict) -> tuple[str, str]:
@@ -4827,7 +5515,6 @@ INHERITED = (
             "read_json",
             "release_pointer",
             "repository_input_changes",
-            "verify_annotation_amendments",
             "verify_freezer_destinations",
             "verify_judge_provenance",
             "verify_repository_inputs",
@@ -4900,8 +5587,10 @@ def test_the_inherited_lists_hold_the_build_reports_counts():
     counts = [(len(kept), len(renamed)) for _, _, kept, renamed in INHERITED]
     # The report's 21 driver functions kept with names changed less
     # provenance_note, whose note this release rewords (tested below), and its
-    # 8 freeze functions less finalize, which M6 changed.
-    assert counts == [(60, 20), (17, 7), (4, 0)]
+    # 8 freeze functions less finalize, which M6 changed; its 17 freeze
+    # functions kept byte for byte less verify_annotation_amendments, which
+    # review r3's Q1 changed (its own tests are in the freeze's suite).
+    assert counts == [(60, 20), (16, 7), (4, 0)]
     assert len(set(BYTE_FOR_BYTE)) == len(BYTE_FOR_BYTE)
     assert len(set(NAMES_ONLY)) == len(NAMES_ONLY)
 
@@ -5217,6 +5906,7 @@ EXPORT_GATES = (
     "verify_parse_failure_flags",
     "verify_new_model_inputs",
     "verify_judge_provenance",
+    "verify_staged_annotations",
 )
 
 
@@ -5272,6 +5962,7 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
         "verify_parse_failure_flags",
         "verify_new_model_inputs",
         "verify_judge_provenance",
+        "verify_staged_annotations",
         "build_payload",
     ]
     calls = dict(enumerate(export_spy.calls))
@@ -5289,12 +5980,15 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
         frozenset({"MOCK"}),
         driver.JUDGE_PROVENANCE,
     )
+    # Review r3, Q3: the bundle and the cases the stage re-opened.
+    assert calls[9][1] == (tmp_path / "bundle", frozenset({"MOCK"}))
 
 
 @pytest.mark.parametrize(
     "mode, skipped",
     [
         # An early rehearsal has no verdicts yet: it skips the judge gates.
+        # Neither rehearsal holds triage's annotation files (review r3, Q3).
         (
             {"early": True},
             {
@@ -5302,11 +5996,15 @@ def test_export_runs_every_gate_before_it_builds_the_payload(export_spy, tmp_pat
                 "verify_parse_failure_flags",
                 "verify_new_model_inputs",
                 "verify_judge_provenance",
+                "verify_staged_annotations",
             },
         ),
         # A partial export previews the common cohort: it skips the stage
         # binding and the reference pins.
-        ({"partial": True}, {"stage_upgrade", "verify_reference_pins"}),
+        (
+            {"partial": True},
+            {"stage_upgrade", "verify_reference_pins", "verify_staged_annotations"},
+        ),
     ],
 )
 def test_a_rehearsal_skips_only_its_named_gates(export_spy, tmp_path, mode, skipped):
@@ -5484,8 +6182,9 @@ def test_export_hands_the_scope_check_the_cases_it_reopened_and_decides(
 ):
     """Review r1, M9, and review r2, N1: a release export passes
     rejudged_cases' cases and decided_cases' cases, whose annotation fields
-    check (a) lets differ from the base's; a rehearsal, which runs no scope
-    check, passes none."""
+    check (a) lets differ from the base's. Review r3, Q5: a partial
+    rehearsal runs no scope check, and an early one runs both on a stage
+    nothing has judged or triaged, so neither passes any case."""
     seen = {}
 
     def build(*args, **kw):

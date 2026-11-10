@@ -987,39 +987,38 @@ def annotation_differences(
 
 
 def verify_annotation_amendments(
-    annotations: Path, amendments: list[dict], audit: Path
+    annotations: Path, amendments: list[dict], audit: Path, rejudged: frozenset[str]
 ) -> None:
     """The staged row annotations and case notes are what triage builds from
-    the verdicts, the staged adjudications and the listed amendments, in every
-    column.
+    the verdicts, release 20261027's published wording, the staged
+    adjudications and the listed amendments, in every column.
 
-    Both frames are rebuilt as triage builds them: collect_audit folds each
-    verdict into its rows (the model's failure class and diagnosis) and its
-    case note (the case's classes, flag, hypothesis and rationale); the staged
-    adjudication record, whose reasoning verify_adjudication_record has
-    already replayed, sets each decided case's classes and appends its
-    sentence to the case note; then the listed amendments are replayed in
-    order, each old wording found exactly once when it is applied. Each staged
-    file must be the rebuilt frame's bytes as triage writes them
-    (driver.annotation_csv_text), so a failure class, flag or count edited on
-    a case no adjudication decides is refused as surely as unlisted wording,
-    even beside a listed fragment.
+    This rebuilds both frames as triage builds them (driver.annotation_frames):
+    collect_audit folds each verdict into its rows (the model's failure class
+    and diagnosis) and its case note (the case's classes, flag, hypothesis and
+    rationale); review r3, Q1: each case outside ``rejudged`` then takes the
+    row annotations and case note release 20261027 published
+    (driver.carry_kept_wording); the staged adjudication record, whose
+    reasoning verify_adjudication_record has already replayed, sets each
+    decided case's classes and appends its sentence to the case note; and
+    amend_annotations replays the listed amendments in order, finding each
+    old wording exactly once when it applies it. Each staged file must be the
+    rebuilt frame's bytes as triage writes them (driver.annotation_csv_text),
+    so this refuses a failure class, flag or count edited on a case no
+    adjudication decides as surely as unlisted wording, even beside a listed
+    fragment. The rebuilt frames must then pass triage's kept-case gate
+    (driver.verify_kept_annotations).
     """
-    from policybench.adjudications import apply_adjudications, load_adjudications
+    from policybench.adjudications import load_adjudications
     from policybench.audit import collect_audit
 
-    collected = collect_audit(annotations.parent / "us", audit)
-    rows, cases, _ = apply_adjudications(
-        collected["row"],
-        collected["case"].rename(
-            columns={
-                "case_failure_source": "case_failure_sources",
-                "case_failure_subtype": "case_failure_subtypes",
-            }
-        ),
-        load_adjudications(annotations / ADJUDICATIONS),
+    decisions = load_adjudications(annotations / ADJUDICATIONS)
+    rows, cases = driver.annotation_frames(
+        collect_audit(annotations.parent / "us", audit),
+        rejudged,
+        decisions,
+        amendments,
     )
-    driver.amend_annotations(rows, cases, amendments)
     for name, rebuilt, key in (
         ("us_case_notes.csv", cases, driver.KEY),
         ("us_audit_row_annotations.csv", rows, [*driver.KEY, "model"]),
@@ -1028,11 +1027,13 @@ def verify_annotation_amendments(
         if text.encode() != (annotations / name).read_bytes():
             differ = annotation_differences(text, annotations / name, ["country", *key])
             raise SystemExit(
-                f"Staged {name} is not what triage builds from the verdicts, the "
-                "staged adjudications and the listed wording amendments; it "
+                f"Staged {name} is not what triage builds from the verdicts, "
+                "release 20261027's published wording, the staged adjudications "
+                "and the listed wording amendments; it "
                 f"differs at {differ or ['its row order or serialization']}; run "
                 "triage and export again"
             )
+    driver.verify_kept_annotations(rows, cases, rejudged, decisions)
 
 
 def amendments_text(record: dict) -> str:
@@ -1627,7 +1628,9 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(
             f"Staged adjudications add {added} decisions the spec does not list"
         )
-    verify_annotation_amendments(staged_annotations, amendments, stage / "audit")
+    verify_annotation_amendments(
+        staged_annotations, amendments, stage / "audit", rejudged
+    )
     previous_rows = base_prediction_rows()
     staged_rows = pd.read_csv(source_us / "predictions.csv", low_memory=False)
     for model in sorted(incumbents):

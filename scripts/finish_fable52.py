@@ -1848,10 +1848,13 @@ def decided_cases(spec: dict | None = None) -> frozenset[str]:
 
     Review r2, N1: the spec's ruled records (spec_records) and its triage
     items (triage_items). Triage applies each decision in the staged record
-    to the stage's audit rows (apply_adjudications) whether or not a new
-    model re-opened the case, so the case's substantive rows and its case
-    note take the decided class, and its case note gains the adjudication
-    sentence.
+    (apply_adjudications) whether or not a new model re-opened the case, so
+    the case's substantive rows and its case note take the decided class,
+    and its case note gains the adjudication sentence. Review r3, Q1: on a
+    case a new model re-opened, it applies the decision to the rows and note
+    collect_audit builds from the stage's new verdict; on a case the release
+    keeps, to release 20261027's published rows and case note, which triage
+    carries first (carry_kept_wording).
     """
     spec = load_spec() if spec is None else spec
     decisions = [*spec_records(spec), *triage_items(spec)]
@@ -2195,6 +2198,262 @@ def annotation_csv_text(frame) -> str:
     """The bytes triage writes for the row annotations or the case notes, and
     the freeze rebuilds: every column, in collect_audit's row order."""
     return frame.to_csv(index=False)
+
+
+# Review r3, Q1: the two annotation files triage writes, under the names
+# release 20261027 committed them, and the keys of their rows and notes.
+ANNOTATION_CSV_NAMES = ("us_audit_row_annotations.csv", "us_case_notes.csv")
+ROW_KEY = ["country", *KEY, "model"]
+NOTE_KEY = ["country", *KEY]
+
+
+def base_annotation_frames():
+    """Release 20261027's row annotations and case notes as committed at
+    BASE_COMMIT: the text it published for each verdict, its wording
+    amendments applied.
+
+    Read with the types triage's frames have, and every cell the file leaves
+    empty as empty text, so apply_adjudications can write to them and
+    annotation_csv_text spells them back as the files spell them.
+    """
+    import io
+
+    import pandas as pd
+
+    return tuple(
+        pd.read_csv(
+            io.BytesIO(base_commit_blob(Path("annotations") / RUN_NAME / name)),
+            keep_default_na=False,
+        )
+        for name in ANNOTATION_CSV_NAMES
+    )
+
+
+def annotation_text_frame(frame):
+    """``frame`` as triage writes it (annotation_csv_text), read back with
+    every cell as its text: the form the kept-case gate compares."""
+    import io
+
+    import pandas as pd
+
+    return pd.read_csv(
+        io.StringIO(annotation_csv_text(frame)), dtype=str, keep_default_na=False
+    )
+
+
+def _frame_case_ids(frame) -> list[str]:
+    """Each row's audit case id (case_id's form)."""
+    return [
+        "__".join(key)
+        for key in frame[NOTE_KEY].astype(str).itertuples(index=False, name=None)
+    ]
+
+
+def carry_kept_wording(rows, cases, rejudged: frozenset[str]):
+    """collect_audit's ``rows`` and ``cases`` (triage's column names), each
+    case this release keeps carrying release 20261027's published wording.
+
+    Review r3, Q1. collect_audit writes a row's annotation from its verdict's
+    diagnosis and a case note from its rationale. A case outside
+    ``rejudged`` keeps the seed's verdict byte for byte, and release
+    20261027 published that verdict's text with the wording amendments its
+    committed us_wording-amendments.json lists (the last 1,578 of them
+    reword 1,406 rows and 76 case notes on 117 cases). So on such a case each
+    row that release's committed files hold (base_annotation_frames, by
+    country, scenario, output and model) takes their annotation, and the
+    case note takes theirs without its adjudication sentence, which
+    apply_adjudications then writes for each of this release's decisions. A
+    row the files do not hold keeps the text collect_audit built: on a kept
+    case, only a new model's row on a parse-failure-only case, which no
+    prompt re-opens (verify_reopened_by_predictions). Every other column
+    stays collect_audit's; verify_kept_annotations holds the result to the
+    files. Returns copies.
+    """
+    from policybench.adjudications import _strip_adjudication_sentence
+
+    base_rows, base_cases = base_annotation_frames()
+    published_rows = dict(
+        zip(
+            base_rows[ROW_KEY].astype(str).itertuples(index=False, name=None),
+            base_rows["annotation"],
+        )
+    )
+    published_notes = dict(
+        zip(
+            base_cases[NOTE_KEY].astype(str).itertuples(index=False, name=None),
+            map(_strip_adjudication_sentence, base_cases["case_annotation"]),
+        )
+    )
+    rows, cases = rows.copy(), cases.copy()
+    for frame, key, column, published in (
+        (rows, ROW_KEY, "annotation", published_rows),
+        (cases, NOTE_KEY, "case_annotation", published_notes),
+    ):
+        frame[column] = [
+            text if case in rejudged else published.get(found, text)
+            for case, found, text in zip(
+                _frame_case_ids(frame),
+                frame[key].astype(str).itertuples(index=False, name=None),
+                frame[column],
+            )
+        ]
+    return rows, cases
+
+
+def annotation_frames(collected: dict, rejudged: frozenset[str], decisions, amendments):
+    """The row annotations and case notes triage writes and the freeze
+    rebuilds (verify_annotation_amendments), from collect_audit's output.
+
+    Review r3, Q1: each kept case first takes release 20261027's published
+    wording (carry_kept_wording). apply_adjudications then gives each case
+    ``decisions`` names its classes and its sentence, and amend_annotations
+    replays the stage's listed amendments, which name re-opened cases only,
+    finding each old wording exactly once.
+    """
+    from policybench.adjudications import apply_adjudications
+
+    rows, cases = carry_kept_wording(
+        collected["row"],
+        collected["case"].rename(
+            columns={
+                "case_failure_source": "case_failure_sources",
+                "case_failure_subtype": "case_failure_subtypes",
+            }
+        ),
+        rejudged,
+    )
+    rows, cases, _ = apply_adjudications(rows, cases, decisions)
+    amend_annotations(rows, cases, amendments)
+    return rows, cases
+
+
+def kept_annotation_problems(
+    rows, cases, rejudged: frozenset[str], decisions, *, limit: int = 8
+) -> list[str]:
+    """Where a case this release keeps does not carry the rows and case note
+    release 20261027 published, beside this release's decisions.
+
+    Review r3, Q1. Every case release 20261027's committed files hold
+    (base_annotation_frames) outside ``rejudged`` is a kept case. Its case
+    note and each row the files hold must equal theirs once this release's
+    decisions on the kept cases are applied to them (apply_adjudications),
+    cell for cell as triage writes them (annotation_text_frame) and in every
+    column, but for the note's wrong_model_count, which must also count the
+    rows the new models add. A kept case may hold a row the files lack only
+    for a new model, which verify_reopened_by_predictions allows on a
+    parse-failure-only case alone. The gate compares no re-opened case and
+    no case the files lack. At most ``limit``.
+    """
+    from policybench.adjudications import apply_adjudications
+
+    base_rows, base_cases = base_annotation_frames()
+    kept = {case for case in _frame_case_ids(base_cases) if case not in rejudged}
+    want_rows, want_notes, _ = apply_adjudications(
+        base_rows.loc[[case in kept for case in _frame_case_ids(base_rows)]],
+        base_cases.loc[[case in kept for case in _frame_case_ids(base_cases)]],
+        [entry for entry in decisions if case_id(entry) in kept],
+    )
+    frames = {
+        name: (annotation_text_frame(got), annotation_text_frame(want))
+        for name, got, want in (
+            ("row annotations", rows, want_rows),
+            ("case notes", cases, want_notes),
+        )
+    }
+    for name, (got, want) in frames.items():
+        if list(got.columns) != list(want.columns):
+            return [
+                f"the {name}' columns {list(got.columns)} are not release "
+                f"20261027's {list(want.columns)}"
+            ]
+
+    def grouped(frame, key) -> dict[tuple, list[dict]]:
+        out: dict[tuple, list[dict]] = {}
+        for record in frame.to_dict("records"):
+            out.setdefault(tuple(record[k] for k in key), []).append(record)
+        return out
+
+    (got_rows, want_rows), (got_notes, want_notes) = frames.values()
+    got_r, want_r = grouped(got_rows, ROW_KEY), grouped(want_rows, ROW_KEY)
+    got_n, want_n = grouped(got_notes, NOTE_KEY), grouped(want_notes, NOTE_KEY)
+    new_models = set(MODELS.values())
+    problems: list[str] = []
+    added: dict[str, int] = {}
+    for key, found in got_r.items():
+        case = "__".join(key[:3])
+        if case not in kept or key in want_r:
+            continue
+        if key[3] in new_models and len(found) == 1:
+            added[case] = added.get(case, 0) + 1
+        else:
+            problems.append(f"{case} {key[3]}: a row release 20261027 does not hold")
+    for key, (want, *_) in want_r.items():
+        case, found = "__".join(key[:3]), got_r.get(key, [])
+        if len(found) != 1:
+            problems.append(f"{case} {key[3]}: {len(found)} rows, not one")
+            continue
+        problems += [
+            f"{case} {key[3]} {column}"
+            for column in want_rows.columns
+            if found[0][column] != want[column]
+        ]
+    for key, (want, *_) in want_n.items():
+        case, found = "__".join(key), got_n.get(key, [])
+        if len(found) != 1:
+            problems.append(f"{case} case note: {len(found)} notes, not one")
+            continue
+        want = {
+            **want,
+            "wrong_model_count": str(
+                int(want["wrong_model_count"]) + added.get(case, 0)
+            ),
+        }
+        problems += [
+            f"{case} case note {column}"
+            for column in want_notes.columns
+            if found[0][column] != want[column]
+        ]
+    return problems[:limit]
+
+
+def verify_kept_annotations(rows, cases, rejudged: frozenset[str], decisions) -> None:
+    """Refuse unless every case this release keeps carries release
+    20261027's published rows and case note beside this release's decisions
+    (kept_annotation_problems)."""
+    problems = kept_annotation_problems(rows, cases, rejudged, decisions)
+    require(
+        not problems,
+        "a case this release keeps must carry the row annotations and case note "
+        "release 20261027 published, with this release's decisions applied; "
+        f"these differ: {problems}",
+    )
+
+
+def verify_staged_annotations(bundle: Path, rejudged: frozenset[str]) -> None:
+    """Export's hold on the two annotation files triage wrote.
+
+    Review r3, Q3. Check (a) lets a decided kept case's classes and case note
+    differ from the base's, so export, as the freeze does, holds both files
+    to the staged record (verify_adjudications_applied), and holds every kept
+    case, the decided one included, to the rows and case note release
+    20261027 published with this release's decisions applied
+    (verify_kept_annotations).
+    """
+    import pandas as pd
+
+    from policybench.adjudications import (
+        load_adjudications,
+        verify_adjudications_applied,
+    )
+
+    annotations = bundle / "annotations"
+    decisions = load_adjudications(annotations / ADJUDICATIONS)
+    rows, cases = (
+        pd.read_csv(annotations / name, keep_default_na=False)
+        for name in ANNOTATION_CSV_NAMES
+    )
+    verify_adjudications_applied(rows, cases, decisions)
+    verify_kept_annotations(rows, cases, rejudged, decisions)
 
 
 def resolve_live_base(args) -> dict:
@@ -3513,9 +3772,9 @@ def judge(args, bundle) -> None:
 
 
 def triage(args, bundle) -> None:
-    """Collect, apply recorded decisions, and stop for unresolved flags."""
+    """Collect, carry each kept case's published wording, apply recorded
+    decisions, and stop for unresolved flags."""
     from policybench.adjudications import (
-        apply_adjudications,
         excluded_case_keys,
         verify_adjudications_applied,
     )
@@ -3534,18 +3793,11 @@ def triage(args, bundle) -> None:
     require(
         out["missing"].empty and out["hedged"].empty, "missing/hedged audit; run judge"
     )
-    rows = out["row"]
-    cases = out["case"].rename(
-        columns={
-            "case_failure_source": "case_failure_sources",
-            "case_failure_subtype": "case_failure_subtypes",
-        }
-    )
-    counts = rows.groupby(KEY).size()
+    counts = out["row"].groupby(KEY).size()
     require(
         all(
             int(r.wrong_model_count) == counts[(r.scenario_id, r.variable)]
-            for r in cases.itertuples()
+            for r in out["case"].itertuples()
         ),
         "case wrong_model_count disagrees with collected rows",
     )
@@ -3560,10 +3812,12 @@ def triage(args, bundle) -> None:
         audit / "cases",
         triage=triage_items(),
     )
-    rows, cases, _ = apply_adjudications(rows, cases, decisions)
-    amend_annotations(rows, cases, amendments)
+    rows, cases = annotation_frames(out, rejudged, decisions, amendments)
     # An amendment may not touch the adjudication sentence a case note carries.
     verify_adjudications_applied(rows, cases, decisions)
+    # Review r3, Q1: every kept case carries release 20261027's published
+    # rows and case note, beside this release's decisions.
+    verify_kept_annotations(rows, cases, rejudged, decisions)
     excluded = exclusion_keys(load_reference_exclusions(bundle / "us"))
     require(
         excluded == excluded_case_keys(decisions),
@@ -3583,10 +3837,7 @@ def triage(args, bundle) -> None:
     ]
     flags.to_csv(args.stage_dir / "reference-flags.csv", index=False)
     unresolved.to_csv(args.stage_dir / "unresolved-rows.csv", index=False)
-    for name, frame in (
-        ("us_audit_row_annotations.csv", rows),
-        ("us_case_notes.csv", cases),
-    ):
+    for name, frame in zip(ANNOTATION_CSV_NAMES, (rows, cases), strict=True):
         (annotations / name).write_text(annotation_csv_text(frame), encoding="utf-8")
     require(
         flags.empty and unresolved.empty,
@@ -3632,14 +3883,17 @@ def base_restoration_problems(
     this release judged the verdict again, so every annotation field may
     differ (release_20261006.TEXT_CELL_FIELDS | CLASS_CELL_FIELDS). Review
     r2, N1: on a case in ``decided`` (decided_cases) that is not in
-    ``reopened``, triage applied this release's decision to the carried
-    verdict's rows, and apply_adjudications changes the rows' and the case
-    note's classes and the case note's text and nothing else the exporter
-    writes, so only CLASS_CELL_FIELDS and caseAnnotation may differ; the
-    row's annotation and referenceExplanation stay release 20261027's.
-    Triage's verify_adjudications_applied and the freeze's
-    verify_annotation_amendments hold the annotation files those fields come
-    from. Every other case keeps every field. At most ``limit``.
+    ``reopened``, triage applied this release's decision to the rows and
+    case note release 20261027 published, which review r3's Q1 has triage
+    carry onto every kept case (carry_kept_wording); apply_adjudications
+    changes the rows' and the case note's classes and the case note's
+    sentence and nothing else the exporter writes, so only
+    CLASS_CELL_FIELDS and caseAnnotation may differ, and the row's
+    annotation and referenceExplanation stay release 20261027's. Triage's
+    verify_adjudications_applied and verify_kept_annotations, export's
+    verify_staged_annotations and the freeze's verify_annotation_amendments
+    hold the annotation files those fields come from. Every other case keeps
+    every field. At most ``limit``.
     """
     from release_20261006 import CLASS_CELL_FIELDS, TEXT_CELL_FIELDS
 
@@ -4170,11 +4424,16 @@ def export(args, bundle, live) -> dict:
     outputs = {}
     # Review r1, M9, and review r2, N1: the cases whose annotation fields the
     # scope check lets differ from the base's, the cases this release
-    # re-judged and the cases it decides. A rehearsal, which runs no scope
-    # check, passes none.
+    # re-judged and the cases it decides. Review r3, Q5: a partial rehearsal
+    # runs no scope check, and an early one runs both on a stage nothing has
+    # judged or triaged, so neither passes any case.
     rehearsal = args.early or args.partial
     reopened = frozenset() if rehearsal else rejudged_cases(args.stage_dir)
     decided = frozenset() if rehearsal else decided_cases()
+    if not rehearsal:
+        # Review r3, Q3 and Q1: the annotation files the decided and the
+        # re-opened cases' fields come from.
+        verify_staged_annotations(bundle, reopened)
     payload = build_payload(
         bundle,
         live,
