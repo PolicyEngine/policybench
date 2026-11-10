@@ -1284,8 +1284,9 @@ def answer_map(kinds) -> dict:
 
 
 def mixed_answers() -> dict:
-    """Every kind on every model (MOCK); on the ruled output Fable 5.2
-    answers wrong and the incumbents right."""
+    """MOCK answers of every kind on every MOCK model. On the ruled row the
+    MOCK board gives the new model a wrong answer and the MOCK incumbents
+    right ones."""
     answers = answer_map(
         KINDS[(index + offset) % 3]
         for offset, _ in enumerate(MOCK_MODELS)
@@ -2006,7 +2007,8 @@ def test_utc_day_keeps_every_calendar_day_and_refuses_placeholders(day):
 @pytest.fixture
 def adjudication_stage(stage, filled):
     """The base's adjudication record staged, and a MOCK judged case for the
-    ruled output: Fable 5.2 answered it wrong, judged by Opus 5.5 on v2."""
+    ruled output: a MOCK verdict that lists the new model among its MOCK
+    wrong models, judged by Opus 5.5 on v2."""
     from policybench.judge_template import template_header
 
     annotations = stage / "publish" / RUN / "annotations"
