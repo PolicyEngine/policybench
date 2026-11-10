@@ -5663,9 +5663,14 @@ def test_the_comparison_sees_a_one_token_edit():
 # Review r2, N2: a gate runs on its body and on the module-level values its
 # body reads. Each value an inherited definition reads, and each value such a
 # value reads in turn, bound in either script, must after the rename map be
-# Terra's, save the seven this release sets by design, which the tests at the
-# top of this file pin: the counts (BASE_MODELS, NEW_EXCLUSIONS), the base
-# commit, engine and payload hash, the seed digest and the reference pins.
+# Terra's, save eight whose assignment this release writes on purpose: the
+# seven it sets by design, which the tests at the top of this file pin (the
+# counts BASE_MODELS and NEW_EXCLUSIONS, the base commit, engine and payload
+# hash, the seed digest and the reference pins), and, review r3's Q4,
+# CSV_NAME, which it assigns as a literal where Terra unpacks it from
+# BUILT_FILES (its value is Terra's, pinned below). Review r3, Q4: the walk
+# also follows each read of another script's value through a module alias
+# (ALIASES), as the freeze reads driver.CSV_NAME.
 BY_DESIGN = frozenset(
     {
         "BASE_COMMIT",
@@ -5675,8 +5680,28 @@ BY_DESIGN = frozenset(
         "BASE_SHA256",
         "SEED_DIGEST_SHA256",
         "BASE_REFERENCE_SHA256",
+        "CSV_NAME",
     }
 )
+# The module aliases through which a script reads another's values, each as
+# (Fable 5.2 script, Terra script); test_the_walks_aliases_are_the_scripts_
+# imports holds them to the scripts' imports.
+ALIASES = {
+    "driver": ("finish_fable52.py", "finish_terra.py"),
+    "dating": ("date_fable52_judge_verdicts.py", "date_terra_judge_verdicts.py"),
+}
+
+
+@functools.cache
+def _aliases(script: str) -> dict[str, str]:
+    """The module aliases ``script`` imports from scripts/, each to its file."""
+    return {
+        alias.asname: f"{alias.name}.py"
+        for node in ast.parse((SCRIPTS / script).read_text()).body
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.asname and (SCRIPTS / f"{alias.name}.py").is_file()
+    }
 
 
 def _bound(target: ast.expr) -> list[str]:
@@ -5710,36 +5735,56 @@ def _module_values(script: str) -> dict[str, list[list[str]]]:
     return values
 
 
-def _loads(lines: list[str]) -> set[str]:
-    return {
-        node.id
-        for node in ast.walk(ast.parse("\n".join(lines)))
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-    }
+def _loads(lines: list[str], here: tuple[str, str]) -> set[tuple]:
+    """What ``lines`` of the script pair ``here`` read: each bare name, under
+    ``here``, and (review r3, Q4) each attribute read on a module alias the
+    script imports, under that alias's pair (ALIASES)."""
+    aliases = _aliases(here[0])
+    found = set()
+    for node in ast.walk(ast.parse("\n".join(lines))):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            found.add((here, node.id))
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in aliases
+        ):
+            found.add((ALIASES[node.value.id], node.attr))
+    return found
 
 
 @functools.cache
-def _read_values(ours: str, terra: str) -> frozenset[str]:
-    """The module-level names the listed definitions of ``ours`` read, and
-    the names those values read in turn, bound in either script."""
+def _read_values(ours: str, terra: str) -> frozenset[tuple[str, str, str]]:
+    """The module-level values the listed definitions of ``ours`` read, and
+    the values those values read in turn, each as (script, Terra script,
+    name) and bound in either script of its pair: through the module
+    aliases too (review r3, Q4)."""
     kept, renamed = next(
         (kept, renamed) for mine, _, kept, renamed in INHERITED if mine == ours
     )
-    sources, mine, theirs = (
-        _top_level_sources(ours),
-        _module_values(ours),
-        _module_values(terra),
+    sources = _top_level_sources(ours)
+    pending = set().union(
+        *(_loads(sources[name], (ours, terra)) for name in (*kept, *renamed))
     )
-    pending = set().union(*(_loads(sources[name]) for name in (*kept, *renamed)))
-    seen: set[str] = set()
+    seen: set[tuple] = set()
     while pending:
-        name = pending.pop()
-        if name in seen or (name not in mine and name not in theirs):
+        pair, name = pending.pop()
+        mine, theirs = _module_values(pair[0]), _module_values(pair[1])
+        if (pair, name) in seen or (name not in mine and name not in theirs):
             continue
-        seen.add(name)
+        seen.add((pair, name))
         for block in mine.get(name, []):
-            pending |= _loads(block)
-    return frozenset(seen)
+            pending |= _loads(block, pair)
+    return frozenset((*pair, name) for pair, name in seen)
+
+
+@functools.cache
+def _walked() -> frozenset[tuple[str, str, str]]:
+    """Every value an inherited definition of any script reads (_read_values)."""
+    return frozenset().union(
+        *(_read_values(ours, terra) for ours, terra, _, _ in INHERITED)
+    )
 
 
 def _same_value(ours: str, terra: str, name: str) -> bool:
@@ -5752,24 +5797,62 @@ def _same_value(ours: str, terra: str, name: str) -> bool:
     )
 
 
-INHERITED_VALUES = [
-    (ours, terra, name)
-    for ours, terra, _, _ in INHERITED
-    for name in sorted(_read_values(ours, terra) - BY_DESIGN)
-]
+INHERITED_VALUES = sorted(value for value in _walked() if value[2] not in BY_DESIGN)
+
+
+def test_the_walks_aliases_are_the_scripts_imports():
+    """Review r3, Q4: each module alias a script imports names the script
+    ALIASES gives it, on both sides of each pair."""
+    for ours, terra, _, _ in INHERITED:
+        for script, side in ((ours, 0), (terra, 1)):
+            for alias, target in _aliases(script).items():
+                assert ALIASES[alias][side] == target, (script, alias)
+    assert {ours: _aliases(ours) for ours, _, _, _ in INHERITED} == {
+        "finish_fable52.py": {},
+        "freeze_fable52.py": {
+            "dating": "date_fable52_judge_verdicts.py",
+            "driver": "finish_fable52.py",
+        },
+        "date_fable52_judge_verdicts.py": {"driver": "finish_fable52.py"},
+    }
 
 
 def test_the_values_the_inherited_gates_read_include_the_reviews_sets():
     """Review r2's audit: 53 names in the driver (its 54 counted the
     os.environ item, which binds none), 11 in the freeze, none in the dating
-    step; the 14 policy sets and patterns no fable52 test named among them."""
-    counts = {ours: len(_read_values(ours, terra)) for ours, terra, _, _ in INHERITED}
-    assert counts == {
-        "finish_fable52.py": 53,
-        "freeze_fable52.py": 11,
-        "date_fable52_judge_verdicts.py": 0,
+    step; the 14 policy sets and patterns no fable52 test named among them.
+    Review r3, Q4: through the module aliases, the freeze's definitions also
+    read 16 of the driver's values and the dating step's 4, among them the
+    two review r3 found in no walk, BASE_REPOSITORY_INPUT_FILES and
+    CSV_NAME."""
+    counts = {
+        ours: dict(Counter(script for script, _, _ in _read_values(ours, terra)))
+        for ours, terra, _, _ in INHERITED
     }
-    assert _read_values("finish_fable52.py", "finish_terra.py") >= {
+    assert counts == {
+        "finish_fable52.py": {"finish_fable52.py": 53},
+        "freeze_fable52.py": {"freeze_fable52.py": 11, "finish_fable52.py": 16},
+        "date_fable52_judge_verdicts.py": {"finish_fable52.py": 4},
+    }
+    through = {
+        name
+        for script, _, name in _read_values("freeze_fable52.py", "freeze_terra.py")
+        if script == "finish_fable52.py"
+    }
+    assert {"BASE_REPOSITORY_INPUT_FILES", "CSV_NAME"} <= through
+    dating = _read_values(
+        "date_fable52_judge_verdicts.py", "date_terra_judge_verdicts.py"
+    )
+    assert {name for _, _, name in dating} == {
+        "ADJUDICATIONS",
+        "ANNOTATIONS",
+        "ROOT",
+        "RUN_NAME",
+    }
+    names = {
+        name for _, _, name in _read_values("finish_fable52.py", "finish_terra.py")
+    }
+    assert names >= {
         "JUDGE_ATTACHMENTS",
         "JUDGE_EVENT_TYPES",
         "ACCOUNT_KEY",
@@ -5790,11 +5873,23 @@ def test_the_values_the_inherited_gates_read_include_the_reviews_sets():
 def test_only_the_by_design_values_differ_from_terras():
     differ = {
         name
-        for ours, terra, _, _ in INHERITED
-        for name in _read_values(ours, terra)
-        if not _same_value(ours, terra, name)
+        for script, terra, name in _walked()
+        if not _same_value(script, terra, name)
     }
     assert differ == BY_DESIGN
+
+
+def test_csv_name_takes_terras_value_as_a_literal():
+    """Review r3, Q4: CSV_NAME, which the freeze's verify_held_references
+    reads through the driver alias, holds Terra's value; this release writes
+    it as a literal where Terra unpacks it from BUILT_FILES, so BY_DESIGN
+    lists it."""
+    import finish_terra as terra
+
+    assert driver.CSV_NAME == terra.CSV_NAME == "reference_outputs.csv"
+    assert _module_values("finish_fable52.py")["CSV_NAME"] == [
+        ['CSV_NAME = "reference_outputs.csv"']
+    ]
 
 
 @pytest.mark.parametrize("ours, terra, name", INHERITED_VALUES)
@@ -5809,6 +5904,253 @@ def test_the_value_comparison_sees_a_widened_set():
     widened = [line.replace('"model",', '"model", "skill_listing",') for line in block]
     assert widened != block
     assert _code(widened) != _code(block)
+
+
+# Review r3, Q4 (T P3-2): the comparison holds each walked value's
+# assignment, so no other statement may change one. Each script's top-level
+# statements are definitions, imports, its docstring, assignments to plain
+# names and the lines TOP_LEVEL_EXTRAS lists; and no statement anywhere in it
+# augments, stores into, deletes from or calls a mutating method on a walked
+# value (bare, or through a module alias), sets an attribute of an aliased
+# module, rebinds a walked name with ":=" or declares one global.
+TOP_LEVEL_EXTRAS = {
+    "finish_fable52.py": [
+        'os.environ["OPENBLAS_NUM_THREADS"] = "1"',
+        "sys.path.insert(0, str(ROOT))",
+        'if __name__ == "__main__":\n    main()',
+    ],
+    "freeze_fable52.py": [
+        'os.environ["OPENBLAS_NUM_THREADS"] = "1"',
+        "sys.path.insert(0, str(ROOT))",
+        'sys.path.insert(0, str(ROOT / "scripts"))',
+        'if __name__ == "__main__":\n    main()',
+    ],
+    "date_fable52_judge_verdicts.py": [
+        'sys.path.insert(0, str(ROOT / "scripts"))',
+        'if __name__ == "__main__":\n    main()',
+    ],
+}
+MUTATING_METHODS = frozenset(
+    {
+        "add",
+        "append",
+        "clear",
+        "difference_update",
+        "discard",
+        "extend",
+        "insert",
+        "intersection_update",
+        "pop",
+        "popitem",
+        "remove",
+        "reverse",
+        "setdefault",
+        "sort",
+        "symmetric_difference_update",
+        "update",
+        "__delitem__",
+        "__iadd__",
+        "__iand__",
+        "__ior__",
+        "__isub__",
+        "__ixor__",
+        "__setitem__",
+    }
+)
+
+
+def _plain_target(target: ast.expr) -> bool:
+    if isinstance(target, ast.Name):
+        return True
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return all(_plain_target(item) for item in target.elts)
+    return isinstance(target, ast.Starred) and _plain_target(target.value)
+
+
+def _top_level_extras(text: str) -> list[str]:
+    """``text``'s top-level statements other than definitions, imports, the
+    module docstring and assignments to plain names, as their source."""
+    lines = text.splitlines()
+    extras = []
+    for index, node in enumerate(ast.parse(text).body):
+        if isinstance(
+            node, (ast.FunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom)
+        ):
+            continue
+        if (
+            index == 0
+            and isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            continue
+        if isinstance(node, ast.Assign) and all(map(_plain_target, node.targets)):
+            continue
+        if isinstance(node, ast.AnnAssign) and _plain_target(node.target):
+            continue
+        extras.append("\n".join(lines[node.lineno - 1 : node.end_lineno]))
+    return extras
+
+
+def _walked_names(script: str) -> frozenset[str]:
+    return frozenset(name for found, _, name in _walked() if found == script)
+
+
+def _mutations(script: str, text: str) -> list[tuple[str, int]]:
+    """Each statement in ``text``, ``script``'s source, that changes a
+    walked value other than by a module-level assignment of its name: the
+    node's type and line."""
+    aliases, walked = _aliases(script), _walked_names(script)
+
+    def aliased(node) -> bool:
+        return (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in aliases
+        )
+
+    def base(node):
+        while isinstance(node, (ast.Subscript, ast.Attribute)) and not aliased(node):
+            node = node.value
+        return node
+
+    def is_walked(node) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in walked
+        return aliased(node) and node.attr in _walked_names(aliases[node.value.id])
+
+    def stores(target):
+        if isinstance(target, (ast.Tuple, ast.List)):
+            for item in target.elts:
+                yield from stores(item)
+        elif isinstance(target, ast.Starred):
+            yield from stores(target.value)
+        elif isinstance(target, (ast.Subscript, ast.Attribute)):
+            yield target
+
+    found = []
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.AugAssign):
+            hit = is_walked(base(node.target))
+        elif isinstance(node, (ast.Assign, ast.Delete)):
+            hit = any(is_walked(base(s)) for t in node.targets for s in stores(t))
+        elif isinstance(node, ast.AnnAssign):
+            hit = any(is_walked(base(s)) for s in stores(node.target))
+        elif isinstance(node, ast.Call):
+            func = node.func
+            hit = (
+                isinstance(func, ast.Attribute)
+                and func.attr in MUTATING_METHODS
+                and is_walked(base(func.value))
+            ) or (
+                isinstance(func, ast.Name)
+                and func.id in ("setattr", "delattr")
+                and bool(node.args)
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id in aliases
+            )
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            hit = bool(set(node.names) & walked)
+        elif isinstance(node, ast.NamedExpr):
+            hit = is_walked(node.target)
+        else:
+            continue
+        if hit:
+            found.append((type(node).__name__, node.lineno))
+    return found
+
+
+@pytest.mark.parametrize("script", list(TOP_LEVEL_EXTRAS))
+def test_a_scripts_top_level_holds_definitions_and_plain_values(script):
+    assert (
+        _top_level_extras((SCRIPTS / script).read_text()) == (TOP_LEVEL_EXTRAS[script])
+    )
+
+
+@pytest.mark.parametrize("script", list(TOP_LEVEL_EXTRAS))
+def test_no_statement_changes_a_walked_value(script):
+    assert _mutations(script, (SCRIPTS / script).read_text()) == []
+
+
+# One MOCK snippet each, appended to a script's text: review r3's two cases
+# and the other kinds of change the scan refuses. Each gives the statement
+# that changes the value and whether the snippet is a top-level statement.
+VALUE_CHANGES = {
+    "a subscript store (review r3's case)": (
+        "finish_fable52.py",
+        'AMENDABLE_FIELDS["failure_source"] = "row annotation"',
+        'AMENDABLE_FIELDS["failure_source"] = "row annotation"',
+        "Assign",
+        True,
+    ),
+    "an augmented assignment (review r3's case)": (
+        "finish_fable52.py",
+        'TRIAGE_FINAL_SOURCES -= {"llm_error"}',
+        'TRIAGE_FINAL_SOURCES -= {"llm_error"}',
+        "AugAssign",
+        True,
+    ),
+    "a mutating call in a function": (
+        "finish_fable52.py",
+        'def widen():\n    EXCLUSION_REASON_CODES.update({"MOCK": "MOCK"})',
+        'EXCLUSION_REASON_CODES.update({"MOCK": "MOCK"})',
+        "Call",
+        False,
+    ),
+    "a store through the driver alias": (
+        "freeze_fable52.py",
+        'driver.CSV_NAME = "other.csv"',
+        'driver.CSV_NAME = "other.csv"',
+        "Assign",
+        True,
+    ),
+    "a mutating call through the driver alias": (
+        "freeze_fable52.py",
+        'driver.MODELS.update({"MOCK": "MOCK"})',
+        'driver.MODELS.update({"MOCK": "MOCK"})',
+        "Call",
+        True,
+    ),
+    "a deletion through the driver alias": (
+        "date_fable52_judge_verdicts.py",
+        "def drop():\n    del driver.RUN_NAME",
+        "del driver.RUN_NAME",
+        "Delete",
+        False,
+    ),
+    "a global rebinding": (
+        "finish_fable52.py",
+        "def rebind():\n    global AMENDABLE_FIELDS\n    AMENDABLE_FIELDS = {}",
+        "global AMENDABLE_FIELDS",
+        "Global",
+        False,
+    ),
+    "setattr on the driver": (
+        "freeze_fable52.py",
+        'setattr(driver, "CSV_NAME", "other.csv")',
+        'setattr(driver, "CSV_NAME", "other.csv")',
+        "Call",
+        True,
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "script, snippet, change, kind, top_level",
+    list(VALUE_CHANGES.values()),
+    ids=list(VALUE_CHANGES),
+)
+def test_the_scan_refuses_each_change_to_a_walked_value(
+    script, snippet, change, kind, top_level
+):
+    """Each MOCK change the value comparison alone would pass: the scan names
+    its statement alone, and a top-level one is also a statement the
+    top-level check refuses."""
+    edited = f"{(SCRIPTS / script).read_text()}\n{snippet}\n"
+    ((found, line),) = _mutations(script, edited)
+    assert (found, edited.splitlines()[line - 1].strip()) == (kind, change)
+    extras = _top_level_extras(edited)
+    assert extras == [*TOP_LEVEL_EXTRAS[script], *([snippet] if top_level else [])]
 
 
 # Review r2, N2: the transcript check's sets and patterns are the runner's
