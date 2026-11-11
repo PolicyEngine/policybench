@@ -109,14 +109,13 @@ export default function ExpandPage() {
           reference from the law with PolicyEngine. Rows selected for audit
           receive a diagnosed failure mode. You get a public slice leaderboard, a
           written analysis of where models fail your population, and a
-          briefing. The answer key checks itself in public: references come
-          from open-source code, cross-checked against other calculators
-          where they exist, and challenged values get adjudicated against
-          the statute — the{" "}
+          briefing. Anyone can read the code that computes each reference.
+          When our audit flags a reference, we check it against the statute
+          and publish the decision in the{" "}
           <Link href="/paper" className="text-primary hover:underline">
             methodology and adjudication record
-          </Link>{" "}
-          are published.
+          </Link>
+          .
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">

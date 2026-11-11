@@ -10,7 +10,7 @@ export function FrontierCoverageCopy({ modelCount }: { modelCount: number }) {
         public board
       </Link>{" "}
       <ExpandModelCount modelCount={modelCount} context="frontier" /> on 100
-      real households.
+      households sampled from PolicyEngine&rsquo;s US microdata.
     </>
   );
 }
