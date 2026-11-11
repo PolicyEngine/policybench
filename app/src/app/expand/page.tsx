@@ -107,15 +107,28 @@ export default function ExpandPage() {
           survey microdata weighted to your population, cover your programs,
           benchmark the models behind the tools your people use, and compute every
           reference from the law with PolicyEngine. Rows selected for audit
-          receive a diagnosed failure mode. You get a public slice leaderboard, a
-          written analysis of where models fail your population, and a
-          briefing. Anyone can read the code that computes each reference.
-          When our audit flags a reference, we check it against the statute
-          and publish the decision in the{" "}
+          receive a diagnosed failure mode. When our audit flags a reference,
+          we check it against the law and the household facts the models see,
+          and publish the decision in our{" "}
+          <a
+            href="https://github.com/PolicyEngine/policybench/blob/main/annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json"
+            className="text-primary hover:underline"
+          >
+            adjudication record
+          </a>
+          . We set out the method in our{" "}
           <Link href="/paper" className="text-primary hover:underline">
-            methodology and adjudication record
+            paper
           </Link>
-          .
+          , and anyone can read the{" "}
+          <a
+            href="https://github.com/PolicyEngine/policybench"
+            className="text-primary hover:underline"
+          >
+            code
+          </a>{" "}
+          behind each reference. You get a public slice leaderboard, a written
+          analysis of where models fail your population, and a briefing.
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
