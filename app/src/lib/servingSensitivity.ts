@@ -5,8 +5,9 @@
  * extended thinking off (other reasoning-by-default providers reason
  * regardless); Claude Fable 5.1 rejects forced tool calls and answers as JSON,
  * reasoning in both runs, so its comparison is one of transport. Claude Opus
- * 5.5 and Claude Sonnet 5.5 reject forced calls the same way and have no auto
- * re-run. Claude Haiku 5.5 accepts forced calls, so its board row is a
+ * 5.5, Claude Sonnet 5.5 and Claude Fable 5.2 reject forced calls the same way
+ * and have no auto re-run.
+ * Claude Haiku 5.5 accepts forced calls, so its board row is a
  * forced-tool row like Claude Opus 5's. Meta's Muse Wonder, not a Claude row,
  * rejects forced calls too and reasons on JSON, so it has no re-run either.
  * Scores are
@@ -38,7 +39,7 @@ const FORCED_TOOL =
 
 export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
   "claude-fable-5": {
-    autoExact: 91.381,
+    autoExact: 91.386,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -53,7 +54,7 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-sonnet-5": {
-    autoExact: 84.504,
+    autoExact: 84.508,
     boardTreatment: `${FORCED_TOOL}, one output per request`,
     autoTreatment:
       "re-run with tool_choice: auto and the whole household in one request",
@@ -61,7 +62,7 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: SENSITIVITY_DOC_HREF,
   },
   "claude-fable-5.1": {
-    autoExact: 91.679,
+    autoExact: 91.678,
     boardTreatment:
       "rejects forced tool calls, so its row answers as a JSON object and reasons at the provider default",
     autoTreatment:
@@ -70,7 +71,7 @@ export const SERVING_SENSITIVITY: Record<string, ServingSensitivity> = {
     noteHref: "/notes/2026-09-01-claude-fable-5-1-added",
   },
   "claude-haiku-5.5": {
-    autoExact: 88.75,
+    autoExact: 88.755,
     boardTreatment: FORCED_TOOL,
     autoTreatment: "re-run with tool_choice: auto",
     thinkingSuppressedOnBoard: true,

@@ -33,6 +33,7 @@ describe("model metadata", () => {
     ["muse-wonder", "Muse Wonder", "meta"],
     ["muse-spark-1.3", "Muse Spark 1.3", "meta"],
     ["gemini-4-argon", "Gemini 4 Argon", "google"],
+    ["claude-fable-5.2", "Claude Fable 5.2", "anthropic"],
   ] as const)("maps %s to its label and provider", (model, label, provider) => {
     expect(MODEL_LABELS[model]).toBe(label);
     expect(getProviderForModel(model)).toBe(provider);
