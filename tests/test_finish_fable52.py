@@ -158,7 +158,7 @@ def test_fable52_alone_joins_the_51_model_base():
         driver.RELEASE_SCORED,
     ) == (1, 50, 1934)
     assert driver.BASE_TAG == "dashboard-data-20261027"
-    assert driver.RELEASE_TAG == "dashboard-data-20261110"
+    assert driver.RELEASE_TAG == "dashboard-data-20261111"
     assert driver.BASE_COMMIT == "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
     assert driver.SEED_RELEASE_COMMIT == driver.BASE_COMMIT
     assert driver.JUDGE_MODEL == "claude-opus-5-5"
@@ -5494,7 +5494,7 @@ TERRA_RENAMES = (
     ("20261027", "@REL_B@"),
     ("20261014", "@BASE_B@"),
     ("bf845cbe", "875fe1f6"),
-    ("@REL_B@", "20261110"),
+    ("@REL_B@", "20261111"),
     ("@BASE_B@", "20261027"),
     ("finish_terra", "finish_fable52"),
     ("freeze_terra", "freeze_fable52"),

@@ -276,7 +276,7 @@ def test_the_freeze_reads_the_triage_day_only_when_the_spec_lists_triage(
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("release_tag", "dashboard-data-20261111"),
+        ("release_tag", "dashboard-data-20261112"),
         ("base_tag", "dashboard-data-20261014"),
         ("base_sha256", "0" * 64),
     ],
@@ -293,7 +293,7 @@ def test_a_filled_spec_is_the_freezes_for_its_own_tag_only(monkeypatch):
     monkeypatch.setattr(driver, "load_spec", lambda: spec)
     assert release.release_spec(driver.RELEASE_TAG) == spec
     with pytest.raises(SystemExit, match="names another release or base"):
-        release.release_spec("dashboard-data-20261111")
+        release.release_spec("dashboard-data-20261112")
 
 
 @settings(max_examples=80, deadline=None)

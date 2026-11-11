@@ -36,7 +36,7 @@ ANNOTATIONS = ROOT / "annotations" / RUN_NAME
 BASE_TAG = "dashboard-data-20261027"
 # The one place the new release's tag is named. The lead may change it at
 # freeze time; freeze_fable52.py and the design note read it from here.
-RELEASE_TAG = "dashboard-data-20261110"
+RELEASE_TAG = "dashboard-data-20261111"
 # Release 20261027's payload (138,702,498 bytes), which PR #247's squash merge
 # committed on 2026-10-31.
 BASE_SHA256 = "67cb0d14ca93cefaeaf2678ef6e6f81aea1858bb7b23b1b61d24c46fe378021b"

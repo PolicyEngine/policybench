@@ -1,9 +1,9 @@
 {
-  "note": "Inputs of the release after dashboard-data-20261027, read by scripts/finish_fable52.py. The release adds Claude Fable 5.2 and installs Max's ruling d2180 (2026-11-01): scenario_122's Minnesota state_refundable_credits leaves scoring for every model, so every model is scored on 1,934 outputs. The references, the incumbents' predictions and every earlier exclusion's value stay release dashboard-data-20261027's, on policyengine-us 2.60.0. This spec carries no unruled proposal and no triage decision; a later developer triage decision must follow the driver's record and date gates.",
-  "release_tag": "dashboard-data-20261110",
+  "note": "Inputs of the release after dashboard-data-20261027, read by scripts/finish_fable52.py. The release adds Claude Fable 5.2 and installs Max's ruling d2180 (2026-11-01): scenario_122's Minnesota state_refundable_credits leaves scoring for every model, so every model is scored on 1,934 outputs. The references, the incumbents' predictions and every earlier exclusion's value stay release dashboard-data-20261027's, on policyengine-us 2.60.0. This spec carries no unruled proposal. Its three developer triage decisions of 2026-11-11 keep scored outputs on cases the new model re-opened: one affirms a reference the case's verdict flagged, and two resolve rows the judge gave a class outside the final set.",
+  "release_tag": "dashboard-data-20261111",
   "base_tag": "dashboard-data-20261027",
   "base_sha256": "67cb0d14ca93cefaeaf2678ef6e6f81aea1858bb7b23b1b61d24c46fe378021b",
-  "snapshot_date": "[LEAD: the UTC day of the freeze, YYYY-MM-DD]",
+  "snapshot_date": "2026-11-11",
   "rulings": {
     "engine": "Max, 2026-09-28: 'we should be using the latest pe for this always!'. This release changes no engine: the references stay release dashboard-data-20261027's, computed on policyengine-us 2.60.0 from reference_audit/2026-10-22-engine-upgrade/reference-build/, and the lead reruns that audit's publication check before publication.",
     "d2180": "Max, 2026-11-01: 'yes: exclude scenario_122's Minnesota state_refundable_credits from scoring in the next board release.'",
