@@ -51,7 +51,7 @@ Structured responses are collected through the transport each model card
 records: a forced answer-schema tool call (`submit_outputs`) where the card
 selects the tool transport, or the same fields returned as a JSON object where
 it selects JSON. For most JSON rows the card records that the provider rejects
-a forced tool call: Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5,
+a forced tool call: Claude Fable 5.1, Claude Fable 5.2, Claude Opus 5.5, Claude Sonnet 5.5,
 DeepSeek V4.1 Flash (whose card says the same of the V4 rows), Kimi K2.6, Kimi
 K3, Muse Spark 1.3, Muse Wonder, Qwen 3.7 Max and Qwen 3.8 Max. The cards of DeepSeek V4 Pro and GLM-5.2
 select JSON without recording a rejection, and the older Gemini rows answer as
@@ -73,9 +73,9 @@ when PolicyBench began sweeping the references on 2026-10-23 (uploaded
 2026-10-22 at 22:47 UTC). policyengine-us 2.78.0, the newest release when
 PolicyBench checked PyPI on 2026-10-29 at 16:52 UTC, gives the same value as
 2.60.0 for all 1,935 scored outputs under the same conventions and adapter; it
-moves one excluded output, a federal income tax output, by $10.98. The 49
+moves one excluded output, a federal income tax output, by $10.98. The 50
 excluded outputs keep the values they were decided on (29 computed with
-policyengine-us 1.755.4, 18 with 2.15.17, 2 with 2.38.6), and PolicyBench
+policyengine-us 1.755.4, 18 with 2.15.17, 2 with 2.38.6, 1 with 2.60.0), and PolicyBench
 re-reviewed the 16 of them that move on 2.60.0; all 16 stay excluded. The
 manifest also records policyengine.py 6.1.2 for provenance. Its certified US
 bundle carries policyengine-us 2.2.1, and policyengine.py does not load beside
@@ -194,17 +194,17 @@ and the reviewed actions.
 
 ## Audit scope
 
-The frozen US annotations cover 9,050 scored rows selected because their
-legacy threshold score is below 1 (1,949 further annotated rows sit on the 49
+The frozen US annotations cover 9,132 scored rows selected because their
+legacy threshold score is below 1 (1,989 further annotated rows sit on the 50
 excluded outputs, as description outside the audit). This audit universe contains
-9,046 of the snapshot's 9,046 exact-match misses and four exact hits. Another
-2,407 scored rows have a bounded score below 100 but fall outside the
+9,128 of the snapshot's 9,128 exact-match misses and four exact hits. Another
+2,497 scored rows have a bounded score below 100 but fall outside the
 legacy-threshold selection and have no audit annotation. Three judge models
 produced the verdicts, all of them board rows: GPT-5.6 Sol through the Codex
-CLI for 264 cases, Claude Opus 5 through the Claude Code CLI for the 92 cases
+CLI for 263 cases, Claude Opus 5 through the Claude Code CLI for the 91 cases
 the September 5 additions joined that no later judge re-judged, and Claude Opus
-5.5 for 325 cases: those the September 22, September 29, September 30, October 9,
-October 13, October 14 and October 27 additions joined or a reference revision changed, and five whose
+5.5 for 327 cases: those the September 22, September 29, September 30, October 9,
+October 13, October 14, October 27 and November 11 additions joined or a reference revision changed, and five whose
 earlier verdicts an audit of the judges' transcripts could not show came from a
 judge that saw only its prompt
 (docs/judge_isolation_2026-09-30/REPORT.md); the
@@ -214,8 +214,8 @@ reference-suspect flag, is resolved by a recorded developer adjudication
 (annotations/.../us_adjudications.json), which keeps the judge's
 verdict (the case's current verdict.json; a flag an earlier judge run raised is
 kept and says so) beside the decision and the reasoning. This snapshot carries
-63: one for each excluded output, one for each flagged reference the
-adjudication affirmed or replaced with a regenerated reference, and three for
+67: one for each excluded output, one for each flagged reference the
+adjudication affirmed or replaced with a regenerated reference, and five for
 cases whose misses the judge attributed to the reference applying later law;
 the adjudication records them as model errors because that law predates the
 freeze.
@@ -236,7 +236,7 @@ gain fix as first built also applied Wisconsin's capital gain exclusion to the
 distributions, which the upstream fix did not; that part was recorded as its
 own defect, which policyengine-us fixed later (#10026).
 
-Forty-nine outputs in 37 households are excluded from scoring for every model
+Fifty outputs in 38 households are excluded from scoring for every model
 (`reference_exclusions.json` beside the frozen references, pinned by the
 manifest). The September 22 audit recomputed every reference on
 policyengine-us 1.755.4 under each defect's sandbox fix and excluded every
@@ -247,7 +247,7 @@ under an input the prompt does not state. An output such a defect moves that was
 already excluded for an unstated input keeps that record. On each later
 engine these outputs keep the value they were decided on: the engine gives the
 same value, or it moved and a re-review found the exclusion still holds.
-Forty-two depend on an input the prompt never states, such as whether a
+Forty-three depend on an input the prompt never states, such as whether a
 person meets SSI's definition of disability, months of SSDI receipt, weekly
 hours worked, the type of survivor benefits, who paid for the coverage behind a
 disability benefit, whether an adult tax dependent is the filers' child,
@@ -261,11 +261,12 @@ Medicare-eligible person and counts as a medical expense, whether the
 employer deducts the employee share of a state paid-leave or disability
 premium that the law lets it deduct but does not require, whether a household's
 income tax covers only the head and spouse's return or every return its members
-must file, or the county of residence, which decides Indiana's county income
-tax; each was recomputed under the other reading a careful reader could take,
+must file, the county of residence, which decides Indiana's county income
+tax, or whether a Minnesota renter holds a qualifying Certificate of Rent Paid,
+which decides Minnesota's renter's credit; each was recomputed under the other reading a careful reader could take,
 on the engine version that produced its reference, and it moved. The other two
 are Louisiana households' state income tax, whose reference rests on a standard
-deduction amount Louisiana published after the freeze. One of the forty-two, a California household head's Medicaid eligibility, moved
+deduction amount Louisiana published after the freeze. One of the forty-three, a California household head's Medicaid eligibility, moved
 only once the engine read SSI's definition of disability where the law does.
 The head's income is above the limit for the adult expansion group, so only a
 disability pathway leads to Medi-Cal, and California's Working Disabled Program
@@ -274,9 +275,9 @@ requires SSI's definition of disability (42 CFR 435.540(a)). policyengine-us
 reading; with the program's test reading SSI's definition of disability, the
 head qualifies only by meeting it.
 Exclusion is symmetric: rows that matched the frozen reference leave the score
-with rows that did not, so every model is scored on 1,935 of its 1,984
+with rows that did not, so every model is scored on 1,934 of its 1,984
 requested outputs. The rows on those outputs stay annotated as description:
-each carries its exclusion's class, except the 38 answers that never parsed,
+each carries its exclusion's class, except the 39 answers that never parsed,
 which stay parse_contract_failure; no scored row carries a descriptive class.
 The prompt states disability as one general fact
 (any of the six Current Population Survey disability-difficulty items); SSI,
@@ -339,6 +340,21 @@ household. The other two are the Louisiana outputs above
 (`reference_audit/2026-10-05-louisiana/`). The 2026-10-10 engine move fixed
 the four defects, so those four outputs stay scored; the other six are
 excluded.
+
+On 2026-11-01 PolicyBench ruled to exclude one more output, a Minnesota
+household's state refundable credits
+(`reference_audit/2026-10-29-mn-renters-crp/`). The second review of release
+dashboard-data-20261027 found on 2026-10-29 that its reference rests on an
+input no prompt states: a qualifying Certificate of Rent Paid, which Minn.
+Stat. 290.0693 subd. 4 requires the owner or managing agent of a rented
+homestead to furnish to a renter on December 31. policyengine-us 2.60.0 grants
+Minnesota's renter's credit only with that certificate, an input that defaults
+to false. The prompt lists the household's rent and states no certificate, so
+the reference gives no credit, and the prompt's rule that an unlisted boolean
+is false gives the same reading. Read as a renter who holds the certificate,
+the credit, and with it the output, is $1,921. The audit's sweep reproduces
+every scored Minnesota reference as built, and the certificate moves this
+output alone. Release dashboard-data-20261027 kept the output scored.
 
 Canonical runs require numeric answers and explanations for each requested
 output. If future prompt-contract ablations omit explanations, they should be
@@ -415,7 +431,7 @@ Discipline for private files:
 - Run evaluations on the private split by passing the private manifest
   explicitly (`--scenario-manifest .../scenarios-private.csv`); the eval and
   analyze commands need no other changes.
-- Activation is a snapshot decision: the current 2026-10-27 snapshot scores
+- Activation is a snapshot decision: the current 2026-11-11 snapshot scores
   100 public households whose scenario manifest was generated on 2026-06-12
   from a 125-household request split with seed 1042. It does not report
   protected scores. The first snapshot that reports protected scores should
