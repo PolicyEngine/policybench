@@ -31,10 +31,10 @@ Two findings, verified live against the harness's own request builder:
    Fable 5, Claude Opus 5, Claude Sonnet 5) effectively ran without
    thinking. The Claude 4.x models default to no thinking on any request
    shape, so their rows reflect provider defaults faithfully.
-2. **The usage CSVs would have hidden it regardless.** The harness records
-   usage through litellm, which does not populate reasoning-token fields
-   for Anthropic even when thinking blocks are present. litellm 1.95.0
-   counts reasoning from the thinking text a response returns, and a Claude
+2. **The usage CSVs would have hidden it regardless.** The harness recorded
+   usage through litellm, and every Claude row with recorded usage holds 0
+   reasoning tokens, the `auto` runs below included. litellm 1.95.0 counts
+   reasoning from the thinking text a response returns, and a Claude
    thinking block can return empty text, which counts as 0. Since November
    2026 the harness records Anthropic's own thinking-token count on new
    rows (`docs/runbook.md`, "Reasoning tokens"). Every run in this note

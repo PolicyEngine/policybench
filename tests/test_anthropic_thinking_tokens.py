@@ -36,13 +36,15 @@ Invariants, for every Anthropic response of the shape PolicyBench requests
    batch path.
 5. Replay. A LiteLLM cache replay records what the live call recorded. An
    entry cached before the capture existed replays litellm's own count.
-6. Agreement. For a count that is a JSON integer, the sync path and the batch
-   path record the same reasoning count. The batch path reads the count as
-   the SDK's types hold it, so a count sent as a string or a boolean can
-   differ there.
+6. Agreement. For a response whose output and thinking counts are JSON
+   integers, the sync path and the batch path record the same reasoning
+   count. The batch path reads both counts as the SDK's types hold them, so
+   a count sent as a string, a boolean or a fraction can differ there.
 
 No test calls a model. ``httpx.MockTransport`` answers litellm's and the
-SDK's requests, so their own request and response code runs.
+SDK's requests, so their own request and response code runs. Both clients
+get the API's base URL by argument, so an ``ANTHROPIC_BASE_URL`` in the
+environment moves no URL a test asserts.
 """
 
 from __future__ import annotations
@@ -103,7 +105,8 @@ HAIKU = "claude-haiku-5-5"
 # A Claude row on the JSON answer contract, for the MOCK board rows.
 SONNET = "claude-sonnet-5-5"
 SONNET_NAME = "claude-sonnet-5.5"
-MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+API_BASE = "https://api.anthropic.com"
+MESSAGES_URL = f"{API_BASE}/v1/messages"
 MOCK_THINKING_TEXT = "The 2026 standard deduction for a single filer applies."
 MOCK_BOARD_OUTPUTS = {
     "income_tax": {
@@ -215,6 +218,7 @@ def _litellm_response(body, model: str = HAIKU, prompt: str = "x", **kwargs):
         model=model,
         messages=[{"role": "user", "content": prompt}],
         api_key="test-key",
+        api_base=API_BASE,
         client=client,
         max_tokens=2048,
         **kwargs,
@@ -288,6 +292,7 @@ class _MockBatches:
         self.paths: list[str] = []
         self.client = anthropic.Anthropic(
             api_key="test-key",
+            base_url=API_BASE,
             max_retries=0,
             http_client=httpx.Client(transport=httpx.MockTransport(self._answer)),
         )

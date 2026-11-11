@@ -545,10 +545,11 @@ For Claude rows:
   before the change holds no provider count, so its replay records litellm's
   count, and a run resumed across the change mixes both kinds of row.
 
-Claude rows collected before the change (#261, November 2026) record 0
-whether or not the model reasoned. The 51-model snapshot's Claude rows all
-predate it: ten models record 0 on every row, and Claude Fable 5 records no
-usage. Read a 0 on those rows as "not counted".
+Before the change (#261, November 2026), a sync Claude row held litellm's
+count of the thinking text its responses returned, and a batch Claude row held
+nothing, so neither showed whether the model reasoned. The 51-model snapshot's
+Claude rows all predate the change: ten models record 0 on every row, and
+Claude Fable 5 records no usage. Read a 0 on those rows as "not counted".
 `tests/test_anthropic_thinking_tokens.py` checks these invariants against two
 recorded responses.
 

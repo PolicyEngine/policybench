@@ -634,9 +634,9 @@ def _aggregate_call_provenance(results: list[dict]) -> dict:
 #
 # The capture below copies the provider's count onto litellm's usage under
 # this name. The usage object serializes it, so a LiteLLM cache replay keeps
-# it. litellm's Azure, Vertex AI, Bedrock and Databricks Anthropic configs
-# subclass ``AnthropicConfig`` and inherit the wrapped method; PolicyBench
-# routes Claude through none of them.
+# it. litellm's Azure, Vertex AI and Bedrock Anthropic configs and its
+# Databricks chat config subclass ``AnthropicConfig`` and inherit the wrapped
+# method; PolicyBench routes Claude through none of them.
 ANTHROPIC_THINKING_TOKENS_FIELD = "anthropic_thinking_tokens"
 
 
