@@ -1,8 +1,8 @@
 {
-  "release": "dashboard-data-20261027",
+  "release": "dashboard-data-20261111",
   "run_dates": "2026-08",
   "condition": "tool_choice auto (POLICYBENCH_TOOL_CHOICE=auto); Fable 5 and Sonnet 5 also whole-scenario (POLICYBENCH_CHUNK_OVERRIDE=none)",
-  "scored_against": "the frozen 51-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 49 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,935 scored outputs); per-variable rates likewise on the scored outputs",
+  "scored_against": "the frozen 52-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 50 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,934 scored outputs); per-variable rates likewise on the scored outputs",
   "runs": {
     "claude-fable-5-thinking": {
       "model": "claude-fable-5",
@@ -13,26 +13,26 @@
           "bytes": 221318
         },
         "sensitivity-claude-fable-5-thinking-by-variable.csv.gz": {
-          "sha256": "ed841088725ac5c5680a4d6c84fa42af0466e8d734f11d8cc62381a7cb07f2fc",
-          "bytes": 823
+          "sha256": "1146d33b2a8d1f13cb2020fa5d0cd9120a90baeafc0add4f001e93476a0bf193",
+          "bytes": 837
         }
       },
       "board": {
-        "exact": 83.261,
-        "within1pct": 83.685,
-        "score": 92.345,
-        "n": 1935,
-        "n_parsed": 1935
+        "exact": 83.265,
+        "within1pct": 83.689,
+        "score": 92.35,
+        "n": 1934,
+        "n_parsed": 1934
       },
       "sensitivity": {
-        "exact": 91.381,
-        "within1pct": 92.888,
-        "score": 97.015,
-        "would_rank": 8,
+        "exact": 91.386,
+        "within1pct": 92.894,
+        "score": 97.02,
+        "would_rank": 9,
         "n": 1984,
         "n_parsed": 1984
       },
-      "delta_exact": 8.12
+      "delta_exact": 8.121
     },
     "claude-opus-5-thinking": {
       "model": "claude-opus-5",
@@ -43,26 +43,26 @@
           "bytes": 186361
         },
         "sensitivity-claude-opus-5-thinking-by-variable.csv.gz": {
-          "sha256": "30bfcbdc0505691dba8d31735deee07b9a94689bd85798504faa8b2037426aba",
-          "bytes": 840
+          "sha256": "d20c3baf5615b54f633091bd19427b461b853f47976bc00060f0cf555a227216",
+          "bytes": 857
         }
       },
       "board": {
-        "exact": 83.603,
-        "within1pct": 84.697,
-        "score": 92.539,
-        "n": 1935,
-        "n_parsed": 1935
+        "exact": 83.602,
+        "within1pct": 84.695,
+        "score": 92.538,
+        "n": 1934,
+        "n_parsed": 1934
       },
       "sensitivity": {
         "exact": 90.039,
         "within1pct": 92.223,
         "score": 96.389,
-        "would_rank": 12,
+        "would_rank": 13,
         "n": 1984,
         "n_parsed": 1984
       },
-      "delta_exact": 6.436
+      "delta_exact": 6.437
     },
     "claude-sonnet-5-thinking": {
       "model": "claude-sonnet-5",
@@ -73,26 +73,26 @@
           "bytes": 219240
         },
         "sensitivity-claude-sonnet-5-thinking-by-variable.csv.gz": {
-          "sha256": "fae66f51a40504cc679b2b7b16032d10e14043d191de159018f2bfd028c4567e",
-          "bytes": 970
+          "sha256": "d2c909bbca55c890e49ee947afb91581a54cf333e1dfa3b205247b507eb1a92f",
+          "bytes": 972
         }
       },
       "board": {
-        "exact": 72.355,
-        "within1pct": 74.312,
-        "score": 81.892,
-        "n": 1935,
-        "n_parsed": 1935
+        "exact": 72.352,
+        "within1pct": 74.308,
+        "score": 81.89,
+        "n": 1934,
+        "n_parsed": 1934
       },
       "sensitivity": {
-        "exact": 84.504,
-        "within1pct": 87.92,
-        "score": 94.258,
-        "would_rank": 24,
+        "exact": 84.508,
+        "within1pct": 87.924,
+        "score": 94.263,
+        "would_rank": 25,
         "n": 1984,
         "n_parsed": 1928
       },
-      "delta_exact": 12.149
+      "delta_exact": 12.156
     }
   }
 }
