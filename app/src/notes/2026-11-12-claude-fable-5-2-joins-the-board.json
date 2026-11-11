@@ -1,0 +1,112 @@
+{
+  "slug": "2026-11-12-claude-fable-5-2-joins-the-board",
+  "date": "2026-11-12",
+  "title": "Claude Fable 5.2 joins the board at #5 as PolicyBench stops scoring one Minnesota output",
+  "paragraphs": [
+    "PolicyBench added Claude Fable 5.2 to its {snapshotDate} snapshot, two days after Anthropic released it, bringing the board to {nModels} models. Claude Fable 5.2 gets {fableExact}% of answers right and ranks #{fableRank} of {nModels}, behind GPT-5.6 Sol ({sol56Exact}%) and ahead of GPT-6 Astra ({astraExact}%, #{astraRank}). GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-6.1 Terra ({terraExact}%). On the bounded score, which gives partial credit for amounts close to the reference, Claude Fable 5.2 ranks #{fableBoundedRank}, behind only GPT-6 Sol and Claude Opus 5.5. PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches. It weights each answer by household impact.",
+    "Claude Fable 5.2's API rejects forced tool calls, as Claude Fable 5.1's, Claude Opus 5.5's and Claude Sonnet 5.5's do, so its row answers as a JSON object and reasons at the provider default. PolicyBench sends no reasoning setting, so the row ran at Anthropic's default effort, high; Claude Opus 5.5's default is medium. PolicyBench's usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted. Sent to Anthropic's API directly, the board's prompt for the first household drew a thinking block that took {probeThinking} of its {probeOutput} output tokens. On {escalated:words} households the answer ran past the row's first budget of {firstBudget} output tokens, and PolicyBench asked again with a larger one. At Anthropic's price of $8 per million input tokens and $40 per million output tokens, the {households} households cost ${fableCost}, against ${opusCost} for Claude Opus 5.5 and ${sonnetCost} for Claude Sonnet 5.5. Claude Fable 5.1, the Fable model before it, gets {fable51Exact}% (#{fable51Rank}) and cost ${fable51Cost}.",
+    "The release also stops scoring one output, the refundable state credits of a Minnesota household. Minnesota's renter's credit requires a Certificate of Rent Paid, which state law has the owner of a rented home give each renter. The prompt lists the household's rent and no certificate, and policyengine-us {engineVersion} counts an unlisted certificate as absent, so the reference is $0; with a certificate, the credit and the output are ${crpAlt}. The prompt does not say whether the household holds one, so PolicyBench stops scoring the output, under a ruling of November 1. Of the {nModels} models, {crpZero} answer $0, {crpPositive:words} give a positive amount, none of them ${crpAlt}, and {crpNoAnswer:words} gives no answer. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs, down from {previousScoredOutputs}, and PolicyBench excludes {excluded}.",
+    "Against the previous release, the exclusion moves each of the {incumbents} earlier models' shares of answers right by less than {moveBelow} points: the {fallers} that answered $0 fall, and the {risers:words} that did not rise. No earlier model passes another.",
+    "The references stay on policyengine-us {engineVersion}, and no excluded output returns to scoring. When PolicyBench checked PyPI on {checkedOn}, the newest policyengine-us release was {checkedEngine}, and it gives the same value as {engineVersion} for all {scoredOutputs} scored outputs; it moves {excludedMoved:words} excluded outputs, which keep the values they were decided on.",
+    "Claude Opus 5.5 judged the misses in the {rejudged} audit cases Claude Fable 5.2 joined, on {judgedOn}, and it flagged {flagged:words} references as suspect. Of the {flagged:words}, {flaggedDecided:words} already had decisions, which this release keeps: {flaggedExcluded:words} are outputs PolicyBench excludes, and {flaggedAffirmed:words} are references it affirmed in earlier releases. The other is a Montana household's refundable state credits, which the judge expected to include a child tax credit. The 2023 bill that proposed that credit never became law, and the reference is Montana's earned income credit, 20% of the federal one for 2026, so PolicyBench affirmed it. On the federal income tax of a Virginia and a Texas household, the judge gave {laterLawEach:words} models' answers each a class reserved for references that rest on law published after the freeze. Those answers apply the older rates and deductions that were due to return in 2026 until a law of July 4, 2025 kept the current ones, before PolicyBench froze its references on 2026-07-03, so PolicyBench classes them as model errors. All {triageOutputs:words} outputs stay scored.",
+    "[LEAD: slot (ii), the independent wording review of the re-judged cases and its open findings]",
+    "Since the last release, PolicyBench has corrected eleven of its notes, from September 1 to October 31, where it defined the score by its $1 tolerance alone. PolicyBench applies the tolerance to dollar amounts and counts an eligibility answer as right only when it matches. No score moved.",
+    "[LEAD: slot (i), the disclosure that the session operating this release runs on the model it adds, and the independent checks that covered its row]"
+  ],
+  "facts": {
+    "snapshotDate": "2026-11-11",
+    "nModels": 52,
+    "fableExact": 92.0,
+    "fableRank": 5,
+    "sol56Exact": 93.1,
+    "astraExact": 91.7,
+    "astraRank": 6,
+    "solExact": 95.2,
+    "opusExact": 94.1,
+    "terraExact": 93.1,
+    "fableBoundedRank": 3,
+    "probeThinking": 1789,
+    "probeOutput": 2881,
+    "escalated": 6,
+    "firstBudget": 16384,
+    "households": 100,
+    "fableCost": "31.69",
+    "opusCost": "6.75",
+    "sonnetCost": "3.43",
+    "fable51Exact": 90.8,
+    "fable51Rank": 9,
+    "fable51Cost": "25.70",
+    "engineVersion": "2.60.0",
+    "crpAlt": 1921,
+    "crpZero": 43,
+    "crpPositive": 8,
+    "crpNoAnswer": 1,
+    "scoredOutputs": 1934,
+    "totalOutputs": 1984,
+    "previousScoredOutputs": 1935,
+    "excluded": 50,
+    "incumbents": 51,
+    "moveBelow": 0.01,
+    "fallers": 42,
+    "risers": 9,
+    "checkedOn": "2026-11-11",
+    "checkedEngine": "2.116.21",
+    "excludedMoved": 3,
+    "rejudged": 122,
+    "judgedOn": "2026-11-11",
+    "flagged": 7,
+    "flaggedDecided": 6,
+    "flaggedExcluded": 4,
+    "flaggedAffirmed": 2,
+    "laterLawEach": 8,
+    "triageOutputs": 3
+  },
+  "data": [
+    {
+      "label": "Dashboard data release",
+      "href": "https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261111"
+    },
+    {
+      "label": "Release design note",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/design.md"
+    },
+    {
+      "label": "Exclusion record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json"
+    },
+    {
+      "label": "Audit of the Minnesota renter's credit",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-29-mn-renters-crp/README.md"
+    },
+    {
+      "label": "Developer adjudications",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json"
+    },
+    {
+      "label": "Judge provenance for the re-judged cases",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/judge_provenance.json"
+    },
+    {
+      "label": "Publication check against policyengine-us 2.116.21",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_116_21.csv"
+    },
+    {
+      "label": "[LEAD: slot (iii), the errata list for the judge's texts]",
+      "href": "https://github.com/PolicyEngine/policybench/[LEAD-slot-iii-errata-list]"
+    },
+    {
+      "label": "Claude Fable 5.2 model page",
+      "href": "/model/claude-fable-5.2"
+    },
+    {
+      "label": "Minnesota household",
+      "href": "/?country=us&scenario=scenario_122#scenarios"
+    },
+    {
+      "label": "Previous release note (October 31)",
+      "href": "/notes/2026-10-31-gpt-6-1-terra-joins-the-board"
+    }
+  ],
+  "boardSnapshot": "2026-11-11",
+  "release": "dashboard-data-20261111"
+}

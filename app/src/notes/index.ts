@@ -1,3 +1,4 @@
+import claudeFable52JoinsTheBoard from "./2026-11-12-claude-fable-5-2-joins-the-board.json";
 import gpt61TerraJoinsTheBoard from "./2026-10-31-gpt-6-1-terra-joins-the-board.json";
 import givenAPolicyEngineToolThreeModelsScoreAbove99 from "./2026-10-20-given-a-policyengine-tool-three-models-score-above-99.json";
 import americaGovScoresLevelWithGpt55 from "./2026-10-19-america-gov-scores-level-with-gpt-5-5.json";
@@ -35,6 +36,7 @@ export type PolicyBenchNote = {
 };
 
 export const notes = [
+  claudeFable52JoinsTheBoard,
   gpt61TerraJoinsTheBoard,
   givenAPolicyEngineToolThreeModelsScoreAbove99,
   americaGovScoresLevelWithGpt55,

@@ -102,35 +102,106 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 14 ones", () => {
+  test("the newest note is the frozen release's, ahead of the October 31 one", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
+    expect(notes[0].slug).toBe("2026-11-12-claude-fable-5-2-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+    // The October 31 release note keeps release 20261027 and its board
+    // snapshot.
+    expect(notes[1].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
+    expect(notes[1].release).toBe("dashboard-data-20261027");
+    expect(notes[1].boardSnapshot).toBe("2026-10-27");
+    expect(notes[1].slug.startsWith(notes[1].date)).toBe(true);
     // The October 20 tool-pilot note, the October 19 America.gov note and the
     // October 14 release note keep release 20261014 and its board snapshot.
-    expect(notes[1].slug).toBe(
+    expect(notes[2].slug).toBe(
       "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
     );
-    expect(notes[2].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
-    expect(notes[3].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
-    for (const note of notes.slice(1, 4)) {
+    expect(notes[3].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
+    expect(notes[4].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
+    for (const note of notes.slice(2, 5)) {
       expect(note.release).toBe("dashboard-data-20261014");
       expect(note.boardSnapshot).toBe("2026-10-14");
       expect(note.slug.startsWith(note.date)).toBe(true);
     }
     // The October 13 and October 10 notes keep their own releases and board
     // snapshots.
-    expect(notes[4].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
-    expect(notes[4].release).toBe("dashboard-data-20261013");
-    expect(notes[4].boardSnapshot).toBe("2026-10-13");
-    expect(notes[5].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[5].release).toBe("dashboard-data-20261010");
-    expect(notes[5].boardSnapshot).toBe("2026-10-10");
-    expect(notes[6].slug).toBe(
+    expect(notes[5].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[5].release).toBe("dashboard-data-20261013");
+    expect(notes[5].boardSnapshot).toBe("2026-10-13");
+    expect(notes[6].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[6].release).toBe("dashboard-data-20261010");
+    expect(notes[6].boardSnapshot).toBe("2026-10-10");
+    expect(notes[7].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
+  });
+
+  test("the Claude Fable 5.2 note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-11-12-claude-fable-5-2-joins-the-board",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "PolicyBench added Claude Fable 5.2 to its 2026-11-11 snapshot, two days after Anthropic released it, bringing the board to 52 models.",
+    );
+    // Board rates keep one decimal, a whole one too.
+    expect(markup).toContain(
+      "Claude Fable 5.2 gets 92.0% of answers right and ranks #5 of 52, behind GPT-5.6 Sol (93.1%) and ahead of GPT-6 Astra (91.7%, #6).",
+    );
+    expect(markup).toContain(
+      "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-6.1 Terra (93.1%).",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.2 ranks #3, behind only GPT-6 Sol and Claude Opus 5.5.",
+    );
+    expect(markup).toContain(closing);
+    // Thousands get separators; whole numbers under ten are spelled out.
+    expect(markup).toContain(
+      "drew a thinking block that took 1,789 of its 2,881 output tokens.",
+    );
+    expect(markup).toContain(
+      "On six households the answer ran past the row&#x27;s first budget of 16,384 output tokens",
+    );
+    // Costs keep their cents.
+    expect(markup).toContain(
+      "the 100 households cost $31.69, against $6.75 for Claude Opus 5.5 and $3.43 for Claude Sonnet 5.5.",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.1, the Fable model before it, gets 90.8% (#9) and cost $25.70.",
+    );
+    expect(markup).toContain(
+      "with a certificate, the credit and the output are $1,921.",
+    );
+    expect(markup).toContain(
+      "Of the 52 models, 43 answer $0, eight give a positive amount, none of them $1,921, and one gives no answer.",
+    );
+    expect(markup).toContain(
+      "Every model is now scored on 1,934 of its 1,984 requested outputs, down from 1,935, and PolicyBench excludes 50.",
+    );
+    // A bound on a move is not a board rate, so it keeps its two decimals.
+    expect(markup).toContain(
+      "the exclusion moves each of the 51 earlier models&#x27; shares of answers right by less than 0.01 points: the 42 that answered $0 fall, and the nine that did not rise.",
+    );
+    expect(markup).toContain(
+      "gives the same value as 2.60.0 for all 1,934 scored outputs; it moves three excluded outputs",
+    );
+    expect(markup).toContain(
+      "Claude Opus 5.5 judged the misses in the 122 audit cases Claude Fable 5.2 joined, on 2026-11-11, and it flagged seven references as suspect. Of the seven, six already had decisions, which this release keeps: four are outputs PolicyBench excludes, and two are references it affirmed in earlier releases.",
+    );
+    expect(markup).toContain(
+      "the judge gave eight models&#x27; answers each a class",
+    );
+    expect(markup).toContain("All three outputs stay scored.");
+    expect(markup).toContain('href="/model/claude-fable-5.2"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261111"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
   test("the GPT-6.1 Terra note renders its figures", () => {

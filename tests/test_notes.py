@@ -185,13 +185,19 @@ SUPERSEDED_RELEASES = {
     # (October 14, 19 and 20) are still recomputed, from the snapshot its
     # commit holds (RELEASE_20261014_COMMIT).
     "dashboard-data-20261014": "2026-10-14",
+    # Superseded by dashboard-data-20261111, which adds Claude Fable 5.2 and
+    # stops scoring one Minnesota output on the same references. The October
+    # 31 note's facts are still recomputed, from the snapshot its commit holds
+    # (RELEASE_20261027_COMMIT).
+    "dashboard-data-20261027": "2026-10-27",
 }
 # The frozen release's board snapshot is its manifest's snapshot date.
 CURRENT_RELEASE_SNAPSHOT = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())[
     "snapshot_date"
 ]
 # The commit that froze each superseded release whose notes' facts are
-# recomputed from git: the merges of #182, #187, #202, #208, #217 and #221.
+# recomputed from git: the merges of #182, #187, #202, #208, #217, #221 and
+# #247.
 RELEASE_20260929_COMMIT = "d616e67c33b6f80dabf5cb7329f069f9a1de069d"
 RELEASE_20260930 = "dashboard-data-20260930"
 RELEASE_20260930_COMMIT = "8b4c0ca146bb6f66deba6ce24009d49d70d92df2"
@@ -208,6 +214,10 @@ RELEASE_20261014 = "dashboard-data-20261014"
 # The squash merge of #221, which froze release dashboard-data-20261014 (#228
 # later re-rendered the paper on it; no answer, reference or exclusion moved).
 RELEASE_20261014_COMMIT = "bf845cbe4e92de495150c8660c35ea357d996a8c"
+RELEASE_20261027 = "dashboard-data-20261027"
+# The squash merge of #247, which froze release dashboard-data-20261027 (#209
+# later re-rendered the paper on it; no answer, reference or exclusion moved).
+RELEASE_20261027_COMMIT = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
 RELEASE_COMMITS = {
     "dashboard-data-20260929": RELEASE_20260929_COMMIT,
     "dashboard-data-20260930": RELEASE_20260930_COMMIT,
@@ -215,6 +225,7 @@ RELEASE_COMMITS = {
     RELEASE_20261010: RELEASE_20261010_COMMIT,
     RELEASE_20261013: RELEASE_20261013_COMMIT,
     RELEASE_20261014: RELEASE_20261014_COMMIT,
+    RELEASE_20261027: RELEASE_20261027_COMMIT,
 }
 
 
@@ -6011,7 +6022,6 @@ def test_methodology_quotes_the_policyengine_named_definitions() -> None:
     path.stem for path in NOTES_DIR.glob("*-gpt-6-1-terra-joins-the-board.json")
 )
 TERRA = "gpt-6.1-terra"
-RELEASE_20261027 = "dashboard-data-20261027"
 TERRA_CHECK = ROOT / "reference_audit/2026-10-22-engine-upgrade/verification"
 # The October 23 move's scored changes: one SNAP amount and three school-meal
 # flags (reference_audit/2026-10-22-engine-upgrade/README.md).
@@ -6029,12 +6039,21 @@ def _exact_models(payload: dict, key: tuple[str, str]) -> set[str]:
     return {model for model, entry in by_model.items() if entry.get("exact") == 100.0}
 
 
-def _release_20261027_facts() -> dict:
-    """The GPT-6.1 Terra release note's facts, recomputed from the frozen
-    release, release 20261014 at its commit and the publication check."""
-    from policybench.paper_results import PaperResults
+def _terra_sweep_timing() -> dict:
+    """The publication record of the October 22 engine audit as release
+    20261027 committed it: a later release's publication check rewrites the
+    file in place."""
+    return _git_json(
+        RELEASE_20261027_COMMIT,
+        (TERRA_CHECK / "sweep_timing.json").relative_to(ROOT).as_posix(),
+    )
 
-    r = PaperResults()
+
+def _release_20261027_facts() -> dict:
+    """The GPT-6.1 Terra release note's facts, recomputed from release
+    20261027 and release 20261014 at their commits and the publication check
+    release 20261027 committed."""
+    r = _results_at(RELEASE_20261027)
     board = r.model_stats
     by_model = {row["model"]: row for row in board}
     ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
@@ -6053,7 +6072,7 @@ def _release_20261027_facts() -> dict:
         for change in r.last_engine_upgrade.partition["scored_changes"]
         if (change["scenario_id"], change["variable"]) == TERRA_SNAP
     ]
-    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    timing = _terra_sweep_timing()
     check = timing["publication_check"]
     # The check's engine was PyPI's newest when the release read PyPI; the
     # note dates that read, since newer releases follow within days.
@@ -6106,11 +6125,12 @@ def _release_20261027_facts() -> dict:
 
 
 def test_release_20261027_note() -> None:
-    """The GPT-6.1 Terra release note's facts are the frozen release's."""
+    """The GPT-6.1 Terra release note's facts are release 20261027's,
+    recomputed at its commit."""
     note = _note(TERRA_NOTE)
     facts = note["facts"]
-    if not _recompute_against_frozen_snapshot(note):
-        return
+    # Release 20261111 superseded the note's release.
+    assert _frozen_release() != RELEASE_20261027
     assert note["release"] == RELEASE_20261027
     # The public board gained Terra on publication, after the snapshot's date.
     assert note["boardSnapshot"] == facts["snapshotDate"] < note["date"]
@@ -6121,19 +6141,19 @@ def test_release_20261027_note() -> None:
 
 
 def test_release_20261027_note_claims() -> None:
-    """What the GPT-6.1 Terra release note's sentences claim holds on the
-    frozen release, release 20261014 at its commit, the October 23 move's
-    sidecar revision, the publication check and the model cards."""
+    """What the GPT-6.1 Terra release note's sentences claim holds on release
+    20261027 and release 20261014 at their commits, the October 23 move's
+    sidecar revision, the publication check release 20261027 committed and
+    the model cards."""
     from policybench.config import GPT_RESPONSES_MODELS, PRICE_OVERRIDES_PER_1M
     from policybench.model_cards import card_for
-    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+    from policybench.paper_results import MODEL_RELEASE_DATES
 
     note = _note(TERRA_NOTE)
-    if not _recompute_against_frozen_snapshot(note):
-        return
     facts = note["facts"]
     text = " ".join(note["paragraphs"])
-    r = PaperResults()
+    root = _release_root(RELEASE_20261027)
+    r = _results_at(RELEASE_20261027)
     board = r.model_stats
     names = [row["model"] for row in board]
     exact = {row["model"]: row["exact"] for row in board}
@@ -6155,20 +6175,22 @@ def test_release_20261027_note_claims() -> None:
     assert [m for m in names if "terra" in m] == [TERRA, "gpt-5.6-terra"]
     # Run as GPT-6.1 Sol is: the Responses API, the forced tool, the
     # provider's default reasoning; reasoning on every household.
-    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    serving = _load_json(_in(root, SNAPSHOT_DIR / "model_serving_config.json"))[
+        "models"
+    ]
     for model in (TERRA, "gpt-6.1-sol"):
         card = card_for(serving[model]["provider_id"])
         assert model in GPT_RESPONSES_MODELS
         assert serving[model]["answer_contract"] == card.answer_contract == "tool"
         assert "on the Responses API with provider-default reasoning" in card.notes
-    assert _board_reasoning_households(TERRA) == facts["households"] == 100
+    assert _board_reasoning_households(TERRA, root) == facts["households"] == 100
     assert PRICE_OVERRIDES_PER_1M[TERRA]["input"] == 1.0
     assert PRICE_OVERRIDES_PER_1M[TERRA]["output"] == 5.0
     # The October 23 move: begun on the newest release, four scored changes
     # and nothing else; each change rests on law published before the freeze.
     last = r.last_engine_upgrade
     assert last.date == r.engine_upgrade_date == "2026-10-23"
-    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    timing = _terra_sweep_timing()
     assert timing["reference_sweep"]["engine"] == facts["engineVersion"]
     assert timing["reference_sweep"]["first_output_at_utc"].startswith("2026-10-23")
     assert (
@@ -6207,7 +6229,7 @@ def test_release_20261027_note_claims() -> None:
             assert "without the request condition" in change["basis"]
     assert sorted(states) == ["Arkansas", "Pennsylvania", "Pennsylvania"]
     # "Nothing is newly excluded, and no excluded output returns to scoring."
-    assert _excluded_at(ROOT) == _excluded_at(then_root)
+    assert _excluded_at(root) == _excluded_at(then_root)
     assert facts["scoredOutputs"] == facts["totalOutputs"] - r.excluded_output_count
     # The publication check: every scored output the same, one excluded moved.
     check = timing["publication_check"]
@@ -6218,7 +6240,7 @@ def test_release_20261027_note_claims() -> None:
     assert {(row["reference_engine"], row["engine"]) for row in rows} == {
         (facts["engineVersion"], facts["checkedEngine"])
     }
-    excluded = _excluded_at(ROOT)
+    excluded = _excluded_at(root)
     moved = {
         (row["scenario_id"], row["variable"]) for row in rows if row["same"] != "True"
     }
@@ -6238,6 +6260,481 @@ def test_release_20261027_note_claims() -> None:
     assert names.index(TERRA) < names.index("gpt-6-astra")
     assert names.index("gpt-6-astra") + 1 == names.index("claude-sonnet-5.5")
     assert "GPT-5.5, GPT-6 Astra and GPT-6.1 Sol, the three that rise" in text
+    # Links resolve to committed paths.
+    for entry in note["data"]:
+        href = entry["href"]
+        for prefix in (
+            "https://github.com/PolicyEngine/policybench/blob/main/",
+            "https://github.com/PolicyEngine/policybench/tree/main/",
+        ):
+            if href.startswith(prefix):
+                assert (ROOT / href.removeprefix(prefix)).exists(), href
+
+
+# --- Release dashboard-data-20261111: Claude Fable 5.2 and the d2180 exclusion --
+
+(FABLE52_NOTE,) = sorted(
+    path.stem for path in NOTES_DIR.glob("*-claude-fable-5-2-joins-the-board.json")
+)
+FABLE52 = "claude-fable-5.2"
+RELEASE_20261111 = "dashboard-data-20261111"
+FABLE52_DOCS = ROOT / "docs/fable52"
+# The output Max's ruling d2180 (2026-11-01) takes out of scoring
+# (docs/fable52/proposed_exclusions.json).
+FABLE52_RULED = ("scenario_122", "state_refundable_credits")
+# The 2026-11-11 triage decisions (docs/fable52/spec.json): the reference the
+# judge flagged, which the decision affirms, and the two cases where the judge
+# gave rows the class of a reference that rests on later law.
+FABLE52_AFFIRMED = ("scenario_100", "state_refundable_credits")
+FABLE52_LATER_LAW = [
+    ("scenario_039", FEDERAL_INCOME_TAX),
+    ("scenario_101", FEDERAL_INCOME_TAX),
+]
+# The Claude rows the note names beside the new one.
+FABLE52_PEERS = ("claude-fable-5.1", "claude-opus-5.5", "claude-sonnet-5.5")
+
+
+@cache
+def _fable52_households():
+    """Claude Fable 5.2's usage by household in the frozen predictions: live
+    calls, completion tokens and reasoning tokens."""
+    import pandas as pd
+
+    predictions = pd.read_csv(
+        PREDICTIONS_PATH,
+        usecols=[
+            "model",
+            "scenario_id",
+            "live_calls",
+            "completion_tokens",
+            "reasoning_tokens",
+        ],
+    )
+    rows = predictions[predictions["model"] == FABLE52]
+    return rows.groupby("scenario_id").agg(
+        live_calls=("live_calls", "max"),
+        completion_tokens=("completion_tokens", "sum"),
+        reasoning_tokens=("reasoning_tokens", "sum"),
+    )
+
+
+def _fable52_rejudged() -> set[str]:
+    """The cases this release re-judged (docs/fable52/judge_provenance.json)."""
+    provenance = _load_json(FABLE52_DOCS / "judge_provenance.json")
+    return {verdict["case_id"] for verdict in provenance["verdicts"]}
+
+
+def _fable52_flagged() -> list[dict]:
+    """The committed decisions on re-judged cases whose current verdict flags
+    the reference as suspect: the entry records the flag and names no earlier
+    judge run as its source (the record's date conventions). No committed case
+    note keeps a flag without a decision (checked in the claims test), so
+    these are every flag the re-judge raised."""
+    rejudged = _fable52_rejudged()
+    return [
+        entry
+        for entry in _load_json(ADJUDICATIONS_PATH)["adjudications"]
+        if "__".join((entry["country"], *_key_of(entry))) in rejudged
+        and entry["judge_reference_suspect"]
+        and not entry.get("judge_reference_suspect_source")
+    ]
+
+
+def _fable52_later_law_models(entry: dict) -> list[str]:
+    """The models whose rows the judge classed reference_later_law, as the
+    triage decision's reasoning lists them."""
+    listed = re.search(r"rows reference_later_law \(([^)]*)\)", entry["reasoning"])
+    assert listed is not None
+    return re.split(r", | and ", listed.group(1))
+
+
+def _release_20261111_facts() -> dict:
+    """The Claude Fable 5.2 release note's facts, recomputed from the frozen
+    release, release 20261027 at its commit, the publication check, the
+    release's spec, exclusion record and judge provenance, the adjudication
+    record and the model card."""
+    import math
+
+    from policybench.model_cards import card_for
+    from policybench.paper_results import PaperResults
+
+    r = PaperResults()
+    board = r.model_stats
+    by_model = {row["model"]: row for row in board}
+    ranks = {row["model"]: index + 1 for index, row in enumerate(board)}
+    by_score = sorted(board, key=lambda row: row["score"], reverse=True)
+    then = _no_tools_exact(_payload_at(_release_root(RELEASE_20261027)))
+    move = [by_model[model]["exact"] - exact for model, exact in then.items()]
+    cells = r.dashboard["scenarioPredictions"][FABLE52_RULED[0]][FABLE52_RULED[1]]
+    answers = [entry.get("prediction") for entry in cells.values()]
+    (record,) = [
+        entry
+        for entry in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        if _key_of(entry) == FABLE52_RULED
+    ]
+    assert record["alternative_value"] == round(record["alternative_value"])
+    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    # The onboarding probe is not on the board; the model card records its
+    # counts.
+    probe = re.search(
+        r"drew a thinking block \(([\d,]+) of ([\d,]+) output tokens\)",
+        card_for(serving[FABLE52]["provider_id"]).notes,
+    )
+    assert probe is not None
+    households = _fable52_households()
+    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    check = timing["publication_check"]
+    # The check's engine was PyPI's newest when the release read PyPI.
+    assert timing["pypi"]["newest_at_read"] == check["engine"]
+    provenance = _load_json(FABLE52_DOCS / "judge_provenance.json")
+    (judged_on,) = {verdict["judged_at_utc"][:10] for verdict in provenance["verdicts"]}
+    spec = _load_json(FABLE52_DOCS / "spec.json")
+    triage = {_key_of(entry): entry for entry in spec["triage_adjudications"]}
+    flagged = _fable52_flagged()
+    decided = [
+        entry
+        for entry in flagged
+        if entry["adjudicated_on"] < spec["triage_decided_on"]
+    ]
+    (later_law_each,) = {
+        len(_fable52_later_law_models(triage[key])) for key in FABLE52_LATER_LAW
+    }
+
+    def one(value: float) -> float:
+        return float(f"{value:.1f}")
+
+    def cost(model: str) -> str:
+        return f"{by_model[model]['costUsd']:.2f}"
+
+    return {
+        "snapshotDate": r.manifest["snapshot_date"],
+        "nModels": len(board),
+        "fableExact": one(by_model[FABLE52]["exact"]),
+        "fableRank": ranks[FABLE52],
+        "sol56Exact": one(by_model["gpt-5.6-sol"]["exact"]),
+        "astraExact": one(by_model["gpt-6-astra"]["exact"]),
+        "astraRank": ranks["gpt-6-astra"],
+        "solExact": one(by_model["gpt-6-sol"]["exact"]),
+        "opusExact": one(by_model["claude-opus-5.5"]["exact"]),
+        "terraExact": one(by_model[TERRA]["exact"]),
+        "fableBoundedRank": [row["model"] for row in by_score].index(FABLE52) + 1,
+        "probeThinking": int(probe.group(1).replace(",", "")),
+        "probeOutput": int(probe.group(2).replace(",", "")),
+        "escalated": int((households["live_calls"] > 1).sum()),
+        "firstBudget": serving[FABLE52]["shared_completion_budget_tokens"],
+        "households": len(r.dashboard["scenarioPredictions"]),
+        "fableCost": cost(FABLE52),
+        "opusCost": cost("claude-opus-5.5"),
+        "sonnetCost": cost("claude-sonnet-5.5"),
+        "fable51Exact": one(by_model["claude-fable-5.1"]["exact"]),
+        "fable51Rank": ranks["claude-fable-5.1"],
+        "fable51Cost": cost("claude-fable-5.1"),
+        "engineVersion": r.policyengine_us_version,
+        "crpAlt": round(record["alternative_value"]),
+        "crpZero": sum(answer == 0 for answer in answers),
+        "crpPositive": sum(answer is not None and answer > 0 for answer in answers),
+        "crpNoAnswer": sum(answer is None for answer in answers),
+        "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
+        "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
+        "previousScoredOutputs": int(
+            _results_at(RELEASE_20261027).scored_outputs_per_model_fmt.replace(",", "")
+        ),
+        "excluded": r.excluded_output_count,
+        "incumbents": len(then),
+        # "by less than {moveBelow} points": the largest move rounded up to
+        # hundredths.
+        "moveBelow": math.ceil(max(abs(delta) for delta in move) * 100) / 100,
+        "fallers": sum(delta < 0 for delta in move),
+        "risers": sum(delta > 0 for delta in move),
+        "checkedOn": timing["pypi"]["read_at_utc"][:10],
+        "checkedEngine": check["engine"],
+        "excludedMoved": len(check["excluded_differ"]),
+        "rejudged": len(provenance["verdicts"]),
+        "judgedOn": judged_on,
+        "flagged": len(flagged),
+        "flaggedDecided": len(decided),
+        "flaggedExcluded": sum(
+            bool(entry.get("excluded_from_scoring")) for entry in decided
+        ),
+        "flaggedAffirmed": sum(
+            entry.get("reference_verdict") == "affirmed" for entry in decided
+        ),
+        "laterLawEach": later_law_each,
+        "triageOutputs": len(triage),
+    }
+
+
+def test_release_20261111_note() -> None:
+    """The Claude Fable 5.2 release note's facts are the frozen release's."""
+    note = _note(FABLE52_NOTE)
+    facts = note["facts"]
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    assert note["release"] == RELEASE_20261111
+    # The public board gained Claude Fable 5.2 on publication, after the
+    # snapshot's date.
+    assert note["boardSnapshot"] == facts["snapshotDate"] < note["date"]
+    assert note["slug"].startswith(note["date"])
+    assert f"#{facts['fableRank']}" in note["title"]
+    assert facts == _release_20261111_facts()
+
+
+def test_release_20261111_note_claims() -> None:
+    """What the Claude Fable 5.2 release note's sentences claim holds on the
+    frozen release, release 20261027 at its commit, the exclusion record, the
+    release's spec and judge provenance, the adjudication record, the
+    publication check and the model cards."""
+    import subprocess
+
+    from policybench.annotation_taxonomy import FAILURE_SOURCE_VALUES
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+    from policybench.model_cards import card_for
+    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+
+    note = _note(FABLE52_NOTE)
+    if not _recompute_against_frozen_snapshot(note):
+        return
+    facts = note["facts"]
+    text = " ".join(note["paragraphs"])
+    r = PaperResults()
+    board = r.model_stats
+    names = [row["model"] for row in board]
+    exact = {row["model"]: row["exact"] for row in board}
+    then_root = _release_root(RELEASE_20261027)
+    then = _no_tools_exact(_payload_at(then_root))
+    then_names = sorted(then, key=then.get, reverse=True)
+    # One new row on the previous board, released two days before the snapshot.
+    assert set(names) == set(then) | {FABLE52}
+    assert facts["nModels"] == len(then) + 1 == facts["incumbents"] + 1
+    released = date.fromisoformat(MODEL_RELEASE_DATES[FABLE52])
+    assert (date.fromisoformat(note["boardSnapshot"]) - released).days == 2
+    # "behind GPT-5.6 Sol and ahead of GPT-6 Astra", and the leaders: GPT-6
+    # Sol, Claude Opus 5.5, GPT-6.1 Terra.
+    assert names[:6] == [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        TERRA,
+        "gpt-5.6-sol",
+        FABLE52,
+        "gpt-6-astra",
+    ]
+    # On the bounded score only GPT-6 Sol and Claude Opus 5.5 rank higher.
+    by_score = sorted(board, key=lambda row: row["score"], reverse=True)
+    assert [row["model"] for row in by_score[:3]] == [
+        "gpt-6-sol",
+        "claude-opus-5.5",
+        FABLE52,
+    ]
+    # Claude Fable 5.1 is the only other Fable row that reasons at the
+    # provider default on the JSON contract; Claude Fable 5 came before it.
+    assert MODEL_RELEASE_DATES["claude-fable-5.1"] < MODEL_RELEASE_DATES[FABLE52]
+    assert [m for m in names if m.startswith("claude-fable")] == [
+        FABLE52,
+        "claude-fable-5.1",
+        "claude-fable-5",
+    ]
+    # The API rejects a forced tool call, as the three peers' do: the JSON
+    # contract at the provider default, with no reasoning setting sent.
+    serving = _load_json(SNAPSHOT_DIR / "model_serving_config.json")["models"]
+    for model in (FABLE52, *FABLE52_PEERS):
+        card = card_for(serving[model]["provider_id"])
+        assert serving[model]["answer_contract"] == card.answer_contract == "json"
+        assert serving[model]["tool_choice"] is None
+        assert serving[model]["reasoning_setup"].startswith("provider default")
+    card = card_for(serving[FABLE52]["provider_id"])
+    assert "The API rejects forced tool use on this model" in card.notes
+    assert "so the row reasons at the provider default" in card.notes
+    fingerprint = serving[FABLE52]["evidence"]["treatment_fingerprint"]
+    assert fingerprint["thinking"] == {"mode": "provider_default"}
+    # Anthropic's default effort: high for this model, medium for Opus 5.5.
+    assert "The API's default effort is high" in card.notes
+    assert "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
+    # No Claude row records a reasoning token, so the new row's zero means
+    # not counted; the card's probe drew a thinking block.
+    import pandas as pd
+
+    usage = pd.read_csv(PREDICTIONS_PATH, usecols=["model", "reasoning_tokens"])
+    claude = usage[usage["model"].str.startswith("claude")]
+    assert set(claude["model"]) == {m for m in names if m.startswith("claude")}
+    assert claude["reasoning_tokens"].fillna(0).eq(0).all()
+    households = _fable52_households()
+    assert len(households) == facts["households"] == 100
+    assert households["reasoning_tokens"].sum() == 0
+    assert "sent directly through Anthropic's SDK, drew a thinking block" in card.notes
+    assert 0 < facts["probeThinking"] < facts["probeOutput"]
+    # The households that took a second call are the ones whose answers ran
+    # past the first budget.
+    again = households[households["live_calls"] > 1]
+    assert (again["completion_tokens"] > facts["firstBudget"]).all()
+    once = households[households["live_calls"] == 1]
+    assert (once["completion_tokens"] <= facts["firstBudget"]).all()
+    assert fingerprint["initial_completion_budget_tokens"] == facts["firstBudget"]
+    assert fingerprint["completion_budget_ceiling"] > facts["firstBudget"]
+    assert PRICE_OVERRIDES_PER_1M[FABLE52]["input"] == 8.0
+    assert PRICE_OVERRIDES_PER_1M[FABLE52]["output"] == 40.0
+    # The ruled exclusion: one record added to release 20261027's, a Minnesota
+    # output whose $0 reference rests on an unstated Certificate of Rent Paid.
+    excluded = _excluded_at(ROOT)
+    assert excluded - _excluded_at(then_root) == {FABLE52_RULED}
+    # "no excluded output returns to scoring".
+    assert _excluded_at(then_root) <= excluded
+    assert facts["scoredOutputs"] == facts["totalOutputs"] - facts["excluded"]
+    assert facts["previousScoredOutputs"] == facts["scoredOutputs"] + 1
+    (record,) = [
+        entry
+        for entry in _load_json(EXCLUSIONS_PATH)["exclusions"]
+        if _key_of(entry) == FABLE52_RULED
+    ]
+    assert record["reason_code"] == "reference_depends_on_unlisted_input"
+    assert "Certificate of Rent Paid" in record["unlisted_input"]
+    assert record["frozen_value"] == 0.0
+    assert record["decided_on"] == "2026-11-01"
+    assert record["engine_version"] == f"policyengine-us {facts['engineVersion']}"
+    reading = record["alternative_reading"]
+    assert "places the household in Minnesota and lists pre-subsidy rent" in reading
+    assert "states no Certificate of Rent Paid" in reading
+    assert "requires the owner or managing agent of a rented homestead" in reading
+    assert "a boolean tax-unit input that defaults to false" in reading
+    scenario = _dashboard()["scenarios"][FABLE52_RULED[0]]
+    assert scenario["state"] == "MN"
+    references = {
+        (row["scenario_id"], row["variable"]): float(row["value"])
+        for row in _read_csv(REFERENCES_PATH)
+    }
+    assert references[FABLE52_RULED] == 0.0
+    # The answers: $0, a positive amount that is not the amount with the
+    # certificate, or none.
+    cells = r.dashboard["scenarioPredictions"][FABLE52_RULED[0]][FABLE52_RULED[1]]
+    assert len(cells) == facts["nModels"]
+    assert (
+        facts["crpZero"] + facts["crpPositive"] + facts["crpNoAnswer"]
+        == facts["nModels"]
+    )
+    positive = [
+        entry["prediction"]
+        for entry in cells.values()
+        if entry.get("prediction") is not None and entry["prediction"] > 0
+    ]
+    assert not any(abs(answer - facts["crpAlt"]) <= 1 for answer in positive)
+    # The earlier models: the ones that answered $0 fall and the others rise,
+    # each by less than the bound, and none passes another.
+    zero = {m for m, entry in cells.items() if entry.get("prediction") == 0}
+    assert {m for m, e in then.items() if exact[m] < e} == zero - {FABLE52}
+    assert {m for m, e in then.items() if exact[m] > e} == set(then) - zero
+    assert facts["fallers"] + facts["risers"] == facts["incumbents"]
+    assert 0 < max(abs(exact[m] - e) for m, e in then.items()) < facts["moveBelow"]
+    assert [m for m in names if m != FABLE52] == then_names
+    # The references are release 20261027's, on the same engine.
+    assert _read_csv(REFERENCES_PATH) == _read_csv(_in(then_root, REFERENCES_PATH))
+    assert (
+        facts["engineVersion"] == _results_at(RELEASE_20261027).policyengine_us_version
+    )
+    # The publication check: the release's scored outputs all the same, and
+    # every output the check moves is one the release excludes.
+    timing = _load_json(TERRA_CHECK / "sweep_timing.json")
+    check = timing["publication_check"]
+    rows = _read_csv(ROOT / check["output"])
+    assert len(rows) == facts["totalOutputs"] == check["outputs"]
+    assert check["scored_differ"] == []
+    assert {(row["reference_engine"], row["engine"]) for row in rows} == {
+        (facts["engineVersion"], facts["checkedEngine"])
+    }
+    moved = {
+        (row["scenario_id"], row["variable"]) for row in rows if row["same"] != "True"
+    }
+    assert len(moved) == facts["excludedMoved"] and moved <= excluded
+    assert len(rows) - len(excluded | moved) == facts["scoredOutputs"]
+    # The check postdates the model's release and the snapshot's date.
+    assert facts["checkedOn"] >= note["boardSnapshot"]
+    # The judge: Claude Opus 5.5 on every re-judged case, on one day.
+    provenance = _load_json(FABLE52_DOCS / "judge_provenance.json")
+    assert sum(provenance["counts"].values()) == facts["rejudged"]
+    assert {
+        tuple(verdict["judge_model_reported"]) for verdict in provenance["verdicts"]
+    } == {("claude-opus-5-5",)}
+    # Every re-judged case holds an answer Claude Fable 5.2 missed or did not
+    # give ("the cases Claude Fable 5.2 joined").
+    scenario_predictions = r.dashboard["scenarioPredictions"]
+    for case_id in _fable52_rejudged():
+        _, scenario_id, variable = case_id.split("__")
+        assert scenario_predictions[scenario_id][variable][FABLE52]["exact"] != 100.0
+    # The flags: no committed case note keeps one, so each sits on a decision.
+    notes_path = ADJUDICATIONS_PATH.with_name("us_case_notes.csv")
+    assert {row["reference_suspect"] for row in _read_csv(notes_path)} == {"False"}
+    spec = _load_json(FABLE52_DOCS / "spec.json")
+    flagged = _fable52_flagged()
+    for entry in flagged:
+        assert facts["judgedOn"] in (
+            entry.get("judged_on_utc"),
+            entry.get("judge_rejudged_on"),
+        )
+    new = [e for e in flagged if e["adjudicated_on"] == spec["triage_decided_on"]]
+    assert [_key_of(entry) for entry in new] == [FABLE52_AFFIRMED]
+    assert facts["flagged"] == facts["flaggedDecided"] + len(new)
+    # The earlier decisions on flagged references are exclusions or
+    # affirmations, and the release keeps each.
+    assert (
+        facts["flaggedDecided"] == facts["flaggedExcluded"] + facts["flaggedAffirmed"]
+    )
+    for entry in flagged:
+        if entry.get("excluded_from_scoring"):
+            assert _key_of(entry) in excluded
+        else:
+            assert entry["reference_verdict"] == "affirmed"
+            assert _key_of(entry) not in excluded
+    # The three triage decisions keep their outputs scored: the Montana
+    # reference affirmed, and the later-law rows resolved as model errors.
+    triage = {_key_of(entry): entry for entry in spec["triage_adjudications"]}
+    assert set(triage) == {FABLE52_AFFIRMED, *FABLE52_LATER_LAW}
+    assert not set(triage) & excluded
+    scenarios = _dashboard()["scenarios"]
+    affirmed = triage[FABLE52_AFFIRMED]
+    assert scenarios[FABLE52_AFFIRMED[0]]["state"] == "MT"
+    assert affirmed["reference_verdict"] == "affirmed"
+    assert affirmed["adjudicated_failure_source"] == "llm_error"
+    assert "HB 268 never became law" in affirmed["reasoning"]
+    assert (
+        "the earned income tax credit, 20% of the federal credit"
+        in (affirmed["reasoning"])
+    )
+    assert sorted(scenarios[key[0]]["state"] for key in FABLE52_LATER_LAW) == [
+        "TX",
+        "VA",
+    ]
+    assert "reference_later_law" in FAILURE_SOURCE_VALUES
+    for key in FABLE52_LATER_LAW:
+        entry = triage[key]
+        assert entry["adjudicated_failure_source"] == "llm_error"
+        assert entry["reference_verdict"] is None
+        assert len(_fable52_later_law_models(entry)) == facts["laterLawEach"]
+        assert set(_fable52_later_law_models(entry)) <= set(names)
+        assert "scheduled to return in 2026" in entry["reasoning"]
+        assert "P.L. 119-21, enacted July 4, 2025" in entry["reasoning"]
+        assert "before the July 3, 2026 reference freeze" in entry["reasoning"]
+    # The correction line: #254 and #256 corrected eleven notes, dated
+    # September 1 to October 31.
+    corrected = set()
+    for commit in ("03c80a41", "8180cde1"):
+        shown = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(ROOT),
+                "diff",
+                "--name-only",
+                f"{commit}^",
+                commit,
+                "--",
+                NOTES_DIR.relative_to(ROOT).as_posix(),
+            ],
+            capture_output=True,
+        )
+        assert shown.returncode == 0, shown.stderr.decode()
+        corrected |= {Path(name).stem for name in shown.stdout.decode().split()}
+    assert len(corrected) == 11
+    assert min(corrected)[:10] == "2026-09-01" and max(corrected)[:10] == "2026-10-31"
+    assert "PolicyBench has corrected eleven of its notes" in text
+    assert "from September 1 to October 31" in text
     # Links resolve to committed paths.
     for entry in note["data"]:
         href = entry["href"]
