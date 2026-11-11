@@ -8,16 +8,17 @@ Top model: `gpt-6-sol` with `bounded_score=0.981` and `within_1pct=0.957`.
 
 ## Usage
 
-Recorded-usage cost subtotal (48 of 51 models): $464.734.
+Recorded-usage cost subtotal (49 of 52 models): $496.420.
 
-Published model costs total $528.813 (includes release-metadata costs for: claude-fable-5, gemini-3.6-flash, grok-build-0.1).
+Published model costs total $560.500 (includes release-metadata costs for: claude-fable-5, gemini-3.6-flash, grok-build-0.1).
 
-Cumulative request-time: `11527.4 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `167917.9 min`.
+Cumulative request-time: `11646.1 min` (summed across concurrent calls; not wall-clock). Run wall-clock: `188020.7 min`.
 
 | model | total_cost_usd | cost_rows_estimated | cumulative_request_time | wall_clock | total_tokens | reasoning_tokens | parsed_rows | total_rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | claude-fable-5 | n/a | 0 | n/a | n/a | n/a | n/a | 1984 | 1984 |
 | claude-fable-5.1 | 25.698 | 0 | 93.6 min | 23.3 min | 680865.000 | 0.000 | 1984 | 1984 |
+| claude-fable-5.2 | 31.686 | 0 | 118.7 min | 36.2 min | 970713.000 | 0.000 | 1984 | 1984 |
 | claude-haiku-4.5 | 5.541 | 1984 | 98.8 min | n/a | 3836025.000 | 0.000 | 1984 | 1984 |
 | claude-haiku-5.5 | 0.130 | 0 | 9.2 min | 5.4 min | 759194.000 | 0.000 | 1984 | 1984 |
 | claude-opus-4.7 | 29.303 | 1984 | 103.4 min | n/a | 4569140.000 | 0.000 | 1984 | 1984 |
@@ -72,69 +73,71 @@ Cumulative request-time: `11527.4 min` (summed across concurrent calls; not wall
 
 | model | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_binary_accuracy | mean_mae | total_n |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gpt-6-sol | 0.980 | 0.956 | 0.960 | 0.967 | 0.971 | 0.993 | 21.082 | 1935 |
-| claude-opus-5.5 | 0.981 | 0.957 | 0.964 | 0.969 | 0.975 | 0.985 | 18.921 | 1935 |
-| muse-wonder | 0.976 | 0.935 | 0.946 | 0.961 | 0.968 | 0.987 | 25.659 | 1935 |
-| gpt-6-luna | 0.973 | 0.940 | 0.949 | 0.962 | 0.966 | 0.985 | 29.325 | 1935 |
-| gpt-6.1-terra | 0.976 | 0.946 | 0.951 | 0.962 | 0.965 | 0.987 | 27.001 | 1935 |
-| gpt-5.6-sol | 0.975 | 0.948 | 0.953 | 0.962 | 0.965 | 0.987 | 28.784 | 1935 |
-| muse-spark-1.3 | 0.969 | 0.915 | 0.925 | 0.950 | 0.955 | 0.980 | 27.621 | 1935 |
-| gpt-6-astra | 0.979 | 0.950 | 0.955 | 0.962 | 0.966 | 0.985 | 31.658 | 1935 |
-| claude-fable-5.1 | 0.976 | 0.944 | 0.952 | 0.960 | 0.966 | 0.981 | 32.282 | 1935 |
-| claude-sonnet-5.5 | 0.966 | 0.937 | 0.943 | 0.952 | 0.957 | 0.981 | 34.048 | 1935 |
-| grok-4.7 | 0.970 | 0.922 | 0.936 | 0.950 | 0.958 | 0.981 | 42.497 | 1935 |
-| gemini-3.8-flash | 0.970 | 0.916 | 0.921 | 0.945 | 0.953 | 0.986 | 55.335 | 1935 |
-| gemini-4-argon | 0.973 | 0.929 | 0.938 | 0.949 | 0.956 | 0.987 | 42.257 | 1935 |
-| inkling | 0.966 | 0.918 | 0.930 | 0.940 | 0.949 | 0.989 | 54.443 | 1935 |
-| gpt-6.1-sol | 0.978 | 0.948 | 0.950 | 0.959 | 0.965 | 0.982 | 30.049 | 1935 |
-| gpt-5.5 | 0.963 | 0.921 | 0.928 | 0.941 | 0.949 | 0.971 | 51.023 | 1935 |
-| gemini-3.6-flash | 0.965 | 0.903 | 0.908 | 0.930 | 0.936 | 0.987 | 61.847 | 1935 |
-| gpt-5.6-terra | 0.960 | 0.921 | 0.929 | 0.940 | 0.949 | 0.981 | 58.576 | 1935 |
-| ox-alpha | 0.958 | 0.919 | 0.928 | 0.938 | 0.948 | 0.976 | 55.765 | 1935 |
-| deepseek-v4.1-flash | 0.962 | 0.915 | 0.926 | 0.940 | 0.947 | 0.978 | 52.639 | 1935 |
-| kimi-k3 | 0.942 | 0.912 | 0.921 | 0.930 | 0.932 | 0.946 | 21.504 | 1935 |
-| grok-4.6 | 0.964 | 0.915 | 0.923 | 0.937 | 0.944 | 0.982 | 69.967 | 1935 |
-| gpt-5.6-luna | 0.955 | 0.921 | 0.929 | 0.937 | 0.943 | 0.978 | 92.676 | 1935 |
-| grok-4.5 | 0.958 | 0.911 | 0.916 | 0.928 | 0.938 | 0.985 | 74.494 | 1935 |
-| gemini-3.7-flash | 0.957 | 0.903 | 0.907 | 0.923 | 0.932 | 0.985 | 90.594 | 1935 |
-| deepseek-v4-pro-0813 | 0.959 | 0.907 | 0.917 | 0.929 | 0.936 | 0.989 | 95.310 | 1935 |
-| gemini-3.1-pro-preview | 0.953 | 0.895 | 0.900 | 0.913 | 0.921 | 0.981 | 91.216 | 1935 |
-| deepseek-v4-flash-0731 | 0.946 | 0.896 | 0.902 | 0.922 | 0.928 | 0.984 | 113.565 | 1935 |
-| claude-opus-5 | 0.950 | 0.902 | 0.907 | 0.917 | 0.928 | 0.978 | 117.474 | 1935 |
-| gemini-3-flash-preview | 0.957 | 0.894 | 0.897 | 0.913 | 0.926 | 0.988 | 94.037 | 1935 |
-| claude-fable-5 | 0.950 | 0.903 | 0.907 | 0.920 | 0.926 | 0.974 | 113.767 | 1935 |
-| gemini-3.5-flash | 0.952 | 0.889 | 0.894 | 0.907 | 0.920 | 0.982 | 97.617 | 1935 |
-| deepseek-v4-pro | 0.945 | 0.888 | 0.892 | 0.912 | 0.925 | 0.976 | 106.271 | 1935 |
-| grok-build-0.1 | 0.942 | 0.887 | 0.893 | 0.907 | 0.916 | 0.982 | 113.384 | 1935 |
-| claude-sonnet-4.6 | 0.941 | 0.889 | 0.895 | 0.917 | 0.925 | 0.945 | 78.660 | 1935 |
-| glm-5.3 | 0.910 | 0.865 | 0.876 | 0.887 | 0.892 | 0.930 | 108.665 | 1935 |
-| claude-opus-4.7 | 0.925 | 0.878 | 0.883 | 0.891 | 0.903 | 0.931 | 126.620 | 1935 |
-| gemini-3.5-flash-lite | 0.924 | 0.889 | 0.893 | 0.898 | 0.904 | 0.956 | 217.343 | 1935 |
-| gemini-3.1-flash-lite-preview | 0.929 | 0.884 | 0.892 | 0.899 | 0.905 | 0.972 | 195.153 | 1935 |
-| grok-4.3 | 0.932 | 0.895 | 0.903 | 0.908 | 0.916 | 0.967 | 207.686 | 1935 |
-| qwen-3.7-max | 0.910 | 0.865 | 0.870 | 0.880 | 0.886 | 0.947 | 232.504 | 1935 |
-| glm-5.2 | 0.880 | 0.838 | 0.842 | 0.860 | 0.867 | 0.912 | 120.310 | 1935 |
-| claude-haiku-5.5 | 0.916 | 0.887 | 0.893 | 0.898 | 0.903 | 0.960 | 356.541 | 1935 |
-| claude-opus-4.8 | 0.913 | 0.870 | 0.874 | 0.881 | 0.889 | 0.911 | 159.493 | 1935 |
-| claude-haiku-4.5 | 0.892 | 0.856 | 0.863 | 0.869 | 0.875 | 0.919 | 288.369 | 1935 |
-| qwen3.8-max | 0.893 | 0.856 | 0.859 | 0.866 | 0.873 | 0.931 | 288.803 | 1935 |
-| claude-sonnet-5 | 0.911 | 0.866 | 0.873 | 0.879 | 0.886 | 0.937 | 208.798 | 1935 |
-| minimax-m3 | 0.905 | 0.875 | 0.882 | 0.893 | 0.895 | 0.958 | 373.233 | 1935 |
-| gpt-5.4-mini | 0.885 | 0.851 | 0.860 | 0.862 | 0.867 | 0.914 | 306.469 | 1935 |
-| gpt-5.4-nano | 0.879 | 0.838 | 0.842 | 0.850 | 0.858 | 0.928 | 369.981 | 1935 |
-| kimi-k2.6 | 0.766 | 0.755 | 0.756 | 0.760 | 0.763 | 0.901 | 226.927 | 1935 |
+| gpt-6-sol | 0.980 | 0.956 | 0.959 | 0.967 | 0.971 | 0.993 | 21.104 | 1934 |
+| claude-opus-5.5 | 0.981 | 0.957 | 0.964 | 0.969 | 0.975 | 0.985 | 18.933 | 1934 |
+| claude-fable-5.2 | 0.979 | 0.948 | 0.959 | 0.971 | 0.975 | 0.981 | 23.084 | 1934 |
+| muse-wonder | 0.975 | 0.935 | 0.946 | 0.961 | 0.968 | 0.987 | 25.682 | 1934 |
+| gpt-6-luna | 0.973 | 0.940 | 0.949 | 0.962 | 0.966 | 0.985 | 29.364 | 1934 |
+| gpt-6.1-terra | 0.976 | 0.946 | 0.951 | 0.963 | 0.966 | 0.987 | 26.855 | 1934 |
+| gpt-5.6-sol | 0.975 | 0.949 | 0.954 | 0.963 | 0.966 | 0.987 | 27.565 | 1934 |
+| muse-spark-1.3 | 0.968 | 0.915 | 0.925 | 0.950 | 0.955 | 0.980 | 27.654 | 1934 |
+| gpt-6-astra | 0.980 | 0.951 | 0.956 | 0.962 | 0.966 | 0.985 | 31.093 | 1934 |
+| claude-fable-5.1 | 0.976 | 0.944 | 0.952 | 0.960 | 0.966 | 0.981 | 32.298 | 1934 |
+| claude-sonnet-5.5 | 0.966 | 0.937 | 0.943 | 0.952 | 0.957 | 0.981 | 34.097 | 1934 |
+| grok-4.7 | 0.970 | 0.922 | 0.936 | 0.950 | 0.958 | 0.981 | 42.515 | 1934 |
+| gemini-3.8-flash | 0.970 | 0.916 | 0.921 | 0.945 | 0.953 | 0.986 | 55.358 | 1934 |
+| gemini-4-argon | 0.973 | 0.930 | 0.938 | 0.949 | 0.957 | 0.987 | 41.637 | 1934 |
+| inkling | 0.966 | 0.918 | 0.930 | 0.940 | 0.949 | 0.989 | 54.487 | 1934 |
+| gpt-6.1-sol | 0.978 | 0.948 | 0.950 | 0.959 | 0.965 | 0.982 | 30.064 | 1934 |
+| gpt-5.5 | 0.964 | 0.922 | 0.928 | 0.941 | 0.950 | 0.971 | 50.439 | 1934 |
+| gemini-3.6-flash | 0.965 | 0.903 | 0.907 | 0.930 | 0.936 | 0.987 | 61.876 | 1934 |
+| gpt-5.6-terra | 0.960 | 0.921 | 0.929 | 0.940 | 0.949 | 0.981 | 58.615 | 1934 |
+| ox-alpha | 0.958 | 0.919 | 0.928 | 0.938 | 0.947 | 0.976 | 55.794 | 1934 |
+| deepseek-v4.1-flash | 0.963 | 0.915 | 0.926 | 0.940 | 0.948 | 0.978 | 51.852 | 1934 |
+| kimi-k3 | 0.941 | 0.912 | 0.921 | 0.930 | 0.932 | 0.946 | 21.525 | 1934 |
+| grok-4.6 | 0.964 | 0.915 | 0.923 | 0.937 | 0.944 | 0.982 | 69.995 | 1934 |
+| gpt-5.6-luna | 0.955 | 0.921 | 0.929 | 0.937 | 0.943 | 0.978 | 92.707 | 1934 |
+| grok-4.5 | 0.957 | 0.911 | 0.916 | 0.928 | 0.938 | 0.985 | 74.531 | 1934 |
+| gemini-3.7-flash | 0.957 | 0.903 | 0.907 | 0.923 | 0.932 | 0.985 | 90.616 | 1934 |
+| deepseek-v4-pro-0813 | 0.959 | 0.907 | 0.917 | 0.929 | 0.936 | 0.989 | 95.336 | 1934 |
+| gemini-3.1-pro-preview | 0.954 | 0.896 | 0.901 | 0.913 | 0.921 | 0.981 | 90.116 | 1934 |
+| deepseek-v4-flash-0731 | 0.946 | 0.895 | 0.902 | 0.922 | 0.928 | 0.984 | 113.615 | 1934 |
+| claude-opus-5 | 0.950 | 0.902 | 0.907 | 0.917 | 0.928 | 0.978 | 117.513 | 1934 |
+| gemini-3-flash-preview | 0.957 | 0.894 | 0.897 | 0.913 | 0.926 | 0.988 | 94.057 | 1934 |
+| claude-fable-5 | 0.950 | 0.903 | 0.907 | 0.920 | 0.927 | 0.974 | 112.525 | 1934 |
+| gemini-3.5-flash | 0.952 | 0.889 | 0.894 | 0.907 | 0.920 | 0.982 | 97.640 | 1934 |
+| deepseek-v4-pro | 0.945 | 0.888 | 0.892 | 0.912 | 0.924 | 0.976 | 106.319 | 1934 |
+| grok-build-0.1 | 0.941 | 0.887 | 0.893 | 0.907 | 0.916 | 0.982 | 113.431 | 1934 |
+| claude-sonnet-4.6 | 0.941 | 0.889 | 0.895 | 0.917 | 0.925 | 0.945 | 78.697 | 1934 |
+| glm-5.3 | 0.910 | 0.865 | 0.876 | 0.887 | 0.892 | 0.930 | 108.702 | 1934 |
+| claude-opus-4.7 | 0.925 | 0.878 | 0.883 | 0.891 | 0.903 | 0.931 | 126.667 | 1934 |
+| gemini-3.5-flash-lite | 0.924 | 0.889 | 0.893 | 0.898 | 0.904 | 0.956 | 217.403 | 1934 |
+| gemini-3.1-flash-lite-preview | 0.929 | 0.884 | 0.892 | 0.899 | 0.905 | 0.972 | 195.221 | 1934 |
+| grok-4.3 | 0.932 | 0.894 | 0.903 | 0.908 | 0.916 | 0.967 | 207.753 | 1934 |
+| qwen-3.7-max | 0.910 | 0.865 | 0.870 | 0.880 | 0.886 | 0.947 | 232.564 | 1934 |
+| glm-5.2 | 0.880 | 0.837 | 0.842 | 0.860 | 0.867 | 0.912 | 120.338 | 1934 |
+| claude-haiku-5.5 | 0.916 | 0.887 | 0.893 | 0.898 | 0.903 | 0.960 | 356.611 | 1934 |
+| claude-opus-4.8 | 0.913 | 0.869 | 0.874 | 0.881 | 0.889 | 0.911 | 159.527 | 1934 |
+| claude-haiku-4.5 | 0.892 | 0.856 | 0.863 | 0.869 | 0.875 | 0.919 | 288.439 | 1934 |
+| qwen3.8-max | 0.893 | 0.856 | 0.859 | 0.866 | 0.873 | 0.931 | 288.860 | 1934 |
+| claude-sonnet-5 | 0.911 | 0.866 | 0.873 | 0.879 | 0.886 | 0.937 | 208.848 | 1934 |
+| minimax-m3 | 0.905 | 0.875 | 0.882 | 0.893 | 0.895 | 0.958 | 373.302 | 1934 |
+| gpt-5.4-mini | 0.885 | 0.851 | 0.860 | 0.862 | 0.867 | 0.914 | 306.539 | 1934 |
+| gpt-5.4-nano | 0.879 | 0.838 | 0.842 | 0.850 | 0.858 | 0.928 | 370.051 | 1934 |
+| kimi-k2.6 | 0.766 | 0.756 | 0.756 | 0.760 | 0.764 | 0.901 | 226.927 | 1934 |
 
 ## Population household-impact weights (headline)
 
-Households receive equal weight. The score is a weighted average of row scores: relative-error partial credit for amount outputs and exact 0/1 matching for binary outputs. Canonical country reports use full-population output-group weights: US weights come from the certified PolicyEngine US populace dataset, UK weights from the full enhanced FRS. Each output group's weight is the household-weighted mean of `|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)` in the full weighting population, renormalized so weights sum to 1. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset.
+Households receive equal weight. The score is a weighted average of row scores: relative-error partial credit for amount outputs and exact 0/1 matching for binary outputs. Canonical country reports use full-population output-group weights: US weights come from the certified PolicyEngine US Microcosm dataset, UK weights from the full enhanced FRS. Each output group's weight is the household-weighted mean of `|ref_ij| / max(|household_net_income_i|, sum_k |ref_ik|)` in the full weighting population, renormalized so weights sum to 1. This weighting source is separate from the UK benchmark scenario source, which remains the public calibrated transfer dataset.
 
 | model | bounded_score | amount_accuracy | participation_accuracy |
 | --- | ---: | ---: | ---: |
-| claude-fable-5 | 0.923 | 0.781 | 0.965 |
+| claude-fable-5 | 0.923 | 0.781 | 0.966 |
 | claude-fable-5.1 | 0.967 | 0.892 | 0.980 |
+| claude-fable-5.2 | 0.978 | 0.929 | 0.984 |
 | claude-haiku-4.5 | 0.829 | 0.595 | 0.914 |
 | claude-haiku-5.5 | 0.859 | 0.509 | 0.931 |
-| claude-opus-4.7 | 0.895 | 0.792 | 0.939 |
+| claude-opus-4.7 | 0.895 | 0.792 | 0.938 |
 | claude-opus-4.8 | 0.844 | 0.740 | 0.926 |
 | claude-opus-5 | 0.925 | 0.792 | 0.964 |
 | claude-opus-5.5 | 0.979 | 0.885 | 0.986 |
@@ -144,7 +147,7 @@ Households receive equal weight. The score is a weighted average of row scores: 
 | deepseek-v4-flash-0731 | 0.928 | 0.807 | 0.963 |
 | deepseek-v4-pro | 0.912 | 0.773 | 0.964 |
 | deepseek-v4-pro-0813 | 0.932 | 0.803 | 0.975 |
-| deepseek-v4.1-flash | 0.949 | 0.841 | 0.972 |
+| deepseek-v4.1-flash | 0.949 | 0.841 | 0.973 |
 | gemini-3-flash-preview | 0.925 | 0.789 | 0.975 |
 | gemini-3.1-flash-lite-preview | 0.887 | 0.702 | 0.950 |
 | gemini-3.1-pro-preview | 0.929 | 0.770 | 0.973 |
@@ -153,27 +156,27 @@ Households receive equal weight. The score is a weighted average of row scores: 
 | gemini-3.6-flash | 0.951 | 0.838 | 0.979 |
 | gemini-3.7-flash | 0.933 | 0.776 | 0.973 |
 | gemini-3.8-flash | 0.965 | 0.843 | 0.980 |
-| gemini-4-argon | 0.964 | 0.864 | 0.982 |
+| gemini-4-argon | 0.964 | 0.864 | 0.983 |
 | glm-5.2 | 0.861 | 0.710 | 0.897 |
 | glm-5.3 | 0.895 | 0.783 | 0.926 |
 | gpt-5.4-mini | 0.806 | 0.468 | 0.905 |
 | gpt-5.4-nano | 0.758 | 0.467 | 0.898 |
 | gpt-5.5 | 0.953 | 0.880 | 0.970 |
 | gpt-5.6-luna | 0.943 | 0.820 | 0.966 |
-| gpt-5.6-sol | 0.970 | 0.880 | 0.981 |
+| gpt-5.6-sol | 0.970 | 0.880 | 0.982 |
 | gpt-5.6-terra | 0.950 | 0.850 | 0.971 |
-| gpt-6-astra | 0.969 | 0.908 | 0.985 |
+| gpt-6-astra | 0.970 | 0.908 | 0.986 |
 | gpt-6-luna | 0.972 | 0.874 | 0.980 |
 | gpt-6-sol | 0.981 | 0.897 | 0.985 |
 | gpt-6.1-sol | 0.957 | 0.898 | 0.982 |
-| gpt-6.1-terra | 0.972 | 0.869 | 0.981 |
+| gpt-6.1-terra | 0.972 | 0.869 | 0.982 |
 | grok-4.3 | 0.886 | 0.655 | 0.945 |
 | grok-4.5 | 0.936 | 0.800 | 0.973 |
 | grok-4.6 | 0.947 | 0.819 | 0.976 |
 | grok-4.7 | 0.966 | 0.867 | 0.978 |
 | grok-build-0.1 | 0.910 | 0.783 | 0.960 |
 | inkling | 0.963 | 0.850 | 0.976 |
-| kimi-k2.6 | 0.692 | 0.271 | 0.775 |
+| kimi-k2.6 | 0.692 | 0.271 | 0.776 |
 | kimi-k3 | 0.948 | 0.853 | 0.948 |
 | minimax-m3 | 0.818 | 0.482 | 0.919 |
 | muse-spark-1.3 | 0.970 | 0.876 | 0.976 |
@@ -189,21 +192,21 @@ Amount variables use the tolerance columns. Binary coverage flags use `mean_accu
 
 | variable | metric_type | mean_score | mean_exact | mean_within_1pct | mean_within_5pct | mean_within_10pct | mean_accuracy | mean_mae | total_n |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| federal_income_tax_before_refundable_credits | amount_tolerance | 0.836 | 0.615 | 0.641 | 0.698 | 0.728 | n/a | 893.163 | 4284 |
-| federal_refundable_credits | amount_tolerance | 0.913 | 0.857 | 0.869 | 0.884 | 0.895 | n/a | 201.694 | 5100 |
-| free_school_meals_eligible | binary_accuracy | 0.950 | 0.950 | 0.950 | 0.950 | 0.950 | 0.950 | 0.046 | 5100 |
-| local_income_tax | amount_tolerance | 0.993 | 0.993 | 0.993 | 0.993 | 0.993 | n/a | 7.461 | 4998 |
-| payroll_tax | amount_tolerance | 0.952 | 0.810 | 0.841 | 0.888 | 0.912 | n/a | 271.867 | 4896 |
-| person_chip_eligible | binary_accuracy | 0.961 | 0.961 | 0.961 | 0.961 | 0.961 | 0.961 | 0.033 | 9027 |
-| person_early_head_start_eligible | binary_accuracy | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.010 | 1938 |
-| person_head_start_eligible | binary_accuracy | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.023 | 1938 |
-| person_medicaid_eligible | binary_accuracy | 0.925 | 0.925 | 0.925 | 0.925 | 0.925 | 0.925 | 0.070 | 8823 |
-| person_medicare_eligible | binary_accuracy | 0.973 | 0.973 | 0.973 | 0.973 | 0.973 | 0.973 | 0.023 | 8772 |
-| person_wic_eligible | binary_accuracy | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.015 | 9027 |
-| reduced_price_school_meals_eligible | binary_accuracy | 0.986 | 0.986 | 0.986 | 0.986 | 0.986 | 0.986 | 0.011 | 5100 |
-| self_employment_tax | amount_tolerance | 0.978 | 0.972 | 0.977 | 0.978 | 0.978 | n/a | 20.944 | 5100 |
-| snap | amount_tolerance | 0.889 | 0.835 | 0.848 | 0.868 | 0.874 | n/a | 219.161 | 4743 |
-| ssi | amount_tolerance | 0.988 | 0.979 | 0.982 | 0.984 | 0.985 | n/a | 74.699 | 4947 |
-| state_income_tax_before_refundable_credits | amount_tolerance | 0.831 | 0.607 | 0.630 | 0.689 | 0.739 | n/a | 299.009 | 4743 |
-| state_refundable_credits | amount_tolerance | 0.858 | 0.821 | 0.822 | 0.826 | 0.830 | n/a | 66.702 | 5049 |
-| tanf | amount_tolerance | 0.989 | 0.985 | 0.985 | 0.986 | 0.986 | n/a | 40.921 | 5100 |
+| federal_income_tax_before_refundable_credits | amount_tolerance | 0.839 | 0.619 | 0.645 | 0.702 | 0.731 | n/a | 879.697 | 4368 |
+| federal_refundable_credits | amount_tolerance | 0.914 | 0.860 | 0.872 | 0.886 | 0.897 | n/a | 197.846 | 5200 |
+| free_school_meals_eligible | binary_accuracy | 0.950 | 0.950 | 0.950 | 0.950 | 0.950 | 0.950 | 0.046 | 5200 |
+| local_income_tax | amount_tolerance | 0.993 | 0.993 | 0.993 | 0.993 | 0.993 | n/a | 7.317 | 5096 |
+| payroll_tax | amount_tolerance | 0.953 | 0.811 | 0.842 | 0.889 | 0.914 | n/a | 267.674 | 4992 |
+| person_chip_eligible | binary_accuracy | 0.961 | 0.961 | 0.961 | 0.961 | 0.961 | 0.961 | 0.033 | 9204 |
+| person_early_head_start_eligible | binary_accuracy | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.985 | 0.010 | 1976 |
+| person_head_start_eligible | binary_accuracy | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.972 | 0.023 | 1976 |
+| person_medicaid_eligible | binary_accuracy | 0.926 | 0.926 | 0.926 | 0.926 | 0.926 | 0.926 | 0.069 | 8996 |
+| person_medicare_eligible | binary_accuracy | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.974 | 0.022 | 8944 |
+| person_wic_eligible | binary_accuracy | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.981 | 0.014 | 9204 |
+| reduced_price_school_meals_eligible | binary_accuracy | 0.986 | 0.986 | 0.986 | 0.986 | 0.986 | 0.986 | 0.011 | 5200 |
+| self_employment_tax | amount_tolerance | 0.978 | 0.973 | 0.978 | 0.978 | 0.979 | n/a | 20.541 | 5200 |
+| snap | amount_tolerance | 0.890 | 0.836 | 0.850 | 0.870 | 0.876 | n/a | 216.082 | 4836 |
+| ssi | amount_tolerance | 0.988 | 0.979 | 0.982 | 0.985 | 0.985 | n/a | 74.000 | 5044 |
+| state_income_tax_before_refundable_credits | amount_tolerance | 0.833 | 0.610 | 0.634 | 0.694 | 0.742 | n/a | 294.229 | 4836 |
+| state_refundable_credits | amount_tolerance | 0.860 | 0.823 | 0.824 | 0.828 | 0.833 | n/a | 64.200 | 5096 |
+| tanf | amount_tolerance | 0.989 | 0.985 | 0.986 | 0.986 | 0.986 | n/a | 40.135 | 5200 |
