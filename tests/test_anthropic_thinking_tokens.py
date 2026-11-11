@@ -85,6 +85,7 @@ from policybench.eval_no_tools import (
     _install_anthropic_thinking_token_capture,
     _recorded_anthropic_thinking_tokens,
     _response_cache_hit,
+    _spend_ledger_record,
     _with_thinking_capture,
     run_no_tools_eval,
     run_single_no_tools,
@@ -275,6 +276,25 @@ def litellm_cache_state(monkeypatch):
     return monkeypatch
 
 
+# Settings that would change a request these tests assert: litellm's switch
+# for the ``/v1/messages`` suffix and the harness's sensitivity-run overrides.
+REQUEST_SHAPING_VARIABLES = (
+    "LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX",
+    "POLICYBENCH_CONTRACT_OVERRIDE",
+    "POLICYBENCH_TOOL_CHOICE",
+    "POLICYBENCH_CHUNK_OVERRIDE",
+)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def default_request_settings():
+    """Run this module's tests without the request-shaping variables."""
+    with pytest.MonkeyPatch.context() as patcher:
+        for name in REQUEST_SHAPING_VARIABLES:
+            patcher.delenv(name, raising=False)
+        yield
+
+
 # The batch path's plumbing: the SDK over a mocked transport
 
 
@@ -439,8 +459,8 @@ def test_the_capture_never_breaks_a_response(caplog):
 
 
 def test_a_test_doubles_invented_attribute_is_no_provider_count():
-    """A ``MagicMock`` usage invents every attribute it is asked for; only a
-    JSON value under the capture's name counts as a provider count."""
+    """A ``MagicMock`` usage invents every attribute a caller asks for; only
+    a JSON value under the capture's name counts as a provider count."""
     usage = MagicMock()
     usage.prompt_tokens = 5
     usage.completion_tokens = 9
@@ -449,6 +469,19 @@ def test_a_test_doubles_invented_attribute_is_no_provider_count():
 
     assert _recorded_anthropic_thinking_tokens(usage) is None
     assert _usage(response)["reasoning_tokens"] == 7
+
+
+def test_the_bound_reads_output_tokens_when_the_usage_has_no_completion_count():
+    """MOCK usage, not litellm's: it carries a provider count and names its
+    completion count ``output_tokens``. litellm's own usage always carries
+    ``completion_tokens``."""
+    usage = SimpleNamespace(
+        input_tokens=54, output_tokens=123, anthropic_thinking_tokens=119
+    )
+    response = SimpleNamespace(usage=usage, id="mock", model=HAIKU)
+
+    assert _usage(response)["reasoning_tokens"] == 119
+    assert _usage(response)["completion_tokens"] == 123
 
 
 # The sync path, through litellm.completion
@@ -490,11 +523,13 @@ def test_without_the_field_sync_records_litellms_count_of_the_thinking_text():
     assert _without_response_id(after) == _without_response_id(before)
 
 
-def test_without_the_field_or_thinking_text_sync_records_zero():
-    usage = _usage(_litellm_response(_without_count(THINKING))[0])
+def test_without_the_field_or_thinking_text_sync_records_zero(caplog):
+    with caplog.at_level(logging.WARNING, logger="policybench.eval_no_tools"):
+        usage = _usage(_litellm_response(_without_count(THINKING))[0])
 
     assert usage["reasoning_tokens"] == 0
     assert usage["completion_tokens"] == 123
+    assert "Recording reasoning_tokens as unknown" not in caplog.text
 
 
 def test_the_provider_count_replaces_litellms_count_of_the_thinking_text():
@@ -624,12 +659,44 @@ def test_an_entry_cached_before_the_capture_replays_litellms_count(
     assert _usage(replay)["reasoning_tokens"] == 0
 
 
+def test_a_replays_spend_record_keeps_the_count_and_charges_nothing(
+    mini_scenario, litellm_cache_state
+):
+    """The spend ledger's record of a cache replay holds the response's
+    token counts and a zero cost."""
+    litellm_cache_state.setattr(litellm, "cache", litellm.Cache(type="local"))
+    live, _ = _litellm_response(THINKING, caching=True)
+    replay, _ = _litellm_response(THINKING, caching=True)
+
+    record = _spend_ledger_record(
+        call_key="sync:mock",
+        phase="initial",
+        attempt=1,
+        status="ok",
+        scenario=mini_scenario,
+        variables=["income_tax"],
+        model_id=HAIKU,
+        request_started_at=None,
+        request_completed_at=None,
+        elapsed_seconds=None,
+        usage=_usage(replay),
+        cache_hit=_response_cache_hit(replay),
+    )
+
+    assert record["cache_hit"] is True
+    assert record["reasoning_tokens"] == 119
+    assert record["completion_tokens"] == 123
+    assert record["total_cost_usd"] == 0.0
+    assert record["cached_response_cost_usd"] == _usage(live)["total_cost_usd"] > 0
+
+
 # MOCK board rows through the row writers
 
 
 @patch("policybench.eval_no_tools.completion")
 def test_board_row_records_the_thinking_count(mock_completion, mini_scenario):
-    """MOCK: a JSON-contract Claude row answered by the recorded usage."""
+    """MOCK: a JSON-contract Claude row whose response carries the recorded
+    usage."""
     mock_completion.return_value = _mock_board_response(MOCK_BOARD_OUTPUTS)
 
     result = run_single_no_tools(mini_scenario, "income_tax", SONNET)
@@ -746,11 +813,13 @@ def test_batch_entry_records_anthropics_thinking_count():
     assert entry.prompt_tokens == 54
 
 
-def test_batch_entry_without_the_field_leaves_reasoning_empty():
-    with_field, without_field = BATCHES.results(THINKING, _without_count(THINKING))
+def test_batch_entry_without_the_field_leaves_reasoning_empty(caplog):
+    with caplog.at_level(logging.WARNING, logger="policybench.eval_no_tools"):
+        with_field, without_field = BATCHES.results(THINKING, _without_count(THINKING))
 
     assert without_field.reasoning_tokens is None
     assert {**vars(with_field), "reasoning_tokens": None} == vars(without_field)
+    assert "Recording reasoning_tokens as unknown" not in caplog.text
 
 
 def test_batch_forced_tool_entry_records_a_zero_count():
@@ -762,11 +831,13 @@ def test_batch_forced_tool_entry_records_a_zero_count():
 
 
 @pytest.mark.parametrize("raw", ["124", "-1", "119.5", "NaN", "Infinity"])
-def test_batch_records_an_impossible_thinking_count_as_unknown(raw):
-    (entry,) = BATCHES.results(_with_raw_count(THINKING, raw))
+def test_batch_records_an_impossible_thinking_count_as_unknown(raw, caplog):
+    with caplog.at_level(logging.WARNING, logger="policybench.eval_no_tools"):
+        (entry,) = BATCHES.results(_with_raw_count(THINKING, raw))
 
     assert entry.reasoning_tokens is None
     assert entry.completion_tokens == 123
+    assert "Recording reasoning_tokens as unknown" in caplog.text
 
 
 def test_batch_rows_split_the_count_and_the_spend_record_keeps_it():
@@ -971,7 +1042,9 @@ def test_the_bound_returns_the_count_itself_or_nothing(thinking, output_tokens):
 )
 def test_a_request_group_sums_the_counts_its_responses_reported(requests):
     """MOCK usage. A row's request group (chunks, repair rounds) sums every
-    response's count; a response without one adds nothing."""
+    response's count; a response without one adds nothing. Each drawn count
+    stays within its own response's completion, so the exact sum also keeps
+    the group's count within its completion (invariant 2)."""
     aggregate = _aggregate_request_results(
         [
             {"completion_tokens": completion, "reasoning_tokens": reasoning}
@@ -982,5 +1055,3 @@ def test_a_request_group_sums_the_counts_its_responses_reported(requests):
 
     assert aggregate["completion_tokens"] == sum(c for c, _ in requests)
     assert aggregate["reasoning_tokens"] == (sum(known) if known else None)
-    if known:
-        assert aggregate["reasoning_tokens"] <= aggregate["completion_tokens"]

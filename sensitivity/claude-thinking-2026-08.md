@@ -32,14 +32,14 @@ Two findings, verified live against the harness's own request builder:
    thinking. The Claude 4.x models default to no thinking on any request
    shape, so their rows reflect provider defaults faithfully.
 2. **The usage CSVs would have hidden it regardless.** The harness recorded
-   usage through litellm, and every Claude row with recorded usage holds 0
-   reasoning tokens, the `auto` runs below included. litellm 1.95.0 counts
-   reasoning from the thinking text a response returns, and a Claude
-   thinking block can return empty text, which counts as 0. Since November
-   2026 the harness records Anthropic's own thinking-token count on new
-   rows (`docs/runbook.md`, "Reasoning tokens"). Every run in this note
-   predates that, so a 0 in its `reasoning_tokens` means the harness did
-   not count.
+   usage through litellm, and every Claude row with recorded usage in
+   release 20261027's snapshot and in the runs below holds 0 reasoning
+   tokens. litellm counts reasoning from the thinking text a response
+   returns (versions 1.88.1 and 1.95.0 both do), and a Claude thinking
+   block can return empty text, which counts as 0. Since November 2026 the
+   harness records Anthropic's own thinking-token count on new rows
+   (`docs/runbook.md`, "Reasoning tokens"). Every run in this note predates
+   that, so a 0 in its `reasoning_tokens` means the harness did not count.
 
 ## Sensitivity runs
 

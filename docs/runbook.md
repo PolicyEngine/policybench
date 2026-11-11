@@ -509,8 +509,9 @@ predate the columns), with its summed live time. No published figure uses it:
 
 ## 8b. Reasoning tokens
 
-`reasoning_tokens` holds the provider's count of the tokens a response spent
-on reasoning. The harness computes no cost from it.
+`reasoning_tokens` holds a count of the tokens a response spent on reasoning:
+the provider's own count wherever its usage reports one. The harness computes
+no cost from it.
 
 | Rows | Where the count comes from |
 | --- | --- |
@@ -522,7 +523,7 @@ Anthropic counts thinking inside `output_tokens`, so a Claude row's count
 never exceeds its `completion_tokens`. The SDK describes the count as a
 re-tokenization of the raw reasoning, delimiter tokens included, which can
 differ from the model's exact count by a few tokens. Other providers' counts
-carry no such bound: in the 51-model snapshot (release 20261027), kimi-k2.6
+carry no such bound: in release 20261027's snapshot (51 models), kimi-k2.6
 and deepseek-v4-flash-0731 record more reasoning than completion tokens on
 some rows.
 
@@ -547,9 +548,11 @@ For Claude rows:
 
 Before the change (#261, November 2026), a sync Claude row held litellm's
 count of the thinking text its responses returned, and a batch Claude row held
-nothing, so neither showed whether the model reasoned. The 51-model snapshot's
-Claude rows all predate the change: ten models record 0 on every row, and
-Claude Fable 5 records no usage. Read a 0 on those rows as "not counted".
+nothing. A 0 or an empty cell on such a row does not show that the model
+skipped reasoning: read it as "not counted". That covers every Claude row
+collected before #261 merged, whichever release publishes it. In release
+20261027's snapshot, ten Claude models record 0 on every row, and Claude
+Fable 5 records no usage.
 `tests/test_anthropic_thinking_tokens.py` checks these invariants against two
 recorded responses.
 
