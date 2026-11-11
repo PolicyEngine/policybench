@@ -39,6 +39,39 @@
     }
   ],
   "wave_sentence": "follows Max's ruling of 2026-11-01 (21:06 UTC)",
-  "adjudications_written_on": "[LEAD: the UTC day --step adjudicate-exclusions runs, YYYY-MM-DD]",
-  "triage_adjudications": []
+  "adjudications_written_on": "2026-11-11",
+  "triage_adjudications": [
+    {
+      "scenario_id": "scenario_039",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "adjudicated_failure_source": "llm_error",
+      "adjudicated_failure_subtype": "household_unit_or_filing_status",
+      "adjudicated_on": "2026-11-11",
+      "reference_verdict": null,
+      "reference_basis": null,
+      "reasoning": "The judge labeled eight models' rows reference_later_law (deepseek-v4-pro, gemini-3-flash-preview, gemini-3.1-pro-preview, gemini-3.5-flash, gemini-4-argon, grok-4.5, grok-4.6 and grok-4.7) because they applied the pre-TCJA rate schedule scheduled to return in 2026, with its 15% second bracket, and in most cases a smaller standard deduction and a personal exemption. The reference applies the rate tables, larger standard deduction and zero exemption amount that P.L. 119-21, enacted July 4, 2025, before the July 3, 2026 reference freeze, made permanent, at the 2026 single amounts of Rev. Proc. 2025-32 (a $16,100 standard deduction and the 10%, 12% and 22% brackets), and the benchmark scores law published before the freeze; the rows are model errors, as the 2026-09-29 and 2026-10-14 waves decided for the same rule in scenario_007's and scenario_009's federal income tax. The case keeps the verdict's class: the widowed head has no dependent child, so 26 U.S.C. 2(a)(1)(B) denies surviving-spouse status and the head files single."
+    },
+    {
+      "scenario_id": "scenario_100",
+      "variable": "state_refundable_credits",
+      "adjudicated_failure_source": "llm_error",
+      "adjudicated_failure_subtype": "state_local_rule",
+      "adjudicated_on": "2026-11-11",
+      "reference_verdict": "affirmed",
+      "reference_basis": "Mont. Code Ann. 15-30-2318(2) and (4) (2025), as amended by Ch. 227, Laws of 2025 (HB 337), secs. 3 and 6(1): a refundable credit of 20% of the federal earned income credit for the tax year beginning January 1, 2026; Mont. Code Ann. Title 15, ch. 30, part 23 (2025), which holds no child tax credit; minutes of the Montana House Appropriations Committee, February 23, 2023, which tabled HB 268",
+      "reasoning": "The judge flagged the reference on the hypothesis that Montana's HB 268 (2023) pays a refundable $1,200 credit for each child under 6. HB 268 never became law: the House Appropriations Committee tabled it on February 23, 2023, and it died there. No later act created a Montana child tax credit; Title 15, chapter 30, part 23 of the 2025 Montana Code has none, and the Department of Revenue's 2025 Form 2 instructions name only HB 129 and HB 337 among the changes for tax year 2026. For 2026 the household's one Montana refundable credit is the earned income tax credit, 20% of the federal credit: 40% of $2,055.72 (wages of $5,914.72 less $3,859 of traditional 401(k) deferrals) gives $822.29, and 20% of that gives $164.46, the reference. The rows are model errors."
+    },
+    {
+      "scenario_id": "scenario_101",
+      "variable": "federal_income_tax_before_refundable_credits",
+      "adjudicated_failure_source": "llm_error",
+      "adjudicated_failure_subtype": "thresholds_rates",
+      "adjudicated_on": "2026-11-11",
+      "reference_verdict": null,
+      "reference_basis": null,
+      "reasoning": "The judge labeled eight models' rows reference_later_law (deepseek-v4-pro-0813, gemini-3-flash-preview, gemini-3.5-flash, gemini-3.6-flash, gemini-3.7-flash, gpt-5.5, grok-4.5 and grok-build-0.1) because they applied the pre-TCJA rules scheduled to return in 2026 (a smaller standard deduction, a personal exemption and a 15% second bracket). The reference applies the permanent TCJA parameters of P.L. 119-21, enacted July 4, 2025, before the July 3, 2026 reference freeze, at the 2026 single amounts of Rev. Proc. 2025-32, released October 9, 2025 (a $16,100 standard deduction, with the 12% rate starting at $12,400 and the 22% rate at $50,400), and the benchmark scores law published before the freeze; the rows are model errors, as the 2026-09-29 and 2026-10-14 waves decided for the same rule in scenario_007's and scenario_009's federal income tax."
+    }
+  ],
+  "triage_decided_on": "2026-11-11",
+  "triage_adjudications_written_on": "2026-11-11"
 }
