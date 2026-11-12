@@ -1218,6 +1218,7 @@ import csv  # noqa: E402
 import functools  # noqa: E402
 import io  # noqa: E402
 import re  # noqa: E402
+import subprocess  # noqa: E402
 
 import release_20261006  # noqa: E402
 
@@ -1291,6 +1292,37 @@ def _h_blob(path: str) -> bytes:
 
 def h_blob(path) -> bytes:
     return _h_blob(Path(path).as_posix())
+
+
+# The squash merge of #247, which froze this release. Export takes the live
+# pointer to tell whether the committed snapshot holds release 20261014's
+# references or the installed build's (verify_reference_pins). Later releases
+# move the working tree's pointer and exclusion record on, so the driver reads
+# both as this commit holds them (_h_patch).
+RELEASE_20261027_COMMIT = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
+
+
+@functools.cache
+def _h_released(path: str) -> bytes:
+    """A file as release 20261027's commit holds it."""
+    shown = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{RELEASE_20261027_COMMIT}:{path}"],
+        capture_output=True,
+    )
+    assert shown.returncode == 0, (
+        f"{path} at {RELEASE_20261027_COMMIT[:12]} needs git history; fetch "
+        "full history. " + shown.stderr.decode()
+    )
+    return shown.stdout
+
+
+def _h_released_references(directory: Path) -> Path:
+    """Write the five reference files release 20261027 committed into
+    ``directory``, and return it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name in driver.REFERENCE_FILES:
+        (directory / name).write_bytes(_h_released((FROZEN / name).as_posix()))
+    return directory
 
 
 @functools.cache
@@ -1592,6 +1624,21 @@ def _h_patch(mp, workspace: Path, board) -> None:
         return _H_BASE_BLOBS[key]
 
     mp.setattr(driver, "base_commit_blob", immutable_base_blob)
+    # Release 20261027's committed pointer and references, outside the
+    # workspace (RELEASE_20261027_COMMIT). As in test_finish_terra.py, release
+    # 20261014's exclusion record is read from BASE_COMMIT (and checked) first.
+    mp.setattr(
+        driver,
+        "live_pointer",
+        lambda: json.loads(_h_released(release.POINTER.as_posix())),
+    )
+    base_record = driver.base_exclusion_record()
+    mp.setattr(driver, "base_exclusion_record", lambda: copy.deepcopy(base_record))
+    mp.setattr(
+        driver,
+        "SNAPSHOT",
+        _h_released_references(workspace.parent / "release-20261027-references"),
+    )
     _h_point_freeze_at(workspace, mp)
     mp.setattr(driver, "JUDGE_PROVENANCE", workspace / driver.JUDGE_PROVENANCE_PATH)
     mp.setattr(driver, "INPUT_PINS", workspace / driver.INPUT_PINS_PATH)

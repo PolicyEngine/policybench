@@ -27,9 +27,11 @@ AUDIT_DATES = ("2026-09-22", "2026-09-24")
 # tax in SALT, the Medicare Part B premium and state payroll components
 # (reference_audit/2026-10-05, -medicare-part-b and -payroll), the 2026-10-06
 # rulings on the reference adversary's and the Louisiana audit's records
-# (d1022, d994), and the 2026-10-10 engine upgrade's Indiana county records
-# (reference_audit/2026-10-09-engine-upgrade).
-LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06")
+# (d1022, d994), the 2026-10-10 engine upgrade's Indiana county records
+# (reference_audit/2026-10-09-engine-upgrade), and the 2026-11-01 ruling on
+# scenario_122's Minnesota renter's credit (d2180,
+# reference_audit/2026-10-29-mn-renters-crp).
+LATER_DATES = ("2026-09-29", "2026-10-05", "2026-10-06", "2026-11-01")
 R33 = "r33_snap_child_support_treatment"
 # policyengine-us#9586, squash-merged on 2026-09-24.
 R33_MERGE_COMMIT = "d9e801df417352b8246a4c292a19ec082a518790"
@@ -381,11 +383,18 @@ def test_records_after_the_wave_carry_their_root_cause_date():
     }
     # Records dated 2026-09-29 belong to the 2026-09-29 engine upgrade,
     # records dated 2026-10-05 to the 2026-10-05 audits, 2026-10-06 to that
-    # day's rulings (less the ones the 2026-10-10 upgrade regenerated) and
-    # 2026-10-10 to that upgrade's county records.
+    # day's rulings (less the ones the 2026-10-10 upgrade regenerated),
+    # 2026-10-10 to that upgrade's county records and 2026-11-01 to that day's
+    # ruling.
     later = [e for e in _exclusions() if e["decided_on"] in _later_dates()]
     assert Counter(e["decided_on"] for e in later) == Counter(
-        {"2026-09-29": 4, "2026-10-05": 8, "2026-10-06": 6, "2026-10-10": 2}
+        {
+            "2026-09-29": 4,
+            "2026-10-05": 8,
+            "2026-10-06": 6,
+            "2026-10-10": 2,
+            "2026-11-01": 1,
+        }
     )
     for entry in later:
         key = (entry["scenario_id"], entry["variable"])
