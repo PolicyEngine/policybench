@@ -5,6 +5,7 @@
   "paragraphs": [
     "PolicyBench added Claude Fable 5.2 to its {snapshotDate} snapshot, two days after Anthropic released it, bringing the board to {nModels} models. Claude Fable 5.2 gets {fableExact}% of answers right and ranks #{fableRank} of {nModels}, behind GPT-5.6 Sol ({sol56Exact}%) and ahead of GPT-6 Astra ({astraExact}%, #{astraRank}). GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-6.1 Terra ({terraExact}%). On the bounded score, which gives partial credit for amounts close to the reference, Claude Fable 5.2 ranks #{fableBoundedRank}, behind only GPT-6 Sol and Claude Opus 5.5. PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches. It weights each answer by household impact.",
     "Claude Fable 5.2's API rejects forced tool calls, as Claude Fable 5.1's, Claude Opus 5.5's and Claude Sonnet 5.5's do, so its row answers as a JSON object and reasons at the provider default. PolicyBench sends no reasoning setting, so Claude Fable 5.2 ran at the API's default effort, high. Claude Fable 5.1 and Claude Sonnet 5.5 also default to high, and Claude Opus 5.5 defaults to medium. PolicyBench's usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted. Sent to Anthropic's API directly, the board's prompt for the first household drew a thinking block that took {probeThinking} of its {probeOutput} output tokens. On {escalated:words} households the answer ran past the row's starting budget of {firstBudget} output tokens, and PolicyBench asked again with twice the budget, as it does for every row that sets a budget, up to each row's ceiling. One of those second calls took {longCallSeconds} seconds, which the row's {timeoutSeconds}-second timeout allowed; the three other Claude rows that answer as JSON objects also have {timeoutSeconds} seconds, against PolicyBench's default of {defaultTimeoutSeconds} for Claude rows that reason at the provider default. At Anthropic's price of $8 per million input tokens and $40 per million output tokens, the {households} households cost ${fableCost}, against ${opusCost} for Claude Opus 5.5 and ${sonnetCost} for Claude Sonnet 5.5. Claude Fable 5.1, the Fable model before it, gets {fable51Exact}% (#{fable51Rank}) and cost ${fable51Cost}.",
+    "PolicyBench also ran Claude Fable 5.2 and Claude Opus 5.5 once each at the other's default effort, on the same {households} households, under a plan it fixed before the first call, and the runs change no board row. On the share of answers right, Claude Fable 5.2 at medium scores {fableMediumDiff} points above its board row (95% interval {fableMediumLo} to {fableMediumHi}), and Claude Opus 5.5 at high scores {opusHighDiff} points above its board row (95% interval {opusHighLo} to {opusHighHi}). At medium, Claude Fable 5.2 scores {atMediumDiff} points below Claude Opus 5.5 (95% interval {atMediumLo} to {atMediumHi}), and at high, Claude Fable 5.2 scores {atHighDiff} points below Claude Opus 5.5 (95% interval {atHighLo} to {atHighHi}).",
     "The release also stops scoring one output, the refundable state credits of a Minnesota household. Minnesota's renter's credit requires a Certificate of Rent Paid, which state law has the owner of a rented home give each renter. The prompt lists the household's rent and no certificate, and policyengine-us {engineVersion} counts an unlisted certificate as absent, so the reference is $0; with a certificate, the credit and the output are ${crpAlt}. The prompt does not say whether the household holds one, so PolicyBench stops scoring the output, under a ruling of November 1. Of the {nModels} models, {crpZero} answer $0, {crpPositive:words} give a positive amount, none of them ${crpAlt}, and {crpNoAnswer:words} gives no answer. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs, down from {previousScoredOutputs}; PolicyBench excludes the other {excluded}.",
     "Against the previous release, the exclusion moves each of the {incumbents} earlier models' shares of answers right by less than {moveBelow} points: the {fallers} that answered $0 fall, and the {risers:words} that did not rise. Claude Fable 5.2 also answers $0, so the exclusion removes one of its right answers, and it ranks #{fableRank} with or without the output scored. No earlier model passes another, and each of the {fableBelow} earlier models below Claude Fable 5.2 moves down one place.",
     "The references stay on policyengine-us {engineVersion}, and no excluded output returns to scoring. When PolicyBench checked PyPI on {checkedOn}, the newest policyengine-us release was {checkedEngine}, and it gives the same value as {engineVersion} for all {scoredOutputs} scored outputs; it moves {excludedMoved:words} excluded outputs, which keep the values they were decided on.",
@@ -39,6 +40,18 @@
     "fable51Exact": 90.8,
     "fable51Rank": 9,
     "fable51Cost": "25.70",
+    "fableMediumDiff": "1.6",
+    "fableMediumLo": "+0.3",
+    "fableMediumHi": "+3.1",
+    "opusHighDiff": "0.2",
+    "opusHighLo": "-0.9",
+    "opusHighHi": "+1.3",
+    "atMediumDiff": "0.5",
+    "atMediumLo": "-1.5",
+    "atMediumHi": "+0.5",
+    "atHighDiff": "2.3",
+    "atHighLo": "-3.9",
+    "atHighHi": "-0.8",
     "engineVersion": "2.60.0",
     "crpAlt": 1921,
     "crpZero": 43,
@@ -112,6 +125,10 @@
     {
       "label": "Car-loan interest audit",
       "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-11-11-car-loan-interest/README.md"
+    },
+    {
+      "label": "Claude effort sensitivity",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-effort-2026-11.md"
     },
     {
       "label": "Claude Fable 5.2 model page",

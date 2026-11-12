@@ -6360,6 +6360,30 @@ def _fable52_later_law_models(entry: dict) -> list[str]:
 FABLE52_CAR_LOAN = ROOT / "reference_audit/2026-11-11-car-loan-interest"
 # The households that took two calls, per call, from the run's request log.
 FABLE52_ESCALATED = FABLE52_DOCS / "escalated_calls.json"
+# The matched-effort sensitivity (2026-11-12) and its four comparisons, in the
+# sensitivity note's order, by the note's fact prefix.
+FABLE52_EFFORT_NOTE = ROOT / "sensitivity/claude-effort-2026-11.md"
+FABLE52_EFFORT = ROOT / "sensitivity/data/claude-effort-2026-11.json"
+FABLE52_EFFORT_COMPARISONS = {
+    "fableMedium": "fable_medium_vs_fable_board_high",
+    "opusHigh": "opus_high_vs_opus_board_medium",
+    "atMedium": "at_medium_fable_vs_opus",
+    "atHigh": "at_high_fable_vs_opus",
+}
+
+
+def _fable52_effort_facts() -> dict[str, str]:
+    """Each comparison's difference (first minus second, in points of answers
+    right) as a size at one decimal, and its 95% interval signed at one
+    decimal, as the sensitivity note renders them."""
+    comparisons = _load_json(FABLE52_EFFORT)["comparisons"]
+    facts = {}
+    for prefix, name in FABLE52_EFFORT_COMPARISONS.items():
+        comparison = comparisons[name]
+        facts[f"{prefix}Diff"] = f"{abs(comparison['difference_points']):.1f}"
+        facts[f"{prefix}Lo"] = f"{comparison['ci95_low_points']:+.1f}"
+        facts[f"{prefix}Hi"] = f"{comparison['ci95_high_points']:+.1f}"
+    return facts
 
 
 def _fable52_wording_reads() -> dict[str, dict[str, int]]:
@@ -6528,6 +6552,7 @@ def _release_20261111_facts() -> dict:
         "fable51Exact": one(by_model["claude-fable-5.1"]["exact"]),
         "fable51Rank": ranks["claude-fable-5.1"],
         "fable51Cost": cost("claude-fable-5.1"),
+        **_fable52_effort_facts(),
         "engineVersion": r.policyengine_us_version,
         "crpAlt": round(record["alternative_value"]),
         "crpZero": sum(answer == 0 for answer in answers),
@@ -6724,13 +6749,19 @@ def test_release_20261111_note_claims() -> None:
         "The timeout is 600s, as on the other Claude JSON-contract rows (Fable "
         "5.1, Opus 5.5, Sonnet 5.5)"
     ) in card.notes
+    # The runner's default, read from the constant's own definition (the
+    # name appears in other calls too) and from the list it applies to.
     runner = (ROOT / "policybench/eval_no_tools.py").read_text()
-    assert (
-        '"POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", '
-        f"{facts['defaultTimeoutSeconds']}"
-    ) in runner
-    thinking_default = runner.split("THINKING_DEFAULT_CLAUDE_MODELS = (")[1]
-    thinking_default = thinking_default.split(")")[0]
+    default = re.findall(
+        r"^THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS = _env_int\(\s*"
+        r'"POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", (\d+)\s*\)',
+        runner,
+        re.MULTILINE,
+    )
+    assert default == [str(facts["defaultTimeoutSeconds"])]
+    (thinking_default,) = re.findall(
+        r"^THINKING_DEFAULT_CLAUDE_MODELS = \(\n(.*?)^\)", runner, re.M | re.S
+    )
     for model in claude_json:
         provider_id = serving[model]["provider_id"]
         assert f'"{provider_id}",' in thinking_default, model
@@ -6781,6 +6812,58 @@ def test_release_20261111_note_claims() -> None:
     )
     assert facts["longCallSeconds"] < again["elapsed_seconds"].max()
     assert "One of those second calls took {longCallSeconds} seconds" in text
+    # The effort sensitivity: each model once at the other's default, on the
+    # board's households, under a plan fixed before the first call, beside
+    # the board; each comparison is first minus second, as the note phrases
+    # it, and the note's figures are the sensitivity note's.
+    effort = _load_json(FABLE52_EFFORT)
+    assert effort["release"] == RELEASE_20261111
+    runs = effort["runs"]
+    assert {
+        (run["model"], run["effort"], run["board_effort"]) for run in runs.values()
+    } == {(FABLE52, "medium", "high"), ("claude-opus-5.5", "high", "medium")}
+    assert not any("effort" in model for model in names)
+    pairs = {
+        "fableMedium": ("claude-fable-5.2-effort-medium", FABLE52, 1),
+        "opusHigh": ("claude-opus-5.5-effort-high", "claude-opus-5.5", 1),
+        "atMedium": ("claude-fable-5.2-effort-medium", "claude-opus-5.5", -1),
+        "atHigh": (FABLE52, "claude-opus-5.5-effort-high", -1),
+    }
+    effort_note = " ".join(FABLE52_EFFORT_NOTE.read_text().split())
+    for prefix, (first, second, sign) in pairs.items():
+        comparison = effort["comparisons"][FABLE52_EFFORT_COMPARISONS[prefix]]
+        assert (comparison["first"], comparison["second"]) == (first, second)
+        assert comparison["households"] == facts["households"]
+        # "above" for a positive difference, "below" for a negative one.
+        assert sign * comparison["difference_points"] > 0, prefix
+        signed = f"{sign * float(facts[f'{prefix}Diff']):+.1f}"
+        assert (
+            f"| {signed} | {facts[f'{prefix}Lo']} to {facts[f'{prefix}Hi']} |"
+        ) in effort_note, prefix
+    for phrase in (
+        "PolicyBench ran each of the two models once more at the other's default",
+        "This sensitivity changes no board row.",
+        "Two runs on 2026-11-12, each over the board's 100 households and prompts",
+        "PolicyBench fixed the plan before the first call and changed nothing after it",
+        "one run per arm over all 100 households",
+        "Each difference below is first minus second, in points of answers right",
+        "as the 95% interval",
+    ):
+        assert phrase in effort_note, phrase
+    assert (
+        "Claude Fable 5.2 at medium scores {fableMediumDiff} points above its "
+        "board row (95% interval {fableMediumLo} to {fableMediumHi}), and Claude "
+        "Opus 5.5 at high scores {opusHighDiff} points above its board row (95% "
+        "interval {opusHighLo} to {opusHighHi}). At medium, Claude Fable 5.2 "
+        "scores {atMediumDiff} points below Claude Opus 5.5 (95% interval "
+        "{atMediumLo} to {atMediumHi}), and at high, Claude Fable 5.2 scores "
+        "{atHighDiff} points below Claude Opus 5.5 (95% interval {atHighLo} to "
+        "{atHighHi})."
+    ) in text
+    assert (
+        "under a plan it fixed before the first call, and the runs change no board row"
+        in text
+    )
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["input"] == 8.0
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["output"] == 40.0
     # The ruled exclusion: one record added to release 20261027's, a Minnesota

@@ -180,6 +180,17 @@ describe("notes", () => {
     expect(markup).toContain(
       "Claude Fable 5.1, the Fable model before it, gets 90.8% (#9) and cost $25.70.",
     );
+    // The effort sensitivity: signed intervals at one decimal, as the
+    // sensitivity note gives them.
+    expect(markup).toContain(
+      "PolicyBench also ran Claude Fable 5.2 and Claude Opus 5.5 once each at the other&#x27;s default effort, on the same 100 households, under a plan it fixed before the first call, and the runs change no board row.",
+    );
+    expect(markup).toContain(
+      "On the share of answers right, Claude Fable 5.2 at medium scores 1.6 points above its board row (95% interval +0.3 to +3.1), and Claude Opus 5.5 at high scores 0.2 points above its board row (95% interval -0.9 to +1.3).",
+    );
+    expect(markup).toContain(
+      "At medium, Claude Fable 5.2 scores 0.5 points below Claude Opus 5.5 (95% interval -1.5 to +0.5), and at high, Claude Fable 5.2 scores 2.3 points below Claude Opus 5.5 (95% interval -3.9 to -0.8).",
+    );
     expect(markup).toContain(
       "with a certificate, the credit and the output are $1,921.",
     );
@@ -251,6 +262,10 @@ describe("notes", () => {
     );
     expect(markup).toContain(
       'href="https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-11-11-car-loan-interest/README.md"',
+    );
+    expect(markup).toContain("Claude effort sensitivity");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-effort-2026-11.md"',
     );
     expect(markup).toContain('href="/model/claude-fable-5.2"');
     expect(markup).toContain(
