@@ -1,6 +1,6 @@
 # Car loan interest and the vehicle loan interest deduction, November 11, 2026
 
-Twenty-three US prompts list "auto loan interest" among the household's inputs. None says whether the loan qualifies for the federal deduction for qualified passenger vehicle loan interest, and the references treat it as not qualifying. This directory measures how the board of release dashboard-data-20261111 would look under the other treatment. The release changes nothing on this question.
+Twenty-three US prompts list "auto loan interest" among the household's inputs. None says whether the loan qualifies for the federal deduction for qualified passenger vehicle loan interest, and the references treat it as not qualifying. This directory measures how the board of release dashboard-data-20261111 would change if the cells this question moves were dropped, and in an engine sensitivity that counts all stated auto loan interest as qualifying. The release changes nothing on this question.
 
 ## The question
 
@@ -25,7 +25,8 @@ Paths are relative to the installed policyengine-us 2.60.0 package, the engine t
 
 - `variables/household/expense/vehicle/auto_loan_interest.py`, lines 4-10: `auto_loan_interest`, a household input labeled "auto loan interest expense", with no formula. The reference build sets it from the household's stated amount. No variable, parameter or reform in 2.60.0 reads it.
 - `variables/household/expense/vehicle/qualified_passenger_vehicle_loan_interest.py`, lines 4-20: `qualified_passenger_vehicle_loan_interest`, a household input with no formula, documented (lines 9-13) as "Interest on loans that meet the federal qualified passenger vehicle loan interest requirements, including qualifying vehicle and loan requirements." No PolicyBench household sets it, so it is 0.
-- `variables/gov/irs/income/taxable_income/deductions/auto_loan_interest/auto_loan_interest_deduction.py`, lines 16-39: `auto_loan_interest_deduction` adds `qualified_passenger_vehicle_loan_interest` and nothing else (lines 17-21), caps it at $10,000 (line 23; `parameters/gov/irs/deductions/auto_loan_interest/cap.yaml`), and reduces it by $200 for each $1,000, or part of $1,000, by which modified adjusted gross income exceeds $100,000, or $200,000 for joint filers and surviving spouses (lines 25-39; `phase_out/start.yaml`, `step.yaml`, `increment.yaml`). Line 29 cites 26 U.S.C. 163(h)(4).
+- `variables/gov/irs/income/taxable_income/deductions/auto_loan_interest/auto_loan_interest_deduction.py`, lines 16-39: `auto_loan_interest_deduction` adds `qualified_passenger_vehicle_loan_interest` and nothing else (lines 17-21) and caps it at $10,000 (line 23; `parameters/gov/irs/deductions/auto_loan_interest/cap.yaml`). It looks up a phase-out start by the tax unit's filing status (lines 25 and 28) and reduces the capped amount, not below zero, by $200 for each $1,000, or part of $1,000, by which modified adjusted gross income exceeds that start (lines 32-39; `phase_out/step.yaml`, `phase_out/increment.yaml`). `phase_out/start.yaml` (lines 13-22) sets the start at $100,000 for single, separate and head-of-household filers and at $200,000 for joint filers and for surviving spouses. Line 29 cites 26 U.S.C. 163(h)(4).
+- The statute, 26 U.S.C. 163(h)(4)(C)(ii)(I), added by Public Law 119-21, section 70203(a), reduces the deduction once modified adjusted gross income exceeds "$100,000 ($200,000 in the case of a joint return)". A surviving spouse's return is not a joint return, so the engine's $200,000 start for surviving spouses differs from the statute's text, which gives them $100,000. For single, separate, head-of-household and joint filers the engine's starts match the text.
 - The deduction lowers federal taxable income whether or not the household itemizes (`parameters/gov/irs/deductions/deductions_if_itemizing.yaml`, line 15; `deductions_if_not_itemizing.yaml`, line 24). Idaho (`parameters/gov/states/id/tax/income/deductions/qualified_business_income_and_federal_schedule_1a_deductions.yaml`, line 10) and Indiana (`variables/gov/states/in/tax/income/deductions/obbba_conformity/in_auto_loan_interest_deduction.py`, line 15) also read it.
 
 So the references compute the deduction as $0 for every household.
@@ -35,13 +36,13 @@ So the references compute the deduction as $0 for every household.
 `scripts/compute_outputs.py` computes every US output twice on policyengine-us 2.60.0, with the reference build's own recipe (`reference_audit/2026-10-22-engine-upgrade/scripts/build_references_upgrade.py`, `compute_outputs`): the conventions in `reference_audit/2026-09-28/fixes/latest_final.py`, households built by `reference_audit/2026-09-28/scripts/sweep.py`, and the frozen snapshot's households and output list.
 
 - **As built:** the households as the references were built. This pass reproduces all 1,934 scored references to the cent and equals the 2.60.0 build's `reference-build/computed.csv` on all 1,984 outputs.
-- **Alternative:** the same, after copying each household's stated `auto_loan_interest` into `qualified_passenger_vehicle_loan_interest`. Households that state no auto loan interest do not change.
+- **Alternative:** an engine sensitivity. The same, after copying each household's stated `auto_loan_interest` into `qualified_passenger_vehicle_loan_interest`, so that all stated auto loan interest counts as qualifying. Households that state no auto loan interest do not change.
 
 An output moves when the two passes differ by more than $1 (for a 0/1 flag, by any change), the paper's exact-match tolerance. `scripts/score.py` scores the frozen predictions of all 52 models with the board's own scoring functions. PolicyBench counts a dollar amount as right when it falls within $1 of the reference and an eligibility answer as right when it matches, and it weights each answer by household impact. Rank 1 is the highest share; equal shares would share a rank.
 
 - **(a) The release as scored.** Every model on the release's 1,934 scored outputs against their references. This board equals the frozen board for all 52 models.
-- **(b) The moved cells removed.** The 11 scored outputs that move leave scoring for every model, as an exclusion record removes an output, and the board scores the remaining 1,923.
-- **(c) The moved cells scored against the alternative.** The same 1,934 outputs, with each of the 11 moved outputs scored against its alternative value instead of its reference.
+- **(b) The 11 cells dropped.** The 11 scored outputs that move leave scoring for every model, as an exclusion record removes an output, and the board scores the remaining 1,923.
+- **(c) An engine sensitivity.** The same 1,934 outputs, with each of the 11 moved outputs scored against the value the engine computes when all stated auto loan interest counts as qualifying, instead of its reference. It is not a board under an established legal reading: no prompt says whether any loan qualifies, and the sensitivity counts every stated amount in full.
 
 The 50 outputs the release already excludes stay excluded in all three boards.
 
@@ -75,7 +76,7 @@ Across the 11 scored outputs, 81 model answers match the reference and 22 match 
 
 ## The three scoreboards
 
-Share of answers right (percent) and rank for the twelve models that lead the release as scored:
+Share of answers right (percent) and rank for the twelve models that lead the release as scored. (a) is the release as scored; (b) drops the 11 moved cells for every model; (c) is the engine sensitivity that counts all stated auto loan interest as qualifying, not a board under an established legal reading.
 
 | Model | (a) share | (a) rank | (b) share | (b) rank | (c) share | (c) rank |
 |---|---:|---:|---:|---:|---:|---:|
@@ -92,7 +93,7 @@ Share of answers right (percent) and rank for the twelve models that lead the re
 | GPT-6.1 Sol | 90.165 | 11 | 90.537 | 12 | 89.030 | 12 |
 | Muse Wonder | 90.048 | 12 | 91.281 | 11 | 89.784 | 11 |
 
-[`verification/scoreboards.md`](verification/scoreboards.md) lists all 52 models, and `verification/scoreboards.csv` holds the same at full precision. Under (b) every model's share rises, by 0.372 to 1.504 points, and 14 ranks change. Under (c) 4 shares rise, 21 fall and 27 stay the same, and 17 ranks change. No rank changes by more than three places under either board.
+[`verification/scoreboards.md`](verification/scoreboards.md) lists all 52 models, and `verification/scoreboards.csv` holds the same at full precision. With the 11 cells dropped (b), every model's share rises, by 0.372 to 1.504 points, and 14 ranks change. In the engine sensitivity (c), 4 shares rise, 21 fall and 27 stay the same, and 17 ranks change. No rank changes by more than three places in either.
 
 ## What PolicyBench does in this release
 
@@ -101,15 +102,16 @@ Nothing. Release dashboard-data-20261111 changes no reference and no scored outp
 ## Limits
 
 - The alternative counts each household's whole stated amount as qualified interest. It does not model a loan that qualifies in part, or a reading that differs by household.
-- The match counts compare numbers only. A model whose answer equals the alternative value may have reached it another way; this audit does not read the models' explanations.
-- This audit does not trace why federal refundable credits rise in scenario_026 and scenario_028, or the state tax code for Georgia, North Carolina, Pennsylvania, California, Missouri, South Dakota, Texas and Washington. Arizona's subtraction list also names the deduction (`parameters/gov/states/az/tax/income/subtractions/subtractions.yaml`, line 29), yet scenario_018's Arizona income tax does not change under the alternative; this audit does not trace why.
+- The counts of answers that match the alternative value do not show which models applied the deduction: an answer can equal that value for another reason, and this audit does not read the models' explanations.
+- This audit does not trace why federal refundable credits rise in scenario_026 and scenario_028, or the state-tax effects beyond naming the Idaho and Indiana code that reads the deduction; it does not read the state tax code for Georgia, North Carolina, Pennsylvania, California, Missouri, South Dakota, Texas and Washington. Arizona's subtraction list also names the deduction (`parameters/gov/states/az/tax/income/subtractions/subtractions.yaml`, line 29), yet scenario_018's Arizona income tax does not change under the alternative; this audit does not trace why. Those values need tracing before anyone uses them to decide the question.
+- The engine starts the phase-out at $200,000 for surviving spouses, where the statute's text gives that start to joint returns only. None of the 23 households that state auto loan interest files as a surviving spouse in the engine (of the 21 with an amount above zero, 11 file jointly, 8 as single and 2 as heads of household), so the difference changes no deduction and none of the 15 moved cells.
 - The audit runs on policyengine-us 2.60.0, the engine of the references, and on no later release.
 
 ## Files
 
 - `scripts/compute_outputs.py`: the engine run, as built and with the alternative. It writes `verification/computed.csv` (both values for all 1,984 outputs), `verification/traces.json` (intermediate values for the 23 households that state auto loan interest) and `verification/engine_run.json` (engine versions and the sha256 of each input).
 - `scripts/score.py`: no engine. It checks the as-built pass against the references and the 2.60.0 build, and scoreboard (a) against the frozen board, and stops with an error before it writes the scoreboards if either differs. It writes `verification/moved_cells.csv`, `households.csv`, `changes_within_tolerance.csv`, `baseline_not_reproduced.csv` (the 18 excluded outputs whose decided values the engine does not reproduce), `model_matches.csv`, `scoreboards.csv`, `scoreboards.md`, `headline.json` and `summary.txt`.
-- `tests/test_car_loan_sensitivity.py` checks that (a) equals the frozen board, that the moved cells, (b), (c) and the match counts follow from the committed tables and the frozen predictions, and that `headline.json` agrees with the tables.
+- `tests/test_car_loan_sensitivity.py` checks that (a) equals the frozen board, that the moved cells, board (b) with the 11 cells dropped, the engine sensitivity (c) and the match counts follow from the committed tables and the frozen predictions, and that `headline.json` agrees with the tables.
 
 ## Rerunning
 
