@@ -2423,6 +2423,36 @@ def test_the_check_scope_sentence_explains_a_differing_scored_count(
     )
 
 
+def test_the_frozen_check_scope_sentence_counts_the_ruled_output():
+    """The frozen record: the 2026-11-11 publication check scores the outputs
+    the 2.60.0 reference build scores, and the build's exclusion record
+    predates the 2026-11-01 ruling, so the check counts scenario_122's
+    Minnesota state_refundable_credits, which this snapshot excludes, as
+    scored. The sentence the paper prints after the timing sentence says so,
+    and the benchmark card and the rendered paper carry it."""
+    check = r.engine_upgrade_timing["publication_check"]
+    built = {
+        (e["scenario_id"], e["variable"])
+        for e in load_reference_exclusions(ROOT / check["build"])
+    }
+    since = [
+        (e["scenario_id"], e["variable"], e["decided_on"])
+        for e in r.reference_exclusions
+        if (e["scenario_id"], e["variable"]) not in built
+    ]
+    assert since == [("scenario_122", "state_refundable_credits", "2026-11-01")]
+    assert check["scored_outputs"] == r.scored_outputs_per_model + 1 == 1935
+    sentence = (
+        "The check counts as scored the 1,935 outputs the 2.60.0 reference build "
+        "scores: the 1,934 this snapshot scores and the output excluded on "
+        "2026-11-01."
+    )
+    assert r.engine_upgrade_check_scope_sentence == sentence
+    for path in ("docs/benchmark_card.md", "app/public/paper/web/index.html"):
+        text = re.sub(r"\s+", " ", (ROOT / path).read_text())
+        assert text.count(sentence) == 1, path
+
+
 def test_fixed_but_kept_engine_defect_records_are_counted_apart():
     """An engine-defect record the last upgrade rechecked whose new-engine
     value is its corrected value has a fixed defect: the paper counts it with

@@ -2480,9 +2480,10 @@ def test_the_fable52_release_restates_the_reopened_cases_and_adds_its_waves(
     conventions name this release's waves as the driver writes them
     (release_date_conventions).
 
-    The test covers a spec with d2180's one record, no restated adjudication
-    and any number of triage decisions, under the tag the driver's
-    RELEASE_TAG names (tests/test_finish_fable52.py pins its value)."""
+    The test covers this release's spec and record: d2180's one record, no
+    restated adjudication, the three triage decisions FABLE52_TRIAGE_CASES
+    names and 39 restated decisions, under the tag the driver's RELEASE_TAG
+    names (tests/test_finish_fable52.py pins its value)."""
     driver = _fable52_driver()
     evidence = json.loads(EVIDENCE_FABLE52.read_text())
     assert evidence["release"] == driver.RELEASE_TAG
