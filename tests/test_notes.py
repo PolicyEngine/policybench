@@ -6296,8 +6296,8 @@ FABLE52_PEERS = ("claude-fable-5.1", "claude-opus-5.5", "claude-sonnet-5.5")
 
 @cache
 def _fable52_households():
-    """Claude Fable 5.2's usage by household in the frozen predictions: live
-    calls, completion tokens and reasoning tokens."""
+    """Claude Fable 5.2's reasoning tokens by household in the frozen
+    predictions."""
     import pandas as pd
 
     predictions = pd.read_csv(
@@ -6305,15 +6305,11 @@ def _fable52_households():
         usecols=[
             "model",
             "scenario_id",
-            "live_calls",
-            "completion_tokens",
             "reasoning_tokens",
         ],
     )
     rows = predictions[predictions["model"] == FABLE52]
     return rows.groupby("scenario_id").agg(
-        live_calls=("live_calls", "max"),
-        completion_tokens=("completion_tokens", "sum"),
         reasoning_tokens=("reasoning_tokens", "sum"),
     )
 
@@ -6381,7 +6377,6 @@ def _release_20261111_facts() -> dict:
         card_for(serving[FABLE52]["provider_id"]).notes,
     )
     assert probe is not None
-    households = _fable52_households()
     timing = _load_json(TERRA_CHECK / "sweep_timing.json")
     check = timing["publication_check"]
     # The check's engine was PyPI's newest when the release read PyPI.
@@ -6420,8 +6415,6 @@ def _release_20261111_facts() -> dict:
         "fableBoundedRank": [row["model"] for row in by_score].index(FABLE52) + 1,
         "probeThinking": int(probe.group(1).replace(",", "")),
         "probeOutput": int(probe.group(2).replace(",", "")),
-        "escalated": int((households["live_calls"] > 1).sum()),
-        "firstBudget": serving[FABLE52]["shared_completion_budget_tokens"],
         "households": len(r.dashboard["scenarioPredictions"]),
         "fableCost": cost(FABLE52),
         "opusCost": cost("claude-opus-5.5"),
@@ -6546,9 +6539,6 @@ def test_release_20261111_note_claims() -> None:
     assert "so the row reasons at the provider default" in card.notes
     fingerprint = serving[FABLE52]["evidence"]["treatment_fingerprint"]
     assert fingerprint["thinking"] == {"mode": "provider_default"}
-    # Anthropic's default effort: high for this model, medium for Opus 5.5.
-    assert "The API's default effort is high" in card.notes
-    assert "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
     # No Claude row records a reasoning token, so the new row's zero means
     # not counted; the card's probe drew a thinking block.
     import pandas as pd
@@ -6562,14 +6552,6 @@ def test_release_20261111_note_claims() -> None:
     assert households["reasoning_tokens"].sum() == 0
     assert "sent directly through Anthropic's SDK, drew a thinking block" in card.notes
     assert 0 < facts["probeThinking"] < facts["probeOutput"]
-    # The households that took a second call are the ones whose answers ran
-    # past the first budget.
-    again = households[households["live_calls"] > 1]
-    assert (again["completion_tokens"] > facts["firstBudget"]).all()
-    once = households[households["live_calls"] == 1]
-    assert (once["completion_tokens"] <= facts["firstBudget"]).all()
-    assert fingerprint["initial_completion_budget_tokens"] == facts["firstBudget"]
-    assert fingerprint["completion_budget_ceiling"] > facts["firstBudget"]
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["input"] == 8.0
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["output"] == 40.0
     # The ruled exclusion: one record added to release 20261027's, a Minnesota

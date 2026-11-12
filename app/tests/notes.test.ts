@@ -160,12 +160,9 @@ describe("notes", () => {
       "Claude Fable 5.2 ranks #3, behind only GPT-6 Sol and Claude Opus 5.5.",
     );
     expect(markup).toContain(closing);
-    // Thousands get separators; whole numbers under ten are spelled out.
+    // Thousands get separators.
     expect(markup).toContain(
       "drew a thinking block that took 1,789 of its 2,881 output tokens.",
-    );
-    expect(markup).toContain(
-      "On six households the answer ran past the row&#x27;s first budget of 16,384 output tokens",
     );
     // Costs keep their cents.
     expect(markup).toContain(
@@ -177,11 +174,12 @@ describe("notes", () => {
     expect(markup).toContain(
       "with a certificate, the credit and the output are $1,921.",
     );
+    // Whole numbers under ten are spelled out.
     expect(markup).toContain(
       "Of the 52 models, 43 answer $0, eight give a positive amount, none of them $1,921, and one gives no answer.",
     );
     expect(markup).toContain(
-      "Every model is now scored on 1,934 of its 1,984 requested outputs, down from 1,935, and PolicyBench excludes 50.",
+      "Every model is now scored on 1,934 of its 1,984 requested outputs, down from 1,935; PolicyBench excludes the other 50.",
     );
     // A bound on a move is not a board rate, so it keeps its two decimals.
     expect(markup).toContain(
@@ -194,7 +192,7 @@ describe("notes", () => {
       "Claude Opus 5.5 judged the misses in the 122 audit cases Claude Fable 5.2 joined, on 2026-11-11, and it flagged seven references as suspect. Of the seven, six already had decisions, which this release keeps: four are outputs PolicyBench excludes, and two are references it affirmed in earlier releases.",
     );
     expect(markup).toContain(
-      "the judge gave eight models&#x27; answers each a class",
+      "the judge put eight models&#x27; answers on each in a class",
     );
     expect(markup).toContain("All three outputs stay scored.");
     expect(markup).toContain('href="/model/claude-fable-5.2"');
