@@ -6407,7 +6407,7 @@ def _fable52_wording_reads() -> dict[str, dict[str, int]]:
                 [cell.strip().strip("*") for cell in line.strip("| ").split("|")]
             )
         header, _, *units, total = rows
-        assert header == ["Unit", "Cells", "P1", "P2", "P3"]
+        assert header == ["Batch", "Cells", "P1", "P2", "P3"]
         assert total[0] == "Total"
         counts = dict(zip(header[1:], map(int, total[1:]), strict=True))
         assert [sum(int(unit[i]) for unit in units) for i in range(1, 5)] == list(
@@ -7073,7 +7073,7 @@ def test_release_20261111_note_claims() -> None:
     for phrase in (
         "Six Claude Opus 5.5 readers, the same model as the judge, split the "
         f"{facts['rejudged']} re-judged cells.",
-        f"GPT-6.1 Sol readers read, in 14 units, the {facts['secondReadCells']} "
+        f"GPT-6.1 Sol readers read, in 14 batches, the {facts['secondReadCells']} "
         "judged cells Claude Fable 5.2 answered right",
         "Neither read saw the prompts.",
         "P1: a doubt about a reference or the prompt's completeness",
@@ -7097,7 +7097,7 @@ def test_release_20261111_note_claims() -> None:
         "Claude Opus 5.5 adjudicators took 13 causes covering 21 of the first "
         f"read's {facts['firstReadQuestions']} P1s",
         "A GPT-6.1 Sol reviewer tried to refute each of the 14",
-        "GPT-6.1 Sol stated in each refutation that it is an OpenAI model.",
+        "GPT-6.1 Sol is an OpenAI model.",
     ):
         assert phrase in review, phrase
     assert "Independent" not in text
