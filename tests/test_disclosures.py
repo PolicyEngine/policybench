@@ -725,8 +725,13 @@ def test_paper_takes_its_engine_times_from_the_timing_record():
 
 def _across_page_breaks(sentence: str) -> re.Pattern:
     """The sentence as extracted PDF text can carry it: a page break may put
-    the page number between any two of its words."""
-    words = [re.escape(word) for word in sentence.split()]
+    the page number between any two of its words, and a line that ends at a
+    hyphen between two digits (inside a date) loses that hyphen, because
+    pdftotext joins the halves as it does a hyphenated word."""
+    words = [
+        re.sub(r"(\d)\\-(?=\d)", r"\1\\-?", re.escape(word))
+        for word in sentence.split()
+    ]
     return re.compile(r" (?:\d{1,3} )?".join(words))
 
 
@@ -737,6 +742,17 @@ def test_across_page_breaks_tolerates_only_a_page_number():
     assert not pattern.search("checked PyPI on 2026-10-28 at 04:45 UTC")
     assert not pattern.search("checked PyPI on 2026-10-29 at 04:44 UTC")
     assert not pattern.search("checked PyPI on 2026-10-28 later at 04:44 UTC")
+
+
+def test_across_page_breaks_tolerates_a_date_broken_at_a_line_end():
+    pattern = _across_page_breaks("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 202610-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-1028 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 202610-29 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026 10-28 at 04:44 UTC")
+    assert not _across_page_breaks("policyengine-us 2.60.0").search(
+        "policyengineus 2.60.0"
+    )
 
 
 def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
