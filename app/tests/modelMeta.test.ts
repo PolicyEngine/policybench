@@ -85,6 +85,15 @@ describe("model metadata", () => {
     ]);
   });
 
+  test("shows Claude Fable 5.2 as Anthropic's flagship, and Fable 5.1 without it", () => {
+    expect(
+      frontierModelsFor(["claude-fable-5.2", "claude-fable-5.1"]),
+    ).toEqual(["claude-fable-5.2"]);
+    expect(frontierModelsFor(["claude-fable-5.1"])).toEqual([
+      "claude-fable-5.1",
+    ]);
+  });
+
   test("shows Gemini 4 Argon as Google's flagship, and 3.1 Pro without it", () => {
     expect(
       frontierModelsFor(["gemini-4-argon", "gemini-3.1-pro-preview"]),

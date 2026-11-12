@@ -234,7 +234,7 @@ export function orderModels(models: Iterable<string>): string[] {
 // can list fallbacks after its current flagship so an older frozen data bundle
 // still retains one visible model (for example GPT-5.5 before Sol is folded).
 const FRONTIER_MODEL_GROUPS = [
-  ["claude-fable-5.1", "claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
+  ["claude-fable-5.2", "claude-fable-5.1", "claude-fable-5", "claude-opus-5", "claude-opus-4.8"],
   ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.5"],
   ["grok-4.5", "grok-4.3"],
   ["gemini-4-argon", "gemini-3.1-pro-preview"],
