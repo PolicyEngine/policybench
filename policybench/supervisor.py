@@ -415,7 +415,7 @@ class Supervisor:
                 self.litellm_id,
                 first_request_variables,
             ),
-            "thinking": _thinking_configuration(self.litellm_id),
+            "thinking": _thinking_configuration(self.litellm_id, env=self.env),
             "request_timeout_seconds": _request_timeout_seconds(
                 self.litellm_id,
                 env=self.env,

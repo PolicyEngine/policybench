@@ -1,0 +1,451 @@
+{
+  "release": "dashboard-data-20261111",
+  "plan": {
+    "summary": "fixed before the first call: each model at the other's provider default effort, one run of the board's 100 households per arm, $45 of API credit across both arms and the probes ($22.50 each to start), the board's retry rule, and the four comparisons below, each a paired household bootstrap",
+    "households_per_arm": 100,
+    "cap_usd": 45.0,
+    "per_arm_start_usd": 22.5
+  },
+  "condition": "the board row's serving card and prompts with one change: POLICYBENCH_REASONING_EFFORT_OVERRIDE sends Anthropic's output_config.effort for the named model",
+  "scored_against": "the frozen 52-model board's reference outputs and household output-group weights (paper/snapshot/20260501), with the 50 outputs listed in the run's reference_exclusions.json removed from scoring as they are for every board row (1,934 scored outputs)",
+  "bootstrap": {
+    "seed": 42,
+    "draws": 10000,
+    "interval": "95% percentile"
+  },
+  "assets": {
+    "sensitivity-claude-opus-5-5-effort-high-predictions.csv.gz": {
+      "sha256": "7ee5d006534a1f64538d0356e6887e16adfd40f54d2b2de586f29a40cdc84cf4",
+      "bytes": 173328
+    },
+    "sensitivity-claude-opus-5-5-effort-high-by-variable.csv.gz": {
+      "sha256": "ee40fc3bc1a0410c09912fb59f3e67b0ae47eb8a7db0db45841400d4a389a60e",
+      "bytes": 807
+    },
+    "sensitivity-claude-fable-5-2-effort-medium-predictions.csv.gz": {
+      "sha256": "7d17d1ebd7f9c6926e67357da1fb14abc21a9a6b35df6593ff38fc06f9059e5d",
+      "bytes": 170141
+    },
+    "sensitivity-claude-fable-5-2-effort-medium-by-variable.csv.gz": {
+      "sha256": "f54dd3050f491ee2d887627dcae785d3dd7a71f2440be0dc109f42ada3bca954",
+      "bytes": 854
+    }
+  },
+  "run_records": {
+    "claude-opus-5.5-effort-high": {
+      "treatment_fingerprint": {
+        "fingerprint_version": 3,
+        "model_id": "claude-opus-5-5",
+        "answer_contract": "json",
+        "tool_choice_mode": null,
+        "chunk_size": null,
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+        "completion_budget_ceiling": 128000,
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {
+          "reasoning_effort": "high"
+        },
+        "request_timeout_seconds": 600,
+        "max_repair_rounds": 2
+      },
+      "workload": {
+        "manifest_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+        "scenario_ids_sha256": "7167916dfba11f4f8b606aec9f37c7679dd5385475e68139e27b5b090a006c3f",
+        "output_set_sha256": "eda24ef701e11d562c640e4d0771124529c9fd616a537c14d5fa6faa46a628d8",
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract"
+      },
+      "completed": 100,
+      "total": 100,
+      "spent_usd": 8.5176,
+      "budget_usd": 22.5,
+      "stopped_reason": null,
+      "budget_escalation_count": 1,
+      "ledger": {
+        "requests": 102,
+        "households": 100,
+        "by_status": {
+          "ok": 100,
+          "parse_error": 1,
+          "provider_error": 1
+        },
+        "budget_escalations": 1,
+        "households_with_a_second_request": 2,
+        "second_requests": {
+          "scenario_016": [
+            {
+              "phase": "initial",
+              "attempt": 1,
+              "status": "provider_error",
+              "completion_budget_tokens": 16384,
+              "escalated_from_budget_tokens": null,
+              "outputs_requested": 16,
+              "completion_tokens": null
+            },
+            {
+              "phase": "initial",
+              "attempt": 2,
+              "status": "ok",
+              "completion_budget_tokens": 16384,
+              "escalated_from_budget_tokens": null,
+              "outputs_requested": 16,
+              "completion_tokens": 1905
+            }
+          ],
+          "scenario_046": [
+            {
+              "phase": "initial",
+              "attempt": 1,
+              "status": "parse_error",
+              "completion_budget_tokens": 16384,
+              "escalated_from_budget_tokens": null,
+              "outputs_requested": 32,
+              "completion_tokens": 16384
+            },
+            {
+              "phase": "repair",
+              "attempt": 1,
+              "status": "ok",
+              "completion_budget_tokens": 32768,
+              "escalated_from_budget_tokens": 16384,
+              "outputs_requested": 4,
+              "completion_tokens": 526
+            }
+          ]
+        }
+      },
+      "started_at_utc": "2026-11-12T22:44:51Z",
+      "updated_at_utc": "2026-11-12T22:59:54Z"
+    },
+    "claude-fable-5.2-effort-medium": {
+      "treatment_fingerprint": {
+        "fingerprint_version": 3,
+        "model_id": "claude-fable-5-2",
+        "answer_contract": "json",
+        "tool_choice_mode": null,
+        "chunk_size": null,
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+        "completion_budget_ceiling": 128000,
+        "initial_completion_budget_tokens": 16384,
+        "thinking": {
+          "reasoning_effort": "medium"
+        },
+        "request_timeout_seconds": 600,
+        "max_repair_rounds": 2
+      },
+      "workload": {
+        "manifest_sha256": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+        "scenario_ids_sha256": "7167916dfba11f4f8b606aec9f37c7679dd5385475e68139e27b5b090a006c3f",
+        "output_set_sha256": "eda24ef701e11d562c640e4d0771124529c9fd616a537c14d5fa6faa46a628d8",
+        "prompt_contract_version": "2026-08-09-v2-scoring-contract"
+      },
+      "completed": 100,
+      "total": 100,
+      "spent_usd": 13.2534,
+      "budget_usd": 22.5,
+      "stopped_reason": null,
+      "budget_escalation_count": 0,
+      "ledger": {
+        "requests": 100,
+        "households": 100,
+        "by_status": {
+          "ok": 100
+        },
+        "budget_escalations": 0,
+        "households_with_a_second_request": 0,
+        "second_requests": {}
+      },
+      "started_at_utc": "2026-11-12T22:44:51Z",
+      "updated_at_utc": "2026-11-12T22:56:31Z"
+    }
+  },
+  "board_run_records": {
+    "claude-fable-5.2": {
+      "run": "fable52-runs/fable52",
+      "requests": 106,
+      "households": 100,
+      "by_status": {
+        "ok": 100,
+        "parse_error": 6
+      },
+      "budget_escalations": 6,
+      "households_with_a_second_request": 6,
+      "second_requests": {
+        "scenario_005": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 20,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 20,
+            "completion_tokens": 26131
+          }
+        ],
+        "scenario_023": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 16,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 16,
+            "completion_tokens": 31717
+          }
+        ],
+        "scenario_042": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 16,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 16,
+            "completion_tokens": 13877
+          }
+        ],
+        "scenario_064": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 34,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 34,
+            "completion_tokens": 28436
+          }
+        ],
+        "scenario_099": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 32,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "repair",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 17,
+            "completion_tokens": 1698
+          }
+        ],
+        "scenario_123": [
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "parse_error",
+            "completion_budget_tokens": 16384,
+            "escalated_from_budget_tokens": null,
+            "outputs_requested": 26,
+            "completion_tokens": 16384
+          },
+          {
+            "phase": "initial",
+            "attempt": 1,
+            "status": "ok",
+            "completion_budget_tokens": 32768,
+            "escalated_from_budget_tokens": 16384,
+            "outputs_requested": 26,
+            "completion_tokens": 16958
+          }
+        ]
+      }
+    },
+    "claude-opus-5.5": {
+      "run": "adds202609",
+      "requests": 100,
+      "households": 100,
+      "by_status": {
+        "ok": 100
+      },
+      "budget_escalations": 0,
+      "households_with_a_second_request": 0,
+      "second_requests": {}
+    }
+  },
+  "runs": {
+    "claude-opus-5.5-effort-high": {
+      "model": "claude-opus-5.5",
+      "effort": "high",
+      "board_effort": "medium",
+      "override": "claude-opus-5-5=high",
+      "board": {
+        "exact": 94.07,
+        "within1pct": 95.51,
+        "score": 97.914,
+        "n": 1934,
+        "n_parsed": 1934,
+        "households": 100,
+        "outputs": 1984,
+        "outputs_parsed": 1984,
+        "parse_failures": 0,
+        "cost_usd": 6.7490399999999795,
+        "cost_per_household_usd": 0.0674903999999998,
+        "median_household_seconds": 23.970165708495188,
+        "output_tokens": 295728,
+        "answered_calls": null,
+        "households_with_a_second_answered_call": null,
+        "cache_hit_calls": null,
+        "first_request_utc": "2026-09-22T16:51:18Z",
+        "last_response_utc": "2026-09-22T17:11:41Z"
+      },
+      "sensitivity": {
+        "exact": 94.234,
+        "within1pct": 94.997,
+        "score": 98.146,
+        "n": 1934,
+        "n_parsed": 1934,
+        "households": 100,
+        "outputs": 1984,
+        "outputs_parsed": 1984,
+        "parse_failures": 0,
+        "cost_usd": 8.517567999999981,
+        "cost_per_household_usd": 0.08517567999999981,
+        "median_household_seconds": 28.76309622946428,
+        "output_tokens": 383834,
+        "answered_calls": 101,
+        "households_with_a_second_answered_call": 1,
+        "cache_hit_calls": 0,
+        "first_request_utc": "2026-11-12T22:45:00Z",
+        "last_response_utc": "2026-11-12T22:59:52Z"
+      }
+    },
+    "claude-fable-5.2-effort-medium": {
+      "model": "claude-fable-5.2",
+      "effort": "medium",
+      "board_effort": "high",
+      "override": "claude-fable-5-2=medium",
+      "board": {
+        "exact": 91.95,
+        "within1pct": 93.733,
+        "score": 97.812,
+        "n": 1934,
+        "n_parsed": 1934,
+        "households": 100,
+        "outputs": 1984,
+        "outputs_parsed": 1984,
+        "parse_failures": 0,
+        "cost_usd": 31.686407999999968,
+        "cost_per_household_usd": 0.31686407999999966,
+        "median_household_seconds": 47.73721222949098,
+        "output_tokens": 747522,
+        "answered_calls": 106,
+        "households_with_a_second_answered_call": 6,
+        "cache_hit_calls": 0,
+        "first_request_utc": "2026-11-09T20:55:00Z",
+        "last_response_utc": "2026-11-09T21:31:10Z"
+      },
+      "sensitivity": {
+        "exact": 93.564,
+        "within1pct": 95.171,
+        "score": 98.044,
+        "n": 1934,
+        "n_parsed": 1934,
+        "households": 100,
+        "outputs": 1984,
+        "outputs_parsed": 1984,
+        "parse_failures": 0,
+        "cost_usd": 13.25343999999998,
+        "cost_per_household_usd": 0.1325343999999998,
+        "median_household_seconds": 23.68094339594245,
+        "output_tokens": 289612,
+        "answered_calls": 100,
+        "households_with_a_second_answered_call": 0,
+        "cache_hit_calls": 0,
+        "first_request_utc": "2026-11-12T22:45:00Z",
+        "last_response_utc": "2026-11-12T22:56:30Z"
+      }
+    }
+  },
+  "comparisons": {
+    "fable_medium_vs_fable_board_high": {
+      "first": "claude-fable-5.2-effort-medium",
+      "second": "claude-fable-5.2",
+      "households": 100,
+      "difference_points": 1.613917178621087,
+      "ci95_low_points": 0.3162846532478956,
+      "ci95_high_points": 3.1009206158035143,
+      "share_of_draws_above_zero": 0.994,
+      "households_first_higher": 14,
+      "households_second_higher": 9,
+      "households_tied": 77
+    },
+    "opus_high_vs_opus_board_medium": {
+      "first": "claude-opus-5.5-effort-high",
+      "second": "claude-opus-5.5",
+      "households": 100,
+      "difference_points": 0.16456155474308432,
+      "ci95_low_points": -0.8862900502480363,
+      "ci95_high_points": 1.2749450707314183,
+      "share_of_draws_above_zero": 0.6058,
+      "households_first_higher": 8,
+      "households_second_higher": 7,
+      "households_tied": 85
+    },
+    "at_medium_fable_vs_opus": {
+      "first": "claude-fable-5.2-effort-medium",
+      "second": "claude-opus-5.5",
+      "households": 100,
+      "difference_points": -0.5053229727196119,
+      "ci95_low_points": -1.5407018054430721,
+      "ci95_high_points": 0.47609970498371357,
+      "share_of_draws_above_zero": 0.1601,
+      "households_first_higher": 10,
+      "households_second_higher": 15,
+      "households_tied": 75
+    },
+    "at_high_fable_vs_opus": {
+      "first": "claude-fable-5.2",
+      "second": "claude-opus-5.5-effort-high",
+      "households": 100,
+      "difference_points": -2.283801706083783,
+      "ci95_low_points": -3.9380376925853646,
+      "ci95_high_points": -0.7799871373050821,
+      "share_of_draws_above_zero": 0.0013,
+      "households_first_higher": 8,
+      "households_second_higher": 21,
+      "households_tied": 71
+    }
+  }
+}

@@ -290,6 +290,15 @@ THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 # launch through the v1.x runs (recorded in the manuscript's snapshot
 # config); the pin was removed so every model runs unconfigured.
 REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
+# Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE:
+# POLICYBENCH_REASONING_EFFORT_OVERRIDE=<litellm id>=<effort> (for example
+# claude-opus-5-5=high) adds one Claude model to REASONING_EFFORT_OVERRIDES
+# for the run. On the chat transport the effort goes to Anthropic as
+# `output_config={"effort": ...}`, the Messages API's effort parameter, which
+# litellm passes through unchanged. Unset, nothing changes: the board sends
+# no reasoning control. Never set for leaderboard runs.
+REASONING_EFFORT_OVERRIDE_ENV = "POLICYBENCH_REASONING_EFFORT_OVERRIDE"
+ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 # Per-model serving treatments (answer contract, chunking, timeouts,
 # thinking-class budgets) live in policybench/model_cards.py; family-prefix
 # heuristics below are the fallback for models without a card.
@@ -1112,7 +1121,33 @@ def _uses_responses_api(model_id: str) -> bool:
     return model_id.startswith("gpt-5") or model_id.startswith("gpt-6")
 
 
-def _thinking_configuration(model_id: str) -> dict | None:
+def _reasoning_effort_overrides(env: dict | None = None) -> dict[str, str]:
+    """REASONING_EFFORT_OVERRIDES plus the run's one-model env override.
+
+    ``POLICYBENCH_REASONING_EFFORT_OVERRIDE`` names one Claude model by its
+    litellm id and one of Anthropic's effort levels. A malformed value fails
+    the run rather than silently sending the board's request.
+    """
+    source = os.environ if env is None else env
+    raw = source.get(REASONING_EFFORT_OVERRIDE_ENV)
+    if not raw:
+        return REASONING_EFFORT_OVERRIDES
+    model_id, separator, effort = raw.partition("=")
+    if (
+        not separator
+        or not model_id.startswith("claude-")
+        or model_id not in set(MODELS.values())
+        or effort not in ANTHROPIC_EFFORT_LEVELS
+    ):
+        raise SensitivityKnobError(
+            f"{REASONING_EFFORT_OVERRIDE_ENV}={raw!r}: expected "
+            "<Claude litellm id>=<effort>, with the id from config.MODELS and "
+            f"the effort one of {', '.join(ANTHROPIC_EFFORT_LEVELS)}"
+        )
+    return {**REASONING_EFFORT_OVERRIDES, model_id: effort}
+
+
+def _thinking_configuration(model_id: str, env: dict | None = None) -> dict | None:
     """Describe the reasoning control used by the request builders.
 
     A provider-default entry means the harness sends no reasoning-control
@@ -1121,8 +1156,9 @@ def _thinking_configuration(model_id: str) -> dict | None:
     reasoning overrides behind this helper makes request construction and
     persisted treatment metadata share one source of truth.
     """
-    if model_id in REASONING_EFFORT_OVERRIDES:
-        return {"reasoning_effort": REASONING_EFFORT_OVERRIDES[model_id]}
+    overrides = _reasoning_effort_overrides(env)
+    if model_id in overrides:
+        return {"reasoning_effort": overrides[model_id]}
     card = card_for(model_id)
     if (card is not None and card.thinking_budget) or (
         model_id in THINKING_DEFAULT_CLAUDE_MODELS
@@ -1156,7 +1192,13 @@ def _apply_thinking_configuration(request_kwargs: dict, model_id: str) -> None:
     """Apply the explicit part of ``_thinking_configuration`` in place."""
     thinking = _thinking_configuration(model_id)
     if thinking is not None and "reasoning_effort" in thinking:
-        request_kwargs["reasoning"] = {"effort": thinking["reasoning_effort"]}
+        if model_id.startswith("claude-"):
+            # Anthropic's Messages API takes effort as output_config.effort;
+            # litellm forwards the dict as is (a `reasoning` dict would reach
+            # the API as an unknown field).
+            request_kwargs["output_config"] = {"effort": thinking["reasoning_effort"]}
+        else:
+            request_kwargs["reasoning"] = {"effort": thinking["reasoning_effort"]}
 
 
 def _chat_completion_request_kwargs(
@@ -3294,7 +3336,7 @@ def _treatment_metadata(
                 ),
                 include_explanations=include_explanations,
             ),
-            "thinking": _thinking_configuration(model_id),
+            "thinking": _thinking_configuration(model_id, env=env),
             "request_timeout_seconds": _request_timeout_seconds(model_id, env=env),
         }
     return treatment
