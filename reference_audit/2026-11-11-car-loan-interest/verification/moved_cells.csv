@@ -1,0 +1,16 @@
+scenario_id,state,filing_status,stated_auto_loan_interest,variable,reference,engine_baseline,alternative,change,scored,models_matching_reference,models_matching_alternative
+scenario_002,WA,joint,1816.4705810546875,federal_income_tax_before_refundable_credits,0.0,1890.300048828125,1708.653076171875,-181.64697265625,False,,
+scenario_003,TX,joint,500.0,federal_income_tax_before_refundable_credits,22400.654296875,22400.654296875,22290.654296875,-110.0,True,12,3
+scenario_018,AZ,single,1625.300048828125,federal_income_tax_before_refundable_credits,5211.05078125,5211.05078125,5016.0146484375,-195.0361328125,True,9,1
+scenario_026,NC,joint,378.058837890625,federal_refundable_credits,2013.4892578125,2013.4892578125,2058.85595703125,45.36669921875,True,8,4
+scenario_028,PA,head_of_household,980.0,federal_refundable_credits,3274.927978515625,3274.927978515625,3392.52783203125,117.599853515625,True,5,1
+scenario_033,SD,joint,1225.0,federal_income_tax_before_refundable_credits,3818.148193359375,3818.148193359375,3671.148193359375,-147.0,False,,
+scenario_053,ID,single,950.0,federal_income_tax_before_refundable_credits,5903.109375,5903.109375,5742.24169921875,-160.86767578125,True,13,2
+scenario_053,ID,single,950.0,state_income_tax_before_refundable_credits,2186.05712890625,2186.05712890625,2135.70703125,-50.35009765625,True,0,0
+scenario_067,IN,joint,1844.699951171875,federal_income_tax_before_refundable_credits,5616.240234375,5616.240234375,5394.8759765625,-221.3642578125,True,9,4
+scenario_067,IN,joint,1844.699951171875,local_income_tax,1348.83203125,1348.83203125,1319.3167724609375,-29.5152587890625,False,,
+scenario_067,IN,joint,1844.699951171875,state_income_tax_before_refundable_credits,2486.908935546875,2486.908935546875,2432.490234375,-54.418701171875,True,12,0
+scenario_086,GA,head_of_household,274.79998779296875,federal_income_tax_before_refundable_credits,3255.5478515625,3255.5478515625,3222.57177734375,-32.97607421875,True,4,3
+scenario_093,MO,joint,1000.0,federal_income_tax_before_refundable_credits,8628.990234375,8628.990234375,8508.990234375,-120.0,False,,
+scenario_099,CA,joint,1575.0,federal_income_tax_before_refundable_credits,10711.484375,10711.484375,10364.984375,-346.5,True,1,0
+scenario_101,TX,single,1400.0,federal_income_tax_before_refundable_credits,13418.599609375,13418.599609375,13198.599609375,-220.0,True,8,4

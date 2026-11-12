@@ -1,0 +1,1520 @@
+[
+ {
+  "scenario_id": "scenario_001",
+  "kind": "base",
+  "state": "VA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 3677.64697265625
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   31402.205078125
+  ],
+  "adjusted_gross_income": [
+   31402.205078125
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   47500.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_001",
+  "kind": "alt",
+  "state": "VA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 3677.64697265625
+  },
+  "auto_loan_interest_deduction": [
+   3677.64697265625
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   31402.205078125
+  ],
+  "adjusted_gross_income": [
+   31402.205078125
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   51177.6484375
+  ],
+  "engine_input_value": [
+   3677.64697265625
+  ]
+ },
+ {
+  "scenario_id": "scenario_002",
+  "kind": "base",
+  "state": "WA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1816.4705810546875
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   66403.0
+  ],
+  "adjusted_gross_income": [
+   66403.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   18903.0
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   47500.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_002",
+  "kind": "alt",
+  "state": "WA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1816.4705810546875
+  },
+  "auto_loan_interest_deduction": [
+   1816.4705810546875
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   66403.0
+  ],
+  "adjusted_gross_income": [
+   66403.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   17086.53125
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   49316.46875
+  ],
+  "engine_input_value": [
+   1816.4705810546875
+  ]
+ },
+ {
+  "scenario_id": "scenario_003",
+  "kind": "base",
+  "state": "TX",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 500.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   183290.25
+  ],
+  "adjusted_gross_income": [
+   183290.25
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   151090.25
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   32200.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_003",
+  "kind": "alt",
+  "state": "TX",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 500.0
+  },
+  "auto_loan_interest_deduction": [
+   500.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   183290.25
+  ],
+  "adjusted_gross_income": [
+   183290.25
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   150590.25
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   32700.0
+  ],
+  "engine_input_value": [
+   500.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_004",
+  "kind": "base",
+  "state": "NY",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1400.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   1065.0
+  ],
+  "adjusted_gross_income": [
+   1065.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   32200.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_004",
+  "kind": "alt",
+  "state": "NY",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1400.0
+  },
+  "auto_loan_interest_deduction": [
+   1400.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   1065.0
+  ],
+  "adjusted_gross_income": [
+   1065.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   33600.0
+  ],
+  "engine_input_value": [
+   1400.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_018",
+  "kind": "base",
+  "state": "AZ",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1625.300048828125
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   61592.08984375
+  ],
+  "adjusted_gross_income": [
+   61592.08984375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   45492.08984375
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   16100.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_018",
+  "kind": "alt",
+  "state": "AZ",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1625.300048828125
+  },
+  "auto_loan_interest_deduction": [
+   1625.300048828125
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   61592.08984375
+  ],
+  "adjusted_gross_income": [
+   61592.08984375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   43866.7890625
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   17725.30078125
+  ],
+  "engine_input_value": [
+   1625.300048828125
+  ]
+ },
+ {
+  "scenario_id": "scenario_026",
+  "kind": "base",
+  "state": "NC",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 378.058837890625
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   82300.515625
+  ],
+  "adjusted_gross_income": [
+   82300.515625
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   42354.2578125
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   39946.2578125
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_026",
+  "kind": "alt",
+  "state": "NC",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 378.058837890625
+  },
+  "auto_loan_interest_deduction": [
+   378.058837890625
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   82300.515625
+  ],
+  "adjusted_gross_income": [
+   82300.515625
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   41976.19921875
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   40324.31640625
+  ],
+  "engine_input_value": [
+   378.058837890625
+  ]
+ },
+ {
+  "scenario_id": "scenario_028",
+  "kind": "base",
+  "state": "PA",
+  "filing_status": "head_of_household",
+  "stated_auto_loan_interest": {
+   "2026": 980.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   60010.0
+  ],
+  "adjusted_gross_income": [
+   60010.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   35860.0
+  ],
+  "standard_deduction": [
+   24150.0
+  ],
+  "taxable_income_deductions": [
+   24150.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_028",
+  "kind": "alt",
+  "state": "PA",
+  "filing_status": "head_of_household",
+  "stated_auto_loan_interest": {
+   "2026": 980.0
+  },
+  "auto_loan_interest_deduction": [
+   980.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   60010.0
+  ],
+  "adjusted_gross_income": [
+   60010.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   34880.0
+  ],
+  "standard_deduction": [
+   24150.0
+  ],
+  "taxable_income_deductions": [
+   25130.0
+  ],
+  "engine_input_value": [
+   980.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_033",
+  "kind": "base",
+  "state": "SD",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1225.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   83451.234375
+  ],
+  "adjusted_gross_income": [
+   83451.234375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   35951.234375
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   47500.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_033",
+  "kind": "alt",
+  "state": "SD",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1225.0
+  },
+  "auto_loan_interest_deduction": [
+   1225.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   83451.234375
+  ],
+  "adjusted_gross_income": [
+   83451.234375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   34726.234375
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   48725.0
+  ],
+  "engine_input_value": [
+   1225.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_046",
+  "kind": "base",
+  "state": "OK",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": -4.5
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   92003.0
+  ],
+  "adjusted_gross_income": [
+   92003.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   44964.2890625
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   47038.7109375
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_046",
+  "kind": "alt",
+  "state": "OK",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": -4.5
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   92003.0
+  ],
+  "adjusted_gross_income": [
+   92003.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   44964.2890625
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   47038.7109375
+  ],
+  "engine_input_value": [
+   -4.5
+  ]
+ },
+ {
+  "scenario_id": "scenario_048",
+  "kind": "base",
+  "state": "OH",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1600.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   7656.0
+  ],
+  "adjusted_gross_income": [
+   7656.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   24150.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_048",
+  "kind": "alt",
+  "state": "OH",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1600.0
+  },
+  "auto_loan_interest_deduction": [
+   1600.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   7656.0
+  ],
+  "adjusted_gross_income": [
+   7656.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   25750.0
+  ],
+  "engine_input_value": [
+   1600.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_049",
+  "kind": "base",
+  "state": "NH",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 927.7941284179688
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   247385.0
+  ],
+  "adjusted_gross_income": [
+   247385.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   189605.234375
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   57779.765625
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_049",
+  "kind": "alt",
+  "state": "NH",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 927.7941284179688
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   247385.0
+  ],
+  "adjusted_gross_income": [
+   247385.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   189605.234375
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   57779.765625
+  ],
+  "engine_input_value": [
+   927.7941284179688
+  ]
+ },
+ {
+  "scenario_id": "scenario_053",
+  "kind": "base",
+  "state": "ID",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 950.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   66968.6796875
+  ],
+  "adjusted_gross_income": [
+   66968.6796875
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   50868.6796875
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   16100.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_053",
+  "kind": "alt",
+  "state": "ID",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 950.0
+  },
+  "auto_loan_interest_deduction": [
+   950.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   66968.6796875
+  ],
+  "adjusted_gross_income": [
+   66968.6796875
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   49918.6796875
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   17050.0
+  ],
+  "engine_input_value": [
+   950.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_055",
+  "kind": "base",
+  "state": "FL",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1180.61474609375
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   156275.859375
+  ],
+  "adjusted_gross_income": [
+   156275.859375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   136002.40625
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   20273.44921875
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_055",
+  "kind": "alt",
+  "state": "FL",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1180.61474609375
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   156275.859375
+  ],
+  "adjusted_gross_income": [
+   156275.859375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   136002.40625
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   20273.44921875
+  ],
+  "engine_input_value": [
+   1180.61474609375
+  ]
+ },
+ {
+  "scenario_id": "scenario_060",
+  "kind": "base",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 2275.10888671875
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   3075.0
+  ],
+  "adjusted_gross_income": [
+   3075.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   24150.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_060",
+  "kind": "alt",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 2275.10888671875
+  },
+  "auto_loan_interest_deduction": [
+   2275.10888671875
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   3075.0
+  ],
+  "adjusted_gross_income": [
+   3075.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   26425.109375
+  ],
+  "engine_input_value": [
+   2275.10888671875
+  ]
+ },
+ {
+  "scenario_id": "scenario_067",
+  "kind": "base",
+  "state": "IN",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1844.699951171875
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   87302.0
+  ],
+  "adjusted_gross_income": [
+   87302.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   55102.0
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   32200.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_067",
+  "kind": "alt",
+  "state": "IN",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1844.699951171875
+  },
+  "auto_loan_interest_deduction": [
+   1844.699951171875
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   87302.0
+  ],
+  "adjusted_gross_income": [
+   87302.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   53257.30078125
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   34044.69921875
+  ],
+  "engine_input_value": [
+   1844.699951171875
+  ]
+ },
+ {
+  "scenario_id": "scenario_075",
+  "kind": "base",
+  "state": "FL",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": -3.5
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   109286.1328125
+  ],
+  "adjusted_gross_income": [
+   109286.1328125
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   93186.1328125
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   16100.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_075",
+  "kind": "alt",
+  "state": "FL",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": -3.5
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   109286.1328125
+  ],
+  "adjusted_gross_income": [
+   109286.1328125
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   93186.1328125
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   16100.0
+  ],
+  "engine_input_value": [
+   -3.5
+  ]
+ },
+ {
+  "scenario_id": "scenario_079",
+  "kind": "base",
+  "state": "AZ",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 255.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   0.0
+  ],
+  "adjusted_gross_income": [
+   0.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   35500.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_079",
+  "kind": "alt",
+  "state": "AZ",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 255.0
+  },
+  "auto_loan_interest_deduction": [
+   255.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   0.0
+  ],
+  "adjusted_gross_income": [
+   0.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   35500.0
+  ],
+  "taxable_income_deductions": [
+   35755.0
+  ],
+  "engine_input_value": [
+   255.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_081",
+  "kind": "base",
+  "state": "MA",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1432.941162109375
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   174088.125
+  ],
+  "adjusted_gross_income": [
+   174088.125
+  ],
+  "tax_unit_itemizes": [
+   1.0
+  ],
+  "taxable_income": [
+   143059.46875
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   31028.650390625
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_081",
+  "kind": "alt",
+  "state": "MA",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1432.941162109375
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   174088.125
+  ],
+  "adjusted_gross_income": [
+   174088.125
+  ],
+  "tax_unit_itemizes": [
+   1.0
+  ],
+  "taxable_income": [
+   143059.46875
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   31028.650390625
+  ],
+  "engine_input_value": [
+   1432.941162109375
+  ]
+ },
+ {
+  "scenario_id": "scenario_086",
+  "kind": "base",
+  "state": "GA",
+  "filing_status": "head_of_household",
+  "stated_auto_loan_interest": {
+   "2026": 274.79998779296875
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   72562.8984375
+  ],
+  "adjusted_gross_income": [
+   72562.8984375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   48412.8984375
+  ],
+  "standard_deduction": [
+   24150.0
+  ],
+  "taxable_income_deductions": [
+   24150.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_086",
+  "kind": "alt",
+  "state": "GA",
+  "filing_status": "head_of_household",
+  "stated_auto_loan_interest": {
+   "2026": 274.79998779296875
+  },
+  "auto_loan_interest_deduction": [
+   274.79998779296875
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   72562.8984375
+  ],
+  "adjusted_gross_income": [
+   72562.8984375
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   48138.09765625
+  ],
+  "standard_deduction": [
+   24150.0
+  ],
+  "taxable_income_deductions": [
+   24424.80078125
+  ],
+  "engine_input_value": [
+   274.79998779296875
+  ]
+ },
+ {
+  "scenario_id": "scenario_088",
+  "kind": "base",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 4788.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   24034.763671875
+  ],
+  "adjusted_gross_income": [
+   24034.763671875
+  ],
+  "tax_unit_itemizes": [
+   1.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   26276.03125
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_088",
+  "kind": "alt",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 4788.0
+  },
+  "auto_loan_interest_deduction": [
+   4788.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   24034.763671875
+  ],
+  "adjusted_gross_income": [
+   24034.763671875
+  ],
+  "tax_unit_itemizes": [
+   1.0
+  ],
+  "taxable_income": [
+   0.0
+  ],
+  "standard_deduction": [
+   18150.0
+  ],
+  "taxable_income_deductions": [
+   31064.03125
+  ],
+  "engine_input_value": [
+   4788.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_093",
+  "kind": "base",
+  "state": "MO",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1000.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   112408.25
+  ],
+  "adjusted_gross_income": [
+   112408.25
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   80208.25
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   32200.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_093",
+  "kind": "alt",
+  "state": "MO",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1000.0
+  },
+  "auto_loan_interest_deduction": [
+   1000.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   112408.25
+  ],
+  "adjusted_gross_income": [
+   112408.25
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   79208.25
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   33200.0
+  ],
+  "engine_input_value": [
+   1000.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_099",
+  "kind": "base",
+  "state": "CA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1575.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   159729.296875
+  ],
+  "adjusted_gross_income": [
+   159729.296875
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   125529.296875
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   34200.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_099",
+  "kind": "alt",
+  "state": "CA",
+  "filing_status": "joint",
+  "stated_auto_loan_interest": {
+   "2026": 1575.0
+  },
+  "auto_loan_interest_deduction": [
+   1575.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   159729.296875
+  ],
+  "adjusted_gross_income": [
+   159729.296875
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   123954.296875
+  ],
+  "standard_deduction": [
+   32200.0
+  ],
+  "taxable_income_deductions": [
+   35775.0
+  ],
+  "engine_input_value": [
+   1575.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_101",
+  "kind": "base",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1400.0
+  },
+  "auto_loan_interest_deduction": [
+   0.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   101130.0
+  ],
+  "adjusted_gross_income": [
+   101130.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   85030.0
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   16100.0
+  ],
+  "engine_input_value": [
+   0.0
+  ]
+ },
+ {
+  "scenario_id": "scenario_101",
+  "kind": "alt",
+  "state": "TX",
+  "filing_status": "single",
+  "stated_auto_loan_interest": {
+   "2026": 1400.0
+  },
+  "auto_loan_interest_deduction": [
+   1000.0
+  ],
+  "agi_plus_section_911_931_933_exclusions": [
+   101130.0
+  ],
+  "adjusted_gross_income": [
+   101130.0
+  ],
+  "tax_unit_itemizes": [
+   0.0
+  ],
+  "taxable_income": [
+   84030.0
+  ],
+  "standard_deduction": [
+   16100.0
+  ],
+  "taxable_income_deductions": [
+   17100.0
+  ],
+  "engine_input_value": [
+   1400.0
+  ]
+ }
+]
