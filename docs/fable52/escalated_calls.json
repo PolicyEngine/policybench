@@ -1,0 +1,99 @@
+{
+  "note": "Claude Fable 5.2's households that took two calls in the board run of release dashboard-data-20261111: per call, in request order, the output-token budget, the completion tokens and the seconds (rounded to one decimal), with the run's counts of calls and households. Built from the run's request log, the per-call spend records in results/local/fable52-runs/fable52/run/scenarios/, which the repository does not hold; the file copies nothing else from it.",
+  "model": "claude-fable-5.2",
+  "calls_in_run": 106,
+  "households_in_run": 100,
+  "households_with_two_calls": 6,
+  "households": [
+    {
+      "scenario_id": "scenario_005",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 155.3
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 26131,
+          "seconds": 244.0
+        }
+      ]
+    },
+    {
+      "scenario_id": "scenario_023",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 170.1
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 31717,
+          "seconds": 324.7
+        }
+      ]
+    },
+    {
+      "scenario_id": "scenario_042",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 158.7
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 13877,
+          "seconds": 133.7
+        }
+      ]
+    },
+    {
+      "scenario_id": "scenario_064",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 154.6
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 28436,
+          "seconds": 269.4
+        }
+      ]
+    },
+    {
+      "scenario_id": "scenario_099",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 152.7
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 1698,
+          "seconds": 15.9
+        }
+      ]
+    },
+    {
+      "scenario_id": "scenario_123",
+      "calls": [
+        {
+          "budget_tokens": 16384,
+          "completion_tokens": 16384,
+          "seconds": 152.5
+        },
+        {
+          "budget_tokens": 32768,
+          "completion_tokens": 16958,
+          "seconds": 153.8
+        }
+      ]
+    }
+  ]
+}

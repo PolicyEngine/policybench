@@ -4,14 +4,14 @@
   "title": "Claude Fable 5.2 joins the board at #5 as PolicyBench stops scoring one Minnesota output",
   "paragraphs": [
     "PolicyBench added Claude Fable 5.2 to its {snapshotDate} snapshot, two days after Anthropic released it, bringing the board to {nModels} models. Claude Fable 5.2 gets {fableExact}% of answers right and ranks #{fableRank} of {nModels}, behind GPT-5.6 Sol ({sol56Exact}%) and ahead of GPT-6 Astra ({astraExact}%, #{astraRank}). GPT-6 Sol still leads at {solExact}%, ahead of Claude Opus 5.5 ({opusExact}%) and GPT-6.1 Terra ({terraExact}%). On the bounded score, which gives partial credit for amounts close to the reference, Claude Fable 5.2 ranks #{fableBoundedRank}, behind only GPT-6 Sol and Claude Opus 5.5. PolicyBench counts a dollar amount as right when it falls within $1 of the reference PolicyEngine computes, and an eligibility answer as right when it matches. It weights each answer by household impact.",
-    "Claude Fable 5.2's API rejects forced tool calls, as Claude Fable 5.1's, Claude Opus 5.5's and Claude Sonnet 5.5's do, so its row answers as a JSON object and reasons at the provider default. PolicyBench sends no reasoning setting, so the row ran at Anthropic's default effort, high; Claude Opus 5.5's default is medium. PolicyBench's usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted. Sent to Anthropic's API directly, the board's prompt for the first household drew a thinking block that took {probeThinking} of its {probeOutput} output tokens. At Anthropic's price of $8 per million input tokens and $40 per million output tokens, the {households} households cost ${fableCost}, against ${opusCost} for Claude Opus 5.5 and ${sonnetCost} for Claude Sonnet 5.5. Claude Fable 5.1, the Fable model before it, gets {fable51Exact}% (#{fable51Rank}) and cost ${fable51Cost}.",
+    "Claude Fable 5.2's API rejects forced tool calls, as Claude Fable 5.1's, Claude Opus 5.5's and Claude Sonnet 5.5's do, so its row answers as a JSON object and reasons at the provider default. PolicyBench sends no reasoning setting, so Claude Fable 5.2 ran at the API's default effort, high. Claude Fable 5.1 and Claude Sonnet 5.5 also default to high, and Claude Opus 5.5 defaults to medium. PolicyBench's usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted. Sent to Anthropic's API directly, the board's prompt for the first household drew a thinking block that took {probeThinking} of its {probeOutput} output tokens. On {escalated:words} households the answer ran past the row's starting budget of {firstBudget} output tokens, and PolicyBench asked again with twice the budget, as it does for every row that sets a budget, up to each row's ceiling. One of those second calls took {longCallSeconds} seconds, which the row's {timeoutSeconds}-second timeout allowed; the three other Claude rows that answer as JSON objects also have {timeoutSeconds} seconds, against PolicyBench's default of {defaultTimeoutSeconds} for Claude rows that reason at the provider default. At Anthropic's price of $8 per million input tokens and $40 per million output tokens, the {households} households cost ${fableCost}, against ${opusCost} for Claude Opus 5.5 and ${sonnetCost} for Claude Sonnet 5.5. Claude Fable 5.1, the Fable model before it, gets {fable51Exact}% (#{fable51Rank}) and cost ${fable51Cost}.",
     "The release also stops scoring one output, the refundable state credits of a Minnesota household. Minnesota's renter's credit requires a Certificate of Rent Paid, which state law has the owner of a rented home give each renter. The prompt lists the household's rent and no certificate, and policyengine-us {engineVersion} counts an unlisted certificate as absent, so the reference is $0; with a certificate, the credit and the output are ${crpAlt}. The prompt does not say whether the household holds one, so PolicyBench stops scoring the output, under a ruling of November 1. Of the {nModels} models, {crpZero} answer $0, {crpPositive:words} give a positive amount, none of them ${crpAlt}, and {crpNoAnswer:words} gives no answer. Every model is now scored on {scoredOutputs} of its {totalOutputs} requested outputs, down from {previousScoredOutputs}; PolicyBench excludes the other {excluded}.",
-    "Against the previous release, the exclusion moves each of the {incumbents} earlier models' shares of answers right by less than {moveBelow} points: the {fallers} that answered $0 fall, and the {risers:words} that did not rise. No earlier model passes another.",
+    "Against the previous release, the exclusion moves each of the {incumbents} earlier models' shares of answers right by less than {moveBelow} points: the {fallers} that answered $0 fall, and the {risers:words} that did not rise. Claude Fable 5.2 also answers $0, so the exclusion removes one of its right answers, and it ranks #{fableRank} with or without the output scored. No earlier model passes another, and each of the {fableBelow} earlier models below Claude Fable 5.2 moves down one place.",
     "The references stay on policyengine-us {engineVersion}, and no excluded output returns to scoring. When PolicyBench checked PyPI on {checkedOn}, the newest policyengine-us release was {checkedEngine}, and it gives the same value as {engineVersion} for all {scoredOutputs} scored outputs; it moves {excludedMoved:words} excluded outputs, which keep the values they were decided on.",
-    "Claude Opus 5.5 judged the misses in the {rejudged} audit cases Claude Fable 5.2 joined, on {judgedOn}, and it flagged {flagged:words} references as suspect. Of the {flagged:words}, {flaggedDecided:words} already had decisions, which this release keeps: {flaggedExcluded:words} are outputs PolicyBench excludes, and {flaggedAffirmed:words} are references it affirmed in earlier releases. The other is a Montana household's refundable state credits, which the judge expected to include a child tax credit. The 2023 bill that proposed that credit never became law, and the reference is Montana's earned income credit, 20% of the federal one for 2026, so PolicyBench affirmed it. On the federal income tax of a Virginia household and of a Texas household, the judge put {laterLawEach:words} models' answers on each in a class reserved for references that rest on law published after the freeze. Those answers apply the older rates and deductions that were due to return in 2026. A law of July 4, 2025, published before PolicyBench froze its references on 2026-07-03, made the current ones permanent, so PolicyBench classes the answers as model errors. All {triageOutputs:words} outputs stay scored.",
-    "[LEAD: slot (ii), the independent wording review of the re-judged cases and its open findings]",
+    "Claude Opus 5.5 judged the misses in the {rejudged} audit cases Claude Fable 5.2 joined, on {judgedOn}, and it flagged {flagged:words} references as suspect. Of the {flagged:words}, {flaggedDecided:words} already had decisions, which this release keeps: {flaggedExcluded:words} are outputs PolicyBench excludes, and {flaggedAffirmed:words} are references it affirmed in earlier releases. The other is a Montana household's refundable state credits, which the judge expected to include a child tax credit. The 2023 bill that proposed that credit never became law, and the reference is Montana's earned income credit, 20% of the federal one for 2026, so PolicyBench affirmed it. On the federal income tax of a Virginia household and of a Texas household, the judge put {laterLawEach:words} models' answers on each in a class reserved for references that rest on law published after the freeze. Those answers apply the older rates and deductions that were due to return in 2026. A law of July 4, 2025, published before PolicyBench froze its references on 2026-07-03, made the current ones permanent, so PolicyBench classes the answers as model errors. All {triageOutputs:words} outputs stay scored, and Claude Fable 5.2 misses each of them.",
+    "Readers running Claude Opus 5.5, the judge's model, then read the judge's new texts on the {rejudged} cases Claude Fable 5.2 answered wrong, and readers running GPT-6.1 Sol read the texts on the {secondReadCells} other audit cases, where Claude Fable 5.2 answered right. The first read raised {firstReadQuestions} questions about a prompt or a reference, and the second raised {secondReadQuestions}. PolicyBench changes no reference and no scored output on those questions in this release, including where a change would raise Claude Fable 5.2's share, because the first read covered only Claude Fable 5.2's misses, and it will decide them from both reads together in a later release. For example, the prompts that list auto loan interest do not say whether the loan qualifies for the federal deduction for qualified passenger vehicle loan interest, and the references treat it as not qualifying. With the interest counted as qualifying, policyengine-us {engineVersion} changes {carLoanScored} scored outputs by more than $1; with those outputs excluded, Claude Fable 5.2 would get {carLoanExcludedExact}% of answers right and rank #{carLoanExcludedRank}, and with them scored against the changed values, it would rank #{carLoanOtherRank}.",
     "Since the last release, PolicyBench has corrected eleven of its notes, from September 1 to October 31, where it defined the score by its $1 tolerance alone. PolicyBench applies the tolerance to dollar amounts and counts an eligibility answer as right only when it matches. No score moved.",
-    "[LEAD: slot (i), the disclosure that the session operating this release runs on the model it adds, and the independent checks that covered its row]"
+    "The session that operated this release runs on Claude Fable 5.2, the model the release adds, and a Claude Opus 5.5 agent built the script that runs the release's steps. PolicyBench ruled on the Minnesota output on November 1, eight days before Anthropic released Claude Fable 5.2, and its {triageOutputs:words} decisions on the judge's findings each keep a reference that Claude Fable 5.2's answer misses. A Claude Opus 5.5 adjudicator proposed each of those decisions, and a second Claude Opus 5.5 reader tried to refute each and could not; no other lab's model reviewed them. OpenAI's GPT-6.1 Sol read the cells Claude Fable 5.2 answered right and tried to refute each Claude Opus 5.5 adjudication of the first read's questions."
   ],
   "facts": {
     "snapshotDate": "2026-11-11",
@@ -27,6 +27,11 @@
     "fableBoundedRank": 3,
     "probeThinking": 1789,
     "probeOutput": 2881,
+    "escalated": 6,
+    "firstBudget": 16384,
+    "longCallSeconds": 325,
+    "timeoutSeconds": 600,
+    "defaultTimeoutSeconds": 300,
     "households": 100,
     "fableCost": "31.69",
     "opusCost": "6.75",
@@ -57,7 +62,15 @@
     "flaggedExcluded": 4,
     "flaggedAffirmed": 2,
     "laterLawEach": 8,
-    "triageOutputs": 3
+    "triageOutputs": 3,
+    "fableBelow": 47,
+    "secondReadCells": 559,
+    "firstReadQuestions": 24,
+    "secondReadQuestions": 21,
+    "carLoanScored": 11,
+    "carLoanExcludedExact": 93.4,
+    "carLoanExcludedRank": 5,
+    "carLoanOtherRank": 3
   },
   "data": [
     {
@@ -89,8 +102,16 @@
       "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-10-22-engine-upgrade/verification/publication_check_2_116_21.csv"
     },
     {
-      "label": "[LEAD: slot (iii), the errata list for the judge's texts]",
-      "href": "https://github.com/PolicyEngine/policybench/[LEAD-slot-iii-errata-list]"
+      "label": "Errata for the judge's texts",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/judge_text_errata.md"
+    },
+    {
+      "label": "Wording review record",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/wording_review.md"
+    },
+    {
+      "label": "Car-loan interest audit",
+      "href": "https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-11-11-car-loan-interest/README.md"
     },
     {
       "label": "Claude Fable 5.2 model page",

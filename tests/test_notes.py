@@ -6296,8 +6296,10 @@ FABLE52_PEERS = ("claude-fable-5.1", "claude-opus-5.5", "claude-sonnet-5.5")
 
 @cache
 def _fable52_households():
-    """Claude Fable 5.2's reasoning tokens by household in the frozen
-    predictions."""
+    """Claude Fable 5.2's usage by household in the frozen predictions: live
+    calls, and the completion tokens, reasoning tokens and seconds of those
+    calls together (each row carries its share of the household's), and the
+    span from the first request's start to the last one's end."""
     import pandas as pd
 
     predictions = pd.read_csv(
@@ -6305,12 +6307,22 @@ def _fable52_households():
         usecols=[
             "model",
             "scenario_id",
+            "live_calls",
+            "completion_tokens",
             "reasoning_tokens",
+            "elapsed_seconds",
+            "request_started_at",
+            "request_completed_at",
         ],
     )
     rows = predictions[predictions["model"] == FABLE52]
     return rows.groupby("scenario_id").agg(
+        live_calls=("live_calls", "max"),
+        completion_tokens=("completion_tokens", "sum"),
         reasoning_tokens=("reasoning_tokens", "sum"),
+        elapsed_seconds=("elapsed_seconds", "sum"),
+        started=("request_started_at", "min"),
+        completed=("request_completed_at", "max"),
     )
 
 
@@ -6342,6 +6354,77 @@ def _fable52_later_law_models(entry: dict) -> list[str]:
     listed = re.search(r"rows reference_later_law \(([^)]*)\)", entry["reasoning"])
     assert listed is not None
     return re.split(r", | and ", listed.group(1))
+
+
+# The audit of the car-loan interest the prompts list (2026-11-11).
+FABLE52_CAR_LOAN = ROOT / "reference_audit/2026-11-11-car-loan-interest"
+# The households that took two calls, per call, from the run's request log.
+FABLE52_ESCALATED = FABLE52_DOCS / "escalated_calls.json"
+
+
+def _fable52_wording_reads() -> dict[str, dict[str, int]]:
+    """The findings tables of the release's wording review
+    (docs/fable52/wording_review.md): each read's cells and its P1, P2 and P3
+    counts, from the table's total row, which must equal the sum of its unit
+    rows."""
+    lines = (FABLE52_DOCS / "wording_review.md").read_text().splitlines()
+    reads = {}
+    for name, heading in (
+        ("first", "First read (cells Claude Fable 5.2 answered wrong):"),
+        ("second", "Second read (cells Claude Fable 5.2 answered right):"),
+    ):
+        rows = []
+        for line in lines[lines.index(heading) + 1 :]:
+            if not line.strip():
+                if rows:
+                    break
+                continue
+            rows.append(
+                [cell.strip().strip("*") for cell in line.strip("| ").split("|")]
+            )
+        header, _, *units, total = rows
+        assert header == ["Unit", "Cells", "P1", "P2", "P3"]
+        assert total[0] == "Total"
+        counts = dict(zip(header[1:], map(int, total[1:]), strict=True))
+        assert [sum(int(unit[i]) for unit in units) for i in range(1, 5)] == list(
+            counts.values()
+        ), name
+        reads[name] = counts
+    return reads
+
+
+@cache
+def _fable52_shares_with_the_ruled_output_scored() -> dict[str, float]:
+    """Every model's share of answers right on this release's predictions with
+    d2180's output still scored: the release's references, its exclusion record
+    less the ruled record, and the app's scorer."""
+    import pandas as pd
+
+    from policybench.scorer_vectors import canonical_filtered_scores
+    from policybench.spec import output_group_id
+
+    payload = _dashboard()
+    reference = pd.read_csv(REFERENCES_PATH)
+    unscored = _excluded_at(ROOT) - {FABLE52_RULED}
+    keys = zip(reference["scenario_id"], reference["variable"], strict=True)
+    scored = reference[[key not in unscored for key in keys]]
+    predictions = pd.DataFrame(
+        [
+            (model, scenario_id, variable, entry.get("prediction"))
+            for scenario_id, outputs in payload["scenarioPredictions"].items()
+            for variable, by_model in outputs.items()
+            for model, entry in by_model.items()
+        ],
+        columns=["model", "scenario_id", "variable", "prediction"],
+    )
+    weights: dict[str, float] = {}
+    for variable, weight in payload["globalWeights"]["household"].items():
+        group = output_group_id(variable)
+        weights[group] = weights.get(group, 0.0) + weight
+    scores, _ = canonical_filtered_scores(
+        scored, predictions, weights, set(weights), "all", "exact"
+    )
+    return scores
 
 
 def _release_20261111_facts() -> dict:
@@ -6377,6 +6460,14 @@ def _release_20261111_facts() -> dict:
         card_for(serving[FABLE52]["provider_id"]).notes,
     )
     assert probe is not None
+    # The card records the timeout the onboarding check suggested.
+    suggested = re.search(
+        r"so it suggested the (\d+)s class default",
+        card_for(serving[FABLE52]["provider_id"]).notes,
+    )
+    assert suggested is not None
+    households = _fable52_households()
+    escalated_calls = _load_json(FABLE52_ESCALATED)
     timing = _load_json(TERRA_CHECK / "sweep_timing.json")
     check = timing["publication_check"]
     # The check's engine was PyPI's newest when the release read PyPI.
@@ -6394,6 +6485,9 @@ def _release_20261111_facts() -> dict:
     (later_law_each,) = {
         len(_fable52_later_law_models(triage[key])) for key in FABLE52_LATER_LAW
     }
+    reads = _fable52_wording_reads()
+    car_loan = _load_json(FABLE52_CAR_LOAN / "verification/headline.json")
+    car_loan_row = car_loan["models"][FABLE52]
 
     def one(value: float) -> float:
         return float(f"{value:.1f}")
@@ -6415,6 +6509,18 @@ def _release_20261111_facts() -> dict:
         "fableBoundedRank": [row["model"] for row in by_score].index(FABLE52) + 1,
         "probeThinking": int(probe.group(1).replace(",", "")),
         "probeOutput": int(probe.group(2).replace(",", "")),
+        "escalated": int((households["live_calls"] > 1).sum()),
+        "firstBudget": serving[FABLE52]["shared_completion_budget_tokens"],
+        # The longest call, to the whole second.
+        "longCallSeconds": round(
+            max(
+                call["seconds"]
+                for household in escalated_calls["households"]
+                for call in household["calls"]
+            )
+        ),
+        "timeoutSeconds": serving[FABLE52]["request_timeout_seconds"],
+        "defaultTimeoutSeconds": int(suggested.group(1)),
         "households": len(r.dashboard["scenarioPredictions"]),
         "fableCost": cost(FABLE52),
         "opusCost": cost("claude-opus-5.5"),
@@ -6454,6 +6560,17 @@ def _release_20261111_facts() -> dict:
         ),
         "laterLawEach": later_law_each,
         "triageOutputs": len(triage),
+        # The earlier models the new row's entry moves down one place.
+        "fableBelow": len(board) - ranks[FABLE52],
+        "secondReadCells": reads["second"]["Cells"],
+        "firstReadQuestions": reads["first"]["P1"],
+        "secondReadQuestions": reads["second"]["P1"],
+        "carLoanScored": car_loan["scored_cells_moved"],
+        # Board (b): the moved scored outputs excluded; board (c): scored
+        # against the values with the stated interest counted as qualifying.
+        "carLoanExcludedExact": one(car_loan_row["b"]["share"]),
+        "carLoanExcludedRank": car_loan_row["b"]["rank"],
+        "carLoanOtherRank": car_loan_row["c"]["rank"],
     }
 
 
@@ -6539,9 +6656,21 @@ def test_release_20261111_note_claims() -> None:
     assert "so the row reasons at the provider default" in card.notes
     fingerprint = serving[FABLE52]["evidence"]["treatment_fingerprint"]
     assert fingerprint["thinking"] == {"mode": "provider_default"}
-    # Anthropic's default effort: high for this model, medium for Opus 5.5.
+    # Anthropic's default effort: high for this model, Fable 5.1 and Sonnet
+    # 5.5, medium for Opus 5.5 (the card cites the effort docs it read).
     assert "The API's default effort is high" in card.notes
     assert "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
+    assert (
+        "The API's default effort is high, as on Fable 5.1 and Sonnet 5.5, "
+        "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
+    )
+    # The note states this row's run as a fact and the other three rows'
+    # efforts as the API's defaults, as the card does.
+    assert (
+        "so Claude Fable 5.2 ran at the API's default effort, high. Claude Fable "
+        "5.1 and Claude Sonnet 5.5 also default to high, and Claude Opus 5.5 "
+        "defaults to medium."
+    ) in text
     # No Claude row records a reasoning token, so the new row's zero means
     # not counted; the card's probe drew a thinking block.
     import pandas as pd
@@ -6555,6 +6684,103 @@ def test_release_20261111_note_claims() -> None:
     assert households["reasoning_tokens"].sum() == 0
     assert "sent directly through Anthropic's SDK, drew a thinking block" in card.notes
     assert 0 < facts["probeThinking"] < facts["probeOutput"]
+    # The households that took a second call are the ones whose answers ran
+    # past the starting budget, and each second call fit in twice the budget
+    # (policybench/completion_budget.py doubles a budget up to the ceiling).
+    from policybench.completion_budget import next_completion_budget
+
+    again = households[households["live_calls"] > 1]
+    once = households[households["live_calls"] == 1]
+    assert set(households["live_calls"]) == {1, 2}
+    assert len(again) == facts["escalated"]
+    assert (again["completion_tokens"] > facts["firstBudget"]).all()
+    assert (once["completion_tokens"] <= facts["firstBudget"]).all()
+    assert (
+        again["completion_tokens"] - facts["firstBudget"] <= 2 * facts["firstBudget"]
+    ).all()
+    assert fingerprint["initial_completion_budget_tokens"] == facts["firstBudget"]
+    assert fingerprint["max_repair_rounds"] == 2
+    assert (
+        next_completion_budget(
+            facts["firstBudget"], fingerprint["completion_budget_ceiling"]
+        )
+        == 2 * facts["firstBudget"]
+    )
+    assert next_completion_budget(128_000, 128_000) is None
+    # The timeout: this row's, and the three other Claude JSON rows', as the
+    # serving config records them; the default the onboarding check
+    # suggested, as the card and the runner give it.
+    claude_json = {
+        model
+        for model, entry in serving.items()
+        if model.startswith("claude") and entry["answer_contract"] == "json"
+    }
+    assert claude_json == {FABLE52, *FABLE52_PEERS}
+    for model in claude_json:
+        assert serving[model]["request_timeout_seconds"] == facts["timeoutSeconds"]
+    assert fingerprint["request_timeout_seconds"] == facts["timeoutSeconds"]
+    assert card.request_timeout_seconds == facts["timeoutSeconds"]
+    assert (
+        "The timeout is 600s, as on the other Claude JSON-contract rows (Fable "
+        "5.1, Opus 5.5, Sonnet 5.5)"
+    ) in card.notes
+    runner = (ROOT / "policybench/eval_no_tools.py").read_text()
+    assert (
+        '"POLICYBENCH_THINKING_CLAUDE_REQUEST_TIMEOUT_SECONDS", '
+        f"{facts['defaultTimeoutSeconds']}"
+    ) in runner
+    thinking_default = runner.split("THINKING_DEFAULT_CLAUDE_MODELS = (")[1]
+    thinking_default = thinking_default.split(")")[0]
+    for model in claude_json:
+        provider_id = serving[model]["provider_id"]
+        assert f'"{provider_id}",' in thinking_default, model
+    # The long second call: docs/fable52/escalated_calls.json gives each
+    # two-call household's calls from the run's request log, and agrees with
+    # the frozen snapshot, which holds each household's calls together.
+    escalated_calls = _load_json(FABLE52_ESCALATED)
+    assert escalated_calls["model"] == FABLE52
+    by_household = {
+        household["scenario_id"]: household["calls"]
+        for household in escalated_calls["households"]
+    }
+    assert set(by_household) == set(again.index)
+    assert escalated_calls["households_with_two_calls"] == facts["escalated"]
+    assert escalated_calls["households_in_run"] == len(households)
+    assert escalated_calls["calls_in_run"] == len(once) + 2 * len(again) == 106
+    for scenario_id, (first, second) in by_household.items():
+        snapshot = households.loc[scenario_id]
+        # The first call ran out of its budget; the second had twice it.
+        assert first["budget_tokens"] == first["completion_tokens"]
+        assert first["budget_tokens"] == facts["firstBudget"]
+        assert second["budget_tokens"] == 2 * facts["firstBudget"]
+        assert second["completion_tokens"] <= second["budget_tokens"]
+        tokens = first["completion_tokens"] + second["completion_tokens"]
+        assert abs(tokens - snapshot["completion_tokens"]) < 0.5, scenario_id
+        # Two one-decimal roundings: within a second of the snapshot's span
+        # and of its summed seconds.
+        seconds = first["seconds"] + second["seconds"]
+        span = snapshot["completed"] - snapshot["started"]
+        assert abs(seconds - span) < 1, scenario_id
+        assert abs(seconds - snapshot["elapsed_seconds"]) < 1, scenario_id
+    calls = [
+        (call["seconds"], scenario_id, index)
+        for scenario_id, pair in by_household.items()
+        for index, call in enumerate(pair)
+    ]
+    # The longest is scenario_023's second call, whose household the loop
+    # above checks against the snapshot's span.
+    longest, long_household, long_index = max(calls)
+    assert (long_household, long_index) == ("scenario_023", 1)
+    assert round(longest) == facts["longCallSeconds"]
+    # Past the default, inside the row's timeout, and no longer than the
+    # household's two calls together.
+    assert (
+        facts["defaultTimeoutSeconds"]
+        < facts["longCallSeconds"]
+        < facts["timeoutSeconds"]
+    )
+    assert facts["longCallSeconds"] < again["elapsed_seconds"].max()
+    assert "One of those second calls took {longCallSeconds} seconds" in text
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["input"] == 8.0
     assert PRICE_OVERRIDES_PER_1M[FABLE52]["output"] == 40.0
     # The ruled exclusion: one record added to release 20261027's, a Minnesota
@@ -6609,6 +6835,30 @@ def test_release_20261111_note_claims() -> None:
     assert facts["fallers"] + facts["risers"] == facts["incumbents"]
     assert 0 < max(abs(exact[m] - e) for m, e in then.items()) < facts["moveBelow"]
     assert [m for m in names if m != FABLE52] == then_names
+    # Claude Fable 5.2 also answered $0, so the exclusion removes one of its
+    # right answers, and it ranks the same with the output scored.
+    assert cells[FABLE52]["prediction"] == references[FABLE52_RULED] == 0.0
+    assert cells[FABLE52]["exact"] == 100.0 and cells[FABLE52]["scored"] is False
+    with_ruled = _fable52_shares_with_the_ruled_output_scored()
+    assert set(with_ruled) == set(names)
+    for model, share in then.items():
+        assert abs(with_ruled[model] - share) < 1e-9, model
+    assert with_ruled[FABLE52] > exact[FABLE52]
+    order_with_ruled = sorted(with_ruled, key=with_ruled.get, reverse=True)
+    assert (
+        order_with_ruled.index(FABLE52) + 1
+        == names.index(FABLE52) + 1
+        == facts["fableRank"]
+    )
+    assert "so the exclusion removes one of its right answers, and it ranks" in text
+    # Its entry moves each earlier model below it down one place, and the ones
+    # above keep theirs.
+    then_rank = {m: index + 1 for index, m in enumerate(then_names)}
+    now_rank = {m: index + 1 for index, m in enumerate(names)}
+    below = {m for m in then_names if then_rank[m] >= facts["fableRank"]}
+    assert len(below) == facts["fableBelow"]
+    for model in then_names:
+        assert now_rank[model] == then_rank[model] + (model in below), model
     # The references are release 20261027's, on the same engine.
     assert _read_csv(REFERENCES_PATH) == _read_csv(_in(then_root, REFERENCES_PATH))
     assert (
@@ -6696,6 +6946,136 @@ def test_release_20261111_note_claims() -> None:
         assert "scheduled to return in 2026" in entry["reasoning"]
         assert "P.L. 119-21, enacted July 4, 2025" in entry["reasoning"]
         assert "before the July 3, 2026 reference freeze" in entry["reasoning"]
+    # Claude Fable 5.2 misses each of the three outputs, which stay scored, so
+    # each decision keeps a reference its answer misses.
+    for scenario_id, variable in triage:
+        cell = scenario_predictions[scenario_id][variable][FABLE52]
+        assert cell["scored"] is True and cell["exact"] != 100.0, scenario_id
+    assert (
+        "All {triageOutputs:words} outputs stay scored, and Claude Fable 5.2 "
+        "misses each of them."
+    ) in text
+    assert "each keep a reference that Claude Fable 5.2's answer misses" in text
+    # The operating session and the release driver (the design note's
+    # disclosures), and the ruling's day against the model's release.
+    design = (FABLE52_DOCS / "design.md").read_text()
+    assert "An Opus 5.5 agent built this driver." in design
+    assert "The session that carries the release runs on Claude Fable 5.2" in design
+    assert "The release driver is `scripts/finish_fable52.py`" in design
+    assert (released - date.fromisoformat(record["decided_on"])).days == 8
+    assert "on November 1, eight days before Anthropic released Claude Fable 5.2" in (
+        text
+    )
+    # The wording review: Claude Opus 5.5 readers, the judge's model, read the
+    # judge's new texts on the re-judged cases, which Claude Fable 5.2
+    # answered wrong, and GPT-6.1 Sol readers the texts on the other audit
+    # cases, where it answered right; neither read saw the prompts, and the
+    # release changes nothing on their findings, including where a change
+    # would raise Claude Fable 5.2's share.
+    reads = _fable52_wording_reads()
+    review = (FABLE52_DOCS / "wording_review.md").read_text()
+    assert reads["first"]["Cells"] == facts["rejudged"]
+    seed = {row["case_id"] for row in _read_csv(FABLE52_DOCS / "seed_digest.csv")}
+    assert _fable52_rejudged() <= seed
+    answered_right = {
+        case_id
+        for case_id in seed
+        if scenario_predictions[case_id.split("__")[1]][case_id.split("__")[2]][
+            FABLE52
+        ]["exact"]
+        == 100.0
+    }
+    assert answered_right == seed - _fable52_rejudged()
+    assert len(answered_right) == facts["secondReadCells"]
+    for phrase in (
+        "Six Claude Opus 5.5 readers, the same model as the judge, split the "
+        f"{facts['rejudged']} re-judged cells.",
+        f"GPT-6.1 Sol readers read, in 14 units, the {facts['secondReadCells']} "
+        "judged cells Claude Fable 5.2 answered right",
+        "Neither read saw the prompts.",
+        "P1: a doubt about a reference or the prompt's completeness",
+        "This release changes no reference and no scored output on these findings.",
+        "The first read covered only cells Claude Fable 5.2 answered wrong, so "
+        "acting on it alone would favour that model",
+        "PolicyBench will decide the open questions from both reads together",
+        # Only the re-judged cells got new texts.
+        f"For this release the judge wrote new texts for the {facts['rejudged']} "
+        "cells Claude Fable 5.2 answered wrong",
+        # The no-change rule holds where a change would raise the new row.
+        "That holds for the four questions the errata check raised on scored "
+        "cells too, although replacing the reference with the other reading's "
+        "value in",
+        "would raise Claude Fable 5.2's score",
+        # The car-loan question is one of the first read's.
+        f"| Car-loan interest | {facts['carLoanScored']} scored cells, listed in "
+        "the next section; 4 more already unscored | First |",
+        # GPT-6.1 Sol, an OpenAI model, tried to refute each of round one's
+        # adjudications of the first read's P1s.
+        "Claude Opus 5.5 adjudicators took 13 causes covering 21 of the first "
+        f"read's {facts['firstReadQuestions']} P1s",
+        "A GPT-6.1 Sol reviewer tried to refute each of the 14",
+        "GPT-6.1 Sol stated in each refutation that it is an OpenAI model.",
+    ):
+        assert phrase in review, phrase
+    assert "Independent" not in text
+    assert (
+        "Readers running Claude Opus 5.5, the judge's model, then read the "
+        "judge's new texts on the {rejudged} cases"
+    ) in text
+    assert "including where a change would raise Claude Fable 5.2's share" in text
+    # Who checked the three triage decisions is recorded outside the
+    # repository (the release's triage-adjudication run), so only the
+    # sentence is pinned here; Sol's part is the record's, pinned above.
+    assert (
+        "no other lab's model reviewed them. OpenAI's GPT-6.1 Sol read the cells "
+        "Claude Fable 5.2 answered right and tried to refute each Claude Opus 5.5 "
+        "adjudication of the first read's questions."
+    ) in text
+    # The car-loan audit: the prompts list auto loan interest and never say
+    # whether the loan qualifies for the deduction; counting it as qualifying
+    # moves the scored dollar outputs the note counts by more than $1; the
+    # audit's board (a) is this board, and boards (b) and (c) give the note's
+    # two alternatives.
+    from policybench.analysis import BINARY_PROGRAMS
+    from policybench.prompts import TASK_PREFACE
+
+    car_loan = _load_json(FABLE52_CAR_LOAN / "verification/headline.json")
+    readme = (FABLE52_CAR_LOAN / "README.md").read_text()
+    assert (
+        "None says whether the loan qualifies for the federal deduction for "
+        "qualified passenger vehicle loan interest, and the references treat it "
+        "as not qualifying."
+    ) in readme
+    assert '"auto_loan_interest": "auto loan interest"' in (
+        (ROOT / "policybench/prompts.py").read_text()
+    )
+    assert "any other unlisted household fact, boolean, or status input as false" in (
+        TASK_PREFACE
+    )
+    assert car_loan["engine"] == f"policyengine-us {facts['engineVersion']}"
+    assert car_loan["scored_outputs_per_model"] == facts["scoredOutputs"]
+    moved = pd.read_csv(FABLE52_CAR_LOAN / "verification/moved_cells.csv")
+    moved = moved[moved["scored"]]
+    assert len(moved) == facts["carLoanScored"]
+    assert (moved["change"].abs() > 1).all()
+    assert not set(moved["variable"]) & set(BINARY_PROGRAMS)
+    assert not set(zip(moved["scenario_id"], moved["variable"])) & excluded
+    by_board = car_loan["models"]
+    assert set(by_board) == set(names)
+    assert by_board[FABLE52]["a"] == {
+        "share": round(exact[FABLE52], 3),
+        "rank": facts["fableRank"],
+    }
+    boards = pd.read_csv(FABLE52_CAR_LOAN / "verification/scoreboards.csv")
+    boards = boards.set_index("model")
+    assert (
+        float(f"{boards.loc[FABLE52, 'share_b']:.1f}") == facts["carLoanExcludedExact"]
+    )
+    assert boards.loc[FABLE52, "rank_b"] == facts["carLoanExcludedRank"]
+    assert boards.loc[FABLE52, "rank_c"] == facts["carLoanOtherRank"]
+    # Either change would raise Claude Fable 5.2's share.
+    assert boards.loc[FABLE52, "share_b"] > boards.loc[FABLE52, "share_a"]
+    assert boards.loc[FABLE52, "share_c"] > boards.loc[FABLE52, "share_a"]
     # The correction line: #254 and #256 corrected eleven notes, dated
     # September 1 to October 31.
     corrected = set()
