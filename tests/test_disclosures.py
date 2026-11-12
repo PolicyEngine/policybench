@@ -290,14 +290,18 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # misses, 111 unannotated rows below full bounded score) on unchanged
     # references and exclusions. Release 20261027 adds GPT-6.1 Terra's rows
     # and moves four scored references (9,050 annotated, 9,046 exact misses,
-    # 2,407 unannotated). The app's summarizeAuditUniverse recomputes the same
+    # 2,407 unannotated). Release 20261111 adds Claude Fable 5.2's rows (91
+    # annotated misses, 90 unannotated rows below full bounded score) and
+    # excludes scenario_122's state refundable credits under decision d2180,
+    # which takes 9 annotated misses out (9,132 annotated, 9,128 exact misses,
+    # 2,497 unannotated). The app's summarizeAuditUniverse recomputes the same
     # counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 9_050,
-        "exact_misses": 9_046,
-        "annotated_exact_misses": 9_046,
+        "annotated": 9_132,
+        "exact_misses": 9_128,
+        "annotated_exact_misses": 9_128,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_407,
+        "unannotated_below_full_bounded_score": 2_497,
     }
 
     for path in (

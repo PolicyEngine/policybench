@@ -1116,8 +1116,12 @@ def test_the_base_commit_is_on_main_and_its_references_are_2_41_0s():
 
 def test_the_snapshot_holds_the_base_or_this_build():
     """Until a board release installs this build, the snapshot's reference
-    files are the base's; once one installs it, they are the build's. Either
-    way each file is one of the two, and the three move together."""
+    files are the base's; once one installs it, they are the build's, and the
+    three move together. A later release may add exclusions decided after
+    this build, as release 20261111 added the 2026-11-01 ruling's one record:
+    the reference values and their metadata stay the build's, the snapshot's
+    exclusion file keeps every one of the build's records unchanged, and each
+    record it adds was decided after the build's last."""
     names = (
         "reference_outputs.csv",
         "reference_outputs.csv.meta.json",
@@ -1126,7 +1130,23 @@ def test_the_snapshot_holds_the_base_or_this_build():
     on_disk = [build.sha256(RUN_DIR / n) for n in names]
     base = [build.BASE_SHA256[n] for n in names]
     built = [build.sha256(BUILD / n) for n in names]
-    assert on_disk in (base, built)
+    if on_disk in (base, built):
+        return
+    assert on_disk[:2] == built[:2]
+    snapshot = json.loads((RUN_DIR / names[2]).read_text())
+    this_build = json.loads((BUILD / names[2]).read_text())
+    assert snapshot["schema_version"] == this_build["schema_version"]
+    assert snapshot["rule"] == this_build["rule"]
+    kept = [e for e in snapshot["exclusions"] if e in this_build["exclusions"]]
+    added = [e for e in snapshot["exclusions"] if e not in this_build["exclusions"]]
+    assert sorted(kept, key=json.dumps) == sorted(
+        this_build["exclusions"], key=json.dumps
+    )
+    last_built = max(e.get("decided_on", "") for e in this_build["exclusions"])
+    assert [(e["scenario_id"], e["variable"], e["decided_on"]) for e in added] == [
+        ("scenario_122", "state_refundable_credits", "2026-11-01")
+    ]
+    assert all(e["decided_on"] > last_built for e in added)
 
 
 def test_the_fix_modules_are_the_first_upgrades(real_base, tmp_path):

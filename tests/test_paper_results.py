@@ -40,10 +40,10 @@ from tests.second_engine_upgrade import (
 )
 
 
-def test_frozen_roster_has_51_display_names_and_release_dates():
+def test_frozen_roster_has_52_display_names_and_release_dates():
     roster = {row["model"] for row in r.model_stats}
 
-    assert len(roster) == 51
+    assert len(roster) == 52
     assert set(MODEL_DISPLAY_NAMES) == roster
     assert roster <= set(MODEL_RELEASE_DATES)
     assert MODEL_DISPLAY_NAMES["claude-fable-5.1"] == "Claude Fable 5.1"
@@ -60,6 +60,8 @@ def test_frozen_roster_has_51_display_names_and_release_dates():
     assert MODEL_DISPLAY_NAMES["claude-opus-5.5"] == "Claude Opus 5.5"
     assert MODEL_DISPLAY_NAMES["gpt-6.1-terra"] == "GPT-6.1 Terra"
     assert MODEL_RELEASE_DATES["gpt-6.1-terra"] == "2026-10-26"
+    assert MODEL_DISPLAY_NAMES["claude-fable-5.2"] == "Claude Fable 5.2"
+    assert MODEL_RELEASE_DATES["claude-fable-5.2"] == "2026-11-09"
     assert MODEL_DISPLAY_NAMES["claude-sonnet-5.5"] == "Claude Sonnet 5.5"
     assert MODEL_RELEASE_DATES["claude-sonnet-5.5"] == "2026-09-28"
     assert MODEL_DISPLAY_NAMES["grok-4.7"] == "Grok 4.7"
@@ -145,19 +147,22 @@ def test_parse_contract_failure_counts_come_from_frozen_dashboard():
     # upgrade returns to scoring bring back 10 (Kimi K2.6 seven, GLM-5.3 two,
     # Kimi K3 one): 669. Muse Wonder parsed every answer, and so did Gemini 4
     # Argon, Muse Spark 1.3 and GPT-6.1 Terra; release 20261027's four changed
-    # references are answered by every model.
+    # references are answered by every model. Claude Fable 5.2 parsed every
+    # answer, and release 20261111's exclusion of scenario_122's state
+    # refundable credits (decision d2180) takes out Kimi K2.6's parse failure
+    # there: 668.
     assert r.parse_contract_failure_counts == Counter(
         {
-            "kimi-k2.6": 397,
+            "kimi-k2.6": 396,
             "glm-5.2": 136,
             "glm-5.3": 75,
             "kimi-k3": 61,
         }
     )
-    assert r.parse_contract_failure_count == 669
-    assert r.parse_contract_failure_count_fmt == "669"
-    # 669 of the 51-model board's 98,685 scored answers (51 x 1,935).
-    assert r.n_canonical_rows == 98_685
+    assert r.parse_contract_failure_count == 668
+    assert r.parse_contract_failure_count_fmt == "668"
+    # 668 of the 52-model board's 100,568 scored answers (52 x 1,934).
+    assert r.n_canonical_rows == 100_568
     assert r.parse_contract_failure_pct_fmt == "0.7"
 
 
@@ -175,22 +180,26 @@ def test_audit_universe_counts_come_from_frozen_rows_and_annotations():
     # annotated misses on scored outputs, and its four changed references
     # make 189 more incumbent rows misses (192 on the three school-meal flags
     # and scenario_031's SNAP, less the three models that now give the new
-    # SNAP): 9,050, 9,046 and 2,407.
-    assert r.audit_annotated_row_count == 9_050
-    assert r.audit_annotated_row_count_fmt == "9,050"
+    # SNAP): 9,050, 9,046 and 2,407. Release 20261111 adds Claude Fable 5.2's
+    # 91 annotated misses and 90 of its rows outside that selection with a
+    # bounded score below full, and its exclusion of scenario_122's state
+    # refundable credits (decision d2180) takes out that output's 9 annotated
+    # misses: 9,132, 9,128 and 2,497.
+    assert r.audit_annotated_row_count == 9_132
+    assert r.audit_annotated_row_count_fmt == "9,132"
     assert r.audit_selection_rule == ("rows whose legacy threshold score is below 1")
-    assert r.exact_match_miss_count == 9_046
-    assert r.exact_match_miss_count_fmt == "9,046"
-    assert r.annotated_exact_miss_count == 9_046
-    assert r.annotated_exact_miss_count_fmt == "9,046"
+    assert r.exact_match_miss_count == 9_128
+    assert r.exact_match_miss_count_fmt == "9,128"
+    assert r.annotated_exact_miss_count == 9_128
+    assert r.annotated_exact_miss_count_fmt == "9,128"
     assert r.annotated_exact_hit_count == 4
     assert r.annotated_exact_hit_count_fmt == "4"
-    assert r.unannotated_below_full_bounded_score_count == 2_407
-    assert r.unannotated_below_full_bounded_score_count_fmt == "2,407"
+    assert r.unannotated_below_full_bounded_score_count == 2_497
+    assert r.unannotated_below_full_bounded_score_count_fmt == "2,497"
 
 
 def test_contract_violations_are_counted_both_ways():
-    """669 scored rows never parsed a number (rows on excluded outputs are outside
+    """668 scored rows never parsed a number (rows on excluded outputs are outside
     every count); 59 more parsed a number but carry no explanation.
     The manuscript reports both, not just the first."""
     assert dict(r.explanation_missing_counts) == {
@@ -199,7 +208,7 @@ def test_contract_violations_are_counted_both_ways():
         "claude-haiku-4.5": 1,
     }
     assert r.explanation_missing_count_fmt == "59"
-    assert r.contract_violation_count_fmt == "728"
+    assert r.contract_violation_count_fmt == "727"
     assert r.explanation_missing_breakdown_fmt == (
         "Grok 4.3 (55), Kimi K2.6 (3), and Claude Haiku 4.5 (1)"
     )
@@ -294,19 +303,19 @@ def test_serving_evidence_caption_comes_from_frozen_configuration():
         ],
     }
     # GPT-6.1 Sol's, Claude Haiku 5.5's, Muse Wonder's, Gemini 4 Argon's,
-    # Muse Spark 1.3's and GPT-6.1 Terra's supervised runs fingerprint all four
-    # fields, and their reasoning setup and timeouts.
+    # Muse Spark 1.3's, GPT-6.1 Terra's and Claude Fable 5.2's supervised runs
+    # fingerprint all four fields, and their reasoning setup and timeouts.
     assert r.serving_evidence_pinned_counts == {
-        "answer contract": 22,
-        "request shape": 22,
-        "tool choice": 21,
-        "completion ceiling": 22,
+        "answer contract": 23,
+        "request shape": 23,
+        "tool choice": 22,
+        "completion ceiling": 23,
     }
-    assert summary == {"registry": 29, "run_state": 22}
+    assert summary == {"registry": 29, "run_state": 23}
     assert r.serving_evidence_caption == (
         "Supervised-run fingerprints pin answer contract, request shape, "
-        "and completion ceiling for 22 rows; tool choice for 21 rows; reasoning "
-        "setup and timeouts for 12 rows. Reasoning setup and timeouts for the "
+        "and completion ceiling for 23 rows; tool choice for 22 rows; reasoning "
+        "setup and timeouts for 13 rows. Reasoning setup and timeouts for the "
         "other ten fingerprinted rows, and all fields for the other "
         f"{summary['registry']} rows, are the harness registry as frozen in the "
         "snapshot's serving-configuration file."
@@ -318,11 +327,11 @@ def test_serving_evidence_counts_exclude_legacy_or_unrecorded_fields():
     results.serving_config = deepcopy(r.serving_config)
     fable_evidence = results.serving_config["models"]["claude-fable-5.1"]["evidence"]
 
-    assert results.serving_evidence_pinned_counts["tool choice"] == 21
-    del fable_evidence["legacy_tool_choice_label"]
     assert results.serving_evidence_pinned_counts["tool choice"] == 22
+    del fable_evidence["legacy_tool_choice_label"]
+    assert results.serving_evidence_pinned_counts["tool choice"] == 23
     del fable_evidence["treatment_fingerprint"]["answer_contract"]
-    assert results.serving_evidence_pinned_counts["answer contract"] == 21
+    assert results.serving_evidence_pinned_counts["answer contract"] == 22
 
 
 def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
@@ -330,16 +339,20 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
 
     # Release 20261013's restored outputs include two households' federal and
     # state refundable credits (scenario_100 and scenario_119), which few
-    # models get jointly right.
-    assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 91.9, 91.9]
-    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 91.9, 91.9]
-    assert table.loc["GPT-6 Astra"].tolist() == [99.0, 87.9, 87.9]
-    assert table.loc["Muse Wonder"].tolist() == [99.0, 87.9, 87.9]
-    assert table.loc["GPT-6 Sol"].tolist() == [97.0, 86.9, 86.9]
-    assert table.loc["Grok 4.7"].tolist() == [97.0, 87.9, 86.9]
-    assert table.loc["GPT-5.6 Sol"].tolist() == [97.0, 86.9, 85.9]
+    # models get jointly right. Release 20261111 excludes scenario_122's state
+    # refundable credits (decision d2180), so the table leaves that household
+    # out: 98 households, down from 99.
+    assert table.loc["Claude Fable 5.1"].tolist() == [100.0, 91.8, 91.8]
+    assert table.loc["Claude Opus 5.5"].tolist() == [100.0, 91.8, 91.8]
+    assert table.loc["GPT-6 Astra"].tolist() == [99.0, 88.8, 88.8]
+    assert table.loc["Muse Wonder"].tolist() == [99.0, 87.8, 87.8]
+    assert table.loc["GPT-6 Sol"].tolist() == [96.9, 86.7, 86.7]
+    assert table.loc["Grok 4.7"].tolist() == [96.9, 87.8, 86.7]
+    assert table.loc["GPT-5.6 Sol"].tolist() == [96.9, 87.8, 86.7]
     assert table.loc["GPT-6.1 Sol"].tolist() == [98.0, 92.9, 92.9]
+    assert table.loc["Claude Fable 5.2"].tolist() == [100.0, 93.9, 93.9]
     assert r.joint_credit_accuracy_exceptions == [
+        "Claude Fable 5.2",
         "GPT-6.1 Sol",
         "Claude Fable 5.1",
         "Claude Opus 5.5",
@@ -349,8 +362,9 @@ def test_joint_credit_accuracy_exceptions_come_from_frozen_table():
     ]
     assert r.joint_credit_accuracy_note == (
         "The joint hit rate can be no higher than either marginal and is "
-        "strictly lower than both for every model except GPT-6.1 Sol, Claude "
-        "Fable 5.1, Claude Opus 5.5, GPT-6 Astra, Muse Wonder, and GPT-6 Sol."
+        "strictly lower than both for every model except Claude Fable 5.2, "
+        "GPT-6.1 Sol, Claude Fable 5.1, Claude Opus 5.5, GPT-6 Astra, Muse "
+        "Wonder, and GPT-6 Sol."
     )
     other_models = table.drop(index=r.joint_credit_accuracy_exceptions)
     assert (other_models["Joint within 10%"] < other_models["Federal within 10%"]).all()
@@ -368,6 +382,7 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
     results.federal_state_joint_accuracy = table
 
     assert results.joint_credit_accuracy_exceptions == [
+        "Claude Fable 5.2",
         "GPT-6.1 Sol",
         "Claude Opus 5.5",
         "GPT-6 Astra",
@@ -375,8 +390,8 @@ def test_joint_credit_accuracy_prose_tracks_changed_table_exceptions():
         "GPT-6 Sol",
     ]
     assert (
-        "except GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Astra, Muse Wonder, and "
-        "GPT-6 Sol." in results.joint_credit_accuracy_note
+        "except Claude Fable 5.2, GPT-6.1 Sol, Claude Opus 5.5, GPT-6 Astra, "
+        "Muse Wonder, and GPT-6 Sol." in results.joint_credit_accuracy_note
     )
     assert "Claude Fable 5.1" not in results.joint_credit_accuracy_note
 
@@ -408,21 +423,24 @@ def test_judge_provenance_is_frozen_in_the_manifest():
     # head Medicaid and scenario_056 self-employment tax; 92, 322 and 264 in
     # release 20261014, of 678), and on 2026-10-27 for the 130 cases GPT-6.1
     # Terra and the 2.60.0 references re-opened (three new; 92, 325 and 264
-    # in release 20261027, of 681). A re-judged case with an adjudication
-    # keeps the replaced verdict under judge_previous.
-    assert prov["by_judge"]["claude-opus-5"]["cases"] == 92
+    # in release 20261027, of 681), and on 2026-11-11 for the 122 cases Claude
+    # Fable 5.2 re-opened (none new; one of them Opus 5's, one GPT-5.6 Sol's;
+    # 91, 327 and 263 in release 20261111, of 681). A re-judged case with an
+    # adjudication keeps the replaced verdict under judge_previous.
+    assert prov["by_judge"]["claude-opus-5"]["cases"] == 91
     assert prov["by_judge"]["claude-opus-5"]["judged_on_utc"] == ["2026-09-05"]
-    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 325
+    assert prov["by_judge"]["claude-opus-5-5"]["cases"] == 327
     assert "2026-09-30" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-09" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-13" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-14" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
     assert "2026-10-27" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
-    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 264
+    assert "2026-11-11" in prov["by_judge"]["claude-opus-5-5"]["judged_on_utc"]
+    assert prov["by_judge"]["gpt-5.6-sol"]["cases"] == 263
     assert r.audit_case_count_fmt == "681"
-    assert r.audit_opus_judged_case_count_fmt == "92"
-    assert r.audit_opus55_judged_case_count_fmt == "325"
-    assert r.audit_sol_judged_case_count_fmt == "264"
+    assert r.audit_opus_judged_case_count_fmt == "91"
+    assert r.audit_opus55_judged_case_count_fmt == "327"
+    assert r.audit_sol_judged_case_count_fmt == "263"
 
 
 def test_joint_credit_table_orders_ties_deterministically():
@@ -430,14 +448,14 @@ def test_joint_credit_table_orders_ties_deterministically():
     joint = table["Joint within 10%"].tolist()
     assert joint == sorted(joint, reverse=True)
     # Ties break by model id: claude-fable-5.1 before claude-opus-5.5,
-    # gpt-6-astra before gpt-6-luna before muse-wonder, and gpt-6-sol before
+    # gpt-6-luna before muse-wonder, and gpt-5.6-sol before gpt-6-sol before
     # grok-4.7.
-    tied = table[table["Joint within 10%"] == 91.9]["Model"].tolist()
+    tied = table[table["Joint within 10%"] == 91.8]["Model"].tolist()
     assert tied == ["Claude Fable 5.1", "Claude Opus 5.5"]
-    tied = table[table["Joint within 10%"] == 87.9]["Model"].tolist()
-    assert tied == ["GPT-6 Astra", "GPT-6 Luna", "Muse Wonder"]
-    tied = table[table["Joint within 10%"] == 86.9]["Model"].tolist()
-    assert tied == ["GPT-6 Sol", "Grok 4.7"]
+    tied = table[table["Joint within 10%"] == 87.8]["Model"].tolist()
+    assert tied == ["GPT-6 Luna", "Muse Wonder"]
+    tied = table[table["Joint within 10%"] == 86.7]["Model"].tolist()
+    assert tied == ["GPT-5.6 Sol", "GPT-6 Sol", "Grok 4.7"]
 
 
 def test_excluded_outputs_are_outside_the_scored_audit_universe():
@@ -450,11 +468,14 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     # 2.41.0 upgrade returns nine engine-defect outputs, in seven households,
     # to scoring; five of those households have no other excluded output: 49
     # in 37 households, five of them engine-defect records kept for an
-    # unstated input, one of them SNAP (scenario_080).
-    assert r.excluded_output_count == 49
-    assert r.excluded_output_phrase == "49 outputs"
-    assert r.excluded_output_households_phrase == "37 households"
-    assert r.unlisted_input_exclusion_count == 42
+    # unstated input, one of them SNAP (scenario_080). Release 20261111 adds
+    # decision d2180's unlisted-input record on scenario_122's state
+    # refundable credits, a household with no other excluded output: 50 in 38
+    # households.
+    assert r.excluded_output_count == 50
+    assert r.excluded_output_phrase == "50 outputs"
+    assert r.excluded_output_households_phrase == "38 households"
+    assert r.unlisted_input_exclusion_count == 43
     assert r.engine_defect_exclusion_count == 5
     assert r.engine_defect_root_cause_count == 3
     assert r.snap_engine_defect_exclusion_count == 1
@@ -495,23 +516,35 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
     assert by_input[part_b] == 1
     assert by_input[payroll] == 4
     assert by_input["county of residence (Indiana county income tax)"] == 2
-    assert r.scored_outputs_per_model_fmt == "1,935"
+    # Decision d2180's input (the record's own text).
+    assert (
+        by_input[
+            "a qualifying Certificate of Rent Paid (mn_renters_credit_qualifying_crp)"
+        ]
+        == 1
+    )
+    assert r.scored_outputs_per_model_fmt == "1,934"
     assert r.total_outputs_per_model_fmt == "1,984"
     # Release 20260930's 2,111 rows on excluded outputs plus the 333 annotated
     # rows on the review's eight outputs (2,444 in release 20261006), moved by
     # release 20261010's exclusions, regenerations and Claude Haiku 5.5's rows
     # (2,212), then by release 20261013's ten restored outputs and Muse
     # Wonder's rows (1,843), then by Gemini 4 Argon's 35 and Muse Spark
-    # 1.3's 37 rows on the same 49 outputs (1,915), then by GPT-6.1 Terra's 34.
-    assert r.excluded_output_annotation_row_count == 1949
+    # 1.3's 37 rows on the same 49 outputs (1,915), then by GPT-6.1 Terra's 34
+    # (1,949), then by Claude Fable 5.2's 31 and the 9 annotated rows on the
+    # output decision d2180 excludes.
+    assert r.excluded_output_annotation_row_count == 1989
     # Release 20260930's 820 plus the review's 325 relabeled llm_error rows
     # (135 SALT, 45 Part B, 145 payroll); its eight parse failures stay.
     # 1,145 in release 20261006; 1,481 in release 20261013. Release 20261014
     # adds Gemini 4 Argon's 29 and Muse Spark 1.3's 30 rows on the
     # unlisted-input exclusions, and release 20261027 GPT-6.1 Terra's 27.
-    assert r.prompt_ambiguity_row_count == 1567
+    # Release 20261111 adds Claude Fable 5.2's 27 and relabels the 8 llm_error
+    # rows on the output decision d2180 excludes; Kimi K2.6's parse failure
+    # there stays, the 39th excluded-output row without a descriptive class.
+    assert r.prompt_ambiguity_row_count == 1602
     assert (
-        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 38
+        r.excluded_output_annotation_row_count - r.excluded_descriptive_row_count == 39
     )
     # No scored row carries a descriptive class; every excluded-output row
     # carries its exclusion's class unless it never parsed.
@@ -531,7 +564,7 @@ def test_excluded_outputs_are_outside_the_scored_audit_universe():
             "parse_contract_failure",
         }
     for stats in r.model_stats:
-        assert stats["n"] == 1935
+        assert stats["n"] == 1934
 
 
 # The reference records, as committed and with a synthetic second upgrade
@@ -2302,6 +2335,90 @@ def test_the_upgrade_timing_sentence_states_the_timing_record(tmp_path, monkeypa
         _with_timing(tmp_path, monkeypatch, other).engine_upgrade_timing_sentence
     assert (
         "`{python} r.engine_upgrade_timing_sentence`"
+        in (ROOT / "paper/index.qmd").read_text()
+    )
+
+
+def _with_check_build(
+    tmp_path, monkeypatch, check: dict, kept: list[dict]
+) -> PaperResults:
+    """MOCK timing record whose publication check names a MOCK reference
+    build holding the exclusion records ``kept``."""
+    build = tmp_path / "build"
+    build.mkdir(exist_ok=True)
+    (build / "reference_exclusions.json").write_text(json.dumps({"exclusions": kept}))
+    record = _MOCK_october_timing({**check, "build": str(build)})
+    return _with_timing(tmp_path, monkeypatch, record)
+
+
+def test_the_check_scope_sentence_explains_a_differing_scored_count(
+    tmp_path, monkeypatch
+):
+    """MOCK records: when the publication check scores more outputs than this
+    snapshot, because its reference build predates exclusions the snapshot
+    adds, the sentence after the timing sentence counts and dates those
+    outputs from the build's record and the frozen one. It is empty when the
+    counts agree or the timing sentence states no scored count, and a count
+    the build does not explain stops the render."""
+    engine = r.policyengine_us_version
+    scored = r.scored_outputs_per_model
+    records = r.reference_exclusions
+    check = {
+        "engine": "9.9.9",
+        "outputs": 1984,
+        "same": 1983,
+        "differ": ["a|v"],
+        "scored_differ": [],
+        "excluded_differ": ["a|v"],
+    }
+
+    def counting(n: int) -> dict:
+        return {**check, "scored_outputs": n, "scored_same": n}
+
+    equal = _with_check_build(tmp_path, monkeypatch, counting(scored), records)
+    assert f"for all {scored:,} scored outputs" in equal.engine_upgrade_timing_sentence
+    assert equal.engine_upgrade_check_scope_sentence == ""
+    one = _with_check_build(tmp_path, monkeypatch, counting(scored + 1), records[1:])
+    assert one.engine_upgrade_check_scope_sentence == (
+        f"The check counts as scored the {scored + 1:,} outputs the {engine} "
+        f"reference build scores: the {scored:,} this snapshot scores and the "
+        f"output excluded on {records[0]['decided_on']}."
+    )
+    two = _with_check_build(tmp_path, monkeypatch, counting(scored + 2), records[2:])
+    days = " and ".join(sorted({e["decided_on"] for e in records[:2]}))
+    assert two.engine_upgrade_check_scope_sentence == (
+        f"The check counts as scored the {scored + 2:,} outputs the {engine} "
+        f"reference build scores: the {scored:,} this snapshot scores and the "
+        f"two outputs excluded on {days}."
+    )
+    with pytest.raises(ValueError, match="state why before publishing"):
+        _with_check_build(
+            tmp_path, monkeypatch, counting(scored + 2), records[1:]
+        ).engine_upgrade_check_scope_sentence
+    # A build that excludes an output this snapshot scores explains nothing.
+    foreign = {**records[0], "scenario_id": "MOCK_scenario"}
+    with pytest.raises(ValueError, match="state why before publishing"):
+        _with_check_build(
+            tmp_path, monkeypatch, counting(scored + 1), [*records[1:], foreign]
+        ).engine_upgrade_check_scope_sentence
+    # The timing sentence states no scored count, so there is none to explain.
+    for stated in (
+        {"engine": engine},
+        {**counting(scored + 1), "same": 1984, "differ": [], "excluded_differ": []},
+    ):
+        assert (
+            _with_check_build(
+                tmp_path, monkeypatch, stated, records[1:]
+            ).engine_upgrade_check_scope_sentence
+            == ""
+        )
+    assert (
+        _with_timing(tmp_path, monkeypatch, None).engine_upgrade_check_scope_sentence
+        == ""
+    )
+    assert (
+        "`{python} r.engine_upgrade_timing_sentence` "
+        "`{python} r.engine_upgrade_check_scope_sentence`"
         in (ROOT / "paper/index.qmd").read_text()
     )
 

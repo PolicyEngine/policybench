@@ -666,18 +666,25 @@ def test_snapshot_deviation_audit_annotations_are_complete_and_final():
     # incumbent misses (192 on the four outputs, less 3 that now match);
     # release 20261014: 8,765 annotated, 11,094 below full bounded score,
     # llm_error 8,096.
+    # Release 20261111: Claude Fable 5.2's rows join (91 annotated misses, all
+    # LLM errors since it parsed every answer, and 90 more unannotated rows
+    # below full bounded score), and decision d2180 excludes scenario_122's
+    # state refundable credits, which takes 9 incumbent annotated misses out
+    # of the universe (8 LLM errors and 1 parse failure; no other row on that
+    # output was below full bounded score); release 20261027: 9,050
+    # annotated, 11,457 below full bounded score, llm_error 8,381.
     expected_audit_counts = {
         "us": {
-            "annotated": 9_050,
-            "exact_misses": 9_046,
-            "annotated_exact_misses": 9_046,
+            "annotated": 9_132,
+            "exact_misses": 9_128,
+            "annotated_exact_misses": 9_128,
             "annotated_exact_hits": 4,
-            "below_full_bounded_score": 11_457,
-            "unannotated_below_full_bounded_score": 2_407,
+            "below_full_bounded_score": 11_629,
+            "unannotated_below_full_bounded_score": 2_497,
         }
     }
     expected_sources = {
-        "us": {"llm_error": 8_381, "parse_contract_failure": 669},
+        "us": {"llm_error": 8_464, "parse_contract_failure": 668},
     }
 
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())

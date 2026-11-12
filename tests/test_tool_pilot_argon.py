@@ -802,7 +802,7 @@ def test_arm1_rescoring_reproduces_the_published_board_row():
     assert row["weighted_exact"] == pytest.approx(
         published.loc[pilot.ARM1_LABEL, "weighted_exact"], abs=1e-12
     )
-    assert len(board["scored"]) == 1935
+    assert len(board["scored"]) == 1934
 
 
 def test_the_fix_module_is_the_pinned_one():

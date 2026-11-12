@@ -31,6 +31,12 @@ import finish_terra as driver  # noqa: E402
 
 STAGE = ROOT / "results/local/terra/stage"
 DAY = "2026-10-27"
+# The squash merge of #247, which committed this release's evidence and
+# record. Release 20261111 later adds its 2026-11-01 and 2026-11-11 waves to
+# the working tree's copies (its freeze to the record,
+# scripts/date_fable52_judge_verdicts.py to the evidence), which this script
+# would refuse.
+RELEASE_20261027_COMMIT = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
 
 
 @cache
@@ -47,6 +53,20 @@ def _shown(path: str) -> str:
     return shown.stdout
 
 
+@cache
+def _released(path: str) -> str:
+    shown = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{RELEASE_20261027_COMMIT}:{path}"],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, (
+        f"{path} at {RELEASE_20261027_COMMIT[:12]} needs git history; fetch "
+        "full history. " + shown.stderr
+    )
+    return shown.stdout
+
+
 def _base_evidence() -> dict:
     """The evidence as release 20261014 committed it: its triage wave
     uncommitted."""
@@ -54,11 +74,18 @@ def _base_evidence() -> dict:
 
 
 def _evidence() -> dict:
-    return json.loads(dating.EVIDENCE.read_text())
+    """The evidence as release 20261027's commit holds it."""
+    return json.loads(_released(str(dating.EVIDENCE.relative_to(ROOT))))
+
+
+def _committed_record() -> dict:
+    """The record as release 20261027's commit holds it."""
+    path = driver.ANNOTATIONS / driver.ADJUDICATIONS
+    return json.loads(_released(str(path.relative_to(ROOT))))
 
 
 def _record(*extra) -> dict:
-    record = dating.committed_record()
+    record = _committed_record()
     return {**record, "adjudications": record["adjudications"] + list(extra)}
 
 
@@ -124,7 +151,7 @@ def test_the_committed_evidence_is_the_scripts_output_on_release_20261014s():
     """Differential: the script applied to the evidence release 20261014
     committed gives the committed evidence, and a second pass changes
     nothing."""
-    record = dating.committed_record()
+    record = _committed_record()
     once = dating.updated_evidence(_base_evidence(), record)
     assert once == _evidence()
     assert dating.updated_evidence(once, record) == once
@@ -158,7 +185,7 @@ def test_a_wave_beyond_release_20261014s_is_refused():
 
 
 def test_a_wave_filled_otherwise_or_left_unfilled_is_refused():
-    record = dating.committed_record()
+    record = _committed_record()
     other = _base_evidence()
     other["wave_releases"]["2026-10-14"] = {
         **dating.fill_release(),
@@ -255,14 +282,14 @@ def test_the_committed_verdicts_are_the_stages():
     """Local: the committed docs/terra/judge_verdicts_20261027.json is the
     script's output on the exported stage."""
     committed = json.loads(dating.OUT.read_text())
-    assert dating.restatements(STAGE, dating.committed_record()) == committed
+    assert dating.restatements(STAGE, _committed_record()) == committed
     assert len(committed["cases"]) == 42
 
 
 def test_the_restated_record_is_unchanged_in_every_wave():
     """The record decides every case release 20261014 decided, in the same
     waves (copied so the tests cannot change it)."""
-    record = copy.deepcopy(dating.committed_record())
+    record = copy.deepcopy(_committed_record())
     dating.require_no_new_waves(record)
     assert {e["adjudicated_on"] for e in record["adjudications"]} == set(
         dating.BASE_WAVES
