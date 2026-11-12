@@ -1,12 +1,14 @@
 # Errata for the judge's texts in release dashboard-data-20261111
 
-For each cell (one household and one output) that some model answered wrong, the judge, Claude Opus 5.5, writes a case note and a sentence for each wrong row. Release dashboard-data-20261111 publishes the judge's texts as written. This page lists the statements in the 122 re-judged cells that an independent reading found wrong.
+For each cell (one household and one output) that some model answered wrong, the judge, Claude Opus 5.5, writes a case note and a sentence for each wrong row. Release dashboard-data-20261111 publishes the judge's texts as written. This page lists the statements in the 122 re-judged cells that readers found wrong and checkers upheld. The readers and the checkers all ran on Claude Opus 5.5, the judge's own model.
 
-Six Claude Opus 5.5 readers marked 50 statements as false or unsupported in cells where the reference stands ([review record](wording_review.md)). Claude Opus 5.5 checkers then took each of the 50 in turn. They located the text in the frozen data, checked the correction against a primary source or PolicyBench's decision record, and checked that no score depends on it.
+Six readers marked 50 statements as false or unsupported in cells where the reference stands ([review record](wording_review.md)). The checkers then took each of the 50 in turn. They located the text in the frozen data, checked the correction against a primary source or PolicyBench's decision record, and checked that no score depends on it.
 
-- They upheld 36 findings. Those give the 105 entries below, in 31 cells; one finding can cover several rows.
+- They upheld 36 findings, two of them only in part; the parts they did not uphold have no entry. The 36 give the 105 entries below, in 31 cells; one finding can cover several rows.
 - They did not uphold 6: the judge's text is right, or the objection is to a word and not to the law.
 - They moved 8 to the open questions in the review record, because the corrected statement could put a reference in doubt or make an answer right.
+
+The page does not cover the second read, in which readers running GPT-6.1 Sol marked 86 findings at the same level in the 559 cells Claude Fable 5.2 answered right: no checker has verified those, and they are not listed here, nor are the lesser wording findings of either read.
 
 No entry changes a score. Each entry gives where the text sits (the case note, the note's hypothesis field, or a model's row), the text as published, the correction, a source, and why scoring is unaffected. The texts stay as published in this release.
 
@@ -180,7 +182,7 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
 
 - **Where:** row for Qwen 3.7 Max
   - **Text:** "Both claims are wrong."
-  - **Correction:** Only the first claim is wrong. Pennsylvania's CHIP has no upper income limit: children in families above 314% of the poverty line can enroll in Full-Cost CHIP, while the 319% cap PolicyEngine applies (314% plus the 5-point disregard) is the limit for the free and low-cost tiers. Every tier excludes a child covered by a group health plan.
+  - **Correction:** Under Pennsylvania law only the first claim is wrong: Pennsylvania's CHIP has no upper income limit, because children in families above 314% of the poverty line can enroll in Full-Cost CHIP. The output asks for eligibility under PolicyEngine's rules, which apply a 319% cap (314% plus the 5-point disregard), the limit for the free and low-cost tiers; in that frame the second claim is wrong too. Every tier excludes a child covered by a group health plan.
   - **Source:** https://www.pa.gov/content/dam/copapwp-pagov/en/dhs/documents/chip/eligibility-and-benefits/documents/chip-enrollment-and-benefits-handbook.pdf
   - **Scoring:** The reference and the row's class stand: the household's income passes under either reading, and the answer is wrong because Child 3's employer-sponsored insurance bars every tier of CHIP.
 
@@ -280,7 +282,7 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
   - **Text:** "so every month pays the one-person contiguous-states maximum allotment of $298"
   - **Correction:** USDA raised the one-person maximum allotment in the 48 states and DC to $306 from October 1, 2026, in its fiscal year 2027 adjustment published August 21, 2026. The reference keeps $298 for October through December because PolicyBench uses only amounts published before it froze its references on 2026-07-03.
   - **Source:** https://www.fns.usda.gov/snap/allotment/cola ; convention c_snap_hold_fy2026 in paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv.meta.json
-  - **Scoring:** The reference ($3,576) stands under PolicyBench's freeze rule, and no model's answer becomes right under it.
+  - **Scoring:** The reference ($3,576) stands under PolicyBench's freeze rule, and no model's answer becomes right under it. Grok Build 0.1 and Inkling answered $3,600, which equals the year's total in law (nine months at $298 and three at $306), by rounding the maximum to about $300 a month; under the freeze rule both are scored wrong.
 
 - **Where:** row for Claude Fable 5.2
   - **Text:** "but the one-person maximum stays at $298 in those months"
@@ -329,14 +331,14 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
 - **Where:** case note
   - **Text:** "For 2026 the deduction is $12,835"
   - **Correction:** Louisiana's first published 2026 standard deduction for single filers is $12,838 (Louisiana Department of Revenue, Revenue Information Bulletin 26-019, 2026-09-28, under La. R.S. 47:294(B)), which gives a tax of $820.26; $12,835 is PolicyEngine's own inflation computation, which the frozen reference of $820.35 uses.
-  - **Source:** paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_051 state income tax; decision of 2026-10-06)
+  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf ; paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_051 state income tax; decision of 2026-10-06)
   - **Scoring:** The output is excluded from scoring for every model because its reference rests on an amount Louisiana published after the reference freeze, so no score moves.
 
 - **Where:** rows for Claude Fable 5, Claude Fable 5.1, Claude Fable 5.2, Claude Haiku 4.5, Claude Haiku 5.5, Claude Opus 4.7, Claude Opus 4.8, Claude Opus 5, Claude Opus 5.5, Claude Sonnet 4.6, Claude Sonnet 5, Claude Sonnet 5.5, DeepSeek V4 Flash 0731, DeepSeek V4 Pro, DeepSeek V4 Pro 0813, DeepSeek V4.1 Flash, Gemini 3 Flash Preview, Gemini 3.1 Flash Lite Preview, Gemini 3.1 Pro Preview, Gemini 3.5 Flash, Gemini 3.5 Flash Lite, Gemini 3.6 Flash, Gemini 3.7 Flash, Gemini 3.8 Flash, Gemini 4 Argon, GLM-5.2, GLM-5.3, GPT-5.4 mini, GPT-5.4 nano, GPT-5.5, GPT-5.6 Luna, GPT-5.6 Sol, GPT-5.6 Terra, GPT-6 Astra, GPT-6 Luna, GPT-6 Sol, GPT-6.1 Sol, GPT-6.1 Terra, Grok 4.3, Grok 4.5, Grok 4.6, Grok 4.7, Grok Build 0.1, Inkling, Kimi K3, MiniMax M3, Muse Spark 1.3, Muse Wonder, GLM-5.3-Flash (preview), Qwen 3.7 Max and Qwen 3.8 Max
   - **Text:** "$12,835"
   - **Correction:** Each of these rows gives $12,835 as Louisiana's 2026 standard deduction, but Louisiana's first published 2026 amount for single filers is $12,838 (Revenue Information Bulletin 26-019, 2026-09-28, under La. R.S. 47:294(B)), which gives a tax of $820.26; $12,835 is PolicyEngine's own inflation computation, used by the frozen reference of $820.35.
-  - **Source:** paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_051 state income tax; decision of 2026-10-06)
-  - **Scoring:** The output is excluded from scoring for every model, so no score moves; no model answered within $1 of $820.26 either.
+  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf ; paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_051 state income tax; decision of 2026-10-06)
+  - **Scoring:** The output is excluded from scoring for every model, so no score moves; no model answered within $1 of $820.26 either. Claude Fable 5.2's $819.15 equals the exclusion record's value under $12,875, the withholding amount Louisiana published before the freeze, which Louisiana said would differ from the amount allowed on 2026 returns; 25 answers come within $1 of its $830.40 under 2025's $12,500, the last return amount Louisiana published before the freeze.
 
 ### `scenario_057 snap`
 
@@ -356,8 +358,8 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
 
 - **Where:** row for DeepSeek V4 Pro 0813
   - **Text:** "all with a $400,000 phaseout threshold"
-  - **Correction:** Only the credits phase out above $400,000 on a joint return (26 U.S.C. 24(b)(1), (h)(3)). The standard deduction has no income phase-out, and the overtime deduction phases out above $300,000 of modified AGI on a joint return (26 U.S.C. 225(b)(2)).
-  - **Source:** https://www.law.cornell.edu/uscode/text/26/225 ; https://www.law.cornell.edu/uscode/text/26/24
+  - **Correction:** Only the credits phase out above $400,000 on a joint return (26 U.S.C. 24(b)(1), (h)(3)). The standard deduction has no income phase-out (26 U.S.C. 63(c)), and the overtime deduction phases out above $300,000 of modified AGI on a joint return (26 U.S.C. 225(b)(2)).
+  - **Source:** https://www.law.cornell.edu/uscode/text/26/225 ; https://www.law.cornell.edu/uscode/text/26/24 ; https://www.law.cornell.edu/uscode/text/26/63
   - **Scoring:** The reference and the row's class stand: this household's AGI of $114,421 is below every threshold, and the answer is wrong because the model applied pre-TCJA rules, with personal exemptions and a $1,000 child credit phasing out at $110,000.
 
 ### `scenario_064 state_income_tax_before_refundable_credits`
@@ -379,20 +381,20 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
 - **Where:** row for Claude Fable 5.2
   - **Text:** "instead of the actual 2026 figure of $12,835"
   - **Correction:** Louisiana's published 2026 single standard deduction is $12,838 (Revenue Information Bulletin 26-019, under La. R.S. 47:294); $12,835 is the engine's CPI-U computation, which the frozen reference uses.
-  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf
-  - **Scoring:** No score moves: the output is excluded from scoring for every model, and the answer misses under the published amount too ($303.93 against $305.05).
+  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf ; paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_077 state income tax; decision of 2026-10-06)
+  - **Scoring:** No score moves: the output is excluded from scoring for every model, and the answer misses under the published amount too ($303.93 against $305.05). It is within a cent of the $303.94 the exclusion record gives under $12,875, the withholding amount Louisiana published before the freeze, which Louisiana said would differ from the amount allowed on 2026 returns.
 
 - **Where:** row for GPT-6 Astra
   - **Text:** "instead of the actual 2026 amount of $12,835"
   - **Correction:** Louisiana's published 2026 single standard deduction is $12,838 (Revenue Information Bulletin 26-019, under La. R.S. 47:294); $12,835 is the engine's CPI-U computation, which the frozen reference uses.
-  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf
-  - **Scoring:** No score moves: the output is excluded from scoring for every model, and the answer misses under the published amount too ($303.93 against $305.05).
+  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf ; paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_077 state income tax; decision of 2026-10-06)
+  - **Scoring:** No score moves: the output is excluded from scoring for every model, and the answer misses under the published amount too ($303.93 against $305.05). It is within a cent of the $303.94 the exclusion record gives under $12,875, the withholding amount Louisiana published before the freeze, which Louisiana said would differ from the amount allowed on 2026 returns.
 
 - **Where:** rows for Claude Fable 5.1, Claude Fable 5, Claude Opus 5.5, Claude Opus 5, Claude Opus 4.8, Claude Opus 4.7, Claude Sonnet 5.5, Claude Sonnet 5, Claude Sonnet 4.6, Claude Haiku 5.5, Claude Haiku 4.5, Grok 4.3, Grok 4.5, Grok 4.6, Grok 4.7, GLM-5.3-Flash (preview), Grok Build 0.1, GPT-6 Sol, GPT-6.1 Sol, GPT-6.1 Terra, GPT-6 Luna, GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna, GPT-5.5, GPT-5.4 mini, GPT-5.4 nano, Gemini 4 Argon, Gemini 3.1 Pro Preview, Gemini 3.6 Flash, Gemini 3.7 Flash, Gemini 3.5 Flash, Gemini 3.5 Flash Lite, Gemini 3 Flash Preview, Gemini 3.1 Flash Lite Preview, DeepSeek V4 Pro 0813, DeepSeek V4 Pro, DeepSeek V4.1 Flash, DeepSeek V4 Flash 0731, Kimi K3, Kimi K2.6, GLM-5.3, GLM-5.2, MiniMax M3, Inkling, Qwen 3.8 Max, Qwen 3.7 Max, Muse Wonder and Muse Spark 1.3
   - **Text:** "$12,835"
   - **Correction:** Louisiana's published 2026 single standard deduction is $12,838 (Revenue Information Bulletin 26-019, under La. R.S. 47:294); $12,835 is the engine's CPI-U computation, which the frozen reference uses, and the tax under $12,838 is $305.05.
-  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf
-  - **Scoring:** No score moves: the output is excluded from scoring for every model, and no answer in these rows comes within $1 of $305.05 either.
+  - **Source:** https://dam.ldr.la.gov/lawspolicies/RIB%2026-019.pdf ; paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_077 state income tax; decision of 2026-10-06)
+  - **Scoring:** No score moves: the output is excluded from scoring for every model, and no answer in these rows comes within $1 of $305.05 either. Twenty-three of these answers come within $1 of the $315.19 the exclusion record gives under 2025's $12,500, the last return amount Louisiana published before the freeze.
 
 ### `scenario_078 state_income_tax_before_refundable_credits`
 
@@ -442,13 +444,13 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
   - **Text:** "but a permanently disabled child is a qualifying child at any age"
   - **Correction:** The household's facts say only that the 27-year-old is disabled, and even permanent and total disability removes only the qualifying-child age limit (26 U.S.C. 152(c)(3)(B)); a qualifying child of any age must still not have provided over half of their own support (26 U.S.C. 152(c)(1)(D)). The reference allows the $500 credit because the household lists the 27-year-old as a dependent, not because of an age rule.
   - **Source:** https://www.law.cornell.edu/uscode/text/26/152 (household facts: paper/snapshot/20260501/us_scenarios.csv, scenario_093)
-  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer is also off because the model used a $31,500 standard deduction and a $24,150 bracket edge instead of $32,200 and $24,800.
+  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer is also off because the model omitted the $500 credit for other dependents and used a $31,500 standard deduction and a $24,150 bracket edge instead of $32,200 and $24,800.
 
 - **Where:** row for Claude Sonnet 5.5
   - **Text:** "A permanently disabled child is a qualifying child regardless of age or income"
   - **Correction:** The household's facts say only that the 27-year-old is disabled, and even permanent and total disability removes only the qualifying-child age limit (26 U.S.C. 152(c)(3)(B)); a qualifying child must still not have provided over half of their own support (26 U.S.C. 152(c)(1)(D)), though unlike a qualifying relative they face no gross-income test. The reference allows the $500 credit because the household lists the 27-year-old as a dependent, not because of an age rule.
-  - **Source:** https://www.law.cornell.edu/uscode/text/26/152 (household facts: paper/snapshot/20260501/us_scenarios.csv, scenario_093)
-  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer also includes a $1,000 auto-loan-interest deduction that the reference does not allow, because the facts do not give the qualifying-vehicle conditions.
+  - **Source:** https://www.law.cornell.edu/uscode/text/26/152 (household facts: paper/snapshot/20260501/us_scenarios.csv, scenario_093) ; reference_audit/2026-11-11-car-loan-interest/README.md (auto loan interest)
+  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer is also off because the model omitted the $500 credit for other dependents. The model also deducted the $1,000 of auto loan interest: the prompt does not say whether that loan qualifies for the deduction, and the reference treats it as not qualifying; allowing it gives $8,508.99, which the answer ($9,009) does not match either.
 
 - **Where:** row for DeepSeek V4 Pro
   - **Text:** "who is claimed on the joint return and does not file one"
@@ -460,7 +462,7 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
   - **Text:** "A permanently disabled child is a qualifying child at any age"
   - **Correction:** The household's facts say only that the 27-year-old is disabled, and even permanent and total disability removes only the qualifying-child age limit (26 U.S.C. 152(c)(3)(B)); a qualifying child of any age must still not have provided over half of their own support (26 U.S.C. 152(c)(1)(D)). The reference allows the $500 credit because the household lists the 27-year-old as a dependent, not because of an age rule.
   - **Source:** https://www.law.cornell.edu/uscode/text/26/152 (household facts: paper/snapshot/20260501/us_scenarios.csv, scenario_093)
-  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer is also off because the model taxed a separate return for the dependent and deducted $3,000 of student-loan interest instead of the $2,500 cap.
+  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer is also off because the model omitted the $500 credit for other dependents and deducted $3,000 of student-loan interest instead of the $2,500 cap.
 
 - **Where:** rows for GPT-6 Sol and Muse Wonder
   - **Text:** "a separate return the claimed dependent does not file"
@@ -574,8 +576,8 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
 
 - **Where:** case note
   - **Text:** "the one/two-person minimum allotment of $23.84/mo ($287.68 a year)"
-  - **Correction:** Under 7 U.S.C. 2017(a) the minimum allotment for one- and two-person households is 8% of the one-person maximum rounded to the nearest whole dollar: 8% of the fiscal year 2026 maximum of $298 is $23.84, so the minimum is $24 a month. The frozen reference uses the engine's unrounded $23.84.
-  - **Source:** https://www.law.cornell.edu/uscode/text/7/2017
+  - **Correction:** Under 7 U.S.C. 2017(a) the minimum allotment for one- and two-person households is 8% of the one-person maximum rounded to the nearest whole dollar: 8% of the fiscal year 2026 maximum of $298 is $23.84, so the minimum is $24 a month. The frozen reference uses the engine's unrounded $23.84 for January to September and 8% of the engine's projected $304.68 maximum ($24.37) for October to December, which sum to $287.68; under PolicyBench's conventions the minimum is $24 in every month, $288 a year.
+  - **Source:** https://www.law.cornell.edu/uscode/text/7/2017 ; reference_audit/2026-09-22/root_causes.json (c_snap_hold_fy2026; r28_snap_min_allotment_rounding)
   - **Scoring:** No score moves: the output is excluded from scoring for every model because its reference depends on unlisted work hours.
 
 - **Where:** rows for Claude Fable 5.2, Claude Fable 5.1, Claude Fable 5, Claude Opus 5.5, Claude Opus 5, Claude Opus 4.8, Claude Opus 4.7, Claude Sonnet 5.5, Claude Sonnet 5, Claude Sonnet 4.6, Claude Haiku 5.5, Claude Haiku 4.5, Grok 4.3, Grok 4.5, Grok 4.6, Grok 4.7, GLM-5.3-Flash (preview), Grok Build 0.1, GPT-6 Astra, GPT-6 Sol, GPT-6.1 Sol, GPT-6.1 Terra, GPT-6 Luna, GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna, GPT-5.5, GPT-5.4 mini, GPT-5.4 nano, Gemini 4 Argon, Gemini 3.1 Pro Preview, Gemini 3.6 Flash, Gemini 3.8 Flash, Gemini 3.7 Flash, Gemini 3.5 Flash, Gemini 3.5 Flash Lite, Gemini 3 Flash Preview, Gemini 3.1 Flash Lite Preview, DeepSeek V4 Pro 0813, DeepSeek V4 Pro, DeepSeek V4.1 Flash, DeepSeek V4 Flash 0731, Kimi K3, Kimi K2.6, GLM-5.3, GLM-5.2, MiniMax M3, Inkling, Qwen 3.8 Max, Qwen 3.7 Max, Muse Wonder and Muse Spark 1.3
@@ -608,7 +610,7 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
   - **Text:** "dropped the $462.58/month of mortgage interest and the NY SUA from shelter costs"
   - **Correction:** The frozen reference does not count the mortgage interest as a shelter cost, because the prompt does not say the mortgaged home is the household's residence (7 CFR 273.9(d)(6)(ii)(A)); its shelter costs of about $1,013 are the property tax plus New York's utility allowance. Counting the mortgage interest too is the alternative reading recorded for this case, which gives the $298 maximum.
   - **Source:** paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_exclusions.json (scenario_118 SNAP; decision of 2026-09-22)
-  - **Scoring:** The output is excluded from scoring for every model, so no score moves; under the reference's reading the answer is wrong because the model left New York's utility allowance out of shelter costs.
+  - **Scoring:** The output is excluded from scoring for every model, so no score moves; the answer ($678) is wrong under either reading because the model allowed no shelter deduction.
 
 - **Where:** row for Claude Haiku 5.5
   - **Text:** "an uncapped excess shelter deduction (mortgage interest, property tax and NY SUA)"
