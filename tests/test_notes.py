@@ -6539,6 +6539,9 @@ def test_release_20261111_note_claims() -> None:
     assert "so the row reasons at the provider default" in card.notes
     fingerprint = serving[FABLE52]["evidence"]["treatment_fingerprint"]
     assert fingerprint["thinking"] == {"mode": "provider_default"}
+    # Anthropic's default effort: high for this model, medium for Opus 5.5.
+    assert "The API's default effort is high" in card.notes
+    assert "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
     # No Claude row records a reasoning token, so the new row's zero means
     # not counted; the card's probe drew a thinking block.
     import pandas as pd
