@@ -7329,12 +7329,15 @@ def test_release_20261111_note_claims() -> None:
         "from the law, and a second Claude Opus 5.5 reader tried to refute each "
         "and could not; no other lab's model reviewed them.",
         "no other lab's refutation has run on round two",
-        # The release review's three rounds: two on 2026-11-12 and a last
-        # pass on 2026-11-13 at the commit before publication.
-        "The release review ran in three rounds",
+        # The release review's four rounds: two on 2026-11-12 (at 9e2ced44 and
+        # 2c50d290) and two on 2026-11-13 (at e218e0ee and 697b22f1). The one
+        # reader who then checked the fix commit is a check, not a round.
+        "The release review ran in four rounds",
         "six Claude Opus 5.5 reviewers read the release at 9e2ced44",
         "four more Claude Opus 5.5 reviewers read the release at 2c50d290",
         "On 2026-11-13, three Claude Opus 5.5 reviewers read the release at e218e0ee",
+        "three more Claude Opus 5.5 reviewers read the changes since the third "
+        "round at 697b22f1",
         "On 2026-11-12, GPT-6.1 Sol, an OpenAI model, reviewed a text bundle of "
         "the effort sensitivity's plan, code change, note and summary data, the "
         "release note, the wording-review record",
@@ -7362,11 +7365,12 @@ def test_release_20261111_note_claims() -> None:
         "model the release adds, and it also wrote the effort sensitivity's plan "
         "and started its runs; a Claude Opus 5.5 agent built the script that runs "
         "the release's steps.",
-        # The release review's three rounds are the design note's.
+        # The release script's four rounds and the release review's four are
+        # the design note's.
         "PolicyBench's records show that reviewers running Claude Opus 5.5, an "
-        "Anthropic model, reviewed the serving card, the release script in four "
-        "rounds, those decisions, the errata and the release itself in three "
-        "rounds, and adjudicated the second read's questions.",
+        "Anthropic model, reviewed the serving card, those decisions and the "
+        "errata, reviewed the release script and the release itself in four "
+        "rounds each, and adjudicated the second read's questions.",
         # GPT-6.1 Sol read drafts: the note, the review record and the effort
         # sensitivity each changed after its review, in part in response to it.
         "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 "
@@ -7402,6 +7406,14 @@ def test_release_20261111_note_claims() -> None:
         "release's wording review"
     ) in readme
     assert "records; PolicyBench has set no date for deciding them." in readme
+    # The README gives the record's reason for changing nothing: the question
+    # came from the first read, which covered only Claude Fable 5.2's misses.
+    assert (
+        "changes no reference and no scored output on this question, because the "
+        "wording review's first read, which raised it, covered only the cells "
+        "Claude Fable 5.2 answered wrong, so acting on it alone would favour that "
+        "model; the board is scoreboard (a)."
+    ) in readme
     assert (
         "None says whether the loan qualifies for the federal deduction for "
         "qualified passenger vehicle loan interest, and the references treat it "
@@ -7606,14 +7618,20 @@ FABLE52_PROMISES = (
     "will recheck",
     "in a later release",
     "to a later release",
+    "for a later release",
+    "next release",
     "later ruling",
+    "will be decided",
+    "will be ruled",
 )
 
 
 def test_release_20261111_texts_promise_no_decision() -> None:
-    """The release note, the wording review record, the judge-text errata and
-    the car-loan audit state that the open questions stay open with no date
-    set, and none of them promises a later decision."""
+    """None of the release note, the wording review record, the judge-text
+    errata and the car-loan audit holds a phrase that promises a later decision
+    (FABLE52_PROMISES), and the note, the record and the audit each say that
+    PolicyBench has set no date for deciding the open questions. The errata
+    state no such status, so only the phrase check covers them."""
     note = _note(FABLE52_NOTE)
     texts = {
         "note": " ".join([note["title"], *note["paragraphs"]]),

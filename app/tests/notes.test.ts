@@ -290,7 +290,7 @@ describe("notes", () => {
       "PolicyBench ruled on the Minnesota output on November 1, eight days before Anthropic released Claude Fable 5.2, and its three decisions on the judge&#x27;s findings each keep a reference that Claude Fable 5.2&#x27;s answer misses.",
     );
     expect(markup).toContain(
-      "PolicyBench&#x27;s records show that reviewers running Claude Opus 5.5, an Anthropic model, reviewed the serving card, the release script in four rounds, those decisions, the errata and the release itself in three rounds, and adjudicated the second read&#x27;s questions.",
+      "PolicyBench&#x27;s records show that reviewers running Claude Opus 5.5, an Anthropic model, reviewed the serving card, those decisions and the errata, reviewed the release script and the release itself in four rounds each, and adjudicated the second read&#x27;s questions.",
     );
     expect(markup).toContain(
       "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 adjudication of the first read&#x27;s questions and, on November 12, reviewed a text bundle holding drafts of this note, the review record and the effort sensitivity; it asked for changes, PolicyBench made changes in response, and GPT-6.1 Sol has not read the published versions.",

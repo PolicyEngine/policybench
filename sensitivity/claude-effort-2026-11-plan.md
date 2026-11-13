@@ -4,17 +4,23 @@ PolicyBench wrote this plan before the first call of the sensitivity in
 [`claude-effort-2026-11.md`](claude-effort-2026-11.md). The sections below are
 the plan's text, copied word for word from its file. The file's opening
 paragraph, an internal record of the decision to run the sensitivity, is left
-out. That paragraph also held a rule for the plan: "Nothing below may change
-after the first call; a change needed for a technical reason is recorded here
-with its reason and time, before the run continues." The record after the plan
-was written after the runs; its departure 9 concerns that rule.
+out. That paragraph also records that the session that operated the release,
+which runs on Claude Fable 5.2, had barred itself in its own fairness record
+from running this sensitivity. On 2026-11-12 PolicyBench's owner asked whether
+the bar was needed; the session answered that it was not (the run is
+mechanical, as the board run was, and the plan and the cross-lab review are
+the safeguards) and dropped the bar before the first call. The paragraph ends
+with a rule for the plan: "Nothing below may change after the first call; a
+change needed for a technical reason is recorded here with its reason and
+time, before the run continues." The record after the plan was written after
+the runs; its departure 9 concerns that rule.
 
 **Notes on the plan's wording.**
 
-- `claude-credits exec` is PolicyBench's own tool for handling API keys: it
-  runs a command with the Anthropic API key set to a key that spends the
-  "expiring API credit", the monthly Claude API credit that comes with paid
-  Claude plans.
+- `claude-credits exec` is a tool, kept outside this repository, that the
+  release's operator uses to handle API keys: it runs a command with the
+  Anthropic API key set to a key that spends the "expiring API credit", the
+  monthly Claude API credit that comes with Claude Max plans.
 - `prelim/compare_fable52.py` is a script in PolicyBench's private working
   record. The method it defines is the one `scripts/effort_sensitivity.py`
   implements and the note states: a bootstrap paired by household, with seed
@@ -132,9 +138,10 @@ hash of that code in `921a7886`.
    `analysis.bounded_household_scores`, as PolicyBench found after the runs,
    on 2026-11-13. When GPT-6.1 Sol's review asked for paired comparisons of
    the bounded score, PolicyBench kept the four comparisons as they were and
-   recorded this departure instead. Its reason: a comparison added after the
-   results were in view would be a post hoc choice, and each row's bounded
-   score is in the note's table.
+   recorded this departure instead. Its reason, first recorded on 2026-11-13
+   at 05:52, when this departure was revised after review: a comparison added
+   after the results were in view would be a post hoc choice, and each row's
+   bounded score is in the note's table.
 7. The note's form. The plan asks for the form of
    `sensitivity/claude-thinking-2026-08.md`. The note leaves out that note's
    would-rank column, a choice made before the scoring, and its per-program

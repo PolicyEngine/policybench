@@ -97,7 +97,7 @@ Share of answers right (percent) and rank for the twelve models that lead the re
 
 ## What PolicyBench does in this release
 
-Nothing. Release dashboard-data-20261111 changes no reference and no scored output on this question: the board is scoreboard (a). The question stays open, together with the other open questions of the release's wording review, which [`docs/fable52/wording_review.md`](../../docs/fable52/wording_review.md) records; PolicyBench has set no date for deciding them.
+Nothing. Release dashboard-data-20261111 changes no reference and no scored output on this question, because the wording review's first read, which raised it, covered only the cells Claude Fable 5.2 answered wrong, so acting on it alone would favour that model; the board is scoreboard (a). The question stays open, together with the other open questions of the release's wording review, which [`docs/fable52/wording_review.md`](../../docs/fable52/wording_review.md) records; PolicyBench has set no date for deciding them.
 
 ## Limits
 
