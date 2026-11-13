@@ -42,6 +42,18 @@
       "release": "dashboard-data-20261014",
       "pull_request": 221,
       "committed_on": "2026-10-14"
+    },
+    "2026-11-01": {
+      "commit": null,
+      "release": "dashboard-data-20261111",
+      "pull_request": null,
+      "adjudications_written_on": "2026-11-11"
+    },
+    "2026-11-11": {
+      "commit": null,
+      "release": "dashboard-data-20261111",
+      "pull_request": null,
+      "adjudications_written_on": "2026-11-11"
     }
   },
   "cases": {
@@ -443,11 +455,11 @@
       "current": {
         "tree": "stage",
         "judge_model": "claude-opus-5-5",
-        "case_failure_source": "reference_model_issue_fixed",
-        "case_failure_subtype": "taxable_income_or_deductions",
-        "reference_suspect": true,
-        "judged_at_utc": "2026-09-29T01:49:49.842049+00:00",
-        "verdict_sha256": "ee6d3d2d302cdabf1814936915dd0616df025a0ced2b94f7cb6f33f3538679d1"
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "household_unit_or_filing_status",
+        "reference_suspect": false,
+        "judged_at_utc": "2026-11-11T07:22:15.860370+00:00",
+        "verdict_sha256": "ea52cfaa153449c52c7d5319461f7ec3615c1e412fc103be12fdf2d4e111e2ff"
       },
       "previous": {
         "tree": "20260922c",
@@ -457,14 +469,6 @@
         "reference_suspect": true,
         "judged_at_utc": "2026-09-23T00:27:07.477748+00:00",
         "verdict_sha256": "4fa1d5029eaefff5d3365deb667892cf4ab0bd2ff3da5e5769ce4bfdc20e8e02"
-      },
-      "published": {
-        "release": "dashboard-data-20260922",
-        "commit": "56844e2fa795e7cedc04cd3c34cfb4e67e6f08b5",
-        "judge_model": "claude-opus-5-5",
-        "case_failure_source": "reference_engine_defect",
-        "case_failure_subtype": "taxable_income_or_deductions",
-        "judged_on_utc": null
       }
     },
     "us__scenario_039__state_income_tax_before_refundable_credits": {
@@ -1418,8 +1422,8 @@
         "case_failure_source": "llm_error",
         "case_failure_subtype": "thresholds_rates",
         "reference_suspect": true,
-        "judged_at_utc": "2026-09-29T01:50:02.703407+00:00",
-        "verdict_sha256": "97dc0c0930067a602e1243249df3d13062e54b642406fb48e069482e87f46811"
+        "judged_at_utc": "2026-11-11T08:47:18.938932+00:00",
+        "verdict_sha256": "c1e29f191ed5f9bdb6e9baa1636b6360199c8974ccd642290e89325481142509"
       },
       "previous": {
         "tree": "20260922c",
@@ -1429,14 +1433,6 @@
         "reference_suspect": true,
         "judged_at_utc": "2026-09-23T00:27:13.946521+00:00",
         "verdict_sha256": "5e2b1f92b1f5072ebbd34a6baf2edb17d9de9616d9940ff6a0b79938072233fa"
-      },
-      "published": {
-        "release": "dashboard-data-20260922",
-        "commit": "56844e2fa795e7cedc04cd3c34cfb4e67e6f08b5",
-        "judge_model": "claude-opus-5-5",
-        "case_failure_source": "llm_error",
-        "case_failure_subtype": "state_local_rule",
-        "judged_on_utc": null
       }
     },
     "us__scenario_104__state_refundable_credits": {
@@ -2144,6 +2140,28 @@
         "case_failure_source": "llm_error",
         "case_failure_subtype": "thresholds_rates",
         "judged_on_utc": "2026-10-13"
+      }
+    },
+    "us__scenario_122__state_refundable_credits": {
+      "current": {
+        "tree": "stage",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "credit_phaseout",
+        "reference_suspect": false,
+        "judged_at_utc": "2026-10-27T12:00:48.873397+00:00",
+        "verdict_sha256": "12bc6bb9a5e7389dc50eea1243e4a66b11f05ea5103c482301407e6af249cbf6"
+      }
+    },
+    "us__scenario_101__federal_income_tax_before_refundable_credits": {
+      "current": {
+        "tree": "stage",
+        "judge_model": "claude-opus-5-5",
+        "case_failure_source": "llm_error",
+        "case_failure_subtype": "thresholds_rates",
+        "reference_suspect": false,
+        "judged_at_utc": "2026-11-11T08:50:18.215563+00:00",
+        "verdict_sha256": "3b0a3590129fdc46508d9d7b36e7d342c0db8ac752bb7531bda9a18a4c06a238"
       }
     }
   }

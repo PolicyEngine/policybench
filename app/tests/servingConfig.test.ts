@@ -149,6 +149,7 @@ describe("serving configuration helpers", () => {
     // records that the API rejects forced tool use.
     expect(jsonContractClaudeModels()).toEqual([
       "claude-fable-5.1",
+      "claude-fable-5.2",
       "claude-opus-5.5",
       "claude-sonnet-5.5",
     ]);
@@ -188,7 +189,9 @@ describe("leaderboard serving copy", () => {
     const labels = joinWithAnd(
       jsonContractClaudeModels().map((model) => MODEL_LABELS[model] ?? model),
     );
-    expect(labels).toBe("Claude Fable 5.1, Claude Opus 5.5 and Claude Sonnet 5.5");
+    expect(labels).toBe(
+      "Claude Fable 5.1, Claude Fable 5.2, Claude Opus 5.5 and Claude Sonnet 5.5",
+    );
     const html = render("1.1");
     expect(html).toContain(`${labels} reject forced calls, so their rows select JSON`);
     expect(render("1.0")).not.toContain("reject forced calls");

@@ -680,6 +680,7 @@ MODEL_DISPLAY_NAMES = {
     "gpt-5.6-sol": "GPT-5.6 Sol",
     "gpt-5.6-terra": "GPT-5.6 Terra",
     "gpt-5.6-luna": "GPT-5.6 Luna",
+    "claude-fable-5.2": "Claude Fable 5.2",
     "claude-fable-5.1": "Claude Fable 5.1",
     "claude-opus-5.5": "Claude Opus 5.5",
     "claude-sonnet-5.5": "Claude Sonnet 5.5",
@@ -1121,8 +1122,8 @@ class PaperResults:
         rows = []
         excluded = self._excluded_output_keys
         for scenario_id, variables in self.dashboard["scenarioPredictions"].items():
-            # Neither credit output is excluded in this snapshot; the check keeps
-            # the table on the scored universe if a future record removes one.
+            # A household with either credit output excluded stays out, which
+            # keeps the table on the scored universe.
             if (scenario_id, "federal_refundable_credits") in excluded or (
                 scenario_id,
                 "state_refundable_credits",
@@ -2267,6 +2268,49 @@ class PaperResults:
         return (
             f"policyengine-us {engine} was the newest release when PolicyBench began "
             f"sweeping the references on {began} ({uploaded}). {checked}"
+        )
+
+    @property
+    def engine_upgrade_check_scope_sentence(self) -> str:
+        """Why the publication check's scored count differs from this
+        snapshot's, when engine_upgrade_timing_sentence states a count that
+        does: the check scores the outputs its reference build (the record's
+        ``build``) scores, which include each output excluded since that
+        build. Empty when the counts agree or the sentence states none."""
+        if not self.engine_upgrade_timing_sentence:
+            return ""
+        timing = self.engine_upgrade_timing
+        engine = timing["reference_sweep"]["engine"]
+        check = timing["publication_check"]
+        # The timing sentence states the scored count only in its last branch.
+        if check["engine"] == engine or check["same"] == check["outputs"]:
+            return ""
+        counted = check["scored_outputs"]
+        scored = self.scored_outputs_per_model
+        if counted == scored:
+            return ""
+        built = exclusion_keys(
+            load_reference_exclusions(ROOT / check["build"] / EXCLUSIONS_FILENAME)
+        )
+        since = [
+            e
+            for e in self.reference_exclusions
+            if (e["scenario_id"], e["variable"]) not in built
+        ]
+        if not built <= self._excluded_output_keys or counted != scored + len(since):
+            raise ValueError(
+                f"the publication check scores {counted:,} outputs, not this "
+                f"snapshot's {scored:,} and the {len(since)} excluded since its "
+                "build; state why before publishing"
+            )
+        days = _series(sorted({e["decided_on"] for e in since}))
+        outputs = (
+            "the output" if len(since) == 1 else f"the {count_word(len(since))} outputs"
+        )
+        return (
+            f"The check counts as scored the {counted:,} outputs the {engine} "
+            f"reference build scores: the {scored:,} this snapshot scores and "
+            f"{outputs} excluded on {days}."
         )
 
     @property

@@ -1,0 +1,2 @@
+scenario_id,variable,excluded,engine_baseline,alternative,change
+scenario_093,state_income_tax_before_refundable_credits,True,3388.24560546875,3388.52783203125,0.2822265625

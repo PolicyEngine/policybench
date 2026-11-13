@@ -292,6 +292,23 @@ THINKING_CLAUDE_MAX_COMPLETION_TOKENS_CAP = 16384
 # launch through the v1.x runs (recorded in the manuscript's snapshot
 # config); the pin was removed so every model runs unconfigured.
 REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
+# Sensitivity-run escape hatch, sibling of POLICYBENCH_TOOL_CHOICE:
+# POLICYBENCH_REASONING_EFFORT_OVERRIDE=<litellm id>=<effort> (for example
+# claude-opus-5-5=high) sends one Claude model Anthropic's effort parameter
+# for the run, as the `effort` member of `output_config` on the chat
+# transport. litellm 1.95.0 passes that member through. With its bundled
+# model map (LITELLM_LOCAL_MODEL_COST_MAP=True), which the sensitivity runs
+# used, it also adds the `anthropic-beta: effort-2025-11-24` header; it adds
+# none when the loaded map marks the model as supporting adaptive thinking,
+# as the remote map it loads otherwise may.
+# Unset, nothing changes: the board sends no reasoning control. Never set for
+# leaderboard runs: the snapshot freeze, the treatment check every release
+# freezer runs and the board exports refuse to run while it is set
+# (policybench.analysis.refuse_reasoning_effort_override).
+REASONING_EFFORT_OVERRIDE_ENV = "POLICYBENCH_REASONING_EFFORT_OVERRIDE"
+# The levels litellm 1.95.0 sends for the locally registered Claude ids; it
+# refuses "xhigh" and "max" for them with BadRequestError before any request.
+ANTHROPIC_EFFORT_LEVELS = ("low", "medium", "high")
 # Per-model serving treatments (answer contract, chunking, timeouts,
 # thinking-class budgets) live in policybench/model_cards.py; family-prefix
 # heuristics below are the fallback for models without a card.
@@ -1281,7 +1298,85 @@ def _uses_responses_api(model_id: str) -> bool:
     return model_id.startswith("gpt-5") or model_id.startswith("gpt-6")
 
 
-def _thinking_configuration(model_id: str) -> dict | None:
+@dataclass(frozen=True)
+class ReasoningEffortOverride:
+    """The one Claude model and effort level a sensitivity run sends."""
+
+    model_id: str
+    effort: str
+
+
+def resolve_reasoning_effort_override(env) -> ReasoningEffortOverride | None:
+    """Parse and validate ``POLICYBENCH_REASONING_EFFORT_OVERRIDE`` in ``env``.
+
+    Unset means no override. A set value, the empty string included, must be
+    ``<Claude litellm id>=<effort>`` with the id from config.MODELS and a level
+    in ANTHROPIC_EFFORT_LEVELS; anything else raises SensitivityKnobError, for
+    any model's run, rather than letting a run send the board's request under
+    a sensitivity record. A set value also refuses LITELLM_DROP_PARAMS (litellm
+    turns drop_params on for any non-empty value), under which litellm drops
+    the field for these ids with only a warning.
+    """
+    if REASONING_EFFORT_OVERRIDE_ENV not in env:
+        return None
+    raw = env[REASONING_EFFORT_OVERRIDE_ENV]
+    model_id, separator, effort = raw.partition("=")
+    if (
+        not separator
+        or not model_id.startswith("claude-")
+        or model_id not in set(MODELS.values())
+        or effort not in ANTHROPIC_EFFORT_LEVELS
+    ):
+        raise SensitivityKnobError(
+            f"{REASONING_EFFORT_OVERRIDE_ENV}={raw!r}: expected "
+            "<Claude litellm id>=<effort>, with the id from config.MODELS and "
+            f"the effort one of {', '.join(ANTHROPIC_EFFORT_LEVELS)}; unset the "
+            "variable to send the board's request"
+        )
+    if env.get("LITELLM_DROP_PARAMS"):
+        raise SensitivityKnobError(
+            f"{REASONING_EFFORT_OVERRIDE_ENV} is set but so is "
+            "LITELLM_DROP_PARAMS, under which litellm drops output_config for "
+            f"{model_id} with only a warning; unset LITELLM_DROP_PARAMS"
+        )
+    return ReasoningEffortOverride(model_id, effort)
+
+
+# What this process resolved from its own environment, as (the variable's
+# text, the override): the first read fixes it for the process, so a worker's
+# recorded treatment and every request it builds carry one value.
+_PROCESS_REASONING_EFFORT_OVERRIDE: list[
+    tuple[str | None, ReasoningEffortOverride | None]
+] = []
+
+
+def _reasoning_effort_override(
+    env: dict | None = None,
+) -> ReasoningEffortOverride | None:
+    """The run's effort override.
+
+    With ``env`` (the supervisor's worker environment), resolved from it.
+    Without, resolved once from this process's environment: a later read that
+    finds the variable changed raises SensitivityKnobError instead of sending
+    a second value.
+    """
+    if env is not None:
+        return resolve_reasoning_effort_override(env)
+    text = os.environ.get(REASONING_EFFORT_OVERRIDE_ENV)
+    if not _PROCESS_REASONING_EFFORT_OVERRIDE:
+        override = resolve_reasoning_effort_override(os.environ)
+        _PROCESS_REASONING_EFFORT_OVERRIDE.append((text, override))
+    resolved_text, override = _PROCESS_REASONING_EFFORT_OVERRIDE[0]
+    if text != resolved_text:
+        raise SensitivityKnobError(
+            f"{REASONING_EFFORT_OVERRIDE_ENV} changed from {resolved_text!r} to "
+            f"{text!r} after this process resolved it; a run's recorded "
+            "treatment and its requests must carry one value"
+        )
+    return override
+
+
+def _thinking_configuration(model_id: str, env: dict | None = None) -> dict | None:
     """Describe the reasoning control used by the request builders.
 
     A provider-default entry means the harness sends no reasoning-control
@@ -1290,6 +1385,15 @@ def _thinking_configuration(model_id: str) -> dict | None:
     reasoning overrides behind this helper makes request construction and
     persisted treatment metadata share one source of truth.
     """
+    return _thinking_for(model_id, _reasoning_effort_override(env))
+
+
+def _thinking_for(
+    model_id: str, override: ReasoningEffortOverride | None
+) -> dict | None:
+    """``_thinking_configuration`` for an already resolved effort override."""
+    if override is not None and override.model_id == model_id:
+        return {"reasoning_effort": override.effort}
     if model_id in REASONING_EFFORT_OVERRIDES:
         return {"reasoning_effort": REASONING_EFFORT_OVERRIDES[model_id]}
     card = card_for(model_id)
@@ -1324,8 +1428,45 @@ def _first_request_variables(
 def _apply_thinking_configuration(request_kwargs: dict, model_id: str) -> None:
     """Apply the explicit part of ``_thinking_configuration`` in place."""
     thinking = _thinking_configuration(model_id)
-    if thinking is not None and "reasoning_effort" in thinking:
-        request_kwargs["reasoning"] = {"effort": thinking["reasoning_effort"]}
+    if thinking is None or "reasoning_effort" not in thinking:
+        return
+    effort = thinking["reasoning_effort"]
+    if not model_id.startswith("claude-"):
+        request_kwargs["reasoning"] = {"effort": effort}
+        return
+    # Anthropic's Messages API takes effort as output_config.effort (a
+    # `reasoning` dict would reach the API as an unknown field). litellm
+    # passes the member through (with its bundled model map, also its effort
+    # beta header; see REASONING_EFFORT_OVERRIDE_ENV), unless drop_params is
+    # on: then it drops the field for these ids with only a warning, so the
+    # request would not be the one recorded.
+    if litellm.drop_params or request_kwargs.get("drop_params"):
+        raise SensitivityKnobError(
+            f"litellm drop_params is on, so litellm would drop output_config "
+            f"for {model_id} while the run records effort {effort!r}"
+        )
+    output_config = dict(request_kwargs.get("output_config") or {})
+    if output_config.get("effort", effort) != effort:
+        raise SensitivityKnobError(
+            f"{model_id}'s request already sets output_config.effort to "
+            f"{output_config['effort']!r}; the run records {effort!r}"
+        )
+    request_kwargs["output_config"] = {**output_config, "effort": effort}
+    # litellm's cache key leaves output_config out, so the disk cache would
+    # replay a board answer for this request (and this answer for a board
+    # request). The effort's own namespace keeps the two apart.
+    request_kwargs["cache"] = {
+        **(request_kwargs.get("cache") or {}),
+        "namespace": _effort_cache_namespace(model_id, effort),
+    }
+
+
+def _effort_cache_namespace(model_id: str, effort: str) -> str:
+    """The disk-cache namespace of a request that sends an explicit effort."""
+    base = getattr(litellm.cache, "namespace", None) or (
+        f"policybench:{PROMPT_CONTRACT_VERSION}"
+    )
+    return f"{base}:{model_id}:effort={effort}"
 
 
 def _chat_completion_request_kwargs(
@@ -3463,7 +3604,7 @@ def _treatment_metadata(
                 ),
                 include_explanations=include_explanations,
             ),
-            "thinking": _thinking_configuration(model_id),
+            "thinking": _thinking_configuration(model_id, env=env),
             "request_timeout_seconds": _request_timeout_seconds(model_id, env=env),
         }
     return treatment

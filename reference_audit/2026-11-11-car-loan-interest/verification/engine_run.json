@@ -1,0 +1,15 @@
+{
+ "engine": "policyengine-us 2.60.0",
+ "policyengine_core": "3.32.29",
+ "computed_at_utc": "2026-11-12T18:09:54Z",
+ "inputs": {
+  "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/scenarios.csv": "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a",
+  "paper/snapshot/20260501/runs/us_full_run_20260612_policyengine_4_16_1_populace/reference_outputs.csv.meta.json": "55c17fe298f9ac09ff56b2187d1d314ede7d239e94924da6abb6e0ad2542260c",
+  "reference_audit/2026-09-28/fixes/latest_final.py": "dbbdd228b99933c6f336af97970821c25c863a18606285e8d6d9ffb3bc9af78e",
+  "reference_audit/2026-09-28/scripts/sweep.py": "f4c7783453a473a1bedcf64ef554c3a2fc29f9d663626948d920ed3ef2ea2b69"
+ },
+ "households": 100,
+ "households_with_alternative": 23,
+ "outputs": 1984,
+ "seconds": 63.7
+}

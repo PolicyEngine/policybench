@@ -28,11 +28,20 @@ import {
 import { modelPageHref } from "../lib/boardScope";
 import { mergeScenarioExplanations } from "../lib/explanations";
 import {
+  JUDGE_TEXT_ERRATA_URL,
+  auditJudgeNames,
+  isJudgeWrittenNote,
+  judgeTextErrataForCell,
+  rowErrata,
+  type JudgeTextErratum,
+} from "../lib/judgeTextErrata";
+import {
   useExplanations,
   type ExplanationsStatus,
 } from "../lib/useExplanations";
 import frozenServingConfig from "../model-serving-config.json";
 import ExclusionNote from "./ExclusionNote";
+import JudgeTextCorrections from "./JudgeTextCorrections";
 import ProviderMark from "./ProviderMark";
 import RequestShapeNotice from "./RequestShapeNotice";
 
@@ -272,6 +281,15 @@ export default function ScenarioExplorer({
         selectedCell.variable,
       )
     : undefined;
+  // PolicyBench's corrections to the judge's texts for the selected output.
+  const selectedErrata = selectedCell
+    ? judgeTextErrataForCell(
+        resolvedScenarioId,
+        selectedCell.variable,
+        versionId,
+        liveVersionId,
+      )
+    : [];
 
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const householdDialogRef = useRef<HTMLDialogElement | null>(null);
@@ -874,6 +892,7 @@ export default function ScenarioExplorer({
         ref={dialogRef}
         selectedCell={selectedCell}
         exclusion={selectedExclusion}
+        errata={selectedErrata}
         predictions={filteredPredictions}
         country={country}
         currencySymbol={currencySymbol}
@@ -947,6 +966,7 @@ const HouseholdDialog = React.forwardRef<HTMLDialogElement, HouseholdDialogProps
 type DetailDialogProps = {
   selectedCell: { variable: string; model: string } | null;
   exclusion?: ReferenceExclusion;
+  errata?: JudgeTextErratum[];
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
@@ -961,6 +981,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
     {
       selectedCell,
       exclusion,
+      errata,
       predictions,
       country,
       currencySymbol,
@@ -992,6 +1013,7 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
           <DetailContent
             selectedCell={selectedCell}
             exclusion={exclusion}
+            errata={errata}
             predictions={predictions}
             country={country}
             currencySymbol={currencySymbol}
@@ -1009,6 +1031,8 @@ const DetailDialog = React.forwardRef<HTMLDialogElement, DetailDialogProps>(
 export type DetailContentProps = {
   selectedCell: { variable: string; model: string };
   exclusion?: ReferenceExclusion;
+  /** The errata entries for this output (judgeTextErrataForCell). */
+  errata?: JudgeTextErratum[];
   predictions: Record<string, Record<string, ScenarioPrediction>>;
   country: CountryCode;
   currencySymbol: "$" | "£";
@@ -1025,6 +1049,7 @@ export type DetailContentProps = {
 export function DetailContent({
   selectedCell,
   exclusion,
+  errata = [],
   predictions,
   country,
   currencySymbol,
@@ -1071,6 +1096,12 @@ export function DetailContent({
     formatFailureLabel(pred.failureSource),
     pred.failureSubtype ? pred.failureSubtype.replaceAll("_", " ") : null,
   ].filter(Boolean) as string[];
+  const annotationErrata = rowErrata(errata, model, pred.annotation);
+  const judgeWrittenNote = isJudgeWrittenNote(
+    pred.annotation,
+    versionId,
+    liveVersionId,
+  );
 
   return (
     <div className="relative px-5 py-5">
@@ -1213,9 +1244,30 @@ export function DetailContent({
             </p>
           ) : null}
           {pred.annotation ? (
-            <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
-              {pred.annotation}
-            </p>
+            <>
+              <p className="mt-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+                {pred.annotation}
+              </p>
+              <JudgeTextCorrections errata={annotationErrata} model={model} />
+              {judgeWrittenNote ? (
+                <p
+                  className="mt-2 text-xs text-text-muted leading-relaxed"
+                  data-testid="judge-note-disclosure"
+                >
+                  This note began as text that a judge model (
+                  {auditJudgeNames()}) wrote after scoring; PolicyBench has
+                  since reworded some of these notes and has checked only some
+                  of them, and the{" "}
+                  <a
+                    href={JUDGE_TEXT_ERRATA_URL}
+                    className="underline underline-offset-2 hover:text-text"
+                  >
+                    errata
+                  </a>{" "}
+                  list the statements this release&rsquo;s check found wrong.
+                </p>
+              ) : null}
+            </>
           ) : correct || excluded ? null : explanationsStatus !== "ready" ? (
             <PendingExplanationNote status={explanationsStatus} />
           ) : (

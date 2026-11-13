@@ -290,14 +290,18 @@ def test_audit_disclosures_use_the_frozen_legacy_threshold_universe():
     # misses, 111 unannotated rows below full bounded score) on unchanged
     # references and exclusions. Release 20261027 adds GPT-6.1 Terra's rows
     # and moves four scored references (9,050 annotated, 9,046 exact misses,
-    # 2,407 unannotated). The app's summarizeAuditUniverse recomputes the same
+    # 2,407 unannotated). Release 20261111 adds Claude Fable 5.2's rows (91
+    # annotated misses, 90 unannotated rows below full bounded score) and
+    # excludes scenario_122's state refundable credits under decision d2180,
+    # which takes 9 annotated misses out (9,132 annotated, 9,128 exact misses,
+    # 2,497 unannotated). The app's summarizeAuditUniverse recomputes the same
     # counts from the payload (app/tests/auditUniverse.test.ts).
     assert counts == {
-        "annotated": 9_050,
-        "exact_misses": 9_046,
-        "annotated_exact_misses": 9_046,
+        "annotated": 9_132,
+        "exact_misses": 9_128,
+        "annotated_exact_misses": 9_128,
         "annotated_exact_hits": 4,
-        "unannotated_below_full_bounded_score": 2_407,
+        "unannotated_below_full_bounded_score": 2_497,
     }
 
     for path in (
@@ -721,8 +725,13 @@ def test_paper_takes_its_engine_times_from_the_timing_record():
 
 def _across_page_breaks(sentence: str) -> re.Pattern:
     """The sentence as extracted PDF text can carry it: a page break may put
-    the page number between any two of its words."""
-    words = [re.escape(word) for word in sentence.split()]
+    the page number between any two of its words, and a line that ends at a
+    hyphen between two digits (inside a date) loses that hyphen, because
+    pdftotext joins the halves as it does a hyphenated word."""
+    words = [
+        re.sub(r"(\d)\\-(?=\d)", r"\1\\-?", re.escape(word))
+        for word in sentence.split()
+    ]
     return re.compile(r" (?:\d{1,3} )?".join(words))
 
 
@@ -733,6 +742,17 @@ def test_across_page_breaks_tolerates_only_a_page_number():
     assert not pattern.search("checked PyPI on 2026-10-28 at 04:45 UTC")
     assert not pattern.search("checked PyPI on 2026-10-29 at 04:44 UTC")
     assert not pattern.search("checked PyPI on 2026-10-28 later at 04:44 UTC")
+
+
+def test_across_page_breaks_tolerates_a_date_broken_at_a_line_end():
+    pattern = _across_page_breaks("checked PyPI on 2026-10-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 202610-28 at 04:44 UTC")
+    assert pattern.search("checked PyPI on 2026-1028 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 202610-29 at 04:44 UTC")
+    assert not pattern.search("checked PyPI on 2026 10-28 at 04:44 UTC")
+    assert not _across_page_breaks("policyengine-us 2.60.0").search(
+        "policyengineus 2.60.0"
+    )
 
 
 def test_rendered_pdf_takes_its_engine_times_from_the_timing_record():
