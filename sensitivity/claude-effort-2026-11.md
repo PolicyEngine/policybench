@@ -23,8 +23,9 @@ The request differs from the board's by Anthropic's `output_config.effort`
 field, which the harness sends for one named model when
 `POLICYBENCH_REASONING_EFFORT_OVERRIDE` is set, and by the
 `anthropic-beta: effort-2025-11-24` header, which the client library, litellm
-1.95.0, adds to each request carrying that field. A matched effort label does
-not mean matched tokens or cost; the cost table below gives both for each row.
+1.95.0, adds to each request carrying that field with its bundled model map,
+which the runs used. A matched effort label does not mean matched tokens or
+cost; the cost table below gives both for each row.
 
 Before the runs, PolicyBench sent one probe request per model with the effort
 field, to check that the API accepts it, on the frozen manifest's first
@@ -186,12 +187,14 @@ wherever those exist; Claude Opus 5.5's board row records none.
 ## Reproducing
 
 ```
+LITELLM_LOCAL_MODEL_COST_MAP=True \
 POLICYBENCH_CACHE_DIR=results/local/claude-effort/opus55-high/cache \
 POLICYBENCH_REASONING_EFFORT_OVERRIDE=claude-opus-5-5=high \
   python -m policybench.cli run --model claude-opus-5.5 \
   --scenario-manifest paper/snapshot/20260501/us_scenarios.csv \
   --run-dir results/local/claude-effort/opus55-high/run \
   --budget-usd 22.5 --max-workers 5
+LITELLM_LOCAL_MODEL_COST_MAP=True \
 POLICYBENCH_CACHE_DIR=results/local/claude-effort/fable52-medium/cache \
 POLICYBENCH_REASONING_EFFORT_OVERRIDE=claude-fable-5-2=medium \
   python -m policybench.cli run --model claude-fable-5.2 \
@@ -204,8 +207,10 @@ python scripts/effort_sensitivity.py --run-root results/local/claude-effort \
 ```
 
 Each run starts with an empty cache directory of its own, as the effort runs
-did. `--board-run` names the run folder each board row was frozen from; the
-script checks its predictions against the hash the snapshot's serving config
-records and reads only its spend ledgers. The script also takes `--probe` for
-each probe record; the probe records are not published, and no score uses
-them.
+did. `LITELLM_LOCAL_MODEL_COST_MAP=True` keeps litellm on its bundled model
+map, as in the effort runs; with the remote map litellm loads otherwise, the
+request can go without the beta header. `--board-run` names the run folder
+each board row was frozen from; the script checks its predictions against the
+hash the snapshot's serving config records and reads only its spend ledgers.
+The script also takes `--probe` for each probe record; the probe records are
+not published, and no score uses them.

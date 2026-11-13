@@ -2,9 +2,23 @@
 
 PolicyBench wrote this plan before the first call of the sensitivity in
 [`claude-effort-2026-11.md`](claude-effort-2026-11.md). The sections below are
-the plan's text, copied word for word from its file; the file's opening
+the plan's text, copied word for word from its file. The file's opening
 paragraph, an internal record of the decision to run the sensitivity, is left
-out. The record after the plan was written after the runs.
+out. That paragraph also held a rule for the plan: "Nothing below may change
+after the first call; a change needed for a technical reason is recorded here
+with its reason and time, before the run continues." The record after the plan
+was written after the runs; its departure 9 concerns that rule.
+
+**Notes on the plan's wording.**
+
+- `claude-credits exec` is PolicyBench's own tool for handling API keys: it
+  runs a command with the Anthropic API key set to a key that spends the
+  "expiring API credit", the monthly Claude API credit that comes with paid
+  Claude plans.
+- `prelim/compare_fable52.py` is a script in PolicyBench's private working
+  record. The method it defines is the one `scripts/effort_sensitivity.py`
+  implements and the note states: a bootstrap paired by household, with seed
+  42, 10,000 draws and a 95% percentile interval.
 
 ## Why
 
@@ -85,10 +99,10 @@ hash of that code in `921a7886`.
    `claude-credits exec` launch (two probes, two runs) also made that tool's
    own one-token check request, which PolicyBench's records do not hold.
 3. The request. The plan says "The effort value is the only difference from
-   the board condition." litellm 1.95.0 also adds the
-   `anthropic-beta: effort-2025-11-24` header to each request that carries
-   `output_config.effort` for these models. The board's requests carry
-   neither.
+   the board condition." With its bundled model map, which the runs used,
+   litellm 1.95.0 also adds the `anthropic-beta: effort-2025-11-24` header to
+   each request that carries `output_config.effort` for these models. The
+   board's requests carry neither.
 4. Code and environment. The runs ran the repository at `5f4b0a3f` with the
    option added, uncommitted, and committed unchanged in `921a7886`, on
    litellm 1.95.0. They set `LITELLM_LOCAL_MODEL_COST_MAP=True` and ran under
@@ -109,6 +123,18 @@ hash of that code in `921a7886`.
    score. The four paired comparisons, with their intervals, are on the
    headline only; the bounded score is one figure per row, with no interval.
    The note also gives each row's share within 1%, as a descriptive figure.
+   PolicyBench made this choice before the scoring: the work log first records
+   it at 22:53:18, while the runs were going, and records no earlier time. It
+   gives two reasons: `prelim/compare_fable52.py`, whose method the plan
+   names, bootstraps the headline; and the board's functions have no
+   household-level bounded score. The second was wrong: the board's bounded
+   score for a row is the mean of its household scores from
+   `analysis.bounded_household_scores`, as PolicyBench found after the runs,
+   on 2026-11-13. When GPT-6.1 Sol's review asked for paired comparisons of
+   the bounded score, PolicyBench kept the four comparisons as they were and
+   recorded this departure instead. Its reason: a comparison added after the
+   results were in view would be a post hoc choice, and each row's bounded
+   score is in the note's table.
 7. The note's form. The plan asks for the form of
    `sensitivity/claude-thinking-2026-08.md`. The note leaves out that note's
    would-rank column, a choice made before the scoring, and its per-program
@@ -128,6 +154,14 @@ hash of that code in `921a7886`.
    of both runs found each first request's HTTP body and headers unchanged,
    and the repair, doubled-budget and explanation requests changed only by a
    cache namespace that litellm does not send.
+9. Where the probes and the header were recorded. The plan file's opening
+   paragraph says that "a change needed for a technical reason is recorded
+   here with its reason and time, before the run continues." PolicyBench
+   recorded the beta header (departure 3) in its work log at 22:36:30 and the
+   probes (departure 1) at 22:41:07, before the runs were launched at
+   22:44:37. Both entered the plan's file only in this record, written after
+   the runs, so for them the rule's "recorded here ... before the run
+   continues" was not met.
 
 **Rules kept.** Each run covered all 100 households once. No household was
 rerun or dropped for its result. Claude Opus 5.5 at high made a second request

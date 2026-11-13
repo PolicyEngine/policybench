@@ -294,11 +294,14 @@ REASONING_EFFORT_OVERRIDES: dict[str, str] = {}
 # POLICYBENCH_REASONING_EFFORT_OVERRIDE=<litellm id>=<effort> (for example
 # claude-opus-5-5=high) sends one Claude model Anthropic's effort parameter
 # for the run, as the `effort` member of `output_config` on the chat
-# transport. litellm 1.95.0 passes that member through and also adds the
-# `anthropic-beta: effort-2025-11-24` header to the request. Unset, nothing
-# changes: the board sends no reasoning control. Never set for leaderboard
-# runs: the snapshot freeze, the treatment check every release freezer runs
-# and the board exports refuse to run while it is set
+# transport. litellm 1.95.0 passes that member through. With its bundled
+# model map (LITELLM_LOCAL_MODEL_COST_MAP=True), which the sensitivity runs
+# used, it also adds the `anthropic-beta: effort-2025-11-24` header; it adds
+# none when the loaded map marks the model as supporting adaptive thinking,
+# as the remote map it loads otherwise may.
+# Unset, nothing changes: the board sends no reasoning control. Never set for
+# leaderboard runs: the snapshot freeze, the treatment check every release
+# freezer runs and the board exports refuse to run while it is set
 # (policybench.analysis.refuse_reasoning_effort_override).
 REASONING_EFFORT_OVERRIDE_ENV = "POLICYBENCH_REASONING_EFFORT_OVERRIDE"
 # The levels litellm 1.95.0 sends for the locally registered Claude ids; it
@@ -1264,9 +1267,10 @@ def _apply_thinking_configuration(request_kwargs: dict, model_id: str) -> None:
         return
     # Anthropic's Messages API takes effort as output_config.effort (a
     # `reasoning` dict would reach the API as an unknown field). litellm
-    # passes the member through and adds its effort beta header, unless
-    # drop_params is on: then it drops the field for these ids with only a
-    # warning, so the request would not be the one recorded.
+    # passes the member through (with its bundled model map, also its effort
+    # beta header; see REASONING_EFFORT_OVERRIDE_ENV), unless drop_params is
+    # on: then it drops the field for these ids with only a warning, so the
+    # request would not be the one recorded.
     if litellm.drop_params or request_kwargs.get("drop_params"):
         raise SensitivityKnobError(
             f"litellm drop_params is on, so litellm would drop output_config "

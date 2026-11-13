@@ -6,10 +6,14 @@ parameter, ``output_config.effort``. These are unit tests and send nothing:
 the litellm checks replace litellm's HTTP ``post`` with a stub that records
 the request body and headers and either raises or returns a canned response
 from this file, and the harness checks replace the harness's ``completion``.
+The tests that reach litellm's request builder run under both states of
+litellm's model map for the two Claude ids (``loaded_map``), since the effort
+beta header depends on which map the process loaded.
 """
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import sys
@@ -20,6 +24,7 @@ import httpx
 import litellm
 import pandas as pd
 import pytest
+from litellm.llms.anthropic.common_utils import AnthropicModelInfo
 from litellm.llms.custom_httpx import http_handler
 
 import policybench.eval_no_tools as eval_no_tools
@@ -54,6 +59,8 @@ GEMINI = next(model for model in MODELS.values() if model.startswith("gemini/"))
 # Every key through which litellm or the API could take a reasoning control.
 REASONING_KEYS = {"output_config", "reasoning", "reasoning_effort", "thinking"}
 EFFORT_BETA = "effort-2025-11-24"
+# The model-map flag litellm reads to leave the effort beta header out.
+SUPPORTS_ADAPTIVE = "supports_adaptive_thinking"
 
 
 def _new_process(monkeypatch) -> None:
@@ -132,10 +139,57 @@ def _bytes(value: dict) -> bytes:
     return json.dumps(value, sort_keys=True).encode()
 
 
+def _adaptive(model_id: str) -> bool:
+    """litellm's own reading of its loaded model map: it adds the effort beta
+    header only for a model the map does not mark as adaptive-thinking."""
+    return AnthropicModelInfo._is_adaptive_thinking_model(model_id, "anthropic")
+
+
+@contextlib.contextmanager
+def _model_map(model_ids: tuple[str, ...], *, adaptive: bool):
+    """Mark each id's litellm.model_cost entry (and its ``anthropic/`` entry,
+    where the loaded map has one) as adaptive-thinking or not, then restore.
+
+    The effort runs loaded litellm's bundled map (LITELLM_LOCAL_MODEL_COST_MAP
+    =True), which does not mark these ids, so litellm added the effort beta
+    header. The remote map litellm loads otherwise (CI sets no LITELLM
+    variable) may mark them, and then litellm adds none. ``adaptive=False`` is
+    the runs' state, set explicitly so that no other entry or fallback rule of
+    whichever map this process loaded decides it."""
+    keys = [
+        key
+        for model_id in model_ids
+        for key in (model_id, f"anthropic/{model_id}")
+        if key in litellm.model_cost
+    ]
+    saved = {key: litellm.model_cost[key] for key in keys}
+    try:
+        for key in keys:
+            litellm.model_cost[key] = {**saved[key], SUPPORTS_ADAPTIVE: adaptive}
+        litellm.utils._invalidate_model_cost_lowercase_map()
+        states = {model_id: _adaptive(model_id) for model_id in model_ids}
+        assert states == dict.fromkeys(model_ids, adaptive), states
+        yield
+    finally:
+        litellm.model_cost.update(saved)
+        litellm.utils._invalidate_model_cost_lowercase_map()
+
+
+@pytest.fixture(params=["bundled_map", "adaptive_map"])
+def loaded_map(request):
+    """Run the test as if this process had loaded litellm's bundled map (the
+    two Claude ids not marked adaptive, as in the effort runs) or a map that
+    marks them adaptive (as the remote map may, in CI): the tests that reach
+    litellm's request builder must hold under either."""
+    with _model_map((OPUS, FABLE), adaptive=request.param == "adaptive_map"):
+        yield request.param
+
+
 def test_the_board_constant_stays_empty():
     assert REASONING_EFFORT_OVERRIDES == {}
 
 
+@pytest.mark.usefixtures("loaded_map")
 def test_default_sends_no_reasoning_control(scenario, monkeypatch):
     for model_id in (OPUS, FABLE):
         kwargs = _kwargs(scenario, model_id)
@@ -149,6 +203,7 @@ def test_default_sends_no_reasoning_control(scenario, monkeypatch):
         assert EFFORT_BETA not in headers.get("anthropic-beta", ""), model_id
 
 
+@pytest.mark.usefixtures("loaded_map")
 @pytest.mark.parametrize(
     ("named", "effort", "other"),
     [(OPUS, "high", FABLE), (FABLE, "medium", OPUS)],
@@ -156,6 +211,13 @@ def test_default_sends_no_reasoning_control(scenario, monkeypatch):
 def test_override_sends_exactly_the_value_for_exactly_the_named_model(
     scenario, monkeypatch, named, effort, other
 ):
+    with _model_map((named,), adaptive=False):
+        _check_override_request(scenario, monkeypatch, named, effort, other)
+
+
+def _check_override_request(scenario, monkeypatch, named, effort, other):
+    """The request with the named model in the runs' map state (not marked
+    adaptive), then the same request with the model marked adaptive."""
     untargeted = (other, GPT, GEMINI)
     board = {model_id: _kwargs(scenario, model_id) for model_id in (named, *untargeted)}
     board_repair = _kwargs(scenario, named, repair=True)
@@ -181,6 +243,13 @@ def test_override_sends_exactly_the_value_for_exactly_the_named_model(
     other_body, other_headers = _sent(_kwargs(scenario, other), monkeypatch)
     assert _bytes(other_body) == _bytes(board_sent[other][0])
     assert other_headers == board_sent[other][1]
+    # A map that marks the named model adaptive changes the header only: the
+    # same body, and the board's headers with no effort beta header.
+    with _model_map((named,), adaptive=True):
+        adaptive_body, adaptive_headers = _sent(sensitivity, monkeypatch)
+    assert adaptive_body == body
+    assert EFFORT_BETA not in adaptive_headers.get("anthropic-beta", "")
+    assert adaptive_headers == board_headers
 
 
 def _explanation_response() -> SimpleNamespace:
@@ -521,6 +590,7 @@ def _call(kwargs: dict, calls: list[dict]) -> tuple[str, bool, int]:
     return response.choices[0].message.content, hit, len(calls) - before
 
 
+@pytest.mark.usefixtures("loaded_map")
 @pytest.mark.parametrize("first", ["board", "override"])
 def test_the_disk_cache_never_replays_across_the_two_conditions(
     scenario, tmp_path, monkeypatch, first

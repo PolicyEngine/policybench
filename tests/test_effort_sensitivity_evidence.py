@@ -596,7 +596,8 @@ def _expected_prose() -> list[str]:
         " field, which the harness sends for one named model when"
         " `POLICYBENCH_REASONING_EFFORT_OVERRIDE` is set, and by the"
         " `anthropic-beta: effort-2025-11-24` header, which the client library,"
-        f" litellm {arm_litellm}, adds to each request carrying that field.",
+        f" litellm {arm_litellm}, adds to each request carrying that field with its"
+        " bundled model map, which the runs used.",
         "A matched effort label does not mean matched tokens or cost;",
         f"Claude Opus 5.5 at high ran from {probe_opus['started_utc'][11:19]} to"
         f" {probe_opus['ended_utc'][11:19]} UTC on {probe_opus['started_utc'][:10]}"
@@ -677,10 +678,14 @@ def _pinned_text() -> list[str]:
         " and the frozen snapshot. The request counts, the probes' figures and the"
         " litellm versions come from the summary's `run_records`,"
         " `board_run_records`, `probes` and `client_library` blocks,",
-        "POLICYBENCH_CACHE_DIR=results/local/claude-effort/opus55-high/cache \\",
-        "POLICYBENCH_CACHE_DIR=results/local/claude-effort/fable52-medium/cache \\",
+        "LITELLM_LOCAL_MODEL_COST_MAP=True \\"
+        " POLICYBENCH_CACHE_DIR=results/local/claude-effort/opus55-high/cache \\",
+        "LITELLM_LOCAL_MODEL_COST_MAP=True \\"
+        " POLICYBENCH_CACHE_DIR=results/local/claude-effort/fable52-medium/cache \\",
         "Each run starts with an empty cache directory of its own, as the effort"
-        " runs did.",
+        " runs did. `LITELLM_LOCAL_MODEL_COST_MAP=True` keeps litellm on its bundled"
+        " model map, as in the effort runs; with the remote map litellm loads"
+        " otherwise, the request can go without the beta header.",
     ]
 
 
@@ -808,6 +813,12 @@ def test_the_plan_file_holds_the_plan_and_a_record_of_the_summary_s_figures():
         "Paired by household, with the bootstrap method and seed of",
     ):
         assert rule in plan_part, rule
+    # The header's note on that method states the summary's bootstrap.
+    boot = SUMMARY["bootstrap"]
+    assert (
+        f"a bootstrap paired by household, with seed {boot['seed']},"
+        f" {boot['draws']:,} draws and a {boot['interval']} interval."
+    ) in plan_part
     probe_opus, probe_fable = SUMMARY["probes"]
     probes = probe_opus["cost_usd"] + probe_fable["cost_usd"]
     spent = {m: r["spent_usd"] for m, r in SUMMARY["run_records"].items()}
