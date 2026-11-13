@@ -4,6 +4,7 @@
 // can keep the runtime values out of the JS bundle.
 
 export const MODEL_ORDER = [
+  "claude-fable-5.2",
   "claude-fable-5.1",
   "claude-fable-5",
   "claude-opus-5.5",
@@ -59,6 +60,7 @@ export const MODEL_ORDER = [
 ] as const;
 
 export const MODEL_LABELS: Record<string, string> = {
+  "claude-fable-5.2": "Claude Fable 5.2",
   "claude-fable-5.1": "Claude Fable 5.1",
   "claude-fable-5": "Claude Fable 5",
   "claude-opus-5.5": "Claude Opus 5.5",

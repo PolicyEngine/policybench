@@ -160,6 +160,11 @@ class Supervisor:
         self.env = {**os.environ, **(env or {})}
         # Only a provenance file this supervisor wrote may reach its workers.
         self.env.pop(POLICYENGINE_PROVENANCE_ENV, None)
+        from policybench.eval_no_tools import resolve_reasoning_effort_override
+
+        # Resolved once, from the environment every worker receives: the run
+        # fingerprint records this value and the workers send it.
+        self.reasoning_effort_override = resolve_reasoning_effort_override(self.env)
         self.scenarios = self._load_scenarios()
         self.scenario_ids = [scenario.id for scenario in self.scenarios]
         self.initial_request_variables = self._load_initial_request_variables()
@@ -379,7 +384,7 @@ class Supervisor:
             _initial_completion_budget_tokens,
             _max_repair_rounds,
             _request_timeout_seconds,
-            _thinking_configuration,
+            _thinking_for,
         )
 
         answer_contract = answer_contract_for(
@@ -415,7 +420,7 @@ class Supervisor:
                 self.litellm_id,
                 first_request_variables,
             ),
-            "thinking": _thinking_configuration(self.litellm_id),
+            "thinking": _thinking_for(self.litellm_id, self.reasoning_effort_override),
             "request_timeout_seconds": _request_timeout_seconds(
                 self.litellm_id,
                 env=self.env,

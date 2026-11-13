@@ -15,6 +15,7 @@ from policybench.analysis import (
     build_dashboard_payload,
     build_scenario_prompt_map,
     export_analysis,
+    refuse_reasoning_effort_override,
 )
 from policybench.annotation_taxonomy import (
     validate_failure_source,
@@ -420,6 +421,7 @@ def export_country(
     reference CSV digest, or ``reference_digest`` must supply the pin for a
     legacy sidecar (``committed_reference_digest`` for the frozen references).
     """
+    refuse_reasoning_effort_override("The full-run export")
     ground_truth_path = country_dir / "reference_outputs.csv"
     legacy_ground_truth_path = country_dir / "ground_truth.csv"
     scenarios_path = country_dir / "scenarios.csv"
@@ -605,6 +607,7 @@ def export_full_run(
     (the committed pin per country), or a bare sha256 for a single country
     (see ``reference_digest_for_country``).
     """
+    refuse_reasoning_effort_override("The full-run export")
     if program_set not in (None, DEFAULT_PROGRAM_SET) and not skip_app_data:
         raise ValueError(
             f"Output set {program_set!r} is internal; export it with "

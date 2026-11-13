@@ -33,6 +33,14 @@ describe("notes", () => {
     expect([...slugs].sort()).toEqual(filenames);
   });
 
+  test("no note holds a placeholder left for the release's lead", () => {
+    for (const note of notes) {
+      const raw = JSON.stringify(note);
+      expect(raw).not.toContain("[LEAD");
+      expect(raw).not.toContain("LEAD:");
+    }
+  });
+
   test("every paragraph placeholder resolves", () => {
     for (const note of notes) {
       const resolved = note.paragraphs.map((paragraph) =>
@@ -102,35 +110,216 @@ describe("notes", () => {
     expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
-  test("the newest note is the frozen release's, ahead of the October 14 ones", () => {
+  test("the newest note is the frozen release's, ahead of the October 31 one", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
+    expect(notes[0].slug).toBe("2026-11-13-claude-fable-5-2-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
+    // The October 31 release note keeps release 20261027 and its board
+    // snapshot.
+    expect(notes[1].slug).toBe("2026-10-31-gpt-6-1-terra-joins-the-board");
+    expect(notes[1].release).toBe("dashboard-data-20261027");
+    expect(notes[1].boardSnapshot).toBe("2026-10-27");
+    expect(notes[1].slug.startsWith(notes[1].date)).toBe(true);
     // The October 20 tool-pilot note, the October 19 America.gov note and the
     // October 14 release note keep release 20261014 and its board snapshot.
-    expect(notes[1].slug).toBe(
+    expect(notes[2].slug).toBe(
       "2026-10-20-given-a-policyengine-tool-three-models-score-above-99",
     );
-    expect(notes[2].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
-    expect(notes[3].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
-    for (const note of notes.slice(1, 4)) {
+    expect(notes[3].slug).toBe("2026-10-19-america-gov-scores-level-with-gpt-5-5");
+    expect(notes[4].slug).toBe("2026-10-14-gemini-4-argon-joins-the-board");
+    for (const note of notes.slice(2, 5)) {
       expect(note.release).toBe("dashboard-data-20261014");
       expect(note.boardSnapshot).toBe("2026-10-14");
       expect(note.slug.startsWith(note.date)).toBe(true);
     }
     // The October 13 and October 10 notes keep their own releases and board
     // snapshots.
-    expect(notes[4].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
-    expect(notes[4].release).toBe("dashboard-data-20261013");
-    expect(notes[4].boardSnapshot).toBe("2026-10-13");
-    expect(notes[5].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
-    expect(notes[5].release).toBe("dashboard-data-20261010");
-    expect(notes[5].boardSnapshot).toBe("2026-10-10");
-    expect(notes[6].slug).toBe(
+    expect(notes[5].slug).toBe("2026-10-13-muse-wonder-joins-the-board");
+    expect(notes[5].release).toBe("dashboard-data-20261013");
+    expect(notes[5].boardSnapshot).toBe("2026-10-13");
+    expect(notes[6].slug).toBe("2026-10-10-claude-haiku-5-5-joins-the-board");
+    expect(notes[6].release).toBe("dashboard-data-20261010");
+    expect(notes[6].boardSnapshot).toBe("2026-10-10");
+    expect(notes[7].slug).toBe(
       "2026-10-06-policybench-stops-scoring-eight-tax-outputs",
     );
+  });
+
+  test("the Claude Fable 5.2 note renders its figures", () => {
+    const note = notes.find(
+      (n) => n.slug === "2026-11-13-claude-fable-5-2-joins-the-board",
+    )!;
+    const markup = renderToStaticMarkup(
+      createElement(NoteArticle, { note, titleLevel: "h1" }),
+    );
+    expect(markup).toContain(
+      "PolicyBench added Claude Fable 5.2 to its 2026-11-11 snapshot, two days after Anthropic released it, bringing the board to 52 models.",
+    );
+    // Board rates keep one decimal, a whole one too.
+    expect(markup).toContain(
+      "Claude Fable 5.2 gets 92.0% of answers right and ranks #5 of 52, behind GPT-5.6 Sol (93.1%) and ahead of GPT-6 Astra (91.7%, #6).",
+    );
+    expect(markup).toContain(
+      "GPT-6 Sol still leads at 95.2%, ahead of Claude Opus 5.5 (94.1%) and GPT-6.1 Terra (93.1%).",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.2 ranks #3, behind only GPT-6 Sol and Claude Opus 5.5.",
+    );
+    // The opening gives both rows' default efforts before the definition.
+    expect(markup).toContain(
+      "Claude Fable 5.2 ran at Anthropic&#x27;s default effort, high, and Claude Opus 5.5 defaults to medium. PolicyBench counts a dollar amount as right",
+    );
+    expect(markup).toContain(closing);
+    expect(markup).toContain(
+      "Claude Fable 5.2&#x27;s API rejects forced tool calls, as Claude Fable 5.1&#x27;s, Claude Opus 5.5&#x27;s and Claude Sonnet 5.5&#x27;s do, so its row answers as a JSON object. PolicyBench sends none of the four rows a reasoning setting, and each runs at Anthropic&#x27;s default effort; Claude Fable 5.1 and Claude Sonnet 5.5 also default to high.",
+    );
+    expect(markup).toContain(
+      "PolicyBench&#x27;s usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted.",
+    );
+    // Thousands get separators.
+    expect(markup).toContain(
+      "drew a thinking block that took 1,789 of its 2,881 output tokens.",
+    );
+    expect(markup).toContain(
+      "On six households the answer stopped at the row&#x27;s starting budget of 16,384 output tokens, and PolicyBench asked again with twice the budget, as it does for every row that sets a budget, up to each row&#x27;s ceiling.",
+    );
+    expect(markup).toContain(
+      "One of those second calls took 325 seconds, which the row&#x27;s 600-second timeout allowed; the three other Claude rows that answer as JSON objects also have 600 seconds, against PolicyBench&#x27;s default of 300 for Claude rows that reason at the provider default.",
+    );
+    // Prices and costs keep their figures; costs keep their cents.
+    expect(markup).toContain(
+      "At Anthropic&#x27;s price of $8 per million input tokens and $40 per million output tokens, the 100 households cost $31.69, against $6.75 for Claude Opus 5.5 and $3.43 for Claude Sonnet 5.5.",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.1, the Fable model before it, gets 90.8% (#9) and cost $25.70.",
+    );
+    // The effort sensitivity: signed intervals at one decimal, as the
+    // sensitivity note gives them.
+    expect(markup).toContain(
+      "PolicyBench also ran Claude Fable 5.2 and Claude Opus 5.5 each at the other&#x27;s default effort, on the same 100 households, under a plan it wrote before the first call and publishes with the runs&#x27; times, and the runs change no board row.",
+    );
+    expect(markup).toContain(
+      "On the share of answers right, Claude Fable 5.2 at medium scores 1.6 points above its board row (95% interval +0.3 to +3.1), and Claude Opus 5.5 at high scores 0.2 points above its board row (95% interval -0.9 to +1.3).",
+    );
+    expect(markup).toContain(
+      "At medium, Claude Fable 5.2 scores 0.5 points below Claude Opus 5.5 (95% interval -1.5 to +0.5), and at high, Claude Fable 5.2 scores 2.3 points below Claude Opus 5.5 (95% interval -3.9 to -0.8).",
+    );
+    expect(markup).toContain(
+      "Each model ran once at each effort, and the intervals resample households, so they do not measure how far a repeated run would move; Claude Opus 5.5&#x27;s board row ran on 2026-09-22, Claude Fable 5.2&#x27;s on 2026-11-09 and both effort runs on 2026-11-12.",
+    );
+    expect(markup).toContain(
+      "with a certificate, the credit and the output are $1,921.",
+    );
+    // Whole numbers under ten are spelled out.
+    expect(markup).toContain(
+      "Of the 52 models, 43 answer $0, eight give a positive amount, none of them $1,921, and one gives no answer.",
+    );
+    expect(markup).toContain(
+      "Every model is now scored on 1,934 of its 1,984 requested outputs; PolicyBench excludes the other 50, this one among them.",
+    );
+    // A bound on a move is not a board rate, so it keeps its two decimals.
+    expect(markup).toContain(
+      "the exclusion moves each of the 51 earlier models&#x27; shares of answers right by less than 0.01 points: the 42 that answered $0 fall, and the nine that did not rise.",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.2 also answers $0, so the exclusion removes one of its right answers, and it ranks #5 with or without the output scored.",
+    );
+    expect(markup).toContain(
+      "No earlier model passes another, and each of the 47 earlier models below Claude Fable 5.2 moves down one place.",
+    );
+    expect(markup).toContain(
+      "gives the same value as 2.60.0 for all 1,934 scored outputs; it moves three excluded outputs",
+    );
+    expect(markup).toContain(
+      "The check applied the previous release&#x27;s exclusions, so its file counts 1,935 scored outputs, the Minnesota output among them.",
+    );
+    expect(markup).toContain(
+      "Claude Opus 5.5 judged the misses in the 122 audit cases Claude Fable 5.2 joined, on 2026-11-11, and it flagged seven references as suspect. Of the seven, six already had decisions, which this release keeps: four are outputs PolicyBench excludes, and two are references it affirmed in earlier releases.",
+    );
+    expect(markup).toContain(
+      "the judge put eight models&#x27; answers on each in a class",
+    );
+    expect(markup).toContain(
+      "All three outputs stay scored, and Claude Fable 5.2 misses each of them.",
+    );
+    // The wording review and the car-loan audit.
+    expect(markup).toContain(
+      "Readers running Claude Opus 5.5, the judge&#x27;s model, then read the judge&#x27;s new texts on the 122 cases Claude Fable 5.2 answered wrong, and readers running GPT-6.1 Sol read the texts on the 559 other audit cases, where Claude Fable 5.2 answered right.",
+    );
+    expect(markup).toContain(
+      "The first read raised 24 questions about a prompt or a reference, and the second raised 21.",
+    );
+    expect(markup).toContain(
+      "PolicyBench changes no reference and no scored output on those questions in this release, because the first read covered only Claude Fable 5.2&#x27;s misses. The questions stay open for every model, and PolicyBench has set no date for deciding them.",
+    );
+    // No ruling has scheduled a decision on the open questions.
+    for (const promise of [
+      "will decide",
+      "will rule",
+      "later release",
+      "later ruling",
+    ]) {
+      expect(markup).not.toContain(promise);
+    }
+    expect(markup).toContain(
+      "Across both reads and the errata check, the wording review record gives another value for 21 open questions; scoring their cells against that value would raise Claude Fable 5.2&#x27;s share in seven of them, lower it in seven and leave it unchanged in seven.",
+    );
+    expect(markup).toContain(
+      "Together, the 21 values would raise Claude Fable 5.2&#x27;s share; the 20 other than the one on auto loan interest would lower it.",
+    );
+    expect(markup).toContain(
+      "For example, the prompts that list auto loan interest do not say whether the loan qualifies for the federal deduction for qualified passenger vehicle loan interest, and the references treat it as not qualifying.",
+    );
+    // The prompt's rule keeps its quotation marks.
+    expect(markup).toContain(
+      "Every prompt says to treat &quot;any unlisted numeric input as 0 and any other unlisted household fact, boolean, or status input as false&quot;, and that rule gives the references&#x27; reading.",
+    );
+    expect(markup).toContain(
+      "With the interest counted as qualifying, policyengine-us 2.60.0 changes 11 scored outputs by more than $1, and across the 52 models, 81 answers on those outputs match the reference and 22 match the changed value.",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.2&#x27;s answers match the changed value on seven of them, the most of any model, so scoring them against the changed values would raise its share more than any other model&#x27;s. The audit gives the board with those outputs excluded and with them scored against the changed values.",
+    );
+    // The operating session and the decisions that could move its row.
+    expect(markup).toContain(
+      "The session that operated this release runs on Claude Fable 5.2, the model the release adds, and it also wrote the effort sensitivity&#x27;s plan and started its runs; a Claude Opus 5.5 agent built the script that runs the release&#x27;s steps.",
+    );
+    expect(markup).toContain(
+      "PolicyBench ruled on the Minnesota output on November 1, eight days before Anthropic released Claude Fable 5.2, and its three decisions on the judge&#x27;s findings each keep a reference that Claude Fable 5.2&#x27;s answer misses.",
+    );
+    expect(markup).toContain(
+      "PolicyBench&#x27;s records show that reviewers running Claude Opus 5.5, an Anthropic model, reviewed the serving card, those decisions and the errata, reviewed the release script and the release itself in four rounds each, and adjudicated the second read&#x27;s questions.",
+    );
+    expect(markup).toContain(
+      "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 adjudication of the first read&#x27;s questions and, on November 12, reviewed a text bundle holding drafts of this note, the review record and the effort sensitivity; it asked for changes, PolicyBench made changes in response, and GPT-6.1 Sol has not read the published versions.",
+    );
+    expect(markup).toContain(
+      "No model from a lab other than Anthropic has checked the three decisions or the adjudications of the second read&#x27;s questions, and no model has checked the second read&#x27;s 86 findings of false or unsupported statements.",
+    );
+    expect(markup).toContain(
+      "The briefs for the second read and for the earlier adjudications said dollar answers had to match the reference to the cent, though PolicyBench counts an amount within $1 as right.",
+    );
+    expect(markup).toContain("Errata for the judge&#x27;s texts");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/judge_text_errata.md"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/docs/fable52/wording_review.md"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/reference_audit/2026-11-11-car-loan-interest/README.md"',
+    );
+    expect(markup).toContain("Claude effort sensitivity");
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/blob/main/sensitivity/claude-effort-2026-11.md"',
+    );
+    expect(markup).toContain('href="/model/claude-fable-5.2"');
+    expect(markup).toContain(
+      'href="https://github.com/PolicyEngine/policybench/releases/tag/dashboard-data-20261111"',
+    );
+    expect(markup).not.toMatch(/\{[A-Za-z][A-Za-z0-9]*(?::words)?\}/);
   });
 
   test("the GPT-6.1 Terra note renders its figures", () => {
