@@ -265,14 +265,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # thinking tokens) and $0.10 cached input, the standard-tier rates Google
     # lists "through November 30, 2026"; from 2026-12-01 they double to
     # $4 / $20 and $0.20 (aistudio.google.com/docs/pricing, read 2026-11-13).
-    # The row is priced at the rate in force on its run day, as
-    # gemini-4-argon is at the same dated rates; this entry holds the rate
-    # through 2026-11-30. The page lists one rate at every prompt length,
-    # implicit caching only, and no free tier for this model. litellm
-    # 1.95.0's bundled price map has no gemini-4 id, and its remote map
-    # carries the same three introductory rates (read 2026-11-13); the
-    # override keeps the row priced if the map is unavailable or changes on
-    # 2026-12-01.
+    # A row is priced at the rate in force on its run day, as
+    # gemini-4-argon's is. The cost reconstruction takes no date, so this
+    # entry prices a request at these rates whenever it is made; they are
+    # Google's rates only for requests made through 2026-11-30. The page
+    # lists one rate at every prompt length, implicit caching only, and no
+    # free tier for this model. litellm 1.95.0's bundled price map has no
+    # gemini-4 id, and its remote map carries the same three introductory
+    # rates (read 2026-11-13); the override prices a request from the rates
+    # above whether or not the map is available.
     "gemini-4-carbon": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     # gemini-4-hydrogen: $1.50 / $7.50 per 1M input/output tokens (output
     # includes thinking tokens) and $0.075 cached input, the paid tier's

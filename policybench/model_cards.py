@@ -7,7 +7,8 @@ and whether reasoning-by-default token appetite needs the thinking-class
 completion budget. None of this is model *configuration* — every model still
 runs unconfigured at its provider-default reasoning effort. Cards only
 encode serving-stack facts discovered during onboarding (see
-``policybench onboard``).
+``policybench onboard``); a card written before its model's onboarding says
+so in its notes.
 
 Cards OVERRIDE the family-prefix heuristics in ``eval_no_tools``; models
 without a card (or with a field left ``None``) keep the heuristic treatment.
@@ -574,10 +575,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # 2026-11-13, and from Gemini 4 Argon's card above. It records no request
     # to the model. Field by field:
     # - answer_contract "tool": Argon's contract, the board's forced answer
-    #   tool. Google's migration guide says that upgrading from
-    #   gemini-4-argon to gemini-4-carbon "requires no request schema
-    #   changes" (aistudio.google.com/docs/whats-new-gemini-4-carbon), and
-    #   litellm sends the forced call as it does for Argon (mode ANY with
+    #   tool. Google's migration guide, whose examples use the Interactions
+    #   API, says that upgrading from gemini-4-argon to gemini-4-carbon
+    #   "requires no request schema changes"
+    #   (aistudio.google.com/docs/whats-new-gemini-4-carbon), and litellm
+    #   sends the forced call as it does for Argon (mode ANY with
     #   allowed_function_names).
     # - explanation_chunk_size None: the canonical whole-scenario request
     #   (chunking is closed to new models).
@@ -587,15 +589,18 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   in the thinking-default class and takes that class's 300s timeout.
     #   The 16,384-token starting budget is the Gemini family's.
     # - request_timeout_seconds None: the class default, as on Argon.
-    # - provider_max_completion_tokens 32_768: what one non-streaming request
-    #   returns. Google's long-decode guide gives 32K per non-streaming
+    # - provider_max_completion_tokens 32_768: the Models API's
+    #   outputTokenLimit for the model, whose entry lists generateContent
+    #   among its supported methods (models.get, read 2026-11-13). litellm
+    #   makes one non-streaming generateContent request. Google's long-decode
+    #   and thinking guides describe the Interactions API and give the same
+    #   figure for a non-streaming request there: 32K per non-streaming
     #   request on gemini-4-carbon and gemini-4-argon
-    #   (aistudio.google.com/docs/long-decode), its thinking guide gives
-    #   32,768 tokens for the same calls, and the Models API's
-    #   outputTokenLimit for the model is 32,768 (models.get, read
-    #   2026-11-13). The model page lists 65,536 as "default synchronous",
-    #   which the thinking guide gives for streaming calls on this model.
-    #   litellm makes one non-streaming REST request.
+    #   (aistudio.google.com/docs/long-decode) and 32,768 tokens for
+    #   non-streaming calls on the two models
+    #   (aistudio.google.com/docs/generate-content/thinking). The model page
+    #   lists 65,536 as "default synchronous", which the thinking guide gives
+    #   for streaming calls on this model.
     # - expected_cost_per_scenario_usd is not set: no per-scenario cost has
     #   been measured.
     "gemini/gemini-4-carbon": ModelCard(
@@ -615,13 +620,16 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "gemini-4-argon to gemini-4-carbon needs no change to the "
             "request schema. The harness sends no thinkingConfig, and Google's "
             "thinking guide lists the model's default as On (medium), with "
-            "levels low, medium and high. That guide and the long-decode "
-            "guide give 32,768 tokens for one non-streaming request on this "
-            "model, which is what the harness sends, and the Models API's "
-            "outputTokenLimit is 32,768; the model page lists 65,536 as the "
-            "default synchronous output. Google's guide says Carbon spends "
-            "more thinking tokens per turn than Argon. Google lists $2/$10 "
-            "per 1M through 2026-11-30 and $4/$20 from 2026-12-01."
+            "levels low, medium and high. The Models API gives the model an "
+            "outputTokenLimit of 32,768 and lists generateContent, the method "
+            "the harness calls once without streaming, among its supported "
+            "methods. The thinking guide and the long-decode guide describe "
+            "the Interactions API and give the same 32,768 tokens for one "
+            "non-streaming request on this model; the model page lists "
+            "65,536 as the default synchronous output. Google's migration "
+            "guide says Carbon spends more thinking tokens per turn than "
+            "Argon on complex tasks. Google lists $2/$10 per 1M through "
+            "2026-11-30 and $4/$20 from 2026-12-01."
         ),
     ),
     # Gemini 4 Hydrogen. Like the Carbon card above, this card is written
@@ -641,12 +649,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   sends no thinkingConfig, so this model's default is high where
     #   Carbon's and Argon's is medium.
     # - request_timeout_seconds None: the class default.
-    # - provider_max_completion_tokens 65_536: what one non-streaming request
-    #   returns. Google's long-decode and thinking guides give 65,536 tokens
-    #   for non-streaming gemini-4-hydrogen calls
-    #   (aistudio.google.com/docs/long-decode), and the Models API's
-    #   outputTokenLimit for the model is 65,536 (models.get, read
-    #   2026-11-13).
+    # - provider_max_completion_tokens 65_536: the Models API's
+    #   outputTokenLimit for the model, whose entry lists generateContent
+    #   among its supported methods (models.get, read 2026-11-13). litellm
+    #   makes one non-streaming generateContent request. Google's long-decode
+    #   and thinking guides describe the Interactions API and give the same
+    #   65,536 tokens for non-streaming gemini-4-hydrogen calls there
+    #   (aistudio.google.com/docs/long-decode,
+    #   aistudio.google.com/docs/generate-content/thinking).
     # - expected_cost_per_scenario_usd is not set: no per-scenario cost has
     #   been measured.
     "gemini/gemini-4-hydrogen": ModelCard(
@@ -665,10 +675,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "sends no thinkingConfig, and Google's thinking guide lists the "
             "model's default as On (high), with levels low, medium, high "
             "and xhigh, where Gemini 4 Carbon's and Argon's default is "
-            "medium. That guide and the long-decode guide give 65,536 "
-            "tokens for one non-streaming request on this model, and the "
-            "Models API's outputTokenLimit is 65,536. Google lists $1.50/"
-            "$7.50 per 1M."
+            "medium. The Models API gives the model an outputTokenLimit of "
+            "65,536 and lists generateContent, the method the harness calls "
+            "once without streaming, among its supported methods; the "
+            "thinking guide and the long-decode guide describe the "
+            "Interactions API and give the same 65,536 tokens for one "
+            "non-streaming request on this model. Google lists $1.50/$7.50 "
+            "per 1M."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(

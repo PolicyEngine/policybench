@@ -3359,9 +3359,10 @@ def test_gemini_4_hydrogen_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
-# Google's listed per-1M rates (input, cached input, output), written out
-# here and not read from PRICE_OVERRIDES_PER_1M, so the property below checks
-# the override against the page's figures.
+# Google's listed per-1M rates (input, cached input, output; Carbon's are the
+# rates the page lists through 2026-11-30), written out here and not read from
+# PRICE_OVERRIDES_PER_1M, so the property below checks the override against
+# the page's figures.
 GEMINI_4_LISTED_RATES_PER_1M = {
     "gemini-4-carbon": (2.0, 0.10, 10.0),
     "gemini-4-hydrogen": (1.5, 0.075, 7.5),
