@@ -33,6 +33,14 @@ describe("notes", () => {
     expect([...slugs].sort()).toEqual(filenames);
   });
 
+  test("no note holds a placeholder left for the release's lead", () => {
+    for (const note of notes) {
+      const raw = JSON.stringify(note);
+      expect(raw).not.toContain("[LEAD");
+      expect(raw).not.toContain("LEAD:");
+    }
+  });
+
   test("every paragraph placeholder resolves", () => {
     for (const note of notes) {
       const resolved = note.paragraphs.map((paragraph) =>
@@ -104,7 +112,7 @@ describe("notes", () => {
 
   test("the newest note is the frozen release's, ahead of the October 31 one", () => {
     // The live pointer names the frozen release (src/data.artifact.json).
-    expect(notes[0].slug).toBe("2026-11-12-claude-fable-5-2-joins-the-board");
+    expect(notes[0].slug).toBe("2026-11-13-claude-fable-5-2-joins-the-board");
     expect(notes[0].release).toBe(artifact.tag);
     expect(notes[0].boardSnapshot).toBe(paperSnapshot.snapshotDate);
     expect(notes[0].slug.startsWith(notes[0].date)).toBe(true);
@@ -141,7 +149,7 @@ describe("notes", () => {
 
   test("the Claude Fable 5.2 note renders its figures", () => {
     const note = notes.find(
-      (n) => n.slug === "2026-11-12-claude-fable-5-2-joins-the-board",
+      (n) => n.slug === "2026-11-13-claude-fable-5-2-joins-the-board",
     )!;
     const markup = renderToStaticMarkup(
       createElement(NoteArticle, { note, titleLevel: "h1" }),
@@ -159,23 +167,30 @@ describe("notes", () => {
     expect(markup).toContain(
       "Claude Fable 5.2 ranks #3, behind only GPT-6 Sol and Claude Opus 5.5.",
     );
+    // The opening gives both rows' default efforts before the definition.
+    expect(markup).toContain(
+      "Claude Fable 5.2 ran at Anthropic&#x27;s default effort, high, and Claude Opus 5.5 defaults to medium. PolicyBench counts a dollar amount as right",
+    );
     expect(markup).toContain(closing);
     expect(markup).toContain(
-      "PolicyBench sends no reasoning setting, so Claude Fable 5.2 ran at the API&#x27;s default effort, high. Claude Fable 5.1 and Claude Sonnet 5.5 also default to high, and Claude Opus 5.5 defaults to medium.",
+      "Claude Fable 5.2&#x27;s API rejects forced tool calls, as Claude Fable 5.1&#x27;s, Claude Opus 5.5&#x27;s and Claude Sonnet 5.5&#x27;s do, so its row answers as a JSON object. PolicyBench sends none of the four rows a reasoning setting, and each runs at Anthropic&#x27;s default effort; Claude Fable 5.1 and Claude Sonnet 5.5 also default to high.",
+    );
+    expect(markup).toContain(
+      "PolicyBench&#x27;s usage records count reasoning tokens for no Claude row, so the zero they hold for Claude Fable 5.2 means not counted.",
     );
     // Thousands get separators.
     expect(markup).toContain(
       "drew a thinking block that took 1,789 of its 2,881 output tokens.",
     );
     expect(markup).toContain(
-      "On six households the answer ran past the row&#x27;s starting budget of 16,384 output tokens, and PolicyBench asked again with twice the budget, as it does for every row that sets a budget, up to each row&#x27;s ceiling.",
+      "On six households the answer stopped at the row&#x27;s starting budget of 16,384 output tokens, and PolicyBench asked again with twice the budget, as it does for every row that sets a budget, up to each row&#x27;s ceiling.",
     );
     expect(markup).toContain(
       "One of those second calls took 325 seconds, which the row&#x27;s 600-second timeout allowed; the three other Claude rows that answer as JSON objects also have 600 seconds, against PolicyBench&#x27;s default of 300 for Claude rows that reason at the provider default.",
     );
-    // Costs keep their cents.
+    // Prices and costs keep their figures; costs keep their cents.
     expect(markup).toContain(
-      "the 100 households cost $31.69, against $6.75 for Claude Opus 5.5 and $3.43 for Claude Sonnet 5.5.",
+      "At Anthropic&#x27;s price of $8 per million input tokens and $40 per million output tokens, the 100 households cost $31.69, against $6.75 for Claude Opus 5.5 and $3.43 for Claude Sonnet 5.5.",
     );
     expect(markup).toContain(
       "Claude Fable 5.1, the Fable model before it, gets 90.8% (#9) and cost $25.70.",
@@ -183,13 +198,16 @@ describe("notes", () => {
     // The effort sensitivity: signed intervals at one decimal, as the
     // sensitivity note gives them.
     expect(markup).toContain(
-      "PolicyBench also ran Claude Fable 5.2 and Claude Opus 5.5 once each at the other&#x27;s default effort, on the same 100 households, under a plan it fixed before the first call, and the runs change no board row.",
+      "PolicyBench also ran Claude Fable 5.2 and Claude Opus 5.5 each at the other&#x27;s default effort, on the same 100 households, under a plan it wrote before the first call and publishes with the runs&#x27; times, and the runs change no board row.",
     );
     expect(markup).toContain(
       "On the share of answers right, Claude Fable 5.2 at medium scores 1.6 points above its board row (95% interval +0.3 to +3.1), and Claude Opus 5.5 at high scores 0.2 points above its board row (95% interval -0.9 to +1.3).",
     );
     expect(markup).toContain(
       "At medium, Claude Fable 5.2 scores 0.5 points below Claude Opus 5.5 (95% interval -1.5 to +0.5), and at high, Claude Fable 5.2 scores 2.3 points below Claude Opus 5.5 (95% interval -3.9 to -0.8).",
+    );
+    expect(markup).toContain(
+      "Each model ran once at each effort, and the intervals resample households, so they do not measure how far a repeated run would move; Claude Opus 5.5&#x27;s board row ran on 2026-09-22, Claude Fable 5.2&#x27;s on 2026-11-09 and both effort runs on 2026-11-12.",
     );
     expect(markup).toContain(
       "with a certificate, the credit and the output are $1,921.",
@@ -199,7 +217,7 @@ describe("notes", () => {
       "Of the 52 models, 43 answer $0, eight give a positive amount, none of them $1,921, and one gives no answer.",
     );
     expect(markup).toContain(
-      "Every model is now scored on 1,934 of its 1,984 requested outputs, down from 1,935; PolicyBench excludes the other 50.",
+      "Every model is now scored on 1,934 of its 1,984 requested outputs; PolicyBench excludes the other 50, this one among them.",
     );
     // A bound on a move is not a board rate, so it keeps its two decimals.
     expect(markup).toContain(
@@ -213,6 +231,9 @@ describe("notes", () => {
     );
     expect(markup).toContain(
       "gives the same value as 2.60.0 for all 1,934 scored outputs; it moves three excluded outputs",
+    );
+    expect(markup).toContain(
+      "The check applied the previous release&#x27;s exclusions, so its file counts 1,935 scored outputs, the Minnesota output among them.",
     );
     expect(markup).toContain(
       "Claude Opus 5.5 judged the misses in the 122 audit cases Claude Fable 5.2 joined, on 2026-11-11, and it flagged seven references as suspect. Of the seven, six already had decisions, which this release keeps: four are outputs PolicyBench excludes, and two are references it affirmed in earlier releases.",
@@ -231,27 +252,45 @@ describe("notes", () => {
       "The first read raised 24 questions about a prompt or a reference, and the second raised 21.",
     );
     expect(markup).toContain(
-      "PolicyBench changes no reference and no scored output on those questions in this release, including where a change would raise Claude Fable 5.2&#x27;s share, because the first read covered only Claude Fable 5.2&#x27;s misses, and it will decide them from both reads together in a later release.",
+      "PolicyBench changes no reference and no scored output on those questions in this release, because the first read covered only Claude Fable 5.2&#x27;s misses, and it will decide them from both reads together in a later release.",
+    );
+    expect(markup).toContain(
+      "Across both reads and the errata check, the wording review record gives another value for 21 open questions; scoring their cells against that value would raise Claude Fable 5.2&#x27;s share in seven of them, lower it in seven and leave it unchanged in seven.",
+    );
+    expect(markup).toContain(
+      "Together, the 21 values would raise Claude Fable 5.2&#x27;s share; the 20 other than the one on auto loan interest would lower it.",
     );
     expect(markup).toContain(
       "For example, the prompts that list auto loan interest do not say whether the loan qualifies for the federal deduction for qualified passenger vehicle loan interest, and the references treat it as not qualifying.",
     );
-    // A board rate under another scoring keeps one decimal too.
+    // The prompt's rule keeps its quotation marks.
     expect(markup).toContain(
-      "With the interest counted as qualifying, policyengine-us 2.60.0 changes 11 scored outputs by more than $1; with those outputs excluded, Claude Fable 5.2 would get 93.4% of answers right and rank #5, and with them scored against the changed values, it would rank #3.",
+      "Every prompt says to treat &quot;any unlisted numeric input as 0 and any other unlisted household fact, boolean, or status input as false&quot;, and that rule gives the references&#x27; reading.",
+    );
+    expect(markup).toContain(
+      "With the interest counted as qualifying, policyengine-us 2.60.0 changes 11 scored outputs by more than $1, and across the 52 models, 81 answers on those outputs match the reference and 22 match the changed value.",
+    );
+    expect(markup).toContain(
+      "Claude Fable 5.2&#x27;s answers match the changed value on seven of them, the most of any model, so scoring them against the changed values would raise its share more than any other model&#x27;s. The audit gives the board with those outputs excluded and with them scored against the changed values.",
     );
     // The operating session and the decisions that could move its row.
     expect(markup).toContain(
-      "The session that operated this release runs on Claude Fable 5.2, the model the release adds, and a Claude Opus 5.5 agent built the script that runs the release&#x27;s steps.",
+      "The session that operated this release runs on Claude Fable 5.2, the model the release adds, and it also wrote the effort sensitivity&#x27;s plan and started its runs; a Claude Opus 5.5 agent built the script that runs the release&#x27;s steps.",
     );
     expect(markup).toContain(
       "PolicyBench ruled on the Minnesota output on November 1, eight days before Anthropic released Claude Fable 5.2, and its three decisions on the judge&#x27;s findings each keep a reference that Claude Fable 5.2&#x27;s answer misses.",
     );
     expect(markup).toContain(
-      "A Claude Opus 5.5 adjudicator proposed each of those decisions, and a second Claude Opus 5.5 reader tried to refute each and could not; no other lab&#x27;s model reviewed them.",
+      "PolicyBench&#x27;s records show that reviewers running Claude Opus 5.5, an Anthropic model, reviewed the serving card, the release script in four rounds, those decisions, the errata and the release itself in two rounds, and adjudicated the second read&#x27;s questions.",
     );
     expect(markup).toContain(
-      "OpenAI&#x27;s GPT-6.1 Sol read the cells Claude Fable 5.2 answered right and tried to refute each Claude Opus 5.5 adjudication of the first read&#x27;s questions.",
+      "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 adjudication of the first read&#x27;s questions and, on November 12, reviewed a text bundle of this note, the review record and the effort sensitivity; it asked for changes, and PolicyBench made changes in response.",
+    );
+    expect(markup).toContain(
+      "No model from a lab other than Anthropic has checked the three decisions or the adjudications of the second read&#x27;s questions, and no model has checked the second read&#x27;s 86 findings of false or unsupported statements.",
+    );
+    expect(markup).toContain(
+      "The briefs for the second read and for the earlier adjudications said dollar answers had to match the reference to the cent, though PolicyBench counts an amount within $1 as right.",
     );
     expect(markup).toContain("Errata for the judge&#x27;s texts");
     expect(markup).toContain(

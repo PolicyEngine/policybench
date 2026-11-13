@@ -6375,14 +6375,27 @@ FABLE52_EFFORT_COMPARISONS = {
 def _fable52_effort_facts() -> dict[str, str]:
     """Each comparison's difference (first minus second, in points of answers
     right) as a size at one decimal, and its 95% interval signed at one
-    decimal, as the sensitivity note renders them."""
-    comparisons = _load_json(FABLE52_EFFORT)["comparisons"]
+    decimal, as the sensitivity note renders them; and the day each board row
+    and the two effort runs ran, from their first request to their last
+    response."""
+    effort = _load_json(FABLE52_EFFORT)
+    comparisons = effort["comparisons"]
     facts = {}
     for prefix, name in FABLE52_EFFORT_COMPARISONS.items():
         comparison = comparisons[name]
         facts[f"{prefix}Diff"] = f"{abs(comparison['difference_points']):.1f}"
         facts[f"{prefix}Lo"] = f"{comparison['ci95_low_points']:+.1f}"
         facts[f"{prefix}Hi"] = f"{comparison['ci95_high_points']:+.1f}"
+
+    def day(run: dict) -> str:
+        (only,) = {run["first_request_utc"][:10], run["last_response_utc"][:10]}
+        return only
+
+    runs = effort["runs"]
+    (effort_day,) = {day(run["sensitivity"]) for run in runs.values()}
+    facts["opusBoardRunOn"] = day(runs["claude-opus-5.5-effort-high"]["board"])
+    facts["fableBoardRunOn"] = day(runs["claude-fable-5.2-effort-medium"]["board"])
+    facts["effortRunOn"] = effort_day
     return facts
 
 
@@ -6415,6 +6428,63 @@ def _fable52_wording_reads() -> dict[str, dict[str, int]]:
         ), name
         reads[name] = counts
     return reads
+
+
+# The wording review's tally of the open questions that state another value,
+# by the direction scoring their cells against it would move Claude Fable
+# 5.2's share.
+FABLE52_TALLY = re.compile(
+    r"Of the (\d+) with a stated other value, scoring their cells against that "
+    r"value would raise its score in (\d+), lower it in (\d+) and leave it "
+    r"unchanged in (\d+)\."
+)
+# The record's net sentence after that tally: the stated values applied
+# together, then without the car-loan question.
+FABLE52_NET = re.compile(
+    r"Applied together, the (\d+) would raise its score; without car-loan "
+    r"interest, the other (\d+) would lower it\."
+)
+
+
+def _fable52_open_question_tally() -> dict[str, int]:
+    """The tally sentence of docs/fable52/wording_review.md, whose three
+    directions must add up to its total, and the net sentence after it, which
+    sets the car-loan question apart from the rest."""
+    review = (FABLE52_DOCS / "wording_review.md").read_text()
+    (tally,) = FABLE52_TALLY.findall(review)
+    total, rise, fall, same = map(int, tally)
+    assert rise + fall + same == total
+    (net,) = FABLE52_NET.findall(review)
+    together, others = map(int, net)
+    # The net sentence speaks of the same questions, so it must follow the
+    # tally within its paragraph.
+    tally_match = FABLE52_TALLY.search(review)
+    net_match = FABLE52_NET.search(review)
+    assert tally_match.end() < net_match.start()
+    assert "\n" not in review[tally_match.end() : net_match.start()]
+    assert together == total
+    assert others == total - 1
+    return {
+        "valuedQuestions": total,
+        "valuedRaise": rise,
+        "valuedLower": fall,
+        "valuedSame": same,
+        "valuedWithoutCarLoan": others,
+    }
+
+
+def _fable52_car_loan_matches() -> dict[str, dict[str, int]]:
+    """Each model's answers on the car-loan audit's moved scored outputs that
+    match the reference or the changed value (the audit's
+    verification/model_matches.csv)."""
+    rows = _read_csv(FABLE52_CAR_LOAN / "verification/model_matches.csv")
+    return {
+        row["model"]: {
+            "reference": int(row["matches_reference"]),
+            "changed": int(row["matches_alternative"]),
+        }
+        for row in rows
+    }
 
 
 @cache
@@ -6511,7 +6581,10 @@ def _release_20261111_facts() -> dict:
     }
     reads = _fable52_wording_reads()
     car_loan = _load_json(FABLE52_CAR_LOAN / "verification/headline.json")
-    car_loan_row = car_loan["models"][FABLE52]
+    matches = _fable52_car_loan_matches()
+    # The publication check's file marks scored the outputs release 20261027
+    # scored, so it counts the ruled output among them.
+    check_rows = _read_csv(ROOT / check["output"])
 
     def one(value: float) -> float:
         return float(f"{value:.1f}")
@@ -6560,9 +6633,6 @@ def _release_20261111_facts() -> dict:
         "crpNoAnswer": sum(answer is None for answer in answers),
         "scoredOutputs": int(r.scored_outputs_per_model_fmt.replace(",", "")),
         "totalOutputs": int(r.total_outputs_per_model_fmt.replace(",", "")),
-        "previousScoredOutputs": int(
-            _results_at(RELEASE_20261027).scored_outputs_per_model_fmt.replace(",", "")
-        ),
         "excluded": r.excluded_output_count,
         "incumbents": len(then),
         # "by less than {moveBelow} points": the largest move rounded up to
@@ -6573,6 +6643,7 @@ def _release_20261111_facts() -> dict:
         "checkedOn": timing["pypi"]["read_at_utc"][:10],
         "checkedEngine": check["engine"],
         "excludedMoved": len(check["excluded_differ"]),
+        "checkedScored": sum(row["scored"] == "True" for row in check_rows),
         "rejudged": len(provenance["verdicts"]),
         "judgedOn": judged_on,
         "flagged": len(flagged),
@@ -6590,12 +6661,15 @@ def _release_20261111_facts() -> dict:
         "secondReadCells": reads["second"]["Cells"],
         "firstReadQuestions": reads["first"]["P1"],
         "secondReadQuestions": reads["second"]["P1"],
+        "secondReadFindings": reads["second"]["P2"],
+        **_fable52_open_question_tally(),
         "carLoanScored": car_loan["scored_cells_moved"],
-        # Board (b): the moved scored outputs excluded; board (c): scored
-        # against the values with the stated interest counted as qualifying.
-        "carLoanExcludedExact": one(car_loan_row["b"]["share"]),
-        "carLoanExcludedRank": car_loan_row["b"]["rank"],
-        "carLoanOtherRank": car_loan_row["c"]["rank"],
+        # Answers on the moved scored outputs, across every model, that match
+        # the reference or the value with the stated interest counted as
+        # qualifying, and the new row's that match the changed value.
+        "carLoanMatchReference": sum(m["reference"] for m in matches.values()),
+        "carLoanMatchChanged": sum(m["changed"] for m in matches.values()),
+        "carLoanFableChanged": matches[FABLE52]["changed"],
     }
 
 
@@ -6624,7 +6698,11 @@ def test_release_20261111_note_claims() -> None:
     from policybench.annotation_taxonomy import FAILURE_SOURCE_VALUES
     from policybench.config import PRICE_OVERRIDES_PER_1M
     from policybench.model_cards import card_for
-    from policybench.paper_results import MODEL_RELEASE_DATES, PaperResults
+    from policybench.paper_results import (
+        MODEL_DISPLAY_NAMES,
+        MODEL_RELEASE_DATES,
+        PaperResults,
+    )
 
     note = _note(FABLE52_NOTE)
     if not _recompute_against_frozen_snapshot(note):
@@ -6676,11 +6754,19 @@ def test_release_20261111_note_claims() -> None:
         assert serving[model]["answer_contract"] == card.answer_contract == "json"
         assert serving[model]["tool_choice"] is None
         assert serving[model]["reasoning_setup"].startswith("provider default")
+        assert "The API rejects forced tool use on this model" in card.notes, model
+    # The sentence names the three peers, in the order the board names them.
+    peers = [MODEL_DISPLAY_NAMES[model] for model in FABLE52_PEERS]
+    assert (
+        f"Claude Fable 5.2's API rejects forced tool calls, as {peers[0]}'s, "
+        f"{peers[1]}'s and {peers[2]}'s do, so its row answers as a JSON object."
+    ) in note["paragraphs"][1]
     card = card_for(serving[FABLE52]["provider_id"])
-    assert "The API rejects forced tool use on this model" in card.notes
     assert "so the row reasons at the provider default" in card.notes
     fingerprint = serving[FABLE52]["evidence"]["treatment_fingerprint"]
     assert fingerprint["thinking"] == {"mode": "provider_default"}
+    opus_fingerprint = serving["claude-opus-5.5"]["evidence"]["treatment_fingerprint"]
+    assert opus_fingerprint["thinking"] == {"mode": "provider_default"}
     # Anthropic's default effort: high for this model, Fable 5.1 and Sonnet
     # 5.5, medium for Opus 5.5 (the card cites the effort docs it read).
     assert "The API's default effort is high" in card.notes
@@ -6689,13 +6775,18 @@ def test_release_20261111_note_claims() -> None:
         "The API's default effort is high, as on Fable 5.1 and Sonnet 5.5, "
         "where Opus 5.5's and Haiku 5.5's is medium" in card.notes
     )
-    # The note states this row's run as a fact and the other three rows'
-    # efforts as the API's defaults, as the card does.
+    # The opening gives the two rows it compares at their defaults, before
+    # the definition; paragraph 1 gives the reason and the other two rows'
+    # defaults, as the card does.
     assert (
-        "so Claude Fable 5.2 ran at the API's default effort, high. Claude Fable "
-        "5.1 and Claude Sonnet 5.5 also default to high, and Claude Opus 5.5 "
-        "defaults to medium."
-    ) in text
+        "Claude Fable 5.2 ran at Anthropic's default effort, high, and Claude "
+        "Opus 5.5 defaults to medium. PolicyBench counts"
+    ) in note["paragraphs"][0]
+    assert (
+        "PolicyBench sends none of the four rows a reasoning setting, and each "
+        "runs at Anthropic's default effort; Claude Fable 5.1 and Claude Sonnet "
+        "5.5 also default to high."
+    ) in note["paragraphs"][1]
     # No Claude row records a reasoning token, so the new row's zero means
     # not counted; the card's probe drew a thinking block.
     import pandas as pd
@@ -6707,10 +6798,14 @@ def test_release_20261111_note_claims() -> None:
     households = _fable52_households()
     assert len(households) == facts["households"] == 100
     assert households["reasoning_tokens"].sum() == 0
+    assert (
+        "PolicyBench's usage records count reasoning tokens for no Claude row, so "
+        "the zero they hold for Claude Fable 5.2 means not counted."
+    ) in text
     assert "sent directly through Anthropic's SDK, drew a thinking block" in card.notes
     assert 0 < facts["probeThinking"] < facts["probeOutput"]
-    # The households that took a second call are the ones whose answers ran
-    # past the starting budget, and each second call fit in twice the budget
+    # The households that took a second call are the ones whose answers
+    # stopped at the starting budget, and each second call fit in twice the budget
     # (policybench/completion_budget.py doubles a budget up to the ceiling).
     from policybench.completion_budget import next_completion_budget
 
@@ -6732,6 +6827,11 @@ def test_release_20261111_note_claims() -> None:
         == 2 * facts["firstBudget"]
     )
     assert next_completion_budget(128_000, 128_000) is None
+    assert (
+        "On {escalated:words} households the answer stopped at the row's starting "
+        "budget of {firstBudget} output tokens, and PolicyBench asked again with "
+        "twice the budget"
+    ) in text
     # The timeout: this row's, and the three other Claude JSON rows', as the
     # serving config records them; the default the onboarding check
     # suggested, as the card and the runner give it.
@@ -6813,9 +6913,9 @@ def test_release_20261111_note_claims() -> None:
     assert facts["longCallSeconds"] < again["elapsed_seconds"].max()
     assert "One of those second calls took {longCallSeconds} seconds" in text
     # The effort sensitivity: each model once at the other's default, on the
-    # board's households, under a plan fixed before the first call, beside
-    # the board; each comparison is first minus second, as the note phrases
-    # it, and the note's figures are the sensitivity note's.
+    # board's households, under a plan PolicyBench wrote before the first
+    # call, beside the board; each comparison is first minus second, as the
+    # note phrases it, and the note's figures are the sensitivity note's.
     effort = _load_json(FABLE52_EFFORT)
     assert effort["release"] == RELEASE_20261111
     runs = effort["runs"]
@@ -6844,12 +6944,30 @@ def test_release_20261111_note_claims() -> None:
         "PolicyBench ran each of the two models once more at the other's default",
         "This sensitivity changes no board row.",
         "Two runs on 2026-11-12, each over the board's 100 households and prompts",
-        "PolicyBench fixed the plan before the first call and changed nothing after it",
+        # The plan, its author and its runs, as the sensitivity note states them.
+        "PolicyBench wrote the plan before the first call.",
+        "The session that operated release dashboard-data-20261111, which runs on "
+        "Claude Fable 5.2, wrote the plan and started both runs.",
         "one run per arm over all 100 households",
         "Each difference below is first minus second, in points of answers right",
         "as the 95% interval",
+        # The limits beside the intervals, and the days the runs ran.
+        "Each arm is one run. The intervals resample households; they do not "
+        "measure how far a second run of the same arm would move.",
+        "The runs behind each comparison were made on different dates: the Claude "
+        f"Opus 5.5 board row on {facts['opusBoardRunOn']}, the Claude Fable 5.2 "
+        f"board row on {facts['fableBoardRunOn']}, and both effort runs on "
+        f"{facts['effortRunOn']}.",
     ):
         assert phrase in effort_note, phrase
+    # The summary data hold the plan's terms and each run's first request and
+    # last response ("publishes with the runs' times"); the plan's own file is
+    # the sensitivity note's to link.
+    assert effort["plan"]["summary"].startswith("fixed before the first call")
+    for run in runs.values():
+        for side in ("board", "sensitivity"):
+            assert run[side]["first_request_utc"] < run[side]["last_response_utc"]
+    assert facts["opusBoardRunOn"] < facts["fableBoardRunOn"] < facts["effortRunOn"]
     assert (
         "Claude Fable 5.2 at medium scores {fableMediumDiff} points above its "
         "board row (95% interval {fableMediumLo} to {fableMediumHi}), and Claude "
@@ -6861,11 +6979,27 @@ def test_release_20261111_note_claims() -> None:
         "{atHighHi})."
     ) in text
     assert (
-        "under a plan it fixed before the first call, and the runs change no board row"
-        in text
+        "Claude Opus 5.5 each at the other's default effort, on the same "
+        "{households} households, under a plan it wrote before the first call and "
+        "publishes with the runs' times, and the runs change no board row."
+    ) in text
+    assert (
+        "Each model ran once at each effort, and the intervals resample "
+        "households, so they do not measure how far a repeated run would move; "
+        "Claude Opus 5.5's board row ran on {opusBoardRunOn}, Claude Fable 5.2's "
+        "on {fableBoardRunOn} and both effort runs on {effortRunOn}."
+    ) in text
+    # The prices: the config's, which cite Anthropic's model page.
+    price = PRICE_OVERRIDES_PER_1M[FABLE52]
+    assert (price["input"], price["output"]) == (8.0, 40.0)
+    assert (
+        f"At Anthropic's price of ${price['input']:g} per million input tokens and "
+        f"${price['output']:g} per million output tokens, the {{households}} "
+        "households cost ${fableCost}"
+    ) in text
+    assert "claude-fable-5-2: $8 / $40 per 1M input/output tokens" in (
+        (ROOT / "policybench/config.py").read_text()
     )
-    assert PRICE_OVERRIDES_PER_1M[FABLE52]["input"] == 8.0
-    assert PRICE_OVERRIDES_PER_1M[FABLE52]["output"] == 40.0
     # The ruled exclusion: one record added to release 20261027's, a Minnesota
     # output whose $0 reference rests on an unstated Certificate of Rent Paid.
     excluded = _excluded_at(ROOT)
@@ -6873,7 +7007,12 @@ def test_release_20261111_note_claims() -> None:
     # "no excluded output returns to scoring".
     assert _excluded_at(then_root) <= excluded
     assert facts["scoredOutputs"] == facts["totalOutputs"] - facts["excluded"]
-    assert facts["previousScoredOutputs"] == facts["scoredOutputs"] + 1
+    previous_scored = _results_at(RELEASE_20261027).scored_outputs_per_model_fmt
+    assert int(previous_scored.replace(",", "")) == facts["scoredOutputs"] + 1
+    assert (
+        "requested outputs; PolicyBench excludes the other {excluded}, this one "
+        "among them."
+    ) in text
     (record,) = [
         entry
         for entry in _load_json(EXCLUSIONS_PATH)["exclusions"]
@@ -6883,6 +7022,9 @@ def test_release_20261111_note_claims() -> None:
     assert "Certificate of Rent Paid" in record["unlisted_input"]
     assert record["frozen_value"] == 0.0
     assert record["decided_on"] == "2026-11-01"
+    assert "so PolicyBench stops scoring the output, under a ruling of November 1" in (
+        text
+    )
     assert record["engine_version"] == f"policyengine-us {facts['engineVersion']}"
     reading = record["alternative_reading"]
     assert "places the household in Minnesota and lists pre-subsidy rent" in reading
@@ -6962,6 +7104,24 @@ def test_release_20261111_note_claims() -> None:
     }
     assert len(moved) == facts["excludedMoved"] and moved <= excluded
     assert len(rows) - len(excluded | moved) == facts["scoredOutputs"]
+    # The check's file marks release 20261027's exclusions, so it scores the
+    # ruled Minnesota output too, which the newer engine leaves unchanged.
+    unscored = {
+        (row["scenario_id"], row["variable"]) for row in rows if row["scored"] != "True"
+    }
+    assert unscored == _excluded_at(then_root)
+    assert (
+        facts["checkedScored"] == len(rows) - len(unscored) == check["scored_outputs"]
+    )
+    assert facts["checkedScored"] == facts["scoredOutputs"] + 1
+    (ruled_row,) = [
+        row for row in rows if (row["scenario_id"], row["variable"]) == FABLE52_RULED
+    ]
+    assert ruled_row["scored"] == ruled_row["same"] == "True"
+    assert (
+        "The check applied the previous release's exclusions, so its file counts "
+        "{checkedScored} scored outputs, the Minnesota output among them."
+    ) in text
     # The check postdates the model's release and the snapshot's date.
     assert facts["checkedOn"] >= note["boardSnapshot"]
     # The judge: Claude Opus 5.5 on every re-judged case, on one day.
@@ -7015,6 +7175,18 @@ def test_release_20261111_note_claims() -> None:
         "the earned income tax credit, 20% of the federal credit"
         in (affirmed["reasoning"])
     )
+    # The note's legal values are the decision's: HB 268 of 2023 died, and
+    # for 2026 the reference is the earned income credit at 20%.
+    assert "Montana's HB 268 (2023)" in affirmed["reasoning"]
+    assert (
+        "For 2026 the household's one Montana refundable credit is"
+        in (affirmed["reasoning"])
+    )
+    assert (
+        "The 2023 bill that proposed that credit never became law, and the "
+        "reference is Montana's earned income credit, 20% of the federal one for "
+        "2026, so PolicyBench affirmed it."
+    ) in text
     assert sorted(scenarios[key[0]]["state"] for key in FABLE52_LATER_LAW) == [
         "TX",
         "VA",
@@ -7029,6 +7201,13 @@ def test_release_20261111_note_claims() -> None:
         assert "scheduled to return in 2026" in entry["reasoning"]
         assert "P.L. 119-21, enacted July 4, 2025" in entry["reasoning"]
         assert "before the July 3, 2026 reference freeze" in entry["reasoning"]
+    assert (
+        "A law of July 4, 2025, published before PolicyBench froze its references "
+        "on 2026-07-03, made the current ones permanent"
+    ) in text
+    assert "Those answers apply the older rates and deductions that were due to" in (
+        text
+    )
     # Claude Fable 5.2 misses each of the three outputs, which stay scored, so
     # each decision keeps a reference its answer misses.
     for scenario_id, variable in triage:
@@ -7053,8 +7232,8 @@ def test_release_20261111_note_claims() -> None:
     # judge's new texts on the re-judged cases, which Claude Fable 5.2
     # answered wrong, and GPT-6.1 Sol readers the texts on the other audit
     # cases, where it answered right; neither read saw the prompts, and the
-    # release changes nothing on their findings, including where a change
-    # would raise Claude Fable 5.2's share.
+    # release changes nothing on their findings; the record's tally of the
+    # open questions that state another value.
     reads = _fable52_wording_reads()
     review = (FABLE52_DOCS / "wording_review.md").read_text()
     assert reads["first"]["Cells"] == facts["rejudged"]
@@ -7098,6 +7277,10 @@ def test_release_20261111_note_claims() -> None:
         f"read's {facts['firstReadQuestions']} P1s",
         "A GPT-6.1 Sol reviewer tried to refute each of the 14",
         "GPT-6.1 Sol is an OpenAI model.",
+        # The tally's other values come from both reads and the errata check;
+        # car-loan interest is one that would raise the new row's share.
+        "| Errata check |",
+        "Its score would rise for car-loan interest",
     ):
         assert phrase in review, phrase
     assert "Independent" not in text
@@ -7105,15 +7288,89 @@ def test_release_20261111_note_claims() -> None:
         "Readers running Claude Opus 5.5, the judge's model, then read the "
         "judge's new texts on the {rejudged} cases"
     ) in text
-    assert "including where a change would raise Claude Fable 5.2's share" in text
-    # Who checked the three triage decisions is recorded outside the
-    # repository (the release's triage-adjudication run), so only the
-    # sentence is pinned here; Sol's part is the record's, pinned above.
     assert (
-        "no other lab's model reviewed them. OpenAI's GPT-6.1 Sol read the cells "
-        "Claude Fable 5.2 answered right and tried to refute each Claude Opus 5.5 "
-        "adjudication of the first read's questions."
+        "PolicyBench changes no reference and no scored output on those questions "
+        "in this release, because the first read covered only Claude Fable 5.2's "
+        "misses"
     ) in text
+    assert facts["valuedQuestions"] == (
+        facts["valuedRaise"] + facts["valuedLower"] + facts["valuedSame"]
+    )
+    assert facts["valuedWithoutCarLoan"] == facts["valuedQuestions"] - 1
+    assert (
+        "Across both reads and the errata check, the wording review record gives "
+        "another value for {valuedQuestions} open questions; scoring their cells "
+        "against that value would raise Claude Fable 5.2's share in "
+        "{valuedRaise:words} of them, lower it in {valuedLower:words} and leave it "
+        "unchanged in {valuedSame:words}. Together, the {valuedQuestions} values "
+        "would raise Claude Fable 5.2's share; the {valuedWithoutCarLoan} other "
+        "than the one on auto loan interest would lower it."
+    ) in text
+    # The last paragraph: who operated the release, built its script and
+    # reviewed what could move its row, by model and lab, and what no model
+    # from another lab has checked. The release's design note and the wording
+    # review record state each part; the triage reviewers and the effort
+    # plan's author rest on PolicyBench's own records, which the repository
+    # does not hold, so the note words the reviewers as those records.
+    for phrase in (
+        "Claude Opus 5.5, an Anthropic model like the row's, reviewed the serving card",
+        "Claude Opus 5.5 readers other than its builder reviewed the release "
+        "driver in four rounds",
+        "a Claude Opus 5.5 adjudicator proposed each of the three triage decisions "
+        "from the law, and a second Claude Opus 5.5 reader tried to refute each "
+        "and could not; no other lab's model reviewed them.",
+        "no other lab's refutation has run on round two",
+        "The release review ran in two rounds",
+        "six Claude Opus 5.5 reviewers read the release at 9e2ced44",
+        "four more Claude Opus 5.5 reviewers read the release at 2c50d290",
+        "On 2026-11-12, GPT-6.1 Sol, an OpenAI model, reviewed a text bundle of "
+        "the effort sensitivity's plan, code change, note and summary data, the "
+        "release note, the wording-review record",
+        'Its verdict was "AGREE WITH CHANGES"',
+    ):
+        assert phrase in design, phrase
+    for phrase in (
+        "Claude Opus 5.5 checkers then verified each of the first read's 50 P2 "
+        "findings",
+        "Claude Opus 5.5 adjudicators took the ten second-read batches that hold a P1",
+        "No refutation pass by another lab has run on this round.",
+        f"The second read's {facts['secondReadFindings']} findings of the same "
+        "level have had no separate check",
+        "findings of false or unsupported statements",
+        "On 2026-11-12, GPT-6.1 Sol reviewed, from a bundle of their text",
+        "It asked for changes before publication. In response, this version states",
+        "The brief also said answers match to the cent. That was wrong",
+        "the brief for round one and for the adjudications of the first seven "
+        "batches stated the cent rule",
+    ):
+        assert phrase in review, phrase
+    last = note["paragraphs"][-1]
+    for sentence in (
+        "The session that operated this release runs on Claude Fable 5.2, the "
+        "model the release adds, and it also wrote the effort sensitivity's plan "
+        "and started its runs; a Claude Opus 5.5 agent built the script that runs "
+        "the release's steps.",
+        "PolicyBench's records show that reviewers running Claude Opus 5.5, an "
+        "Anthropic model, reviewed the serving card, the release script in four "
+        "rounds, those decisions, the errata and the release itself in two "
+        "rounds, and adjudicated the second read's questions.",
+        "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 "
+        "adjudication of the first read's questions and, on November 12, "
+        "reviewed a text bundle of this note, the review record and the effort "
+        "sensitivity; it asked for changes, and PolicyBench made changes in "
+        "response.",
+        "No model from a lab other than Anthropic has checked the "
+        "{triageOutputs:words} decisions or the adjudications of the second "
+        "read's questions, and no model has checked the second read's "
+        "{secondReadFindings} findings of false or unsupported statements.",
+        "The briefs for the second read and for the earlier adjudications said "
+        "dollar answers had to match the reference to the cent, though "
+        "PolicyBench counts an amount within $1 as right.",
+    ):
+        assert sentence in last, sentence
+    # At most six sentences.
+    assert len(re.split(r"(?<=\.)\s+(?=[A-Z])", last)) <= 6
+    assert "approved" not in last
     # The car-loan audit: the prompts list auto loan interest and never say
     # whether the loan qualifies for the deduction; counting it as qualifying
     # moves the scored dollar outputs the note counts by more than $1; the
@@ -7132,9 +7389,23 @@ def test_release_20261111_note_claims() -> None:
     assert '"auto_loan_interest": "auto loan interest"' in (
         (ROOT / "policybench/prompts.py").read_text()
     )
-    assert "any other unlisted household fact, boolean, or status input as false" in (
-        TASK_PREFACE
+    # The prompt's rule, as the audit quotes it, gives the references'
+    # reading; the note quotes the same words.
+    rule = (
+        "any unlisted numeric input as 0 and any other unlisted household fact, "
+        "boolean, or status input as false"
     )
+    assert rule in TASK_PREFACE
+    assert f"Treat {rule}." in readme
+    assert (
+        "One reading applies the prompt's rule that \"any other unlisted "
+        'household fact, boolean, or status input" is false, and keeps the '
+        "references."
+    ) in review
+    assert (
+        f'Every prompt says to treat "{rule}", and that rule gives the '
+        "references' reading."
+    ) in text
     assert car_loan["engine"] == f"policyengine-us {facts['engineVersion']}"
     assert car_loan["scored_outputs_per_model"] == facts["scoredOutputs"]
     moved = pd.read_csv(FABLE52_CAR_LOAN / "verification/moved_cells.csv")
@@ -7149,16 +7420,50 @@ def test_release_20261111_note_claims() -> None:
         "share": round(exact[FABLE52], 3),
         "rank": facts["fableRank"],
     }
+    # The answers on the moved scored outputs that match each value: the
+    # per-model counts add up to the per-cell counts, the audit and the record
+    # give the same totals, and the new row matches the changed value on more
+    # of them than any other model.
+    matches = _fable52_car_loan_matches()
+    assert set(matches) == set(names)
+    assert moved["models_matching_reference"].sum() == facts["carLoanMatchReference"]
+    assert moved["models_matching_alternative"].sum() == facts["carLoanMatchChanged"]
+    assert (
+        f"Across the {facts['carLoanScored']} scored outputs, "
+        f"{facts['carLoanMatchReference']} model answers match the reference and "
+        f"{facts['carLoanMatchChanged']} match the alternative; no answer matches "
+        "both."
+    ) in readme
+    assert (
+        f"In the {facts['carLoanScored']} scored cells, "
+        f"{facts['carLoanMatchReference']} model answers match only the reference "
+        f"and {facts['carLoanMatchChanged']} only the other reading's value; "
+        f"Claude Fable 5.2 matches the other reading in "
+        f"{facts['carLoanFableChanged']} and the reference in "
+        f"{matches[FABLE52]['reference']}."
+    ) in review
+    others = [m["changed"] for model, m in matches.items() if model != FABLE52]
+    assert facts["carLoanFableChanged"] > max(others)
+    # Scored against the changed values (the audit's board c), its share rises
+    # by more than any other model's. Under (c) another model's share moves
+    # further, downward, and with the outputs excluded (b) other shares rise
+    # more, so the note claims the rise under (c) only.
     boards = pd.read_csv(FABLE52_CAR_LOAN / "verification/scoreboards.csv")
     boards = boards.set_index("model")
+    rise = boards["share_c"] - boards["share_a"]
+    assert rise.idxmax() == FABLE52 and rise[FABLE52] > 0
     assert (
-        float(f"{boards.loc[FABLE52, 'share_b']:.1f}") == facts["carLoanExcludedExact"]
-    )
-    assert boards.loc[FABLE52, "rank_b"] == facts["carLoanExcludedRank"]
-    assert boards.loc[FABLE52, "rank_c"] == facts["carLoanOtherRank"]
-    # Either change would raise Claude Fable 5.2's share.
-    assert boards.loc[FABLE52, "share_b"] > boards.loc[FABLE52, "share_a"]
-    assert boards.loc[FABLE52, "share_c"] > boards.loc[FABLE52, "share_a"]
+        "With the interest counted as qualifying, policyengine-us {engineVersion} "
+        "changes {carLoanScored} scored outputs by more than $1, and across the "
+        "{nModels} models, {carLoanMatchReference} answers on those outputs match "
+        "the reference and {carLoanMatchChanged} match the changed value. Claude "
+        "Fable 5.2's answers match the changed value on {carLoanFableChanged:words} "
+        "of them, the most of any model, so scoring them against the changed "
+        "values would raise its share more than any other model's. The audit "
+        "gives the board with those outputs excluded and with them scored against "
+        "the changed values."
+    ) in text
+    assert {"share_b", "share_c"} <= set(boards.columns)
     # The correction line: #254 and #256 corrected eleven notes, dated
     # September 1 to October 31.
     corrected = set()
@@ -7180,6 +7485,20 @@ def test_release_20261111_note_claims() -> None:
         assert shown.returncode == 0, shown.stderr.decode()
         corrected |= {Path(name).stem for name in shown.stdout.decode().split()}
     assert len(corrected) == 11
+    # "No score moved": the two commits change notes, tests, a note script and
+    # a design note, and no data or reference file.
+    for commit in ("03c80a41", "8180cde1"):
+        shown = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-only", f"{commit}^", commit],
+            capture_output=True,
+        )
+        assert shown.returncode == 0, shown.stderr.decode()
+        for name in shown.stdout.decode().split():
+            assert name.startswith(
+                ("app/src/notes/", "app/tests/", "tests/", "scripts/", "docs/")
+            ), (commit, name)
+    assert "where it defined the score by its $1 tolerance alone" in text
+    assert "No score moved." in text
     assert min(corrected)[:10] == "2026-09-01" and max(corrected)[:10] == "2026-10-31"
     assert "PolicyBench has corrected eleven of its notes" in text
     assert "from September 1 to October 31" in text
@@ -7256,3 +7575,12 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
         opening = note["paragraphs"][0]
         if SCORE_DEFINITION in opening:
             assert opening.endswith(f"{SCORE_DEFINITION} {SCORE_WEIGHTING}"), path.name
+
+
+def test_no_note_holds_a_lead_marker():
+    """No note carries a placeholder left for the release's lead ("[LEAD" or
+    "LEAD:") in its title, paragraphs, facts or links."""
+    for path in sorted(NOTES_DIR.glob("*.json")):
+        raw = path.read_text()
+        for marker in ("[LEAD", "LEAD:"):
+            assert marker not in raw, (path.name, marker)
