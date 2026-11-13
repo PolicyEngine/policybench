@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -471,15 +471,62 @@ describe("corrections beside the judge's texts", () => {
     expect(html).not.toContain('data-testid="judge-note-disclosure"');
   });
 
-  test("a judge's note carries the line that a judge model wrote it", () => {
+  const judgeLine =
+    "This note began as text that a judge model (GPT-5.6 Sol, Claude Opus 5 or Claude Opus 5.5) wrote after scoring; PolicyBench has since reworded some of these notes and has checked only some of them, and the ";
+  const errataClause = `<a href="${JUDGE_TEXT_ERRATA_URL}" class="underline underline-offset-2 hover:text-text">errata</a> list the statements this release’s check found wrong.`;
+
+  test("a judge's note carries the line on who wrote it, who reworded it and what the errata cover", () => {
     const html = renderRow("scenario_000", federal, "claude-fable-5");
     expect(html).toContain('data-testid="judge-note-disclosure"');
-    expect(html).toContain(
-      "A judge model (GPT-5.6 Sol, Claude Opus 5 or Claude Opus 5.5) wrote this note after scoring, and PolicyBench has checked only some of these notes; the ",
+    expect(html).toContain(judgeLine);
+    expect(html).toContain(errataClause);
+    // "this release's check": the errata page lists what this release's
+    // readers and checkers found, not every correction PolicyBench has made.
+    expect(page).toContain(
+      "This page lists the statements in the 122 re-judged cells that readers found wrong and checkers upheld.",
     );
-    expect(html).toContain(
-      `<a href="${JUDGE_TEXT_ERRATA_URL}" class="underline underline-offset-2 hover:text-text">errata</a> list the statements it found wrong.`,
+  });
+
+  test("the line says PolicyBench reworded notes while its amended wording shows on the live board", () => {
+    // PolicyBench's committed wording amendments replace text inside row notes
+    // (each replaces its old text with its new text). Where a new text shows
+    // and its old text does not, the shown note is not the judge's words alone;
+    // on some rows the whole note is the amendment's text.
+    const amendmentsUrl = new URL(
+      "../../annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_wording-amendments.json",
+      import.meta.url,
     );
+    expect(existsSync(amendmentsUrl)).toBe(true);
+    const { amendments } = JSON.parse(readFileSync(amendmentsUrl, "utf8")) as {
+      amendments: {
+        case_id: string;
+        field: string;
+        model?: string;
+        old: string;
+        new: string;
+      }[];
+    };
+    const shown = amendments.flatMap((amendment) => {
+      const cell = amendment.case_id.match(/^us__(scenario_\d+)__(.+)$/);
+      if (amendment.field !== "annotation" || !amendment.model || !cell) {
+        return [];
+      }
+      const note =
+        explanations.scenarios[cell[1]]?.[cell[2]]?.models?.[amendment.model]
+          ?.annotation ?? "";
+      return note.includes(amendment.new) && !note.includes(amendment.old)
+        ? [{ scenarioId: cell[1], variable: cell[2], model: amendment.model, note, amendment }]
+        : [];
+    });
+    expect(shown.length).toBeGreaterThan(0);
+    const whole = shown.find(
+      ({ note, amendment }) => note.trim() === amendment.new.trim(),
+    );
+    expect(whole).toBeDefined();
+    const html = renderRow(whole!.scenarioId, whole!.variable, whole!.model);
+    expect(html).toContain('data-testid="judge-note-disclosure"');
+    expect(html).toContain(judgeLine);
+    expect(html).toContain("PolicyBench has since reworded some of these notes");
   });
 
   test("the fixed note for unparseable answers carries no judge line", () => {

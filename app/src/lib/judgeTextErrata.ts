@@ -123,8 +123,11 @@ export function auditJudgeNames(): string {
 }
 
 /**
- * Whether a row's audit note on the shown board is a judge model's text: the
- * live board's notes are, except the fixed note for unparseable answers.
+ * Whether a row's audit note on the shown board began as a judge model's text:
+ * the live board's notes did, except the fixed note for unparseable answers.
+ * Some of them show wording PolicyBench amended later
+ * (annotations/.../us_wording-amendments.json), and the payload does not mark
+ * which, so the line under every such note says so.
  */
 export function isJudgeWrittenNote(
   annotation: string | undefined,

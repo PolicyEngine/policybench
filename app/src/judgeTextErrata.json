@@ -364,7 +364,7 @@
       "rowSpans": {},
       "correction": "That reading is not itself an error: the prompt does not settle whether the head meets SSI's definition of disability, and PolicyBench's decision for this household holds that a careful reader could take the facts either way. SSI is $0 under either reading in the reference, which counts the listed $8,000 of taxable 403(b) distributions as unearned income (20 CFR 416.1121(a)); a withdrawal from a retirement account that SSI counts as a resource would not be income (20 CFR 416.1103(c)), but the prompt lists no such account among the head's assets.",
       "source": "annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json (scenario_023 snap, decided 2026-09-05) ; https://www.law.cornell.edu/cfr/text/20/416.1121 ; https://www.law.cornell.edu/cfr/text/20/416.1103 ; https://secure.ssa.gov/poms.nsf/lnx/0501120210",
-      "scoring": "The reference ($0) and the row's llm_error class stand: on the stated facts the answer is wrong because the model left the listed $8,000 of 403(b) distributions out of unearned income; its own explanation says that if they are counted, SSI is $0."
+      "scoring": "The reference ($0) and the row's llm_error class stand: on the stated facts the answer is wrong because the model left the listed $8,000 of 403(b) distributions out of unearned income."
     },
     {
       "cell": "us__scenario_023__ssi",

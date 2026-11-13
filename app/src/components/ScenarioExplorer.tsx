@@ -1254,16 +1254,17 @@ export function DetailContent({
                   className="mt-2 text-xs text-text-muted leading-relaxed"
                   data-testid="judge-note-disclosure"
                 >
-                  A judge model ({auditJudgeNames()}) wrote this note after
-                  scoring, and PolicyBench has checked only some of these
-                  notes; the{" "}
+                  This note began as text that a judge model (
+                  {auditJudgeNames()}) wrote after scoring; PolicyBench has
+                  since reworded some of these notes and has checked only some
+                  of them, and the{" "}
                   <a
                     href={JUDGE_TEXT_ERRATA_URL}
                     className="underline underline-offset-2 hover:text-text"
                   >
                     errata
                   </a>{" "}
-                  list the statements it found wrong.
+                  list the statements this release&rsquo;s check found wrong.
                 </p>
               ) : null}
             </>

@@ -8,7 +8,7 @@ Six readers marked 50 statements as false or unsupported in cells where the refe
 - They did not uphold 6: the judge's text is right, or the objection is to a word and not to the law.
 - They moved 8 to the open questions in the review record, because the corrected statement could put a reference in doubt or make an answer right.
 
-The page does not cover the second read, in which readers running GPT-6.1 Sol marked 86 findings at the same level in the 559 cells Claude Fable 5.2 answered right: no checker has verified those, and they are not listed here, nor are the lesser wording findings of either read.
+The page does not cover the second read, in which readers running GPT-6.1 Sol marked 86 findings at the same level in the 559 cells Claude Fable 5.2 answered right: no checker has verified those, and they are not listed here, nor are the lesser wording findings of either read. GPT-6.1 Sol, an OpenAI model, read this header and a sample of twelve entries on 2026-11-12 as part of its review of the release, and PolicyBench revised three entries after that review (the scenario_023 ssi entries); GPT-6.1 Sol has not read the other entries.
 
 No entry changes a score. Each entry gives where the text sits (the case note, the note's hypothesis field, or a model's row), the text as published, the correction, a source, and why scoring is unaffected. The texts stay as published in this release.
 
@@ -142,7 +142,7 @@ No entry changes a score. Each entry gives where the text sits (the case note, t
   - **Text:** "The model treated the 'is disabled' input as automatically meeting SSI's disability category."
   - **Correction:** That reading is not itself an error: the prompt does not settle whether the head meets SSI's definition of disability, and PolicyBench's decision for this household holds that a careful reader could take the facts either way. SSI is $0 under either reading in the reference, which counts the listed $8,000 of taxable 403(b) distributions as unearned income (20 CFR 416.1121(a)); a withdrawal from a retirement account that SSI counts as a resource would not be income (20 CFR 416.1103(c)), but the prompt lists no such account among the head's assets.
   - **Source:** annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json (scenario_023 snap, decided 2026-09-05) ; https://www.law.cornell.edu/cfr/text/20/416.1121 ; https://www.law.cornell.edu/cfr/text/20/416.1103 ; https://secure.ssa.gov/poms.nsf/lnx/0501120210
-  - **Scoring:** The reference ($0) and the row's llm_error class stand: on the stated facts the answer is wrong because the model left the listed $8,000 of 403(b) distributions out of unearned income; its own explanation says that if they are counted, SSI is $0.
+  - **Scoring:** The reference ($0) and the row's llm_error class stand: on the stated facts the answer is wrong because the model left the listed $8,000 of 403(b) distributions out of unearned income.
 
 - **Where:** row for GLM-5.2
   - **Text:** "The model said 'the head is disabled and eligible for SSI' based only on the generic disability flag."
