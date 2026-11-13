@@ -78,6 +78,7 @@ from policybench.cache import enable_cache
 from policybench.config import MODELS
 from policybench.eval_no_tools import (
     ANTHROPIC_THINKING_CAPTURE_INSTALLED,
+    REASONING_EFFORT_OVERRIDE_ENV,
     _aggregate_request_results,
     _bounded_thinking_tokens,
     _capture_anthropic_thinking_tokens,
@@ -106,6 +107,8 @@ HAIKU = "claude-haiku-5-5"
 # A Claude row on the JSON answer contract, for the MOCK board rows.
 SONNET = "claude-sonnet-5-5"
 SONNET_NAME = "claude-sonnet-5.5"
+# The JSON-contract Claude row the effort sensitivity runs sent effort "high".
+OPUS = "claude-opus-5-5"
 API_BASE = "https://api.anthropic.com"
 MESSAGES_URL = f"{API_BASE}/v1/messages"
 MOCK_THINKING_TEXT = "The 2026 standard deduction for a single filer applies."
@@ -796,6 +799,69 @@ def test_sync_rows_split_the_count_over_the_requests_outputs(mini_scenario):
 
     assert list(rows["reasoning_tokens"]) == [59.5, 59.5]
     assert list(rows["completion_tokens"]) == [61.5, 61.5]
+
+
+def test_an_effort_override_run_records_the_count_live_and_on_replay(
+    mini_scenario, tmp_path, litellm_cache_state
+):
+    """MOCK: a sensitivity run that sends a JSON-contract Claude row an effort
+    (POLICYBENCH_REASONING_EFFORT_OVERRIDE). The harness's own requests reach
+    litellm with ``output_config`` and the effort's disk-cache namespace. The
+    first answer lacks its explanation, so a repair round follows. The row
+    records both responses' counts, and so does a second run that replays
+    both answers from that namespace."""
+    monkeypatch = litellm_cache_state
+    monkeypatch.setattr(
+        "policybench.eval_no_tools._PROCESS_REASONING_EFFORT_OVERRIDE", []
+    )
+    monkeypatch.delenv("LITELLM_DROP_PARAMS", raising=False)
+    monkeypatch.setattr(litellm, "drop_params", False)
+    monkeypatch.setenv(REASONING_EFFORT_OVERRIDE_ENV, f"{OPUS}=high")
+    enable_cache(str(tmp_path / "cache"))
+
+    def board_body(outputs: dict, output_tokens: int, thinking: int) -> dict:
+        body = _with_count(THINKING, thinking)
+        body["model"] = OPUS
+        body["content"][1]["text"] = json.dumps({"outputs": outputs})
+        body["usage"]["output_tokens"] = output_tokens
+        return body
+
+    bodies = [
+        board_body({"income_tax": {"value": 3500}}, 123, 119),
+        board_body(MOCK_BOARD_OUTPUTS, 80, 70),
+    ]
+    requests: list[httpx.Request] = []
+    namespaces: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            content=_as_content(bodies[len(requests) - 1]),
+            headers={"content-type": "application/json"},
+        )
+
+    client = HTTPHandler(client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    def through_litellm(**kwargs):
+        namespaces.append(kwargs["cache"]["namespace"])
+        return litellm.completion(
+            **kwargs, api_key="test-key", api_base=API_BASE, client=client
+        )
+
+    monkeypatch.setattr("policybench.eval_no_tools.completion", through_litellm)
+    live = run_single_no_tools(mini_scenario, "income_tax", OPUS)
+    replay = run_single_no_tools(mini_scenario, "income_tax", OPUS)
+
+    sent = [json.loads(request.content) for request in requests]
+    assert [body["output_config"] for body in sent] == [{"effort": "high"}] * 2
+    assert namespaces == [f"{litellm.cache.namespace}:{OPUS}:effort=high"] * 4
+    for result, hits in ((live, [False, False]), (replay, [True, True])):
+        assert result["error"] is None
+        assert result["reasoning_tokens"] == 119 + 70
+        assert result["completion_tokens"] == 123 + 80
+        assert [r["reasoning_tokens"] for r in result["spend_ledger"]] == [119, 70]
+        assert [r["cache_hit"] for r in result["spend_ledger"]] == hits
 
 
 # The batch path, through the SDK's client.messages.batches.results
