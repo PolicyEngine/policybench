@@ -7259,7 +7259,15 @@ def test_release_20261111_note_claims() -> None:
         "This release changes no reference and no scored output on these findings.",
         "The first read covered only cells Claude Fable 5.2 answered wrong, so "
         "acting on it alone would favour that model",
-        "PolicyBench will decide the open questions from both reads together",
+        # The open questions stay open: no decision and no date for one.
+        "PolicyBench has decided none of the open questions for any model and has "
+        "set no date for deciding them; a decision would draw on both reads "
+        "together and take effect in a release after this one.",
+        "PolicyBench has not rechecked the classifications that leaned on that "
+        "rule, and a ruling would need that recheck first.",
+        "PolicyBench has ruled on none of the open questions and has set no date "
+        "for ruling. A ruling would apply to every model, and any change would "
+        "take effect in a release after this one.",
         # Only the re-judged cells got new texts.
         f"For this release the judge wrote new texts for the {facts['rejudged']} "
         "cells Claude Fable 5.2 answered wrong",
@@ -7291,7 +7299,8 @@ def test_release_20261111_note_claims() -> None:
     assert (
         "PolicyBench changes no reference and no scored output on those questions "
         "in this release, because the first read covered only Claude Fable 5.2's "
-        "misses"
+        "misses. The questions stay open for every model, and PolicyBench has set "
+        "no date for deciding them."
     ) in text
     assert facts["valuedQuestions"] == (
         facts["valuedRaise"] + facts["valuedLower"] + facts["valuedSame"]
@@ -7320,9 +7329,12 @@ def test_release_20261111_note_claims() -> None:
         "from the law, and a second Claude Opus 5.5 reader tried to refute each "
         "and could not; no other lab's model reviewed them.",
         "no other lab's refutation has run on round two",
-        "The release review ran in two rounds",
+        # The release review's three rounds: two on 2026-11-12 and a last
+        # pass on 2026-11-13 at the commit before publication.
+        "The release review ran in three rounds",
         "six Claude Opus 5.5 reviewers read the release at 9e2ced44",
         "four more Claude Opus 5.5 reviewers read the release at 2c50d290",
+        "On 2026-11-13, three Claude Opus 5.5 reviewers read the release at e218e0ee",
         "On 2026-11-12, GPT-6.1 Sol, an OpenAI model, reviewed a text bundle of "
         "the effort sensitivity's plan, code change, note and summary data, the "
         "release note, the wording-review record",
@@ -7350,15 +7362,19 @@ def test_release_20261111_note_claims() -> None:
         "model the release adds, and it also wrote the effort sensitivity's plan "
         "and started its runs; a Claude Opus 5.5 agent built the script that runs "
         "the release's steps.",
+        # The release review's three rounds are the design note's.
         "PolicyBench's records show that reviewers running Claude Opus 5.5, an "
         "Anthropic model, reviewed the serving card, the release script in four "
-        "rounds, those decisions, the errata and the release itself in two "
+        "rounds, those decisions, the errata and the release itself in three "
         "rounds, and adjudicated the second read's questions.",
+        # GPT-6.1 Sol read drafts: the note, the review record and the effort
+        # sensitivity each changed after its review, in part in response to it.
         "GPT-6.1 Sol, an OpenAI model, also tried to refute each Claude Opus 5.5 "
         "adjudication of the first read's questions and, on November 12, "
-        "reviewed a text bundle of this note, the review record and the effort "
-        "sensitivity; it asked for changes, and PolicyBench made changes in "
-        "response.",
+        "reviewed a text bundle holding drafts of this note, the review record "
+        "and the effort sensitivity; it asked for changes, PolicyBench made "
+        "changes in response, and GPT-6.1 Sol has not read the published "
+        "versions.",
         "No model from a lab other than Anthropic has checked the "
         "{triageOutputs:words} decisions or the adjudications of the second "
         "read's questions, and no model has checked the second read's "
@@ -7381,6 +7397,11 @@ def test_release_20261111_note_claims() -> None:
 
     car_loan = _load_json(FABLE52_CAR_LOAN / "verification/headline.json")
     readme = (FABLE52_CAR_LOAN / "README.md").read_text()
+    assert (
+        "The question stays open, together with the other open questions of the "
+        "release's wording review"
+    ) in readme
+    assert "records; PolicyBench has set no date for deciding them." in readme
     assert (
         "None says whether the loan qualifies for the federal deduction for "
         "qualified passenger vehicle loan interest, and the references treat it "
@@ -7575,6 +7596,37 @@ def test_no_note_gives_the_score_as_answers_within_one_dollar():
         opening = note["paragraphs"][0]
         if SCORE_DEFINITION in opening:
             assert opening.endswith(f"{SCORE_DEFINITION} {SCORE_WEIGHTING}"), path.name
+
+
+# Wording that commits PolicyBench to a later decision on the open questions,
+# which no ruling has scheduled.
+FABLE52_PROMISES = (
+    "will decide",
+    "will rule",
+    "will recheck",
+    "in a later release",
+    "to a later release",
+    "later ruling",
+)
+
+
+def test_release_20261111_texts_promise_no_decision() -> None:
+    """The release note, the wording review record, the judge-text errata and
+    the car-loan audit state that the open questions stay open with no date
+    set, and none of them promises a later decision."""
+    note = _note(FABLE52_NOTE)
+    texts = {
+        "note": " ".join([note["title"], *note["paragraphs"]]),
+        "wording_review.md": (FABLE52_DOCS / "wording_review.md").read_text(),
+        "judge_text_errata.md": (FABLE52_DOCS / "judge_text_errata.md").read_text(),
+        "car-loan README.md": (FABLE52_CAR_LOAN / "README.md").read_text(),
+    }
+    for name, text in texts.items():
+        flat = re.sub(r"\s+", " ", text).lower()
+        for promise in FABLE52_PROMISES:
+            assert promise not in flat, (name, promise)
+    for name in ("note", "wording_review.md", "car-loan README.md"):
+        assert "set no date for deciding them" in texts[name], name
 
 
 def test_no_note_holds_a_lead_marker():
