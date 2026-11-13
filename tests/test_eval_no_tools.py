@@ -3281,6 +3281,128 @@ def test_gemini_4_argon_cost_is_linear_in_tokens_and_bounded_by_the_cache_rates(
     assert cost(prompt_tokens) - 1e-12 <= cost(cached) <= cost(0) + 1e-12
 
 
+def test_gemini_4_carbon_runs_first_party_at_googles_dated_rate():
+    """Gemini 4 Carbon runs on the first-party Gemini API, like the other
+    Gemini rows, at the rate Google's pricing page lists through 2026-11-30:
+    $2 / $10 per 1M input/output tokens and $0.10 cached input, at every
+    prompt length (the page doubles all three from 2026-12-01). The override
+    holds that one rate and the reconstruction takes no date, so the entry
+    prices a request at these rates whenever it is made."""
+    assert MODELS["gemini-4-carbon"] == "gemini/gemini-4-carbon"
+    assert PRICE_OVERRIDES_PER_1M["gemini-4-carbon"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.10,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 2.0),
+        (0, 1_000_000, 0, 10.0),
+        (1_000_000, 1_000_000, 0, 12.0),
+        (1_000_000, 0, 1_000_000, 0.10),
+        (1_000_000, 0, 250_000, 1.525),
+    ],
+)
+def test_gemini_4_carbon_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="gemini-4-carbon",
+        model_id="gemini/gemini-4-carbon",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+def test_gemini_4_hydrogen_runs_first_party_at_googles_list_rate():
+    """Gemini 4 Hydrogen runs on the first-party Gemini API, like the other
+    Gemini rows, at the paid-tier rate on Google's pricing page: $1.50 /
+    $7.50 per 1M input/output tokens and $0.075 cached input, at every prompt
+    length, with no dated change."""
+    assert MODELS["gemini-4-hydrogen"] == "gemini/gemini-4-hydrogen"
+    assert PRICE_OVERRIDES_PER_1M["gemini-4-hydrogen"] == {
+        "input": 1.5,
+        "output": 7.5,
+        "cache_read": 0.075,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 1.5),
+        (0, 1_000_000, 0, 7.5),
+        (1_000_000, 1_000_000, 0, 9.0),
+        (1_000_000, 0, 1_000_000, 0.075),
+        (1_000_000, 0, 250_000, 1.14375),
+    ],
+)
+def test_gemini_4_hydrogen_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="gemini-4-hydrogen",
+        model_id="gemini/gemini-4-hydrogen",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+# Google's listed per-1M rates (input, cached input, output), written out
+# here and not read from PRICE_OVERRIDES_PER_1M, so the property below checks
+# the override against the page's figures.
+GEMINI_4_LISTED_RATES_PER_1M = {
+    "gemini-4-carbon": (2.0, 0.10, 10.0),
+    "gemini-4-hydrogen": (1.5, 0.075, 7.5),
+}
+
+
+@given(
+    model=st.sampled_from(sorted(GEMINI_4_LISTED_RATES_PER_1M)),
+    prompt_tokens=st.integers(min_value=0, max_value=1_048_576),
+    completion_tokens=st.integers(min_value=0, max_value=131_072),
+    cached_share=st.floats(min_value=0.0, max_value=1.0),
+)
+def test_gemini_4_carbon_and_hydrogen_costs_are_linear_and_bounded_by_the_cache_rate(
+    model, prompt_tokens, completion_tokens, cached_share
+):
+    """Invariants of each override's reconstruction: the cost is the sum of
+    uncached input, cached input and output at Google's listed rates; it is
+    never negative; and it lies between the all-cached and the uncached cost
+    of the same call."""
+    input_rate, cached_rate, output_rate = GEMINI_4_LISTED_RATES_PER_1M[model]
+    cached = int(prompt_tokens * cached_share)
+
+    def cost(cached_prompt_tokens):
+        return _reconstruct_token_cost(
+            model_name=model,
+            model_id=MODELS[model],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cached_prompt_tokens=cached_prompt_tokens,
+        ).usd
+
+    expected = (
+        (prompt_tokens - cached) * input_rate
+        + cached * cached_rate
+        + completion_tokens * output_rate
+    ) / 1_000_000
+    assert cost(cached) == pytest.approx(expected, abs=1e-12)
+    assert cost(cached) >= 0
+    assert cost(prompt_tokens) - 1e-12 <= cost(cached) <= cost(0) + 1e-12
+
+
 @pytest.mark.parametrize(
     (
         "prompt_tokens",
@@ -3456,6 +3578,45 @@ def test_gemini_4_argon_request_forces_the_answer_tool_and_sets_no_reasoning(
     )
 
     model_id = "gemini/gemini-4-argon"
+    assert _answer_contract_for_model(model_id, env={}) == "tool"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 300
+
+    _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "function": {"name": ANSWER_FUNCTION_NAME},
+    }
+    assert [tool["function"]["name"] for tool in kwargs["tools"]] == [
+        ANSWER_FUNCTION_NAME
+    ]
+    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["timeout"] == 300
+    assert "response_format" not in kwargs
+    for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
+        assert reasoning_key not in kwargs
+
+
+@pytest.mark.parametrize(
+    "model_id", ["gemini/gemini-4-carbon", "gemini/gemini-4-hydrogen"]
+)
+def test_gemini_4_carbon_and_hydrogen_force_the_answer_tool_and_set_no_reasoning(
+    mini_scenario, model_id
+):
+    """Gemini 4 Carbon's and Gemini 4 Hydrogen's cards select the board's
+    forced answer tool, as Gemini 4 Argon's does (the older Gemini rows
+    answer as JSON by the family default). The request carries no reasoning
+    parameter, so each model reasons at Google's default, which Google's
+    thinking guide gives as medium for Carbon and high for Hydrogen. Each
+    takes the thinking-default class's 300s timeout and the Gemini family's
+    16,384-token starting budget."""
+    from policybench.eval_no_tools import (
+        ANSWER_FUNCTION_NAME,
+        _answer_contract_for_model,
+        _chat_completion_request_kwargs,
+    )
+
     assert _answer_contract_for_model(model_id, env={}) == "tool"
     assert _thinking_configuration(model_id) == {"mode": "provider_default"}
     assert _request_timeout_seconds(model_id) == 300

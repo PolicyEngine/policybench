@@ -111,6 +111,23 @@ def test_gemini_4_argon_release_date_is_its_public_day():
     assert MODEL_RELEASE_DATES["gemini-4-argon"] == "2026-10-13"
 
 
+def test_gemini_4_carbon_release_date_is_its_public_day():
+    """The Gemini API changelog lists Gemini 4 Carbon as generally available
+    on 2026-11-10, and Google's post of that day opens the API to all paying
+    developers and enterprises. The post says Google had released the model
+    two weeks earlier to cybersecurity defenders through its Fairwind
+    Program; that partner-only period is excluded under the
+    public-availability rule, as Gemini 4 Argon's is."""
+    assert MODEL_RELEASE_DATES["gemini-4-carbon"] == "2026-11-10"
+
+
+def test_gemini_4_hydrogen_release_date_is_recorded():
+    """The Gemini API changelog lists Gemini 4 Hydrogen as generally
+    available on 2026-11-12, on the free and the paid tier, and Google's
+    launch post is dated the same day."""
+    assert MODEL_RELEASE_DATES["gemini-4-hydrogen"] == "2026-11-12"
+
+
 def test_gpt_6_1_terra_release_date_is_its_announcement_day():
     """OpenAI announced GPT-6.1 Terra on 2026-10-26 and opened it in ChatGPT
     (Plus, Pro, Business, Enterprise and Edu), Codex and the API (id

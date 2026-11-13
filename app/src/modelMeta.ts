@@ -152,6 +152,8 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "gemini-3.7-flash": "2026-08-13",
   "gemini-3.5-flash-lite": "2026-07-21",
   "gemini-4-argon": "2026-10-13",
+  "gemini-4-carbon": "2026-11-10",
+  "gemini-4-hydrogen": "2026-11-12",
   "gemini-3.1-flash-lite-preview": "2026-03-03",
   "gpt-5.4-mini": "2026-03-17",
   "gpt-5.4-nano": "2026-03-17",
