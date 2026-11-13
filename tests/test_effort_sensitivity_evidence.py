@@ -6,7 +6,12 @@ predictions must match the summary's pins; every score, run statistic and
 paired comparison in the summary must recompute from those predictions and the
 frozen snapshot (references, exclusions, weights and the two board rows'
 predictions); and every figure in ``sensitivity/claude-effort-2026-11.md`` must
-be one of those recomputed figures, rounded for display.
+be one of those recomputed figures, rounded for display, or one the summary
+records from files the repository does not hold (the spend ledgers' request
+counts, the probe records) or from its lockfile history (the litellm pins),
+which can be checked here only for consistency. The plan file
+``sensitivity/claude-effort-2026-11-plan.md`` must hold the plan's sections and
+a record whose figures are the summary's.
 """
 
 import functools
@@ -37,6 +42,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "sensitivity" / "data"
 SUMMARY = json.loads((DATA / "claude-effort-2026-11.json").read_text())
 DOC = ROOT / "sensitivity" / "claude-effort-2026-11.md"
+PLAN_DOC = ROOT / "sensitivity" / "claude-effort-2026-11-plan.md"
+MANIFEST = ROOT / "paper" / "snapshot" / "20260501" / "us_scenarios.csv"
 SNAPSHOT_DIR = ROOT / "paper" / "snapshot" / "20260501"
 RUN_DIR = SNAPSHOT_DIR / "runs" / "us_full_run_20260612_policyengine_4_16_1_populace"
 SCORE_COLUMNS = ["model", "scenario_id", "variable", "prediction"]
@@ -277,6 +284,58 @@ def _recomputed_comparisons() -> dict[str, dict]:
     return out
 
 
+def test_the_bootstrap_block_is_the_test_s_own_method():
+    """The summary's bootstrap settings are the ones this file recomputes with."""
+    assert SUMMARY["bootstrap"] == {
+        "seed": SEED,
+        "draws": 10_000,
+        "interval": "95% percentile",
+    }
+
+
+def test_each_run_stayed_under_its_cap_and_the_total_under_the_plan_s():
+    plan = SUMMARY["plan"]
+    costs = {model_id: _stats(_arm(model_id))["cost_usd"] for model_id in STEMS}
+    for model_id, cost in costs.items():
+        assert cost < plan["per_arm_start_usd"], model_id
+        record = SUMMARY["run_records"][model_id]
+        assert record["spent_usd"] < record["budget_usd"] == plan["per_arm_start_usd"]
+        assert record["stopped_reason"] is None
+    probes = sum(p["cost_usd"] for p in SUMMARY["probes"])
+    assert sum(costs.values()) + probes < plan["cap_usd"]
+
+
+def test_the_probes_came_before_the_runs_and_entered_no_score():
+    """Two recorded probes, one per model at its arm's effort, on the frozen
+    manifest's first household and one output, ended before either run's first
+    request (from the committed predictions); no probe row is in the arms'
+    predictions, which hold only the runs' households."""
+    probes = SUMMARY["probes"]
+    arms = {run["model"]: run["effort"] for run in SUMMARY["runs"].values()}
+    assert {(p["model"], p["effort"]) for p in probes} == set(arms.items())
+    first_household = pd.read_csv(MANIFEST, nrows=1)["scenario_id"].iloc[0]
+    assert {p["household"] for p in probes} == {first_household}
+    assert {len(p["outputs"]) for p in probes} == {1}
+    assert not any(p["scored"] for p in probes)
+    first_request = min(_stats(_arm(m))["first_request_utc"] for m in STEMS)
+    assert max(p["ended_utc"] for p in probes) < first_request
+    assert all(p["started_utc"] < p["ended_utc"] for p in probes)
+    litellm = SUMMARY["client_library"]
+    assert {p["litellm"] for p in probes} == {litellm["effort_runs"]["litellm"]}
+    assert f"litellm {litellm['effort_runs']['litellm']} adds" in SUMMARY["condition"]
+    assert "anthropic-beta: effort-2025-11-24" in SUMMARY["condition"]
+
+
+def test_the_board_rows_effort_labels_are_the_documented_defaults():
+    defaults = SUMMARY["effort_defaults"]
+    for run in SUMMARY["runs"].values():
+        assert defaults[run["model"]] == run["board_effort"]
+        assert run["board_effort"] != run["effort"]
+    assert {run["board_effort"] for run in SUMMARY["runs"].values()} == {
+        run["effort"] for run in SUMMARY["runs"].values()
+    }
+
+
 def test_paired_comparisons_recompute():
     assert set(SUMMARY["comparisons"]) == set(COMPARISONS)
     for key, expected in _recomputed_comparisons().items():
@@ -471,6 +530,7 @@ def _doc_without_code() -> str:
     text = DOC.read_text()
     text = re.sub(r"```.*?```", " ", text, flags=re.S)
     text = re.sub(r"`[^`]*`", " ", text)
+    text = re.sub(r"\]\([^)]*\)", "] ", text)  # link targets
     return re.sub(r"\s+", " ", text)
 
 
@@ -513,9 +573,6 @@ def _expected_prose() -> list[str]:
     def above_below(x: float) -> str:
         return "above" if x > 0 else "below" if x < 0 else "level with"
 
-    def moved(x: float) -> str:
-        return "gains" if x > 0 else "loses" if x < 0 else "moves"
-
     c1, c2 = c["fable_medium_vs_fable_board_high"], c["opus_high_vs_opus_board_medium"]
     c3, c4 = c["at_medium_fable_vs_opus"], c["at_high_fable_vs_opus"]
     board_days = {
@@ -523,35 +580,107 @@ def _expected_prose() -> list[str]:
         for model in BOARD_MODELS
     }
     budget = fingerprint["initial_completion_budget_tokens"]
+    defaults = SUMMARY["effort_defaults"]
+    probe_opus, probe_fable = SUMMARY["probes"]
+    probe_cost = probe_opus["cost_usd"] + probe_fable["cost_usd"]
+    both = opus["cost_usd"] + fable["cost_usd"]
+    litellm = SUMMARY["client_library"]
+    arm_litellm = litellm["effort_runs"]["litellm"]
+    board_litellm = {m: v["litellm"] for m, v in litellm["board_rows"].items()}
     return [
+        f"which PolicyBench read on {defaults['read_on']}, gives that default as"
+        f" {defaults['claude-fable-5.2']} for Claude Fable 5.2 and"
+        f" {defaults['claude-opus-5.5']} for Claude Opus 5.5; the board rows'"
+        ' "high" and "medium" below are those documented defaults.',
+        "The request differs from the board's by Anthropic's `output_config.effort`"
+        " field, which the harness sends for one named model when"
+        " `POLICYBENCH_REASONING_EFFORT_OVERRIDE` is set, and by the"
+        " `anthropic-beta: effort-2025-11-24` header, which the client library,"
+        f" litellm {arm_litellm}, adds to each request carrying that field.",
+        "A matched effort label does not mean matched tokens or cost;",
+        f"Claude Opus 5.5 at high ran from {probe_opus['started_utc'][11:19]} to"
+        f" {probe_opus['ended_utc'][11:19]} UTC on {probe_opus['started_utc'][:10]}"
+        f" and cost ${probe_opus['cost_usd']:,.2f}; Claude Fable 5.2 at medium ran"
+        f" from {probe_fable['started_utc'][11:19]} to"
+        f" {probe_fable['ended_utc'][11:19]} UTC and cost"
+        f" ${probe_fable['cost_usd']:,.2f}; ${probe_cost:,.2f} together.",
+        "The probes' answers entered no score.",
+        "they hold no response field that reports the effort Anthropic applied, and"
+        " Anthropic's effort documentation names none.",
+        f"The session that operated release {SUMMARY['release']}, which runs on"
+        " Claude Fable 5.2, wrote the plan and started both runs. A Claude Opus 5.5"
+        " agent wrote the option that sends the effort and the scripts, sent the two"
+        " probes and ran the scoring. GPT-6.1 Sol, an OpenAI model, read the plan,"
+        " the code change and a draft of this note before publication, as a bundle"
+        " of those files rather than the repository, and asked for changes.",
+        "[`claude-effort-2026-11-plan.md`](claude-effort-2026-11-plan.md) gives its"
+        " rules word for word and, after them, a record of the runs that lists every"
+        " departure from the plan.",
+        f"a spend cap of ${plan['cap_usd']:,.0f} of API credit across both arms,"
+        f" each arm starting with ${plan['per_arm_start_usd']:,.2f};",
+        "PolicyBench counts a dollar amount as right when it falls within $1 of the"
+        " reference PolicyEngine computes, and an eligibility answer as right when it"
+        " matches, and weights each answer by household impact.",
+        "so a difference can differ by 0.1 from the difference of the rounded scores"
+        " above. The four comparisons are on this headline measure; the bounded"
+        " score above is one figure per row, with no interval.",
+        "takes the 2.5th and 97.5th percentiles of the resampled mean difference as"
+        " the 95% interval;",
+        "The intervals resample households, not runs; see Limits.",
         f"Two runs on {arm_day}, each over the board's {households} households",
         f"a {fingerprint['request_timeout_seconds']}-second timeout",
         f"a starting output budget of {budget:,}"
         f" tokens that doubles, up to {fingerprint['completion_budget_ceiling']:,},",
         f"one run per arm over all {households} households;",
-        f"at most ${plan['cap_usd']:,.0f} of API spend across both runs and the probes,"
-        f" with ${plan['per_arm_start_usd']:,.2f} per run to start;",
-        f"PolicyBench resamples the households {SUMMARY['bootstrap']['draws']:,} times"
-        f" with seed {SUMMARY['bootstrap']['seed']}",
+        f"PolicyBench resamples the households {10_000:,} times with seed {SEED}",
         f"Scores are on the {len(_reference()):,} outputs the board scores;",
         f"Both runs completed all {households} households.",
         f"At medium, Claude Fable 5.2 scores {_one(abs(c3['difference_points']))}"
         f" points {above_below(c3['difference_points'])} Claude Opus 5.5.",
         f"At high, Claude Fable 5.2 scores {_one(abs(c4['difference_points']))} points"
         f" {above_below(c4['difference_points'])} Claude Opus 5.5.",
-        f"Claude Fable 5.2 {moved(c1['difference_points'])}"
-        f" {_one(abs(c1['difference_points']))} points from high to medium;",
-        f"Claude Opus 5.5 {moved(c2['difference_points'])}"
-        f" {_one(abs(c2['difference_points']))} points from medium to high.",
+        f"Claude Fable 5.2 at medium scores {_one(abs(c1['difference_points']))}"
+        f" points {above_below(c1['difference_points'])} its board row at high;",
+        f"Claude Opus 5.5 at high scores {_one(abs(c2['difference_points']))}"
+        f" points {above_below(c2['difference_points'])} its board row at medium.",
         f"The two runs cost ${opus['cost_usd']:,.2f} (Claude Opus 5.5 at high) and"
         f" ${fable['cost_usd']:,.2f} (Claude Fable 5.2 at medium),"
-        f" ${opus['cost_usd'] + fable['cost_usd']:,.2f} together.",
+        f" ${both:,.2f} together, and the probes ${probe_cost:,.2f}:"
+        f" ${both + probe_cost:,.2f} against the ${plan['cap_usd']:,.0f} cap.",
         f"Neither run reached its ${plan['per_arm_start_usd']:,.2f} cap.",
         f"The comparisons rest on {households} households.",
         f"the Claude Opus 5.5 board row on {board_days['claude-opus-5.5']},"
         f" the Claude Fable 5.2 board row on {board_days['claude-fable-5.2']},"
         f" and both effort runs on {arm_day}.",
         f"release {SUMMARY['release']}'s references and scored set.",
+        "The board rows' effort labels are Anthropic's documented defaults, read on"
+        f" {defaults['read_on']}: the board rows sent no effort, and no record shows"
+        " the default in force when Claude Opus 5.5's board row ran.",
+        "Claude Opus 5.5's board row ran when the repository's lockfile pinned"
+        f" litellm {board_litellm['claude-opus-5.5']}, and Claude Fable 5.2's when it"
+        f" pinned {board_litellm['claude-fable-5.2']}; both effort runs used litellm"
+        f" {arm_litellm}.",
+        f"PolicyBench checked offline, for all {households} households of both runs,",
+    ]
+
+
+def _pinned_text() -> list[str]:
+    """Statements with no figure of their own: who ran what, the guards'
+    timing, what the test covers, and the fresh caches."""
+    return [
+        "After the runs, PolicyBench tightened the option's guards, in the commits"
+        " after `921a7886`; the plan's record lists the changes. The data under"
+        " `sensitivity/data/` are from the runs made before that change, and nothing"
+        " was rerun.",
+        "`tests/test_effort_sensitivity_evidence.py` recomputes this page's scores,"
+        " intervals, costs, output tokens, latencies and run dates from those files"
+        " and the frozen snapshot. The request counts, the probes' figures and the"
+        " litellm versions come from the summary's `run_records`,"
+        " `board_run_records`, `probes` and `client_library` blocks,",
+        "POLICYBENCH_CACHE_DIR=results/local/claude-effort/opus55-high/cache \\",
+        "POLICYBENCH_CACHE_DIR=results/local/claude-effort/fable52-medium/cache \\",
+        "Each run starts with an empty cache directory of its own, as the effort"
+        " runs did.",
     ]
 
 
@@ -642,8 +771,67 @@ def test_doc_prose_figures_are_the_recomputed_figures():
         *_expected_prose(),
         _interval_sentence(),
         *_second_request_sentences(),
+        *_pinned_text(),
     ]:
         assert sentence in text, sentence
+    # Whole words only: "against" holds "gains".
+    assert not re.search(r"\b(gains?|gained|loses?|lost)\b", text)
+
+
+PLAN_HEADINGS = [
+    "## Why",
+    "## Arms",
+    "## Run rules",
+    "## Scoring",
+    "## Comparisons reported (all of them, whatever they show)",
+    "## Publication",
+    "## Review",
+]
+
+
+def test_the_plan_file_holds_the_plan_and_a_record_of_the_summary_s_figures():
+    """The published plan: its seven sections in order, then the dated record.
+    Its rules are the summary's plan terms, and the record's probe and spend
+    figures are the summary's."""
+    lines = PLAN_DOC.read_text().splitlines()
+    headings = [line for line in lines if line.startswith("## ")]
+    record = "## Record after the runs (2026-11-13)"
+    assert headings == [*PLAN_HEADINGS, record]
+    text = re.sub(r"\s+", " ", PLAN_DOC.read_text())
+    plan_part, record_part = text.split(record)
+    plan = SUMMARY["plan"]
+    for rule in (
+        f"One run per arm, {plan['households_per_arm']} households each.",
+        f"Spend cap: ${plan['cap_usd']:,.0f} of API credit across both arms. Each arm"
+        f" starts with ${plan['per_arm_start_usd']:,.2f}.",
+        "The effort value is the only difference from the board condition.",
+        "Paired by household, with the bootstrap method and seed of",
+    ):
+        assert rule in plan_part, rule
+    probe_opus, probe_fable = SUMMARY["probes"]
+    probes = probe_opus["cost_usd"] + probe_fable["cost_usd"]
+    spent = {m: r["spent_usd"] for m, r in SUMMARY["run_records"].items()}
+    opus, fable = (
+        spent["claude-opus-5.5-effort-high"],
+        spent["claude-fable-5.2-effort-medium"],
+    )
+    for sentence in (
+        f"they cost ${probe_opus['cost_usd']:,.2f} (Claude Opus 5.5) and"
+        f" ${probe_fable['cost_usd']:,.2f} (Claude Fable 5.2), ${probes:,.2f}"
+        " together. Their answers entered no score.",
+        f"The runs spent ${opus:,.2f} (Claude Opus 5.5 at high) and ${fable:,.2f}"
+        f" (Claude Fable 5.2 at medium), ${opus + fable + probes:,.2f} with the"
+        " probes.",
+        f"PolicyBench sent the two probes from {probe_opus['started_utc'][11:19]} to"
+        f" {probe_opus['ended_utc'][11:19]} (Claude Opus 5.5 at high) and from"
+        f" {probe_fable['started_utc'][11:19]} to {probe_fable['ended_utc'][11:19]}"
+        " (Claude Fable 5.2 at medium).",
+        "the option, the scripts, the data and the note were first committed in"
+        " `921a7886`",
+    ):
+        assert sentence in record_part, sentence
+    assert re.search(r"sha256 `[0-9a-f]{64}`", record_part)
+    assert "\u2014" not in text and "\u2013" not in text
 
 
 def test_doc_style():
@@ -663,7 +851,7 @@ def test_every_number_in_the_doc_is_a_recomputed_figure():
     rounding note, the 95% interval's percentiles, the comparison numbers)."""
     text = _doc_without_code()
     text = text.replace(f"release {SUMMARY['release']}", "release")
-    for name in ("Claude Fable 5.2", "Claude Opus 5.5"):
+    for name in ("Claude Fable 5.2", "Claude Opus 5.5", "GPT-6.1 Sol"):
         text = text.replace(name, "")
     text = text.replace("(November 2026)", "")
     allowed = (

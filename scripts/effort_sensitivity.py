@@ -1,10 +1,13 @@
 """The matched-effort sensitivity (November 2026): data, scores and comparisons.
 
 PolicyBench sends no reasoning setting, so Claude Fable 5.2's board row runs at
-Anthropic's default effort for it (high) and Claude Opus 5.5's at its default
-(medium). The sensitivity runs each model at the other's default, one run of
-the board's 100 households each, with POLICYBENCH_REASONING_EFFORT_OVERRIDE as
-the only change from the board condition:
+Anthropic's documented default effort for it (high) and Claude Opus 5.5's at its
+documented default (medium). The sensitivity runs each model at the other's
+default, one run of the board's 100 households each. Its request differs from
+the board's by Anthropic's ``output_config.effort``, which
+POLICYBENCH_REASONING_EFFORT_OVERRIDE sends for the named model, and by the
+``anthropic-beta: effort-2025-11-24`` header litellm 1.95.0 adds to a request
+carrying it:
 
 - Claude Opus 5.5 at effort high (``claude-opus-5.5-effort-high``);
 - Claude Fable 5.2 at effort medium (``claude-fable-5.2-effort-medium``).
@@ -27,7 +30,12 @@ per-program assets and ``sensitivity/data/claude-effort-2026-11.json``. Each
 ``--board-run`` is the run folder a board row was frozen from (its
 predictions must hash to the serving config's ``source_predictions_sha256``);
 only its spend ledgers are read, for the request counts the snapshot's
-predictions do not carry (failed attempts appear only in the ledger).
+predictions do not carry (failed attempts appear only in the ledger). Each
+``--probe`` (optional; scoring does not need it) is one of the two probe
+records written before the runs; the summary keeps its household, times, tokens
+and cost (no answer of a probe is scored). The litellm version each board row
+ran under is the repository lockfile's pin as last changed before that row's
+first request.
 """
 
 from __future__ import annotations
@@ -35,8 +43,11 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
+import importlib.metadata
 import json
 import math
+import re
+import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -72,6 +83,14 @@ N_BOOT = 10_000
 PLAN_HOUSEHOLDS = 100
 PLAN_CAP_USD = 45.0
 PLAN_PER_ARM_USD = 22.5
+# Where the board rows' effort labels come from: the board sends no effort, so
+# each row runs at Anthropic's documented default, read on this day.
+EFFORT_DEFAULTS = {
+    "source": "https://platform.claude.com/docs/en/build-with-claude/effort",
+    "read_on": "2026-11-12",
+    "claude-fable-5.2": "high",
+    "claude-opus-5.5": "medium",
+}
 
 # sensitivity model id -> arm definition
 ARMS = {
@@ -513,6 +532,54 @@ def run_records(run_root: Path) -> dict:
     return out
 
 
+def probe_record(path: Path) -> dict:
+    """What the summary keeps of a probe: no ids, no answer."""
+    record = json.loads(path.read_text())
+    model = next(
+        arm["board_model"]
+        for arm in ARMS.values()
+        if arm["override"] == f"{record['model_id']}={record['effort_requested']}"
+    )
+    assert record["litellm_outcome"] == "ok", path
+    assert record["harness_thinking_record"] == {
+        "reasoning_effort": record["effort_requested"]
+    }, path
+    return {
+        "model": model,
+        "effort": record["effort_requested"],
+        "household": record["scenario_id"],
+        "outputs": record["variables"],
+        "started_utc": record["started_at_utc"],
+        "ended_utc": record["ended_at_utc"],
+        "prompt_tokens": record["litellm_usage"]["prompt_tokens"],
+        "completion_tokens": record["litellm_usage"]["completion_tokens"],
+        "cost_usd": record["cost_usd_at_list_price"],
+        "litellm": record["litellm_version"],
+        "scored": False,
+    }
+
+
+def lockfile_litellm(before_utc: str) -> dict:
+    """The repository lockfile's litellm pin as last changed before a time."""
+    commit = subprocess.run(
+        ["git", "log", "-1", "--format=%H", f"--before={before_utc}", "--", "uv.lock"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    lock = subprocess.run(
+        ["git", "show", f"{commit}:uv.lock"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    pin = r'\[\[package\]\]\nname = "litellm"\nversion = "([^"]+)"'
+    (version,) = re.findall(pin, lock)
+    return {"lockfile_commit": commit, "litellm": version}
+
+
 def main() -> None:
     sys.path.insert(0, str(ROOT / "scripts"))
     from sensitivity_by_variable import by_variable_rates, write_asset
@@ -526,6 +593,14 @@ def main() -> None:
         default=[],
         metavar="MODEL=RUN_DIR",
         help="a board row's own run folder (both board models are required)",
+    )
+    parser.add_argument(
+        "--probe",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PROBE_JSON",
+        help="a probe record written before the runs (one per arm)",
     )
     args = parser.parse_args()
     inputs = scoring_inputs()
@@ -552,6 +627,12 @@ def main() -> None:
     board_runs = dict(item.split("=", 1) for item in args.board_run)
     if set(board_runs) != set(BOARD_MODELS):
         parser.error(f"--board-run needed for each of {BOARD_MODELS}")
+    probes = sorted(
+        (probe_record(path) for path in args.probe), key=lambda p: p["started_utc"]
+    )
+    # The runs used this interpreter's litellm, as the probes did.
+    effort_litellm = importlib.metadata.version("litellm")
+    assert {p["litellm"] for p in probes} <= {effort_litellm}, probes
     arms = arm_predictions_from_runs(args.run_root)
     assets = {}
     for model_id, arm in ARMS.items():
@@ -573,20 +654,25 @@ def main() -> None:
         "plan": {
             "summary": (
                 "fixed before the first call: each model at the other's provider "
-                "default effort, one run of the board's 100 households per arm, $45 "
-                "of API credit across both arms and the probes ($22.50 each to "
-                "start), the board's retry rule, and the four comparisons below, "
-                "each a paired household bootstrap"
+                "default effort, one run of the board's 100 households per arm, a "
+                "spend cap of $45 of API credit across both arms (each starting "
+                "with $22.50), the board's retry rule, and the four comparisons "
+                "below, each a paired household bootstrap; "
+                "sensitivity/claude-effort-2026-11-plan.md gives the plan's text "
+                "and records each departure from it"
             ),
             "households_per_arm": PLAN_HOUSEHOLDS,
             "cap_usd": PLAN_CAP_USD,
             "per_arm_start_usd": PLAN_PER_ARM_USD,
         },
         "condition": (
-            "the board row's serving card and prompts with one change: "
-            "POLICYBENCH_REASONING_EFFORT_OVERRIDE sends Anthropic's "
-            "output_config.effort for the named model"
+            "the board row's serving card and prompts; the request differs from "
+            "the board's by Anthropic's output_config.effort, which "
+            "POLICYBENCH_REASONING_EFFORT_OVERRIDE sends for the named model, and "
+            f"by the anthropic-beta: effort-2025-11-24 header litellm {effort_litellm} "
+            "adds to a request carrying it"
         ),
+        "effort_defaults": EFFORT_DEFAULTS,
         "scored_against": (
             f"the frozen {len(inputs.payload['modelStats'])}-model board's reference "
             "outputs and household output-group weights (paper/snapshot/20260501), "
@@ -602,6 +688,16 @@ def main() -> None:
             for model in BOARD_MODELS
         },
         **summarize(committed, board, inputs),
+    }
+    summary["probes"] = probes
+    summary["client_library"] = {
+        "effort_runs": {"litellm": effort_litellm},
+        "board_rows": {
+            arm["board_model"]: lockfile_litellm(
+                summary["runs"][arm_id]["board"]["first_request_utc"]
+            )
+            for arm_id, arm in ARMS.items()
+        },
     }
     SUMMARY.write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps({k: summary[k] for k in ("runs", "comparisons")}, indent=1))
