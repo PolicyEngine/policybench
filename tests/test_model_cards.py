@@ -78,8 +78,8 @@ EXPECTED = {
     "openrouter/z-ai/glm-5.3": ("tool", None, 2400, 16_384),
     "openrouter/meta/muse-wonder": ("json", None, 300, 16_384),
     "gemini/gemini-4-argon": ("tool", None, 300, 16_384),
-    "gemini/gemini-4-carbon": ("tool", None, 300, 16_384),
-    "gemini/gemini-4-hydrogen": ("tool", None, 300, 16_384),
+    "gemini/gemini-4-carbon": ("json", None, 900, 16_384),
+    "gemini/gemini-4-hydrogen": ("tool", None, 600, 16_384),
 }
 
 
@@ -137,6 +137,23 @@ def test_no_chunking_when_explanations_off():
     ],
 )
 def test_gpt_56_cards_record_measured_full_run_cost(model_id, expected_cost):
+    assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
+
+
+@pytest.mark.parametrize(
+    ("model_id", "expected_cost"),
+    [
+        ("gemini/gemini-4-carbon", 0.075),
+        ("gemini/gemini-4-hydrogen", 0.094),
+    ],
+)
+def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
+    model_id, expected_cost
+):
+    """Each card carries its card-free gauntlet's whole-scenario cost, rounded
+    to three places as ``policybench onboard`` suggests it; the token counts
+    behind each figure are rows of the cost-reconstruction tests in
+    tests/test_eval_no_tools.py."""
     assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
 
 

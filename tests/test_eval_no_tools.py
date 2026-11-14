@@ -3304,6 +3304,12 @@ def test_gemini_4_carbon_runs_first_party_at_googles_dated_rate():
         (1_000_000, 1_000_000, 0, 12.0),
         (1_000_000, 0, 1_000_000, 0.10),
         (1_000_000, 0, 250_000, 1.525),
+        # The card-free gauntlet's whole-scenario probe (json-full): 1,271
+        # prompt and 7,257 completion tokens (6,056 of them reasoning), no
+        # cached input, the counts the harness's usage extraction returned
+        # for that call. The gauntlet priced it at $0.075112 from litellm's
+        # map at the same rates; that is the card's $0.075.
+        (1_271, 7_257, 0, 0.075112),
     ],
 )
 def test_gemini_4_carbon_override_reconstructs_token_costs(
@@ -3342,6 +3348,11 @@ def test_gemini_4_hydrogen_runs_first_party_at_googles_list_rate():
         (1_000_000, 1_000_000, 0, 9.0),
         (1_000_000, 0, 1_000_000, 0.075),
         (1_000_000, 0, 250_000, 1.14375),
+        # The card-free gauntlet's whole-scenario probe (tool-full) used
+        # 11,947 completion tokens. Its report gives no prompt count; 2,762
+        # is Gemini 4 Argon's harness-path count for the same request,
+        # pending Hydrogen's own. That is the card's $0.094.
+        (2_762, 11_947, 0, 0.0937455),  # HPROBE-PROMPT-TOKENS
     ],
 )
 def test_gemini_4_hydrogen_override_reconstructs_token_costs(
@@ -3599,28 +3610,59 @@ def test_gemini_4_argon_request_forces_the_answer_tool_and_sets_no_reasoning(
         assert reasoning_key not in kwargs
 
 
-@pytest.mark.parametrize(
-    "model_id", ["gemini/gemini-4-carbon", "gemini/gemini-4-hydrogen"]
-)
-def test_gemini_4_carbon_and_hydrogen_force_the_answer_tool_and_set_no_reasoning(
-    mini_scenario, model_id
+def test_gemini_4_carbon_request_asks_for_json_and_sets_no_reasoning(mini_scenario):
+    """Gemini 4 Carbon's card selects the JSON contract: in the card-free
+    gauntlet the API accepted the forced answer tool, but the model reasoned
+    until the 16,384-token budget ran out (0 of 3 outputs parsed), and the
+    JSON probes passed 3/3 and 16/16. So the request declares no tool and
+    asks for a JSON object. It carries no reasoning parameter, so the model
+    reasons at Google's default, medium per Google's thinking guide. It takes
+    the card's 900s timeout and the Gemini family's 16,384-token starting
+    budget."""
+    from policybench.eval_no_tools import (
+        _answer_contract_for_model,
+        _chat_completion_request_kwargs,
+    )
+
+    model_id = "gemini/gemini-4-carbon"
+    assert _answer_contract_for_model(model_id, env={}) == "json"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 900
+
+    messages, kwargs = _chat_completion_request_kwargs(
+        mini_scenario, ["income_tax"], model_id
+    )
+
+    assert kwargs["response_format"] == {"type": "json_object"}
+    assert "tools" not in kwargs
+    assert "tool_choice" not in kwargs
+    assert "JSON object" in messages[0]["content"]
+    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["timeout"] == 900
+    for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
+        assert reasoning_key not in kwargs
+
+
+def test_gemini_4_hydrogen_request_forces_the_answer_tool_and_sets_no_reasoning(
+    mini_scenario,
 ):
-    """Gemini 4 Carbon's and Gemini 4 Hydrogen's cards select the board's
-    forced answer tool, as Gemini 4 Argon's does (the older Gemini rows
-    answer as JSON by the family default). The request carries no reasoning
-    parameter, so each model reasons at Google's default, which Google's
-    thinking guide gives as medium for Carbon and high for Hydrogen. Each
-    takes the thinking-default class's 300s timeout and the Gemini family's
-    16,384-token starting budget."""
+    """The Gemini API accepts a forced function call on Gemini 4 Hydrogen and
+    the card-free gauntlet passed 3/3 and 16/16 on it, so its card selects
+    the board's forced answer tool, as Gemini 4 Argon's does (the older
+    Gemini rows answer as JSON by the family default). The request carries no
+    reasoning parameter, so the model reasons at Google's default, high per
+    Google's thinking guide. It takes the card's 600s timeout and the Gemini
+    family's 16,384-token starting budget."""
     from policybench.eval_no_tools import (
         ANSWER_FUNCTION_NAME,
         _answer_contract_for_model,
         _chat_completion_request_kwargs,
     )
 
+    model_id = "gemini/gemini-4-hydrogen"
     assert _answer_contract_for_model(model_id, env={}) == "tool"
     assert _thinking_configuration(model_id) == {"mode": "provider_default"}
-    assert _request_timeout_seconds(model_id) == 300
+    assert _request_timeout_seconds(model_id) == 600
 
     _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
 
@@ -3632,7 +3674,7 @@ def test_gemini_4_carbon_and_hydrogen_force_the_answer_tool_and_set_no_reasoning
         ANSWER_FUNCTION_NAME
     ]
     assert kwargs["max_completion_tokens"] == 16_384
-    assert kwargs["timeout"] == 300
+    assert kwargs["timeout"] == 600
     assert "response_format" not in kwargs
     for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
         assert reasoning_key not in kwargs
