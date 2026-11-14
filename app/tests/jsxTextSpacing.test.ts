@@ -3,12 +3,33 @@ import { Glob } from "bun";
 import { loadBindings, transform } from "next/dist/build/swc";
 import ts from "typescript";
 
-// Next 16.2's compiler drops the leading space of a JSX text that spans more
-// than one line and contains an entity the compiler decodes (&apos;, &rsquo;,
-// &#39;, ...). So `{count} answer the\n  question&apos;s` renders as
-// "12answer the question's". The same text on one line, a multi-line text
-// without an entity, or one whose only &name; is not a JSX entity, keeps its
-// space. Put that space in an explicit {" "} after the element or expression.
+// Next 16.2's compiler (its own build of SWC) deletes whitespace that some JSX
+// texts show at their start or end, so two words run together on the page. A
+// JSX text is the run of characters between two tags or expressions. This
+// test fails on any text under src/ where that happens, by this rule, which
+// the cases below check against the compiler:
+//
+// 1. A text that starts with spaces or tabs followed directly by something
+//    other than whitespace loses those spaces and tabs if it also contains an
+//    entity the compiler decodes and a line break: a literal LF, CR, U+2028 or
+//    U+2029, or an encoded one such as &#10;. So `{count} answer the\n
+//    question&apos;s` renders as "12answer the question's". The same text on
+//    one line, or with no decoded entity, keeps its space.
+// 2. The compiler reads an encoded line break (&#10;, &#13;, &#8232; or
+//    &#8233;, in decimal or hex) as a line break in the source. When one sits
+//    in the whitespace at the start or end of a text, it vanishes together
+//    with the spaces, tabs and line breaks around it, so `{x}&#10;word`
+//    renders as "{x}word". TypeScript and Bun keep the character.
+//
+// Neither happens when that whitespace also holds a character the compiler
+// keeps: an encoded space such as &#32; or &nbsp;, or a literal whitespace
+// character other than a space, tab or line break. Whitespace inside a text
+// survives, though the compiler turns an encoded line break there into a
+// space. The compiler decodes the 253 names in JSX_ENTITY_NAMES, &# with
+// decimal digits and &#x (lowercase x) with hex digits, with at most nine
+// characters between & and ;. It leaves any other &name; as written.
+//
+// Put a space the compiler would drop in an explicit {" "} instead.
 const SRC = new URL("../src/", import.meta.url).pathname;
 
 // The 253 names in TypeScript's JSX entity table. Of 2,425 candidate names
@@ -40,15 +61,75 @@ const JSX_ENTITY_NAMES = new Set(
     "uml upsih upsilon uuml weierp xi yacute yen yuml zeta zwj zwnj"
   ).split(" "),
 );
+// The JSX names whose character is whitespace.
+const WHITESPACE_ENTITY_NAMES = new Set(["emsp", "ensp", "nbsp", "thinsp"]);
 // A reference the compiler decodes: &# with decimal digits or &#x (lowercase
 // x) with hex digits, at most nine characters between & and ;, or a JSX name.
-const REFERENCE = /&(?:#\d{1,8}|#x[\da-fA-F]{1,7}|([A-Za-z][A-Za-z\d]*));/g;
+const REFERENCE = /&(?:#(\d{1,8})|#x([\da-fA-F]{1,7})|([A-Za-z][A-Za-z\d]*));/y;
+const LINE_BREAKS = "\n\r\u2028\u2029";
 
-function decodesEntity(raw: string): boolean {
-  for (const [, name] of raw.matchAll(REFERENCE)) {
-    if (name === undefined || JSX_ENTITY_NAMES.has(name)) return true;
+// One character of a JSX text as the compiler reads it. The compiler splits a
+// text at line breaks and trims the spaces and tabs ("blank") next to them; it
+// never trims other ("kept") whitespace. `encoded` marks a decoded entity.
+interface Unit {
+  kind: "visible" | "kept" | "blank" | "break";
+  encoded: boolean;
+}
+
+function unit(char: string, encoded: boolean): Unit {
+  if (LINE_BREAKS.includes(char)) return { kind: "break", encoded };
+  if (!encoded && (char === " " || char === "\t")) return { kind: "blank", encoded };
+  return { kind: /\s/.test(char) ? "kept" : "visible", encoded };
+}
+
+// The unit for the reference at `match`, or null when the compiler leaves it
+// as written.
+function referenceUnit([, decimal, hex, name]: RegExpExecArray): Unit | null {
+  if (name !== undefined) {
+    if (!JSX_ENTITY_NAMES.has(name)) return null;
+    return { kind: WHITESPACE_ENTITY_NAMES.has(name) ? "kept" : "visible", encoded: true };
   }
-  return false;
+  const code = decimal !== undefined ? Number(decimal) : parseInt(hex, 16);
+  // The compiler fails the build on a reference past U+10FFFF.
+  if (code > 0x10ffff) return { kind: "visible", encoded: true };
+  return unit(String.fromCodePoint(code), true);
+}
+
+function readText(raw: string): Unit[] {
+  const units: Unit[] = [];
+  for (let i = 0; i < raw.length; ) {
+    REFERENCE.lastIndex = i;
+    const match = raw[i] === "&" ? REFERENCE.exec(raw) : null;
+    const decoded = match && referenceUnit(match);
+    if (match && decoded) {
+      units.push(decoded);
+      i += match[0].length;
+    } else {
+      units.push(unit(raw[i], false));
+      i += 1;
+    }
+  }
+  return units;
+}
+
+// Whether the compiler deletes whitespace at the start or end of this text.
+function losesWhitespace(raw: string): boolean {
+  const units = readText(raw);
+  const first = units.findIndex((u) => u.kind === "visible");
+  const last = units.findLastIndex((u) => u.kind === "visible");
+  const start = first === -1 ? units : units.slice(0, first);
+  const end = first === -1 ? units : units.slice(last + 1);
+  // Rule 1.
+  const stripsLeadingBlanks =
+    first > 0 &&
+    start.every((u) => u.kind === "blank") &&
+    units.some((u) => u.encoded) &&
+    units.some((u) => u.kind === "break");
+  // Rule 2.
+  const dropsEncodedBreak = (run: Unit[]) =>
+    run.some((u) => u.kind === "break" && u.encoded) &&
+    !run.some((u) => u.kind === "kept");
+  return stripsLeadingBlanks || dropsEncodedBreak(start) || dropsEncodedBreak(end);
 }
 
 function droppedSpaces(path: string, source: string): string[] {
@@ -64,18 +145,9 @@ function droppedSpaces(path: string, source: string): string[] {
     if (ts.isJsxText(node)) {
       // getText() skips leading whitespace, which is the part that matters.
       const raw = file.text.slice(node.pos, node.end);
-      const firstLine = raw.split(/\r?\n/)[0];
-      const siblings = Array.from(
-        (node.parent as ts.JsxElement | ts.JsxFragment).children,
-      );
-      const previous = siblings[siblings.indexOf(node) - 1];
-      if (
-        previous &&
-        raw.includes("\n") &&
-        decodesEntity(raw) &&
-        /^[ \t]+\S/.test(firstLine)
-      ) {
+      if (losesWhitespace(raw)) {
         const { line } = file.getLineAndCharacterOfPosition(node.pos);
+        const firstLine = raw.trim().split(/[\n\r\u2028\u2029]/)[0];
         found.push(`${path}:${line + 1}: "${firstLine.trim()}"`);
       }
     }
@@ -192,9 +264,11 @@ function dropsSpace(reads: string, next: string): boolean {
 // [JSX, what Next's compiler renders, whether that drops a space]. The test
 // compiles each case with Next's compiler and with TypeScript's.
 const RULE_CASES: [string, string, boolean][] = [
+  // Rule 1, in the two shapes the site had; then no entity, one line, and an
+  // explicit {" "}, which all keep the space.
   [
     "<><B /> on 100\n  households from PolicyEngine&rsquo;s data.\n</>",
-    "<B />on 100 households from PolicyEngine’s data.",
+    "<B />on 100 households from PolicyEngine\u2019s data.",
     true,
   ],
   [
@@ -205,14 +279,41 @@ const RULE_CASES: [string, string, boolean][] = [
   ["<><B /> on 100\n  real households.\n</>", "<B /> on 100 real households.", false],
   [
     "<><B /> on PolicyEngine&rsquo;s data.</>",
-    "<B /> on PolicyEngine’s data.",
+    "<B /> on PolicyEngine\u2019s data.",
     false,
   ],
   [
     '<><B />{" "}\n  on 100 households from PolicyEngine&rsquo;s data.\n</>',
-    "<B /> on 100 households from PolicyEngine’s data.",
+    "<B /> on 100 households from PolicyEngine\u2019s data.",
     false,
   ],
+  // A text that opens an element loses its space too.
+  [
+    "<>before<span> after\n one&apos;s</span></>",
+    "before<span>after one's</span>",
+    true,
+  ],
+  // Any line break counts: a lone CR, U+2028, or an encoded one. A vertical
+  // tab is not a line break.
+  ["<>{x} after\r one&apos;s</>", "{x}after one's", true],
+  ["<>{x} after\u2028 one&apos;s</>", "{x}after one's", true],
+  ["<>{x} one&#10;two</>", "{x}one two", true],
+  ["<>{x} after\v one&apos;s</>", "{x} after\v one's", false],
+  // Whitespace the compiler keeps, ahead of the words, keeps them apart.
+  ["<>{x} &nbsp;after\n one&apos;s</>", "{x}\u00a0after one's", false],
+  ["<>{x}&#32;after\n one&apos;s</>", "{x} after one's", false],
+  // Whitespace that holds a literal line break goes in every compiler, as JSX
+  // intends, so the source shows no space there to lose.
+  ["<>{x} \n  it&apos;s</>", "{x}it's", false],
+  ["<>{x}\n  the company&apos;s {y}</>", "{x}the company's {y}", false],
+  // Rule 2: an encoded line break at either end vanishes with the whitespace
+  // around it, unless kept whitespace is there too. Inside a text it becomes
+  // a space, which loses nothing on the page.
+  ["<>{x}&#10;word\n next</>", "{x}word next", true],
+  ["<>{x}&#10;word</>", "{x}word", true],
+  ["<>{x}\n  word&#10;{y}</>", "{x}word{y}", true],
+  ["<>{x}&#10;&#32;word</>", "{x} word", false],
+  ["<>{x}\n  one&#10;two\n</>", "{x}one two", false],
   // Only an entity the compiler decodes counts: a name JSX lacks, or a JSX
   // name in other capitals, stays as written and the space stays too.
   [
@@ -263,13 +364,19 @@ test("the rule reads as entities exactly the references the compiler decodes", a
   const disagreements: string[] = [];
   for (const reference of references) {
     const rendered = await renderWithNext(`<>a${reference}b</>`);
-    const compilerDecodes = rendered !== `a${reference}b`;
-    if (compilerDecodes !== decodesEntity(reference)) disagreements.push(reference);
+    const units = readText(reference);
+    const decoded = rendered !== `a${reference}b`;
+    if (decoded !== units.some((u) => u.encoded)) disagreements.push(reference);
+    // A JSX name's character is whitespace only for WHITESPACE_ENTITY_NAMES.
+    if (decoded && JSX_ENTITY_NAMES.has(reference.slice(1, -1))) {
+      const kind = /\s/.test(rendered.slice(1, -1)) ? "kept" : "visible";
+      if (units[0].kind !== kind) disagreements.push(`${reference} is ${kind}`);
+    }
   }
   expect(disagreements).toEqual([]);
 });
 
-test("no page text loses its leading space in the production build", async () => {
+test("no page text loses a space in the production build", async () => {
   const found: string[] = [];
   let files = 0;
   for await (const rel of new Glob("**/*.tsx").scan(SRC)) {
