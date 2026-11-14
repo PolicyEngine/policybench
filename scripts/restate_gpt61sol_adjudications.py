@@ -103,6 +103,18 @@ TOP = (
 )
 
 
+def reference_flag(flag: bool, waved: bool) -> tuple[bool, bool]:
+    """The reference flag a record carries for a verdict whose own flag is
+    ``flag``, where ``waved`` says whether a 2026-09-22 judge run flagged its
+    case: whether judge_reference_suspect is raised (by the verdict or by the
+    earlier run), and whether it names a judge_reference_suspect_source
+    (exactly when the earlier run alone raised it). A restated entry's top
+    level and the judge_previous item for the replaced verdict both follow
+    it, and the freeze's verify_restatements requires it of every re-opened
+    entry."""
+    return flag or waved, waved and not flag
+
+
 def _put(entry: dict, key: str, value, before: tuple[str, ...] = ()) -> dict:
     """``entry`` with ``key`` set; a new key goes before the first of ``before``
     the entry has, else last."""
@@ -163,15 +175,15 @@ def replaced_item(found: tuple[dict, dict], waved: bool) -> dict:
     sidecar records it (``found`` is ``_bound_verdict``'s pair); ``waved``
     says whether a 2026-09-22 run flagged its case."""
     old, old_meta = found
-    old_flag = bool(old.get("reference_suspect"))
+    raised, sourced = reference_flag(bool(old.get("reference_suspect")), waved)
     item = {
         "judge_model": _judge(old_meta),
         "judge_failure_source": old["case_failure_source"],
         "judge_failure_subtype": old["case_failure_subtype"],
-        "judge_reference_suspect": old_flag or waved,
+        "judge_reference_suspect": raised,
         "judged_on": _utc_day(old_meta["judged_at_utc"]),
     }
-    if waved and not old_flag:
+    if sourced:
         item["judge_reference_suspect_source"] = ITEM_FLAG_SOURCE
     return item
 
@@ -188,15 +200,16 @@ def _restated(
     item: dict,
     day: str,
     previous: list[dict],
-    waved: bool,
-    flag: bool,
+    sourced: bool,
 ) -> dict:
     """``entry`` naming the stage verdict ``top``, dated ``day``, with ``item``
-    (the replaced verdict) appended to ``previous``."""
+    (the replaced verdict) appended to ``previous``. Its flag names a source
+    when ``sourced`` (reference_flag): the entry's own wording where it has
+    one, else FLAG_SOURCE_EARLIER_RUN."""
     restated = dict(entry)
     for name, value in top.items():
         restated = _put(restated, name, value, before=_trailing(restated))
-    if not (waved and not flag):
+    if not sourced:
         restated.pop("judge_reference_suspect_source", None)
     elif "judge_reference_suspect_source" not in restated:
         restated = _put(
@@ -281,11 +294,12 @@ def restate_entries(
         old_flag = bool(old.get("reference_suspect"))
         item = replaced_item(replaced, waved)
         flag = bool(verdict.get("reference_suspect"))
+        raised, sourced = reference_flag(flag, waved)
         top = {
             "judge_model": _judge(meta),
             "judge_failure_source": verdict["case_failure_source"],
             "judge_failure_subtype": verdict["case_failure_subtype"],
-            "judge_reference_suspect": flag or waved,
+            "judge_reference_suspect": raised,
         }
         day = _utc_day(meta["judged_at_utc"])
         if day < item["judged_on"]:
@@ -327,7 +341,7 @@ def restate_entries(
                 f"{case}: the record does not name the seed verdict it "
                 f"replaces ({named}, dated {dated}, vs {item})"
             )
-        restated = _restated(entry, top, item, day, base, waved, flag)
+        restated = _restated(entry, top, item, day, base, sourced)
         if _names(restated, item):
             raise SystemExit(
                 f"{case}: the re-judge repeats the seed verdict on the seed's own "
