@@ -4,12 +4,52 @@ import { loadBindings, transform } from "next/dist/build/swc";
 import ts from "typescript";
 
 // Next 16.2's compiler drops the leading space of a JSX text that spans more
-// than one line and contains an HTML entity (&apos;, &rsquo;, ...). So
-// `{count} answer the\n  question&apos;s` renders as "12answer the question's".
-// The same text on one line, or a multi-line text without an entity, keeps its
+// than one line and contains an entity the compiler decodes (&apos;, &rsquo;,
+// &#39;, ...). So `{count} answer the\n  question&apos;s` renders as
+// "12answer the question's". The same text on one line, a multi-line text
+// without an entity, or one whose only &name; is not a JSX entity, keeps its
 // space. Put that space in an explicit {" "} after the element or expression.
-const ENTITY = /&(#\d+|#x[0-9a-f]+|[a-z][a-z0-9]*);/i;
 const SRC = new URL("../src/", import.meta.url).pathname;
+
+// The 253 names in TypeScript's JSX entity table. Of 2,425 candidate names
+// (these, the HTML5 names and case variants of these), Next 16.2.6's compiler
+// decodes exactly these, case-sensitively, and leaves any other &name; as
+// written.
+const JSX_ENTITY_NAMES = new Set(
+  (
+    "AElig Aacute Acirc Agrave Alpha Aring Atilde Auml Beta Ccedil Chi " +
+    "Dagger Delta ETH Eacute Ecirc Egrave Epsilon Eta Euml Gamma Iacute " +
+    "Icirc Igrave Iota Iuml Kappa Lambda Mu Ntilde Nu OElig Oacute Ocirc " +
+    "Ograve Omega Omicron Oslash Otilde Ouml Phi Pi Prime Psi Rho Scaron " +
+    "Sigma THORN Tau Theta Uacute Ucirc Ugrave Upsilon Uuml Xi Yacute Yuml " +
+    "Zeta aacute acirc acute aelig agrave alefsym alpha amp and ang apos " +
+    "aring asymp atilde auml bdquo beta brvbar bull cap ccedil cedil cent " +
+    "chi circ clubs cong copy crarr cup curren dArr dagger darr deg delta " +
+    "diams divide eacute ecirc egrave empty emsp ensp epsilon equiv eta " +
+    "eth euml euro exist fnof forall frac12 frac14 frac34 frasl gamma ge " +
+    "gt hArr harr hearts hellip iacute icirc iexcl igrave image infin int " +
+    "iota iquest isin iuml kappa lArr lambda lang laquo larr lceil ldquo " +
+    "le lfloor lowast loz lrm lsaquo lsquo lt macr mdash micro middot " +
+    "minus mu nabla nbsp ndash ne ni not notin nsub ntilde nu oacute ocirc " +
+    "oelig ograve oline omega omicron oplus or ordf ordm oslash otilde " +
+    "otimes ouml para part permil perp phi pi piv plusmn pound prime prod " +
+    "prop psi quot rArr radic rang raquo rarr rceil rdquo real reg rfloor " +
+    "rho rlm rsaquo rsquo sbquo scaron sdot sect shy sigma sigmaf sim " +
+    "spades sub sube sum sup sup1 sup2 sup3 supe szlig tau there4 theta " +
+    "thetasym thinsp thorn tilde times trade uArr uacute uarr ucirc ugrave " +
+    "uml upsih upsilon uuml weierp xi yacute yen yuml zeta zwj zwnj"
+  ).split(" "),
+);
+// A reference the compiler decodes: &# with decimal digits or &#x (lowercase
+// x) with hex digits, at most nine characters between & and ;, or a JSX name.
+const REFERENCE = /&(?:#\d{1,8}|#x[\da-fA-F]{1,7}|([A-Za-z][A-Za-z\d]*));/g;
+
+function decodesEntity(raw: string): boolean {
+  for (const [, name] of raw.matchAll(REFERENCE)) {
+    if (name === undefined || JSX_ENTITY_NAMES.has(name)) return true;
+  }
+  return false;
+}
 
 function droppedSpaces(path: string, source: string): string[] {
   const file = ts.createSourceFile(
@@ -32,7 +72,7 @@ function droppedSpaces(path: string, source: string): string[] {
       if (
         previous &&
         raw.includes("\n") &&
-        ENTITY.test(raw) &&
+        decodesEntity(raw) &&
         /^[ \t]+\S/.test(firstLine)
       ) {
         const { line } = file.getLineAndCharacterOfPosition(node.pos);
@@ -173,6 +213,17 @@ const RULE_CASES: [string, string, boolean][] = [
     "<B /> on 100 households from PolicyEngine’s data.",
     false,
   ],
+  // Only an entity the compiler decodes counts: a name JSX lacks, or a JSX
+  // name in other capitals, stays as written and the space stays too.
+  [
+    "<>{x} after\n one&notAnEntity;s</>",
+    "{x} after one&notAnEntity;s",
+    false,
+  ],
+  ["<>{x} after\n one&APOS;s</>", "{x} after one&APOS;s", false],
+  ["<>{x} after\n AT&amp;T</>", "{x}after AT&T", true],
+  ["<>{x} after\n one&#39;s</>", "{x}after one's", true],
+  ["<>{x} after\n one&#x27;s</>", "{x}after one's", true],
 ];
 
 test("the rule flags exactly the cases whose space the compiler drops", async () => {
@@ -185,6 +236,37 @@ test("the rule flags exactly the cases whose space the compiler drops", async ()
   }
   expect(compiled).toEqual(RULE_CASES);
   expect(flagged).toEqual(RULE_CASES.map(([jsx, , drops]) => [jsx, drops]));
+});
+
+test("the rule reads as entities exactly the references the compiler decodes", async () => {
+  const references = [
+    ...Array.from(JSX_ENTITY_NAMES, (name) => `&${name};`),
+    // Names JSX lacks (HTML5 has some), JSX names in other capitals, a name
+    // without its semicolon, and numeric references around the length limit.
+    "&notAnEntity;",
+    "&APOS;",
+    "&Amp;",
+    "&AMP;",
+    "&NewLine;",
+    "&Tab;",
+    "&nbsp",
+    "&#0;",
+    "&#39;",
+    "&#00000039;",
+    "&#000000039;",
+    "&#x27;",
+    "&#x2A;",
+    "&#x0000027;",
+    "&#x00000027;",
+    "&#X27;",
+  ];
+  const disagreements: string[] = [];
+  for (const reference of references) {
+    const rendered = await renderWithNext(`<>a${reference}b</>`);
+    const compilerDecodes = rendered !== `a${reference}b`;
+    if (compilerDecodes !== decodesEntity(reference)) disagreements.push(reference);
+  }
+  expect(disagreements).toEqual([]);
 });
 
 test("no page text loses its leading space in the production build", async () => {
