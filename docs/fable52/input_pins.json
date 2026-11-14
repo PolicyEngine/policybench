@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "fable52": {
+      "run": "fable52-runs/fable52/run",
+      "sha256": {
+        "predictions.csv": "7d827e3197ecb048f8b86f43f682acfc8017a76775a3754b379189b8f3fa7214",
+        "run_state.json": "bc9ed687e9987e06b9374379fd2f4d2122ff625c3a520fc470fd9bab2130a7b8"
+      }
+    }
+  },
+  "note": "The sha256 of each new model's supervised run files as the run finished, written by scripts/finish_fable52.py --step pin-inputs from the run directory. prepare copies them into the stage's inputs/<slug>/; export and the freeze refuse a staged copy that is not these bytes, and read this file as committed at HEAD."
+}

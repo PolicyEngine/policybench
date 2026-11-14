@@ -13,7 +13,7 @@
   },
   "evidence_summary": {
     "registry": 29,
-    "run_state": 22
+    "run_state": 23
   },
   "models": {
     "claude-fable-5": {
@@ -82,6 +82,63 @@
         "request_timeout_seconds",
         "shared_completion_budget_tokens"
       ],
+      "request_shape": "whole scenario",
+      "request_timeout_seconds": 600,
+      "shared_completion_budget_tokens": 16384,
+      "tool_choice": null
+    },
+    "claude-fable-5.2": {
+      "answer_contract": "json",
+      "evidence": {
+        "compared_columns": [
+          "scenario_id",
+          "variable",
+          "prediction",
+          "explanation",
+          "raw_response",
+          "provider_resolved_model",
+          "prompt_tokens",
+          "completion_tokens",
+          "error"
+        ],
+        "fields": [
+          "answer_contract",
+          "chunk_size",
+          "completion_budget_ceiling",
+          "fingerprint_version",
+          "initial_completion_budget_tokens",
+          "max_repair_rounds",
+          "model_id",
+          "prompt_contract_version",
+          "request_timeout_seconds",
+          "thinking",
+          "tool_choice_mode"
+        ],
+        "frozen_rows_sha256": "f8ea2d2075038a8e3daf985c5db63626a428226826d7a6b4d63a6caac6badc62",
+        "kind": "run_state",
+        "rows_match": true,
+        "run": "fable52-runs/fable52",
+        "source_predictions_sha256": "7d827e3197ecb048f8b86f43f682acfc8017a76775a3754b379189b8f3fa7214",
+        "source_rows_sha256": "f8ea2d2075038a8e3daf985c5db63626a428226826d7a6b4d63a6caac6badc62",
+        "treatment_fingerprint": {
+          "answer_contract": "json",
+          "chunk_size": null,
+          "completion_budget_ceiling": 128000,
+          "fingerprint_version": 3,
+          "initial_completion_budget_tokens": 16384,
+          "max_repair_rounds": 2,
+          "model_id": "claude-fable-5-2",
+          "prompt_contract_version": "2026-08-09-v2-scoring-contract",
+          "request_timeout_seconds": 600,
+          "thinking": {
+            "mode": "provider_default"
+          },
+          "tool_choice_mode": null
+        }
+      },
+      "provider_id": "claude-fable-5-2",
+      "reasoning_setup": "provider default; 16,384-token shared budget",
+      "registry_derived": [],
       "request_shape": "whole scenario",
       "request_timeout_seconds": 600,
       "shared_completion_budget_tokens": 16384,
@@ -1813,7 +1870,7 @@
       "tool_choice": null
     }
   },
-  "registry_commit": "2677b1164761d23356f73f6674007f5bc79966ee",
+  "registry_commit": "9d99c15d141878f566f6a2e18a9faf50769047d8",
   "sources": [
     "policybench.config.MODELS",
     "policybench.model_cards",

@@ -68,7 +68,31 @@ RELEASE_20261013B_COMMIT = "2cb77a17739abeace3ff32391f902a39127843c0"
 # (docs/terra/judge_verdicts_20261027.json), and drops and adds none.
 RELEASE_20261014_COMMIT = "bf845cbe4e92de495150c8660c35ea357d996a8c"
 (EVIDENCE_20261027,) = sorted((ROOT / "docs/terra").glob("judge_verdicts_*.json"))
-# Release 20261014's triage wave, the last wave any release decided.
+# The squash merge of #247, which froze release dashboard-data-20261027. The
+# Claude Fable 5.2 release builds on it: it restates any decision on a case
+# Claude Fable 5.2 re-opened (docs/fable52/judge_provenance.json), which its
+# dating step lists in docs/fable52/judge_verdicts_<the tag's last eight
+# characters>.json; it adds the 2026-11-01 wave's one decision, Max's ruling
+# d2180, which excludes scenario_122's Minnesota state_refundable_credits from
+# scoring, and, when its spec (docs/fable52/spec.json) lists triage
+# decisions, a triage wave that keeps their outputs scored. Its tag is the
+# driver's RELEASE_TAG, which tests/test_finish_fable52.py pins; these tests
+# read it from the driver (_fable52_driver).
+RELEASE_20261027_COMMIT = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
+(EVIDENCE_FABLE52,) = sorted((ROOT / "docs/fable52").glob("judge_verdicts_*.json"))
+FABLE52_SPEC = ROOT / "docs/fable52/spec.json"
+RULED_WAVE = "2026-11-01"
+RULED_CASE = "us__scenario_122__state_refundable_credits"
+# The Claude Fable 5.2 release's triage decisions, its 2026-11-11 wave
+# (docs/fable52/spec.json's triage_adjudications): each keeps its output
+# scored.
+FABLE52_TRIAGE_CASES = {
+    "us__scenario_039__federal_income_tax_before_refundable_credits",
+    "us__scenario_100__state_refundable_credits",
+    "us__scenario_101__federal_income_tax_before_refundable_credits",
+}
+# Release 20261014's triage wave, the last wave a release decided before the
+# Claude Fable 5.2 release's waves.
 TRIAGE_WAVE = "2026-10-14"
 TRIAGE_CASES = {
     "us__scenario_009__federal_income_tax_before_refundable_credits",
@@ -105,6 +129,44 @@ def _entries_at(commit: str, tmp_path: Path) -> list[dict]:
     path = tmp_path / f"us_adjudications_{commit[:12]}.json"
     path.write_text(_record_text(commit))
     return load_adjudications(path)
+
+
+def _file_at(commit: str, path: str) -> str:
+    """A repository file as a release commit holds it."""
+    shown = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{commit}:{path}"],
+        capture_output=True,
+        text=True,
+    )
+    assert shown.returncode == 0, (
+        f"{path} at {commit[:12]} needs git history; fetch full history. "
+        + shown.stderr
+    )
+    return shown.stdout
+
+
+def _fable52_driver():
+    """scripts/finish_fable52.py, the Claude Fable 5.2 release's driver: its
+    RELEASE_TAG and the rules it writes the record by."""
+    import sys
+
+    scripts = str(ROOT / "scripts")
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import finish_fable52
+
+    return finish_fable52
+
+
+def _fable52_triage() -> list[dict]:
+    """The triage decisions docs/fable52/spec.json lists, held to the driver's
+    rules and in the order it appends them (triage_items: by scenario_id and
+    variable), and pinned by name (FABLE52_TRIAGE_CASES)."""
+    triage = _fable52_driver().triage_items(json.loads(FABLE52_SPEC.read_text()))
+    assert {
+        f"us__{item['scenario_id']}__{item['variable']}" for item in triage
+    } == FABLE52_TRIAGE_CASES
+    return triage
 
 
 def _entries_20260929(tmp_path: Path) -> list[dict]:
@@ -284,8 +346,16 @@ def test_load_validates_the_record(tmp_path: Path):
         load_adjudications(path)
 
 
-def test_committed_record_is_applied_to_the_frozen_annotations():
-    entries = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+def test_committed_record_is_applied_to_the_frozen_annotations(tmp_path):
+    """The counts each release has pinned here are release 20261027's; the
+    test reads them from that release's commit, with its manifest. The frozen
+    annotations carry the working tree's record, the Claude Fable 5.2
+    release's, whose counts move from release 20261027's only with d2180's
+    decision, the triage decisions its spec lists and the verdicts it
+    restates."""
+    # Release 20261027's record as its commit holds it (the Claude Fable 5.2
+    # release changes the working tree's, which the end of this test checks).
+    entries = _entries_at(RELEASE_20261027_COMMIT, tmp_path)
     # 69 through release 20260930; the 2026-10-05 wave added one
     # prompt_ambiguity decision for each of the eight outputs the 2026-10-05
     # audits excluded (77 in release 20261006). Release 20261010 dropped the
@@ -401,12 +471,9 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     )
     assert rejudged["judge_model"] == "claude-opus-5-5"
     assert rejudged["reference_verdict"] == "unlisted_input"
-    rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
-    cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
-    verify_adjudications_applied(rows, cases, entries)
-    ambiguous = rows[rows["failure_source"] == "prompt_ambiguity"]
-    assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= keys
-    manifest = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
+    manifest = json.loads(
+        _file_at(RELEASE_20261027_COMMIT, "paper/snapshot/20260501/manifest.json")
+    )
     block = manifest["audit_annotation_artifacts"]["developer_adjudications"]
     assert block["cases"] == 63
     # The judge's own class for each case (its verdict.json), not the
@@ -511,6 +578,109 @@ def test_committed_record_is_applied_to_the_frozen_annotations():
     assert judge_ever_flagged(unlisted)
     assert manifest["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
     assert manifest["reference_exclusions"]["outputs"] == 49
+    # The Claude Fable 5.2 release's record, the working tree's, keeps every
+    # release 20261027 decision, appends d2180's and then one decision for
+    # each triage decision its spec lists
+    # (test_the_fable52_release_restates_the_reopened_cases_and_adds_its_waves
+    # checks each entry). Whichever verdict the stage binds for d2180's case,
+    # d2180 adds one decision: prompt_ambiguity, excluded_from_scoring, with
+    # an unlisted-input reference verdict. A triage decision keeps its output
+    # scored, adds its adjudicated class and, when it affirms the reference,
+    # one more "affirmed" reference verdict.
+    triage = _fable52_triage()
+    current = load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    assert len(current) == 64 + len(triage)
+    assert Counter(e["adjudicated_failure_source"] for e in current) == Counter(
+        {
+            "reference_engine_defect": 5,
+            "prompt_ambiguity": 43,
+            "llm_error": 14,
+            "reference_later_law": 2,
+        }
+    ) + Counter(item["adjudicated_failure_source"] for item in triage)
+    assert sum(bool(e.get("excluded_from_scoring")) for e in current) == 50
+    rows = pd.read_csv(ANNOTATIONS / "us_audit_row_annotations.csv")
+    cases = pd.read_csv(ANNOTATIONS / "us_case_notes.csv")
+    verify_adjudications_applied(rows, cases, current)
+    ambiguous = rows[rows["failure_source"] == "prompt_ambiguity"]
+    assert set(zip(ambiguous["scenario_id"], ambiguous["variable"])) <= {
+        (e["scenario_id"], e["variable"]) for e in current
+    }
+    frozen = json.loads((ROOT / "paper/snapshot/20260501/manifest.json").read_text())
+    frozen_block = frozen["audit_annotation_artifacts"]["developer_adjudications"]
+    assert frozen_block["cases"] == 64 + len(triage)
+    assert frozen_block["by_reference_verdict"] == dict(
+        Counter(
+            {
+                "affirmed": 6,
+                "engine_defect": 5,
+                "later_law": 2,
+                "regenerated": 5,
+                "unlisted_input": 35,
+            }
+        )
+        + Counter(
+            item["reference_verdict"] for item in triage if item["reference_verdict"]
+        )
+    )
+    assert frozen_block["by_reference_verdict"] == dict(
+        Counter(e["reference_verdict"] for e in current if e.get("reference_verdict"))
+    )
+    # The judge classes and flags are release 20261027's, moved only by the
+    # verdicts the Claude Fable 5.2 release restates (its dating evidence), by
+    # the verdict the stage binds for d2180's case (that case's "current" in
+    # verification/judge_verdicts.json) and by the verdict each triage
+    # decision names, which the dating evidence lists (a triage decision is on
+    # a case this release re-opened and no earlier release decided): a
+    # restated decision takes its new verdict's class, and keeps the verdict it
+    # replaced, flag included, in judge_previous, so it counts as flagged when
+    # either verdict flags it.
+    restated = json.loads(EVIDENCE_FABLE52.read_text())["cases"]
+    ruled = _judge_evidence()["cases"][RULED_CASE]["current"]
+    before = {_case(e): e for e in entries}
+    triaged = {
+        f"us__{item['scenario_id']}__{item['variable']}": item for item in triage
+    }
+    assert set(triaged) <= set(restated) - set(before) - {RULED_CASE}
+    judged = Counter(e["judge_failure_source"] for e in entries)
+    for case, verdict in restated.items():
+        if case in before:
+            judged[before[case]["judge_failure_source"]] -= 1
+            judged[verdict["case_failure_source"]] += 1
+    judged[ruled["case_failure_source"]] += 1
+    for case in triaged:
+        judged[restated[case]["case_failure_source"]] += 1
+    assert frozen_block["by_judge_verdict"] == {k: n for k, n in judged.items() if n}
+    assert frozen_block["by_judge_verdict"] == dict(
+        Counter(e["judge_failure_source"] for e in current)
+    )
+    flagged = Counter(
+        e["reference_verdict"]
+        for e in entries
+        if e.get("reference_verdict")
+        and (
+            judge_ever_flagged(e)
+            or (_case(e) in restated and restated[_case(e)]["reference_suspect"])
+        )
+    )
+    flagged["unlisted_input"] += bool(ruled["reference_suspect"])
+    for case, item in triaged.items():
+        if item["reference_verdict"]:
+            flagged[item["reference_verdict"]] += bool(
+                restated[case]["reference_suspect"]
+            )
+    assert frozen_block["judge_flagged_by_reference_verdict"] == {
+        k: n for k, n in flagged.items() if n
+    }
+    assert frozen_block["judge_flagged_by_reference_verdict"] == dict(
+        Counter(
+            e["reference_verdict"]
+            for e in current
+            if e.get("reference_verdict") and judge_ever_flagged(e)
+        )
+    )
+    assert frozen["audit_annotation_artifacts"]["files"]["us_adjudications.json"]
+    assert frozen["reference_exclusions"]["outputs"] == 50
 
 
 def test_verify_requires_agreement_with_the_complete_record():
@@ -875,6 +1045,67 @@ def _case(entry: dict) -> str:
     return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
 
 
+def _wave_written_day(sentence: str, wave: str) -> str:
+    """The day a later wave's date-convention sentence says its decisions
+    were written. A wave of several decisions reads "The {wave} wave's
+    decisions ... were written on {day} UTC"; a wave of one reads "The {wave}
+    wave's decision ... was written on {day} UTC", the form the Claude Fable
+    5.2 release's driver (scripts/finish_fable52.py) writes for its one ruled
+    record. The number of the noun must match the verb's."""
+    if sentence.startswith(f"The {wave} wave's decisions"):
+        verb = " were written on "
+    else:
+        assert sentence.startswith(f"The {wave} wave's decision "), sentence
+        verb = " was written on "
+    assert verb in sentence, sentence
+    return sentence.rsplit(verb, 1)[1].removesuffix(" UTC")
+
+
+RULED_WAVE_SENTENCE = (
+    "The 2026-11-01 wave's decision follows Max's ruling of 2026-11-01 "
+    "(21:06 UTC) and was written on 2026-11-10 UTC"
+)
+WAVE_SENTENCES = {
+    "several": (
+        "The 2026-10-06 wave's decisions follow Max's rulings of 2026-10-06 "
+        "(17:11 UTC) and were written on 2026-10-09 UTC",
+        "2026-10-06",
+        "2026-10-09",
+    ),
+    "one": (RULED_WAVE_SENTENCE, "2026-11-01", "2026-11-10"),
+    "one with were": (
+        RULED_WAVE_SENTENCE.replace(" was written", " were written"),
+        "2026-11-01",
+        None,
+    ),
+    "several with was": (
+        RULED_WAVE_SENTENCE.replace("decision follows", "decisions follow"),
+        "2026-11-01",
+        None,
+    ),
+    "another wave": (RULED_WAVE_SENTENCE, "2026-10-14", None),
+    "no written day": (
+        RULED_WAVE_SENTENCE.split(" and was written")[0],
+        "2026-11-01",
+        None,
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "sentence, wave, day", WAVE_SENTENCES.values(), ids=WAVE_SENTENCES
+)
+def test_a_wave_sentence_states_its_written_day_in_either_number(sentence, wave, day):
+    """A wave of one decision may say "decision ... was written"; a sentence
+    whose noun and verb disagree in number, that names another wave or that
+    states no written day is refused."""
+    if day is None:
+        with pytest.raises(AssertionError):
+            _wave_written_day(sentence, wave)
+    else:
+        assert _wave_written_day(sentence, wave) == day
+
+
 def test_each_judge_flag_is_the_flag_of_the_verdict_its_date_names(tmp_path):
     """A recorded verdict carries its bound verdict's judge, classes, UTC day
     and reference-suspect flag. A flag the dated verdict does not raise is
@@ -1033,7 +1264,9 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     wave's decisions were written up to the day its release was committed; a
     wave whose release has no commit yet records the day its adjudications
     were written (release 20261027 adds no wave and commits release
-    20261014's, so every wave is committed). So the verdict each decision
+    20261014's; the Claude Fable 5.2 release adds the 2026-11-01 wave, d2180's
+    one decision, and a triage wave when its spec lists triage decisions,
+    which the next release commits). So the verdict each decision
     reviewed -- adjudicated_verdict where a later
     wave replaced it, otherwise the earliest verdict the entry keeps -- is
     dated on or before that day, and a committed wave's decision reviewed the
@@ -1048,9 +1281,20 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     2026-10-06 wave's six decisions reviewed verdicts release 20261010's judge
     runs finished on 2026-10-08 and 2026-10-09 UTC, before they were written
     (scenario_051's, restated in place, reviewed an earlier verdict it
-    keeps)."""
+    keeps); and d2180's decision (2026-11-01) reviews the verdict the stage
+    binds for its case, which postdates the ruling only when the Claude Fable
+    5.2 release's judge step re-opened the case: its dating evidence
+    (docs/fable52/judge_verdicts_*.json) then lists the case. A verdict
+    carried from release 20261027 predates the wave. A triage decision is no
+    exception: it reviews the verdict the dating evidence lists for its case,
+    dated on or before its wave."""
     record = json.loads((ANNOTATIONS / "us_adjudications.json").read_text())
     evidence = _judge_evidence()
+    listed = json.loads(EVIDENCE_FABLE52.read_text())["cases"]
+    driver = _fable52_driver()
+    triage_wave = driver.decision_wave(_fable52_triage())
+    triage_day = triage_wave.day if triage_wave else None
+    ours = [RULED_WAVE] + ([triage_day] if triage_day else [])
     released, uncommitted = {}, []
     for wave, release in evidence["wave_releases"].items():
         if release["commit"] is None:
@@ -1069,10 +1313,17 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     assert waves == sorted(waves)
     # Release 20261010 committed its two waves (#208); releases 20261013 and
     # 20261013b add none; release 20261014 committed its triage wave (#221);
-    # release 20261027 adds none.
-    assert uncommitted == []
-    assert waves[-3:] == ["2026-10-06", UPGRADE_WAVE, TRIAGE_WAVE]
+    # release 20261027 adds none; the Claude Fable 5.2 release adds the
+    # 2026-11-01 wave and, when its spec lists triage decisions, their wave
+    # (the spec's triage_decided_on), which no commit holds yet. The driver
+    # names the triage wave after the ruled one (release_date_conventions)
+    # and the evidence lists waves by date, so the triage wave must follow
+    # the ruling for the record's list of waves to read in date order.
+    assert uncommitted == ours
+    assert waves[-2 - len(ours) :] == [UPGRADE_WAVE, TRIAGE_WAVE, *ours]
     assert evidence["wave_releases"][TRIAGE_WAVE]["commit"] == RELEASE_20261014_COMMIT
+    for wave in ours:
+        assert evidence["wave_releases"][wave]["release"] == driver.RELEASE_TAG
     committed = [wave for wave in waves if wave not in uncommitted]
     assert len(committed) == 7
     # The record's decisions come from exactly these waves.
@@ -1105,13 +1356,12 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     rest = record["date_conventions"].split(committed_days, 1)[1]
     for wave in waves[3:]:
         sentence, rest = rest.split(". ", 1)
-        assert sentence.startswith(f"The {wave} wave's decisions"), sentence
-        written = sentence.rsplit(" were written on ", 1)[1].removesuffix(" UTC")
+        written = _wave_written_day(sentence, wave)
         if wave in uncommitted:
             assert written == released[wave], sentence
         else:
             assert wave <= written <= released[wave], sentence
-    later_than_wave = later_than_own_wave = 0
+    later_than_wave = later_than_own_wave = later_than_ruling = 0
     for entry in record["adjudications"]:
         case, wave = _case(entry), entry["adjudicated_on"]
         kept = [
@@ -1137,12 +1387,23 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
         else:
             day = reviewed["judged_on"]
         assert day <= released[wave], case
+        if wave == triage_day:
+            # The verdict the dating evidence lists for the case, which the
+            # chain below holds on or before the triage wave.
+            assert day == listed[case]["judged_at_utc"][:10], case
         if day > wave and wave == "2026-10-06":
             # Release 20261010's judge runs (2026-10-08 and 2026-10-09 UTC)
             # re-judged the cases its 2026-10-06 rulings decide, before those
             # decisions were written (checked above).
             assert day in ("2026-10-08", "2026-10-09"), case
             later_than_own_wave += 1
+        elif day > wave and wave == RULED_WAVE:
+            # d2180's decision names the verdict the Claude Fable 5.2 release's
+            # judge step wrote on re-opening its case, after the ruling and no
+            # later than its wave's written day (checked above).
+            assert case == RULED_CASE and case in listed, case
+            assert day == listed[case]["judged_at_utc"][:10], case
+            later_than_ruling += 1
         elif day > wave:
             assert (wave, day) == ("2026-09-22", "2026-09-23"), case
             later_than_wave += 1
@@ -1173,6 +1434,9 @@ def test_each_decision_records_the_verdict_it_reviewed_by_its_wave_release():
     # drops with the records its engine upgrade regenerated were among them.
     assert later_than_wave == 23
     assert later_than_own_wave == 5
+    # One when the judge step re-opened d2180's case, none when the stage
+    # carries release 20261027's verdict for it.
+    assert later_than_ruling == int(RULED_CASE in listed)
 
 
 def test_published_verdicts_in_the_evidence_match_each_wave_release():
@@ -1209,15 +1473,25 @@ def test_published_verdicts_in_the_evidence_match_each_wave_release():
         for case in published
         if case in record and record[case]["adjudicated_on"] in uncommitted
     }
-    # Every wave is committed, so no decision waits on an unpublished one.
-    # scenario_064 Wisconsin income tax had a 2026-09-22 engine-defect
-    # decision, published in release 20260922, which release 20261013 dropped
-    # when its engine upgrade regenerated the reference; release 20261014's
-    # triage wave decided the case anew, and that release published it, so its
-    # evidence is compared with release 20261014's publication. scenario_051's
-    # decision, which release 20261010's 2026-10-06 wave restated in place, is
-    # compared with that release's publication.
-    assert restated == set()
+    # The Claude Fable 5.2 release's waves (2026-11-01 and 2026-11-11) are
+    # uncommitted. scenario_039's federal income tax and scenario_100's
+    # Montana state refundable credits had 2026-09-22 engine-defect
+    # decisions, published in release 20260922, which release 20261010
+    # (scenario_039) and release 20261013 (scenario_100) dropped when their
+    # engine upgrades regenerated the references; the 2026-11-11 triage wave
+    # decides both cases anew, so their evidence names the verdicts the new
+    # decisions reviewed. scenario_064 Wisconsin income tax had a 2026-09-22
+    # engine-defect decision, published in release 20260922, which release
+    # 20261013 dropped when its engine upgrade regenerated the reference;
+    # release 20261014's triage wave decided the case anew, and that release
+    # published it, so its evidence is compared with release 20261014's
+    # publication. scenario_051's decision, which release 20261010's
+    # 2026-10-06 wave restated in place, is compared with that release's
+    # publication.
+    assert restated == {
+        "us__scenario_039__federal_income_tax_before_refundable_credits",
+        "us__scenario_100__state_refundable_credits",
+    }
     wisconsin = "us__scenario_064__state_income_tax_before_refundable_credits"
     assert published[wisconsin][0] == "dashboard-data-20261014"
     louisiana = "us__scenario_051__state_income_tax_before_refundable_credits"
@@ -2067,7 +2341,9 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
     is release 20261014's. Its reasoning is release 20261014's with this
     release's listed reasoning amendments applied (the items
     us_wording-amendments.json appends after release 20261014's), each on a
-    re-opened case."""
+    re-opened case. Later releases change the working tree's record and
+    amendments, so the test reads both as release 20261027's commit holds
+    them."""
     evidence = json.loads(EVIDENCE_20261027.read_text())
     assert evidence["release"] == "dashboard-data-20261027"
     assert evidence["base_commit"] == RELEASE_20261014_COMMIT
@@ -2088,9 +2364,7 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
     ]
     assert upgrade["regenerated_exclusions"] == upgrade["new_exclusions"] == []
     base = {_case(e): e for e in _entries_at(RELEASE_20261014_COMMIT, tmp_path)}
-    entries = {
-        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
-    }
+    entries = {_case(e): e for e in _entries_at(RELEASE_20261027_COMMIT, tmp_path)}
     assert set(entries) == set(base)
     reopened = {
         v["case_id"]
@@ -2112,9 +2386,12 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
     )
     assert shown.returncode == 0, shown.stderr
     earlier = json.loads(shown.stdout)["amendments"]
-    listed = json.loads((ANNOTATIONS / "us_wording-amendments.json").read_text())[
-        "amendments"
-    ]
+    listed = json.loads(
+        _file_at(
+            RELEASE_20261027_COMMIT,
+            f"annotations/{RUN_LABEL}/us_wording-amendments.json",
+        )
+    )["amendments"]
     assert listed[: len(earlier)] == earlier
     reasoning: dict[str, list[dict]] = {}
     for item in listed[len(earlier) :]:
@@ -2174,6 +2451,277 @@ def test_release_20261027_restates_only_the_cases_terra_reopened(tmp_path):
     # 42 restated decisions, each replacing release 20261014's verdict; each
     # listed reasoning amendment changes its decision's text.
     assert replaced == len(verdicts) == 42
+    assert amended == len(reasoning)
+
+
+def test_the_fable52_release_restates_the_reopened_cases_and_adds_its_waves(
+    tmp_path,
+):
+    """The Claude Fable 5.2 release changes release 20261027's record in three
+    ways. Any decision on a case Claude Fable 5.2 re-opened names the case's
+    new verdict, which the judge provenance records
+    (docs/fable52/judge_provenance.json) and the dating step lists
+    (docs/fable52/judge_verdicts_*.json), and appends release 20261027's
+    verdict to judge_previous. The 2026-11-01 wave appends one decision, Max's
+    ruling d2180 on scenario_122's state_refundable_credits: the spec
+    (docs/fable52/spec.json) and the exclusion record install-exclusions
+    installs (docs/fable52/proposed_exclusions.json) give its decision fields,
+    and the verdict the stage binds for the case gives its judge fields. That
+    verdict is new when the judge step re-opened the case, and the dating
+    evidence then lists it; otherwise it is release 20261027's, which that
+    release's judge provenance records (docs/terra/judge_provenance.json) and
+    which predates the ruling. Each triage decision the spec lists follows, in
+    the order the driver appends them (triage_items: by scenario_id and
+    variable), as the driver writes it (triage_entry): its decision fields
+    are the spec's, and its judge fields are the verdict the dating step
+    lists for its case, a case this release re-opened. Every other decision
+    keeps release 20261027's fields, its reasoning changed only by a
+    reasoning amendment this release lists on a re-opened case, and the date
+    conventions name this release's waves as the driver writes them
+    (release_date_conventions).
+
+    The test covers this release's spec and record: d2180's one record, no
+    restated adjudication, the three triage decisions FABLE52_TRIAGE_CASES
+    names and 39 restated decisions, under the tag the driver's RELEASE_TAG
+    names (tests/test_finish_fable52.py pins its value)."""
+    driver = _fable52_driver()
+    evidence = json.loads(EVIDENCE_FABLE52.read_text())
+    assert evidence["release"] == driver.RELEASE_TAG
+    assert evidence["base_commit"] == RELEASE_20261027_COMMIT
+    verdicts = evidence["cases"]
+    spec = json.loads(FABLE52_SPEC.read_text())
+    assert spec["release_tag"] == driver.RELEASE_TAG
+    assert spec["restated_adjudications"] == []
+    assert spec["decided_on"] == RULED_WAVE
+    triage = driver.triage_items(spec)
+    triaged = [f"us__{item['scenario_id']}__{item['variable']}" for item in triage]
+    assert set(triaged) == FABLE52_TRIAGE_CASES
+    (ruling,) = spec["adjudications"]
+    (record,) = json.loads(
+        (ROOT / "docs/fable52/proposed_exclusions.json").read_text()
+    )["exclusions"]
+    base = {_case(e): e for e in _entries_at(RELEASE_20261027_COMMIT, tmp_path)}
+    entries = {
+        _case(e): e for e in load_adjudications(ANNOTATIONS / "us_adjudications.json")
+    }
+    # Every decision of release 20261027's in its order, then d2180's, then
+    # the triage decisions in the driver's order.
+    assert RULED_CASE not in base
+    assert not set(triaged) & ({RULED_CASE} | set(base))
+    assert list(entries) == [*base, RULED_CASE, *triaged]
+    provenance = {
+        v["case_id"]: v
+        for v in json.loads((ROOT / "docs/fable52/judge_provenance.json").read_text())[
+            "verdicts"
+        ]
+    }
+    assert set(verdicts) == set(entries) & set(provenance)
+    # A triage decision is on a case this release re-opened.
+    assert set(triaged) <= set(verdicts)
+    # Release 20261027's judge runs ended on its last judged day; this
+    # release's judge step ran after it.
+    last_judged = max(
+        day
+        for judge in json.loads(
+            _file_at(RELEASE_20261027_COMMIT, "paper/snapshot/20260501/manifest.json")
+        )["audit_annotation_artifacts"]["judge_provenance"]["by_judge"].values()
+        for day in judge["judged_on_utc"]
+    )
+    for case, verdict in verdicts.items():
+        assert verdict["judged_at_utc"][:10] > last_judged, case
+        # The verdict the judge step recorded for the case.
+        assert (verdict["verdict_sha256"], verdict["judged_at_utc"]) == (
+            provenance[case]["verdict_sha256"],
+            provenance[case]["judged_at_utc"],
+        ), case
+    ruled = entries[RULED_CASE]
+    # adjudicate-exclusions writes the entry in release_20261006.ENTRY_FIELDS
+    # order (scripts/release_20261006.py). A new decision carries no other
+    # key: no judge_rejudged_on, judge_previous, judge_reference_suspect_source
+    # or adjudicated_verdict.
+    assert list(ruled) == [
+        "country",
+        "scenario_id",
+        "variable",
+        "judge_model",
+        "judge_failure_source",
+        "judge_failure_subtype",
+        "adjudicated_failure_source",
+        "adjudicated_failure_subtype",
+        "adjudicated_on",
+        "adjudicator",
+        "excluded_from_scoring",
+        "judge_reference_suspect",
+        "reference_verdict",
+        "reference_basis",
+        "reasoning",
+        "judged_on_utc",
+    ]
+    assert (
+        (record["scenario_id"], record["variable"])
+        == (ruling["scenario_id"], ruling["variable"])
+        == ("scenario_122", "state_refundable_credits")
+    )
+    for field in (
+        "adjudicated_failure_source",
+        "adjudicated_failure_subtype",
+        "reference_verdict",
+        "reasoning",
+    ):
+        assert ruled[field] == ruling[field], field
+    assert ruled["reference_basis"] == record["unlisted_input"]
+    assert ruled["adjudicated_on"] == RULED_WAVE
+    assert ruled["adjudicator"] == "developer"
+    assert ruled["excluded_from_scoring"] is True
+    bound = _judge_evidence()["cases"][RULED_CASE]["current"]
+    day = ruled["judged_on_utc"]
+    assert (
+        ruled["judge_model"],
+        ruled["judge_failure_source"],
+        ruled["judge_failure_subtype"],
+        day,
+    ) == (
+        bound["judge_model"],
+        bound["case_failure_source"],
+        bound["case_failure_subtype"],
+        bound["judged_at_utc"][:10],
+    )
+    assert _flag_agrees(ruled, bound["reference_suspect"])
+    if RULED_CASE in verdicts:
+        assert {k: bound[k] for k in verdicts[RULED_CASE]} == verdicts[RULED_CASE]
+    else:
+        # Release 20261027's verdict for the case, as that release's judge
+        # provenance records it.
+        terra = {
+            v["case_id"]: v
+            for v in json.loads(
+                _file_at(RELEASE_20261027_COMMIT, "docs/terra/judge_provenance.json")
+            )["verdicts"]
+        }
+        assert (bound["verdict_sha256"], bound["judged_at_utc"]) == (
+            terra[RULED_CASE]["verdict_sha256"],
+            terra[RULED_CASE]["judged_at_utc"],
+        )
+        assert day <= last_judged < RULED_WAVE
+    # Each triage decision, as triage_entry writes it: the spec item's
+    # decision fields, the judge fields of the verdict the dating step lists
+    # for its case (bound to the judge provenance above, and the verdict its
+    # wave gives the case in the evidence), in TRIAGE_FIELDS order, with the
+    # reference verdict and basis only when it affirms a reference, which it
+    # does exactly when that verdict flags one.
+    bound_cases = _judge_evidence()["cases"]
+    for item, case in zip(triage, triaged):
+        found = verdicts[case]
+        assert found["judge_model"] == driver.JUDGE_MODEL, case
+        assert {k: bound_cases[case]["current"][k] for k in found} == found, case
+        affirms = item["reference_verdict"] == "affirmed"
+        assert found["reference_suspect"] is affirms, case
+        expected = {
+            "country": "us",
+            "scenario_id": item["scenario_id"],
+            "variable": item["variable"],
+            "judge_model": found["judge_model"],
+            "judge_failure_source": found["case_failure_source"],
+            "judge_failure_subtype": found["case_failure_subtype"],
+            "adjudicated_failure_source": item["adjudicated_failure_source"],
+            "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
+            "adjudicated_on": item["adjudicated_on"],
+            "adjudicator": "developer",
+            "judge_reference_suspect": found["reference_suspect"],
+            "reference_verdict": item["reference_verdict"],
+            "reference_basis": item["reference_basis"],
+            "reasoning": item["reasoning"],
+            "judged_on_utc": found["judged_at_utc"][:10],
+        }
+        fields = [
+            field
+            for field in driver.TRIAGE_FIELDS
+            if affirms or field not in ("reference_verdict", "reference_basis")
+        ]
+        assert list(entries[case]) == fields, case
+        assert entries[case] == {field: expected[field] for field in fields}, case
+    # The date conventions are release 20261027's with this release's waves
+    # named: the ruled wave, then the triage wave when there is one.
+    assert json.loads((ANNOTATIONS / "us_adjudications.json").read_text())[
+        "date_conventions"
+    ] == driver.release_date_conventions(
+        json.loads(_record_text(RELEASE_20261027_COMMIT))["date_conventions"],
+        driver.decision_wave(triage),
+    )
+    earlier = json.loads(
+        _file_at(
+            RELEASE_20261027_COMMIT,
+            f"annotations/{RUN_LABEL}/us_wording-amendments.json",
+        )
+    )["amendments"]
+    listed = json.loads((ANNOTATIONS / "us_wording-amendments.json").read_text())[
+        "amendments"
+    ]
+    assert listed[: len(earlier)] == earlier
+    reasoning: dict[str, list[dict]] = {}
+    for item in listed[len(earlier) :]:
+        if item["field"] == "reasoning":
+            reasoning.setdefault(item["case_id"], []).append(item)
+    assert set(reasoning) <= set(verdicts) & set(base)
+    replaced = amended = 0
+    for case, before in base.items():
+        entry = entries[case]
+        decision = {
+            k: v
+            for k, v in entry.items()
+            if not k.startswith("judge") and k != "reasoning"
+        }
+        assert decision == {
+            k: v
+            for k, v in before.items()
+            if not k.startswith("judge") and k != "reasoning"
+        }, case
+        expected = before["reasoning"]
+        for item in reasoning.get(case, []):
+            assert expected.count(item["old"]) == 1, case
+            expected = expected.replace(item["old"], item["new"])
+        assert entry["reasoning"] == expected, case
+        amended += entry["reasoning"] != before["reasoning"]
+        current = verdicts.get(case)
+        if current is None:
+            assert entry == before, case
+            continue
+        assert (
+            entry["judge_model"],
+            entry["judge_failure_source"],
+            entry["judge_failure_subtype"],
+            entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+        ) == (
+            current["judge_model"],
+            current["case_failure_source"],
+            current["case_failure_subtype"],
+            current["judged_at_utc"][:10],
+        ), case
+        assert _flag_agrees(entry, current["reference_suspect"]), case
+        history = entry["judge_previous"]
+        assert history[:-1] == before.get("judge_previous", []), case
+        assert (
+            history[-1]["judge_model"],
+            history[-1]["judge_failure_source"],
+            history[-1]["judge_failure_subtype"],
+            history[-1]["judged_on"],
+        ) == (
+            before["judge_model"],
+            before["judge_failure_source"],
+            before["judge_failure_subtype"],
+            before.get("judge_rejudged_on") or before.get("judged_on_utc"),
+        ), case
+        assert judge_ever_flagged(entry) == (
+            judge_ever_flagged(before) or bool(current["reference_suspect"])
+        ), case
+        replaced += 1
+    # Each listed case release 20261027 decided either fails an assert above
+    # or counts here; the others are d2180's case, when re-opened, and the
+    # triage cases. 39 restated decisions, each replacing release 20261027's
+    # verdict: the dating step lists 42 cases, the three triage cases among
+    # them, and not d2180's, whose verdict the stage carries from release
+    # 20261027. Each listed reasoning amendment changes its decision's text.
+    assert replaced == len(verdicts) - int(RULED_CASE in verdicts) - len(triaged) == 39
     assert amended == len(reasoning)
 
 

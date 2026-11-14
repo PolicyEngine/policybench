@@ -1,0 +1,4967 @@
+"""Stage Claude Fable 5.2 and Max's one ruled exclusion (d2180).
+
+Forked from scripts/finish_terra.py, so its release gates, seed binding,
+judge identity and schema gates, provenance gates, export promotion and
+finalize bindings remain in force. This release changes no engine: the
+references stay the policyengine-us 2.60.0 build release 20261027 installed,
+so the install-references step and the gates that served only it are gone,
+and every step instead holds the staged references to the base's bytes. The
+one ruled record travels as Haiku 5.5's ruled records did (spec proposals,
+install-exclusions, adjudicate-exclusions). All release data stays in the
+scratch stage until the lead runs the freeze. See docs/fable52/design.md for
+the command sequence.
+"""
+
+from __future__ import annotations
+
+import argparse
+import gzip
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+RUN_NAME = "us_full_run_20260612_policyengine_4_16_1_populace"
+SNAPSHOT = ROOT / "paper/snapshot/20260501/runs" / RUN_NAME
+ANNOTATIONS = ROOT / "annotations" / RUN_NAME
+BASE_TAG = "dashboard-data-20261027"
+# The one place the new release's tag is named. The lead may change it at
+# freeze time; freeze_fable52.py and the design note read it from here.
+RELEASE_TAG = "dashboard-data-20261111"
+# Release 20261027's payload (138,702,498 bytes), which PR #247's squash merge
+# committed on 2026-10-31.
+BASE_SHA256 = "67cb0d14ca93cefaeaf2678ef6e6f81aea1858bb7b23b1b61d24c46fe378021b"
+BASE_MODELS = 51
+BASE_OUTPUTS = 1984
+BASE_EXCLUSIONS = 49
+BASE_SCORED = BASE_OUTPUTS - BASE_EXCLUSIONS
+# Ruled exclusions, installed by --step install-exclusions and adjudicated by
+# --step adjudicate-exclusions, as docs/fable52/spec.json lists them. This
+# release rules one: Max's d2180 of 2026-11-01 excludes scenario_122's
+# Minnesota state_refundable_credits (reference_audit/2026-10-29-mn-renters-crp).
+SPEC_PATH = Path("docs/fable52/spec.json")
+NEW_EXCLUSIONS = 1
+RELEASE_EXCLUSIONS = BASE_EXCLUSIONS + NEW_EXCLUSIONS
+RELEASE_SCORED = BASE_OUTPUTS - RELEASE_EXCLUSIONS
+MODELS = {"fable52": "claude-fable-5.2"}
+BOARD_MODELS = BASE_MODELS + len(MODELS)
+REFERENCE_FILES = (
+    "reference_outputs.csv",
+    "reference_outputs.csv.meta.json",
+    "reference_exclusions.json",
+    "scenarios.csv",
+    "scenarios.csv.meta.json",
+)
+ANNOTATION_FILES = (
+    "us_audit_row_annotations.csv",
+    "us_case_notes.csv",
+    "us_case_reference_explanations.csv",
+    "us_adjudications.json",
+)
+JUDGE_MODEL = "claude-opus-5-5"
+# The runner the judge step runs, as it names itself in each verdict's sidecar
+# (judge_runner). Every verdict this release judges must have been written by it.
+JUDGE_RUNNER = "scripts/run_audit_claude.sh"
+# The judge template (policybench.judge_template) this driver renders new
+# and re-opened cases on: v2, which drops v1's claim that the reference
+# pipeline survived an adversarial review with its real bugs fixed (#210). A
+# seed case keeps the version its sidecar records (v1 for the cases judged
+# before template v2 was introduced), so the stage's audit mixes versions.
+JUDGE_TEMPLATE_VERSION = 2
+ADJUDICATIONS = "us_adjudications.json"
+# Stage files export binds: the cases a new model re-opened, and the
+# wording-only amendments a developer lists for them.
+PROMPT_CHANGES = "prompt-changes.json"
+AMENDMENTS = "wording-amendments.json"
+# The published record of how each new verdict (a case a new model re-opened)
+# was judged. Export requires it to describe the staged verdicts and binds its
+# bytes in the receipt.
+JUDGE_PROVENANCE_PATH = "docs/fable52/judge_provenance.json"
+JUDGE_PROVENANCE = ROOT / JUDGE_PROVENANCE_PATH
+# Repository data read by the freeze outside the staged bundle. Scoring's two
+# immutable data files are checked against BASE_COMMIT by the consuming gate.
+REPOSITORY_INPUT_FILES = (
+    Path("pyproject.toml"),
+    Path("uv.lock"),
+    Path("reference_audit/2026-10-22-engine-upgrade/verification/sweep_timing.json"),
+    Path("paper/snapshot/20260501/manifest.json"),
+    Path("app/src/data.versions.json"),
+)
+BASE_REPOSITORY_INPUT_FILES = (
+    Path("policybench/benchmark_specs.json"),
+    Path("policybench/population_weights.json"),
+)
+
+
+def repository_input_hashes(root: Path | None = None) -> dict[str, str | None]:
+    """Bind every mutable repository data input, including paper inventory.
+
+    The optional rendered paper can be absent when the shared freezer falls
+    back to the existing manifest. Bind absence too, so an added PDF or web
+    file cannot change that choice after export.
+    """
+    root = ROOT if root is None else root
+    for path in REPOSITORY_INPUT_FILES:
+        require((root / path).is_file(), f"Repository input is missing: {path}")
+    files = {str(path): digest(root / path) for path in REPOSITORY_INPUT_FILES}
+    paper = Path("app/public/paper")
+    pdf = paper / "policybench.pdf"
+    files[str(pdf)] = digest(root / pdf) if (root / pdf).is_file() else None
+    web = root / paper / "web"
+    files[str(paper / "web") + "/"] = "directory" if web.is_dir() else None
+    files.update(
+        {
+            str(path.relative_to(root)): digest(path)
+            for path in sorted(web.rglob("*"))
+            if path.is_file()
+        }
+    )
+    return files
+
+
+# The record's keys, and each entry's: every one is checked, against the
+# case's verdict, prompt or sidecar, the entries' tally, or the isolated flag.
+JUDGE_PROVENANCE_KEYS = frozenset({"note", "counts", "verdicts"})
+JUDGE_PROVENANCE_ENTRY_KEYS = frozenset(
+    {
+        "case_id",
+        "group",
+        "isolated",
+        "judge_account_declared",
+        "judge_effort",
+        "judge_model_reported",
+        "judged_at_utc",
+        "judge_template_version",
+        "prompt_sha256",
+        "verdict_sha256",
+    }
+)
+# The entry fields copied from the verdict's sidecar, an e-mail address in any
+# of them withheld as WITHHELD_ADDRESS: the record is public.
+JUDGE_SIDECAR_FIELDS = (
+    "judge_effort",
+    "judge_model_reported",
+    "judged_at_utc",
+    "judge_account_declared",
+    "judge_template_version",
+)
+WITHHELD_ADDRESS = "<account withheld>"
+# The context attachments an isolated judge's transcript may carry: ATTACHMENTS
+# in scripts/run_audit_claude.sh, which a test keeps equal to this set.
+JUDGE_ATTACHMENTS = frozenset(
+    {
+        "environment",
+        "model",
+        "date",
+        "session_context",
+        "total_tokens_reminder",
+        "prompt_snapshot",
+        "structured_output",
+        "silent_turn_reminder",
+    }
+)
+# The event types an isolated judge's transcript may carry, the types the
+# stage's 60 isolated transcripts carry: EVENT_TYPES in
+# scripts/run_audit_claude.sh, which a test keeps equal to this set.
+JUDGE_EVENT_TYPES = frozenset(
+    {
+        "queue-operation",
+        "user",
+        "attachment",
+        "atis-latch",
+        "last-prompt",
+        "assistant",
+        "cost-state",
+    }
+)
+# Account data an isolated judge's transcript may not carry outside the judged
+# prompt's own user message and the judge's own words: an e-mail address in any
+# key or string, or a key that names an account, at any depth. The runner's
+# extract_verdict uses the same two patterns.
+ACCOUNT_KEY = re.compile(r"email|account|credential|organi[sz]ation|gitstatus", re.I)
+EMAIL_ADDRESS = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# Claude Code's own nudge to a judge that answered in text, the one user text
+# message an isolated judge's transcript may carry besides its prompt:
+# PROMPT_NUDGE in scripts/run_audit_claude.sh, which a test keeps equal to this.
+JUDGE_PROMPT_NUDGE = (
+    "[structured-output-enforce] You MUST call the StructuredOutput tool to "
+    "complete this request. Call this tool now."
+)
+# PR #247's squash merge, whose tree holds release 20261027. Main's run
+# directory, annotations and held-reference records at c7ede86c are equal
+# to this commit's bytes.
+BASE_COMMIT = "875fe1f6f59f4d584b500ca193b60838d3bdf14c"
+# Release 20261027's references: the policyengine-us 2.60.0 build of the
+# 2026-10-22 audit, which that release installed. This release changes no
+# engine, so every step holds the staged references to these bytes, and only
+# the exclusion record may become the release's (build_release_exclusions).
+BASE_REFERENCE_SHA256 = {
+    "reference_outputs.csv": (
+        "eab09a0c184c14b0c33679d9ac132d6f1de720c439ac30685a67ca38655184cb"
+    ),
+    "reference_outputs.csv.meta.json": (
+        "55c17fe298f9ac09ff56b2187d1d314ede7d239e94924da6abb6e0ad2542260c"
+    ),
+    "reference_exclusions.json": (
+        "91408c0f3d49e1984b436164a047f8cedc3e501feb2099ba0e7d2782ee8ac73d"
+    ),
+    "scenarios.csv": (
+        "71b16212f0c0b3e5d13d8694ce57e362c23248665806c4d6dea7b23ef472858a"
+    ),
+    "scenarios.csv.meta.json": (
+        "03a66e90b86e9bd0cc77f27520784bd581777762f749675dc716e24c1b8eaebb"
+    ),
+}
+# The grounding the 20260929 stage (adds0928-v3) rendered into its prompts, and
+# every stage after it through release 20261027's:
+# results/local/unified_audit/grounding.csv in the main clone. Every seed
+# prompt re-renders byte-identically from it and the committed snapshot, so a
+# different grounding would silently invalidate carried-over verdicts.
+GROUNDING_SHA256 = "b1e4a9bc74d762f410524a147efcda7d705c3afcfa3dc27f720fa60c54a7b55c"
+# The seed: every judged case of release 20261027's audit, with the sha256 of
+# its prompt and of its verdict, committed at docs/fable52/seed_digest.csv:
+# 681 cases in the Terra release's retained stage/audit tree
+# (~/reviews/policybench-gpt-6-1-terra/worktree-results/stage/audit).
+# This pins that file's bytes; prepare refuses any other seed and binds this
+# one in stage.json, and a carried-over verdict must keep the seed's bytes.
+SEED_DIGEST = ROOT / "docs/fable52/seed_digest.csv"
+# seed_digest_text(seed_digest(<that tree>)), computed on 2026-11-09.
+SEED_DIGEST_SHA256 = "b9d72535deba713324d2c256a57437b06be2c9d3efd3bda723bddf0ac721dd3c"
+# Each new model's supervised run as it finished, pinned outside the stage: the
+# sha256 of the run directory's predictions.csv and run_state.json, which
+# --step pin-inputs writes here. Export and the freeze read the file as
+# committed at HEAD, and the stage's inputs/<slug>/ copies must be those bytes.
+INPUT_PINS_PATH = "docs/fable52/input_pins.json"
+INPUT_PINS = ROOT / INPUT_PINS_PATH
+PINNED_INPUTS = ("predictions.csv", "run_state.json")
+# Incumbent usage the exporter cannot recompute from committed predictions:
+# Fable 5's board rows were rebuilt from release 20260701 without their cost,
+# token and latency fields (its original per-call rows are that release's
+# claude-fable-5-predictions.csv.gz), so export_full_run reports none of its
+# usage.
+# The released values are carried over; the drift gate then checks every field.
+CARRIED_USAGE = {
+    "claude-fable-5": ("costUsd", "costPerHousehold", "totalTokens", "latencySeconds")
+}
+KEY = ["scenario_id", "variable"]
+# The tree whose committed annotations render every seed prompt: release
+# 20261027's own (PR #247's merge). Every judged case re-renders from it on
+# the template version its sidecar records (tests/test_judge_template.py's
+# committed-prompt invariant), so this is BASE_COMMIT.
+SEED_RELEASE_COMMIT = BASE_COMMIT
+REFERENCE_EXPLANATIONS = (
+    Path("annotations") / RUN_NAME / "us_case_reference_explanations.csv"
+)
+# The cases whose reference explanation changed between the seed's rendering
+# and the base. Both are release 20261027, so none: reworded_since_seed()
+# derives the set from git and must find it empty.
+REWORDED_SINCE_SEED: frozenset[str] = frozenset()
+# The engine release 20261027's references were computed on, which this
+# release keeps: the sidecar's last revision names it, the pyproject and lock
+# pin it (verify_engine_pins), and a ruled record decided on this release's
+# references is computed on it (spec_records).
+BASE_ENGINE = "policyengine-us 2.60.0"
+ENGINE_PREFIX = "policyengine-us "
+# The 2026-10-22 audit, whose reference build release 20261027 installed and
+# whose publication check (scripts/sweep_timing.py check) the lead reruns
+# before publication; verify_publication_record holds its record to the
+# base's references and the committed builder.
+REFERENCE_AUDIT = Path("reference_audit/2026-10-22-engine-upgrade")
+# finish_terra.REFERENCE_BUILD's builder pin: the sha256 of the audit's
+# scripts/build_references_upgrade.py, which the build's sidecar names.
+REFERENCE_BUILDER_SHA256 = (
+    "d4b00204390c6ada97bdf91358dc3d60ae3307d101062b8982fa62923cc9c645"
+)
+
+
+def require(condition: bool, message: str) -> None:
+    """Fail before an unsafe or incomplete stage can proceed."""
+    if not condition:
+        raise SystemExit(message)
+
+
+def digest(path: Path) -> str:
+    """Hash a file without retaining its contents in memory."""
+    value = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(block)
+    return value.hexdigest()
+
+
+def write_json(path: Path, value: object) -> None:
+    """Write a deterministic, finite JSON artifact."""
+    path.write_text(json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n")
+
+
+def verify_reference_pins(
+    directory: Path,
+    label: str,
+    exclusions_sha256: str | None = None,
+) -> None:
+    """Every reference file in ``directory`` must equal its 20261027 pin; the
+    exclusion record may instead be the release's (``exclusions_sha256``).
+
+    finish_terra's ``pins`` argument, which let an installed engine upgrade's
+    build replace the pins, is gone: this release installs no build, so the
+    reference outputs, their sidecar, the scenarios and theirs are release
+    20261027's bytes at every step."""
+    for name, pin in BASE_REFERENCE_SHA256.items():
+        if name == "reference_exclusions.json" and exclusions_sha256 is not None:
+            pin = exclusions_sha256
+        path = directory / name
+        require(
+            path.is_file() and digest(path) == pin,
+            f"{label} {name} does not match its pin; "
+            "this release revises no reference value",
+        )
+
+
+def verify_staged_explanations(bundle: Path) -> None:
+    """The bundle's reference explanations are release 20261027's bytes.
+
+    Review r1, M7. Judge prompts render from bundle/annotations ahead of the
+    committed tree, and export binds whatever bytes the file holds, while
+    this release rewords no explanation. prepare_inputs keeps a copy it finds,
+    so a stage that stopped partway can hold an edited one. main checks the
+    file right after prepare_inputs, before a prompt renders, and at every
+    later step; export checks it before it writes release-ready.json; the
+    freeze's verify_explanations checks it again.
+    """
+    path = bundle / "annotations" / REFERENCE_EXPLANATIONS.name
+    require(
+        path.is_file()
+        and path.read_bytes() == base_commit_blob(REFERENCE_EXPLANATIONS),
+        f"staged {REFERENCE_EXPLANATIONS.name} is not release 20261027's; this "
+        "release rewords no reference explanation; prepare a new stage",
+    )
+
+
+@dataclass(frozen=True)
+class NewRun:
+    slug: str
+    model: str
+    run_dir: Path
+    predictions: Path
+    state: dict
+
+
+def discover_new_models(runs_root: Path) -> list[NewRun]:
+    """Require every named run to be completed and unstopped, as before."""
+    found = []
+    skipped = []
+    for slug, expected in MODELS.items():
+        directory = runs_root / slug / "run"
+        state_path = directory / "run_state.json"
+        if not state_path.is_file():
+            skipped.append(f"{slug}: no run_state.json")
+            continue
+        state = json.loads(state_path.read_text())
+        completed, total = state.get("completed"), state.get("total")
+        reason = state.get("stopped_reason")
+        predictions = directory / "predictions.csv"
+        if (
+            type(total) is not int
+            or type(completed) is not int
+            or total <= 0
+            or completed != total
+            or reason is not None
+        ):
+            skipped.append(f"{slug}: {completed}/{total}, stopped_reason={reason!r}")
+        elif state.get("model") != expected:
+            skipped.append(f"{slug}: unexpected model {state.get('model')!r}")
+        elif not predictions.is_file():
+            skipped.append(f"{slug}: no predictions.csv")
+        else:
+            found.append(NewRun(slug, expected, directory, predictions, state))
+    require(not skipped, "refusing incomplete additions: " + "; ".join(skipped))
+    return found
+
+
+def input_pins_record(runs_root: Path) -> dict:
+    """The record --step pin-inputs writes: the sha256 of each new model's
+    finished run files, read from the run directory under ``runs_root``."""
+    return {
+        "note": (
+            "The sha256 of each new model's supervised run files as the run "
+            "finished, written by scripts/finish_fable52.py --step pin-inputs "
+            "from the run directory. prepare copies them into the stage's "
+            "inputs/<slug>/; export and the freeze refuse a staged copy that "
+            "is not these bytes, and read this file as committed at HEAD."
+        ),
+        "inputs": {
+            run.slug: {
+                "run": f"{runs_root.name}/{run.slug}/run",
+                "sha256": {name: digest(run.run_dir / name) for name in PINNED_INPUTS},
+            }
+            for run in discover_new_models(runs_root)
+        },
+    }
+
+
+def pin_inputs(args) -> None:
+    """Write INPUT_PINS from the finished run; commit it before export."""
+    write_json(INPUT_PINS, input_pins_record(args.runs_root))
+    print(f"Pinned {', '.join(PINNED_INPUTS)} of {sorted(MODELS)} in {INPUT_PINS_PATH}")
+
+
+def head_blob(path: str) -> bytes:
+    """A repository file as committed at HEAD, never the working tree's copy,
+    which could be edited together with the stage it pins."""
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"HEAD:{path}"], capture_output=True
+    )
+    require(
+        result.returncode == 0,
+        f"{path} is not committed at HEAD; commit it: {result.stderr.decode().strip()}",
+    )
+    return result.stdout
+
+
+def committed_input_pins() -> dict[str, dict[str, str]]:
+    """Each new model's pinned run-file sha256, as committed at HEAD.
+
+    The working-tree file must be HEAD's too, so pins written and not yet
+    committed are refused rather than silently ignored.
+    """
+    blob = head_blob(INPUT_PINS_PATH)
+    require(
+        INPUT_PINS.is_file() and INPUT_PINS.read_bytes() == blob,
+        f"{INPUT_PINS_PATH} differs from its HEAD commit; commit it",
+    )
+    record = json.loads(blob)
+    inputs = record.get("inputs") if isinstance(record, dict) else None
+    require(
+        isinstance(inputs, dict)
+        and set(inputs) == set(MODELS)
+        and all(
+            isinstance(item, dict)
+            and isinstance(item.get("sha256"), dict)
+            and set(item["sha256"]) == set(PINNED_INPUTS)
+            for item in inputs.values()
+        ),
+        f"{INPUT_PINS_PATH} does not pin {list(PINNED_INPUTS)} for {sorted(MODELS)}",
+    )
+    return {slug: item["sha256"] for slug, item in inputs.items()}
+
+
+def verify_input_pins(stage: Path) -> None:
+    """The stage's copies of each new model's run files are the pinned bytes."""
+    for slug, pins in committed_input_pins().items():
+        for name, pin in pins.items():
+            path = stage / "inputs" / slug / name
+            require(
+                path.is_file() and digest(path) == pin,
+                f"staged inputs/{slug}/{name} is not the run file "
+                f"{INPUT_PINS_PATH} pins; prepare a new stage from the pinned run",
+            )
+
+
+def verify_prepared_inputs(stage: Path) -> None:
+    """The prepare-time hashes in stage.json and model-provenance.json hold.
+
+    stage.json records every file prepare copied or folded (each new model's
+    run files, the bundle's predictions and references); model-provenance.json
+    records each new model's predictions sha256 and treatment fingerprint.
+    """
+    receipt = json.loads((stage / "stage.json").read_text())
+    files = receipt.get("files") if isinstance(receipt, dict) else None
+    require(isinstance(files, dict), "stage.json records no prepared files")
+    us = Path("publish") / RUN_NAME / "us"
+    expected = {str(us / name) for name in (*REFERENCE_FILES, "predictions.csv")}
+    expected |= {
+        str(Path("inputs") / slug / name) for slug in MODELS for name in PINNED_INPUTS
+    }
+    require(
+        expected <= set(files),
+        f"stage.json does not record {sorted(expected - set(files))}",
+    )
+    for name, pin in files.items():
+        path = (stage / name).resolve()
+        require(
+            path.is_relative_to(stage.resolve())
+            and path.is_file()
+            and digest(path) == pin,
+            f"staged input changed since prepare: {name}",
+        )
+    provenance = json.loads((stage / "model-provenance.json").read_text())
+    require(
+        isinstance(provenance, dict) and set(provenance) == set(MODELS.values()),
+        f"model-provenance.json does not describe exactly {sorted(MODELS.values())}",
+    )
+    for slug, model in MODELS.items():
+        inputs = stage / "inputs" / slug
+        state = json.loads((inputs / "run_state.json").read_text())
+        entry = provenance[model]
+        fingerprint = state.get("treatment_fingerprint")
+        require(
+            isinstance(entry, dict)
+            and entry.get("predictions_sha256") == digest(inputs / "predictions.csv")
+            and entry.get("treatment_fingerprint") == fingerprint,
+            f"model-provenance.json disagrees with the staged run of {model}",
+        )
+
+
+def require_combined_predictions(bundle: Path, *, require_file: bool = True) -> None:
+    """Every release consumer reads the bound combined CSV without alternatives."""
+    candidates = set(bundle.rglob("by_model"))
+    candidates.add(bundle / "us/by_model")
+    shadows = sorted(
+        str(path.relative_to(bundle))
+        for path in candidates
+        if path.exists() or path.is_symlink()
+    )
+    require(not shadows, f"by_model would shadow combined predictions: {shadows}")
+    if require_file:
+        require(
+            (bundle / "us/predictions.csv").is_file(),
+            "missing combined predictions.csv",
+        )
+
+
+def load_combined_predictions(country_dir: Path):
+    """Read only the bound CSV; reject shadows introduced during audit reads."""
+    import pandas as pd
+
+    require_combined_predictions(country_dir.parent)
+    predictions = pd.read_csv(country_dir / "predictions.csv", low_memory=False)
+    require_combined_predictions(country_dir.parent)
+    return predictions
+
+
+def new_model_row_differences(stage: Path, limit: int = 5) -> list[str]:
+    """Where a new model's rows in the bundle's predictions are not its run's.
+
+    Every column of the staged run file (inputs/<slug>/predictions.csv, which
+    verify_input_pins pins) is compared cell by cell, as text, keyed by
+    scenario and variable: the answers and also the cost, token and latency
+    columns the payload's costUsd, totalTokens and latencySeconds come from.
+    No column is exempt. prepare_inputs copies the run file, and fold_board
+    reads it with read_csv and writes its concat with the base by to_csv.
+    restore_run_row_text restores every source cell after that fold, including
+    integer call counts that a concat with empty incumbent cells promotes to
+    floats. In the GPT-6.1 Terra release it compared all 29 columns of that
+    run. A bundle column the run lacks must be empty on the new model's rows.
+    """
+    import pandas as pd
+
+    text = {"dtype": str, "keep_default_na": False}
+    us = stage / "publish" / RUN_NAME / "us" / "predictions.csv"
+    header = list(pd.read_csv(us, nrows=0, **text).columns)
+    if "model" not in header:
+        return [f"{us.name} has no model column"]
+    parts: dict[str, list] = {}
+    for chunk in pd.read_csv(us, chunksize=100_000, **text):
+        for model in MODELS.values():
+            rows = chunk[chunk["model"] == model]
+            if len(rows):
+                parts.setdefault(model, []).append(rows)
+    found = []
+    for slug, model in MODELS.items():
+        source = pd.read_csv(stage / "inputs" / slug / "predictions.csv", **text)
+        folded = (
+            pd.concat(parts[model]) if model in parts else pd.DataFrame(columns=header)
+        )
+        missing = [column for column in source.columns if column not in header]
+        if missing or not set(KEY) <= set(source.columns):
+            found.append(f"{model}: run columns {missing or KEY} not in the bundle")
+            continue
+        run = source.sort_values(KEY, kind="stable").reset_index(drop=True)
+        board = folded.sort_values(KEY, kind="stable").reset_index(drop=True)
+        if (
+            run.duplicated(KEY).any()
+            or len(run) != len(board)
+            or not run[KEY].equals(board[KEY])
+        ):
+            found.append(
+                f"{model}: the bundle holds {len(board)} rows; the run has "
+                f"{len(run)} scenario and variable keys"
+            )
+            continue
+        for column in header:
+            if column in run.columns:
+                differ = run[column] != board[column]
+                what = "differs from the run"
+            else:
+                differ = board[column] != ""
+                what = "is filled, and the run has no such column"
+            if differ.any():
+                first = board.loc[differ.idxmax(), KEY]
+                found.append(
+                    f"{model} {column} {what} on {int(differ.sum())} rows "
+                    f"(first {'__'.join(first)})"
+                )
+    return found[:limit]
+
+
+def verify_new_model_inputs(stage: Path) -> None:
+    """Each new model's staged inputs are its pinned run, as prepare folded it.
+
+    Its staged run files are the bytes INPUT_PINS (committed at HEAD) records,
+    the prepare-time hashes in stage.json and model-provenance.json still
+    hold, and its rows in the bundle's predictions are its run file's, every
+    column, so its published cost, tokens and latency are the run's.
+    """
+    verify_input_pins(stage)
+    verify_prepared_inputs(stage)
+    import pandas as pd
+
+    for slug, model in MODELS.items():
+        frame = pd.read_csv(stage / "inputs" / slug / "predictions.csv")
+        verify_call_provenance(frame, model)
+        verify_usage(frame, model)
+    differ = new_model_row_differences(stage)
+    require(
+        not differ,
+        f"{sorted(MODELS.values())} rows in the bundle's predictions are not the "
+        f"pinned run's: {differ}; prepare a new stage",
+    )
+
+
+def verify_call_provenance(frame, model: str) -> None:
+    """Require the live/cache disclosure written by the post-#231 runner.
+
+    Counts describe the request group and repeat across its rows. Times are
+    each row's apportioned share, including only the successful attempt.
+    The published elapsed_seconds keeps cache lookup time, as #228 states.
+    """
+    import numpy as np
+    import pandas as pd
+
+    names = ("live_calls", "cache_hit_calls", "live_elapsed_seconds", "elapsed_seconds")
+    require(set(names) <= set(frame.columns), f"missing call provenance: {model}")
+    values = {name: pd.to_numeric(frame[name], errors="coerce") for name in names}
+    require(
+        all(
+            np.isfinite(value).all() and (value >= 0).all() for value in values.values()
+        ),
+        f"invalid call provenance: {model}",
+    )
+    live, replay = values["live_calls"], values["cache_hit_calls"]
+    require(
+        (live == np.floor(live)).all()
+        and (replay == np.floor(replay)).all()
+        and ((live + replay) > 0).all()
+        and (values["live_elapsed_seconds"] <= values["elapsed_seconds"] + 1e-9).all()
+        and ((live > 0) | (values["live_elapsed_seconds"] == 0)).all(),
+        f"inconsistent call provenance: {model}",
+    )
+
+
+def verify_usage(frame, model: str) -> None:
+    """Keep #230's missing-usage rule while accepting actual recorded costs."""
+    import numpy as np
+    import pandas as pd
+
+    for name in ("estimated_cost_usd", "total_tokens"):
+        require(name in frame, f"missing {name}: {model}")
+        present = frame[name].notna()
+        numbers = pd.to_numeric(frame[name], errors="coerce")
+        require(
+            (np.isfinite(numbers[present]) & (numbers[present] >= 0)).all(),
+            f"invalid {name}: {model}",
+        )
+    # Missing cost remains missing. full_run_export applies a price override
+    # only to rows that recorded both token counts; it cannot infer one from
+    # another row. The pinned source text survives the fold unchanged.
+
+
+def verify_engine_pins(engine: str, root: Path | None = None) -> None:
+    """Hold both dependency declarations and the lock's package to the build.
+
+    The lead updates the pin and resolves the lock separately. This check
+    performs no package installation and leaves the test interpreter alone.
+    """
+    import tomllib
+
+    root = ROOT if root is None else root
+    version = engine.removeprefix("policyengine-us ")
+    project = tomllib.loads((root / "pyproject.toml").read_text())
+    pins = [
+        p for p in project["project"]["dependencies"] if p.startswith("policyengine-us")
+    ]
+    require(
+        pins == [f"policyengine-us=={version}"],
+        f"pyproject policyengine-us pin disagrees with installed engine {engine}",
+    )
+    lock = tomllib.loads((root / "uv.lock").read_text())
+    packages = [p for p in lock["package"] if p["name"] == "policyengine-us"]
+    declarations = [
+        d
+        for p in lock["package"]
+        for d in p.get("metadata", {}).get("requires-dist", [])
+        if d.get("name") == "policyengine-us"
+    ]
+    require(
+        len(packages) == 1
+        and packages[0].get("version") == version
+        and declarations
+        and all(d.get("specifier") == f"=={version}" for d in declarations),
+        f"uv.lock policyengine-us pin disagrees with installed engine {engine}",
+    )
+
+
+def restore_run_row_text(path: Path, runs: list[NewRun]) -> None:
+    """Write new-model cells from their pinned source after pandas folding.
+
+    Concatenating integer call counts with legacy empty cells promotes them
+    to floats. The immutable run supplies the exact CSV text for every cell;
+    the fold still has to supply exactly its model and output keys.
+    """
+    import csv
+
+    csv.field_size_limit(sys.maxsize)
+    source = {}
+    for run in runs:
+        with run.predictions.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        keyed = {(row["scenario_id"], row["variable"]): row for row in rows}
+        require(len(keyed) == len(rows), f"duplicate source keys: {run.model}")
+        source[run.model] = keyed
+    seen = {model: set() for model in source}
+    pending = path.with_name(path.name + ".restoring")
+    try:
+        with path.open(newline="") as stream, pending.open("w", newline="") as out:
+            reader = csv.DictReader(stream)
+            header = reader.fieldnames
+            require(header is not None, "folded predictions lack a header")
+            writer = csv.DictWriter(
+                out, fieldnames=header, lineterminator="\n", quoting=csv.QUOTE_ALL
+            )
+            writer.writeheader()
+            for row in reader:
+                model = row["model"]
+                if model in source:
+                    key = row["scenario_id"], row["variable"]
+                    require(
+                        key in source[model] and key not in seen[model],
+                        f"fold changed output keys: {model}",
+                    )
+                    original = source[model][key]
+                    require(
+                        set(original) <= set(header), f"fold lost run columns: {model}"
+                    )
+                    row = {name: original.get(name, "") for name in header}
+                    seen[model].add(key)
+                writer.writerow(row)
+        require(
+            all(seen[model] == set(rows) for model, rows in source.items()),
+            "fold lost new-model outputs",
+        )
+        os.replace(pending, path)
+    finally:
+        pending.unlink(missing_ok=True)
+
+
+def require_release_stage(receipt) -> None:
+    """A stage.json that may become a release: prepare records both rehearsal
+    flags, ``early`` (a fold and export without paid judging) and ``partial``
+    (a scratch cohort rehearsal), and each must be the boolean False. A flag
+    that is True, missing or anything else stops the step."""
+    flags = (
+        {name: receipt.get(name, "missing") for name in ("early", "partial")}
+        if isinstance(receipt, dict)
+        else {"stage.json": type(receipt).__name__}
+    )
+    require(
+        isinstance(receipt, dict) and all(value is False for value in flags.values()),
+        f"early/partial stage cannot become a release ({flags}); prepare fresh "
+        "full inputs",
+    )
+
+
+def validate_stage_path(stage: Path, sources: list[Path]) -> None:
+    """Allow only scratch outputs, disjoint from every read-only source."""
+    stage = stage.resolve()
+    scratch = (ROOT / "results/local").resolve()
+    require(scratch in stage.parents, f"stage-dir must be below {scratch}")
+    for source in sources:
+        source = source.resolve()
+        require(
+            source != stage
+            and source not in stage.parents
+            and stage not in source.parents,
+            f"stage-dir overlaps input: {source}",
+        )
+    if stage.exists():
+        require(
+            not any(p.is_symlink() for p in stage.rglob("*")), "symlink in stage-dir"
+        )
+
+
+def validate_keys(frame, reference, model: str) -> None:
+    """Row count alone cannot detect substituted or missing output keys."""
+    require(set(frame.model) == {model}, f"unexpected model rows for {model}")
+    require(not frame.duplicated(KEY).any(), f"duplicate prediction keys: {model}")
+    expected = set(reference[KEY].itertuples(index=False, name=None))
+    actual = set(frame[KEY].itertuples(index=False, name=None))
+    require(actual == expected, f"prediction keys differ from reference: {model}")
+
+
+def live_pointer() -> dict:
+    """The committed dashboard pointer (release 20261027 until the freeze)."""
+    return json.loads((ROOT / "app/src/data.artifact.json").read_text())
+
+
+def resolve_base(args):
+    """Pin the live payload and its committed predictions/reference bundle."""
+    import pandas as pd
+
+    # Pandas 3 infers Arrow strings and expands repeated full raw responses
+    # into large buffers. Object strings retain the CSV parser's deduplication,
+    # as in the Pandas 2 environment used for the previous release.
+    if hasattr(pd.options, "future") and hasattr(pd.options.future, "infer_string"):
+        pd.options.future.infer_string = False
+
+    verify_reference_pins(SNAPSHOT, "committed reference")
+    pointer = live_pointer()
+    require(
+        pointer["tag"] == BASE_TAG and pointer["sha256"] == BASE_SHA256,
+        "base pointer changed; review the base before staging",
+    )
+    opener = gzip.open if args.base_payload.suffix == ".gz" else open
+    with opener(args.base_payload, "rb") as stream:
+        raw = stream.read()
+    live = json.loads(raw)
+    if "countries" not in live:
+        # The compact snapshot freezes the country payload without its wrapper.
+        live = {"countries": {"us": live}}
+        raw = json.dumps(live).encode()
+    require(
+        hashlib.sha256(raw).hexdigest() == BASE_SHA256, "base payload SHA256 mismatch"
+    )
+    require(
+        len(live["countries"]["us"]["modelStats"]) == BASE_MODELS,
+        f"base must have {BASE_MODELS} models",
+    )
+
+    # An explicit alternative is allowed only if it has identical CSV bytes.
+    def csv_digest(path):
+        opener = gzip.open if path.suffix == ".gz" else open
+        h = hashlib.sha256()
+        with opener(path, "rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                h.update(block)
+        return h.hexdigest()
+
+    verify_base_predictions(SNAPSHOT)
+    if args.base_predictions.resolve() != (SNAPSHOT / "predictions.csv.gz").resolve():
+        require(
+            csv_digest(args.base_predictions)
+            == csv_digest(SNAPSHOT / "predictions.csv.gz"),
+            "base predictions differ from committed 20261027 snapshot",
+        )
+    print("Reading pinned base predictions", flush=True)
+    # Rehearsals do not need repeated raw provider transcripts for incumbents.
+    # Their full original CSV remains hash-pinned and untouched in the snapshot.
+    usecols = (lambda column: column != "raw_response") if args.partial else None
+    base = pd.read_csv(args.base_predictions, low_memory=True, usecols=usecols)
+    reference = pd.read_csv(SNAPSHOT / "reference_outputs.csv")
+    require(
+        len(reference) == BASE_OUTPUTS and reference.scenario_id.nunique() == 100,
+        "unexpected reference universe",
+    )
+    require(
+        base.model.nunique() == BASE_MODELS,
+        f"base predictions must have {BASE_MODELS} models",
+    )
+    for model, frame in base.groupby("model"):
+        validate_keys(frame, reference, model)
+    from policybench.reference_exclusions import (
+        load_reference_exclusions,
+        split_reference,
+    )
+
+    exclusions = load_reference_exclusions(SNAPSHOT)
+    require(
+        len(exclusions) == BASE_EXCLUSIONS, f"expected {BASE_EXCLUSIONS} exclusions"
+    )
+    require(
+        len(split_reference(reference, exclusions)[0]) == BASE_SCORED,
+        f"expected {BASE_SCORED} scored outputs",
+    )
+    return base, reference, live
+
+
+def base_commit_blob(path: Path) -> bytes:
+    """A file as committed at BASE_COMMIT, whose tree holds release 20261027.
+
+    The checkout must hold that commit: a shallow clone (CI's default) does
+    not, so the CI test job checks out full history.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", f"{BASE_COMMIT}:{path.as_posix()}"],
+        capture_output=True,
+    )
+    require(
+        result.returncode == 0,
+        f"cannot read {path} at base commit {BASE_COMMIT[:12]}; fetch full "
+        f"history (git fetch --unshallow): {result.stderr.decode().strip()}",
+    )
+    return result.stdout
+
+
+def verify_base_predictions(snapshot: Path) -> None:
+    """The snapshot's predictions are release 20261027's.
+
+    The pin is that release's own: the snapshot manifest as committed at
+    BASE_COMMIT. The working tree's manifest could be edited together with
+    the predictions it pins.
+    """
+    manifest = json.loads(
+        base_commit_blob(Path("paper/snapshot/20260501/manifest.json"))
+    )
+    pin = manifest["source_run_artifacts"][RUN_NAME]["files"]["predictions.csv.gz"]
+    require(
+        digest(snapshot / "predictions.csv.gz") == pin,
+        "committed base predictions fail release 20261027's manifest hash",
+    )
+
+
+def base_payload_from_commit() -> dict:
+    """Release 20261027's payload, read from BASE_COMMIT and checked."""
+    blob = base_commit_blob((SNAPSHOT / "data.json.gz").relative_to(ROOT))
+    live = {"countries": {"us": json.loads(gzip.decompress(blob))}}
+    require(
+        hashlib.sha256(json.dumps(live).encode()).hexdigest() == BASE_SHA256,
+        "base payload SHA256 mismatch",
+    )
+    require(
+        len(live["countries"]["us"]["modelStats"]) == BASE_MODELS,
+        f"base must have {BASE_MODELS} models",
+    )
+    return live
+
+
+def base_adjudication_record() -> dict:
+    """Release 20261027's adjudication record file, read from BASE_COMMIT.
+
+    The working-tree copy is not a baseline: the freeze overwrites it, and a
+    freeze that stops partway would leave the staged record in its place.
+    """
+    path = Path("annotations") / RUN_NAME / ADJUDICATIONS
+    return json.loads(base_commit_blob(path))
+
+
+def base_adjudications() -> list[dict]:
+    """Release 20261027's adjudication entries, read from BASE_COMMIT."""
+    from policybench.adjudications import parse_adjudications
+
+    path = Path("annotations") / RUN_NAME / ADJUDICATIONS
+    return parse_adjudications(base_adjudication_record(), f"{BASE_COMMIT[:12]}:{path}")
+
+
+# --- Ruled exclusions (one in this release: Max's d2180) ---------------------
+
+EXCLUSION_REASON_CODES = {
+    "reference_engine_defect": ("reference_engine_defect", "engine_defect"),
+    "reference_depends_on_unlisted_input": ("prompt_ambiguity", "unlisted_input"),
+    "reference_law_published_after_freeze": ("reference_later_law", "later_law"),
+}
+# Release 20261027's date conventions, which are release 20261014's (release
+# 20261027 added no wave): the waves they name, and the end of the sentence on
+# the last wave, after which a new wave's sentence goes.
+DATE_CONVENTIONS_BASE = (
+    "adjudicated_on names the audit wave that made the decision (2026-09-05, "
+    "2026-09-22, 2026-09-29, 2026-10-05, 2026-10-06, 2026-10-10 or 2026-10-14)."
+)
+DATE_CONVENTIONS_LAST_WAVE = " or 2026-10-14)"
+DATE_CONVENTIONS_ANCHOR = (
+    "affirming a reference the case's verdict flagged or resolving rows the judge "
+    "gave a class outside the final set, and were written on 2026-10-14 UTC."
+)
+
+
+# The keys docs/fable52/spec.json may hold. finish_terra's
+# upgrade_adjudications and upgrade_adjudications_written_on described an
+# installed engine upgrade's decisions; this release installs none, so a spec
+# naming them, or any key outside this set, is refused rather than ignored.
+SPEC_KEYS = frozenset(
+    {
+        "note",
+        "release_tag",
+        "base_tag",
+        "base_sha256",
+        "snapshot_date",
+        "rulings",
+        "decided_on",
+        "proposals",
+        "record_edits",
+        "derivation_insert",
+        "restated_adjudications",
+        "adjudications",
+        "wave_sentence",
+        "adjudications_written_on",
+        "triage_adjudications",
+        "triage_decided_on",
+        "triage_adjudications_written_on",
+    }
+)
+
+
+def load_spec() -> dict:
+    """docs/fable52/spec.json, refused if it holds a key outside SPEC_KEYS."""
+    spec = json.loads((ROOT / SPEC_PATH).read_text())
+    require(isinstance(spec, dict), f"{SPEC_PATH} is not a JSON object")
+    stray = sorted(set(spec) - SPEC_KEYS)
+    require(
+        not stray,
+        f"{SPEC_PATH} holds keys this release does not read: {stray}; an engine "
+        "upgrade's decisions (upgrade_adjudications) have no place in a release "
+        "that installs no build",
+    )
+    return spec
+
+
+def spec_key(item: dict) -> tuple[str, str]:
+    return item["scenario_id"], item["variable"]
+
+
+def spec_records(spec: dict) -> list[dict]:
+    """The ruled records, exactly the outputs each proposal names, in
+    (scenario_id, variable) order; each proposal file must be the bytes the
+    spec pins."""
+    import copy
+
+    records = []
+    for proposal in spec["proposals"]:
+        path = ROOT / proposal["path"]
+        require(
+            digest(path) == proposal["sha256"],
+            f"{proposal['path']} is not the file the spec pins",
+        )
+        doc = json.loads(path.read_text())
+        if proposal["records"] == "root_causes.*.exclusions":
+            found = [
+                record
+                for cause in doc["root_causes"].values()
+                for record in cause["exclusions"]
+            ]
+        else:
+            require(proposal["records"] == "exclusions", "unknown record pointer")
+            found = doc["exclusions"]
+        named = sorted(tuple(output) for output in proposal["outputs"])
+        chosen = [record for record in found if spec_key(record) in set(named)]
+        require(
+            sorted(spec_key(record) for record in chosen) == named,
+            f"{proposal['path']} does not hold exactly the ruled outputs {named}",
+        )
+        records.extend(copy.deepcopy(chosen))
+    keys = [spec_key(record) for record in records]
+    require(len(set(keys)) == len(keys), f"two ruled records share an output: {keys}")
+    require(len(records) == NEW_EXCLUSIONS, f"expected {NEW_EXCLUSIONS} records")
+    for record in records:
+        require(
+            record["reason_code"] in EXCLUSION_REASON_CODES
+            and record["decided_on"] == spec["decided_on"]
+            and record["decided_by"] == "developer"
+            and record["engine_version"] == BASE_ENGINE,
+            f"{spec_key(record)} is not a {spec['decided_on']} developer record on "
+            f"{BASE_ENGINE}",
+        )
+    return sorted(records, key=spec_key)
+
+
+def base_exclusion_record() -> dict:
+    """Release 20261027's exclusion record, read from BASE_COMMIT and pinned."""
+    blob = base_commit_blob((SNAPSHOT / "reference_exclusions.json").relative_to(ROOT))
+    require(
+        hashlib.sha256(blob).hexdigest()
+        == BASE_REFERENCE_SHA256["reference_exclusions.json"],
+        "release 20261027's exclusion record does not match its pin",
+    )
+    return json.loads(blob)
+
+
+def build_release_exclusions(base: dict, spec: dict) -> dict:
+    """Release 20261027's record plus the spec's ruled records (one here).
+
+    The new records go after the earlier waves' and before the audit's
+    trailing scenario_023 record (tests/test_reference_upgrade.py requires that
+    tail); the derivation's new sentence goes before the 2026-09-29 marker, as
+    the 2026-10-05 and 2026-10-06 waves' sentences do. Every earlier record
+    keeps its bytes.
+    """
+    import copy
+    import tempfile
+
+    from policybench.reference_exclusions import load_reference_exclusions
+
+    doc = copy.deepcopy(base)
+    new = spec_records(spec)
+    if not new:
+        # Nothing ruled: the release's record is release 20261027's, and the
+        # spec may carry no edit or derivation sentence for records it lacks.
+        require(
+            not spec.get("record_edits") and not spec.get("derivation_insert"),
+            "the spec edits records or the derivation but rules no record",
+        )
+        return doc
+    tail = doc["exclusions"][-1]
+    require(
+        spec_key(tail) == ("scenario_023", "head_medicaid_eligible"),
+        "release 20261027's record does not end with the audit's scenario_023 record",
+    )
+    existing = {spec_key(record) for record in doc["exclusions"]}
+    require(
+        not existing & {spec_key(record) for record in new},
+        "a ruled output is already excluded",
+    )
+    by_key = {spec_key(record): record for record in new}
+    for edit in spec.get("record_edits", []):
+        record = by_key.get(spec_key(edit))
+        require(record is not None, f"no ruled record for edit {spec_key(edit)}")
+        text = record[edit["field"]]
+        require(
+            text == edit["replace"],
+            f"{spec_key(edit)} {edit['field']} is not the text the edit replaces",
+        )
+        record[edit["field"]] = edit["with"]
+    doc["exclusions"] = doc["exclusions"][:-1] + new + [tail]
+    insert = spec["derivation_insert"]
+    require(
+        doc["derivation"].count(insert["before"]) == 1,
+        "the derivation does not hold its 2026-09-29 marker exactly once",
+    )
+    doc["derivation"] = doc["derivation"].replace(
+        insert["before"], insert["text"] + insert["before"]
+    )
+    with tempfile.TemporaryDirectory() as scratch:
+        # The loader is the record's one validator: reason codes, required
+        # fields, numeric values that differ, and no output listed twice.
+        (Path(scratch) / "reference_exclusions.json").write_text(exclusions_text(doc))
+        loaded = load_reference_exclusions(Path(scratch))
+    require(len(loaded) == RELEASE_EXCLUSIONS, "wrong exclusion count")
+    return doc
+
+
+def exclusions_text(doc: dict) -> str:
+    """The exclusion record as the reference builder spells it."""
+    return json.dumps(doc, indent=2) + "\n"
+
+
+def release_exclusions_sha256() -> str:
+    return hashlib.sha256(
+        exclusions_text(
+            build_release_exclusions(base_exclusion_record(), load_spec())
+        ).encode()
+    ).hexdigest()
+
+
+def write_release_exclusions(stage: Path) -> dict:
+    """Write build_release_exclusions' bytes into the stage's scoring source
+    and bundle; return the exclusions_installed record that binds them.
+
+    install_exclusions and the early rehearsal share it, so both stage the
+    one record the spec defines."""
+    text = exclusions_text(
+        build_release_exclusions(base_exclusion_record(), load_spec())
+    )
+    for target in (stage / "scoring", stage / "publish" / RUN_NAME / "us"):
+        (target / "reference_exclusions.json").write_text(text)
+    return {
+        "base_sha256": BASE_REFERENCE_SHA256["reference_exclusions.json"],
+        "sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "spec_sha256": digest(ROOT / SPEC_PATH),
+        "records": RELEASE_EXCLUSIONS,
+    }
+
+
+def install_exclusions(args) -> None:
+    """Write the release's exclusion record into the stage and rebind it.
+
+    Prepare staged release 20261027's record (pinned); this step replaces it
+    in the stage's scoring source and bundle with build_release_exclusions'
+    bytes and records the change in stage.json, so every later step's input
+    check binds the installed record. Judge prompts do not render exclusions.
+    """
+    stage = args.stage_dir
+    receipt_path = stage / "stage.json"
+    receipt = json.loads(receipt_path.read_text())
+    bound = f"publish/{RUN_NAME}/us/reference_exclusions.json"
+    require(bound in receipt["files"], "stage.json does not bind the exclusions")
+    stage_upgrade(stage)
+    previous = receipt.get("exclusions_installed")
+    if previous is None:
+        require(
+            receipt["files"][bound]
+            == BASE_REFERENCE_SHA256["reference_exclusions.json"],
+            "the stage's exclusion record is not release 20261027's",
+        )
+    installed = write_release_exclusions(stage)
+    receipt["files"][bound] = installed["sha256"]
+    receipt["exclusions_installed"] = installed
+    write_json(receipt_path, receipt)
+    print(
+        f"Installed {RELEASE_EXCLUSIONS} exclusions ({NEW_EXCLUSIONS} new): "
+        f"{installed['sha256']}"
+    )
+
+
+def exclusion_entry(
+    base: dict | None,
+    item: dict,
+    record: dict,
+    case_dir: Path,
+) -> dict:
+    """The adjudication of one ruled output, dated by the spec's decided_on.
+
+    A new entry carries the case's bound Opus 5.5 verdict (in this release's
+    audit tree) as its judge fields, in the base record's entry order
+    (release_20261006.ENTRY_FIELDS). An output that already has a decision
+    (release 20261010's scenario_051, regenerated on 2026-09-22) keeps its
+    judge fields, which the restate script set, and takes the ruling's
+    decision fields in their places; its reasoning keeps the earlier
+    decision's history ahead of the ruling's text. This release's one ruled
+    output has no earlier decision, so its spec restates none.
+
+    finish_terra's ``adjudicated_on`` argument dated an output an installed
+    engine upgrade newly excluded by its build record; this release installs
+    no build, so every entry here takes the spec's decided_on.
+    """
+    from date_adds0928_judge_verdicts import _judge
+    from release_20261006 import ENTRY_FIELDS, bound_verdict
+
+    source, verdict_kind = EXCLUSION_REASON_CODES[record["reason_code"]]
+    basis = {
+        "engine_defect": record.get("law"),
+        "unlisted_input": record.get("unlisted_input"),
+        "later_law": record.get("published"),
+    }[verdict_kind]
+    decision = {
+        "adjudicated_failure_source": source,
+        "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
+        "adjudicated_on": load_spec()["decided_on"],
+        "adjudicator": "developer",
+        "excluded_from_scoring": True,
+        "reference_verdict": verdict_kind,
+        "reference_basis": basis,
+    }
+    require(
+        item["adjudicated_failure_source"] == source
+        and item["reference_verdict"] == verdict_kind,
+        f"{spec_key(item)}: the spec's classes do not match the record's reason",
+    )
+    if base is None:
+        verdict, meta = bound_verdict(case_dir)
+        entry = {
+            "country": "us",
+            "scenario_id": item["scenario_id"],
+            "variable": item["variable"],
+            "judge_model": _judge(meta),
+            "judge_failure_source": verdict["case_failure_source"],
+            "judge_failure_subtype": verdict["case_failure_subtype"],
+            **decision,
+            "judge_reference_suspect": bool(verdict.get("reference_suspect")),
+            "reasoning": item["reasoning"],
+            "judged_on_utc": meta["judged_at_utc"][:10],
+        }
+        entry = {name: entry[name] for name in ENTRY_FIELDS}
+        require(list(entry) == list(ENTRY_FIELDS), "entry fields out of order")
+        return entry
+    entry = {}
+    for name, value in base.items():
+        entry[name] = decision.get(name, value)
+        if name == "adjudicator" and "excluded_from_scoring" not in base:
+            # In the base record's entry order, the flag follows the adjudicator.
+            entry["excluded_from_scoring"] = True
+    require(
+        set(decision) <= set(entry), f"{spec_key(item)}: a decision field is missing"
+    )
+    entry["reasoning"] = base["reasoning"] + " " + item["reasoning"]
+    return entry
+
+
+# A triage decision's fields, in the base record's entry order (an affirmed
+# reference carries no excluded_from_scoring, as the base record's affirmations
+# do not). A decision on a case whose verdict flags nothing carries no
+# reference_verdict or reference_basis, as the base record's scenario_007 and
+# scenario_008 decisions do not.
+TRIAGE_FIELDS = (
+    "country",
+    "scenario_id",
+    "variable",
+    "judge_model",
+    "judge_failure_source",
+    "judge_failure_subtype",
+    "adjudicated_failure_source",
+    "adjudicated_failure_subtype",
+    "adjudicated_on",
+    "adjudicator",
+    "judge_reference_suspect",
+    "reference_verdict",
+    "reference_basis",
+    "reasoning",
+    "judged_on_utc",
+)
+TRIAGE_ITEM_KEYS = frozenset(
+    {
+        "scenario_id",
+        "variable",
+        "adjudicated_failure_source",
+        "adjudicated_failure_subtype",
+        "adjudicated_on",
+        "reference_verdict",
+        "reference_basis",
+        "reasoning",
+    }
+)
+
+
+def triage_items(spec: dict | None = None) -> list[dict]:
+    """docs/fable52/spec.json's triage_adjudications: the developer's decisions
+    on re-opened cases whose verdict triage could not accept as it stands.
+    Each keeps the output scored and gives the case's rows the decided final
+    class. It either affirms a reference the case's verdict flagged
+    (reference_verdict "affirmed", with its basis) or, where the verdict flags
+    nothing, resolves rows the judge gave a class outside the final set (no
+    reference verdict or basis, as the base record's scenario_007 decision).
+    An exclusion is ruled, never a triage decision.
+
+    These decisions form this release's triage wave: each is dated by the
+    spec's triage_decided_on, which release_date_conventions requires to
+    differ from the ruled wave's day (decided_on). The spec starts with none.
+    finish_terra's ``upgrade`` argument, which refused a build that added
+    exclusion decisions, is gone with the install."""
+    spec = load_spec() if spec is None else spec
+    items = spec.get("triage_adjudications", [])
+    require(
+        isinstance(items, list)
+        and all(isinstance(i, dict) and set(i) == TRIAGE_ITEM_KEYS for i in items),
+        "the spec's triage_adjudications must be items with "
+        f"{sorted(TRIAGE_ITEM_KEYS)}",
+    )
+    keys = [spec_key(item) for item in items]
+    require(len(set(keys)) == len(keys), f"a triage decision is listed twice: {keys}")
+    require(
+        all(
+            (
+                item["reference_verdict"] == "affirmed"
+                and isinstance(item["reference_basis"], str)
+                and bool(item["reference_basis"].strip())
+            )
+            or (item["reference_verdict"] is None and item["reference_basis"] is None)
+            for item in items
+        ),
+        "a triage decision may only affirm a reference, with its basis, or leave "
+        "an unflagged reference without a verdict or basis; an exclusion is ruled",
+    )
+    if not items:
+        return []
+    day = spec.get("triage_decided_on")
+    require(
+        isinstance(day, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) is not None,
+        f"{SPEC_PATH} names no triage_decided_on (YYYY-MM-DD), the wave its "
+        "triage decisions are dated by",
+    )
+    wrong = sorted(spec_key(i) for i in items if i["adjudicated_on"] != day)
+    require(
+        not wrong,
+        f"a triage decision is dated by this release's wave ({day}): {wrong}",
+    )
+    return sorted(items, key=spec_key)
+
+
+# The classes triage accepts on a scored row (triage's own list).
+TRIAGE_FINAL_SOURCES = frozenset(
+    {"llm_error", "parse_contract_failure", "budget_exhausted_at_ceiling"}
+)
+
+
+def triage_entry(item: dict, case_dir: Path) -> dict:
+    """The adjudication of a triage decision, with the case's bound Opus 5.5
+    verdict as its judge fields.
+
+    The decision must answer what triage stops on in that verdict: an
+    affirmation needs the verdict's reference flag, and a decision without a
+    reference verdict needs an unflagged verdict whose case or rows carry a
+    class outside the final set."""
+    from date_adds0928_judge_verdicts import _judge
+    from release_20261006 import bound_verdict
+
+    verdict, meta = bound_verdict(case_dir)
+    flagged = bool(verdict.get("reference_suspect"))
+    affirms = item["reference_verdict"] == "affirmed"
+    require(
+        flagged == affirms,
+        f"{case_dir.name}: a triage decision affirms the reference exactly when "
+        f"the case's verdict flags it (flagged {flagged}, affirmed {affirms})",
+    )
+    open_classes = {verdict["case_failure_source"]} | {
+        model["failure_source"] for model in verdict.get("models", [])
+    }
+    require(
+        affirms or bool(open_classes - TRIAGE_FINAL_SOURCES),
+        f"{case_dir.name}: the verdict leaves triage nothing to decide",
+    )
+    entry = {
+        "country": "us",
+        "scenario_id": item["scenario_id"],
+        "variable": item["variable"],
+        "judge_model": _judge(meta),
+        "judge_failure_source": verdict["case_failure_source"],
+        "judge_failure_subtype": verdict["case_failure_subtype"],
+        "adjudicated_failure_source": item["adjudicated_failure_source"],
+        "adjudicated_failure_subtype": item["adjudicated_failure_subtype"],
+        "adjudicated_on": item["adjudicated_on"],
+        "adjudicator": "developer",
+        "judge_reference_suspect": flagged,
+        "reference_verdict": item["reference_verdict"],
+        "reference_basis": item["reference_basis"],
+        "reasoning": item["reasoning"],
+        "judged_on_utc": meta["judged_at_utc"][:10],
+    }
+    fields = TRIAGE_FIELDS
+    if not affirms:
+        fields = tuple(
+            f
+            for f in TRIAGE_FIELDS
+            if f not in ("reference_verdict", "reference_basis")
+        )
+        entry = {name: entry[name] for name in fields}
+    require(list(entry) == list(fields), "triage entry fields out of order")
+    return entry
+
+
+def exclusion_adjudications(
+    record: dict,
+    cases_dir: Path,
+    triage: list[dict] | tuple = (),
+) -> dict:
+    """``record`` (the staged adjudication record) with the ruled outputs
+    decided: an existing entry is restated in place, a new one appended in the
+    spec's order, and the date conventions name the ruled wave (the spec's
+    decided_on). Each ``triage`` item (triage_items) is appended last
+    (triage_entry), and the conventions then name the triage wave too.
+
+    finish_terra's ``regenerated`` and ``added`` arguments described an
+    installed engine upgrade's regenerated and newly excluded outputs; this
+    release installs no build, so the ruled outputs are exactly the spec's.
+    """
+    import copy
+
+    spec = load_spec()
+    records = {spec_key(r): r for r in spec_records(spec)}
+    items = list(spec["adjudications"])
+    require(
+        set(records) == {spec_key(item) for item in items}
+        and len(items) == len(records),
+        "the spec's adjudications and records name different outputs",
+    )
+    restated = {spec_key(item) for item in spec.get("restated_adjudications", [])}
+    out = copy.deepcopy(record)
+    by_key = {
+        spec_key(entry): index for index, entry in enumerate(out["adjudications"])
+    }
+    require(
+        set(by_key) & set(records) == restated,
+        "existing decisions on ruled outputs differ from the spec's restated list: "
+        f"{sorted(set(by_key) & set(records))}",
+    )
+    appended = []
+    for item in items:
+        k = spec_key(item)
+        case_dir = cases_dir / f"us__{k[0]}__{k[1]}"
+        if k in by_key:
+            out["adjudications"][by_key[k]] = exclusion_entry(
+                out["adjudications"][by_key[k]], item, records[k], case_dir
+            )
+        else:
+            appended.append(exclusion_entry(None, item, records[k], case_dir))
+    wave = decision_wave(triage)
+    for item in triage:
+        k = spec_key(item)
+        require(
+            k not in by_key,
+            f"{k}: a triage decision on a case that already has a decision; "
+            "restating one is not supported",
+        )
+        appended.append(triage_entry(item, cases_dir / f"us__{k[0]}__{k[1]}"))
+    out["adjudications"] = out["adjudications"] + appended
+    out["date_conventions"] = release_date_conventions(out["date_conventions"], wave)
+    return out
+
+
+@dataclass(frozen=True)
+class DecisionWave:
+    """This release's triage wave (triage_items) and its UTC day: whether its
+    decisions affirm a flagged reference (``affirms``) or resolve rows the
+    judge gave a class outside the final set on an unflagged case
+    (``resolves``). finish_terra's form also described an installed engine
+    upgrade's decisions (``excludes``, ``upgrade``); this release installs no
+    build, so only the triage form remains."""
+
+    day: str
+    affirms: bool
+    resolves: bool
+
+
+def decision_wave(triage) -> DecisionWave | None:
+    """The DecisionWave of the release's triage decisions (``triage``, as
+    triage_items lists them), or None when there are none, all dated by one
+    day, their adjudicated_on."""
+    days = {item["adjudicated_on"] for item in triage}
+    require(len(days) <= 1, f"the triage decisions name several days: {days}")
+    if not days:
+        return None
+    return DecisionWave(
+        next(iter(days)),
+        affirms=any(item["reference_verdict"] == "affirmed" for item in triage),
+        resolves=any(item["reference_verdict"] is None for item in triage),
+    )
+
+
+def utc_day(value) -> str | None:
+    """``value`` if it is a calendar day spelled YYYY-MM-DD, else None.
+
+    A "[LEAD: ...]" placeholder, a blank or any other spelling is None."""
+    import datetime
+
+    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        return None
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return None
+    return value
+
+
+def utc_today() -> str:
+    """Today's UTC date, spelled YYYY-MM-DD: the latest day a decision written
+    now can name."""
+    import datetime
+
+    return datetime.datetime.now(datetime.UTC).date().isoformat()
+
+
+def release_date_conventions(conventions: str, wave: DecisionWave | None = None) -> str:
+    """Release 20261027's date conventions with each wave this release adds
+    named; the one definition the adjudicate step writes and the record gate
+    expects.
+
+    A wave is added for the spec's ruled records (its decided_on, with its
+    wave_sentence and adjudications_written_on) and for ``wave``
+    (decision_wave): this release's triage decisions, with the day the spec
+    says they were written (triage_adjudications_written_on). With neither,
+    the conventions are release 20261027's, unchanged. The ruled wave's
+    sentence takes the number of its records: "decision ... was written" for
+    one, "decisions ... were written" for several, so the spec's wave_sentence
+    must agree with it (this release's one record reads "follows Max's
+    ruling"). A missing, blank or placeholder wave_sentence stops here. So
+    does a written day (the ruled wave's adjudications_written_on, the triage
+    wave's triage_adjudications_written_on) that is not a real day spelled
+    YYYY-MM-DD (utc_day) or that falls before its wave's own day: the record
+    would state it.
+    """
+    require(
+        conventions.count(DATE_CONVENTIONS_BASE) == 1
+        and conventions.count(DATE_CONVENTIONS_ANCHOR) == 1,
+        "the record's date conventions are not release 20261027's",
+    )
+    spec = load_spec()
+    days, sentence = [], ""
+    records = spec_records(spec)
+    if records:
+        day = spec["decided_on"]
+        text = spec.get("wave_sentence")
+        require(
+            isinstance(text, str) and bool(text.strip()) and "[LEAD" not in text,
+            f'{SPEC_PATH} names no wave_sentence, the words after "The {day} '
+            "wave's decision\" in the record's date conventions",
+        )
+        written = utc_day(spec.get("adjudications_written_on"))
+        require(
+            written is not None,
+            f"{SPEC_PATH} names no adjudications_written_on (YYYY-MM-DD), the UTC "
+            "day the ruled wave's decisions were written; set it to the day "
+            "--step adjudicate-exclusions runs, before running it "
+            f"(it reads {spec.get('adjudications_written_on')!r})",
+        )
+        require(
+            utc_day(day) is not None and written >= day,
+            f"{SPEC_PATH}'s adjudications_written_on ({written}) precedes the "
+            f"ruling it records ({day})",
+        )
+        one = len(records) == 1
+        days.append(day)
+        sentence += (
+            f" The {day} wave's {'decision' if one else 'decisions'} {text} and "
+            f"{'was' if one else 'were'} written on {written} UTC."
+        )
+    if wave is not None:
+        written = utc_day(spec.get("triage_adjudications_written_on"))
+        require(
+            written is not None,
+            f"{SPEC_PATH} names no triage_adjudications_written_on (YYYY-MM-DD), "
+            "the UTC day this release's triage decisions were written "
+            f"(it reads {spec.get('triage_adjudications_written_on')!r})",
+        )
+        require(
+            written >= wave.day,
+            f"{SPEC_PATH}'s triage_adjudications_written_on ({written}) precedes "
+            f"the triage decisions it records ({wave.day})",
+        )
+        require(wave.day not in days, f"the {wave.day} wave is named twice")
+        days.append(wave.day)
+        how = []
+        if wave.affirms:
+            how.append("affirming a reference the case's verdict flagged")
+        if wave.resolves:
+            how.append("resolving rows the judge gave a class outside the final set")
+        require(bool(how), f"the {wave.day} wave decides nothing")
+        sentence += (
+            f" The {wave.day} wave's decisions keep scored outputs on cases this "
+            f"release's new models re-opened, {' or '.join(how)}, and were "
+            f"written on {written} UTC."
+        )
+    if not days:
+        return conventions
+    require(
+        DATE_CONVENTIONS_BASE.count(DATE_CONVENTIONS_LAST_WAVE) == 1,
+        "the base conventions do not end their wave list on 2026-10-14",
+    )
+    named = ", ".join(["2026-10-14", *days[:-1]]) + f" or {days[-1]})"
+    waves = DATE_CONVENTIONS_BASE.replace(DATE_CONVENTIONS_LAST_WAVE, ", " + named)
+    conventions = conventions.replace(DATE_CONVENTIONS_BASE, waves)
+    return conventions.replace(
+        DATE_CONVENTIONS_ANCHOR, DATE_CONVENTIONS_ANCHOR + sentence
+    )
+
+
+def verify_written_days(
+    entries: list[dict], spec: dict | None = None, *, today: str | None = None
+) -> None:
+    """Each wave this release adds was written on or after the day of every
+    verdict its decisions record and, with ``today``, no later than today.
+
+    The record's date conventions say a recorded verdict can postdate
+    adjudicated_on only up to the last day its wave's decisions were written,
+    so a written day before a decision's verdict would make the record state
+    something false. An entry's recorded verdict is dated by
+    judge_rejudged_on when a later wave judged the case again and by
+    judged_on_utc otherwise. The ruled wave's day is the spec's
+    adjudications_written_on, checked on the ruled outputs' entries; the
+    triage wave's is triage_adjudications_written_on, checked on the triage
+    decisions' entries. adjudicate_exclusions passes ``today``, the UTC date
+    it runs, since the day it writes the decisions cannot be a later one; the
+    freeze's record gate checks the verdict days again.
+    """
+    spec = load_spec() if spec is None else spec
+    waves = (
+        ("adjudications_written_on", {spec_key(r) for r in spec_records(spec)}),
+        (
+            "triage_adjudications_written_on",
+            {spec_key(item) for item in triage_items(spec)},
+        ),
+    )
+    for field, keys in waves:
+        if not keys:
+            continue
+        written = utc_day(spec.get(field))
+        require(
+            written is not None,
+            f"{SPEC_PATH} names no {field} (YYYY-MM-DD) (it reads {spec.get(field)!r})",
+        )
+        require(
+            today is None or written <= today,
+            f"{SPEC_PATH}'s {field} ({written}) falls after today's UTC date "
+            f"({today}); set it to the day this step runs",
+        )
+        own = [
+            (
+                spec_key(entry),
+                entry.get("judge_rejudged_on") or entry.get("judged_on_utc"),
+            )
+            for entry in entries
+            if spec_key(entry) in keys
+        ]
+        undated = [key for key, day in own if utc_day(day) is None]
+        require(
+            not undated,
+            f"a decision {field} dates names no day (YYYY-MM-DD) for the verdict "
+            f"it records: {undated[:8]}",
+        )
+        late = [(key, day) for key, day in own if day > written]
+        require(
+            not late,
+            f"{SPEC_PATH}'s {field} ({written}) precedes the day of a verdict "
+            f"its wave's decisions record: {late[:8]}; the record would say a "
+            "decision was written before the verdict it reviewed",
+        )
+
+
+def adjudicate_exclusions(args) -> None:
+    """Decide the ruled outputs in the staged record (after judge and restate),
+    and append the spec's triage decisions, if any (triage_items).
+
+    Each wave's written day must fall on or after the day of every verdict
+    its decisions record and no later than today's UTC date
+    (verify_written_days), so the record never says a decision was written
+    before the verdict it reviewed or on a day still to come. When a day
+    fails, the step writes nothing.
+
+    It runs once on a restated record: a record that already decides a ruled
+    output is refused, so a later spec change (a triage decision) is applied
+    by putting the staged record back to the base's, restating it again and
+    rerunning this step, as docs/fable52/design.md says. finish_terra's
+    handling of an installed engine upgrade (dropping the decisions of records
+    its build regenerated, deciding the outputs it newly excluded) is gone
+    with the install.
+    """
+    from policybench.adjudications import parse_adjudications
+
+    path = args.stage_dir / "publish" / RUN_NAME / "annotations" / ADJUDICATIONS
+    record = json.loads(path.read_text())
+    stage_upgrade(args.stage_dir)
+    keys = {spec_key(item) for item in load_spec()["adjudications"]}
+    require(
+        not any(
+            entry.get("excluded_from_scoring") and spec_key(entry) in keys
+            for entry in record["adjudications"]
+        ),
+        "the ruled outputs are already decided in the staged record; to decide "
+        "again, put the staged record back to release 20261027's (from git at "
+        "BASE_COMMIT), run the restate script, then this step",
+    )
+    staged = exclusion_adjudications(
+        record, args.stage_dir / "audit" / "cases", triage_items()
+    )
+    verify_written_days(staged["adjudications"], today=utc_today())
+    parse_adjudications(staged, path)
+    path.write_text(record_text(staged))
+    print(f"Decided {len(keys)} ruled outputs in {path}")
+
+
+def record_text(record: dict) -> str:
+    """An adjudication record as the committed file spells it."""
+    return json.dumps(record, indent=2, ensure_ascii=False) + "\n"
+
+
+def verify_record_form(text: str, base: dict, wave: DecisionWave | None = None) -> None:
+    """The staged record's bytes are exactly its parsed content, and its top
+    level other than the entries is release 20261027's, with this release's
+    waves named in its date conventions (release_date_conventions).
+
+    Duplicate keys, or any other bytes a parser drops, would ship in the
+    frozen file unseen by the entry gate; so would a rewritten note or date
+    convention.
+    """
+    record = json.loads(text)
+    require(
+        text == record_text(record),
+        "the staged adjudication record is not in the committed form (duplicate "
+        "keys or other bytes the entry gate cannot see); write it with "
+        "json.dumps(indent=2, ensure_ascii=False)",
+    )
+    expected = {k: v for k, v in base.items() if k != "adjudications"}
+    expected["date_conventions"] = release_date_conventions(
+        expected["date_conventions"], wave
+    )
+    require(
+        record_text({k: v for k, v in record.items() if k != "adjudications"})
+        == record_text(expected),
+        "the staged adjudication record changes its note, schema or date "
+        "conventions beyond naming this release's waves; only entries may change",
+    )
+
+
+def verify_restatements(
+    base: list[dict], staged: list[dict], rejudged: frozenset[str], cases_dir: Path
+) -> None:
+    """A re-opened entry's judge fields must be the restate script's.
+
+    Where they differ from release 20261027's, the entry must name the case's
+    current Opus 5.5 verdict (bound by its sidecar) as its judge, date it by
+    that sidecar's UTC day, and keep the base entry's judge_previous with
+    exactly one item appended: the replaced verdict, which is the one the base
+    entry names (its judge, classes, flag and day are its seed verdict's, as
+    the sha256-bound sidecar records it). A new entry must name the current
+    judge too.
+    """
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS, _utc_day, named_item
+
+    before = {case_id(entry): entry for entry in base}
+    wrong = []
+    for entry in staged:
+        case = case_id(entry)
+        if case not in rejudged:
+            continue
+        original = before.get(case)
+        judge = {k: v for k, v in entry.items() if k in JUDGE_FIELDS}
+        if original is not None and judge == {
+            k: v for k, v in original.items() if k in JUDGE_FIELDS
+        }:
+            continue
+        verdict = cases_dir / case / "verdict.json"
+        meta_path = verdict.with_name("verdict.meta.json")
+        meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+        bound = verdict.is_file() and meta.get("verdict_sha256") == digest(verdict)
+        day = _utc_day(meta["judged_at_utc"]) if meta.get("judged_at_utc") else None
+        problems = []
+        if not bound or entry.get("judge_model") != JUDGE_MODEL:
+            problems.append("judge is not the current Opus 5.5 verdict")
+        if original is not None:
+            previous = original.get("judge_previous", [])
+            restated = entry.get("judge_previous", [])
+            if len(restated) != len(previous) + 1 or restated[:-1] != previous:
+                problems.append("judge_previous is not the base's plus one item")
+            elif restated[-1] != named_item(original):
+                problems.append(
+                    "the appended judge_previous item is not the verdict "
+                    "the base entry names"
+                )
+            if (
+                entry.get("judge_rejudged_on") != day
+                or entry.get("judged_on_utc", day) != day
+            ):
+                problems.append(f"not dated by the current verdict's day {day}")
+        if problems:
+            wrong.append(f"{case}: {'; '.join(problems)}")
+    require(
+        not wrong,
+        f"re-opened adjudications not restated by the restate script: {wrong[:4]}",
+    )
+
+
+def rejudged_cases(stage: Path) -> frozenset[str]:
+    """The cases a new model re-opened: prompt-changes.json's changed and added.
+
+    load_seed re-derives prompt-changes.json from the stage's prompts and the
+    seed stage.json binds, so the lists cannot drift from the stage.
+    """
+    load_seed(stage)
+    changes = json.loads((stage / PROMPT_CHANGES).read_text())
+    return frozenset(changes["changed"]) | frozenset(changes["added"])
+
+
+def decided_cases(spec: dict | None = None) -> frozenset[str]:
+    """The cases this release decides, as case ids (rejudged_cases' form).
+
+    Review r2, N1: the spec's ruled records (spec_records) and its triage
+    items (triage_items). Triage applies each decision in the staged record
+    (apply_adjudications) whether or not a new model re-opened the case, so
+    the case's substantive rows and its case note take the decided class,
+    and its case note gains the adjudication sentence. Review r3, Q1: on a
+    case a new model re-opened, it applies the decision to the rows and note
+    collect_audit builds from the stage's new verdict; on a case the release
+    keeps, to release 20261027's published rows and case note, which triage
+    carries first (carry_kept_wording).
+    """
+    spec = load_spec() if spec is None else spec
+    decisions = [*spec_records(spec), *triage_items(spec)]
+    return frozenset(f"us__{s}__{v}" for s, v in map(spec_key, decisions))
+
+
+def case_id(entry: dict) -> str:
+    """An adjudication entry's audit case id."""
+    return f"{entry['country']}__{entry['scenario_id']}__{entry['variable']}"
+
+
+# The only published wording an amendment may change, and where it lives: the
+# decision's reasoning in the adjudication record, the case note, and one
+# model's row annotation. None of them carries a class, an exclusion or a score.
+AMENDABLE_FIELDS = {
+    "reasoning": "adjudication record",
+    "case_annotation": "case note",
+    "annotation": "row annotation",
+}
+
+
+def load_amendments(stage: Path, rejudged: frozenset[str]) -> list[dict]:
+    """The stage's wording-only amendments, each checked for shape and scope.
+
+    Each names a case a new model re-opened, a wording field, the exact old
+    text, the new text and the reason; a row annotation also names its model.
+    An absent file lists none.
+    """
+    path = stage / AMENDMENTS
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text())
+    amendments = payload.get("amendments") if isinstance(payload, dict) else None
+    require(isinstance(amendments, list), f"{AMENDMENTS}: 'amendments' is not a list")
+    for item in amendments:
+        require(isinstance(item, dict), f"{AMENDMENTS}: {item!r} is not an object")
+        field = item.get("field")
+        require(
+            field in AMENDABLE_FIELDS,
+            f"{AMENDMENTS}: field {field!r} is not wording; only "
+            f"{sorted(AMENDABLE_FIELDS)} may be amended",
+        )
+        keys = {"case_id", "field", "old", "new", "reason"}
+        if field == "annotation":
+            keys.add("model")
+        require(
+            set(item) == keys,
+            f"{AMENDMENTS}: an amendment of {field} has keys {sorted(keys)}, "
+            f"not {sorted(item)}",
+        )
+        require(
+            item["case_id"] in rejudged,
+            f"{AMENDMENTS}: {item['case_id']} was not re-judged in this stage",
+        )
+        for key in ("old", "new", "reason", *(("model",) if "model" in keys else ())):
+            require(
+                isinstance(item[key], str) and item[key].strip(),
+                f"{AMENDMENTS}: {key} must be non-empty text: {item!r}",
+            )
+        require(
+            item["old"] != item["new"],
+            f"{AMENDMENTS}: an amendment changes nothing: {item!r}",
+        )
+    return amendments
+
+
+def amend_text(text: str, amendments: list[dict], label: str) -> str:
+    """``text`` with each amendment's old wording, found exactly once, replaced."""
+    for item in amendments:
+        count = text.count(item["old"])
+        require(
+            count == 1,
+            f"{label}: the old text of a wording amendment occurs {count} times, "
+            f"not once: {item['old'][:80]!r}",
+        )
+        text = text.replace(item["old"], item["new"])
+    return text
+
+
+def _record_amendments(amendments: list[dict]) -> dict[str, list[dict]]:
+    """The amendments of the adjudication record, by case."""
+    grouped: dict[str, list[dict]] = {}
+    for item in amendments:
+        if item["field"] == "reasoning":
+            grouped.setdefault(item["case_id"], []).append(item)
+    return grouped
+
+
+def ruled_adjudication_problems(
+    before: dict[str, dict],
+    after: dict[str, dict],
+    cases_dir: Path,
+    triage: list[dict] | tuple = (),
+) -> list[str]:
+    """Where staged decisions differ from what exclusion_entry builds.
+
+    A new decision uses its case's bound verdict. A restated decision keeps
+    the base entry outside the judge fields the restate script supplies.
+    This release rules one exclusion (Max's d2180), a new decision. Each
+    triage decision must be exactly the entry triage_entry builds.
+
+    finish_terra's ``regenerated`` and ``added`` arguments (an installed
+    engine upgrade's regenerated and newly excluded outputs) are gone with the
+    install."""
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    spec = load_spec()
+    records = {spec_key(r): r for r in spec_records(spec)}
+    problems = []
+    for item in spec["adjudications"]:
+        k = spec_key(item)
+        case = f"us__{k[0]}__{k[1]}"
+        if case not in after:
+            problems.append(f"{case}: no staged decision")
+            continue
+        base = before.get(case)
+        if base is not None:
+            # The staged entry before the ruling: the base's decision fields
+            # and reasoning, with the judge fields the restate script wrote.
+            # Outside the judge fields it must be the base's entry.
+            staged = after[case]
+            pre = {
+                name: value if name in JUDGE_FIELDS else base[name]
+                for name, value in staged.items()
+                if name in base or name in JUDGE_FIELDS
+            }
+
+            def outside_judge(entry: dict) -> list:
+                return [[n, v] for n, v in entry.items() if n not in JUDGE_FIELDS]
+
+            if outside_judge(pre) != outside_judge(base):
+                problems.append(f"{case}: fields moved outside the ruling")
+                continue
+            base = pre
+        expected = exclusion_entry(base, item, records[k], cases_dir / case)
+        if json.dumps(after[case], ensure_ascii=False) != json.dumps(
+            expected, ensure_ascii=False
+        ):
+            problems.append(f"{case}: differs from the ruling's entry")
+    for item in triage:
+        k = spec_key(item)
+        case = f"us__{k[0]}__{k[1]}"
+        if case not in after:
+            problems.append(f"{case}: no staged triage decision")
+            continue
+        expected = triage_entry(item, cases_dir / case)
+        if json.dumps(after[case], ensure_ascii=False) != json.dumps(
+            expected, ensure_ascii=False
+        ):
+            problems.append(f"{case}: differs from the triage decision's entry")
+    return problems
+
+
+def verify_adjudication_changes(
+    base: list[dict],
+    staged: list[dict],
+    rejudged: frozenset[str],
+    amendments: list[dict],
+    cases_dir: Path,
+    *,
+    triage: list[dict] | tuple = (),
+) -> int:
+    """A staged record differs from 20261027's only where it has a reason to.
+
+    Only a case a new model re-opened (``rejudged``) may change, and only in
+    its judge fields (the restate script's JUDGE_FIELDS) and in the reasoning
+    wording the listed amendments change, exactly as they say. Every other
+    field of every committed entry keeps its value and its place, key order
+    included, and the committed entries keep their order. A new entry must be
+    one the spec lists (a ruled or triage decision), and none may be dropped.
+    Returns how many staged entries are new beyond those: always 0, since any
+    is refused.
+
+    finish_terra's ``regenerated``, ``dropped`` and ``added`` arguments (an
+    installed engine upgrade's regenerated outputs, the decisions it dropped
+    and the outputs it newly excluded) are gone with the install, so no
+    recorded decision may be dropped.
+    """
+    from restate_gpt61sol_adjudications import JUDGE_FIELDS
+
+    def serialized(entry: dict, rejudged_case: bool) -> str:
+        # A re-opened case may rewrite its judge fields; nothing else may move.
+        items = [
+            [key, value]
+            for key, value in entry.items()
+            if not (rejudged_case and key in JUDGE_FIELDS)
+        ]
+        return json.dumps(items, ensure_ascii=False, allow_nan=False)
+
+    before = {case_id(entry): entry for entry in base}
+    after = {case_id(entry): entry for entry in staged}
+    ruled = ruled_adjudication_problems(before, after, cases_dir, triage)
+    triage_cases = {f"us__{k[0]}__{k[1]}" for k in map(spec_key, triage)}
+    require(
+        triage_cases <= rejudged,
+        "triage decisions name cases this stage did not re-open: "
+        f"{sorted(triage_cases - rejudged)[:8]}",
+    )
+    require(
+        not triage_cases & set(before),
+        "a triage decision replaces a recorded decision: "
+        f"{sorted(triage_cases & set(before))[:8]}",
+    )
+    require(not ruled, f"Staged adjudications of the ruled outputs: {ruled[:8]}")
+    ruled_cases = {
+        f"us__{k[0]}__{k[1]}"
+        for k in (spec_key(item) for item in load_spec()["adjudications"])
+    }
+    ruled_cases |= triage_cases
+    before = {case: entry for case, entry in before.items() if case not in ruled_cases}
+    after = {case: entry for case, entry in after.items() if case not in ruled_cases}
+    dropped = sorted(set(before) - set(after))
+    require(not dropped, f"Staged adjudications drop recorded decisions: {dropped}")
+    new = sorted(set(after) - set(before))
+    require(
+        set(new) <= rejudged,
+        "Staged adjudications add decisions on cases no new model "
+        f"re-opened: {sorted(set(new) - rejudged)[:8]}",
+    )
+    # The only new decisions this release makes are the spec's (ruled and
+    # triage, gated above as ruled_cases); any other would bypass the triage
+    # restrictions, an affirmation of an unflagged reference among them.
+    require(
+        not new,
+        "Staged adjudications add decisions the spec does not list: "
+        f"{new[:8]}; a new decision goes in docs/fable52/spec.json's "
+        "triage_adjudications",
+    )
+    require(
+        [case for case in after if case in before] == list(before),
+        "Staged adjudications change the committed entry order",
+    )
+    grouped = _record_amendments(amendments)
+    require(
+        set(grouped) <= set(before),
+        f"Wording amendments name cases with no recorded decision: "
+        f"{sorted(set(grouped) - set(before))}",
+    )
+    changed = []
+    for case, entry in before.items():
+        if case in grouped:
+            entry = {
+                **entry,
+                "reasoning": amend_text(
+                    entry["reasoning"], grouped[case], f"{case} reasoning"
+                ),
+            }
+        reopened = case in rejudged
+        if serialized(after[case], reopened) != serialized(entry, reopened):
+            changed.append(case)
+    require(
+        not changed,
+        "Staged adjudications change recorded decisions beyond the re-judged "
+        f"cases' judge fields and the listed wording amendments: {changed[:8]}",
+    )
+    return len(new)
+
+
+def stage_adjudications(
+    path: Path,
+    rejudged: frozenset[str],
+    amendments: list[dict],
+    cases_dir: Path,
+    *,
+    triage: list[dict] | tuple = (),
+) -> list[dict]:
+    """The staged record, with its listed reasoning amendments applied.
+
+    Checked in memory against release 20261027's record (from git) and the
+    stage's verdicts; written back only when an amendment was not applied yet.
+    ``triage`` lists the spec's triage decisions (triage_items).
+    """
+    from freeze_snapshot import verify_adjudications_keep_judge_verdicts
+
+    from policybench.adjudications import parse_adjudications
+
+    base_record = base_adjudication_record()
+    base = base_adjudications()
+    current = path.read_text()
+    wave = decision_wave(triage)
+    verify_record_form(current, base_record, wave)
+    record = json.loads(current)
+    grouped = _record_amendments(amendments)
+    original = {case_id(entry): entry for entry in base}
+    applied = False
+    for entry in record["adjudications"]:
+        case = case_id(entry)
+        if case in grouped and case in original:
+            wording = original[case]["reasoning"]
+            if entry["reasoning"] == wording:
+                entry["reasoning"] = amend_text(
+                    wording, grouped[case], f"{case} reasoning"
+                )
+                applied = True
+    text = record_text(record)
+    verify_record_form(text, base_record, wave)
+    entries = parse_adjudications(json.loads(text), path)
+    verify_adjudication_changes(
+        base, entries, rejudged, amendments, cases_dir, triage=triage
+    )
+    verify_restatements(base, entries, rejudged, cases_dir)
+    verify_adjudications_keep_judge_verdicts(entries, cases_dir)
+    if applied:
+        pending = path.with_name(path.name + ".amending")
+        pending.write_text(text)
+        os.replace(pending, path)
+    return entries
+
+
+def amend_annotations(rows, cases, amendments: list[dict]) -> None:
+    """Apply the listed case-note and row-annotation amendments in place.
+
+    Each must find exactly one row, and its old text exactly once in it.
+    """
+    for item in amendments:
+        if item["field"] == "reasoning":
+            continue
+        country, scenario, variable = item["case_id"].split("__", 2)
+        frame = cases if item["field"] == "case_annotation" else rows
+        mask = (
+            (frame["country"].astype(str) == country)
+            & (frame["scenario_id"].astype(str) == scenario)
+            & (frame["variable"].astype(str) == variable)
+        )
+        if item["field"] == "annotation":
+            mask &= frame["model"].astype(str) == item["model"]
+        require(
+            int(mask.sum()) == 1,
+            f"a wording amendment of {item['case_id']} {item['field']} "
+            f"matches {int(mask.sum())} rows; exactly one is required",
+        )
+        index = frame.index[mask][0]
+        frame.loc[index, item["field"]] = amend_text(
+            str(frame.loc[index, item["field"]]),
+            [item],
+            f"{item['case_id']} {item['field']}",
+        )
+
+
+def annotation_csv_text(frame) -> str:
+    """The bytes triage writes for the row annotations or the case notes, and
+    the freeze rebuilds: every column, in collect_audit's row order."""
+    return frame.to_csv(index=False)
+
+
+# Review r3, Q1: the two annotation files triage writes, under the names
+# release 20261027 committed them, and the keys of their rows and notes.
+ANNOTATION_CSV_NAMES = ("us_audit_row_annotations.csv", "us_case_notes.csv")
+ROW_KEY = ["country", *KEY, "model"]
+NOTE_KEY = ["country", *KEY]
+
+
+def base_annotation_frames():
+    """Release 20261027's row annotations and case notes as committed at
+    BASE_COMMIT: the text it published for each verdict, its wording
+    amendments applied.
+
+    Read with the types triage's frames have, and every cell the file leaves
+    empty as empty text, so apply_adjudications can write to them and
+    annotation_csv_text spells them back as the files spell them.
+    """
+    import io
+
+    import pandas as pd
+
+    return tuple(
+        pd.read_csv(
+            io.BytesIO(base_commit_blob(Path("annotations") / RUN_NAME / name)),
+            keep_default_na=False,
+        )
+        for name in ANNOTATION_CSV_NAMES
+    )
+
+
+def annotation_text_frame(frame):
+    """``frame`` as triage writes it (annotation_csv_text), read back with
+    every cell as its text: the form the kept-case gate compares."""
+    import io
+
+    import pandas as pd
+
+    return pd.read_csv(
+        io.StringIO(annotation_csv_text(frame)), dtype=str, keep_default_na=False
+    )
+
+
+def _frame_case_ids(frame) -> list[str]:
+    """Each row's audit case id (case_id's form)."""
+    return [
+        "__".join(key)
+        for key in frame[NOTE_KEY].astype(str).itertuples(index=False, name=None)
+    ]
+
+
+def carry_kept_wording(rows, cases, rejudged: frozenset[str]):
+    """collect_audit's ``rows`` and ``cases`` (triage's column names), each
+    case this release keeps carrying release 20261027's published wording.
+
+    Review r3, Q1. collect_audit writes a row's annotation from its verdict's
+    diagnosis and a case note from its rationale. A case outside
+    ``rejudged`` keeps the seed's verdict byte for byte, and release
+    20261027's committed files hold that verdict's text with the last 1,578
+    wording amendments its committed us_wording-amendments.json lists,
+    Terra's, applied (their 1,566 text amendments reword 1,406 rows and 76
+    case notes on 117 cases; the other 12 name the reasoning field). So on
+    such a case each row that release's committed files hold
+    (base_annotation_frames, by country, scenario, output and model) takes
+    their annotation, and the case note takes theirs without its
+    adjudication sentence, which apply_adjudications then writes for each of
+    this release's decisions. A row the files do not hold keeps the text
+    collect_audit built: on a kept case, only a new model's row on a
+    parse-failure-only case, which no prompt re-opens
+    (verify_reopened_by_predictions). Every other column stays
+    collect_audit's; verify_kept_annotations holds the result to the files.
+    Returns copies.
+    """
+    from policybench.adjudications import _strip_adjudication_sentence
+
+    base_rows, base_cases = base_annotation_frames()
+    published_rows = dict(
+        zip(
+            base_rows[ROW_KEY].astype(str).itertuples(index=False, name=None),
+            base_rows["annotation"],
+        )
+    )
+    published_notes = dict(
+        zip(
+            base_cases[NOTE_KEY].astype(str).itertuples(index=False, name=None),
+            map(_strip_adjudication_sentence, base_cases["case_annotation"]),
+        )
+    )
+    rows, cases = rows.copy(), cases.copy()
+    for frame, key, column, published in (
+        (rows, ROW_KEY, "annotation", published_rows),
+        (cases, NOTE_KEY, "case_annotation", published_notes),
+    ):
+        frame[column] = [
+            text if case in rejudged else published.get(found, text)
+            for case, found, text in zip(
+                _frame_case_ids(frame),
+                frame[key].astype(str).itertuples(index=False, name=None),
+                frame[column],
+            )
+        ]
+    return rows, cases
+
+
+def annotation_frames(collected: dict, rejudged: frozenset[str], decisions, amendments):
+    """The row annotations and case notes triage writes and the freeze
+    rebuilds (verify_annotation_amendments), from collect_audit's output.
+
+    Review r3, Q1: each kept case first takes release 20261027's published
+    wording (carry_kept_wording). apply_adjudications then gives each case
+    ``decisions`` names its classes and its sentence, and amend_annotations
+    replays the stage's listed amendments, which name re-opened cases only,
+    finding each old wording exactly once.
+    """
+    from policybench.adjudications import apply_adjudications
+
+    rows, cases = carry_kept_wording(
+        collected["row"],
+        collected["case"].rename(
+            columns={
+                "case_failure_source": "case_failure_sources",
+                "case_failure_subtype": "case_failure_subtypes",
+            }
+        ),
+        rejudged,
+    )
+    rows, cases, _ = apply_adjudications(rows, cases, decisions)
+    amend_annotations(rows, cases, amendments)
+    return rows, cases
+
+
+def kept_annotation_problems(
+    rows, cases, rejudged: frozenset[str], decisions, *, limit: int = 8
+) -> list[str]:
+    """Where a case this release keeps does not carry the rows and case note
+    release 20261027 published, beside this release's decisions.
+
+    Review r3, Q1. Every case release 20261027's committed files hold
+    (base_annotation_frames) outside ``rejudged`` is a kept case. Its case
+    note and each row the files hold must equal theirs once this release's
+    decisions on the kept cases are applied to them (apply_adjudications),
+    cell for cell as triage writes them (annotation_text_frame) and in every
+    column, but for the note's wrong_model_count, which must also count the
+    rows the new models add. A kept case may hold a row the files lack only
+    for a new model, which verify_reopened_by_predictions allows on a
+    parse-failure-only case alone. The gate compares no re-opened case and
+    no case the files lack. At most ``limit``.
+    """
+    from policybench.adjudications import apply_adjudications
+
+    base_rows, base_cases = base_annotation_frames()
+    kept = {case for case in _frame_case_ids(base_cases) if case not in rejudged}
+    want_rows, want_notes, _ = apply_adjudications(
+        base_rows.loc[[case in kept for case in _frame_case_ids(base_rows)]],
+        base_cases.loc[[case in kept for case in _frame_case_ids(base_cases)]],
+        [entry for entry in decisions if case_id(entry) in kept],
+    )
+    frames = {
+        name: (annotation_text_frame(got), annotation_text_frame(want))
+        for name, got, want in (
+            ("row annotations", rows, want_rows),
+            ("case notes", cases, want_notes),
+        )
+    }
+    for name, (got, want) in frames.items():
+        if list(got.columns) != list(want.columns):
+            return [
+                f"the {name}' columns {list(got.columns)} are not release "
+                f"20261027's {list(want.columns)}"
+            ]
+
+    def grouped(frame, key) -> dict[tuple, list[dict]]:
+        out: dict[tuple, list[dict]] = {}
+        for record in frame.to_dict("records"):
+            out.setdefault(tuple(record[k] for k in key), []).append(record)
+        return out
+
+    (got_rows, want_rows), (got_notes, want_notes) = frames.values()
+    got_r, want_r = grouped(got_rows, ROW_KEY), grouped(want_rows, ROW_KEY)
+    got_n, want_n = grouped(got_notes, NOTE_KEY), grouped(want_notes, NOTE_KEY)
+    new_models = set(MODELS.values())
+    problems: list[str] = []
+    added: dict[str, int] = {}
+    for key, found in got_r.items():
+        case = "__".join(key[:3])
+        if case not in kept or key in want_r:
+            continue
+        if key[3] in new_models and len(found) == 1:
+            added[case] = added.get(case, 0) + 1
+        else:
+            problems.append(f"{case} {key[3]}: a row release 20261027 does not hold")
+    for key, (want, *_) in want_r.items():
+        case, found = "__".join(key[:3]), got_r.get(key, [])
+        if len(found) != 1:
+            problems.append(f"{case} {key[3]}: {len(found)} rows, not one")
+            continue
+        problems += [
+            f"{case} {key[3]} {column}"
+            for column in want_rows.columns
+            if found[0][column] != want[column]
+        ]
+    for key, (want, *_) in want_n.items():
+        case, found = "__".join(key), got_n.get(key, [])
+        if len(found) != 1:
+            problems.append(f"{case} case note: {len(found)} notes, not one")
+            continue
+        want = {
+            **want,
+            "wrong_model_count": str(
+                int(want["wrong_model_count"]) + added.get(case, 0)
+            ),
+        }
+        problems += [
+            f"{case} case note {column}"
+            for column in want_notes.columns
+            if found[0][column] != want[column]
+        ]
+    return problems[:limit]
+
+
+def verify_kept_annotations(rows, cases, rejudged: frozenset[str], decisions) -> None:
+    """Refuse unless every case this release keeps carries release
+    20261027's published rows and case note beside this release's decisions
+    (kept_annotation_problems)."""
+    problems = kept_annotation_problems(rows, cases, rejudged, decisions)
+    require(
+        not problems,
+        "a case this release keeps must carry the row annotations and case note "
+        "release 20261027 published, with this release's decisions applied; "
+        f"these differ: {problems}",
+    )
+
+
+def verify_staged_annotations(bundle: Path, rejudged: frozenset[str]) -> None:
+    """Export's hold on the two annotation files triage wrote.
+
+    Review r3, Q3. Check (a) lets a decided kept case's classes and case note
+    differ from the base's, so export, as the freeze does, holds both files
+    to the staged record (verify_adjudications_applied), and holds every kept
+    case, the decided one included, to the rows and case note release
+    20261027 published with this release's decisions applied
+    (verify_kept_annotations).
+    """
+    import pandas as pd
+
+    from policybench.adjudications import (
+        load_adjudications,
+        verify_adjudications_applied,
+    )
+
+    annotations = bundle / "annotations"
+    decisions = load_adjudications(annotations / ADJUDICATIONS)
+    rows, cases = (
+        pd.read_csv(annotations / name, keep_default_na=False)
+        for name in ANNOTATION_CSV_NAMES
+    )
+    verify_adjudications_applied(rows, cases, decisions)
+    verify_kept_annotations(rows, cases, rejudged, decisions)
+
+
+def resolve_live_base(args) -> dict:
+    """The 20261027 payload an export compares the incumbents against.
+
+    Before the freeze the live pointer and the committed snapshot are
+    20261027's, and resolve_base checks all of them. After the freeze they are
+    this release's own, so a re-export (after a fix to the staged annotations)
+    reads the 20261027 run payload from BASE_COMMIT instead and checks that it
+    rewraps to the 20261027 release asset (BASE_SHA256). Any other pointer is
+    refused.
+    """
+    pointer = live_pointer()
+    if pointer["tag"] == BASE_TAG:
+        return resolve_base(args)[2]
+    require(
+        pointer["tag"] == RELEASE_TAG,
+        "base pointer changed; review the base before staging",
+    )
+    return base_payload_from_commit()
+
+
+def resolved_model_id(route: str) -> str:
+    """The model id a provider's responses report for a registry route.
+
+    OpenRouter reports its own id, the route after "openrouter/" (Muse
+    Wonder's rows say "meta/muse-wonder"); a first-party provider reports the
+    bare model id, the route's last segment (Gemini 4 Argon's rows say
+    "gemini-4-argon").
+    """
+    if route.startswith("openrouter/"):
+        return route.removeprefix("openrouter/")
+    return route.split("/")[-1]
+
+
+def prepare_inputs(args, runs, base, reference) -> tuple[Path, dict]:
+    """Copy immutable inputs and fold full or explicitly partial cohorts."""
+    import pandas as pd
+
+    from policybench.config import MODELS as registry
+    from policybench.config import PRICE_OVERRIDES_PER_1M
+    from policybench.fold_board import fold_board
+
+    stage = args.stage_dir
+    frames = {}
+    provenance = {}
+    for run in runs:
+        frame = pd.read_csv(run.predictions, low_memory=False)
+        verify_call_provenance(frame, run.model)
+        verify_usage(frame, run.model)
+        if args.partial:
+            frame = frame.drop(columns=["raw_response"], errors="ignore")
+        households = set(frame.scenario_id)
+        require(
+            len(households) == run.state["total"],
+            f"state/CSV household mismatch: {run.model}",
+        )
+        require(
+            households <= set(reference.scenario_id), f"unknown households: {run.model}"
+        )
+        validate_keys(
+            frame, reference[reference.scenario_id.isin(households)], run.model
+        )
+        require(
+            run.model in registry and run.model in PRICE_OVERRIDES_PER_1M,
+            f"missing model registration/pricing: {run.model}",
+        )
+        if not args.partial:
+            require(
+                run.state["total"] == 100 and households == set(reference.scenario_id),
+                f"full release requires 100 households: {run.model}",
+            )
+            require(
+                not run.state.get("synthetic_partial"),
+                "synthetic run state is partial only",
+            )
+            fingerprint = run.state.get("treatment_fingerprint")
+            require(
+                isinstance(fingerprint, dict)
+                and fingerprint.get("model_id") == registry[run.model],
+                f"missing/mismatched treatment fingerprint: {run.model}",
+            )
+            import freeze_snapshot as freezer
+            from freeze_gpt61sol import validate_treatment
+
+            validate_treatment(
+                freezer,
+                run.state,
+                run.run_dir / "run_state.json",
+                SNAPSHOT / "scenarios.csv",
+            )
+        for field in (
+            "provider_resolved_model",
+            "provider_response_id",
+        ):
+            require(
+                field in frame and frame[field].notna().all(),
+                f"missing {field}: {run.model}",
+            )
+        expected_provider = resolved_model_id(registry[run.model])
+        require(
+            set(frame.provider_resolved_model) == {expected_provider},
+            f"unexpected provider-resolved model: {run.model}",
+        )
+        target = stage / "inputs" / run.slug
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(run.predictions, target / "predictions.csv")
+        shutil.copyfile(run.run_dir / "run_state.json", target / "run_state.json")
+        frames[run.model] = frame
+        provenance[run.model] = {
+            "households": len(households),
+            "rows": len(frame),
+            "predictions_sha256": digest(target / "predictions.csv"),
+            "treatment_fingerprint": run.state.get("treatment_fingerprint"),
+            "provider_resolved_models": sorted(
+                frame.provider_resolved_model.dropna().unique()
+            ),
+            "provider_system_fingerprints": sorted(
+                frame.get("provider_system_fingerprint", pd.Series(dtype=str))
+                .dropna()
+                .unique()
+            ),
+        }
+    shared = set.intersection(*(set(frame.scenario_id) for frame in frames.values()))
+    require(bool(shared), "no households completed by every addition")
+    selected = (
+        reference[reference.scenario_id.isin(shared)] if args.partial else reference
+    )
+    scoring = stage / "scoring"
+    scoring.mkdir(exist_ok=True)
+    for name in REFERENCE_FILES:
+        shutil.copyfile(SNAPSHOT / name, scoring / name)
+    if args.partial:
+        selected.to_csv(scoring / "reference_outputs.csv", index=False)
+        meta = json.loads((scoring / "reference_outputs.csv.meta.json").read_text())
+        meta.update(
+            reference_csv_sha256=digest(scoring / "reference_outputs.csv"),
+            row_count=len(selected),
+            partial=True,
+        )
+        write_json(scoring / "reference_outputs.csv.meta.json", meta)
+        scenarios = pd.read_csv(scoring / "scenarios.csv")
+        scenarios[scenarios.scenario_id.isin(shared)].to_csv(
+            scoring / "scenarios.csv", index=False
+        )
+        exclusions = json.loads((scoring / "reference_exclusions.json").read_text())
+        exclusions["exclusions"] = [
+            e for e in exclusions["exclusions"] if e["scenario_id"] in shared
+        ]
+        write_json(scoring / "reference_exclusions.json", exclusions)
+        base = base[base.scenario_id.isin(shared)]
+    else:
+        verify_reference_pins(scoring, "staged reference")
+    base_path = stage / "base-predictions.csv"
+    base.to_csv(base_path, index=False)
+    additions = []
+    for run in runs:
+        path = stage / "inputs" / run.slug / "fold.csv"
+        frames[run.model][frames[run.model].scenario_id.isin(shared)].to_csv(
+            path, index=False
+        )
+        additions.append(path)
+    result = fold_board(base_path, additions, scoring, stage / "fold", export=False)
+    require(
+        not result["excluded"] and result["models"] == BOARD_MODELS,
+        f"fold refused additions: {result}",
+    )
+    bundle = stage / "publish" / RUN_NAME
+    us = bundle / "us"
+    us.mkdir(parents=True, exist_ok=True)
+    require(
+        not (us / "by_model").exists(), "by_model would shadow combined predictions"
+    )
+    shutil.copyfile(stage / "fold/us/predictions.csv", us / "predictions.csv")
+    if not args.partial:
+        restore_run_row_text(us / "predictions.csv", runs)
+    for name in REFERENCE_FILES:
+        shutil.copyfile(scoring / name, us / name)
+    annotations = bundle / "annotations"
+    annotations.mkdir(exist_ok=True)
+    for name in ANNOTATION_FILES:
+        # Re-preparing must not overwrite a recorded stage adjudication.
+        if not (annotations / name).exists():
+            shutil.copyfile(ANNOTATIONS / name, annotations / name)
+    write_json(stage / "model-provenance.json", provenance)
+    return bundle, frames
+
+
+def partial_scores(args, base, reference, frames) -> None:
+    """Rank each addition against incumbents on its own completed households."""
+    import pandas as pd
+
+    from policybench.analysis import analyze_no_tools
+    from policybench.reference_exclusions import (
+        load_reference_exclusions,
+        split_reference,
+    )
+
+    scored, _ = split_reference(reference, load_reference_exclusions(SNAPSHOT))
+    scenarios = pd.read_csv(SNAPSHOT / "scenarios.csv")
+    results = []
+    for model, frame in frames.items():
+        ids = set(frame.scenario_id)
+        cohort = pd.concat([base[base.scenario_id.isin(ids)], frame], ignore_index=True)
+        analysis = analyze_no_tools(
+            scored[scored.scenario_id.isin(ids)],
+            cohort,
+            scenarios=scenarios[scenarios.scenario_id.isin(ids)],
+        )
+        stats = analysis["bounded_summary"].set_index("model")
+        exact = float(stats.loc[model, "weighted_exact"])
+        rank = 1 + int((stats.weighted_exact > exact).sum())
+        result = {
+            "label": "PARTIAL",
+            "model": model,
+            "households": len(ids),
+            "scored_outputs": int(scored.scenario_id.isin(ids).sum()),
+            "exact_percent": exact * 100,
+            "rank": rank,
+            "models": len(stats),
+        }
+        results.append(result)
+        print(json.dumps(result))
+    write_json(args.stage_dir / "partial-scores.json", results)
+
+
+def seed_prompt_digests(audit: Path) -> dict[str, str]:
+    """The sha256 of every prompt a case carries, keyed by case id."""
+    return {
+        case.name: digest(case / "prompt.md")
+        for case in sorted((audit / "cases").glob("*"))
+        if (case / "prompt.md").is_file()
+    }
+
+
+def seed_digest(audit: Path) -> dict[str, dict[str, str]]:
+    """Each judged case's prompt and verdict sha256, keyed by case id."""
+    seed = {}
+    for case in sorted((audit / "cases").glob("*")):
+        if not (case / "prompt.md").is_file():
+            continue
+        require((case / "verdict.json").is_file(), f"seed case unjudged: {case.name}")
+        seed[case.name] = {
+            "prompt_sha256": digest(case / "prompt.md"),
+            "verdict_sha256": digest(case / "verdict.json"),
+        }
+    return seed
+
+
+def seed_digest_text(seed: dict[str, dict[str, str]]) -> str:
+    """The seed digest as docs/fable52/seed_digest.csv spells it."""
+    rows = [
+        f"{case},{item['prompt_sha256']},{item['verdict_sha256']}\n"
+        for case, item in sorted(seed.items())
+    ]
+    return "case_id,prompt_sha256,verdict_sha256\n" + "".join(rows)
+
+
+def verify_seed(seed: dict[str, dict[str, str]]) -> None:
+    """The seed must be the 20261027 audit the committed digest records."""
+    require(
+        hashlib.sha256(seed_digest_text(seed).encode()).hexdigest()
+        == SEED_DIGEST_SHA256,
+        "the audit seed is not release 20261027's (see docs/fable52/"
+        "seed_digest.csv): its cases, prompts or verdicts differ",
+    )
+
+
+def load_seed(stage: Path) -> dict[str, dict[str, str]]:
+    """The seed stage.json binds, checked against the committed digest.
+
+    It also re-derives which cases are kept, changed and added from the
+    stage's prompts and that seed, and refuses unless prompt-changes.json
+    says the same: a kept case's prompt that drifts, a case moved between
+    the lists, or a manifest whose wrong models the staged predictions do not
+    bear out, stops every step that relies on them.
+    """
+    receipt = json.loads((stage / "stage.json").read_text())
+    require(
+        "seed" in receipt,
+        "stage.json does not bind the audit seed; run --step bind-seed "
+        "--audit-seed <the 20261027 audit>",
+    )
+    verify_seed(receipt["seed"])
+    verify_prompt_changes(stage, receipt["seed"])
+    return receipt["seed"]
+
+
+def verify_prompt_changes(stage: Path, seed: dict[str, dict[str, str]]) -> None:
+    """prompt-changes.json must be what the stage's prompts say against the seed.
+
+    A case whose prompt is the seed's is kept, one whose prompt differs is
+    changed and one the seed lacks is added; a new model must be among the
+    wrong models of every changed or added case, and no seed case may vanish
+    (check_prompt_changes, as prepare applies it). The staged predictions
+    must agree (verify_reopened_by_predictions). finish_terra let a case the
+    installed engine upgrade changed re-open without a new model
+    (upgraded_cases); this release installs no build, so none may.
+    """
+    evidence = verify_parse_failure_flags(stage)
+    derived = check_prompt_changes(
+        stage / "audit",
+        {case: item["prompt_sha256"] for case, item in seed.items()},
+    )
+    recorded = json.loads((stage / PROMPT_CHANGES).read_text())
+    differ = sorted(
+        {
+            case
+            for key in ("kept", "changed", "added")
+            for case in set(derived[key]) ^ set(recorded.get(key, []))
+        }
+    )
+    require(
+        not differ,
+        f"{PROMPT_CHANGES} disagrees with the stage's prompts and the bound "
+        f"seed on {len(differ)} cases: {differ[:8]}",
+    )
+    verify_reopened_by_predictions(stage, derived, evidence=evidence)
+
+
+def verify_parse_failure_flags(stage: Path):
+    """A parse-only case has no numeric prediction among its actual wrong rows."""
+    import pandas as pd
+
+    from policybench.audit import _case_id, _load_manifest
+    from policybench.case_annotations import wrong_prediction_rows
+
+    us = stage / "publish" / RUN_NAME / "us"
+    require_combined_predictions(us.parent)
+    wrong = wrong_prediction_rows(us, prediction_reader=load_combined_predictions)
+    manifest = _load_manifest(stage / "audit")
+    parse_only = {
+        _case_id(us.name, str(scenario), str(variable)): bool(
+            pd.to_numeric(rows["prediction"], errors="coerce").isna().all()
+        )
+        for (scenario, variable), rows in wrong.groupby(KEY, sort=False)
+    }
+    differ = [
+        case
+        for case, row in manifest.items()
+        if case not in parse_only
+        or row.get("parse_failure_only") is not parse_only[case]
+    ]
+    require(
+        not differ,
+        "audit parse_failure_only disagrees with staged predictions: "
+        f"{sorted(differ)[:8]}",
+    )
+    return wrong, manifest
+
+
+def verify_reopened_by_predictions(
+    stage: Path, derived: dict[str, list], *, evidence: tuple | None = None
+) -> None:
+    """The manifest's claim that a new model re-opened a case must hold.
+
+    cases.jsonl is editable, so re-score the staged predictions against the
+    staged references with wrong_prediction_rows, the rule prepare_audit
+    used to list each case's wrong models. A changed or added case must list
+    the new model exactly when its prediction is wrong; any other case it
+    gets wrong must be parse-failure-only as the manifest records it, so a
+    kept case needs the new model's prediction right. The staged references
+    are release 20261027's (verify_reference_pins), and the rule scores every
+    output, an excluded one included, so installing the release's exclusion
+    record changes no case's wrong models.
+    """
+    from policybench.audit import _case_id
+
+    us = stage / "publish" / RUN_NAME / "us"
+    wrong, manifest = (
+        verify_parse_failure_flags(stage) if evidence is None else evidence
+    )
+    reopened = {*derived["changed"], *derived["added"]}
+    parse_only = {case for case, row in manifest.items() if row["parse_failure_only"]}
+    differ = set()
+    for model in MODELS.values():
+        rows = wrong[wrong.model == model]
+        missed = {
+            _case_id(us.name, str(scenario), str(variable))
+            for scenario, variable in zip(rows.scenario_id, rows.variable)
+        }
+        differ |= {
+            case
+            for case in reopened
+            if (model in manifest[case]["wrong_models"]) != (case in missed)
+        }
+        differ |= missed - reopened - parse_only
+    require(
+        not differ,
+        f"the audit manifest's wrong models disagree with the staged "
+        f"predictions of {sorted(MODELS.values())} on {len(differ)} cases: "
+        f"{sorted(differ)[:8]}",
+    )
+
+
+def check_seed(args) -> None:
+    """bind-seed before prepare: check the seed, and the grounding when given,
+    against their committed pins, and write nothing.
+
+    finish_terra bound the seed into the reference-install.json its
+    install-references step wrote before prepare, and prepare compared its own
+    seed with that binding. This release installs nothing before prepare, and
+    prepare checks the seed against the same committed digest and binds it
+    in stage.json itself, so this step only lets the lead check the read-only
+    sources before prepare starts.
+    """
+    require(args.audit_seed is not None, "bind-seed needs --audit-seed")
+    seed = seed_digest(args.audit_seed)
+    verify_seed(seed)
+    if args.grounding is not None:
+        require(
+            digest(args.grounding) == GROUNDING_SHA256,
+            "grounding differs from the one the 20260929 audit was rendered with",
+        )
+    print(
+        f"The audit seed matches {SEED_DIGEST.relative_to(ROOT)}: {len(seed)} "
+        "judged cases; prepare binds it"
+    )
+
+
+def bind_seed(args) -> None:
+    """Bind the seed in the stage.json of a stage prepared before prepare did.
+
+    The seed must match the committed digest, and the stage must agree with it
+    case by case: every kept case keeps the seed's prompt and verdict bytes,
+    every changed case's prompt differs, and no added case is a seed case.
+    """
+    receipt_path = args.stage_dir / "stage.json"
+    require(receipt_path.is_file(), "bind-seed needs a prepared stage")
+    receipt = json.loads(receipt_path.read_text())
+    require("seed" not in receipt, "stage.json already binds its audit seed")
+    require(args.audit_seed is not None, "bind-seed needs --audit-seed")
+    seed = seed_digest(args.audit_seed)
+    verify_seed(seed)
+    changes = json.loads((args.stage_dir / PROMPT_CHANGES).read_text())
+    cases = args.stage_dir / "audit" / "cases"
+    differ = [
+        case
+        for case in changes["kept"]
+        if case not in seed
+        or not (cases / case / "verdict.json").is_file()
+        or digest(cases / case / "prompt.md") != seed[case]["prompt_sha256"]
+        or digest(cases / case / "verdict.json") != seed[case]["verdict_sha256"]
+    ]
+    differ += [
+        case
+        for case in changes["changed"]
+        if case not in seed
+        or digest(cases / case / "prompt.md") == seed[case]["prompt_sha256"]
+    ]
+    differ += [case for case in changes["added"] if case in seed]
+    differ += sorted(set(seed) - {*changes["kept"], *changes["changed"]})
+    require(
+        not differ,
+        f"the stage disagrees with the seed on {len(differ)} cases: {differ[:8]}",
+    )
+    receipt["seed"] = seed
+    write_json(receipt_path, receipt)
+    print(f"Bound the audit seed: {len(seed)} judged cases")
+
+
+def reworded_since_seed() -> frozenset[str]:
+    """The cases whose committed reference explanation differs between the
+    seed's release (SEED_RELEASE_COMMIT) and the base (BASE_COMMIT).
+
+    Refuses unless they are exactly REWORDED_SINCE_SEED, so a change to any
+    other explanation since the seed stops prepare instead of re-opening a
+    case nobody reviewed.
+    """
+    import io
+
+    import pandas as pd
+
+    def explanations(commit: str) -> dict[tuple[str, str], tuple]:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "show", f"{commit}:{REFERENCE_EXPLANATIONS}"],
+            capture_output=True,
+        )
+        require(
+            result.returncode == 0,
+            f"cannot read {REFERENCE_EXPLANATIONS} at {commit[:12]}: "
+            f"{result.stderr.decode().strip()}",
+        )
+        frame = pd.read_csv(io.BytesIO(result.stdout), dtype=str, keep_default_na=False)
+        return {
+            (row.scenario_id, row.variable): tuple(row)
+            for row in frame.itertuples(index=False)
+        }
+
+    before = explanations(SEED_RELEASE_COMMIT)
+    after = explanations(BASE_COMMIT)
+    require(set(before) == set(after), "explanation keys changed since the seed")
+    derived = frozenset(
+        f"us__{scenario}__{variable}"
+        for (scenario, variable), row in after.items()
+        if before[(scenario, variable)] != row
+    )
+    require(
+        derived == REWORDED_SINCE_SEED,
+        "reference explanations changed since the seed outside the pinned "
+        f"set: {sorted(derived ^ REWORDED_SINCE_SEED)}",
+    )
+    return derived
+
+
+def check_prompt_changes(audit: Path, seeded: dict[str, str]) -> dict[str, list]:
+    """Only a case a new model joins, or one the base reworded since the
+    seed, may change or appear.
+
+    The seed's prompts re-render byte-identically from release 20261027's
+    committed snapshot (SEED_RELEASE_COMMIT) and the pinned grounding, so an
+    incumbent-only case whose prompt differs (or that is new) means an input
+    changed under the carried-over verdicts, unless its reference explanation
+    is one the base reworded since the seed (reworded_since_seed, which finds
+    none: the seed's release is the base); that case is re-judged.
+    finish_terra's ``upgraded`` argument, the cases an installed engine
+    upgrade changed, is gone with the install.
+    """
+    manifest = [
+        json.loads(line) for line in (audit / "cases.jsonl").read_text().splitlines()
+    ]
+    prompts = {
+        item["case_id"]: digest(audit / "cases" / item["case_id"] / "prompt.md")
+        for item in manifest
+        if not item["parse_failure_only"]
+    }
+    return classify_prompt_changes(manifest, prompts, seeded, reworded_since_seed())
+
+
+def classify_prompt_changes(
+    manifest: list[dict],
+    prompts: dict[str, str],
+    seeded: dict[str, str],
+    reworded: frozenset[str],
+) -> dict[str, list]:
+    """check_prompt_changes' rule on a manifest and its prompts' sha256.
+
+    finish_terra's install-references also applied it to the audit it was
+    about to write; here check_prompt_changes is its one caller.
+    """
+    new_models = set(MODELS.values())
+    changed, added, kept, offending = [], [], [], []
+    for item in manifest:
+        if item["parse_failure_only"]:
+            continue
+        case_id = item["case_id"]
+        prompt = prompts[case_id]
+        if seeded.get(case_id) == prompt:
+            kept.append(case_id)
+            continue
+        (changed if case_id in seeded else added).append(case_id)
+        if not new_models & set(item["wrong_models"]) and case_id not in reworded:
+            offending.append(case_id)
+    require(
+        not offending,
+        "incumbent-only case prompts changed against the seed (grounding, "
+        f"references or annotations differ): {offending[:8]}",
+    )
+    # Adding a model cannot remove a wrong answer, so every judged seed case
+    # must still be a case.
+    vanished = sorted(set(seeded) - {*kept, *changed})
+    require(not vanished, f"seed cases vanished from the audit: {vanished[:8]}")
+    unrendered = sorted(reworded - set(changed))
+    require(
+        not unrendered,
+        f"reworded cases whose prompts did not change: {unrendered[:8]}",
+    )
+    return {"kept": kept, "changed": changed, "added": added}
+
+
+def prepare_cases(args, bundle) -> dict[str, dict[str, str]]:
+    """Seed a private audit; changed prompts invalidate copied verdicts.
+
+    Returns the seed digest, which main binds in stage.json.
+    """
+    from policybench.audit import prepare_audit
+
+    require(
+        args.audit_seed is not None and args.grounding is not None,
+        "prepare needs --audit-seed and --grounding (read-only sources)",
+    )
+    require(
+        digest(args.grounding) == GROUNDING_SHA256,
+        "grounding differs from the one the 20260929 audit was rendered with",
+    )
+    require_combined_predictions(bundle)
+    audit = args.stage_dir / "audit"
+    # Compare against the read-only seed so a retried
+    # prepare cannot mistake its own earlier rendering for the seed.
+    seed = seed_digest(args.audit_seed)
+    verify_seed(seed)
+    seeded = {case: item["prompt_sha256"] for case, item in seed.items()}
+    if not audit.exists():
+        for source in sorted((args.audit_seed / "cases").glob("*")):
+            if not (source / "prompt.md").is_file():
+                continue
+            target = audit / "cases" / source.name
+            target.mkdir(parents=True)
+            for name in ("prompt.md", "verdict.json", "verdict.meta.json", "codex.log"):
+                if (source / name).is_file():
+                    shutil.copyfile(source / name, target / name)
+    lookup = grounding_lookup(args.grounding)
+    prepare_audit(
+        bundle / "us",
+        audit,
+        grounding_lookup=lookup,
+        template_version=JUDGE_TEMPLATE_VERSION,
+        prediction_reader=load_combined_predictions,
+    )
+    changes = check_prompt_changes(audit, seeded)
+    write_json(
+        args.stage_dir / "prompt-changes.json",
+        {key: sorted(value) for key, value in changes.items()},
+    )
+    pending = validate_verdicts(audit, remove_invalid=True, seed=seed)
+    write_json(args.stage_dir / "pending.json", pending)
+    print(
+        f"Prepared audit: {len(changes['kept'])} prompts unchanged, "
+        f"{len(changes['changed'])} changed and {len(changes['added'])} new; "
+        f"{len(pending)} cases need Opus 5.5"
+    )
+    return seed
+
+
+def set_aside(audit: Path, case_id: str, reason: str) -> None:
+    """Move a case's verdict, sidecar and judge evidence out of the audit.
+
+    They go to <stage>/rejected-verdicts/<case>/<UTC time>/ with the judge's
+    envelope, log and transcript, so a re-judge never destroys the verdict it
+    replaces or the record of how it was made.
+    """
+    from datetime import datetime, timezone
+
+    case = audit / "cases" / case_id
+    names = (
+        "verdict.json",
+        "verdict.meta.json",
+        "claude.json",
+        "claude.log",
+        "claude.transcript.jsonl",
+    )
+    files = [case / name for name in names]
+    if not any(path.exists() for path in files[:2]):
+        return
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    target = audit.parent / "rejected-verdicts" / case_id / stamp
+    target.mkdir(parents=True)
+    (target / "reason.txt").write_text(reason + "\n")
+    for path in files:
+        if path.exists():
+            os.replace(path, target / path.name)
+
+
+def judge_identity_problems(meta: dict) -> list[str]:
+    """Why a sidecar does not show this release's judge; [] if it does.
+
+    The judge step requests JUDGE_MODEL through JUDGE_RUNNER, which records
+    the request, the models the CLI reports having used (that model alone),
+    itself, and the moment the verdict was written as an ISO 8601 timestamp
+    in UTC (judged_at_utc).
+    """
+    from datetime import datetime, timedelta
+
+    problems = []
+    if meta.get("judge_model_requested") != JUDGE_MODEL:
+        problems.append(
+            f"judge_model_requested {meta.get('judge_model_requested')!r}; "
+            f"expected {JUDGE_MODEL!r}"
+        )
+    if meta.get("judge_model_reported") != [JUDGE_MODEL]:
+        problems.append(
+            f"judge_model_reported {meta.get('judge_model_reported')!r}; "
+            f"expected {[JUDGE_MODEL]!r}"
+        )
+    if meta.get("judge_runner") != JUDGE_RUNNER:
+        problems.append(
+            f"judge_runner {meta.get('judge_runner')!r}; expected {JUDGE_RUNNER!r}"
+        )
+    stamp = meta.get("judged_at_utc")
+    try:
+        moment = datetime.fromisoformat(stamp) if isinstance(stamp, str) else None
+    except ValueError:
+        moment = None
+    if moment is None or moment.utcoffset() != timedelta(0):
+        problems.append(f"judged_at_utc {stamp!r} is not an ISO 8601 timestamp in UTC")
+    return problems
+
+
+def verify_verdict_inventory(audit: Path) -> tuple[str, ...]:
+    """Refuse verdicts outside the manifest's judged case directories.
+
+    Parse-only cases have no judge, so their directories cannot contribute
+    verdicts either. The release receipt binds this manifest and every listed
+    judged case; no other directory may become published provenance.
+    """
+    manifest = audit / "cases.jsonl"
+    judged = (
+        {
+            item["case_id"]
+            for item in map(json.loads, manifest.read_text().splitlines())
+            if not item["parse_failure_only"]
+        }
+        if manifest.is_file()
+        else set()
+    )
+    cases = audit / "cases"
+    linked = sorted(
+        str(path.relative_to(cases))
+        for path in cases.rglob("*")
+        if path.is_symlink() and path.is_dir()
+    )
+    require(
+        not linked, f"audit case directory symlinks are not permitted: {linked[:8]}"
+    )
+    verdicts = {
+        str(path.parent.relative_to(cases))
+        for path in cases.rglob("verdict.json")
+        if path.is_file()
+    }
+    if cases.is_dir():
+        # Include direct symlinked directories, which rglob does not recurse
+        # into but the shared whole-tree tally would otherwise discover.
+        verdicts.update(
+            str(directory.relative_to(cases))
+            for directory in cases.iterdir()
+            if (directory / "verdict.json").is_file()
+        )
+    extra = sorted(verdicts - judged)
+    require(
+        not extra,
+        "verdict-bearing directories are not manifest-listed judged cases: "
+        f"{extra[:8]}",
+    )
+    return tuple(sorted(judged))
+
+
+def validate_verdicts(
+    audit: Path,
+    remove_invalid: bool = False,
+    seed: dict[str, dict[str, str]] | None = None,
+) -> list[str]:
+    """Validate schema, model coverage and each verdict's binding to its bytes.
+
+    Every judged verdict's sidecar must carry the verdict's own sha256. A case
+    whose prompt is the seed's (``seed``, as stage.json binds it) carries its
+    seed verdict over: the verdict must be the seed's, byte for byte, and any
+    prompt_sha256 its sidecar records must match. Every other verdict is new
+    and must record the sha256 of the prompt it judged and template
+    JUDGE_TEMPLATE_VERSION. Every judged case's prompt must begin with the
+    header of the version its sidecar records
+    (policybench.audit.template_version_problems), so a new verdict's sidecar
+    cannot claim v2 for a prompt rendered on another version. Every new
+    verdict, and any verdict naming a new model, also needs this release's
+    judge identity (judge_identity_problems): a case re-opened because the
+    installed build moved its reference is held to it even when only
+    incumbents answered it wrong. Every non-carried verdict also needs the
+    hardened runner's isolation, token authentication and a transcript bound
+    to its prompt and answer (judge_isolation_problems). Returns the pending cases;
+    ``remove_invalid`` sets their verdicts aside. A carried-over verdict that
+    fails is refused outright: a re-judge cannot restore it.
+    """
+    import jsonschema
+
+    from policybench.audit import template_version_problems
+    from policybench.judge_template import recorded_template_version
+
+    schema = json.loads((audit / "schema.json").read_text())
+    manifest = {
+        item["case_id"]: item
+        for item in map(json.loads, (audit / "cases.jsonl").read_text().splitlines())
+    }
+    seed = seed or {}
+    templates = dict(template_version_problems(audit))
+    pending, refused = [], []
+    for case_id, item in manifest.items():
+        if item["parse_failure_only"]:
+            continue
+        path = audit / "cases" / case_id / "verdict.json"
+        meta_path = path.with_name("verdict.meta.json")
+        prompt = path.with_name("prompt.md")
+        carried = (
+            case_id in seed
+            and prompt.is_file()
+            and digest(prompt) == seed[case_id]["prompt_sha256"]
+        )
+        try:
+            blob = path.read_bytes()
+            verdict = json.loads(blob)
+            jsonschema.validate(verdict, schema)
+            names = [m["model"] for m in verdict["models"]]
+            if len(names) != len(set(names)) or set(names) != set(item["wrong_models"]):
+                raise ValueError("wrong model coverage")
+            meta = json.loads(meta_path.read_text()) if meta_path.is_file() else {}
+            if not isinstance(meta, dict):
+                raise ValueError("verdict provenance is not an object")
+            if meta.get("verdict_sha256") != hashlib.sha256(blob).hexdigest():
+                raise ValueError("the sidecar is not bound to this verdict")
+            if case_id in templates:
+                raise ValueError(f"judge template: {templates[case_id]}")
+            bound = meta.get("prompt_sha256")
+            if carried:
+                if hashlib.sha256(blob).hexdigest() != seed[case_id]["verdict_sha256"]:
+                    raise ValueError("a carried-over verdict is not the seed's")
+                if bound is not None and bound != digest(prompt):
+                    raise ValueError("verdict is bound to a different prompt")
+            elif bound != digest(prompt):
+                raise ValueError("a new verdict is not bound to this prompt")
+            elif recorded_template_version(meta) != JUDGE_TEMPLATE_VERSION:
+                # A new or re-opened case is rendered on this release's
+                # template, and its judge must have read that version: the
+                # sidecar records it, and the prompt's header (checked above)
+                # is that version's.
+                raise ValueError(
+                    f"a new verdict is not on judge template v{JUDGE_TEMPLATE_VERSION}"
+                )
+            # Every verdict judged for this release, whichever models it names:
+            # a case the installed build re-opened may list incumbents alone.
+            if not carried or set(names) & set(MODELS.values()):
+                identity = judge_identity_problems(meta)
+                if identity:
+                    raise ValueError(
+                        "missing or mismatched Opus 5.5 provenance: "
+                        + "; ".join(identity)
+                    )
+            if not carried:
+                isolation = judge_isolation_problems(
+                    path.parent, meta, prompt.read_bytes(), verdict
+                )
+                if isolation:
+                    raise ValueError(
+                        "missing or invalid judge isolation: " + "; ".join(isolation)
+                    )
+        except (OSError, ValueError, jsonschema.ValidationError) as error:
+            if carried:
+                refused.append(f"{case_id} ({error})")
+                continue
+            pending.append(case_id)
+            if remove_invalid:
+                set_aside(audit, case_id, f"invalid: {error}")
+    require(
+        not refused,
+        f"{len(refused)} carried-over verdicts differ from the seed's; a stage "
+        f"input changed after prepare: {refused[:4]}",
+    )
+    return sorted(pending)
+
+
+def account_data(value, at: str, keys: bool = True) -> list[str]:
+    """Where ``value`` carries an e-mail address or a key naming an account.
+
+    Any key that matches ACCOUNT_KEY (unless ``keys`` is false), and any key
+    or string that holds an e-mail address (EMAIL_ADDRESS), at any depth;
+    ``at`` names ``value``.
+    """
+    hits = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            where = f"{at}.{key}"
+            if keys and ACCOUNT_KEY.search(str(key)):
+                hits.append(f"key {where}")
+            if EMAIL_ADDRESS.search(str(key)):
+                hits.append(f"an e-mail address in key {where}")
+            hits += account_data(item, where, keys)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            hits += account_data(item, f"{at}[{index}]", keys)
+    elif isinstance(value, str) and EMAIL_ADDRESS.search(value):
+        hits.append(f"an e-mail address at {at}")
+    return hits
+
+
+def outside_the_judge(event: dict, prompt: str | None) -> dict:
+    """``event`` without the judged prompt's own user message or the judge's
+    words: the text of a user event that is exactly ``prompt``, and the content
+    of an assistant turn. The account-data rule reads everything else."""
+    message = event.get("message")
+    if isinstance(message, dict) and (
+        event.get("type") == "assistant"
+        or (
+            event.get("type") == "user"
+            and prompt is not None
+            and message.get("content") == prompt
+        )
+    ):
+        rest = {key: value for key, value in message.items() if key != "content"}
+        return {**event, "message": rest}
+    return event
+
+
+def transcript_problems(
+    path: Path, effort: str | None, prompt: bytes, verdict: object
+) -> list[str]:
+    """Why a judge's transcript does not show an isolated judge; [] if it does.
+
+    A Python port of the transcript checks in scripts/run_audit_claude.sh
+    (extract_verdict): no tool call but StructuredOutput, no event of a type
+    outside its EVENT_TYPES (JUDGE_EVENT_TYPES), no context attachment outside
+    its ATTACHMENTS (JUDGE_ATTACHMENTS; so no skill listing and no
+    credential_org record), a session context that is empty (no account e-mail
+    or git status), no account data anywhere outside the prompt's own user
+    message and the judge's own turns (account_data, outside_the_judge), no
+    working directory inside a git repository, every assistant turn at the
+    effort the sidecar records, when it records one (the sidecars of the
+    stage's first 17 isolated verdicts record none), no advisor model, and
+    user events that are exactly one text message, the case's ``prompt``
+    (prompt.md's bytes, decoded as UTF-8), besides Claude Code's own nudge
+    (JUDGE_PROMPT_NUDGE) and the results of the judge's StructuredOutput calls.
+    It also requires exactly one accepted StructuredOutput call, whose input
+    is the published ``verdict`` (verdict.json, parsed): any other call must
+    be one the schema refused, which the judge then answered again.
+    """
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return ["no transcript"]
+    try:
+        text = prompt.decode("utf-8")
+    except UnicodeDecodeError:
+        text = None
+    problems, calls, refused = [], [], set()
+    # The user events: text messages (the prompt) and everything else (which
+    # may only answer the judge's own StructuredOutput calls, by id).
+    texts, others, answers = [], [], set()
+
+    def answer(part: dict) -> bool:
+        return part.get("type") == "tool_use" and part.get("name") == "StructuredOutput"
+
+    for number, line in enumerate(lines, 1):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            problems.append(f"transcript line {number} is not JSON")
+            continue
+        if not isinstance(event, dict):
+            problems.append(f"transcript line {number} is not an event")
+            continue
+        if event.get("type") not in JUDGE_EVENT_TYPES:
+            problems.append(f"an event of type {event.get('type')!r}")
+        problems += account_data(outside_the_judge(event, text), f"line {number}")
+        if event.get("type") == "attachment":
+            attachment = event.get("attachment") or {}
+            kind = attachment.get("type")
+            if kind not in JUDGE_ATTACHMENTS:
+                problems.append(f"a {kind!r} attachment")
+            if kind == "environment" and (attachment.get("snapshot") or {}).get(
+                "isGitRepo"
+            ):
+                problems.append("a working directory inside a git repository")
+            context = attachment.get("context")
+            if kind == "session_context" and context != {}:
+                carried = sorted(context) if isinstance(context, dict) else context
+                problems.append(f"a session context carrying {carried!r}")
+        if event.get("type") == "assistant":
+            if effort is not None and event.get("effort") != effort:
+                problems.append(f"a turn at effort {event.get('effort')!r}")
+            if event.get("advisorModel"):
+                problems.append(f"advisor model {event.get('advisorModel')!r}")
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if event.get("type") == "user":
+            if not isinstance(content, str):
+                others.append(content)
+            elif not (event.get("isMeta") is True and content == JUDGE_PROMPT_NUDGE):
+                texts.append(content)
+        for part in content if isinstance(content, list) else []:
+            if not isinstance(part, dict):
+                continue
+            if str(part.get("type", "")).endswith("tool_use"):
+                calls.append(part)
+                if event.get("type") == "assistant" and answer(part):
+                    answers.add(part.get("id"))
+            elif part.get("type") == "tool_result" and part.get("is_error"):
+                refused.add(part.get("tool_use_id"))
+
+    structured = [part for part in calls if answer(part)]
+    other = [part.get("name") or part.get("type") for part in calls if not answer(part)]
+    if other:
+        problems.append(f"tool calls {other}")
+    accepted = [part for part in structured if part.get("id") not in refused]
+    if len(accepted) != 1:
+        problems.append(
+            f"{len(accepted)} accepted StructuredOutput calls; exactly 1 is required"
+        )
+    elif json.dumps(accepted[0].get("input"), sort_keys=True) != json.dumps(
+        verdict, sort_keys=True
+    ):
+        problems.append("its accepted StructuredOutput answer is not verdict.json")
+    if len(texts) != 1:
+        problems.append(f"{len(texts)} user text messages; only the prompt is allowed")
+    elif text is None or texts[0] != text:
+        problems.append("its user message is not prompt.md")
+    if not all(
+        isinstance(content, list)
+        and content
+        and all(
+            isinstance(part, dict)
+            and part.get("type") == "tool_result"
+            and part.get("tool_use_id") in answers
+            for part in content
+        )
+        for content in others
+    ):
+        problems.append("a user event that is not a StructuredOutput call's result")
+    return problems
+
+
+def judge_isolation_problems(
+    case: Path, meta: dict, prompt: bytes, verdict: object
+) -> list[str]:
+    """Every verdict judged for this release uses the hardened token runner."""
+    problems = []
+    if "judge_isolation" not in meta:
+        problems.append("the verdict is not isolated (sidecar lacks judge_isolation)")
+    auth = meta.get("judge_auth")
+    if not isinstance(auth, dict) or auth.get("method") != "oauth_token":
+        problems.append(
+            "the sidecar does not record a token login (judge_auth "
+            f"method oauth_token): {auth!r}"
+        )
+    problems += transcript_problems(
+        case / "claude.transcript.jsonl", meta.get("judge_effort"), prompt, verdict
+    )
+    return problems
+
+
+def withhold_addresses(value):
+    """``value`` with every e-mail address in it replaced by WITHHELD_ADDRESS."""
+    if not isinstance(value, str):
+        return value
+    return EMAIL_ADDRESS.sub(WITHHELD_ADDRESS, value)
+
+
+def verify_judge_provenance(
+    cases_dir: Path, rejudged: frozenset[str], record_path: Path
+) -> None:
+    """The published judge provenance must describe the staged new verdicts.
+
+    The record (JUDGE_PROVENANCE) lists every case a new model re-opened, each
+    once, with its verdict's and prompt's sha256, its group and whether its
+    judge ran isolated, and its sidecar's judge_effort, judge_model_reported,
+    judged_at_utc and judge_account_declared (JUDGE_SIDECAR_FIELDS), an
+    e-mail address in any of them withheld as WITHHELD_ADDRESS. The record and
+    each entry carry exactly their listed keys (JUDGE_PROVENANCE_KEYS,
+    JUDGE_PROVENANCE_ENTRY_KEYS), its counts are the tally of the entries'
+    groups, and it names no e-mail address anywhere, for it is public. Each
+    entry's hashes must be the staged verdict's and prompt's, and its other
+    fields its sidecar's. Its group must be PROVENANCE_GROUPS' group for the
+    sidecar's declared account; an unlisted account is refused. Every entry
+    must be isolated: its sidecar records
+    judge_isolation from scripts/run_audit_claude.sh's hardened runner, and
+    its group says "isolated: ". Every verdict's sidecar must record a token login
+    (judge_auth.method oauth_token), and its transcript,
+    claude.transcript.jsonl, must pass the runner's transcript checks
+    (transcript_problems), its prompt and verdict included: the one user
+    text message must be the staged prompt.md, and the one accepted
+    StructuredOutput answer the staged verdict.json. The record's note must
+    be the one its entries give (provenance_note), so it states nothing the
+    entries do not record.
+    """
+    record = json.loads(record_path.read_text())
+    entries = record.get("verdicts") if isinstance(record, dict) else None
+    require(
+        isinstance(entries, list) and all(isinstance(e, dict) for e in entries),
+        f"{JUDGE_PROVENANCE_PATH} lists no verdicts",
+    )
+    require(
+        set(record) == JUDGE_PROVENANCE_KEYS,
+        f"{JUDGE_PROVENANCE_PATH} has keys {sorted(record)}; expected "
+        f"{sorted(JUDGE_PROVENANCE_KEYS)}",
+    )
+    addresses = account_data(record, "record", keys=False)
+    require(
+        not addresses,
+        f"{JUDGE_PROVENANCE_PATH} is public and names {addresses[:4]}; withhold "
+        f"each e-mail address as {WITHHELD_ADDRESS!r}",
+    )
+    named = [entry.get("case_id") for entry in entries]
+    require(
+        len(named) == len(set(named)) and set(named) == set(rejudged),
+        f"{JUDGE_PROVENANCE_PATH} does not list each re-opened case once: "
+        f"{sorted(set(named) ^ set(rejudged))[:4]}",
+    )
+    tally: dict = {}
+    for entry in entries:
+        group = entry.get("group")
+        tally[group] = tally.get(group, 0) + 1
+    require(
+        record["counts"] == tally,
+        f"{JUDGE_PROVENANCE_PATH} counts {record['counts']!r} are not the tally "
+        f"of its entries' groups {tally!r}",
+    )
+    require(
+        record["note"] == provenance_note(entries),
+        f"{JUDGE_PROVENANCE_PATH}'s note is not the one its entries give "
+        f"(provenance_note): {record['note']!r}",
+    )
+    wrong = []
+    for entry in entries:
+        case = cases_dir / entry["case_id"]
+        try:
+            meta = json.loads((case / "verdict.meta.json").read_text())
+            verdict = json.loads((case / "verdict.json").read_text())
+            prompt = (case / "prompt.md").read_bytes()
+            problems = []
+            if entry.get("verdict_sha256") != digest(case / "verdict.json"):
+                problems.append("the record names another verdict")
+            if entry.get("prompt_sha256") != hashlib.sha256(prompt).hexdigest():
+                problems.append("the record names another prompt")
+        except (OSError, ValueError) as error:
+            wrong.append(f"{entry['case_id']}: {error}")
+            continue
+        if set(entry) != JUDGE_PROVENANCE_ENTRY_KEYS:
+            problems.append(f"the entry has keys {sorted(entry)}")
+        meta = meta if isinstance(meta, dict) else {}
+        for field in JUDGE_SIDECAR_FIELDS:
+            expected = withhold_addresses(meta.get(field))
+            if entry.get(field) != expected:
+                problems.append(
+                    f"its {field} {entry.get(field)!r} is not the sidecar's "
+                    f"{expected!r}"
+                )
+        isolated = "judge_isolation" in meta
+        group = entry.get("group")
+        if not isinstance(group, str) or group.startswith("isolated: ") != isolated:
+            problems.append(f"its group {group!r} disagrees with its isolation")
+        declared = meta.get("judge_account_declared")
+        if not isinstance(declared, str) or declared not in PROVENANCE_GROUPS:
+            problems.append("no provenance group for the sidecar's declared account")
+        elif group != PROVENANCE_GROUPS[declared]:
+            problems.append(
+                f"its group {group!r} is not the declared account's group "
+                f"{PROVENANCE_GROUPS[declared]!r}"
+            )
+        if entry.get("isolated") is not isolated:
+            problems.append(
+                f"the record says isolated={entry.get('isolated')!r} but the "
+                f"sidecar {'records' if isolated else 'lacks'} judge_isolation"
+            )
+        problems += judge_isolation_problems(case, meta, prompt, verdict)
+        if problems:
+            wrong.append(f"{entry['case_id']}: {'; '.join(problems)}")
+    require(
+        not wrong,
+        f"{len(wrong)} new verdicts disagree with {JUDGE_PROVENANCE_PATH}: {wrong[:4]}",
+    )
+
+
+# The allowed provenance groups, by the account a sidecar declares. They
+# include Max's 2026-09-30 pb-judge opt-in and the two Subfleet lanes earlier
+# releases borrowed. The generated record states which groups judged this
+# release's cases. The opt-in's token is declared two ways: by its opt-in
+# (releases 20261013b and 20261014) and by where the launcher read it,
+# agent-secret's pb-judge (release 20261027); both name the same token hash.
+PROVENANCE_GROUPS = {
+    "claude setup-token login (token sha256 6a6daf56361b), Max 2026-09-30": (
+        "isolated: setup-token 2"
+    ),
+    "claude setup-token login (token sha256 6a6daf56361b), agent-secret pb-judge": (
+        "isolated: setup-token 2"
+    ),
+    "claude:max@axiom.org (subfleet lane claude-18)": (
+        "isolated: subfleet lane claude-18"
+    ),
+    "claude:max@farness.ai (subfleet lane claude-10)": (
+        "isolated: subfleet lane claude-10"
+    ),
+}
+
+
+def _tally_phrase(entries: list[dict], field: str, label) -> str:
+    """How many ``entries`` give each spelling (``label``) of ``field``, in
+    the spellings' order; "none" when there are no entries."""
+    counts: dict[str, int] = {}
+    for entry in entries:
+        spelled = label(entry.get(field))
+        counts[spelled] = counts.get(spelled, 0) + 1
+    if not counts:
+        return "none"
+    return ", ".join(
+        f"{spelled} ({count})" for spelled, count in sorted(counts.items())
+    )
+
+
+def _reported_models(value) -> str:
+    if isinstance(value, list) and value and all(isinstance(v, str) for v in value):
+        return " and ".join(value)
+    return "none reported" if value in (None, []) else repr(value)
+
+
+def provenance_note(entries: list[dict]) -> str:
+    """The judge provenance record's note, every claim in it read from
+    ``entries``.
+
+    It says what the record lists and what verify_judge_provenance checks of
+    each entry, and tallies what the entries' sidecar fields record: the
+    judge model each reports, the effort and judge template each records, and
+    whether each judge ran isolated. The logins are the record's counts, by
+    the group of the account each sidecar declares. It states no schedule,
+    concurrency or retry history, which no record carries.
+    """
+    return (
+        f"Provenance of the {len(entries)} new judge verdicts in the Claude "
+        "Fable 5.2 stage: the cases it re-opened, each because Claude Fable 5.2 "
+        "joined it. Each entry gives its verdict's and prompt's "
+        "sha256 and the fields its sidecar (verdict.meta.json) records. Judge "
+        "model reported: "
+        f"{_tally_phrase(entries, 'judge_model_reported', _reported_models)}. "
+        "Effort recorded: "
+        + _tally_phrase(
+            entries,
+            "judge_effort",
+            lambda value: value if isinstance(value, str) else "none recorded",
+        )
+        + ". Judge template: "
+        + _tally_phrase(
+            entries,
+            "judge_template_version",
+            lambda value: f"v{value}" if isinstance(value, int) else "none recorded",
+        )
+        + ". Isolation: "
+        + _tally_phrase(
+            entries,
+            "isolated",
+            lambda value: "isolated" if value is True else "not isolated",
+        )
+        + ". An isolated entry's sidecar records the isolation "
+        f"{JUDGE_RUNNER} ran its judge under (judge_isolation) and a token "
+        "login (judge_auth method oauth_token), and its transcript passes the "
+        "runner's checks. Counts are by the group of the account each sidecar "
+        "declares."
+    )
+
+
+def judge_provenance_record(cases_dir: Path, rejudged: frozenset[str]) -> dict:
+    """The record verify_judge_provenance checks, built from the sidecars."""
+    entries = []
+    for case_id in sorted(rejudged):
+        case = cases_dir / case_id
+        meta = json.loads((case / "verdict.meta.json").read_text())
+        declared = meta.get("judge_account_declared")
+        require(
+            declared in PROVENANCE_GROUPS,
+            f"{case_id}: no provenance group for the declared account",
+        )
+        require("judge_isolation" in meta, f"{case_id}: the verdict is not isolated")
+        entry = {
+            "case_id": case_id,
+            "group": PROVENANCE_GROUPS[declared],
+            "isolated": True,
+            **{
+                field: withhold_addresses(meta.get(field))
+                for field in JUDGE_SIDECAR_FIELDS
+            },
+            "verdict_sha256": digest(case / "verdict.json"),
+            "prompt_sha256": digest(case / "prompt.md"),
+        }
+        entries.append(entry)
+    counts: dict[str, int] = {}
+    for entry in entries:
+        counts[entry["group"]] = counts.get(entry["group"], 0) + 1
+    return {"note": provenance_note(entries), "counts": counts, "verdicts": entries}
+
+
+def write_judge_provenance(args) -> None:
+    """Verify a candidate from the sidecars, then replace JUDGE_PROVENANCE."""
+    import tempfile
+
+    cases = args.stage_dir / "audit" / "cases"
+    rejudged = rejudged_cases(args.stage_dir)
+    require(
+        not validate_verdicts(args.stage_dir / "audit", seed=load_seed(args.stage_dir)),
+        "missing or invalid verdicts; run judge",
+    )
+    # json.dumps(indent=1), as release 20260930's docs/gpt61sol record is.
+    record = json.loads(
+        json.dumps(judge_provenance_record(cases, rejudged), sort_keys=True)
+    )
+    with tempfile.TemporaryDirectory(
+        prefix=".fable52-judge-provenance-", dir=JUDGE_PROVENANCE.parent
+    ) as scratch:
+        candidate = Path(scratch) / JUDGE_PROVENANCE.name
+        candidate.write_text(json.dumps(record, indent=1, allow_nan=False) + "\n")
+        verify_judge_provenance(cases, rejudged, candidate)
+        os.replace(candidate, JUDGE_PROVENANCE)
+    print(f"Wrote {JUDGE_PROVENANCE_PATH}: {len(rejudged)} verdicts")
+
+
+def judge(args, bundle) -> None:
+    """Run one Claude CLI judge at a time and retry missing/hedged cases."""
+    from policybench.audit import collect_audit
+
+    audit = args.stage_dir / "audit"
+    seed = load_seed(args.stage_dir)
+    for _ in range(3):
+        validate_verdicts(audit, remove_invalid=True, seed=seed)
+        subprocess.run(
+            ["bash", str(ROOT / JUDGE_RUNNER), str(audit)],
+            cwd=ROOT,
+            env={
+                **os.environ,
+                "AUDIT_MODEL": JUDGE_MODEL,
+                "AUDIT_PARALLEL": "1",
+                "AUDIT_PYTHON": sys.executable,
+            },
+            check=True,
+        )
+        pending = validate_verdicts(audit, remove_invalid=True, seed=seed)
+        out = collect_audit(bundle / "us", audit)
+        for case_id in out["hedged"].case_id:
+            set_aside(audit, case_id, "hedged")
+        if not pending and out["missing"].empty and out["hedged"].empty:
+            return
+    raise SystemExit(
+        "audit missing/hedged after three passes; resume judge after investigation"
+    )
+
+
+def triage(args, bundle) -> None:
+    """Collect, carry each kept case's published wording, apply recorded
+    decisions, and stop for unresolved flags."""
+    from policybench.adjudications import (
+        excluded_case_keys,
+        verify_adjudications_applied,
+    )
+    from policybench.audit import collect_audit
+    from policybench.reference_exclusions import (
+        exclusion_keys,
+        load_reference_exclusions,
+    )
+
+    audit = args.stage_dir / "audit"
+    require(
+        not validate_verdicts(audit, seed=load_seed(args.stage_dir)),
+        "missing or invalid verdicts; run judge",
+    )
+    out = collect_audit(bundle / "us", audit)
+    require(
+        out["missing"].empty and out["hedged"].empty, "missing/hedged audit; run judge"
+    )
+    counts = out["row"].groupby(KEY).size()
+    require(
+        all(
+            int(r.wrong_model_count) == counts[(r.scenario_id, r.variable)]
+            for r in out["case"].itertuples()
+        ),
+        "case wrong_model_count disagrees with collected rows",
+    )
+    annotations = bundle / "annotations"
+    rejudged = rejudged_cases(args.stage_dir)
+    amendments = load_amendments(args.stage_dir, rejudged)
+    stage_upgrade(args.stage_dir)
+    decisions = stage_adjudications(
+        annotations / ADJUDICATIONS,
+        rejudged,
+        amendments,
+        audit / "cases",
+        triage=triage_items(),
+    )
+    rows, cases = annotation_frames(out, rejudged, decisions, amendments)
+    # An amendment may not touch the adjudication sentence a case note carries.
+    verify_adjudications_applied(rows, cases, decisions)
+    # Review r3, Q1: every kept case carries release 20261027's published
+    # rows and case note, beside this release's decisions.
+    verify_kept_annotations(rows, cases, rejudged, decisions)
+    excluded = exclusion_keys(load_reference_exclusions(bundle / "us"))
+    require(
+        excluded == excluded_case_keys(decisions),
+        "adjudication exclusions differ from frozen scoring exclusions",
+    )
+    flags = cases[cases.reference_suspect.astype(bool)]
+    scored = ~rows[KEY].apply(tuple, axis=1).isin(excluded)
+    unresolved = rows[
+        scored
+        & ~rows.failure_source.isin(
+            [
+                "llm_error",
+                "parse_contract_failure",
+                "budget_exhausted_at_ceiling",
+            ]
+        )
+    ]
+    flags.to_csv(args.stage_dir / "reference-flags.csv", index=False)
+    unresolved.to_csv(args.stage_dir / "unresolved-rows.csv", index=False)
+    for name, frame in zip(ANNOTATION_CSV_NAMES, (rows, cases), strict=True):
+        (annotations / name).write_text(annotation_csv_text(frame), encoding="utf-8")
+    require(
+        flags.empty and unresolved.empty,
+        "triage required: inspect reference-flags.csv/unresolved-rows.csv; "
+        "record evidence in staged us_adjudications.json and rerun triage",
+    )
+    print(f"Triage complete: {len(rows)} rows / {len(cases)} cases")
+
+
+# Review r1, M9: the sections check (a) holds to release 20261027 whole.
+BASE_RESTORED_SECTIONS = (
+    "country",
+    "scenarios",
+    "policyengineBundles",
+    "globalWeights",
+    "referenceExclusions",
+)
+
+
+def base_restoration_problems(
+    scoped: dict,
+    live: dict,
+    incumbents: set[str],
+    reopened: frozenset[str] = frozenset(),
+    *,
+    decided: frozenset[str] = frozenset(),
+    limit: int = 8,
+) -> list[str]:
+    """Where the scope export is not release 20261027's outside modelStats.
+
+    Review r1, M9. With release 20261027's exclusion record put back, the
+    exporter (policybench.analysis.build_dashboard_payload) builds country,
+    scenarios (the prompts), policyengineBundles, globalWeights and
+    referenceExclusions from the references and the scenarios, and the
+    heatmap rows and scenarioPredictions cells one model at a time, so the
+    new model moves none of an incumbent's. Each of the five sections, each
+    incumbent's heatmap row and each incumbent's cell must be release
+    20261027's, serialized as the payload serializes it (key order counts,
+    as in incumbent_drift); a row or cell on one side only counts.
+
+    Two kinds of case let a cell's annotation fields differ, both as case
+    ids (rejudged_cases' form). On a case in ``reopened`` (rejudged_cases)
+    this release judged the verdict again, so every annotation field may
+    differ (release_20261006.TEXT_CELL_FIELDS | CLASS_CELL_FIELDS). Review
+    r2, N1: on a case in ``decided`` (decided_cases) that is not in
+    ``reopened``, triage applied this release's decision to the rows and
+    case note release 20261027 published, which review r3's Q1 has triage
+    carry onto every kept case (carry_kept_wording); apply_adjudications
+    changes the rows' and the case note's classes and the case note's
+    sentence and nothing else the exporter writes, so only
+    CLASS_CELL_FIELDS and caseAnnotation may differ, and the row's
+    annotation and referenceExplanation stay release 20261027's. Triage's
+    verify_adjudications_applied and verify_kept_annotations, export's
+    verify_staged_annotations and the freeze's verify_annotation_amendments
+    hold the annotation files those fields come from. Every other case keeps
+    every field. At most ``limit``.
+    """
+    from release_20261006 import CLASS_CELL_FIELDS, TEXT_CELL_FIELDS
+
+    def text(value) -> str:
+        return json.dumps(value, allow_nan=False)
+
+    scope_us, base_us = scoped["countries"]["us"], live["countries"]["us"]
+    problems = [
+        f"{section} changed"
+        for section in BASE_RESTORED_SECTIONS
+        if text(scope_us.get(section)) != text(base_us.get(section))
+    ]
+
+    def heatmap(country: dict) -> dict:
+        return {
+            (row["model"], row["variable"]): row
+            for row in country.get("heatmap", [])
+            if row["model"] in incumbents
+        }
+
+    scope_rows, base_rows = heatmap(scope_us), heatmap(base_us)
+    problems += [
+        f"heatmap {model} {variable} changed"
+        for model, variable in sorted(set(scope_rows) | set(base_rows))
+        if text(scope_rows.get((model, variable)))
+        != text(base_rows.get((model, variable)))
+    ]
+
+    def cells(country: dict) -> dict:
+        return {
+            (scenario, variable, model): cell
+            for scenario, variables in country.get("scenarioPredictions", {}).items()
+            for variable, models in variables.items()
+            for model, cell in models.items()
+            if model in incumbents
+        }
+
+    rejudged_fields = TEXT_CELL_FIELDS | CLASS_CELL_FIELDS
+    decided_fields = CLASS_CELL_FIELDS | {"caseAnnotation"}
+    scope_cells, base_cells = cells(scope_us), cells(base_us)
+    for key in sorted(set(scope_cells) | set(base_cells)):
+        scenario, variable, model = key
+        got, want = scope_cells.get(key), base_cells.get(key)
+        case = f"us__{scenario}__{variable}"
+        exempt = (
+            rejudged_fields
+            if case in reopened
+            else decided_fields
+            if case in decided
+            else frozenset()
+        )
+        if exempt and None not in (got, want):
+            got = {k: v for k, v in got.items() if k not in exempt}
+            want = {k: v for k, v in want.items() if k not in exempt}
+        if text(got) != text(want):
+            problems.append(
+                f"scenarioPredictions {scenario} {variable} {model} changed"
+            )
+    return problems[:limit]
+
+
+def incumbent_drift(stats: list[dict], previous: dict[str, dict]) -> list[str]:
+    """Incumbents whose modelStats entry is not byte-identical to the base's.
+
+    Serialized as the payload serializes it, so key order counts as well as
+    values. A missing incumbent counts as drift.
+    """
+    exported = {row["model"]: row for row in stats}
+    return sorted(
+        model
+        for model, row in previous.items()
+        if model not in exported
+        or json.dumps(exported[model], allow_nan=False)
+        != json.dumps(row, allow_nan=False)
+    )
+
+
+def payload_text(payload: dict) -> str:
+    """The bytes export writes for a payload, and the freeze rebuilds.
+
+    freeze_snapshot reassembles these exact default-json bytes from the
+    compact country payload. Pretty-printing here breaks its release hash.
+    """
+    return json.dumps(payload, allow_nan=False)
+
+
+def build_payload(
+    bundle: Path,
+    live: dict,
+    *,
+    partial: bool = False,
+    early: bool = False,
+    outputs: dict[str, bytes] | None = None,
+    reopened: frozenset[str] = frozenset(),
+    decided: frozenset[str] = frozenset(),
+) -> dict:
+    """Compute and validate every export in a disposable copy of its inputs.
+
+    ``reopened`` names the cases this release re-judged (rejudged_cases), and
+    ``decided`` the cases it decides (decided_cases); the scope check lets
+    their annotation fields differ from the base's as
+    base_restoration_problems says. Both are empty by default, so a caller
+    that leaves them out holds every case to the base."""
+    import tempfile
+
+    from release_20261006 import EXPORT_INPUTS
+
+    require_combined_predictions(bundle)
+    with tempfile.TemporaryDirectory(prefix="export-fable52-") as scratch:
+        working = Path(scratch) / bundle.name
+        for relative in EXPORT_INPUTS:
+            target = working / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(bundle / relative, target)
+        payload = _build_payload_in_scratch(
+            working,
+            live,
+            partial=partial,
+            early=early,
+            reopened=reopened,
+            decided=decided,
+        )
+        if outputs is not None:
+            generated = [working / "us/data.json"]
+            generated.extend((working / "us/analysis").rglob("*"))
+            outputs.update(
+                {
+                    str(p.relative_to(working)): p.read_bytes()
+                    for p in generated
+                    if p.is_file()
+                }
+            )
+    return payload
+
+
+def _build_payload_in_scratch(
+    bundle: Path,
+    live: dict,
+    *,
+    partial: bool = False,
+    early: bool = False,
+    reopened: frozenset[str] = frozenset(),
+    decided: frozenset[str] = frozenset(),
+) -> dict:
+    """The payload export writes, built from ``bundle``; the one definition.
+
+    export_full_run's US payload must hold all 52 models. For a release, its
+    roster must be the base's incumbents plus the addition, Fable 5's usage is
+    carried from ``live`` (CARRIED_USAGE), every model is scored on
+    RELEASE_SCORED outputs, and the scope check holds; then the dashboard
+    schema. The freeze rebuilds the staged payload with this. export_full_run
+    writes data.json, us/data.json and us/analysis/ into its disposable
+    ``bundle``.
+
+    The scope check exports the same bundle a second time with release
+    20261027's exclusion record put back (the scope export) and holds two
+    things. (a) Every incumbent's modelStats in the scope export is release
+    20261027's byte for byte, as Haiku 5.5's and Terra's drivers required:
+    nothing but the exclusion record moves an incumbent. Review r1, M9: so
+    is the rest of what the incumbents share with the base
+    (base_restoration_problems): the five sections, the heatmap rows and
+    the cells, outside every annotation field of the ``reopened`` cases and,
+    review r2, N1, outside the class fields and caseAnnotation of the
+    ``decided`` cases. (b) New in this
+    driver: the release payload differs from the scope export only where the
+    ruled records reach (exclusion_scope_problems), so every score change, the
+    new model's included, comes from the one output this release excludes.
+    finish_terra's ``upgrade`` argument, which put an installed build's base
+    references back as well, is gone with the install.
+    """
+    from policybench.dashboard_schema import validate_dashboard_payload
+    from policybench.full_run_export import export_full_run
+
+    require_combined_predictions(bundle)
+    payload = export_full_run(bundle, countries=["us"], skip_app_data=True)
+    stats = payload["countries"]["us"]["modelStats"]
+    require(
+        len(stats) == BOARD_MODELS,
+        f"export did not contain all {BOARD_MODELS} models",
+    )
+    previous = {m["model"]: m for m in live["countries"]["us"]["modelStats"]}
+    if not partial:
+        require(
+            len(previous) == BASE_MODELS and not set(previous) & set(MODELS.values()),
+            f"base must hold the {BASE_MODELS} incumbents only",
+        )
+        require(
+            {s["model"] for s in stats} == set(previous) | set(MODELS.values()),
+            "export roster is not the incumbents plus the addition",
+        )
+        for model, keys in CARRIED_USAGE.items():
+            row = next(s for s in stats if s["model"] == model)
+            for key in keys:
+                row[key] = previous[model][key]
+        scored = {row["model"]: row["n"] for row in stats}
+        require(
+            set(scored.values()) == {RELEASE_SCORED},
+            f"every model must be scored on {RELEASE_SCORED} outputs: {scored}",
+        )
+        # (a) The scope export puts back release 20261027's exclusion record:
+        # every incumbent's stats must then equal the base byte for byte. An
+        # early rehearsal, which has no judged annotations, checks its schema
+        # without failure annotations, as its own payload's check does below.
+        import tempfile
+
+        from release_20261006 import export_payload
+
+        with tempfile.TemporaryDirectory() as scratch:
+            record = Path(scratch) / EXCLUSIONS_NAME
+            record.write_text(exclusions_text(base_exclusion_record()))
+            scoped = export_payload(
+                bundle, live, record, require_failure_annotations=not early
+            )
+        scoped_stats = scoped["countries"]["us"]["modelStats"]
+        require(len(scoped_stats) == BOARD_MODELS, "scope export lost a model")
+        drift = incumbent_drift(scoped_stats, previous)
+        require(
+            not drift,
+            "with release 20261027's exclusion record, incumbent modelStats "
+            f"drift: {drift}",
+        )
+        restored = base_restoration_problems(
+            scoped, live, set(previous), reopened, decided=decided
+        )
+        require(
+            not restored,
+            "with release 20261027's exclusion record, the scope export is not "
+            f"release 20261027's outside modelStats: {restored}",
+        )
+        # (b) The release payload against the scope export: what the release's
+        # own record adds must be exactly the spec's ruled records, and the
+        # payloads may differ only where they reach.
+        base_keys = {spec_key(r) for r in base_exclusion_record()["exclusions"]}
+        staged = json.loads((bundle / "us" / EXCLUSIONS_NAME).read_text())
+        added = [r for r in staged["exclusions"] if spec_key(r) not in base_keys]
+        ruled = sorted(spec_key(r) for r in spec_records(load_spec()))
+        require(
+            sorted(spec_key(r) for r in added) == ruled,
+            f"the release's exclusion record adds {sorted(map(spec_key, added))} "
+            f"to the base's, not the ruled outputs {ruled}",
+        )
+        problems = exclusion_scope_problems(payload, scoped, added)
+        require(
+            not problems,
+            "the release payload differs from the scope export beyond the ruled "
+            f"outputs: {problems}",
+        )
+    errors = validate_dashboard_payload(payload, require_failure_annotations=not early)
+    require(not errors, f"payload validation failed: {errors[:8]}")
+    if partial:
+        payload["stage2Status"] = (
+            "PARTIAL — incomplete household cohorts; release gates were skipped"
+        )
+    return payload
+
+
+def exclusion_scope_problems(
+    payload: dict, scoped: dict, records: list[dict], limit: int = 8
+) -> list[str]:
+    """Where the release payload differs from the scope export in a way that
+    ``records`` (the exclusion records the release adds) do not explain; at
+    most ``limit`` of them. New code in this driver.
+
+    Both payloads are export_full_run's on one bundle (predictions,
+    references, annotations); only the exclusion record differs, and every
+    aggregate comes from the scored outputs alone
+    (analysis.build_dashboard_payload). So each added record may move only
+    what scores its output:
+
+    - its cells in scenarioPredictions, every model's, the new model's
+      included: scored turns from True to False and excludedReason and
+      excludedInput appear, the record's reason_code and exclusion_basis;
+      every other field keeps its value and its place;
+    - referenceExclusions: the record's own entry joins, and every other entry
+      keeps its bytes and its order;
+    - modelStats, by model: n falls by the records' count and nParsed by the
+      records whose cell parsed; release_20261006.STABLE_STATS keep their
+      values, the fields keep their order, and the others (the scores) are
+      recomputed; the list's order follows the scores;
+    - heatmap and programStats: an entry for a record's output group may
+      change, with n and nParsed falling by exactly the records' rows and its
+      fields kept in their order; every other entry keeps its bytes;
+    - failureModes: a program entry for a record's output group may change,
+      and every other keeps its bytes; a household segment may lose exactly
+      the parsed rows of some of the records (the ones whose household is in
+      it), and a segment that loses none keeps its bytes;
+    - every section release_20261006.CHANGED_SECTIONS leaves out (country,
+      scenarios, policyengineBundles, globalWeights) keeps its bytes.
+
+    A model's cell counts as parsed as the aggregates count it: a prediction
+    that is present (analysis.compute_metrics drops the missing ones).
+
+    The check fails closed on three kinds of exclusion a record could make:
+    one that removes its group's first scored row reorders the exporter's
+    output groups, and so its prompts (scenarios) and globalWeights; one that
+    removes a group's last parsed answer on a nonzero reference drops
+    programStats' mape, which skips zero references; and an eligibility
+    output moves modelStats' accuracy, which STABLE_STATS holds. d2180's
+    output is none of these: a dollar amount, not its group's first row, with
+    a $0 reference.
+    """
+    from release_20261006 import CHANGED_SECTIONS, STABLE_STATS
+
+    from policybench.analysis import _reference_exclusion_payload
+    from policybench.reference_exclusions import exclusion_basis
+    from policybench.spec import output_group_id
+
+    def same(a, b) -> bool:
+        return json.dumps(a) == json.dumps(b)
+
+    def keyed(rows, *fields) -> dict:
+        return {tuple(row.get(f) for f in fields): row for row in rows}
+
+    if set(payload) != {"countries"} or set(scoped) != {"countries"}:
+        return ["a payload holds more than its countries"]
+    if list(payload["countries"]) != ["us"] or list(scoped["countries"]) != ["us"]:
+        return ["a payload holds a country other than us"]
+    now, before = payload["countries"]["us"], scoped["countries"]["us"]
+    if list(now) != list(before) or not CHANGED_SECTIONS <= set(now):
+        return [f"the payload's sections differ: {list(now)} against {list(before)}"]
+    problems = [
+        f"{section} changed"
+        for section in now
+        if section not in CHANGED_SECTIONS and not same(now[section], before[section])
+    ]
+    ruled = {spec_key(record): record for record in records}
+    if len(ruled) != len(records):
+        return [*problems, "the added records repeat an output"][:limit]
+
+    def entry_key(entry: dict) -> tuple:
+        return entry.get("scenarioId"), entry.get("variable")
+
+    if not same(
+        [e for e in now["referenceExclusions"] if entry_key(e) not in ruled],
+        before["referenceExclusions"],
+    ) or any(entry_key(e) in ruled for e in before["referenceExclusions"]):
+        problems.append("referenceExclusions changes the base's entries")
+    if not same(
+        [e for e in now["referenceExclusions"] if entry_key(e) in ruled],
+        [_reference_exclusion_payload(record) for record in records],
+    ):
+        problems.append("referenceExclusions does not add exactly the records")
+
+    cells_now, cells_before = now["scenarioPredictions"], before["scenarioPredictions"]
+    if list(cells_now) != list(cells_before):
+        return [*problems, "scenarioPredictions' households changed"][:limit]
+    seen: set[tuple] = set()  # the records' outputs found in the payload
+    cells: dict[str, int] = {}  # model -> its cells of the records' outputs
+    parsed: dict[str, int] = {}  # model -> those cells that parsed
+    group_rows: dict[str, int] = {}  # output group -> the records' outputs in it
+    group_parsed: dict[tuple, int] = {}  # (model, group) -> parsed cells
+    output_parsed: dict[tuple, int] = {}  # output -> its parsed cells
+    moved = ("scored", "excludedReason", "excludedInput")
+    for scenario, outputs in cells_now.items():
+        earlier = cells_before[scenario]
+        if list(outputs) != list(earlier):
+            problems.append(f"{scenario}'s outputs changed")
+            continue
+        for variable, cell in outputs.items():
+            old_cell, key = earlier[variable], (scenario, variable)
+            if key not in ruled:
+                if not same(cell, old_cell):
+                    problems.append(
+                        f"{scenario} {variable} changed; no record excludes it"
+                    )
+                continue
+            seen.add(key)
+            group = output_group_id(variable)
+            group_rows[group] = group_rows.get(group, 0) + 1
+            if list(cell) != list(old_cell):
+                problems.append(f"{scenario} {variable}: its models changed")
+                continue
+            for model, entry in cell.items():
+                old = old_cell[model]
+                if (
+                    [k for k in entry if k not in moved[1:]] != list(old)
+                    or not same(
+                        [[k, v] for k, v in entry.items() if k not in moved],
+                        [[k, v] for k, v in old.items() if k not in moved],
+                    )
+                    or old.get("scored") is not True
+                    or entry.get("scored") is not False
+                    or entry.get("excludedReason") != str(ruled[key]["reason_code"])
+                    or entry.get("excludedInput") != exclusion_basis(ruled[key])
+                ):
+                    problems.append(
+                        f"{scenario} {variable} {model}: the record moves more "
+                        "than its scored flag and exclusion fields"
+                    )
+                cells[model] = cells.get(model, 0) + 1
+                if entry.get("parsed") is True:
+                    parsed[model] = parsed.get(model, 0) + 1
+                    pair = (model, group)
+                    group_parsed[pair] = group_parsed.get(pair, 0) + 1
+                    output_parsed[key] = output_parsed.get(key, 0) + 1
+    if seen != set(ruled):
+        problems.append(f"no cells in the payload for {sorted(set(ruled) - seen)}")
+
+    stats_now = keyed(now["modelStats"], "model")
+    stats_before = keyed(before["modelStats"], "model")
+    if (
+        set(stats_now) != set(stats_before)
+        or len(stats_now) != len(now["modelStats"])
+        or len(stats_before) != len(before["modelStats"])
+    ):
+        problems.append("modelStats' roster changed")
+    for (model,), row in stats_now.items():
+        old = stats_before.get((model,))
+        if old is None:
+            continue
+        if list(row) != list(old):
+            problems.append(f"{model}'s modelStats fields changed")
+        problems += [
+            f"{model}'s {field} changed"
+            for field in STABLE_STATS
+            if not same(row.get(field), old.get(field))
+        ]
+        if cells.get(model, 0) != len(ruled):
+            problems.append(f"{model} lacks a cell of a ruled output")
+        if (
+            not isinstance(old.get("n"), int)
+            or row.get("n") != old["n"] - len(ruled)
+            or not isinstance(old.get("nParsed"), int)
+            or row.get("nParsed") != old["nParsed"] - parsed.get(model, 0)
+        ):
+            problems.append(f"{model}'s n or nParsed does not fall by its ruled rows")
+
+    models = len(stats_now)
+    for section, fields in (
+        ("heatmap", ("model", "variable")),
+        ("programStats", ("variable",)),
+    ):
+        rows_now = keyed(now[section], *fields)
+        rows_before = keyed(before[section], *fields)
+        if (
+            list(rows_now) != list(rows_before)
+            or len(rows_now) != len(now[section])
+            or len(rows_before) != len(before[section])
+        ):
+            problems.append(f"{section}'s entries changed")
+            continue
+        for key, row in rows_now.items():
+            old, group = rows_before[key], key[-1]
+            if group not in group_rows:
+                if not same(row, old):
+                    problems.append(f"{section} {key} changed; no record is in it")
+                continue
+            if section == "heatmap":
+                rows, fell = group_rows[group], group_parsed.get(key, 0)
+            else:
+                rows = group_rows[group] * models
+                fell = sum(n for (_, g), n in group_parsed.items() if g == group)
+            if list(row) != list(old):
+                problems.append(f"{section} {key}: its fields changed")
+            if (
+                not isinstance(old.get("n"), int)
+                or not isinstance(old.get("nParsed"), int)
+                or row.get("n") != old["n"] - rows
+                or row.get("nParsed") != old["nParsed"] - fell
+            ):
+                problems.append(
+                    f"{section} {key}: n or nParsed does not fall by its rows"
+                )
+
+    modes_now, modes_before = now["failureModes"], before["failureModes"]
+    if list(modes_now) != list(modes_before) or set(modes_now) != {
+        "programs",
+        "households",
+    }:
+        problems.append("failureModes' sections changed")
+        return problems[:limit]
+    programs_now = keyed(modes_now["programs"], "variable")
+    programs_before = keyed(modes_before["programs"], "variable")
+    if set(programs_now) != set(programs_before) or len(programs_now) != len(
+        modes_now["programs"]
+    ):
+        problems.append("failureModes' programs changed")
+    for key, row in programs_now.items():
+        if key[0] not in group_rows and not same(row, programs_before.get(key)):
+            problems.append(
+                f"failureModes program {key[0]} changed; no record is in it"
+            )
+    # The drops a household segment may show: the parsed rows of any subset of
+    # the records' outputs (the subset whose household the segment holds).
+    drops = {0}
+    for count in output_parsed.values():
+        drops |= {drop + count for drop in drops}
+    segments_now = keyed(modes_now["households"], "label")
+    segments_before = keyed(modes_before["households"], "label")
+    if set(segments_now) != set(segments_before) or len(segments_now) != len(
+        modes_now["households"]
+    ):
+        problems.append("failureModes' household segments changed")
+    for key, row in segments_now.items():
+        old = segments_before.get(key)
+        if old is None:
+            continue
+        drop = old.get("n", 0) - row.get("n", 0)
+        if (drop == 0 and not same(row, old)) or drop not in drops:
+            problems.append(f"failureModes segment {key[0]} moves beyond its rows")
+    return problems[:limit]
+
+
+def export(args, bundle, live) -> dict:
+    """Export into scratch, preserve incumbent statistics, and gate release."""
+    require_combined_predictions(bundle)
+    if not args.early:
+        verify_verdict_inventory(args.stage_dir / "audit")
+    if not args.partial:
+        stage_upgrade(args.stage_dir)
+        # After the freeze the pointer and committed record are this release's.
+        release = release_exclusions_sha256()
+        frozen = live_pointer()["tag"] == RELEASE_TAG
+        verify_reference_pins(
+            SNAPSHOT, "committed reference", release if frozen else None
+        )
+        verify_reference_pins(bundle / "us", "staged reference", release)
+    # Review r1, M7: export binds these bytes into release-ready.json.
+    verify_staged_explanations(bundle)
+    if not args.early:
+        verify_parse_failure_flags(args.stage_dir)
+        verify_new_model_inputs(args.stage_dir)
+        verify_judge_provenance(
+            args.stage_dir / "audit" / "cases",
+            rejudged_cases(args.stage_dir),
+            JUDGE_PROVENANCE,
+        )
+    outputs = {}
+    # Review r1, M9, and review r2, N1: the cases whose annotation fields the
+    # scope check lets differ from the base's, the cases this release
+    # re-judged and the cases it decides. Review r3, Q5: a partial rehearsal
+    # runs no scope check, and an early one runs both on a stage nothing has
+    # judged or triaged, so neither passes any case.
+    rehearsal = args.early or args.partial
+    reopened = frozenset() if rehearsal else rejudged_cases(args.stage_dir)
+    decided = frozenset() if rehearsal else decided_cases()
+    if not rehearsal:
+        # Review r3, Q3 and Q1: the annotation files the decided and the
+        # re-opened cases' fields come from.
+        verify_staged_annotations(bundle, reopened)
+    payload = build_payload(
+        bundle,
+        live,
+        partial=args.partial,
+        early=args.early,
+        outputs=outputs,
+        reopened=reopened,
+        decided=decided,
+    )
+    repository_inputs = None if args.early else repository_input_hashes()
+    stats = payload["countries"]["us"]["modelStats"]
+    path = args.stage_dir / (
+        f"PARTIAL-data-board{BOARD_MODELS}.json"
+        if args.partial
+        else f"data-board{BOARD_MODELS}.json"
+    )
+    outputs["us/data.json"] = json.dumps(payload["countries"]["us"]).encode()
+    for relative, contents in outputs.items():
+        destination = bundle / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(contents)
+    path.write_text(payload_text(payload))
+    # Keep the freeze input identical to the gated payload, including Fable usage.
+    shutil.copyfile(path, bundle / "data.json")
+    ranked = sorted(stats, key=lambda s: (-s["exact"], -s["score"], s["model"]))
+    for index, row in enumerate(ranked, 1):
+        if row["model"] in MODELS.values():
+            print(
+                f"{'PARTIAL common cohort' if args.partial else 'STAGED'} "
+                f"{row['model']}: exact={row['exact']:.6f}% "
+                f"rank={index}/{BOARD_MODELS} n={row['n']}"
+            )
+    if not args.early:
+        pinned = [p for p in (bundle / "annotations").iterdir() if p.is_file()]
+        pinned += [
+            bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
+        ]
+        pinned += [p for p in (args.stage_dir / "inputs").rglob("*") if p.is_file()]
+        # The cases Fable 5.2 re-opened, the listed wording amendments and the
+        # seed binding decide what the adjudication and verdict gates allow;
+        # stage.json and model-provenance.json hold the prepare-time hashes.
+        pinned += [
+            path
+            for path in (
+                args.stage_dir / PROMPT_CHANGES,
+                args.stage_dir / AMENDMENTS,
+                args.stage_dir / "stage.json",
+                args.stage_dir / "model-provenance.json",
+            )
+            if path.is_file()
+        ]
+        pinned += [
+            p
+            for p in (args.stage_dir / "audit").rglob("*")
+            if p.is_file()
+            and p.name
+            in {
+                "verdict.json",
+                "verdict.meta.json",
+                "prompt.md",
+                "claude.transcript.jsonl",
+                "cases.jsonl",
+                "schema.json",
+            }
+        ]
+        write_json(
+            args.stage_dir / "release-ready.json",
+            {
+                "release_tag": RELEASE_TAG,
+                "base_tag": BASE_TAG,
+                "base_sha256": BASE_SHA256,
+                "payload_sha256": digest(path),
+                "models": BOARD_MODELS,
+                "partial": False,
+                "files": {
+                    str(p.relative_to(args.stage_dir)): digest(p) for p in pinned
+                },
+                # A repository file, so outside "files", which binds stage files.
+                "judge_provenance": {
+                    "path": JUDGE_PROVENANCE_PATH,
+                    "sha256": digest(JUDGE_PROVENANCE),
+                },
+                "repository_inputs": repository_inputs,
+            },
+        )
+    return payload
+
+
+# --- No engine change: the references stay release 20261027's -----------------
+#
+# Max, 2026-09-28: "we should be using the latest pe for this always!" Release
+# 20261027 installed the 2026-10-22 audit's policyengine-us 2.60.0 build, and
+# this release keeps it: no step installs references. finish_terra's
+# install-references step and the gates that served only it are gone. What
+# that build made true is checked against the base's state instead: the
+# staged and committed references equal BASE_REFERENCE_SHA256
+# (verify_reference_pins), the committed sidecar names BASE_ENGINE and the
+# pyproject and lock pin it (verify_base_engine), and the audit's publication
+# check record names the base's reference files, the committed builder and
+# an engine that moves no scored output (verify_publication_record, lifted
+# from finish_terra's load_build).
+
+CSV_NAME = "reference_outputs.csv"
+META_NAME = "reference_outputs.csv.meta.json"
+EXCLUSIONS_NAME = "reference_exclusions.json"
+# The reference files the 2026-10-22 build wrote and its publication check
+# pins by sha256: release 20261027's, byte for byte.
+BUILD_REFERENCE_FILES = (CSV_NAME, META_NAME, EXCLUSIONS_NAME)
+# The committed copy of that build, which sweep_timing.py check reads.
+REFERENCE_BUILD_DIR = REFERENCE_AUDIT / "reference-build"
+
+
+def engine_older(older: str, newer: str) -> bool:
+    """Whether one 'policyengine-us X.Y.Z' release precedes another."""
+
+    def parts(engine) -> tuple[int, ...] | None:
+        if not isinstance(engine, str) or not engine.startswith(ENGINE_PREFIX):
+            return None
+        try:
+            return tuple(int(p) for p in engine.removeprefix(ENGINE_PREFIX).split("."))
+        except ValueError:
+            return None
+
+    a, b = parts(older), parts(newer)
+    return a is not None and b is not None and a < b
+
+
+def verify_base_engine(root: Path | None = None) -> None:
+    """The references' engine is BASE_ENGINE, and the project pins it.
+
+    The committed sidecar's last revision (pinned by BASE_REFERENCE_SHA256)
+    must name BASE_ENGINE, and the pyproject and lock must pin that release
+    (verify_engine_pins), as finish_terra required of its installed build.
+    """
+    root = ROOT if root is None else root
+    meta_path = root / SNAPSHOT.relative_to(ROOT) / META_NAME
+    require(
+        meta_path.is_file() and digest(meta_path) == BASE_REFERENCE_SHA256[META_NAME],
+        f"the committed {META_NAME} is not release 20261027's",
+    )
+    revisions = json.loads(meta_path.read_text()).get("revisions") or [{}]
+    require(
+        revisions[-1].get("engine_version") == BASE_ENGINE,
+        f"the committed references' last revision is not on {BASE_ENGINE}",
+    )
+    verify_engine_pins(BASE_ENGINE, root=root)
+
+
+def verify_publication_record(
+    root: Path | None = None, *, checked_on_or_after: str | None = None
+) -> dict:
+    """The audit's publication check record agrees with the base's references.
+
+    finish_terra's load_build required sweep_timing.json's publication_check
+    to name the build's engine, or a newer one on which no scored output
+    moved, the build's three reference files and the committed builder. This
+    release installs no build, so the record must name BASE_ENGINE (or a newer
+    engine with scored_differ empty), release 20261027's three reference files
+    (BASE_REFERENCE_SHA256), the builder at its pin, and each build file at
+    the committed reference-build/'s bytes. The check counts outputs as the
+    build's record does, so it counts the output this release newly excludes
+    as scored: an engine that moves it stops the release here too. Returns
+    the record.
+
+    With ``checked_on_or_after`` (the spec's snapshot_date, which the freeze's
+    --finalize passes), the record must also come from a check run on or
+    after that day of the newest release on PyPI: its engine must equal the
+    newest release the check read (pypi.newest_at_read), and pypi.read_at_utc
+    must be a UTC stamp on or after the day. An older record, such as the
+    2026-10-29 check of 2.78.0, then stops the release.
+    """
+    root = ROOT if root is None else root
+    audit = root / REFERENCE_AUDIT
+    builder = audit / "scripts/build_references_upgrade.py"
+    require(
+        builder.is_file() and digest(builder) == REFERENCE_BUILDER_SHA256,
+        "the 2026-10-22 audit's builder is off its pin",
+    )
+    timing = json.loads((audit / "verification/sweep_timing.json").read_text())
+    record = timing.get("publication_check")
+    require(
+        isinstance(record, dict) and isinstance(record.get("build_sha256"), dict),
+        "sweep_timing.json holds no publication_check record with build hashes",
+    )
+    recorded = record["build_sha256"]
+    checked = ENGINE_PREFIX + str(record.get("engine"))
+    build = root / REFERENCE_BUILD_DIR
+    require(
+        (
+            checked == BASE_ENGINE
+            or (
+                engine_older(BASE_ENGINE, checked) and record.get("scored_differ") == []
+            )
+        )
+        and all(
+            recorded.get(name) == BASE_REFERENCE_SHA256[name]
+            for name in BUILD_REFERENCE_FILES
+        )
+        and recorded.get("builder") == REFERENCE_BUILDER_SHA256
+        and all(
+            (build / name).is_file() and digest(build / name) == pin
+            for name, pin in recorded.items()
+            if name != "builder"
+        ),
+        "the audit's publication record disagrees with release 20261027's "
+        "references, engine or builder, or with the committed reference-build/; "
+        "rerun sweep_timing.py check as docs/fable52/design.md says",
+    )
+    if checked_on_or_after is not None:
+        require(
+            utc_day(checked_on_or_after) is not None,
+            f"no day to hold the publication check to: {checked_on_or_after!r}",
+        )
+        pypi = timing.get("pypi")
+        pypi = pypi if isinstance(pypi, dict) else {}
+        read = pypi.get("read_at_utc")
+        stamped = (
+            isinstance(read, str)
+            and re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", read) is not None
+            and utc_day(read[:10]) is not None
+        )
+        require(
+            isinstance(pypi.get("newest_at_read"), str)
+            and str(record.get("engine")) == pypi["newest_at_read"]
+            and stamped
+            and read[:10] >= checked_on_or_after,
+            "the audit's publication record does not check the newest "
+            f"policyengine-us on or after {checked_on_or_after}: it checked "
+            f"{record.get('engine')!r}, and PyPI's newest was "
+            f"{pypi.get('newest_at_read')!r} when it read PyPI at {read!r}; rerun "
+            "sweep_timing.py check as docs/fable52/design.md says",
+        )
+    return record
+
+
+def grounding_lookup(path: Path) -> dict[tuple[str, str], str]:
+    """The audit grounding by output, as prepare_audit takes it."""
+    import pandas as pd
+
+    grounding = pd.read_csv(path)
+    return {
+        (str(r.scenario_id), str(r.variable)): str(r.grounding)
+        for r in grounding.itertuples()
+    }
+
+
+# The files finish_terra's install-references step wrote into a stage. A
+# stage holding any of them was staged by another release's driver.
+INSTALL_MARKERS = ("reference-build", "reference-install.json")
+
+
+def stage_upgrade(stage: Path) -> None:
+    """Refuse a stage that records an installed engine upgrade; return None.
+
+    finish_terra required its installed build here at every later step. This
+    release installs none, so a stage.json naming references_installed, or a
+    stage holding the install's files, came from another driver. It
+    re-checks the base's engine pins and the audit's publication record
+    instead, as finish_terra re-gated its build at every step. None is the
+    no-upgrade value every gate below takes.
+    """
+    path = stage / "stage.json"
+    require(path.is_file(), "stage lacks stage.json; run --step prepare")
+    receipt = json.loads(path.read_text())
+    require(
+        not receipt.get("references_installed")
+        and not any((stage / name).exists() for name in INSTALL_MARKERS),
+        "the stage records an installed reference build, which this release "
+        "does not install; prepare a new stage",
+    )
+    verify_base_engine()
+    verify_publication_record()
+    return None
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--runs-root", type=Path)
+    parser.add_argument("--stage-dir", type=Path)
+    parser.add_argument(
+        "--base-predictions", type=Path, default=SNAPSHOT / "predictions.csv.gz"
+    )
+    parser.add_argument("--base-payload", type=Path, default=SNAPSHOT / "data.json.gz")
+    parser.add_argument("--audit-seed", type=Path)
+    parser.add_argument("--grounding", type=Path)
+    parser.add_argument(
+        "--early", action="store_true", help="fold and export without paid judging"
+    )
+    parser.add_argument(
+        "--partial",
+        action="store_true",
+        help="scratch-only cohort rehearsal; requires --early",
+    )
+    parser.add_argument(
+        "--step",
+        choices=(
+            "pin-inputs",
+            "prepare",
+            "bind-seed",
+            "install-exclusions",
+            "judge",
+            "adjudicate-exclusions",
+            "provenance",
+            "triage",
+            "export",
+        ),
+        default="prepare",
+        help="pin-inputs writes the finished run's file hashes to "
+        f"{INPUT_PINS_PATH} (no stage); bind-seed, before prepare, checks the "
+        "audit seed (and --grounding) against their pins and writes nothing, "
+        "and on a stage prepared before prepare bound the seed, binds it",
+    )
+    args = parser.parse_args(argv)
+    if args.partial and not args.early:
+        parser.error("--partial requires --early")
+    if args.early and args.step != "prepare":
+        parser.error("--early only applies to prepare")
+    if args.step in ("prepare", "pin-inputs") and not args.runs_root:
+        parser.error(f"{args.step} requires --runs-root")
+    if args.step != "pin-inputs":
+        if args.stage_dir is None:
+            parser.error(f"{args.step} requires --stage-dir")
+        args.stage_dir = args.stage_dir.resolve()
+    return args
+
+
+def export_stage(args, bundle: Path) -> None:
+    """Validate CLI triage and export together before promoting their outputs."""
+    import tempfile
+
+    stage = args.stage_dir
+    with tempfile.TemporaryDirectory(
+        prefix="export-stage-fable52-", dir=stage.parent
+    ) as scratch:
+        working = Path(scratch) / stage.name
+        shutil.copytree(stage, working)
+        candidate_args = argparse.Namespace(**{**vars(args), "stage_dir": working})
+        candidate_bundle = working / bundle.relative_to(stage)
+        triage(candidate_args, candidate_bundle)
+        export(candidate_args, candidate_bundle, resolve_live_base(candidate_args))
+        generated = [
+            working / "reference-flags.csv",
+            working / "unresolved-rows.csv",
+            working / f"data-board{BOARD_MODELS}.json",
+            candidate_bundle / "data.json",
+            candidate_bundle / "us/data.json",
+            candidate_bundle / "annotations/us_audit_row_annotations.csv",
+            candidate_bundle / "annotations/us_case_notes.csv",
+            *sorted((candidate_bundle / "us/analysis").rglob("*")),
+        ]
+        # Triage also rewrites stage files the receipt binds, such as the
+        # adjudication record when it applies the listed reasoning amendments.
+        # Promote every bound file whose accepted bytes differ from the stage's,
+        # so the stage holds exactly the bytes the receipt names.
+        accepted = working / "release-ready.json"
+        bound = json.loads(accepted.read_text())["files"] if accepted.is_file() else {}
+        generated += [
+            working / name
+            for name in sorted(bound)
+            if working / name not in generated
+            and (
+                not (stage / name).is_file()
+                or digest(stage / name) != digest(working / name)
+            )
+        ]
+        # The receipt describes the accepted annotation and payload bytes.
+        # Keep it last when promoting the complete validated output set.
+        generated.append(accepted)
+        for source in generated:
+            if source.is_file():
+                destination = stage / source.relative_to(working)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(source, destination)
+
+
+def main(argv=None) -> None:
+    args = parse_args(argv)
+    if args.step == "pin-inputs":
+        pin_inputs(args)
+        return
+    sources = [SNAPSHOT, ANNOTATIONS, args.base_predictions, args.base_payload]
+    sources += [
+        p for p in (args.runs_root, args.audit_seed, args.grounding) if p is not None
+    ]
+    validate_stage_path(args.stage_dir, sources)
+    stage = args.stage_dir
+    bundle = stage / "publish" / RUN_NAME
+    receipt_path = stage / "stage.json"
+    if args.step == "bind-seed" and not receipt_path.exists():
+        check_seed(args)
+        return
+    if args.step == "prepare":
+        if not args.partial:
+            # What finish_terra's load_build checked of its build, checked
+            # here of the base's references: their engine and its pins, and
+            # the audit's publication record.
+            verify_base_engine()
+            verify_publication_record()
+        runs = discover_new_models(args.runs_root)
+        print("All copied run states qualify; resolving 20261027 base", flush=True)
+        base, reference, live = resolve_base(args)
+        print("Base verified; folding copied additions", flush=True)
+        stage.mkdir(parents=True, exist_ok=True)
+        require(
+            not receipt_path.exists(),
+            "stage already prepared; use a fresh stage-dir "
+            "or resume judge/triage/export",
+        )
+        bundle, frames = prepare_inputs(args, runs, base, reference)
+        verify_staged_explanations(bundle)
+        if args.partial:
+            partial_scores(args, base, reference, frames)
+        seed = None
+        preview = {}
+        if args.early:
+            if not args.partial:
+                # A full early rehearsal scores what the release scores: it
+                # stages the release's exclusion record, as finish_terra's
+                # staged its build, under a provisional stage.json that marks
+                # the stage early (so it can never become a release).
+                preview = {"exclusions_installed": write_release_exclusions(stage)}
+                write_json(
+                    receipt_path,
+                    {"early": True, "partial": False, "files": {}, **preview},
+                )
+            export(args, bundle, live)
+        else:
+            seed = prepare_cases(args, bundle)
+        inputs = [p for p in (stage / "inputs").rglob("*") if p.is_file()]
+        inputs += [
+            bundle / "us" / name for name in (*REFERENCE_FILES, "predictions.csv")
+        ]
+        receipt = {
+            **preview,
+            "partial": args.partial,
+            "early": args.early,
+            "base_tag": BASE_TAG,
+            "base_commit": BASE_COMMIT,
+            "files": {str(p.relative_to(stage)): digest(p) for p in inputs},
+        }
+        if seed is not None:
+            receipt["seed"] = seed
+        write_json(receipt_path, receipt)
+    else:
+        require(
+            receipt_path.is_file(),
+            f"{args.step} needs a prepared stage; run --step prepare",
+        )
+        receipt = json.loads(receipt_path.read_text())
+        require_release_stage(receipt)
+        if args.step == "export":
+            require_combined_predictions(bundle, require_file=False)
+        for name, expected in receipt["files"].items():
+            require(
+                digest(stage / name) == expected,
+                f"staged input changed: {name}; prepare a new stage",
+            )
+        # Review r1, M7: stage.json names every input prepare staged, and the
+        # prepare-time hashes in it and in model-provenance.json hold.
+        verify_prepared_inputs(stage)
+        if args.step != "export":
+            (stage / "release-ready.json").unlink(missing_ok=True)
+        installed = receipt.get("exclusions_installed")
+        if args.step not in ("bind-seed", "install-exclusions"):
+            stage_upgrade(stage)
+            require(
+                (installed or {}).get("sha256") == release_exclusions_sha256(),
+                "the stage's exclusions are not the release's; run "
+                "--step install-exclusions",
+            )
+        # Review r1, M7: at every later step the scoring source and the bundle
+        # keep their code-held pins, as finish_terra held its installed build
+        # at every step: release 20261027's, with the exclusion record the
+        # stage has installed (the base's until install-exclusions writes the
+        # release's, which every step after it requires above). The
+        # explanations keep release 20261027's bytes.
+        recorded = installed.get("sha256") if isinstance(installed, dict) else None
+        scoring = recorded
+        if args.step == "install-exclusions" and installed is None:
+            # Review r2, N3: write_release_exclusions writes the scoring copy
+            # first and the bundle copy second, and install_exclusions writes
+            # stage.json last, so an install stopped after the first write
+            # leaves the release's record in the scoring source with no
+            # install recorded. Run again, the step accepts exactly those
+            # bytes there or release 20261027's; the bundle copy keeps
+            # release 20261027's pin, and the staged-input check holds it to
+            # the bytes stage.json binds.
+            record = stage / "scoring" / "reference_exclusions.json"
+            if record.is_file() and digest(record) == release_exclusions_sha256():
+                scoring = release_exclusions_sha256()
+        elif args.step == "install-exclusions" and recorded is not None:
+            # The coordinator's ruling on N3: a reinstall, which later steps
+            # ask for once the spec's record differs from the one installed,
+            # stopped between its writes leaves the spec's new record in the
+            # scoring source while stage.json still records the earlier
+            # install. The pin check below refuses that state as before; this
+            # names the recovery first. It refuses nothing the pin check
+            # passes.
+            record = stage / "scoring" / "reference_exclusions.json"
+            require(
+                not record.is_file()
+                or digest(record) == recorded
+                or digest(record) != release_exclusions_sha256(),
+                "staged scoring reference_exclusions.json is neither the record "
+                "this stage recorded installing nor a first install's, since "
+                "the stage records an install; a reinstall stopped between its "
+                "writes leaves this; prepare a new stage",
+            )
+        verify_reference_pins(stage / "scoring", "staged scoring", scoring)
+        verify_reference_pins(bundle / "us", "staged reference", recorded)
+        verify_staged_explanations(bundle)
+        if args.step == "bind-seed":
+            bind_seed(args)
+        elif args.step == "install-exclusions":
+            install_exclusions(args)
+        elif args.step == "adjudicate-exclusions":
+            adjudicate_exclusions(args)
+        elif args.step == "provenance":
+            write_judge_provenance(args)
+        elif args.step == "judge":
+            judge(args, bundle)
+        elif args.step == "triage":
+            triage(args, bundle)
+        else:
+            export_stage(args, bundle)
+
+
+if __name__ == "__main__":
+    main()

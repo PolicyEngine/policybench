@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "note": "The exclusion record for Max's ruling d2180 (2026-11-01): exclude scenario_122's Minnesota state_refundable_credits from scoring, whose $0 reference rests on a Certificate of Rent Paid that the prompt never states (reference_audit/2026-10-29-mn-renters-crp). The release after dashboard-data-20261027 installs it (docs/fable52/spec.json).",
+  "exclusions": [
+    {
+      "scenario_id": "scenario_122",
+      "variable": "state_refundable_credits",
+      "reason_code": "reference_depends_on_unlisted_input",
+      "unlisted_input": "a qualifying Certificate of Rent Paid (mn_renters_credit_qualifying_crp)",
+      "alternative_reading": "The prompt places the household in Minnesota and lists pre-subsidy rent of $28,235, and states no Certificate of Rent Paid (CRP). Minn. Stat. 290.0693 subd. 4 requires the owner or managing agent of a rented homestead to furnish a CRP to a renter on December 31. policyengine-us 2.60.0 grants Minnesota's renter's credit only with a qualifying CRP (mn_renters_credit_eligible requires mn_renters_credit_qualifying_crp, a boolean tax-unit input that defaults to false), so the reference gives no credit; the prompt's rule that an unlisted boolean is false gives the same reading. Read as a renter who holds the CRP, the household's renter's credit household income of $65,346.18 falls under 2026's $79,330 first zero threshold, its rent constituting property taxes is $4,800, and the credit, and with it this output, is $1,921.",
+      "frozen_value": 0.0,
+      "alternative_value": 1921.0,
+      "engine_version": "policyengine-us 2.60.0",
+      "decided_on": "2026-11-01",
+      "decided_by": "developer",
+      "note": "The GPT-6.1 Terra release's second review found it on 2026-10-29, and reference_audit/2026-10-29-mn-renters-crp audits it: the trace (verification/trace_122_2_60_0.json; trace_122_2_41_0.json on 2.41.0) gives $0 as built and $1,921 with a qualifying CRP, and the sweep (verification/crp_sweep.json, against the 2026-10-22 build) reproduces every scored Minnesota reference as built, and the CRP moves this output alone. Release dashboard-data-20261027 kept it scored; Max excluded it on 2026-11-01 (decision d2180)."
+    }
+  ]
+}

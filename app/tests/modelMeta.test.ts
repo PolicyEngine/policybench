@@ -33,6 +33,7 @@ describe("model metadata", () => {
     ["muse-wonder", "Muse Wonder", "meta"],
     ["muse-spark-1.3", "Muse Spark 1.3", "meta"],
     ["gemini-4-argon", "Gemini 4 Argon", "google"],
+    ["claude-fable-5.2", "Claude Fable 5.2", "anthropic"],
   ] as const)("maps %s to its label and provider", (model, label, provider) => {
     expect(MODEL_LABELS[model]).toBe(label);
     expect(getProviderForModel(model)).toBe(provider);
@@ -82,6 +83,14 @@ describe("model metadata", () => {
     expect(frontierModelsFor(["claude-opus-4.8", "claude-opus-4.7"])).toEqual([
       "claude-opus-4.8",
     ]);
+  });
+
+  test("keeps Claude Fable 5.1 as Anthropic's frontier model", () => {
+    expect(FRONTIER_MODELS).toContain("claude-fable-5.1");
+    expect(FRONTIER_MODELS).not.toContain("claude-fable-5.2");
+    expect(
+      frontierModelsFor(["claude-fable-5.2", "claude-fable-5.1"]),
+    ).toEqual(["claude-fable-5.1"]);
   });
 
   test("shows Gemini 4 Argon as Google's flagship, and 3.1 Pro without it", () => {

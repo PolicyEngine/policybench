@@ -61,7 +61,11 @@ from policybench.adjudications import (
     unresolved_suspect_cases,
     verify_adjudications_applied,
 )
-from policybench.analysis import render_markdown_report, score_single_prediction
+from policybench.analysis import (
+    refuse_reasoning_effort_override,
+    render_markdown_report,
+    score_single_prediction,
+)
 from policybench.full_run_export import reference_policyengine_bundles
 from policybench.reference_exclusions import (
     ENGINE_DEFECT,
@@ -615,6 +619,10 @@ def _validate_treatment_fingerprint(
     model: str,
     run_state_path: Path,
 ) -> tuple[int, bool]:
+    # Every release freezer runs this check (through
+    # freeze_adds0928.validate_treatment, which the later freezers import)
+    # before it writes the snapshot, the serving config or the app pointer.
+    refuse_reasoning_effort_override("A release freeze's treatment check")
     fingerprint_version = fingerprint.get("fingerprint_version", 1)
     if fingerprint_version not in SUPPORTED_TREATMENT_FINGERPRINT_VERSIONS:
         raise SystemExit(
@@ -1150,6 +1158,7 @@ def _serving_registry_commit(payload: dict) -> str:
 
 def freeze_serving_configuration(destination: Path) -> None:
     """Pin effective serving treatments and their best available evidence."""
+    refuse_reasoning_effort_override("The serving-configuration freeze")
     from policybench.config import MODELS, PROGRAMS
     from policybench.eval_no_tools import (
         REASONING_EFFORT_OVERRIDES,
@@ -2041,6 +2050,7 @@ def repin_rendered_paper_artifacts() -> dict:
 
 
 def main() -> None:
+    refuse_reasoning_effort_override("The snapshot freeze")
     if not SOURCE_RUN.exists():
         raise SystemExit(f"Source run not found: {SOURCE_RUN}")
     if not PUBLISHED_DASHBOARD_SOURCE.exists():

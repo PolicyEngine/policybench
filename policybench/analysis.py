@@ -1,6 +1,7 @@
 """Metrics and analysis for PolicyBench results."""
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,24 @@ from policybench.spec import (
     net_income_sign_for_output,
     output_group_id,
 )
+
+# policybench.eval_no_tools.REASONING_EFFORT_OVERRIDE_ENV, named here so the
+# board exports and the snapshot freeze can refuse it without importing the
+# harness (and litellm).
+REASONING_EFFORT_OVERRIDE_ENV = "POLICYBENCH_REASONING_EFFORT_OVERRIDE"
+
+
+def refuse_reasoning_effort_override(step: str, env=None) -> None:
+    """Stop ``step``, which writes a board row or a frozen serving
+    configuration, while the effort sensitivity's variable is set to any
+    value: that variable is for labeled sensitivity runs only."""
+    source = os.environ if env is None else env
+    if REASONING_EFFORT_OVERRIDE_ENV in source:
+        raise SystemExit(
+            f"{step} refuses to run while {REASONING_EFFORT_OVERRIDE_ENV} is set "
+            f"({source[REASONING_EFFORT_OVERRIDE_ENV]!r}); it is for sensitivity "
+            "runs only. Unset it and run again."
+        )
 
 
 def mean_absolute_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -2626,6 +2645,7 @@ def export_dashboard_data(
     bare bench object here is how an unloadable ``app/src/data.json`` gets
     produced.
     """
+    refuse_reasoning_effort_override("The dashboard export")
     dashboard_path = Path(output_path)
     dashboard_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_dashboard_payload(

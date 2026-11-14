@@ -18,17 +18,17 @@ describe("audit universe", () => {
     expect(AUDIT_SELECTION_RULE).toBe(
       "rows whose legacy threshold score is below 1",
     );
-    // Release 20261027: the counts tests/test_disclosures.py recomputes
-    // from the frozen annotations and payload (51 models; GPT-6.1 Terra's
-    // rows join, and the move to policyengine-us 2.60.0 changes four scored
-    // references; release 20261014: 8,765 annotated, 2,329 unannotated).
+    // Release 20261111: the counts tests/test_disclosures.py recomputes
+    // from the frozen annotations and payload (52 models; Claude Fable 5.2's
+    // rows join, and scenario_122's Minnesota state refundable credits leave
+    // scoring; release 20261027: 9,050 annotated, 2,407 unannotated).
     expect(summarizeAuditUniverse(us)).toEqual({
-      annotatedRowCount: 9_050,
-      legacyThresholdRowCount: 9_050,
-      exactMissCount: 9_046,
-      annotatedExactMissCount: 9_046,
+      annotatedRowCount: 9_132,
+      legacyThresholdRowCount: 9_132,
+      exactMissCount: 9_128,
+      annotatedExactMissCount: 9_128,
       annotatedExactHitCount: 4,
-      unannotatedBelowFullBoundedScoreCount: 2_407,
+      unannotatedBelowFullBoundedScoreCount: 2_497,
     });
   });
 });

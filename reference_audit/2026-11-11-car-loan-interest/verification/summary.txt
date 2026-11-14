@@ -1,0 +1,121 @@
+BASELINE: |engine baseline - reference| < $0.005
+  cells: 1984; reproduced to the cent: 1966
+  scored: 1934 of 1934
+  excluded: 32 of 50
+  baseline vs the 2.60.0 build's computed.csv: 1984 cells, max |difference| = 0.00e+00
+
+MOVED: cells that move beyond the exact-match tolerance (baseline vs alternative)
+  moved: 15 (scored 11, excluded 4)
+  cells that change but stay within tolerance: 1
+  households stating auto loan interest > 0: 21; <= 0: ['scenario_046', 'scenario_075']
+
+predictions: 52 models, 103,168 rows
+references: 1,934 scored, 50 excluded
+
+MATCHES: per moved scored cell, models matching the reference / the alternative
+  scenario_003 federal_income_tax_before_refundable_credits: match reference 12, match alternative 3, neither 37
+    reference: claude-opus-5.5, claude-sonnet-5.5, gpt-5.5, gpt-5.6-luna, gpt-5.6-sol, gpt-5.6-terra, gpt-6-astra, gpt-6-luna, gpt-6-sol, gpt-6.1-sol, gpt-6.1-terra, muse-wonder
+    alternative: claude-fable-5.1, claude-fable-5.2, gemini-4-argon
+  scenario_018 federal_income_tax_before_refundable_credits: match reference 9, match alternative 1, neither 42
+    reference: claude-opus-4.7, claude-sonnet-5.5, deepseek-v4.1-flash, gpt-5.5, gpt-5.6-luna, gpt-6-luna, gpt-6.1-sol, kimi-k3, ox-alpha
+    alternative: claude-fable-5
+  scenario_026 federal_refundable_credits: match reference 8, match alternative 4, neither 40
+    reference: claude-fable-5.1, claude-opus-5.5, gpt-5.6-luna, gpt-5.6-terra, gpt-6-astra, gpt-6.1-sol, gpt-6.1-terra, inkling
+    alternative: claude-fable-5.2, claude-sonnet-5.5, gpt-5.6-sol, gpt-6-sol
+  scenario_028 federal_refundable_credits: match reference 5, match alternative 1, neither 46
+    reference: claude-opus-5.5, claude-sonnet-5.5, gpt-5.6-sol, gpt-6-astra, gpt-6.1-sol
+    alternative: claude-fable-5.2
+  scenario_053 federal_income_tax_before_refundable_credits: match reference 13, match alternative 2, neither 37
+    reference: claude-opus-5.5, claude-sonnet-5.5, deepseek-v4.1-flash, glm-5.3, gpt-5.6-luna, gpt-5.6-sol, gpt-6-astra, gpt-6-luna, gpt-6-sol, gpt-6.1-terra, inkling, kimi-k3, ox-alpha
+    alternative: claude-fable-5.1, claude-fable-5.2
+  scenario_053 state_income_tax_before_refundable_credits: match reference 0, match alternative 0, neither 52
+    reference: -
+    alternative: -
+  scenario_067 federal_income_tax_before_refundable_credits: match reference 9, match alternative 4, neither 39
+    reference: claude-sonnet-5.5, gpt-5.5, gpt-5.6-luna, gpt-5.6-sol, gpt-6-astra, gpt-6-luna, gpt-6-sol, gpt-6.1-sol, gpt-6.1-terra
+    alternative: claude-fable-5.1, claude-fable-5.2, claude-opus-5.5, gemini-4-argon
+  scenario_067 state_income_tax_before_refundable_credits: match reference 12, match alternative 0, neither 40
+    reference: claude-fable-5.1, claude-fable-5.2, claude-opus-5.5, claude-sonnet-5.5, deepseek-v4-pro-0813, gemini-3.8-flash, gemini-4-argon, gpt-6-astra, gpt-6-sol, gpt-6.1-sol, muse-spark-1.3, muse-wonder
+    alternative: -
+  scenario_086 federal_income_tax_before_refundable_credits: match reference 4, match alternative 3, neither 45
+    reference: gpt-5.6-sol, gpt-6-astra, gpt-6-sol, gpt-6.1-sol
+    alternative: claude-fable-5.2, claude-sonnet-5.5, kimi-k3
+  scenario_099 federal_income_tax_before_refundable_credits: match reference 1, match alternative 0, neither 51
+    reference: gpt-6-astra
+    alternative: -
+  scenario_101 federal_income_tax_before_refundable_credits: match reference 8, match alternative 4, neither 40
+    reference: claude-opus-4.7, gpt-5.6-luna, gpt-5.6-sol, gpt-6-luna, gpt-6-sol, gpt-6.1-sol, gpt-6.1-terra, ox-alpha
+    alternative: claude-fable-5.1, claude-fable-5.2, gpt-5.6-terra, gpt-6-astra
+ scenario_id state     filing_status  stated_auto_loan_interest                                     variable    reference  engine_baseline  alternative      change  scored  models_matching_reference  models_matching_alternative
+scenario_002    WA             joint                1816.470581 federal_income_tax_before_refundable_credits     0.000000      1890.300049  1708.653076 -181.646973   False                       <NA>                         <NA>
+scenario_003    TX             joint                 500.000000 federal_income_tax_before_refundable_credits 22400.654297     22400.654297 22290.654297 -110.000000    True                         12                            3
+scenario_018    AZ            single                1625.300049 federal_income_tax_before_refundable_credits  5211.050781      5211.050781  5016.014648 -195.036133    True                          9                            1
+scenario_026    NC             joint                 378.058838                   federal_refundable_credits  2013.489258      2013.489258  2058.855957   45.366699    True                          8                            4
+scenario_028    PA head_of_household                 980.000000                   federal_refundable_credits  3274.927979      3274.927979  3392.527832  117.599854    True                          5                            1
+scenario_033    SD             joint                1225.000000 federal_income_tax_before_refundable_credits  3818.148193      3818.148193  3671.148193 -147.000000   False                       <NA>                         <NA>
+scenario_053    ID            single                 950.000000 federal_income_tax_before_refundable_credits  5903.109375      5903.109375  5742.241699 -160.867676    True                         13                            2
+scenario_053    ID            single                 950.000000   state_income_tax_before_refundable_credits  2186.057129      2186.057129  2135.707031  -50.350098    True                          0                            0
+scenario_067    IN             joint                1844.699951 federal_income_tax_before_refundable_credits  5616.240234      5616.240234  5394.875977 -221.364258    True                          9                            4
+scenario_067    IN             joint                1844.699951                             local_income_tax  1348.832031      1348.832031  1319.316772  -29.515259   False                       <NA>                         <NA>
+scenario_067    IN             joint                1844.699951   state_income_tax_before_refundable_credits  2486.908936      2486.908936  2432.490234  -54.418701    True                         12                            0
+scenario_086    GA head_of_household                 274.799988 federal_income_tax_before_refundable_credits  3255.547852      3255.547852  3222.571777  -32.976074    True                          4                            3
+scenario_093    MO             joint                1000.000000 federal_income_tax_before_refundable_credits  8628.990234      8628.990234  8508.990234 -120.000000   False                       <NA>                         <NA>
+scenario_099    CA             joint                1575.000000 federal_income_tax_before_refundable_credits 10711.484375     10711.484375 10364.984375 -346.500000    True                          1                            0
+scenario_101    TX            single                1400.000000 federal_income_tax_before_refundable_credits 13418.599609     13418.599609 13198.599609 -220.000000    True                          8                            4
+
+SCOREBOARDS (share of answers right x 100). a = 1934 scored cells; b = 1923; c = 1934
+  (a) vs the frozen board (data.json.gz modelStats exact): max |difference| = 0.00e+00 over 52 models
+  (a) vs analysis/summary_by_model.csv weighted_exact x 100: max |difference| = 1.42e-14
+                        model  share_a  rank_a  share_b  rank_b  share_c  rank_c
+                    gpt-6-sol   95.155       1   95.648       1   94.132       1
+              claude-opus-5.5   94.070       2   95.076       2   93.736       2
+                gpt-6.1-terra   93.143       3   93.834       3   92.301       4
+                  gpt-5.6-sol   93.079       4   93.548       4   92.083       5
+             claude-fable-5.2   91.950       5   93.388       5   92.956       3
+                  gpt-6-astra   91.728       6   92.162       8   90.802       8
+            claude-sonnet-5.5   91.666       7   92.301       6   90.989       7
+                   gpt-6-luna   91.501       8   92.039       9   90.496       9
+             claude-fable-5.1   90.840       9   92.246       7   91.543       6
+                      kimi-k3   90.530      10   91.465      10   90.321      10
+                  gpt-6.1-sol   90.165      11   90.537      12   89.030      12
+                  muse-wonder   90.048      12   91.281      11   89.784      11
+                 gpt-5.6-luna   88.703      13   89.156      15   87.661      15
+               gemini-4-argon   88.608      14   90.034      13   88.949      13
+                     ox-alpha   88.567      15   89.462      14   87.967      14
+                      gpt-5.5   87.958      16   88.806      19   87.353      19
+                      inkling   87.683      17   88.935      17   87.446      18
+                     grok-4.7   87.623      18   89.127      16   87.623      16
+                gpt-5.6-terra   87.597      19   88.855      18   87.560      17
+               muse-spark-1.3   87.156      20   88.566      20   87.092      20
+          deepseek-v4.1-flash   86.324      21   87.398      21   85.924      21
+                     grok-4.6   85.815      22   87.305      22   85.815      22
+             gemini-3.8-flash   85.572      23   86.991      23   85.508      23
+                     grok-4.5   84.661      24   86.142      24   84.661      24
+                claude-opus-5   83.602      25   85.075      25   83.602      25
+               claude-fable-5   83.265      26   84.753      26   83.465      26
+         deepseek-v4-pro-0813   83.003      27   84.412      27   82.939      27
+       deepseek-v4-flash-0731   82.881      28   84.335      28   82.881      28
+             gemini-3.7-flash   82.704      29   84.082      29   82.704      29
+             gemini-3.6-flash   82.585      30   84.015      30   82.585      30
+        gemini-3.5-flash-lite   81.551      31   82.967      31   81.551      31
+       gemini-3.1-pro-preview   81.223      32   82.646      32   81.223      32
+                      glm-5.3   81.060      33   82.322      33   80.860      33
+       gemini-3-flash-preview   80.618      34   81.972      34   80.618      34
+              claude-opus-4.7   80.528      35   81.564      36   80.128      36
+                     grok-4.3   80.284      36   81.757      35   80.284      35
+            claude-sonnet-4.6   79.931      37   81.369      37   79.931      37
+               grok-build-0.1   79.864      38   81.331      38   79.864      38
+             gemini-3.5-flash   79.804      39   81.150      39   79.804      39
+gemini-3.1-flash-lite-preview   79.319      40   80.709      40   79.319      40
+              deepseek-v4-pro   79.286      41   80.623      41   79.286      41
+             claude-haiku-5.5   79.193      42   80.535      42   79.193      42
+                 qwen-3.7-max   76.942      43   78.429      43   76.942      43
+                      glm-5.2   76.527      44   77.985      44   76.527      44
+              claude-opus-4.8   75.814      45   77.272      45   75.814      45
+                   minimax-m3   75.414      46   76.790      46   75.414      46
+                  qwen3.8-max   74.748      47   76.080      47   74.748      47
+             claude-haiku-4.5   74.500      48   75.772      48   74.500      48
+                 gpt-5.4-mini   73.313      49   74.550      49   73.313      49
+              claude-sonnet-5   72.352      50   73.676      50   72.352      50
+                    kimi-k2.6   66.919      51   68.064      51   66.919      51
+                 gpt-5.4-nano   65.341      52   66.480      52   65.341      52
