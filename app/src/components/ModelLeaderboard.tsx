@@ -325,8 +325,8 @@ export default function ModelLeaderboard({
             Claude rows ran without extended thinking: this board forces
             the answer tool call for every row whose model card selects the
             tool contract, which switches Claude&apos;s thinking off.{" "}
-            {forcedToolRejectingClaudeLabels} reject forced calls, so their
-            rows select JSON, answer as a JSON object and reason either way;
+            {forcedToolRejectingClaudeLabels}{" "}
+            reject forced calls, so their rows select JSON, answer as a JSON object and reason either way;
             Fable 5.1&apos;s marker compares transports.
             The{" "}
             <code>tool_choice: auto</code> re-runs are marked on the{" "}
