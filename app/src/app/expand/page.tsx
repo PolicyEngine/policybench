@@ -107,16 +107,28 @@ export default function ExpandPage() {
           survey microdata weighted to your population, cover your programs,
           benchmark the models behind the tools your people use, and compute every
           reference from the law with PolicyEngine. Rows selected for audit
-          receive a diagnosed failure mode. You get a public slice leaderboard, a
-          written analysis of where models fail your population, and a
-          briefing. The answer key checks itself in public: references come
-          from open-source code, cross-checked against other calculators
-          where they exist, and challenged values get adjudicated against
-          the statute — the{" "}
+          receive a diagnosed failure mode. When our audit flags a reference,
+          we check it against the law and the household facts the models see,
+          and publish the decision in our{" "}
+          <a
+            href="https://github.com/PolicyEngine/policybench/blob/main/annotations/us_full_run_20260612_policyengine_4_16_1_populace/us_adjudications.json"
+            className="text-primary hover:underline"
+          >
+            adjudication record
+          </a>
+          . We set out the method in our{" "}
           <Link href="/paper" className="text-primary hover:underline">
-            methodology and adjudication record
-          </Link>{" "}
-          are published.
+            paper
+          </Link>
+          , and anyone can read the{" "}
+          <a
+            href="https://github.com/PolicyEngine/policybench"
+            className="text-primary hover:underline"
+          >
+            code
+          </a>{" "}
+          behind each reference. You get a public slice leaderboard, a written
+          analysis of where models fail your population, and a briefing.
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4 mt-10">
@@ -171,7 +183,7 @@ export default function ExpandPage() {
           </span>
         </div>
         <p className="mt-4 text-base leading-relaxed text-text-secondary">
-          PolicyBench is a project of PolicyEngine, a 501(c)(3) nonprofit —
+          PolicyBench is a project of PolicyEngine, a nonprofit —
           engagements work as grants or contracts. We also brief funder
           networks — one slice presented to a convened
           room goes further than a dozen pitches, and we are glad to present

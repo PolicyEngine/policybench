@@ -46,7 +46,7 @@ test("expand page copy renders the bundled live model count", async () => {
 
   expect(modelCount).toBe(configuredModels.length);
   expect(visibleText).toContain(
-    `The public board tests ${modelCount} frontier models on 100 real households.`,
+    `The public board tests ${modelCount} frontier models on 100 households we drew from PolicyEngine’s US microdata.`,
   );
   expect(visibleText).toContain(
     `tax credits, across all ${modelCount} board models.`,
