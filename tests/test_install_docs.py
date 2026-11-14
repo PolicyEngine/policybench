@@ -1,0 +1,571 @@
+"""Install commands in the docs must name a source that exists.
+
+PyPI has no PolicyBench package: on 2026-10-06 both
+https://pypi.org/pypi/policybench/json and https://pypi.org/simple/policybench/
+returned 404. A command that installs the ``policybench`` distribution from a
+package index by name (``pip install policybench``, ``uvx policybench``) fails
+today, and would install whatever a third party later uploads under the name.
+The README installs it from GitHub and the development docs from a clone; these
+tests hold every surface a reader follows to that. A doc that quotes the index
+command, even to warn against it, fails too: readers copy commands. If anyone
+publishes PolicyBench to PyPI, delete this module and the README's line that
+says PyPI has no PolicyBench package.
+"""
+
+import html
+import json
+import re
+import shlex
+import tomllib
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+DISTRIBUTION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["name"]
+REPO_URL = "https://github.com/PolicyEngine/policybench"
+
+# Where readers and agents look for install instructions. The scan leaves out
+# dated records (docs/adds0928/, docs/gpt61sol/, reference_audit/): they quote
+# what happened rather than tell anyone what to run.
+SURFACES = (
+    "*.md",
+    "docs/*.md",
+    "docs/requirements.txt",
+    "paper/README.md",
+    "paper/index.qmd",
+    "app/public/paper/web/index.html",
+    "sensitivity/*.md",
+    "app/src/**/*.ts",
+    "app/src/**/*.tsx",
+    "app/src/notes/*.json",
+    ".github/workflows/*.yml",
+)
+
+# Each installer, what its positional arguments are, and the option table that
+# says which of its options take a value.
+#   requirements: each positional is a requirement (pip install).
+#   tool install: the positional is a requirement unless --from names the
+#     source before a second positional ends the command; then the positional
+#     names only the tool.
+#   tool: the first positional names the tool's package, unless --from or
+#     --spec names it, and later tokens are the tool's own arguments (uvx).
+#   command: positionals are a command to run; only --with adds a package.
+# `pip install` also matches inside `uv pip install` and `python -m pip install`.
+# uv pip install reads with pip's table: each option the two share takes a value
+# in both or in neither, and a test holds their saved help to that.
+INSTALLERS = (
+    (re.compile(r"(?<![\w-])pip3?\s+install\b"), "requirements", "pip"),
+    (re.compile(r"\bpipx\s+install\b"), "requirements", None),
+    (re.compile(r"\buv\s+tool\s+install\b"), "tool install", "uv"),
+    (re.compile(r"\buv\s+add\b"), "requirements", "uv"),
+    (re.compile(r"\bconda\s+install\b"), "requirements", "conda"),
+    (re.compile(r"\b(?:mamba|micromamba)\s+install\b"), "requirements", None),
+    (re.compile(r"\b(?:poetry|pdm)\s+add\b"), "requirements", None),
+    (re.compile(r"\buvx\b|\buv\s+tool\s+run\b"), "tool", "uv"),
+    (re.compile(r"\bpipx\s+run\b"), "tool", None),
+    (re.compile(r"\buv\s+run\b"), "command", "uv"),
+)
+# Options whose value is a requirement; --from and --spec also name the tool.
+REQUIREMENT_OPTIONS = {"--with", "-w", "--from", "--spec", "--with-executables-from"}
+TOOL_OPTIONS = {"--from", "--spec"}
+# The options that take a value, and those that don't. Each table copies the
+# --help saved in tests/fixtures/install_help/ for pip 26.2.1 (pip install), uv
+# 0.11.7 (uv tool install, uv tool run, uv add and uv run) or conda 26.9.4 (conda
+# install), and a test holds it to that help. The scan skips an option's value.
+# An option that its installer's table lacks, or lists in both sets (uv add's -m
+# takes a marker; uv run's -m runs a module), may take the next word as its value
+# or leave it as an argument.
+PIP_VALUE = """
+-C -c -e -f -i -r -t --abi --all-releases --build-constraint --cache-dir --cert
+--client-cert --config-settings --constraint --editable --exists-action
+--extra-index-url --find-links --group --implementation --index-url
+--keyring-provider --log --no-binary --only-binary --only-final --platform --prefix
+--progress-bar --proxy --python --python-version --refresh-package --report
+--requirement --requirements-from-script --resume-retries --retries --root
+--root-user-action --src --target --timeout --trusted-host --upgrade-strategy
+--uploaded-prior-to --use-deprecated --use-feature
+"""
+PIP_FLAG = """
+-h -I -q -U -V -v --break-system-packages --check-build-dependencies --compile
+--debug --disable-pip-version-check --dry-run --force-reinstall --help
+--ignore-installed --ignore-requires-python --isolated --no-build-isolation
+--no-cache-dir --no-clean --no-color --no-compile --no-deps --no-index --no-input
+--no-proxy-env --no-require-hashes --no-warn-conflicts --no-warn-script-location
+--only-deps --pre --prefer-binary --quiet --require-hashes --require-virtualenv
+--upgrade --user --verbose --version
+"""
+UV_VALUE = """
+-b -C -c -f -i -m -P -p -r --allow-insecure-host --bounds --branch
+--build-constraints --cache-dir --color --config-file --config-setting
+--config-settings-package --constraints --default-index --directory --env-file
+--exclude-newer --exclude-newer-package --excludes --extra --extra-index-url
+--find-links --fork-strategy --group --index --index-strategy --index-url
+--keyring-provider --link-mode --marker --no-binary-package
+--no-build-isolation-package --no-build-package --no-extra --no-group
+--no-install-package --no-sources-package --only-group --optional --overrides
+--package --prerelease --project --python --python-platform --refresh-package
+--reinstall-package --requirements --resolution --rev --script --tag --torch-backend
+--upgrade-group --upgrade-package --with-editable --with-requirements
+"""
+UV_FLAG = """
+-e -h -m -n -q -s -U -v --active --all-extras --all-groups --all-packages
+--compile-bytecode --dev --editable --exact --force --frozen --gui-script --help
+--isolated --lfs --locked --managed-python --module --no-binary --no-build
+--no-build-isolation --no-cache --no-config --no-default-groups --no-dev
+--no-editable --no-env-file --no-index --no-install-local --no-install-project
+--no-install-workspace --no-managed-python --no-progress --no-project
+--no-python-downloads --no-sources --no-sync --no-workspace --offline --only-dev
+--quiet --raw --refresh --reinstall --script --system-certs --upgrade --verbose
+--workspace
+"""
+CONDA_VALUE = """
+-c -f -n -p --channel --console --env-spec --environment-specifier --exclude-newer
+--experimental --file --format --name --prefix --repodata-fn --revision
+--shortcuts-only --solver
+"""
+CONDA_FLAG = """
+-C -d -h -k -O -q -S -v -y --all --clobber --copy --dev --download-only --dry-run
+--force-reinstall --freeze-installed --help --insecure --json --no-channel-priority
+--no-deps --no-lock --no-pin --no-repodata-use-shards --no-repodata-use-zst
+--no-shortcuts --no-update-deps --offline --only-deps --override-channels
+--override-frozen --quiet --repodata-use-shards --repodata-use-zst
+--satisfied-skip-solve --show-channel-urls --strict-channel-priority --update-all
+--update-deps --update-specs --use-index-cache --use-local --verbose --yes
+"""
+OPTION_TABLES = {
+    "pip": (set(PIP_VALUE.split()), set(PIP_FLAG.split())),
+    "uv": (set(UV_VALUE.split()), set(UV_FLAG.split())),
+    "conda": (set(CONDA_VALUE.split()), set(CONDA_FLAG.split())),
+}
+# Flags that keep the installer off every index, as in an offline install
+# from a directory of built wheels.
+OFFLINE_FLAGS = {"--no-index", "--offline"}
+SHELL_OPERATORS = {";", "&", "&&", "|", "||", "<", ">", ">>", "(", ")"}
+FENCE = re.compile(r"^(```|~~~)[^\n]*\n(.*?)^\1", re.DOTALL | re.MULTILINE)
+INLINE_CODE = re.compile(r"`([^`]+)`")
+HTML_CODE = re.compile(r"<(code|pre)\b[^>]*>(.*?)</\1>", re.DOTALL)
+TAG = re.compile(r"<[^>]+>")
+
+
+def _normalize(name: str) -> str:
+    """PEP 503 name normalization."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _index_name(token: str) -> str | None:
+    """The distribution ``token`` fetches from an index by name, if any.
+
+    Paths, archives, URLs and PEP 508 direct references (``name @ url``) are
+    not fetched from an index by name, so they return None.
+    """
+    if not token or token[0] in "-./~$" or "/" in token or "\\" in token:
+        return None
+    if token.startswith(("git+", "file:")) or "://" in token:
+        return None
+    if token.endswith((".whl", ".tar.gz", ".zip")):
+        return None
+    match = re.match(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?", token)
+    return _normalize(match.group()) if match else None
+
+
+def _tokens(arguments: str) -> list[str]:
+    """Shell tokens, with quotes, ``#`` comments and operators handled."""
+    for text in (arguments, re.sub(r"[\"']", "", arguments)):
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        try:
+            return list(lexer)
+        except ValueError:  # an unbalanced quote: retry without quotes
+            continue
+    return []
+
+
+def _arity(flag: str, table: str | None) -> str:
+    """Whether ``flag`` takes a value in ``table``: "value", "flag" or "either"."""
+    takes, skips = OPTION_TABLES.get(table, ((), ()))
+    if (flag in takes) == (flag in skips):
+        return "either"
+    return "value" if flag in takes else "flag"
+
+
+def _word(tokens: list[str], i: int) -> bool:
+    """Whether ``tokens[i]`` is a word that an option could take as its value."""
+    return (
+        i < len(tokens)
+        and tokens[i] not in SHELL_OPERATORS
+        and not tokens[i].startswith("-")
+    )
+
+
+def _requirement(token: str) -> list[str]:
+    """The distribution a word fetches from an index by name, if any, once
+    quotes and trailing prose punctuation are stripped."""
+    name = _index_name(token.strip("\u201c\u201d\u2018\u2019").rstrip(".,;:!?)}\"'"))
+    return [name] if name else []
+
+
+def _scan(
+    tokens: list[str], role: str, table: str | None, every_positional: bool
+) -> list[str]:
+    """Distributions an installer's arguments fetch from an index by name.
+
+    In code every positional of a ``requirements`` installer counts. In prose
+    only the one right after the installer and its options does, so "uv tool
+    install puts policybench on your PATH" names no requirement.
+    """
+    names = []
+    named_tool = role == "tool install" and _tool_install_names_source(tokens, table)
+    positionals = 0
+    i = 0
+    while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
+        token = tokens[i].strip("\u201c\u201d\u2018\u2019")  # curly quotes in prose
+        if token in OFFLINE_FLAGS:
+            return []
+        if token.startswith("-"):
+            flag, has_value, value = token.partition("=")
+            if flag in REQUIREMENT_OPTIONS:
+                if not has_value and i + 1 < len(tokens):
+                    i += 1
+                    value = tokens[i]
+                names += [n for n in map(_index_name, value.split(",")) if n]
+                named_tool = named_tool or flag in TOOL_OPTIONS
+            elif not has_value and _arity(flag, table) == "value":
+                i += 1
+            elif (
+                not has_value
+                and _arity(flag, table) == "either"
+                and _word(tokens, i + 1)
+            ):
+                # The next word may be the option's value or an argument. Read it
+                # as a requirement where one could stand, but don't let it end
+                # the command.
+                i += 1
+                if role != "command" and not named_tool:
+                    names += _requirement(tokens[i])
+        elif role == "command" or (role == "tool" and named_tool):
+            break
+        elif role == "tool install" and named_tool:
+            # --from names the source and the positional names only the tool. The
+            # command takes one package, so a second positional ends it.
+            positionals += 1
+            if positionals > 1:
+                break
+        else:
+            names += _requirement(token)
+            if role == "tool" or not every_positional:
+                break
+        i += 1
+    return names
+
+
+def _tool_install_names_source(tokens: list[str], table: str | None) -> bool:
+    """Whether a ``uv tool install`` command passes --from.
+
+    The command takes one package, so a second positional ends it: in prose, or
+    in a ``<code>`` span joined across lines, later words belong to something
+    else, such as a following ``uvx --from`` command. A word that may be an
+    option's value doesn't count as a positional.
+    """
+    positionals = 0
+    i = 0
+    while i < len(tokens) and tokens[i] not in SHELL_OPERATORS:
+        token = tokens[i].strip("\u201c\u201d\u2018\u2019")
+        flag, has_value, _ = token.partition("=")
+        if flag in TOOL_OPTIONS:
+            return True
+        if token.startswith("-"):
+            arity = _arity(flag, table)
+            if not has_value and (
+                flag in REQUIREMENT_OPTIONS
+                or arity == "value"
+                or (arity == "either" and _word(tokens, i + 1))
+            ):
+                i += 1
+        else:
+            positionals += 1
+            if positionals > 1:
+                return False
+        i += 1
+    return False
+
+
+def _installs(snippet: str, every_positional: bool) -> list[str]:
+    names = []
+    for pattern, role, table in INSTALLERS:
+        for match in pattern.finditer(snippet):
+            tokens = _tokens(snippet[match.end() :])
+            names += _scan(tokens, role, table, every_positional)
+    return names
+
+
+def _code_and_prose(text: str, markup: bool) -> tuple[list[str], str]:
+    """Split text into code snippets and the prose around them.
+
+    Code is fenced blocks and, in markup, ``<pre>`` elements (one command per
+    line), plus inline code spans and ``<code>`` elements, which the function
+    joins across a soft wrap. Prose is everything else, and the function
+    collapses its line breaks so a wrapped sentence reads as one line.
+    """
+    code = []
+    if markup:
+        for tag, inner in HTML_CODE.findall(text):
+            inner = html.unescape(TAG.sub("", inner))
+            code += inner.splitlines() if tag == "pre" else [" ".join(inner.split())]
+        text = html.unescape(TAG.sub(" ", text))
+    for _, block in FENCE.findall(text.replace("\\\n", " ")):
+        code += block.splitlines()
+    text = FENCE.sub("\n", text)
+    code += [" ".join(span.split()) for span in INLINE_CODE.findall(text)]
+    return code, " ".join(INLINE_CODE.sub(r"\1", text).split())
+
+
+def index_installs(text: str, markup: bool = False) -> list[str]:
+    """Every distribution an install command in ``text`` fetches by name."""
+    code, prose = _code_and_prose(text, markup)
+    names = [n for snippet in code for n in _installs(snippet, True)]
+    return names + _installs(prose, False)
+
+
+def _json_strings(value) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        value = list(value.values())
+    if isinstance(value, list):
+        return [s for item in value for s in _json_strings(item)]
+    return []
+
+
+def surface_installs(path: Path) -> list[str]:
+    """Every distribution ``path`` fetches from an index by name."""
+    text = path.read_text(encoding="utf-8")
+    if path.name.endswith("requirements.txt"):
+        # Each line of a requirements file is itself a requirement.
+        lines = (line.split("#", 1)[0].strip() for line in text.splitlines())
+        return [n for n in map(_index_name, lines) if n]
+    if path.suffix == ".json":
+        # Decode escapes so a quoted command in a note reads as written.
+        strings = _json_strings(json.loads(text))
+        return [n for s in strings for n in index_installs(s)]
+    if path.suffix in {".yml", ".yaml", ".sh"}:
+        return [n for line in text.splitlines() for n in _installs(line, True)]
+    return index_installs(text, markup=path.suffix in {".html", ".ts", ".tsx"})
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "pip install policybench",
+        "$ pip3 install -U policybench",
+        "python -m pip install 'policybench[dev]>=2'",
+        "py -3.12 -m pip install policybench",
+        "uv pip install --system PolicyBench==2.0.0",
+        "uv tool install --python 3.12 policybench",
+        "uv tool install --from policybench policybench",
+        "Run uv tool install policybench --from policybench, not pip install "
+        "--no-index from a wheel directory.",
+        f"PolicyBench is not on PyPI, so uv tool install policybench fails. Use "
+        f"uvx --from git+{REPO_URL} policybench.",
+        "uv add policybench",
+        "pipx install policybench",
+        "conda install -c conda-forge policybench",
+        "!pip install policybench",
+        "`pip install numpy policybench`",
+        '`pip install "policyengine-us>=2" policybench`',
+        "`pip install --no-binary :all: policybench`",
+        "Run pip install policybench to get started.",
+        "Install it with `pip install\npolicybench` and run it.",
+        "Install it with `pip\ninstall policybench`.",
+        "uvx policybench --help",
+        "uvx policybench@latest --help",
+        "uv tool run policybench --help",
+        "pipx run policybench",
+        "`uvx --with rich policybench --help`",
+        "`uvx -w policybench python`",
+        "`uv run --with numpy,policybench python`",
+        "`uvx --from policybench policybench --help`",
+        "uv add --optional dev policybench",
+        "uvx --exclude-newer 2026-10-01 policybench --help",
+        "uv tool install --resolution highest --from ruff==0.6.9 ruff "
+        "--with policybench",
+        "uv tool install --some-new-option value --from ruff==0.6.9 ruff "
+        "--with policybench",
+        "uv tool install --from ruff==0.6.9 ruff --with-executables-from policybench",
+        "Run uv tool install policybench --from policybench, then --no-index "
+        "installs from wheels.",
+        "uv tool install -n policybench",
+        "uv tool install --no-binary policybench",
+        "uvx -n policybench --help",
+        "uvx --some-new-flag policybench --help",
+        "uv pip install -n policybench",
+        "Run conda install -n myenv policybench to add it.",
+        "Install it with pip install \u201cpolicybench\u201d.",
+        "PolicyBench is not on PyPI, so `pip install policybench` fails.",
+        "```bash\npip install \\\n  policybench\n```",
+    ],
+)
+def test_detector_flags_index_installs_of_policybench(text):
+    assert DISTRIBUTION in index_installs(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        f"pip install git+{REPO_URL}",
+        f"pip install git+{REPO_URL}.git@main",
+        f"pip install git+{REPO_URL}#egg=policybench",
+        f"uv tool install --python 3.12 git+{REPO_URL}  # puts policybench on PATH",
+        f"uv tool install policybench --from git+{REPO_URL}",
+        f"uv tool install --from git+{REPO_URL} policybench",
+        f"uv tool install --python 3.12 policybench --from git+{REPO_URL}",
+        f"uv tool install --constraints c.txt policybench --from git+{REPO_URL}",
+        f"uv tool install --some-new-option value policybench --from git+{REPO_URL}",
+        f"`uv tool install --some-new-flag --from git+{REPO_URL} policybench`",
+        f"uvx --reinstall-package policybench --from git+{REPO_URL} policybench",
+        "uv tool install --force reinstalls policybench from GitHub.",
+        "pip install --user puts policybench on your PATH.",
+        f"uvx --from git+{REPO_URL} policybench --help",
+        f"pip install 'policybench @ git+{REPO_URL}'",
+        f"pip install policybench@git+{REPO_URL}",
+        'pip install -e ".[dev]"   # editable install of policybench',
+        "pip install -e policybench",
+        "pip install ./policybench",
+        "pip install dist/policybench-2.0.0-py3-none-any.whl",
+        "pip install policybench-tools",
+        "pip install uv, then clone policybench.",
+        "uv tool install puts policybench on your PATH.",
+        "A plain pip install of policybench fails because it is not on PyPI.",
+        "uvx and uv tool install both fetch policybench from GitHub.",
+        "`pip install --no-index --find-links dist policybench`",
+        "`uv tool install --offline policybench`",
+        "conda install -n policybench uv",
+        "uv sync --locked --extra dev",
+        "uv run policybench onboard",
+        "uv run python -m policybench.cli reference-outputs",
+        "policybench --help",
+    ],
+)
+def test_detector_passes_installs_from_source(text):
+    assert DISTRIBUTION not in index_installs(text)
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "flagged"),
+    [
+        ("requirements.txt", "policybench>=2\n", True),
+        ("requirements.txt", "jupyter-book\nPolicyBench  # the benchmark\n", True),
+        ("requirements.txt", f"git+{REPO_URL}\n-e .\n# policybench\n", False),
+        ("note.json", json.dumps({"body": 'Run "pip install policybench".'}), True),
+        ("note.json", json.dumps({"body": "```bash\nuvx policybench\n```"}), True),
+        ("note.json", json.dumps({"body": f"pip install git+{REPO_URL}"}), False),
+        (
+            "Page.tsx",
+            "<code>\n  uv tool install --python 3.12\n  policybench\n</code>",
+            True,
+        ),
+        (
+            "Page.tsx",
+            "<code>\n  uv tool install policybench\n"
+            f"  uvx --from git+{REPO_URL} policybench\n</code>",
+            True,
+        ),
+        (
+            "Page.tsx",
+            "<p>\n  Install with pip install\n  policybench today.\n</p>",
+            True,
+        ),
+        ("page.html", '<span class="ex">pip</span> install policybench', True),
+        ("page.html", "<pre>pip install uv\npolicybench --help</pre>", False),
+        ("ci.yml", "      - run: pip install policybench\n", True),
+        ("ci.yml", "      - run: pip install uv\n", False),
+    ],
+)
+def test_detector_reads_each_surface_format(tmp_path, name, content, flagged):
+    path = tmp_path / name
+    path.write_text(content)
+    assert (DISTRIBUTION in surface_installs(path)) is flagged
+
+
+@pytest.mark.parametrize("pattern", SURFACES)
+def test_no_surface_installs_policybench_from_an_index(pattern):
+    paths = sorted(ROOT.glob(pattern))
+    assert paths, f"{pattern} matches no file; update SURFACES"
+    for path in paths:
+        assert DISTRIBUTION not in surface_installs(path), (
+            f"{path.relative_to(ROOT)} installs {DISTRIBUTION} from a package "
+            f"index by name, or quotes a command that does, but it is not "
+            f"published there; install from git+{REPO_URL} or a clone instead"
+        )
+
+
+def _github_source(token: str) -> bool:
+    source = re.sub(r"^[\w.-]+(\[[^\]]*\])?\s*@\s*", "", token)
+    return re.match(rf"git\+{re.escape(REPO_URL)}(\.git)?([@#/]|$)", source) is not None
+
+
+def test_readme_installs_policybench_from_github():
+    """The quick start installs PolicyBench itself from this repository (its
+    dependencies still come from PyPI) and shows ``policybench --help``."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    quick_start = readme.split("## Quick start", 1)[1].split("\n## ", 1)[0]
+    code, _ = _code_and_prose(quick_start, markup=False)
+    sources = [
+        token
+        for snippet in code
+        for pattern, *_ in INSTALLERS[:4]
+        for match in pattern.finditer(snippet)
+        for token in _tokens(snippet[match.end() :])
+    ]
+    assert any(map(_github_source, sources)), code
+    assert "policybench --help" in code
+
+
+# The --help output each option table copies, from pip 26.2.1, uv 0.11.7 and
+# conda 26.9.4 (conda-forge's package, with only its built-in plugins). uv pip
+# install has no table of its own, so a test compares its help with pip's.
+HELP = ROOT / "tests" / "fixtures" / "install_help"
+HELP_OPTION = re.compile(r"^ {1,8}(-[\w-]+(?:[ =]\S+)?(?:, -[\w-]+(?:[ =]\S+)?)*)")
+
+
+def _help_options(*files: str) -> tuple[set[str], set[str]]:
+    """The options in saved --help output that take a value, and those that don't."""
+    takes, skips = set(), set()
+    for name in files:
+        for line in (HELP / name).read_text().splitlines():
+            if match := HELP_OPTION.match(line):
+                specs = match.group(1).replace("=", " ").split(", ")
+                flags = {spec.partition(" ")[0] for spec in specs}
+                (takes if any(" " in spec for spec in specs) else skips).update(flags)
+    return takes, skips
+
+
+@pytest.mark.parametrize(
+    ("table", "files"),
+    [
+        ("pip", ["pip-26.2.1-install.txt"]),
+        (
+            "uv",
+            [f"uv-0.11.7-{c}.txt" for c in ("tool_install", "tool_run", "add", "run")],
+        ),
+        ("conda", ["conda-26.9.4-install.txt"]),
+    ],
+)
+def test_option_tables_match_saved_help(table, files):
+    """Each table lists the options in its installer's saved help, on the side
+    the help gives them. The scan reads the values of REQUIREMENT_OPTIONS before
+    it looks at a table, so the tables leave those out."""
+    takes, skips = _help_options(*files)
+    value, flag = OPTION_TABLES[table]
+    assert value == takes - REQUIREMENT_OPTIONS
+    assert flag == skips - REQUIREMENT_OPTIONS
+
+
+def test_pip_and_uv_pip_install_agree_on_shared_options():
+    """The scan reads uv pip install with pip's table, so each option the two
+    commands share must take a value in both or in neither."""
+    pip_takes, pip_skips = _help_options("pip-26.2.1-install.txt")
+    uv_takes, uv_skips = _help_options("uv-0.11.7-pip_install.txt")
+    assert pip_takes & uv_takes and pip_skips & uv_skips
+    assert not pip_takes & uv_skips
+    assert not pip_skips & uv_takes
