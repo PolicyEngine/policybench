@@ -183,7 +183,7 @@ export default function ExpandPage() {
           </span>
         </div>
         <p className="mt-4 text-base leading-relaxed text-text-secondary">
-          PolicyBench is a project of PolicyEngine, a 501(c)(3) nonprofit —
+          PolicyBench is a project of PolicyEngine, a nonprofit —
           engagements work as grants or contracts. We also brief funder
           networks — one slice presented to a convened
           room goes further than a dozen pitches, and we are glad to present
