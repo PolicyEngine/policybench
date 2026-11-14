@@ -683,8 +683,10 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # Gemini 4 Hydrogen. Every field below comes from the 2026-11-14
     # onboarding record in ~/reviews/policybench-gemini-4-carbon/{probes,onboard}
     # (a raw generateContent probe, a one-question reasoning probe of 10 calls
-    # a shape, and the gauntlet report, run with no card from a checkout of
-    # origin/main) and from Google's pages:
+    # a shape, the gauntlet report, run with no card from a checkout of
+    # origin/main, and a harness-path probe of the board's own request, 16
+    # calls a shape, run from an export of this card's branch) and from
+    # Google's pages:
     # - answer_contract "tool": the Gemini API accepts a forced function call
     #   on this model (litellm sends mode ANY with allowed_function_names),
     #   and the gauntlet passed on it, 3/3 (10,956 completion tokens, 48s) and
@@ -719,10 +721,12 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   default to 64K (65,536) output tokens, streaming and non-streaming
     #   (aistudio.google.com/docs/long-decode?generate-content=true, read
     #   2026-11-14).
-    # - expected_cost_per_scenario_usd 0.094: the gauntlet's figure for its
-    #   whole-scenario probe, 11,947 completion tokens at $7.50 per 1M and the
-    #   prompt at $1.50 (the report gives the cost to three places and no
-    #   prompt count).
+    # - expected_cost_per_scenario_usd 0.094: the gauntlet's whole-scenario
+    #   probe, 2,762 prompt and 11,947 completion tokens, $0.0937455 at
+    #   $1.50/$7.50 per 1M. The gauntlet report gives the cost to three places
+    #   and no prompt count; the 2,762 is the prompt count Google returned for
+    #   the harness-path probe's forced call on scenario 0, the same request
+    #   (the same messages, answer tool and 16,384-token budget).
     "gemini/gemini-4-hydrogen": ModelCard(
         litellm_id="gemini/gemini-4-hydrogen",
         answer_contract="tool",
@@ -747,11 +751,22 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "function, a JSON response type and no tools, with a median of "
             "5,273 thought tokens forced against 5,496 under auto, and the "
             "forced calls returned a function call 10 times out of 10. "
-            "HPROBE-RESULT: the harness-path probe's forced-against-auto "
-            "comparison (the board's own request on the frozen manifest's "
-            "scenarios 0 to 15, 16 calls a shape, forced, tool_choice auto "
-            "and JSON, under a rule fixed before its first call) goes in this "
-            "sentence. generateContent reports the count as "
+            "On the board's own request for the frozen manifest's scenarios "
+            "0 to 15 (16 calls a shape, under a rule fixed before the first "
+            "call), the forced tool returned reasoning tokens on 16 of 16 "
+            "calls, tool_choice auto on 16 of 16 and the JSON contract on 16 "
+            "of 16 (forced against auto, two-sided Fisher exact p = 1.0), so "
+            "forcing the tool did not lower how often the model reasoned, and "
+            "the row has no tool_choice auto sensitivity run (Gemini 4 Argon's "
+            "rule adds one only if forcing the tool suppresses reasoning). "
+            "That probe sent each request once, with no budget escalation: 6 "
+            "forced and 6 auto calls, on the same six scenarios, and 2 JSON "
+            "calls ran out of the 16,384-token budget (finish=length, with "
+            "14,869 to 16,381 reasoning tokens each), so 184 of 334 outputs "
+            "parsed under each tool mode and 262 under JSON; on such a call "
+            "the board doubles the budget, up to the 65,536-token ceiling, "
+            "and asks again. "
+            "generateContent reports the thought-token count as "
             "usageMetadata.thoughtsTokenCount (on all 51 raw responses), and "
             "litellm 1.95.0 maps it to reasoning_tokens and counts it inside "
             "completion_tokens (checked on the saved responses), which the "

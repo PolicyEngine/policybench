@@ -3348,11 +3348,14 @@ def test_gemini_4_hydrogen_runs_first_party_at_googles_list_rate():
         (1_000_000, 1_000_000, 0, 9.0),
         (1_000_000, 0, 1_000_000, 0.075),
         (1_000_000, 0, 250_000, 1.14375),
-        # The card-free gauntlet's whole-scenario probe (tool-full) used
-        # 11,947 completion tokens. Its report gives no prompt count; 2,762
-        # is Gemini 4 Argon's harness-path count for the same request,
-        # pending Hydrogen's own. That is the card's $0.094.
-        (2_762, 11_947, 0, 0.0937455),  # HPROBE-PROMPT-TOKENS
+        # The card-free gauntlet's whole-scenario probe (tool-full): 2,762
+        # prompt and 11,947 completion tokens, priced with no cached input.
+        # The gauntlet's report gives no prompt count; 2,762 is the count
+        # Google returned for the harness-path probe's forced call on
+        # scenario 0, the same request (the same messages, answer tool and
+        # 16,384-token budget), which reported no cached input. That is the
+        # card's $0.094.
+        (2_762, 11_947, 0, 0.0937455),
     ],
 )
 def test_gemini_4_hydrogen_override_reconstructs_token_costs(
