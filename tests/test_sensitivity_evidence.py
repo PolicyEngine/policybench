@@ -201,22 +201,37 @@ def _all_runs() -> list[tuple[str, str, dict]]:
     return runs
 
 
-LITELLM_FIELD_OVERCLAIMS = (
+# The claims the correction withdrew: as fragments that must stay out of the
+# note's body, and in full as the correction section quotes them.
+WITHDRAWN_CLAIM_FRAGMENTS = (
     r"does\s+not\s+populate\s+reasoning-token\s+fields",
     r"reports\s+no\s+reasoning\s+tokens\s+for\s+Anthropic",
+    r"every\s+Claude\s+row\s+logged\s+zero",
 )
+WITHDRAWN_CLAIMS = (
+    '"does not populate reasoning-token fields for Anthropic even when thinking '
+    'blocks are present"',
+    '"litellm reports no reasoning tokens for Anthropic"',
+    '"every Claude row logged zero reasoning tokens"',
+)
+HAIKU_PROBE = ROOT / "tests" / "fixtures" / "anthropic_haiku55_probe_responses.json"
 
 
 def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
-    """Each of the note's five runs records completion tokens and 0 reasoning
-    tokens on every row, and Claude Fable 5's board rows record no usage.
+    """The note reads its runs' 0 reasoning tokens as "not counted".
 
-    litellm fills an Anthropic response's reasoning-token field from a count of
-    the thinking text the response returns, which these runs' responses returned
-    empty (``docs/runbook.md``, section 8b;
-    ``tests/test_anthropic_thinking_tokens.py`` replays a recorded response).
-    The note says so, and only its correction section quotes the two sentences
-    that said litellm left the field empty.
+    The data. Each of the note's five runs records completion tokens and 0
+    reasoning tokens on every row. Claude Fable 5's board rows record no usage.
+    The recorded Claude Haiku 5.5 probe the note cites holds one thinking block
+    with empty text, where Anthropic counts 119 of 123 output tokens as thinking
+    (``tests/test_anthropic_thinking_tokens.py`` shows litellm counting 0 for
+    it). The committed predictions keep no thinking blocks, so nothing here says
+    what the five runs' responses returned.
+
+    The note. Its body cites the probe and its two counts and tells the reader
+    to read a 0 as "not counted", and it repeats none of the claims the
+    correction withdrew. The correction section, whatever its date, quotes each
+    withdrawn claim in full.
     """
     for _, stem, _ in _all_runs():
         with gzip.open(DATA / f"{stem}-predictions.csv.gz") as fileobj:
@@ -235,21 +250,26 @@ def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
     assert len(fable_5) > 0
     assert fable_5.isna().all().all()
 
+    probe = json.loads(HAIKU_PROBE.read_text())["probes"]["no_thinking_parameter"]
+    response = probe["response"]
+    thinking_blocks = [b for b in response["content"] if b["type"] == "thinking"]
+    assert [block["thinking"] for block in thinking_blocks] == [""]
+    assert response["usage"]["output_tokens"] == 123
+    assert response["usage"]["output_tokens_details"] == {"thinking_tokens": 119}
+
     text = re.sub(r"\s+", " ", DOC.read_text())
-    body, heading, correction = text.partition("## Correction (November 2026)")
-    assert heading, "the note has no correction section"
-    for pattern in LITELLM_FIELD_OVERCLAIMS:
+    parts = re.split(r"## Correction \(", text, maxsplit=1)
+    assert len(parts) == 2, "the note has no correction section"
+    body, correction = parts
+    for pattern in WITHDRAWN_CLAIM_FRAGMENTS:
         assert re.search(pattern, body) is None, pattern
-        assert re.search(pattern, correction) is not None, pattern
-    for sentence in (
-        "which counts them from the thinking text a response returns.",
-        "litellm does not read Anthropic's own thinking-token count.",
-        "Claude Fable 5's board rows record no usage.",
-        'read a 0 in its `reasoning_tokens` as "not counted".',
-        "the harness did not yet read Anthropic's thinking-token count (above)",
-    ):
-        assert sentence in body, sentence
-    assert "No score, rank or cost in this note changed." in correction
+    for claim in WITHDRAWN_CLAIMS:
+        assert claim in correction, claim
+    assert HAIKU_PROBE.name in body
+    for count in ("119", "123"):
+        assert re.search(rf"\b{count}\b", body), count
+    assert '"not counted"' in body
+    assert re.search(r"No score, rank or cost", correction)
 
 
 def test_august_assets_match_their_pins():

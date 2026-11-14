@@ -13,9 +13,9 @@ family default. The per-model treatment is the manuscript's
 serving-configuration table. Claude Fable 5.1, a JSON-transport row, and
 Claude Haiku 5.5, a forced-tool row onboarded in October, each have their own
 re-run (see their sections below). A
-reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
-the other reasoning-by-default providers spent most of their tokens on
-reasoning.
+reader reviewing the run artifacts noticed that every Claude row with
+recorded usage logged zero reasoning tokens while the other
+reasoning-by-default providers spent most of their tokens on reasoning.
 
 Two findings, verified live against the harness's own request builder:
 
@@ -34,14 +34,22 @@ Two findings, verified live against the harness's own request builder:
 2. **The usage CSVs would have hidden it regardless.** The harness took a
    Claude row's reasoning tokens from litellm, which counts them from the
    thinking text a response returns. litellm does not read Anthropic's own
-   thinking-token count. In these runs Claude returned its thinking blocks
-   with empty text, so litellm counted 0 whether or not a response held
-   thinking blocks. Claude Fable 5's board rows record no usage.
+   thinking-token count. Every row of this note's five runs records 0
+   reasoning tokens, and a 0 there does not show that a response held no
+   thinking. For example, PolicyBench recorded a Claude Haiku 5.5
+   onboarding probe on October 8, 2026
+   (`tests/fixtures/anthropic_haiku55_probe_responses.json`). Anthropic
+   counted 119 of that response's 123 output tokens as thinking, the
+   response returned its thinking block with empty text, and litellm
+   counted 0. Claude Fable 5's board rows record no usage.
    Since [#261](https://github.com/PolicyEngine/policybench/pull/261),
-   merged on November 13, 2026, the harness records Anthropic's count as
-   `reasoning_tokens` whenever a response reports one (`docs/runbook.md`,
-   section 8b, "Reasoning tokens"). Every run in this note came before
-   that, so read a 0 in its `reasoning_tokens` as "not counted".
+   merged on November 13, 2026, the harness records the count Anthropic
+   reports for a new response as `reasoning_tokens` (`docs/runbook.md`,
+   section 8b, "Reasoning tokens"). It leaves the field empty when that
+   count is not a whole number from 0 to the response's output tokens. A
+   response the harness replays from a cache entry that predates the
+   change keeps litellm's count. Every run in this note came before the
+   change, so read a 0 in its `reasoning_tokens` as "not counted".
 
 ## Sensitivity runs
 
@@ -276,8 +284,11 @@ exact request via `_chat_completion_request_kwargs` and varies only
 In November 2026, PolicyBench corrected this note's account of why Claude
 rows record 0 reasoning tokens. litellm fills the reasoning-token field for
 an Anthropic response from a count of the thinking text the response
-returns, and in these runs Claude returned its thinking blocks with empty
-text. The second finding had said that litellm "does not populate
-reasoning-token fields for Anthropic even when thinking blocks are present".
-The Claude Haiku 5.5 section had said that "litellm reports no reasoning
-tokens for Anthropic". No score, rank or cost in this note changed.
+returns. A response can return a thinking block with empty text, as the
+Claude Haiku 5.5 probe in the second finding did. The second finding had
+said that litellm "does not populate reasoning-token fields for Anthropic
+even when thinking blocks are present". The Claude Haiku 5.5 section had
+said that "litellm reports no reasoning tokens for Anthropic". The
+introduction had said that "every Claude row logged zero reasoning tokens";
+Claude Fable 5's board rows record no usage. No score, rank or cost in this
+note changed.
