@@ -39,7 +39,10 @@ test("expand page copy renders the bundled live model count", async () => {
       createElement(BoardCoverageCopy, { modelCount }),
     ),
   );
+  // React separates adjacent text nodes with <!-- -->, which shows no space on
+  // the page, so drop those before turning the remaining tags into spaces.
   const visibleText = html
+    .replace(/<!-- -->/g, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();

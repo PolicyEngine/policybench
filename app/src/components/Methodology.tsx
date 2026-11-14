@@ -196,8 +196,8 @@ export default function Methodology({
           provider rejects a forced tool call.{" "}
           {currentBoard ? (
             <>
-              {chunkedRowsPhrase} answer the same facts in subsets of one or
-              three outputs per request, an accommodation that predates the
+              {chunkedRowsPhrase}{" "}
+              answer the same facts in subsets of one or three outputs per request, an accommodation that predates the
               whole-scenario rule. The per-model transport and request shape are
               recorded in the paper&apos;s serving-configuration table and the
               repo&apos;s model cards.
@@ -253,8 +253,8 @@ export default function Methodology({
           the PolicyEngine reference value, with a one-currency-unit tolerance
           when the reference is zero. Binary eligibility flags are requested as
           integer 0/1 outputs and require exact 0/1 matching. The secondary
-          bounded score uses <code>max(0, 1 − |pred − ref| / |ref|)</code> when
-          the reference is nonzero and exact zero matches when the reference is
+          bounded score uses <code>max(0, 1 − |pred − ref| / |ref|)</code>{" "}
+          when the reference is nonzero and exact zero matches when the reference is
           zero for amount outputs, and the same exact 0/1 rule for binary
           outputs. Each full source household&apos;s per-output share is{" "}
           <code>|ref| / max(|household_net_income|, Σ |ref|)</code>, a value in
@@ -300,8 +300,8 @@ export default function Methodology({
             The frozen annotations cover{" "}
             {auditSummary.annotatedRowCount.toLocaleString()} {AUDIT_SELECTION_RULE}.
             That universe contains{" "}
-            {auditSummary.annotatedExactMissCount.toLocaleString()} of the
-            snapshot&apos;s {auditSummary.exactMissCount.toLocaleString()} exact-match
+            {auditSummary.annotatedExactMissCount.toLocaleString()}{" "}
+            of the snapshot&apos;s {auditSummary.exactMissCount.toLocaleString()} exact-match
             misses and {auditSummary.annotatedExactHitCount.toLocaleString()} exact
             hits. Another{" "}
             {auditSummary.unannotatedBelowFullBoundedScoreCount.toLocaleString()} rows
