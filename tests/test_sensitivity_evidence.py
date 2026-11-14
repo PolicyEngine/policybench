@@ -201,6 +201,57 @@ def _all_runs() -> list[tuple[str, str, dict]]:
     return runs
 
 
+LITELLM_FIELD_OVERCLAIMS = (
+    r"does\s+not\s+populate\s+reasoning-token\s+fields",
+    r"reports\s+no\s+reasoning\s+tokens\s+for\s+Anthropic",
+)
+
+
+def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
+    """Each of the note's five runs records completion tokens and 0 reasoning
+    tokens on every row, and Claude Fable 5's board rows record no usage.
+
+    litellm fills an Anthropic response's reasoning-token field from a count of
+    the thinking text the response returns, which these runs' responses returned
+    empty (``docs/runbook.md``, section 8b;
+    ``tests/test_anthropic_thinking_tokens.py`` replays a recorded response).
+    The note says so, and only its correction section quotes the two sentences
+    that said litellm left the field empty.
+    """
+    for _, stem, _ in _all_runs():
+        with gzip.open(DATA / f"{stem}-predictions.csv.gz") as fileobj:
+            usage = pd.read_csv(
+                fileobj, usecols=["completion_tokens", "reasoning_tokens"]
+            )
+        assert usage["completion_tokens"].gt(0).all(), stem
+        assert usage["reasoning_tokens"].eq(0).all(), stem
+
+    with gzip.open(RUN_DIR / "predictions.csv.gz") as fileobj:
+        board = pd.read_csv(
+            fileobj,
+            usecols=["model", "prompt_tokens", "completion_tokens", "reasoning_tokens"],
+        )
+    fable_5 = board[board["model"] == "claude-fable-5"].drop(columns="model")
+    assert len(fable_5) > 0
+    assert fable_5.isna().all().all()
+
+    text = re.sub(r"\s+", " ", DOC.read_text())
+    body, heading, correction = text.partition("## Correction (November 2026)")
+    assert heading, "the note has no correction section"
+    for pattern in LITELLM_FIELD_OVERCLAIMS:
+        assert re.search(pattern, body) is None, pattern
+        assert re.search(pattern, correction) is not None, pattern
+    for sentence in (
+        "which counts them from the thinking text a response returns.",
+        "litellm does not read Anthropic's own thinking-token count.",
+        "Claude Fable 5's board rows record no usage.",
+        'read a 0 in its `reasoning_tokens` as "not counted".',
+        "the harness did not yet read Anthropic's thinking-token count (above)",
+    ):
+        assert sentence in body, sentence
+    assert "No score, rank or cost in this note changed." in correction
+
+
 def test_august_assets_match_their_pins():
     for block in AUGUST["runs"].values():
         for name, pin in block["assets"].items():
