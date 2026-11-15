@@ -626,10 +626,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   the table's 20 minutes applies instead, 900s still exceeds the about
     #   345 to 410s the gauntlet's rates predict for a request at the
     #   ceiling, and the 620s the slowest probe rate predicts. The harness
-    #   doubles the 16,384-token budget once, to the ceiling below, and
-    #   records any output still missing there as
-    #   budget_exhausted_at_ceiling, so a household that needs more than
-    #   32,768 completion tokens cannot finish on this row.
+    #   can double the request budget once, from 16,384 to the ceiling
+    #   below. If a length-truncated response at that ceiling leaves outputs
+    #   missing, the harness records those outputs as
+    #   budget_exhausted_at_ceiling. The ceiling bounds each response, so a
+    #   household's requests can total more than 32,768 completion tokens:
+    #   the harness keeps the values a truncated response returned and asks
+    #   again for the outputs still missing.
     # - provider_max_completion_tokens 32_768: the Models API's
     #   outputTokenLimit for the model, whose entry lists generateContent
     #   among its supported methods (models.get on
@@ -704,9 +707,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "non-streaming call after 10 minutes, which would end a request "
             "at 600s. The same guide recommends a 20-minute client read "
             "timeout, and its option table gives 20 minutes per request. The "
-            "harness doubles the "
-            "16,384-token budget once, to the 32,768-token ceiling, and "
-            "records any output still missing there as "
+            "harness can double the request budget once, from 16,384 to "
+            "32,768 tokens. If a length-truncated response at that ceiling "
+            "leaves outputs missing, the harness records those outputs as "
             "budget_exhausted_at_ceiling. Google lists $2/$10 per 1M through "
             "2026-11-30 and $4/$20 from 2026-12-01."
         ),

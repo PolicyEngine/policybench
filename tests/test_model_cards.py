@@ -156,7 +156,9 @@ def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
 
     The token counts are the gauntlet's whole-scenario probe's, and the cost is
     their reconstruction at the model's price override, so the card, the
-    counts and the override cannot drift apart.
+    counts and the override cannot drift apart. Gemini 4 Hydrogen's gauntlet
+    report gives no prompt count: 2,762 is the count Google returned for the
+    harness-path probe's forced call on scenario 0, the same request.
     """
     reconstructed = _reconstruct_token_cost(
         model_name=model_name,
