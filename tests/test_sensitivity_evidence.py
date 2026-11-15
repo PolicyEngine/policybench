@@ -201,37 +201,56 @@ def _all_runs() -> list[tuple[str, str, dict]]:
     return runs
 
 
-# The claims the correction withdrew: as fragments that must stay out of the
-# note's body, and in full as the correction section quotes them.
-WITHDRAWN_CLAIM_FRAGMENTS = (
-    r"does\s+not\s+populate\s+reasoning-token\s+fields",
-    r"reports\s+no\s+reasoning\s+tokens\s+for\s+Anthropic",
-    r"every\s+Claude\s+row\s+logged\s+zero",
+# The claims the correction withdrew: as patterns that must stay out of the
+# note's body (searched without regard to case), and in full as the correction
+# section quotes them.
+WITHDRAWN_CLAIM_PATTERNS = (
+    r"does\s+not\s+populate\s+(?:the\s+)?reasoning-token\s+fields?",
+    r"reports\s+(?:no|zero|0)\s+reasoning\s+tokens\s+for\s+(?:Anthropic|Claude)",
+    r"every\s+Claude\s+row\s+(?:logged|logs|recorded|records)\s+(?:zero|0|no)\b",
 )
 WITHDRAWN_CLAIMS = (
-    '"does not populate reasoning-token fields for Anthropic even when thinking '
-    'blocks are present"',
-    '"litellm reports no reasoning tokens for Anthropic"',
-    '"every Claude row logged zero reasoning tokens"',
+    "does not populate reasoning-token fields for Anthropic even when thinking "
+    "blocks are present",
+    "litellm reports no reasoning tokens for Anthropic",
+    "every Claude row logged zero reasoning tokens",
 )
 HAIKU_PROBE = ROOT / "tests" / "fixtures" / "anthropic_haiku55_probe_responses.json"
+
+
+def _note_body_and_correction() -> tuple[str, str]:
+    """The note's text outside its correction section, and that section.
+
+    The section runs from a ``## Correction`` heading, whatever date follows
+    it, to the next second-level heading or the end of the note. Whitespace is
+    collapsed in both parts.
+    """
+    raw = DOC.read_text()
+    heading = re.search(r"^## Corrections?\b.*$", raw, flags=re.MULTILINE)
+    assert heading, "the note has no correction section"
+    rest = raw[heading.end() :]
+    following = re.search(r"^## ", rest, flags=re.MULTILINE)
+    cut = following.start() if following else len(rest)
+    body = raw[: heading.start()] + rest[cut:]
+    return re.sub(r"\s+", " ", body), re.sub(r"\s+", " ", rest[:cut])
 
 
 def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
     """The note reads its runs' 0 reasoning tokens as "not counted".
 
     The data. Each of the note's five runs records completion tokens and 0
-    reasoning tokens on every row. Claude Fable 5's board rows record no usage.
-    The recorded Claude Haiku 5.5 probe the note cites holds one thinking block
-    with empty text, where Anthropic counts 119 of 123 output tokens as thinking
+    reasoning tokens on every row. Claude Fable 5's rows in the board's
+    predictions file record no usage. The recorded Claude Haiku 5.5 probe the
+    note cites holds one thinking block with empty text, where Anthropic counts
+    119 of 123 output tokens as thinking
     (``tests/test_anthropic_thinking_tokens.py`` shows litellm counting 0 for
     it). The committed predictions keep no thinking blocks, so nothing here says
     what the five runs' responses returned.
 
-    The note. Its body cites the probe and its two counts and tells the reader
-    to read a 0 as "not counted", and it repeats none of the claims the
-    correction withdrew. The correction section, whatever its date, quotes each
-    withdrawn claim in full.
+    The note. Its body cites the probe and its two counts, in that order, and
+    tells the reader to read a 0 as "not counted". It holds no sentence that
+    matches a withdrawn claim's pattern. The correction section quotes each
+    withdrawn claim in full and says that no score, rank or cost changed.
     """
     for _, stem, _ in _all_runs():
         with gzip.open(DATA / f"{stem}-predictions.csv.gz") as fileobj:
@@ -257,19 +276,15 @@ def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
     assert response["usage"]["output_tokens"] == 123
     assert response["usage"]["output_tokens_details"] == {"thinking_tokens": 119}
 
-    text = re.sub(r"\s+", " ", DOC.read_text())
-    parts = re.split(r"## Correction \(", text, maxsplit=1)
-    assert len(parts) == 2, "the note has no correction section"
-    body, correction = parts
-    for pattern in WITHDRAWN_CLAIM_FRAGMENTS:
-        assert re.search(pattern, body) is None, pattern
+    body, correction = _note_body_and_correction()
+    for pattern in WITHDRAWN_CLAIM_PATTERNS:
+        assert re.search(pattern, body, flags=re.IGNORECASE) is None, pattern
     for claim in WITHDRAWN_CLAIMS:
         assert claim in correction, claim
     assert HAIKU_PROBE.name in body
-    for count in ("119", "123"):
-        assert re.search(rf"\b{count}\b", body), count
+    assert re.search(r"\b119\b[^.]*\b123\b", body)
     assert '"not counted"' in body
-    assert re.search(r"No score, rank or cost", correction)
+    assert re.search(r"No score, rank,? or cost", correction)
 
 
 def test_august_assets_match_their_pins():
