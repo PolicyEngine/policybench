@@ -13,11 +13,13 @@ family default. The per-model treatment is the manuscript's
 serving-configuration table. Claude Fable 5.1, a JSON-transport row, and
 Claude Haiku 5.5, a forced-tool row onboarded in October, each have their own
 re-run (see their sections below). A
-reader reviewing the run artifacts noticed that every Claude row logged zero reasoning tokens while
-the other reasoning-by-default providers spent most of their tokens on
-reasoning.
+reader reviewing the run artifacts noticed that every Claude row with
+recorded usage logged zero reasoning tokens while the other
+reasoning-by-default providers spent most of their tokens on reasoning.
+Claude Fable 5's rows in the board's predictions file record no usage.
 
-Two findings, verified live against the harness's own request builder:
+PolicyBench reached two findings and verified the first with live requests
+from the harness's own request builder:
 
 1. **Forcing the tool suppresses Claude's thinking in practice.** The same
    Claude Opus 5 request three ways: forced tool with no thinking parameter
@@ -31,9 +33,27 @@ Two findings, verified live against the harness's own request builder:
    Fable 5, Claude Opus 5, Claude Sonnet 5) effectively ran without
    thinking. The Claude 4.x models default to no thinking on any request
    shape, so their rows reflect provider defaults faithfully.
-2. **The usage CSVs would have hidden it regardless.** The harness records
-   usage through litellm, which does not populate reasoning-token fields
-   for Anthropic even when thinking blocks are present.
+2. **The usage CSVs would have hidden it regardless.** The harness took a
+   Claude row's reasoning tokens from litellm, which counts them from the
+   thinking text a response returns. litellm does not read Anthropic's own
+   thinking-token count. Every row of the five sensitivity runs below
+   records 0 reasoning tokens, and that 0 does not show that a response
+   held no thinking. For example, PolicyBench recorded a Claude Haiku 5.5
+   onboarding probe on October 8, 2026
+   (`tests/fixtures/anthropic_haiku55_probe_responses.json`). Anthropic
+   counted 119 of that response's 123 output tokens as thinking but
+   returned the thinking block with empty text, and litellm counts 0 for
+   it (`tests/test_anthropic_thinking_tokens.py`).
+   Since [#261](https://github.com/PolicyEngine/policybench/pull/261),
+   merged on November 13, 2026, the harness records Anthropic's own count
+   as `reasoning_tokens` when a new response reports a whole number no
+   larger than its output-token count. It leaves `reasoning_tokens` empty
+   for any other reported count. For a response that reports no count, it
+   still records litellm's count on the sync path and none on the batch
+   path. When it replays a response from a cache entry that predates the
+   change, it keeps litellm's count (`docs/runbook.md`, section 8b,
+   "Reasoning tokens"). Every run in this note came before the change, so
+   read a 0 in these runs' `reasoning_tokens` as "not counted".
 
 ## Sensitivity runs
 
@@ -208,13 +228,13 @@ whole scenario, as the board row also requests it. The ranks are on the
 
 The model called the answer tool on every one of its 1,984 answers under
 `auto`. Its median household used 3,743 completion tokens against the board
-row's 1,199 and took 17.4 seconds against 5.1, as when thinking engages;
-litellm reports no reasoning tokens for Anthropic (above), so the run does
-not count them separately. Scores are on the 1,934 scored outputs; on all
-1,984 the auto run scored 85.2. Among the Claude rows only Claude Sonnet 5
-gains more under `auto`. Most of the gain is in payroll tax and federal
-income tax; state refundable credits, SNAP and CHIP eligibility fall by one
-to three and a half points.
+row's 1,199 and took 17.4 seconds against 5.1, as when thinking engages.
+The harness did not yet read Anthropic's thinking-token count (above), so
+the run records 0 reasoning tokens. Scores are on the 1,934
+scored outputs; on all 1,984 the auto run scored 85.2. Among the Claude rows
+only Claude Sonnet 5 gains more under `auto`. Most of the gain is in payroll
+tax and federal income tax; state refundable credits, SNAP and CHIP
+eligibility fall by one to three and a half points.
 
 Per-variable within-$1 rates for Claude Haiku 5.5, board (forced tool) vs
 `auto`; unweighted leaf rates on the scored outputs, as above.
@@ -262,3 +282,17 @@ For a JSON-contract model such as Claude Fable 5.1, add
 The three-request probe that isolated the mechanism builds the harness's
 exact request via `_chat_completion_request_kwargs` and varies only
 `tool_choice` and the `thinking` parameter.
+
+## Correction (November 2026)
+
+PolicyBench corrected this note's account of Claude rows' reasoning-token
+counts. litellm fills the reasoning-token field for an Anthropic response
+from a count of the thinking text the response returns. Anthropic can
+return a thinking block with empty text, as it did for the Claude Haiku 5.5
+probe in the second finding, and litellm then counts 0. The second finding
+had said that litellm "does not populate reasoning-token fields for
+Anthropic even when thinking blocks are present", and the Claude Haiku 5.5
+section that "litellm reports no reasoning tokens for Anthropic". The
+introduction had said that "every Claude row logged zero reasoning tokens",
+but Claude Fable 5's rows in the board's predictions file record no usage.
+No score, rank or cost in this note changed.
