@@ -18,7 +18,8 @@ recorded usage logged zero reasoning tokens while the other
 reasoning-by-default providers spent most of their tokens on reasoning.
 Claude Fable 5's rows in the board's predictions file record no usage.
 
-Two findings, verified live against the harness's own request builder:
+PolicyBench reached two findings and verified the first with live requests
+from the harness's own request builder:
 
 1. **Forcing the tool suppresses Claude's thinking in practice.** The same
    Claude Opus 5 request three ways: forced tool with no thinking parameter
@@ -45,13 +46,14 @@ Two findings, verified live against the harness's own request builder:
    it (`tests/test_anthropic_thinking_tokens.py`).
    Since [#261](https://github.com/PolicyEngine/policybench/pull/261),
    merged on November 13, 2026, the harness records Anthropic's own count
-   as `reasoning_tokens` when a new response reports a valid one. A
-   response that reports no count still records litellm's count on the
-   sync path and none on the batch path, and a response the harness
-   replays from a cache entry that predates the change keeps litellm's
-   count (`docs/runbook.md`, section 8b, "Reasoning tokens"). Every run in
-   this note came before the change, so read a 0 in these runs'
-   `reasoning_tokens` as "not counted".
+   as `reasoning_tokens` when a new response reports a whole number no
+   larger than its output-token count. It leaves `reasoning_tokens` empty
+   for any other reported count. For a response that reports no count, it
+   still records litellm's count on the sync path and none on the batch
+   path. When it replays a response from a cache entry that predates the
+   change, it keeps litellm's count (`docs/runbook.md`, section 8b,
+   "Reasoning tokens"). Every run in this note came before the change, so
+   read a 0 in these runs' `reasoning_tokens` as "not counted".
 
 ## Sensitivity runs
 

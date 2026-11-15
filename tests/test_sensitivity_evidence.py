@@ -240,7 +240,9 @@ def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
 
     The data. Each of the note's five runs records completion tokens and 0
     reasoning tokens on every row. Claude Fable 5's rows in the board's
-    predictions file record no usage. The recorded Claude Haiku 5.5 probe the
+    predictions file record no usage, and the other 11 Claude models' rows
+    there record completion tokens and 0 reasoning tokens, as the note's
+    introduction says. The recorded Claude Haiku 5.5 probe the
     note cites holds one thinking block with empty text, where Anthropic counts
     119 of 123 output tokens as thinking
     (``tests/test_anthropic_thinking_tokens.py`` shows litellm counting 0 for
@@ -268,6 +270,12 @@ def test_doc_reads_the_runs_zero_reasoning_tokens_as_not_counted():
     fable_5 = board[board["model"] == "claude-fable-5"].drop(columns="model")
     assert len(fable_5) > 0
     assert fable_5.isna().all().all()
+    other_claude = board[
+        board["model"].str.startswith("claude-") & (board["model"] != "claude-fable-5")
+    ]
+    assert other_claude["model"].nunique() == 11
+    assert other_claude["completion_tokens"].gt(0).all()
+    assert other_claude["reasoning_tokens"].eq(0).all()
 
     probe = json.loads(HAIKU_PROBE.read_text())["probes"]["no_thinking_parameter"]
     response = probe["response"]
