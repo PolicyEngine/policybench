@@ -477,3 +477,38 @@ def test_only_claude_sonnet_5_gains_more_than_claude_haiku_5_5():
         r"\s+", " ", (ROOT / "sensitivity/claude-thinking-2026-08.md").read_text()
     )
     assert "Among the Claude rows only Claude Sonnet 5 gains more under `auto`" in doc
+
+
+def test_august_cost_cells_give_the_board_then_the_run():
+    """Each August row's cost cell gives the board's cost a household, then
+    the thinking run's: the board's from the frozen payload's
+    ``costPerHousehold``, the run's from the committed predictions'
+    ``total_cost_usd`` over its households. Claude Sonnet 5's cell once gave
+    only the run's figure; the note's correction section says so."""
+    text = DOC.read_text()
+    board = {row["model"]: row for row in read_run_payload(RUN_DIR)["modelStats"]}
+    runs = {block["model"]: block for block in AUGUST["runs"].values()}
+    labels = {
+        label: model for label, model in SENSITIVITY_ROWS.items() if model in runs
+    }
+    assert set(labels.values()) == set(runs)
+    for label, model in labels.items():
+        stem = next(
+            name
+            for name in runs[model]["assets"]
+            if name.endswith("-predictions.csv.gz")
+        )
+        with gzip.open(DATA / stem) as fileobj:
+            predictions = pd.read_csv(
+                fileobj, usecols=["scenario_id", "total_cost_usd"]
+            )
+        run_cost = (
+            predictions["total_cost_usd"].sum() / predictions["scenario_id"].nunique()
+        )
+        board_cost = board[model]["costPerHousehold"]
+        row = re.search(rf"^\| {re.escape(label)} \|.*\|$", text, re.M)
+        assert row, label
+        cells = [cell.strip() for cell in row.group(0).strip("|").split("|")]
+        assert cells[5] == f"${board_cost:.3f} → ${run_cost:.3f}", (label, cells[5])
+    _, correction = _note_body_and_correction()
+    assert "gave only the thinking run's $0.086 a household" in correction
