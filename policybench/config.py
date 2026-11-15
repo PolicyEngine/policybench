@@ -270,7 +270,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # entry prices a request at these rates whenever it is made; they are
     # Google's rates only for requests made through 2026-11-30. Change this
     # entry to 4.0 / 20.0 / 0.20 before any gemini-4-carbon request made on
-    # or after 2026-12-01. The page
+    # or after 2026-12-01. The code prices some rows after Google served
+    # the response: the harness prices a batch result when it collects it
+    # (batch_eval.rows_from_unit and _batch_spend_record); it prices a
+    # response the LiteLLM disk cache replays at the replay
+    # (eval_no_tools._extract_usage_metadata; eval-no-tools enables the
+    # cache); and, for a model whose usage records no cost,
+    # analysis.model_cost_latency computes one from the current entry's
+    # input and output rates. Once the entry changes, each would put the
+    # December rate on a request made in November. The pricing page
     # lists one rate at every prompt length, implicit caching only, and no
     # free tier for this model. litellm 1.95.0's bundled price map has no
     # gemini-4 id, and its remote map priced the 2026-11-14 gauntlet's calls

@@ -571,18 +571,24 @@ MODEL_CARDS: dict[str, ModelCard] = {
         ),
     ),
     # Gemini 4 Carbon. Every field below comes from the 2026-11-14 onboarding
-    # record in ~/reviews/policybench-gemini-4-carbon/{probes,onboard} (a raw
-    # generateContent probe, a one-question reasoning probe of 10 calls a
-    # shape, and the gauntlet report, run with no card from a checkout of
-    # origin/main; the gauntlet's exact token counts are in
-    # onboard/carbon/usage-rows.jsonl) and from Google's pages:
+    # record in ~/reviews/policybench-gemini-4-carbon/{probes,onboard,smoke}
+    # (a raw generateContent probe, a one-question reasoning probe of 10 calls
+    # a shape, the gauntlet report, run with no card from a checkout of
+    # origin/main, and a 2-household smoke run on this card; the gauntlet's
+    # exact token counts are in onboard/carbon/usage-rows.jsonl) and from
+    # Google's pages:
     # - answer_contract "json". The gauntlet's 3-variable probe sent the
     #   board's forced answer tool (litellm sends mode ANY with
     #   allowed_function_names), and the API accepted the forced call, but the
     #   model reasoned until the 16,384-token budget ran out: 16,384
     #   completion tokens, 16,381 of them reasoning, finish=length, 0 of 3
-    #   outputs parsed, 203s. The gauntlet then passed on the JSON contract,
-    #   3/3 (9,964 completion tokens, 105s) and 16/16 whole-scenario (7,257
+    #   outputs parsed, 203s. The gauntlet sends each probe once, with no
+    #   budget escalation, so the tool request ran at half the
+    #   max_output_tokens Google's Gemini 4 Carbon guide recommends: "at
+    #   least 32,768, since Gemini 4 Carbon can spend more of the limit on
+    #   thinking" (aistudio.google.com/docs/whats-new-gemini-4-carbon, read
+    #   2026-11-13). The gauntlet then passed on the JSON contract, 3/3
+    #   (9,964 completion tokens, 105s) and 16/16 whole-scenario (7,257
     #   tokens, 79s), and suggested "json". The onboarding procedure, written
     #   before the runs, makes the card JSON when the tool probe fails, and the
     #   tool contract was not re-tested: re-running the gauntlet until the tool
@@ -607,16 +613,21 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   The gauntlet's probes ran at about 80 to 95 completion tokens a
     #   second, so a first request at the 16,384-token budget takes about 170
     #   to 205s and a retry at the 32,768-token ceiling about 345 to 410s,
-    #   past the thinking class's 300s. Google's generateContent long-decode
-    #   guide says the server closes a non-streaming connection after 10
-    #   minutes and recommends a 20-minute client read timeout, and its option
-    #   table gives 20 minutes per request for a non-streaming loop
-    #   (aistudio.google.com/docs/long-decode?generate-content=true, read
-    #   2026-11-14). If the server closes at 10 minutes, no request on this
-    #   row runs past 600s and the timeout's last 300s never apply; 900s also
-    #   covers the table's 20 minutes.
-    #   The harness doubles the 16,384-token budget once, to the ceiling
-    #   below, and records any output still missing there as
+    #   past the thinking class's 300s. The one-question probe ran slower on
+    #   15 of its 50 calls, down to 53 tokens a second, where a request at
+    #   the ceiling would take about 620s. Google's generateContent
+    #   long-decode guide says the server closes a non-streaming connection
+    #   after 10 minutes and recommends a 20-minute client read timeout, and
+    #   its option table gives 20 minutes per request for a non-streaming
+    #   loop (aistudio.google.com/docs/long-decode?generate-content=true,
+    #   read 2026-11-14). If the server closes at 10 minutes, no request on
+    #   this row runs past 600s, so a request at the ceiling would not finish
+    #   at that slowest rate, and the timeout's last 300s never apply. If
+    #   the table's 20 minutes applies instead, 900s still exceeds the about
+    #   345 to 410s the gauntlet's rates predict for a request at the
+    #   ceiling, and the 620s the slowest probe rate predicts. The harness
+    #   doubles the 16,384-token budget once, to the ceiling below, and
+    #   records any output still missing there as
     #   budget_exhausted_at_ceiling, so a household that needs more than
     #   32,768 completion tokens cannot finish on this row.
     # - provider_max_completion_tokens 32_768: the Models API's
@@ -633,7 +644,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   which that guide gives for streaming and SDK calls.
     # - expected_cost_per_scenario_usd 0.075: the gauntlet's whole-scenario
     #   probe, 1,271 prompt and 7,257 completion tokens, $0.075112 at $2/$10
-    #   per 1M, Google's rate through 2026-11-30.
+    #   per 1M, Google's rate through 2026-11-30. The smoke's two households
+    #   cost $0.100 and $0.081 with no escalation.
     "gemini/gemini-4-carbon": ModelCard(
         litellm_id="gemini/gemini-4-carbon",
         answer_contract="json",
@@ -650,7 +662,10 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "sent the board's forced answer tool first, and the Gemini API "
             "accepted the forced call, but on the 3-variable probe the model "
             "reasoned until the 16,384-token budget ran out (16,381 reasoning "
-            "tokens, 0 of 3 outputs parsed, 203s). The gauntlet then passed "
+            "tokens, 0 of 3 outputs parsed, 203s). The gauntlet sends each "
+            "probe once, with no budget escalation, so the tool request ran "
+            "at 16,384 tokens, half the minimum that Google's Gemini 4 Carbon "
+            "guide recommends for this model. The gauntlet then passed "
             "on the JSON contract, 3/3 (9,964 completion tokens, 105s) and "
             "16/16 whole-scenario (7,257 tokens, 79s), about $0.075 per "
             "scenario at $2/$10 per 1M; the tool contract was not re-tested. "
@@ -681,12 +696,15 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "same 32,768 tokens for one direct non-streaming REST call, which "
             "is what the harness sends; the model page lists 65,536 as the "
             "default synchronous output, which the guide gives for streaming "
-            "and SDK calls. The timeout is 900s: Google recommends client "
-            "timeouts of at least 15 minutes, and a retry at the 32,768-token "
-            "ceiling takes about 345 to 410s at the gauntlet's 80 to 95 "
-            "completion tokens a second. Google's generateContent guide says "
-            "the server closes a non-streaming call after 10 minutes, which "
-            "would end a request at 600s. The harness doubles the "
+            "and SDK calls. The card sets a 900s timeout: Google's Gemini 4 Carbon "
+            "guide recommends client timeouts of at least 15 minutes, and a "
+            "retry at the 32,768-token ceiling takes about 345 to 410s at the "
+            "gauntlet's 80 to 95 completion tokens a second. Google's "
+            "generateContent long-decode guide says the server closes a "
+            "non-streaming call after 10 minutes, which would end a request "
+            "at 600s. The same guide recommends a 20-minute client read "
+            "timeout, and its option table gives 20 minutes per request. The "
+            "harness doubles the "
             "16,384-token budget once, to the 32,768-token ceiling, and "
             "records any output still missing there as "
             "budget_exhausted_at_ceiling. Google lists $2/$10 per 1M through "
@@ -694,12 +712,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
         ),
     ),
     # Gemini 4 Hydrogen. Every field below comes from the 2026-11-14
-    # onboarding record in ~/reviews/policybench-gemini-4-carbon/{probes,onboard}
+    # onboarding record in
+    # ~/reviews/policybench-gemini-4-carbon/{probes,onboard,smoke}
     # (a raw generateContent probe, a one-question reasoning probe of 10 calls
     # a shape, the gauntlet report, run with no card from a checkout of
-    # origin/main, and a harness-path probe of the board's own request, 16
+    # origin/main, a harness-path probe of the board's own request, 16
     # calls a shape, run from an export of this card's branch before its
-    # rebase onto main, with the same request code) and from Google's pages:
+    # rebase onto main, with the same request code, and a 2-household smoke
+    # run on this card) and from Google's pages:
     # - answer_contract "tool": the Gemini API accepts a forced function call
     #   on this model (litellm sends mode ANY with allowed_function_names),
     #   and the gauntlet passed on it, 3/3 (10,956 completion tokens, 48s) and
@@ -721,14 +741,17 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # - request_timeout_seconds 600. At the gauntlet's 228 to 234 completion
     #   tokens a second, a request at the 65,536-token ceiling (the second
     #   budget escalation) takes about 280 to 290s, and at the slowest rates
-    #   in the record (about 215 to 220 a second, in the one-question probe
-    #   and the smoke) about 300s, the thinking class's timeout. Google's
-    #   generateContent long-decode guide says the server closes a
-    #   non-streaming connection after 10 minutes, though its option table
+    #   in the record (about 215 to 220 a second, in the one-question probe,
+    #   the harness-path probe and the smoke) about 300s, the thinking
+    #   class's timeout. Google's generateContent long-decode guide says the
+    #   server closes a non-streaming connection after 10 minutes and
+    #   recommends a 20-minute client read timeout, and its option table
     #   gives 20 minutes per request
     #   (aistudio.google.com/docs/long-decode?generate-content=true, read
     #   2026-11-14). If the server closes at 10 minutes, a client timeout
-    #   above 600s could not help this request.
+    #   above 600s could not help this request. If the table's 20 minutes
+    #   applies instead, 600s still exceeds the about 300s the record's
+    #   slowest rates predict for a request at the ceiling.
     # - provider_max_completion_tokens 65_536: the Models API's
     #   outputTokenLimit for the model, whose entry lists generateContent
     #   among its supported methods (models.get on
@@ -743,7 +766,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   $1.50/$7.50 per 1M. The gauntlet report gives the cost to three places
     #   and no prompt count; the 2,762 is the prompt count Google returned for
     #   the harness-path probe's forced call on scenario 0, the same request
-    #   (the same messages, answer tool and 16,384-token budget).
+    #   (the same messages, answer tool and 16,384-token budget). The rest of
+    #   the record runs higher: the smoke's two households cost $0.117 and
+    #   $0.109 with no escalation, and 6 of the harness-path probe's 16
+    #   forced calls ran out of the starting budget, where the board doubles
+    #   the budget and asks again.
     "gemini/gemini-4-hydrogen": ModelCard(
         litellm_id="gemini/gemini-4-hydrogen",
         answer_contract="tool",
@@ -795,11 +822,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "generateContent long-decode guide gives the same 65,536 tokens "
             "for every call on this model, streaming or not. The gauntlet "
             "used 67% and 73% of the 16,384-token starting budget. The "
-            "timeout is 600s: a request at the 65,536-token ceiling takes "
+            "card sets a 600s timeout: a request at the 65,536-token ceiling takes "
             "about 280 to 290s at the gauntlet's 228 to 234 completion tokens "
-            "a second, close to the thinking class's 300s, and Google's "
-            "generateContent guide says the server closes a non-streaming "
-            "call after 10 minutes. Google lists $1.50/$7.50 per 1M."
+            "a second, close to the thinking class's 300s. Google's "
+            "generateContent long-decode guide says the server closes a "
+            "non-streaming call after 10 minutes. The same guide recommends "
+            "a 20-minute client read timeout, and its option table gives 20 "
+            "minutes per request. Google lists $1.50/$7.50 per 1M."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(
