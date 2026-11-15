@@ -13,6 +13,7 @@ from policybench.eval_no_tools import (
     _answer_contract_for_model,
     _completion_budget_ceiling,
     _completion_controls,
+    _reconstruct_token_cost,
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
@@ -141,19 +142,30 @@ def test_gpt_56_cards_record_measured_full_run_cost(model_id, expected_cost):
 
 
 @pytest.mark.parametrize(
-    ("model_id", "expected_cost"),
+    ("model_name", "model_id", "prompt_tokens", "completion_tokens", "expected_cost"),
     [
-        ("gemini/gemini-4-carbon", 0.075),
-        ("gemini/gemini-4-hydrogen", 0.094),
+        ("gemini-4-carbon", "gemini/gemini-4-carbon", 1_271, 7_257, 0.075),
+        ("gemini-4-hydrogen", "gemini/gemini-4-hydrogen", 2_762, 11_947, 0.094),
     ],
 )
 def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
-    model_id, expected_cost
+    model_name, model_id, prompt_tokens, completion_tokens, expected_cost
 ):
     """Each card carries its card-free gauntlet's whole-scenario cost, rounded
-    to three places as ``policybench onboard`` suggests it; the token counts
-    behind each figure are rows of the cost-reconstruction tests in
-    tests/test_eval_no_tools.py."""
+    to three places as ``policybench onboard`` suggests it.
+
+    The token counts are the gauntlet's whole-scenario probe's, and the cost is
+    their reconstruction at the model's price override, so the card, the
+    counts and the override cannot drift apart.
+    """
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_name,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
+    assert reconstructed.is_estimated is False
+    assert round(reconstructed.usd, 3) == expected_cost
     assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
 
 

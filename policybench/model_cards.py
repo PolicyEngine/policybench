@@ -609,9 +609,16 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   to 205s and a retry at the 32,768-token ceiling about 345 to 410s,
     #   past the thinking class's 300s. Google's generateContent long-decode
     #   guide says the server closes a non-streaming connection after 10
-    #   minutes and recommends a 20-minute client read timeout
+    #   minutes and recommends a 20-minute client read timeout, and its option
+    #   table gives 20 minutes per request for a non-streaming loop
     #   (aistudio.google.com/docs/long-decode?generate-content=true, read
-    #   2026-11-14).
+    #   2026-11-14). If the server closes at 10 minutes, no request on this
+    #   row runs past 600s and the timeout's last 300s never apply; 900s also
+    #   covers the table's 20 minutes.
+    #   The harness doubles the 16,384-token budget once, to the ceiling
+    #   below, and records any output still missing there as
+    #   budget_exhausted_at_ceiling, so a household that needs more than
+    #   32,768 completion tokens cannot finish on this row.
     # - provider_max_completion_tokens 32_768: the Models API's
     #   outputTokenLimit for the model, whose entry lists generateContent
     #   among its supported methods (models.get on
@@ -660,7 +667,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "no named function, and none with a JSON response type or no "
             "tools). On that one-question request, unlike the gauntlet's, "
             "the forced calls returned a function call 10 times out of 10, "
-            "with a median of 2,515 thought tokens against 2,988 under auto. "
+            "with a median of about 2,515 thought tokens against about 2,988 "
+            "under auto. "
             "generateContent reports the count as "
             "usageMetadata.thoughtsTokenCount (on all 51 raw responses), "
             "litellm 1.95.0 maps it to reasoning_tokens and counts it inside "
@@ -676,7 +684,12 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "and SDK calls. The timeout is 900s: Google recommends client "
             "timeouts of at least 15 minutes, and a retry at the 32,768-token "
             "ceiling takes about 345 to 410s at the gauntlet's 80 to 95 "
-            "completion tokens a second. Google lists $2/$10 per 1M through "
+            "completion tokens a second. Google's generateContent guide says "
+            "the server closes a non-streaming call after 10 minutes, which "
+            "would end a request at 600s. The harness doubles the "
+            "16,384-token budget once, to the 32,768-token ceiling, and "
+            "records any output still missing there as "
+            "budget_exhausted_at_ceiling. Google lists $2/$10 per 1M through "
             "2026-11-30 and $4/$20 from 2026-12-01."
         ),
     ),
@@ -685,8 +698,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # (a raw generateContent probe, a one-question reasoning probe of 10 calls
     # a shape, the gauntlet report, run with no card from a checkout of
     # origin/main, and a harness-path probe of the board's own request, 16
-    # calls a shape, run from an export of this card's branch) and from
-    # Google's pages:
+    # calls a shape, run from an export of this card's branch before its
+    # rebase onto main, with the same request code) and from Google's pages:
     # - answer_contract "tool": the Gemini API accepts a forced function call
     #   on this model (litellm sends mode ANY with allowed_function_names),
     #   and the gauntlet passed on it, 3/3 (10,956 completion tokens, 48s) and
@@ -707,11 +720,15 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   probe (18% of the 65,536-token ceiling).
     # - request_timeout_seconds 600. At the gauntlet's 228 to 234 completion
     #   tokens a second, a request at the 65,536-token ceiling (the second
-    #   budget escalation) takes about 280 to 290s, which leaves no margin
-    #   under the thinking class's 300s. Google's generateContent long-decode
-    #   guide says the server closes a non-streaming connection after 10
-    #   minutes (aistudio.google.com/docs/long-decode?generate-content=true,
-    #   read 2026-11-14).
+    #   budget escalation) takes about 280 to 290s, and at the slowest rates
+    #   in the record (about 215 to 220 a second, in the one-question probe
+    #   and the smoke) about 300s, the thinking class's timeout. Google's
+    #   generateContent long-decode guide says the server closes a
+    #   non-streaming connection after 10 minutes, though its option table
+    #   gives 20 minutes per request
+    #   (aistudio.google.com/docs/long-decode?generate-content=true, read
+    #   2026-11-14). If the server closes at 10 minutes, a client timeout
+    #   above 600s could not help this request.
     # - provider_max_completion_tokens 65_536: the Models API's
     #   outputTokenLimit for the model, whose entry lists generateContent
     #   among its supported methods (models.get on
@@ -749,10 +766,10 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "probe (10 calls a shape): thought tokens on all 50 calls, under "
             "a forced function call, tool_choice auto, mode ANY with no named "
             "function, a JSON response type and no tools, with a median of "
-            "5,273 thought tokens forced against 5,496 under auto, and the "
+            "5,273 thought tokens forced against about 5,496 under auto, and the "
             "forced calls returned a function call 10 times out of 10. "
-            "On the board's own request for the frozen manifest's scenarios "
-            "0 to 15 (16 calls a shape, under a rule fixed before the first "
+            "On the board's own request for the frozen manifest's first 16 "
+            "scenarios (16 calls a shape, under a rule fixed before the first "
             "call), the forced tool returned reasoning tokens on 16 of 16 "
             "calls, tool_choice auto on 16 of 16 and the JSON contract on 16 "
             "of 16 (forced against auto, two-sided Fisher exact p = 1.0), so "
@@ -760,10 +777,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "the row has no tool_choice auto sensitivity run (Gemini 4 Argon's "
             "rule adds one only if forcing the tool suppresses reasoning). "
             "That probe sent each request once, with no budget escalation: 6 "
-            "forced and 6 auto calls, on the same six scenarios, and 2 JSON "
-            "calls ran out of the 16,384-token budget (finish=length, with "
-            "14,869 to 16,381 reasoning tokens each), so 184 of 334 outputs "
-            "parsed under each tool mode and 262 under JSON; on such a call "
+            "forced, 6 auto and 2 JSON calls ran out of the 16,384-token "
+            "budget (finish=length, 14,869 to 16,381 reasoning tokens each), "
+            "the forced and auto calls on the same six scenarios, so 184 of "
+            "334 outputs parsed under each tool mode and 262 under JSON; on "
+            "such a call "
             "the board doubles the budget, up to the 65,536-token ceiling, "
             "and asks again. "
             "generateContent reports the thought-token count as "
@@ -779,7 +797,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "used 67% and 73% of the 16,384-token starting budget. The "
             "timeout is 600s: a request at the 65,536-token ceiling takes "
             "about 280 to 290s at the gauntlet's 228 to 234 completion tokens "
-            "a second. Google lists $1.50/$7.50 per 1M."
+            "a second, close to the thinking class's 300s, and Google's "
+            "generateContent guide says the server closes a non-streaming "
+            "call after 10 minutes. Google lists $1.50/$7.50 per 1M."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(
