@@ -103,6 +103,22 @@ MODELS = {
     # the first-party Gemini API like the other Gemini rows. The id is the
     # model page's one stable version; Google lists no dated snapshot.
     "gemini-4-argon": "gemini/gemini-4-argon",
+    # Gemini 4 Carbon. Google opened it to the public on 2026-11-10, when the
+    # Gemini API changelog lists gemini-4-carbon as generally available
+    # (aistudio.google.com/docs/changelog, read 2026-11-13); Google's post of
+    # that day says it had released the model two weeks earlier to
+    # cybersecurity defenders through its Fairwind Program. It runs on the
+    # first-party Gemini API like the other Gemini rows. The id is the model
+    # page's one stable version; Google lists no dated snapshot
+    # (aistudio.google.com/docs/models/gemini-4-carbon, read 2026-11-13).
+    "gemini-4-carbon": "gemini/gemini-4-carbon",
+    # Gemini 4 Hydrogen. The Gemini API changelog lists gemini-4-hydrogen as
+    # generally available on 2026-11-12, on the free and the paid tier
+    # (aistudio.google.com/docs/changelog, read 2026-11-13). It runs on the
+    # first-party Gemini API like the other Gemini rows. The id is the model
+    # page's one stable version; Google lists no dated snapshot
+    # (aistudio.google.com/docs/models/gemini-4-hydrogen, read 2026-11-13).
+    "gemini-4-hydrogen": "gemini/gemini-4-hydrogen",
     # Cloaked OpenRouter preview listed 2026-08-20 (free window); Z.ai later
     # identified it as GLM-5.3-Flash. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
@@ -245,6 +261,40 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # three rates (read 2026-10-13); the override keeps the row priced if the
     # map is unavailable or changes on 2026-12-01.
     "gemini-4-argon": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    # gemini-4-carbon: $2 / $10 per 1M input/output tokens (output includes
+    # thinking tokens) and $0.10 cached input, the standard-tier rates Google
+    # lists "through November 30, 2026"; from 2026-12-01 they double to
+    # $4 / $20 and $0.20 (aistudio.google.com/docs/pricing, read 2026-11-13).
+    # The board prices a row at the rate in force on its run day, as it
+    # does gemini-4-argon's. The cost reconstruction takes no date, so this
+    # entry prices a request at these rates whenever it is made; they are
+    # Google's rates only for requests made through 2026-11-30. Change this
+    # entry to 4.0 / 20.0 / 0.20 before any gemini-4-carbon request made on
+    # or after 2026-12-01. The code prices some rows after Google served
+    # the response: the harness prices a batch result when it collects it
+    # (batch_eval.rows_from_unit and _batch_spend_record); it prices a
+    # response the LiteLLM disk cache replays at the replay
+    # (eval_no_tools._extract_usage_metadata; eval-no-tools enables the
+    # cache); and, for a model whose usage records no cost,
+    # analysis.model_cost_latency computes one from the current entry's
+    # input and output rates. Once the entry changes, each would put the
+    # December rate on a request made in November. The pricing page
+    # lists one rate at every prompt length, implicit caching only, and no
+    # free tier for this model. litellm 1.95.0's bundled price map has no
+    # gemini-4 id, and its remote map priced the 2026-11-14 gauntlet's calls
+    # at the same $2 / $10; the override prices a request from the rates
+    # above whether or not the map is available.
+    "gemini-4-carbon": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
+    # gemini-4-hydrogen: $1.50 / $7.50 per 1M input/output tokens (output
+    # includes thinking tokens) and $0.075 cached input, the paid tier's
+    # standard rates, with no dated change (aistudio.google.com/docs/pricing,
+    # read 2026-11-13). The page lists one rate at every prompt length and
+    # implicit caching only; it also lists a free tier, which the row's cost
+    # does not use. litellm 1.95.0's bundled price map has no gemini-4 id, and
+    # its remote map priced the 2026-11-14 gauntlet's calls at the same
+    # $1.50 / $7.50; the override prices a request from the rates above
+    # whether or not the map is available.
+    "gemini-4-hydrogen": {"input": 1.5, "output": 7.5, "cache_read": 0.075},
     # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
     "glm-5.3": {"input": 1.40, "output": 4.40},
     # deepseek dated snapshots via OpenRouter (list prices 2026-09-03).

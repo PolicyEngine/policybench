@@ -3621,6 +3621,22 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # Program cyber partners only (techcrunch.com 2026-09-30); that day is
     # excluded under the public-availability rule.
     "gemini-4-argon": "2026-10-13",
+    # aistudio.google.com/docs/changelog ("November 10, 2026": Gemini 4
+    # Carbon, gemini-4-carbon, generally available) and blog.google/
+    # innovation-and-ai/models-and-research/gemini-models/
+    # gemini-4-carbon-now-available (2026-11-10: the API in Google AI Studio
+    # "for all paying developers and enterprises", and Google AI Ultra
+    # subscribers in the Gemini app), both read 2026-11-13. The post says
+    # Google had released the model two weeks earlier to cybersecurity
+    # defenders through its Fairwind Program; that partner-only period is
+    # excluded under the public-availability rule.
+    "gemini-4-carbon": "2026-11-10",
+    # aistudio.google.com/docs/changelog ("November 12, 2026": Gemini 4
+    # Hydrogen, gemini-4-hydrogen, generally available, on the free tier and
+    # the paid tier) and blog.google/innovation-and-ai/models-and-research/
+    # gemini-models/introducing-gemini-4-hydrogen (2026-11-12: "Starting
+    # today" in the Gemini API and the Gemini app), both read 2026-11-13.
+    "gemini-4-hydrogen": "2026-11-12",
     # blog.google gemini-3-1-flash-lite; siliconangle.com 2026-03-03
     "gemini-3.1-flash-lite-preview": "2026-03-03",
     # openai.com/index/introducing-gpt-5-4-mini-and-nano; 9to5mac 2026-03-17

@@ -13,6 +13,7 @@ from policybench.eval_no_tools import (
     _answer_contract_for_model,
     _completion_budget_ceiling,
     _completion_controls,
+    _reconstruct_token_cost,
     _request_timeout_seconds,
     _required_explanation_chunk_size,
 )
@@ -78,6 +79,8 @@ EXPECTED = {
     "openrouter/z-ai/glm-5.3": ("tool", None, 2400, 16_384),
     "openrouter/meta/muse-wonder": ("json", None, 300, 16_384),
     "gemini/gemini-4-argon": ("tool", None, 300, 16_384),
+    "gemini/gemini-4-carbon": ("json", None, 900, 16_384),
+    "gemini/gemini-4-hydrogen": ("tool", None, 600, 16_384),
 }
 
 
@@ -139,6 +142,36 @@ def test_gpt_56_cards_record_measured_full_run_cost(model_id, expected_cost):
 
 
 @pytest.mark.parametrize(
+    ("model_name", "model_id", "prompt_tokens", "completion_tokens", "expected_cost"),
+    [
+        ("gemini-4-carbon", "gemini/gemini-4-carbon", 1_271, 7_257, 0.075),
+        ("gemini-4-hydrogen", "gemini/gemini-4-hydrogen", 2_762, 11_947, 0.094),
+    ],
+)
+def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
+    model_name, model_id, prompt_tokens, completion_tokens, expected_cost
+):
+    """Each card carries its card-free gauntlet's whole-scenario cost, rounded
+    to three places as ``policybench onboard`` suggests it.
+
+    The token counts are the gauntlet's whole-scenario probe's, and the cost is
+    their reconstruction at the model's price override, so the card, the
+    counts and the override cannot drift apart. Gemini 4 Hydrogen's gauntlet
+    report gives no prompt count: 2,762 is the count Google returned for the
+    harness-path probe's forced call on scenario 0, the same request.
+    """
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_name,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
+    assert reconstructed.is_estimated is False
+    assert round(reconstructed.usd, 3) == expected_cost
+    assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
+
+
+@pytest.mark.parametrize(
     ("provider_max", "expected"), [(30_000, 30_000), (200_000, 128_000)]
 )
 def test_provider_max_limits_escalation_ceiling(monkeypatch, provider_max, expected):
@@ -176,6 +209,8 @@ def test_provider_max_clamps_initial_completion_budget(monkeypatch):
         ("gemini/gemini-3-flash-preview", 65_535),
         ("gemini/gemini-3.6-flash", 65_536),
         ("gemini/gemini-4-argon", 32_768),
+        ("gemini/gemini-4-carbon", 32_768),
+        ("gemini/gemini-4-hydrogen", 65_536),
     ],
 )
 def test_roster_model_provider_maximums_limit_escalation(model_id, expected):
