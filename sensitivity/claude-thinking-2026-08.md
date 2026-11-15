@@ -78,7 +78,7 @@ all 1,984 outputs the thinking runs scored 87.1, 86.2 and 80.2.
 |---|---|---|---|---|---|---|---|
 | Claude Fable 5 | 83.3 (#26) | **91.4** | +8.1 | **#9** | $0.541 → $0.323 | 54 | 1,984/1,984 |
 | Claude Opus 5 | 83.6 (#25) | **90.0** | +6.4 | #13 | $0.067 → $0.152 | 51 | 1,984/1,984 |
-| Claude Sonnet 5 | 72.4 (#50) | **84.5** | +12.2 | #25 | $0.086 | 64 | 1,928/1,984 |
+| Claude Sonnet 5 | 72.4 (#50) | **84.5** | +12.2 | #25 | $0.172 → $0.086 | 64 | 1,928/1,984 |
 
 In this table and the tables below, deltas are differences of the
 unrounded scores, so a delta can differ by 0.1 from the difference of the
@@ -296,3 +296,7 @@ section that "litellm reports no reasoning tokens for Anthropic". The
 introduction had said that "every Claude row logged zero reasoning tokens",
 but Claude Fable 5's rows in the board's predictions file record no usage.
 No score, rank or cost in this note changed.
+
+The first table's cost cell for Claude Sonnet 5 gave only the thinking
+run's $0.086 a household. It now gives the board's $0.172 first, as the
+other two rows do. No score or rank changed.
