@@ -218,8 +218,8 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # prices every request at them.
     "gpt-6.2-astra": {"input": 8.0, "output": 40.0, "cache_read": 0.40},
     # gpt-6.2-sol: $2 / $10 per 1M input/output, $0.10 cached input, $2.50
-    # cache writes (30-minute retention); $4 / $15 and $0.20 cached input for
-    # the whole request above 272k input tokens (developers.openai.com/api/
+    # cache writes (30-minute retention); $4 / $15 and $0.20 cached input
+    # above 272k input tokens (developers.openai.com/api/
     # docs/models/gpt-6.2-sol and /api/docs/pricing, read 2026-11-17, the day
     # OpenAI released it; the Models API lists the id with created
     # 2026-11-02T18:07Z). These are the Standard tier's rates; the harness

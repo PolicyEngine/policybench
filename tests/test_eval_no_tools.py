@@ -3546,10 +3546,10 @@ def test_gpt_6_2_requests_force_the_answer_tool_and_set_no_reasoning(
     GPT-6.1 cards' treatment: the board's forced answer tool on the Responses
     API, which OpenAI says tool calling on these models requires, and the
     thinking class's 16,384-token starting budget and 300s timeout. The
-    request carries no reasoning parameter, so each model reasons at
-    OpenAI's default effort. It also leaves out temperature, top_p, logprobs
-    and top_logprobs, which OpenAI's latest-model guide says to omit for
-    these models."""
+    request carries no reasoning parameter, so each model runs at OpenAI's
+    default effort, which OpenAI's pages do not state. It also leaves out
+    temperature, top_p, logprobs and top_logprobs, which OpenAI's
+    latest-model guide says to omit for these models."""
     from policybench.eval_no_tools import (
         ANSWER_FUNCTION_NAME,
         _answer_contract_for_model,

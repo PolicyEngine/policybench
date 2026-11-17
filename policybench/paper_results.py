@@ -3665,7 +3665,7 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     "gpt-6.1-terra": "2026-10-26",
     # developers.openai.com/api/docs/changelog dates the release of GPT-6.2
     # Astra and GPT-6.2 Sol (API ids gpt-6.2-astra and gpt-6.2-sol) 2026-11-17;
-    # OpenAI's Developer Community announcement of that day
+    # an announcement of that day in OpenAI's Developer Community forum
     # (community.openai.com/t/gpt-6-2-astra-and-sol-are-now-available/1417531)
     # opens both in the API and, for Plus, Pro, Enterprise and Edu users, in
     # ChatGPT Work and Codex. Both read 2026-11-17.
