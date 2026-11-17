@@ -135,6 +135,15 @@ def test_gpt_6_1_terra_release_date_is_its_announcement_day():
     assert MODEL_RELEASE_DATES["gpt-6.1-terra"] == "2026-10-26"
 
 
+@pytest.mark.parametrize("model", ["gpt-6.2-astra", "gpt-6.2-sol"])
+def test_gpt_6_2_release_dates_are_the_api_release_day(model):
+    """OpenAI's API changelog dates the release of GPT-6.2 Astra and GPT-6.2
+    Sol 2026-11-17, and OpenAI's Developer Community announcement of that day
+    opens both in the API and, for Plus, Pro, Enterprise and Edu users, in
+    ChatGPT Work and Codex."""
+    assert MODEL_RELEASE_DATES[model] == "2026-11-17"
+
+
 def test_app_release_dates_mirror_the_paper_registry():
     """app/src/modelMeta.ts copies MODEL_RELEASE_DATES (its comment says to
     update both together); every runnable model has a date, and the two

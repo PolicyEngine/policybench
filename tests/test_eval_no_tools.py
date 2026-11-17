@@ -3470,12 +3470,126 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
+@pytest.mark.parametrize(
+    (
+        "model",
+        "prompt_tokens",
+        "completion_tokens",
+        "cached_prompt_tokens",
+        "cache_write_prompt_tokens",
+        "expected",
+    ),
+    [
+        # GPT-6.2 Astra: $8 / $40 per 1M, $0.40 cached input and $10 cache
+        # writes (30-minute retention) up to 272k input tokens.
+        ("gpt-6.2-astra", 200_000, 0, 0, 0, 1.6),
+        ("gpt-6.2-astra", 0, 1_000_000, 0, 0, 40.0),
+        ("gpt-6.2-astra", 200_000, 0, 200_000, 0, 0.08),
+        ("gpt-6.2-astra", 200_000, 0, 0, 200_000, 2.0),
+        # Above 272k input tokens, the whole request: $16 input, $0.80 cached
+        # input and $60 output per 1M.
+        ("gpt-6.2-astra", 300_000, 0, 0, 0, 4.8),
+        ("gpt-6.2-astra", 300_000, 10_000, 300_000, 0, 0.84),
+        # GPT-6.2 Sol: $2 / $10 per 1M, $0.10 cached input and $2.50 cache
+        # writes (30-minute retention) up to 272k input tokens.
+        ("gpt-6.2-sol", 200_000, 0, 0, 0, 0.4),
+        ("gpt-6.2-sol", 0, 1_000_000, 0, 0, 10.0),
+        ("gpt-6.2-sol", 200_000, 0, 200_000, 0, 0.02),
+        ("gpt-6.2-sol", 200_000, 0, 0, 200_000, 0.5),
+        # Above 272k input tokens: $4 input, $0.20 cached input and $15 output.
+        ("gpt-6.2-sol", 300_000, 0, 0, 0, 1.2),
+        ("gpt-6.2-sol", 300_000, 10_000, 300_000, 0, 0.21),
+    ],
+)
+def test_gpt_6_2_overrides_reconstruct_token_costs(
+    model,
+    prompt_tokens,
+    completion_tokens,
+    cached_prompt_tokens,
+    cache_write_prompt_tokens,
+    expected,
+):
+    """GPT-6.2 Astra and GPT-6.2 Sol are priced at OpenAI's Standard-tier list
+    rates, cache reads at a twentieth of input, and the long-context rates
+    for a request above 272k input tokens (developers.openai.com/api/docs/
+    models/gpt-6.2-astra and /gpt-6.2-sol, and /api/docs/pricing, read
+    2026-11-17). OpenAI lists no long-context cache-write rate for either
+    model, so no case here prices one."""
+    assert PRICE_OVERRIDES_PER_1M["gpt-6.2-astra"] == {
+        "input": 8.0,
+        "output": 40.0,
+        "cache_read": 0.40,
+    }
+    assert PRICE_OVERRIDES_PER_1M["gpt-6.2-sol"] == {
+        "input": 2.0,
+        "output": 10.0,
+        "cache_read": 0.10,
+    }
+    reconstructed = _reconstruct_token_cost(
+        model_name=model,
+        model_id=model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+        cache_write_prompt_tokens=cache_write_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
+@pytest.mark.parametrize("model_id", ["gpt-6.2-astra", "gpt-6.2-sol"])
+def test_gpt_6_2_requests_force_the_answer_tool_and_set_no_reasoning(
+    mini_scenario, model_id
+):
+    """The GPT-6.2 Astra and Sol cards, written before onboarding, take the
+    GPT-6.1 cards' treatment: the board's forced answer tool on the Responses
+    API, which OpenAI says tool calling on these models requires, and the
+    thinking class's 16,384-token starting budget and 300s timeout. The
+    request carries no reasoning parameter, so each model reasons at
+    OpenAI's default effort. It also leaves out temperature, top_p, logprobs
+    and top_logprobs, which OpenAI's latest-model guide says to omit for
+    these models."""
+    from policybench.eval_no_tools import (
+        ANSWER_FUNCTION_NAME,
+        _answer_contract_for_model,
+        _uses_responses_api,
+    )
+
+    assert MODELS[model_id] == GPT_RESPONSES_MODELS[model_id] == model_id
+    assert _uses_responses_api(model_id)
+    assert _answer_contract_for_model(model_id, env={}) == "tool"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 300
+
+    _, kwargs = _responses_request_kwargs(mini_scenario, ["income_tax"], model_id)
+
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "name": ANSWER_FUNCTION_NAME,
+    }
+    assert [tool["name"] for tool in kwargs["tools"]] == [ANSWER_FUNCTION_NAME]
+    assert kwargs["max_output_tokens"] == 16_384
+    assert kwargs["timeout"] == 300
+    for omitted in (
+        "reasoning",
+        "reasoning_effort",
+        "temperature",
+        "top_p",
+        "logprobs",
+        "top_logprobs",
+    ):
+        assert omitted not in kwargs
+
+
 # Each Responses-API GPT row's cache read and write rates per 1M tokens, as
 # OpenAI lists them, written out here so the pricing tests do not derive their
 # expectations from the helper they test (Terra card review r2): the GPT-6.1
-# rows read at a twentieth of input, the rest at the GPT-5.6 line's tenth;
-# every row writes at 1.25x input.
+# and GPT-6.2 rows read at a twentieth of input, the rest at the GPT-5.6
+# line's tenth; every row writes at 1.25x input.
 LISTED_CACHE_RATES_PER_1M = {
+    "gpt-6.2-astra": (0.40, 10.0),
+    "gpt-6.2-sol": (0.10, 2.50),
     "gpt-6.1-terra": (0.05, 1.25),
     "gpt-6.1-sol": (0.10, 2.50),
     "gpt-6-sol": (0.20, 2.50),
@@ -3498,8 +3612,8 @@ def test_every_responses_model_has_a_listed_cache_rate():
 def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write):
     """Each Responses-API GPT row prices its cache at the rate its override
     lists, or at the GPT-5.6 line's tenth and 1.25x when it lists none. The
-    two GPT-6.1 rows read at a twentieth (the bug the Terra card review found:
-    the reconstruction hard-coded a tenth)."""
+    GPT-6.1 and GPT-6.2 rows read at a twentieth (the bug the Terra card
+    review found: the reconstruction hard-coded a tenth)."""
     assert _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model]) == (
         pytest.approx(read / 1_000_000),
         pytest.approx(write / 1_000_000),
@@ -3518,8 +3632,10 @@ def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write
         assert reconstructed.usd == pytest.approx(rate / 5)
 
 
-@pytest.mark.parametrize("model", ["gpt-6.1-terra", "gpt-6.1-sol"])
-def test_litellm_registers_the_gpt_6_1_cache_read_rate(model):
+@pytest.mark.parametrize(
+    "model", ["gpt-6.1-terra", "gpt-6.1-sol", "gpt-6.2-astra", "gpt-6.2-sol"]
+)
+def test_litellm_registers_the_twentieth_cache_read_rate(model):
     """The local litellm entry carries the same cache rates as the
     reconstruction, doubled above 272k prompt tokens."""
     entry = litellm.model_cost[GPT_RESPONSES_MODELS[model]]

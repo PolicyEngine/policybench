@@ -39,11 +39,18 @@ GPT_56_MODELS = {
 # GPT-6.1 Sol (2026-09-29) and GPT-6.1 Terra (announced and available
 # 2026-10-26) share it too, with cache reads at a twentieth of input; their
 # overrides' cache_read rates carry that (eval_no_tools._gpt_responses_cache_rates).
+# GPT-6.2 Astra and GPT-6.2 Sol (both released 2026-11-17) share it as well,
+# with cache reads at a twentieth of input. OpenAI's API changelog and its
+# latest-model guide say tool calling on these two models requires the
+# Responses API (developers.openai.com/api/docs/changelog and
+# /api/docs/guides/latest-model, read 2026-11-17).
 GPT_6_MODELS = {
     "gpt-6-astra": "gpt-6-astra",
     "gpt-6-sol": "gpt-6-sol",
     "gpt-6.1-sol": "gpt-6.1-sol",
     "gpt-6.1-terra": "gpt-6.1-terra",
+    "gpt-6.2-astra": "gpt-6.2-astra",
+    "gpt-6.2-sol": "gpt-6.2-sol",
     "gpt-6-luna": "gpt-6-luna",
 }
 GPT_RESPONSES_MODELS = {**GPT_56_MODELS, **GPT_6_MODELS}
@@ -202,6 +209,22 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # gpt-6.1-terra, read 2026-10-26, the day OpenAI announced it; the Models
     # API lists the id with created 2026-10-13T16:26Z).
     "gpt-6.1-terra": {"input": 1.0, "output": 5.0, "cache_read": 0.05},
+    # gpt-6.2-astra: $8 / $40 per 1M input/output, $0.40 cached input, $10
+    # cache writes (30-minute retention); $16 / $60 and $0.80 cached input for
+    # the whole request above 272k input tokens (developers.openai.com/api/
+    # docs/models/gpt-6.2-astra and /api/docs/pricing, read 2026-11-17, the
+    # day OpenAI released it; the Models API lists the id with created
+    # 2026-10-31T07:00Z). These are the Standard tier's rates; the harness
+    # prices every request at them.
+    "gpt-6.2-astra": {"input": 8.0, "output": 40.0, "cache_read": 0.40},
+    # gpt-6.2-sol: $2 / $10 per 1M input/output, $0.10 cached input, $2.50
+    # cache writes (30-minute retention); $4 / $15 and $0.20 cached input for
+    # the whole request above 272k input tokens (developers.openai.com/api/
+    # docs/models/gpt-6.2-sol and /api/docs/pricing, read 2026-11-17, the day
+    # OpenAI released it; the Models API lists the id with created
+    # 2026-11-02T18:07Z). These are the Standard tier's rates; the harness
+    # prices every request at them.
+    "gpt-6.2-sol": {"input": 2.0, "output": 10.0, "cache_read": 0.10},
     "gpt-6-luna": {"input": 0.10, "output": 0.50},
     "gpt-5.6-sol": {"input": 5.0, "output": 30.0},
     "gpt-5.6-terra": {"input": 2.5, "output": 15.0},

@@ -7,7 +7,8 @@ and whether reasoning-by-default token appetite needs the thinking-class
 completion budget. None of this is model *configuration* — every model still
 runs unconfigured at its provider-default reasoning effort. Cards only
 encode serving-stack facts discovered during onboarding (see
-``policybench onboard``).
+``policybench onboard``); a card written before its model's onboarding says
+so in its notes.
 
 Cards OVERRIDE the family-prefix heuristics in ``eval_no_tools``; models
 without a card (or with a field left ``None``) keep the heuristic treatment.
@@ -128,6 +129,95 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "384-token non-thinking budget and stopped incomplete. A "
             "two-household smoke parsed all 36 outputs for $0.02, with "
             "reasoning tokens on every request."
+        ),
+    ),
+    # GPT-6.2 Astra. This card is written from OpenAI's documentation, read
+    # 2026-11-17, the day OpenAI released the model, and from the GPT-6.1 Sol
+    # and GPT-6.1 Terra cards above. It records no request to the model.
+    # Field by field:
+    # - answer_contract "tool": the GPT-6.1 cards' contract, the board's
+    #   forced answer tool on the Responses API. OpenAI's model page lists
+    #   function calling and structured outputs as supported
+    #   (developers.openai.com/api/docs/models/gpt-6.2-astra), and its API
+    #   changelog says tool calling on the model requires the Responses API
+    #   (developers.openai.com/api/docs/changelog). No page read says whether
+    #   a forced tool_choice works on this model; the onboarding gauntlet's
+    #   tool probes settle that.
+    # - explanation_chunk_size None: the canonical whole-scenario request
+    #   (chunking is closed to new models).
+    # - thinking_budget True: OpenAI's reasoning guide lists the model as a
+    #   reasoning model, its model page says the API rejects reasoning effort
+    #   "none", and the guide says reasoning tokens are billed as output
+    #   tokens (developers.openai.com/api/docs/guides/reasoning). The card
+    #   therefore takes the thinking class's 16,384-token starting budget and
+    #   300s timeout, as the GPT-6.1 cards do. The harness sends no reasoning
+    #   parameter. The model page states no default effort, so the onboarding
+    #   probes record whether the model reasons on the board's request.
+    # - request_timeout_seconds None: the thinking class's 300s.
+    # - provider_max_completion_tokens None: the model page lists a maximum
+    #   output of 128,000 tokens, the harness's escalation ceiling.
+    # - expected_cost_per_scenario_usd is not set: no per-scenario cost has
+    #   been measured.
+    "gpt-6.2-astra": ModelCard(
+        litellm_id="gpt-6.2-astra",
+        answer_contract="tool",
+        thinking_budget=True,
+        notes=(
+            "Written 2026-11-17 from OpenAI's documentation, read that day, "
+            "the day OpenAI released the model; the card records no request "
+            "to the model. It takes the treatment of the GPT-6.1 Sol and "
+            "GPT-6.1 Terra cards: the board's forced answer tool on the "
+            "whole-scenario request, over the Responses API, which OpenAI "
+            "says tool calling on this model requires. OpenAI lists it as a "
+            "reasoning model whose API rejects reasoning effort none; the "
+            "model page states no default effort, and the harness sends no "
+            "reasoning parameter. The onboarding gauntlet settles whether "
+            "the forced tool works and what the model's default reasoning "
+            "costs per scenario."
+        ),
+    ),
+    # GPT-6.2 Sol. Like the Astra card above, this card is written from
+    # OpenAI's documentation, read 2026-11-17, the day OpenAI released the
+    # model, and records no request to the model. Field by field:
+    # - answer_contract "tool": the GPT-6.1 cards' contract, the board's
+    #   forced answer tool on the Responses API. OpenAI's model page gives
+    #   the model the same endpoints as GPT-6.2 Astra
+    #   (developers.openai.com/api/docs/models/gpt-6.2-sol), and its API
+    #   changelog says tool calling on the model requires the Responses API
+    #   (developers.openai.com/api/docs/changelog). No page read says whether
+    #   a forced tool_choice works on this model; the onboarding gauntlet's
+    #   tool probes settle that.
+    # - explanation_chunk_size None: the canonical whole-scenario request
+    #   (chunking is closed to new models).
+    # - thinking_budget True: as on the Astra card, OpenAI lists the model as
+    #   a reasoning model whose API rejects reasoning effort "none", and
+    #   reasoning tokens are billed as output tokens
+    #   (developers.openai.com/api/docs/guides/reasoning), so the card takes
+    #   the thinking class's 16,384-token starting budget and 300s timeout.
+    #   The harness sends no reasoning parameter. The model page states no
+    #   default effort, so the onboarding probes record whether the model
+    #   reasons on the board's request.
+    # - request_timeout_seconds None: the thinking class's 300s.
+    # - provider_max_completion_tokens None: the model page lists a maximum
+    #   output of 128,000 tokens, the harness's escalation ceiling.
+    # - expected_cost_per_scenario_usd is not set: no per-scenario cost has
+    #   been measured.
+    "gpt-6.2-sol": ModelCard(
+        litellm_id="gpt-6.2-sol",
+        answer_contract="tool",
+        thinking_budget=True,
+        notes=(
+            "Written 2026-11-17 from OpenAI's documentation, read that day, "
+            "the day OpenAI released the model; the card records no request "
+            "to the model. It takes the treatment of the GPT-6.1 Sol and "
+            "GPT-6.1 Terra cards: the board's forced answer tool on the "
+            "whole-scenario request, over the Responses API, which OpenAI "
+            "says tool calling on this model requires. OpenAI lists it as a "
+            "reasoning model whose API rejects reasoning effort none; the "
+            "model page states no default effort, and the harness sends no "
+            "reasoning parameter. The onboarding gauntlet settles whether "
+            "the forced tool works and what the model's default reasoning "
+            "costs per scenario."
         ),
     ),
     "gpt-6-luna": ModelCard(
