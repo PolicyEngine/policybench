@@ -279,28 +279,32 @@ def replay(
     return summary
 
 
-def _over_mcp(sessions: dict, board: Path, entry: dict) -> str:
-    """The text the package's MCP server answers the call with: one server per
-    feature set, launched over stdio on the same board."""
+def _server_parameters(board: Path, features: frozenset):
+    """How to launch the package's MCP server for one feature set over stdio,
+    on the board's engine, with one worker."""
     from mcp import StdioServerParameters
 
+    arm = "pe:" + "+".join(sorted(features)) if features else "pe"
+    return StdioServerParameters(
+        command=sys.executable,
+        args=[
+            "-m",
+            "policybench_calculator.mcp_server",
+            *("--arm", arm, "--board", str(board), "--workers", "1"),
+        ],
+        cwd=str(ROOT),
+        env=dict(os.environ),
+    )
+
+
+def _over_mcp(sessions: dict, board: Path, entry: dict) -> str:
+    """The text the package's MCP server answers the call with: one server per
+    feature set, kept open for the run."""
     from policybench_calculator.mcp_client import McpToolCall
 
     features = entry["features"]
     if features not in sessions:
-        arm = "pe:" + "+".join(sorted(features)) if features else "pe"
-        sessions[features] = McpToolCall(
-            StdioServerParameters(
-                command=sys.executable,
-                args=[
-                    "-m",
-                    "policybench_calculator.mcp_server",
-                    *("--arm", arm, "--board", str(board), "--workers", "1"),
-                ],
-                cwd=str(ROOT),
-                env=dict(os.environ),
-            )
-        )
+        sessions[features] = McpToolCall(_server_parameters(board, features))
     return json.dumps(sessions[features](entry["arguments"])[0])
 
 

@@ -210,6 +210,60 @@ def test_the_command_exits_1_when_the_gate_fails(monkeypatch, capsys):
     assert "gate failures: 2" in capsys.readouterr().out
 
 
+def test_the_mcp_path_sends_each_sendable_call_through_a_server(
+    runs, tmp_path, monkeypatch
+):
+    """With --mcp every call the protocol can carry also goes through an MCP
+    server, one per feature set, and a different answer fails the gate. The
+    server launched here is the fake-engine one, whose results differ from
+    this test's fake engine by design: so the refusals, which come from the
+    validator alone, must match, and every accepted call must be caught."""
+    from mcp import StdioServerParameters
+
+    launched = []
+
+    def fake_server(board, features):
+        arm = "pe:" + "+".join(sorted(features)) if features else "pe"
+        launched.append(arm)
+        return StdioServerParameters(
+            command=sys.executable,
+            args=[str(ROOT / "tests/calculator_mcp_fake.py"), "stdio", arm],
+            env=dict(os.environ),
+        )
+
+    monkeypatch.setattr(replay, "_server_parameters", fake_server)
+    summary = _replay(runs, tmp_path / "out", over_mcp=True)
+    overall = summary["overall"]
+    assert sorted(launched) == ["pe", "pe:names"]
+    assert overall["mcp_checked"] == overall["sendable"] == 5
+    assert overall["mcp_differs"] == overall["accepted"] == 3
+    assert summary["gate_failures"] == 3
+    lines = [
+        json.loads(text)
+        for text in (tmp_path / "out/progress.jsonl").read_text().splitlines()
+    ]
+    assert all(line["same_over_mcp"] for line in lines if not line["accepted"])
+    assert not any(line["same_over_mcp"] for line in lines if line["accepted"])
+    assert all("answer" not in line for line in lines)
+
+
+def test_the_real_server_is_launched_on_the_board_with_the_calls_features():
+    board = pilot.SNAPSHOT
+    for features, arm in (
+        (frozenset(), "pe"),
+        (frozenset({"names", "flat"}), "pe:flat+names"),
+        (frozenset(pilot.TOOL_FEATURES), "pe:" + "+".join(sorted(pilot.TOOL_FEATURES))),
+    ):
+        parameters = replay._server_parameters(board, features)
+        assert parameters.command == sys.executable
+        assert parameters.args[:2] == ["-m", "policybench_calculator.mcp_server"]
+        assert parameters.args[2:] == [
+            *("--arm", arm, "--board", str(board), "--workers", "1")
+        ]
+        assert core.arm_features(arm) == features
+        assert parameters.cwd == str(ROOT)
+
+
 def test_a_record_whose_features_are_not_its_arms_is_refused(runs):
     path = runs / "model-b/abl-add-names/mctest/households/mt_000.json"
     record = json.loads(path.read_text())
