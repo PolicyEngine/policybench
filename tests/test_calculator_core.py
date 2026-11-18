@@ -468,8 +468,8 @@ def written_cases(draw):
         facts = draw(st.sampled_from(holding))
         return facts, draw(st.sampled_from(sorted(set(facts) - {"members"})))
 
-    for slip in draw(st.sampled_from([[], [], [0], [0], [0, 1]])):
-        del slip
+    other_shape = False
+    for _ in draw(st.sampled_from([[], [], [0], [0], [0, 1]])):
         kind = draw(st.sampled_from(SLIPS))
         facts, name = a_fact(containers + unit_containers)
         if kind in ("spaces", "capitals", "label", "unknown name") and facts:
@@ -523,8 +523,10 @@ def written_cases(draw):
                 st.sampled_from([[], ["ghost"], [names[0], names[0]], "head"])
             )
         elif kind == "other shape":
-            flat = not flat
-    arguments["household" if flat else "situation"] = (
+            other_shape = not other_shape
+    # The payload keeps its shape; "other shape" only files it under the
+    # argument the arm does not take.
+    arguments["household" if flat != other_shape else "situation"] = (
         json.dumps(payload) if draw(st.booleans()) else payload
     )
     message = json.dumps(arguments) if draw(st.booleans()) else arguments

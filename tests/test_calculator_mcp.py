@@ -11,7 +11,6 @@ are the real ones.
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 import socket
@@ -31,9 +30,6 @@ import tool_pilot_argon as pilot  # noqa: E402
 from policybench_calculator import core, mcp_client, mcp_server  # noqa: E402
 
 FAKE_SERVER = ROOT / "tests/calculator_mcp_fake.py"
-needs_mcp = pytest.mark.skipif(
-    importlib.util.find_spec("mcp") is None, reason="needs the mcp extra"
-)
 
 FLAT_HOUSEHOLD = {
     "state": "CA",
@@ -236,7 +232,6 @@ def _listed(tools) -> dict:
     }
 
 
-@needs_mcp
 @pytest.mark.parametrize("arm", sorted(CALLS))
 def test_the_server_lists_the_pilots_tool_and_gives_the_pilots_answers(arm):
     import anyio
@@ -275,7 +270,6 @@ def test_the_server_lists_the_pilots_tool_and_gives_the_pilots_answers(arm):
     assert calculator.engine in seen["server"].description
 
 
-@needs_mcp
 def test_a_pool_with_no_worker_is_a_protocol_error_not_an_answer(monkeypatch):
     import anyio
     from mcp import Client, MCPError
@@ -308,7 +302,6 @@ def _launch(arm: str):
     )
 
 
-@needs_mcp
 def test_over_stdio_the_handshake_era_reads_the_same_tool_and_answers():
     """A 2025-era client (initialize, then tools/list and tools/call) over the
     stdio transport, with the server in its own process."""
@@ -365,7 +358,6 @@ def http_server():
             process.kill()
 
 
-@needs_mcp
 def test_over_http_both_protocol_eras_read_the_same_tool_and_answers(http_server):
     import anyio
     from mcp import Client, ClientSession
@@ -404,7 +396,6 @@ def test_over_http_both_protocol_eras_read_the_same_tool_and_answers(http_server
     assert seen["modern answers"] == seen["handshake answers"] == answers
 
 
-@needs_mcp
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
 def test_the_client_is_a_tool_call_for_the_pilots_loop(mode):
     """McpToolCall has ToolPool.call's shape, and gives its results: for

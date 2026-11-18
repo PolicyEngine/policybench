@@ -24,9 +24,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "hypothesis>=6.100",
+    "mcp==2.3.0",  # the calculator's MCP server tests open real sessions
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.4",
+]
+# The calculator's MCP server (policybench_calculator.mcp_server), written
+# against this release's low-level Server.
+mcp = [
+    "mcp==2.3.0",
 ]
 docs = [
     "ipykernel>=6.0",
@@ -37,6 +43,7 @@ docs = [
 
 [project.scripts]
 policybench = "policybench.cli:main"
+policybench-calculator-mcp = "policybench_calculator.mcp_server:main"
 
 [tool.setuptools.packages.find]
 include = ["policybench*"]
