@@ -167,11 +167,6 @@ export default function ExpandPage() {
             has paid us to evaluate its models. Every slice stays public —
             prompts, references, predictions, and diagnoses.
           </p>
-          <p className="mt-2 text-xs leading-relaxed text-text-muted">
-            November 18, 2026: we removed &ldquo;vendor funding for separate
-            projects never touches the benchmark&rdquo; from this page because
-            we could not show it.
-          </p>
         </div>
 
         <div className="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
