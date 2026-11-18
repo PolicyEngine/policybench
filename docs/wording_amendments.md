@@ -7,10 +7,12 @@ note, or a decision's reasoning in the adjudication record), the exact old
 text and its replacement. Each release that made amendments appended them as
 one block. Release dashboard-data-20261006's whole-field rewrites are in two
 other records (`docs/release_20261006/annotation_rewrites.json` and
-`reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json`): its 342
-on audit text are on cases release 20261010 re-judged, and its 9 on the
-reference explanations stay published, since the drivers hold that file to
-the base release's bytes. `policybench/wording_amendments.py` says which of
+`reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json`). Its 342
+on audit text are on cases release 20261010 re-judged. Its 9 on the
+reference explanations show their new text at every board release since.
+Three later releases, 20261010, 20261013 and 20261027, changed that file, but
+only in 23, 9 and 4 other rows. Nothing in this module checks those 9.
+`policybench/wording_amendments.py` says which of
 the record's entries are in force and whether the committed files publish
 them, and gives the next board release the restoration of the 14 that no
 release since dashboard-data-20261014 has published.
@@ -42,8 +44,9 @@ Release dashboard-data-20261111's carry (`carry_kept_wording`,
 `docs/fable52/design.md`) carries each kept case's text from release
 20261027's committed files, so it carried the old text too, as
 `committed_amendments` in `scripts/freeze_fable52.py` notes. No other entry
-of the record, and none of release 20261006's 351 rewrites, was dropped:
-each is published at its own release. Compared release to release, the text
+of the record, and none of release 20261006's 351 rewrites, was dropped on a
+case a later release kept: each is published at its own release, and while
+its case is kept. Compared release to release, the text
 of a case the later release kept changed only through release 20261006's
 rewrites, the 14, and the adjudication sentences new decisions appended.
 
@@ -68,6 +71,19 @@ cuts words has its new text inside its old; `holds` counts each outside the
 other. The test is presence in the target's text, not position: a target
 whose row, note or decision is gone reads MISSING, and an old text that an
 unrelated later edit puts back in the same field reads BOTH. Both fail safe.
+So does a decision that a later release replaces outright or removes: its
+reasoning amendments read NEITHER or MISSING, and that release fails the
+tests until it lists amendments for the new reasoning or this module gains a
+rule that retires the old ones.
+
+The rule cannot see a re-judge whose new text says again what a retired
+amendment corrected. At release 20261111, 11 retired row amendments read
+that way: their old text is published and their new text is not. They are
+entry 323 (retired by release 20261010), entries 688 and 792 (20261014), and
+entries 1355, 1560, 1709, 1818, 1943, 2023, 2133 and 2377 (20261111). A
+re-judge can change the reference or the verdict, so whether each row is
+still wrong takes a case-by-case reading. That reading is outside this
+restoration.
 
 `tests/test_wording_amendments.py` holds the working tree's committed row
 annotations, case notes, adjudication record and snapshot to every amendment
@@ -83,8 +99,9 @@ The tests check that with release 20261111's data from git: a Hypothesis
 property puts back the old text of any of the 414 row and note amendments in
 force that no later entry rewrites and requires `dropped_amendments` to name
 it and `restore_frames` to give the files back; undoing the whole chain of
-each of the 414 targets in force flags it; and reverting each of the 17
-decisions' reasoning, in the record or only in the sentence, is caught.
+each of the 414 targets in force flags it; and reverting the reasoning of
+each of the 10 decisions the 17 reasoning amendments correct, in the record
+or only in the sentence, flags every one of the 17.
 
 ## The restoration, for the next board release
 
@@ -108,7 +125,10 @@ release 20261111 as its base, takes the restoration through the carry:
 2. `prepare_inputs` writes the restored text when it copies the two
    annotation files into the bundle (`restore_csv_texts`, which writes them as
    triage does), so a full `--early` rehearsal, which runs check (a) on the
-   copied files, carries the restoration too.
+   copied files, carries the restoration too. Read the two files from
+   `BASE_COMMIT` there too, as step 1 does, rather than from the working tree;
+   otherwise a direct fix to the committed files that lands first makes
+   `restore_text` refuse (it fails closed).
 3. Check (a), `base_restoration_problems`, compares the scope export's cells
    with `restore_payload(live, entries, reopened=reopened)` instead of
    `live`, in `_build_payload_in_scratch`, which export and the freeze's
@@ -116,20 +136,34 @@ release 20261111 as its base, takes the restoration through the carry:
    text; `restore_payload` skips it, and check (a) exempts its text fields
    anyway.
 4. The record is not changed: the 14 entries are already in it. The freeze's
-   `committed_amendments` note about them is dropped.
+   `committed_amendments` note about them is dropped, and the forked
+   docstrings that say the carry reproduces the base's committed wording say
+   instead that it carries the restored base.
 5. The release adds itself to `RELEASES`, with its block size and its pinned
    judge provenance. `known_dropped` gives it none, so the tests hold its
    committed files and snapshot to all 14. The restoration tests read
    release 20261111's files from git and need no change.
+6. The driver's inherited MOCK boards (the freeze tests' `_h_build_template`
+   and the finish tests' `_serve_mock_base`) run triage and export on MOCK
+   files and a MOCK record, where the restoration raises. Give steps 1 and 3
+   one shared, explicit seam: for example, a module-level function or
+   constant that names the entries to restore, which the MOCK fixtures patch
+   to none, as they already patch `SEED_DIGEST_SHA256`. Add one test that the
+   unpatched driver restores all 14 on the real base. Do not use a try/except
+   or a condition on the record's shape: a seam that can turn both steps off
+   in production passes check (a) and the kept gate, because both sides are
+   then unrestored. Only step 5's tests would catch it, after the freeze.
 
 `tests/test_wording_amendments.py` runs steps 1 and 3 through the Fable 5.2
 driver's functions: with the restored base, triage's frames are the restored
 files and the kept-case gate passes them; a release that carries the base
 without the restoration fails that gate on each of the ten targets. Against
-the restored base payload, check (a) passes an export carrying the
-restoration, flags the one cell of an export missing one restored row, and
-flags all 18 cells of an export missing all of it. It does not run the
-next driver, which does not exist yet.
+the restored base payload, check (a) flags the one cell of an export
+missing one restored row and all 18 cells of an export missing all of it.
+Its passing case builds the export with `restore_payload` itself, so it
+shows only that check (a) accepts the restored payload. It does not run
+export from the restored files, or the next driver, which does not exist
+yet.
 
 Publishing the restoration changes published text on kept cells, so it ships
 only on the maintainer's go. The release note would say: "Restores the

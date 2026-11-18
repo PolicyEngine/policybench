@@ -10,8 +10,9 @@ replacement. Each release that made amendments appended them as one block.
 records, docs/release_20261006/annotation_rewrites.json and
 reference_audit/2026-10-05-medicaid-031-annotations/rewrites.json. Its 342 on
 audit text are on cases release 20261010 re-judged; its 9 on the reference
-explanations stay in force, and the drivers hold that file to the base
-release's bytes.)
+explanations are published at every board release since. The three releases
+that changed that file since, 20261010, 20261013 and 20261027, changed other
+rows. Nothing here checks those 9.)
 
 A row annotation or case note amendment stays in force until a later release
 re-judges its case: the new verdict then replaces the text it corrected, and
@@ -445,6 +446,11 @@ def known_dropped(tag: str) -> tuple[int, ...]:
 
 def dropped_by_20261014(record: Sequence[dict]) -> list[dict]:
     """The 14 entries to restore, checked against their pin."""
+    _require(
+        len(record) > DROPPED_BY_20261014[-1],
+        f"the record has {len(record)} entries; the 14 are entries "
+        f"{DROPPED_BY_20261014[0]} to {DROPPED_BY_20261014[-1]}",
+    )
     entries = [record[i] for i in DROPPED_BY_20261014]
     digest = hashlib.sha256(
         json.dumps(entries, sort_keys=True, ensure_ascii=False).encode()
@@ -514,6 +520,10 @@ def restore_frames(rows, notes, entries: Sequence[dict], *, reopened=frozenset()
     entry corrected. Entries are applied in the order given.
     """
     rows, notes = rows.copy(), notes.copy()
+    _require(
+        rows.index.is_unique and notes.index.is_unique,
+        "restore_frames needs frames with a unique index",
+    )
     restored: list[dict] = []
     skipped: list[dict] = []
     for entry in entries:
@@ -549,10 +559,12 @@ def restore_csv_texts(
     rows_text: str, notes_text: str, entries: Sequence[dict], *, reopened=frozenset()
 ):
     """The row annotations and case notes files' text with ``entries``
-    restored (restore_frames), each read with every cell as its text and
-    written as triage writes it (``to_csv(index=False)``, which gives the
-    committed files back byte for byte), and the entries restored and
-    skipped."""
+    restored (restore_frames), each read with ``keep_default_na=False`` (so
+    empty cells stay empty; pandas still infers numeric and boolean columns)
+    and written as triage writes it (``to_csv(index=False)``), and the
+    entries restored and skipped. With no entries this gives each board
+    release's committed files back byte for byte, from dashboard-data-20260930
+    to dashboard-data-20261111."""
     import pandas as pd
 
     rows, notes = (

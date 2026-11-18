@@ -42,6 +42,12 @@ TAG_20261111 = "dashboard-data-20261111"
 # the six restored rows' cells, five of them among the 17.
 RESTORED_CELLS = 18
 RESTORED_CELL_FIELDS = 23
+# Of the 32 in-force amendments that later entries of their target rewrite
+# (18 case notes, 7 rows, 7 reasoning) at release 20261111, 20 can be dropped
+# alone with the later entries kept; in the other 12 a later entry rewrites
+# words inside the dropped entry's new text.
+BUILT_INSIDE = 20
+UNBUILDABLE_INSIDE = 12
 
 FIVE_CASES = Counter(
     {
@@ -163,9 +169,13 @@ def base_dropped(source) -> list[tuple[int, str]]:
 def test_the_registry_lists_every_release_since_the_record_began():
     """The releases' blocks cover the record, the last release is the one
     the app's pointer names, every committed judge provenance file is a
-    listed release's and matches its pin, and the record only grows. A
-    release that appends amendments, re-judges cases, moves the pointer or
-    edits a provenance file without a RELEASES entry fails here."""
+    listed release's and matches its pin, and the record begins with release
+    20261111's record unchanged. A release that appends amendments, commits a
+    judge_provenance.json under docs/, moves the pointer or edits a
+    provenance file without a RELEASES entry fails here. (Entries appended
+    after release 20261111 are held only by the count here and by the
+    invariant below. A freeze forked from scripts/freeze_fable52.py commits
+    the base's record with only its own block appended: committed_amendments.)"""
     assert len(wa.entry_releases(record())) == len(record())
     pointer = json.loads((ROOT / wa.POINTER_PATH).read_text())
     assert wa.RELEASES[-1].tag == pointer["tag"]
@@ -512,12 +522,40 @@ def test_rebuilding_any_target_from_before_its_amendments_is_caught():
     assert 2398 in chains[wa.target(record[2398])]
 
 
+def test_dropping_one_amendment_inside_a_chain_is_caught():
+    """An in-force amendment that later entries of its target rewrite,
+    dropped alone (its new text back to its old, the later entries kept), is
+    flagged. That is the path where entry_state undoes the later entries
+    first. Some such drops cannot be built, because a later entry rewrites
+    words inside this entry's new text; the rest are all caught."""
+    record = base_record()
+    later = wa.later_same_target(record)
+    source = wa.frame_source(*restored_frames(), base_adjudications())
+    built: list[int] = []
+    unbuildable: list[int] = []
+    for index, entry in enumerate(record):
+        if base_superseded()[index] is not None or not later[index]:
+            continue
+        text = source(entry)[0]
+        dropped = undo(text, later[index]).replace(entry["new"], entry["old"], 1)
+        for after in later[index]:
+            if after["old"] not in dropped:
+                unbuildable.append(index)
+                break
+            dropped = dropped.replace(after["old"], after["new"], 1)
+        else:
+            built.append(index)
+            state = wa.entry_state(dropped, entry, later[index])
+            assert state != wa.APPLIED, (index, state)
+    assert (len(built), len(unbuildable)) == (BUILT_INSIDE, UNBUILDABLE_INSIDE)
+
+
 @pytest.mark.parametrize("where", ["record", "sentence"])
 def test_reverting_any_decisions_reasoning_is_caught(where):
-    """Each of the 17 reasoning amendments, its chain undone in the
-    adjudication record (or only in the case note's adjudication sentence
-    that restates it), is flagged: a re-judge does not retire a decision's
-    reasoning."""
+    """The 17 reasoning amendments correct 10 decisions. Undoing each
+    decision's chain in the adjudication record (or only in the case note's
+    adjudication sentence that restates it) flags every amendment in the
+    chain: a re-judge does not retire a decision's reasoning."""
     rows, notes = base_frames()
     record = base_record()
     later = wa.later_same_target(record)
@@ -525,7 +563,7 @@ def test_reverting_any_decisions_reasoning_is_caught(where):
     for index, entry in enumerate(record):
         if entry["field"] == "reasoning":
             chains.setdefault(wa.target(entry), []).append(index)
-    assert sum(map(len, chains.values())) == 17
+    assert sum(map(len, chains.values())) == 17 and len(chains) == 10
     for (case, _, _), chain in chains.items():
         _, scenario, variable = case.split("__")
         decisions = [dict(e) for e in base_adjudications()]
@@ -547,7 +585,7 @@ def test_reverting_any_decisions_reasoning_is_caught(where):
                 sentence, [record[i] for i in chain]
             )
         found = dict(base_dropped(wa.frame_source(rows, edited, decisions)))
-        assert any(i in found for i in chain), (case, where)
+        assert all(i in found for i in chain), (case, where, chain, found)
         assert later[chain[0]] == [record[i] for i in chain[1:]]
 
 
