@@ -418,6 +418,85 @@ def test_the_client_is_a_tool_call_for_the_pilots_loop(mode):
     assert [json.dumps(result) for result, _ in results] == _pilot_answers(arm, calls)
 
 
+# A household written for this test (no benchmark household), for the engine.
+ENGINE_HOUSEHOLD = {
+    "state": "CA",
+    "people": [
+        {"role": "head", "facts": {"age": 34, "employment_income": 28000}},
+        {"role": "dependent", "facts": {"age": 6}},
+    ],
+}
+LABELLED_HOUSEHOLD = {
+    "state": "CA",
+    "people": [
+        {"role": "head", "facts": {"age": 34, "gross wages and salaries": 28000}},
+        {"role": "dependent", "facts": {"Age": 6}},
+    ],
+}
+ENGINE_CALLS = [
+    {"household": ENGINE_HOUSEHOLD, "variables": ["eitc", "snap", "income_tax"]},
+    {"household": json.dumps(LABELLED_HOUSEHOLD), "variables": ["eitc"]},
+    {"household": ENGINE_HOUSEHOLD, "variables": ["eitc"], "explain": ["eitc"]},
+    {
+        "household": ENGINE_HOUSEHOLD,
+        "variables": ["eitc"],
+        "explain": ["eitc"],
+        "detail": "full",
+        "period": "2026",
+    },
+    {"household": ENGINE_HOUSEHOLD, "variables": ["telepathy"]},
+    {"situation": {"people": {"head": {"age": 34}}}, "variables": ["eitc"]},
+]
+ENGINE_TIMEOUT_SECONDS = 600.0
+
+
+@pytest.mark.slow
+def test_on_the_engine_the_server_answers_as_the_pilots_pool():
+    """End to end on policyengine-us: the server as its command starts it
+    (stdio, the frozen board, the pilot's own worker) against the pilot's pool
+    on the same board, for calls it accepts, explains and refuses. Needs the
+    frozen board's engine, starts two engine workers, and takes minutes."""
+    from mcp import StdioServerParameters
+
+    engine = pilot.board_engine()
+    if pilot._versions()["policyengine-us"] != engine:
+        pytest.skip("the installed policyengine-us is not the frozen board's")
+    arm = "pe3"
+    pool = pilot.ToolPool(
+        size=1, timeout=ENGINE_TIMEOUT_SECONDS, tool_features=pilot.arm_features(arm)
+    )
+    try:
+        expected = [json.dumps(pool.call(arguments)[0]) for arguments in ENGINE_CALLS]
+        assert pool.counters() == {"timeouts": 0, "crashes": 0, "lost": 0}
+    finally:
+        pool.close()
+    launch = StdioServerParameters(
+        command=sys.executable,
+        args=[
+            *("-m", "policybench_calculator.mcp_server", "--arm", arm),
+            *("--workers", "1", "--timeout", str(ENGINE_TIMEOUT_SECONDS)),
+        ],
+        cwd=str(ROOT),
+        env=dict(os.environ),
+    )
+    with mcp_client.McpToolCall(
+        launch, call_timeout=2 * ENGINE_TIMEOUT_SECONDS
+    ) as tool_call:
+        listed = tool_call.tool()
+        provenance = tool_call.provenance()
+        answers = [json.dumps(tool_call(arguments)[0]) for arguments in ENGINE_CALLS]
+    assert listed == _pilot_tool(arm, engine)
+    assert provenance["policyengine-us"] == engine
+    assert provenance["fix_module_sha256"] == pilot.FIX_MODULE_SHA256
+    assert answers == expected
+    results = [json.loads(text) for text in answers]
+    assert all("results" in result for result in results[:4]), results[:2]
+    assert results[1].get("notes"), "the labelled household is read with notes"
+    assert "explanations" in results[2] and "explanations" in results[3]
+    assert results[2]["explanations"] != results[3]["explanations"]
+    assert [result.get("error") for result in results[4:]] == ["validation"] * 2
+
+
 def test_the_schema_hash_is_the_sorted_dumps_sha256():
     calculator = fake.calculator("pe")
     assert (
