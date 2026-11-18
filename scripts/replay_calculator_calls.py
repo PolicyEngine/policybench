@@ -26,10 +26,11 @@ and the arguments' text) the script:
 Steps 1, 2 and 4 are the gate: any difference exits 1. Step 3 is reported per
 run folder, because the records come from several commits of the harness.
 
-The development households are not public, so neither the records nor this
-script's per-call output belong in the repository: ``--out`` gets
-``progress.jsonl`` (one line per distinct call, appended as it finishes, so a
-rerun resumes) and ``summary.json`` (counts only).
+The development households are not public, so the records stay outside the
+repository and this script writes nothing of theirs: ``--out`` gets
+``progress.jsonl`` (one line of comparisons per distinct call, keyed by a
+hash and appended as the call finishes, so a rerun resumes) and
+``summary.json`` (counts only).
 """
 
 from __future__ import annotations
@@ -110,8 +111,11 @@ def _framed(module, features: frozenset, arguments):
     return module.tool_call_frame(features, arguments) if features else arguments
 
 
-def replay_one(system, registries: dict, entry: dict, simulation_cls=None) -> dict:
-    """One distinct call through both copies; see the module docstring."""
+def replay_one(
+    system, registries: dict, entry: dict, simulation_cls=None
+) -> tuple[dict, str]:
+    """One distinct call through both copies (see the module docstring): the
+    comparisons, and the package's answer text."""
     features, arguments = entry["features"], entry["arguments"]
     started = time.perf_counter()
     answers, readings, accepted = {}, {}, {}
@@ -146,9 +150,8 @@ def replay_one(system, registries: dict, entry: dict, simulation_cls=None) -> di
             _framed(core, features, sent), registries[core]
         )
         line["same_as_object"] = json.dumps([request, error]) == readings[core]
-    line["answer"] = answers[core]
     line["seconds"] = round(time.perf_counter() - started, 3)
-    return line
+    return line, answers[core]
 
 
 def summarize(calls: dict[str, dict], lines: dict[str, dict]) -> dict:
@@ -248,13 +251,11 @@ def replay(
             with progress.open("a") as handle:
                 for index, key in enumerate(todo, start=1):
                     entry = calls[key]
-                    line = {
-                        "key": key,
-                        **replay_one(system, registries, entry, simulation_cls),
-                    }
+                    line, answer = replay_one(system, registries, entry, simulation_cls)
+                    line = {"key": key, **line}
                     if over_mcp and line["sendable"]:
                         line["same_over_mcp"] = (
-                            _over_mcp(sessions, board, entry) == line["answer"]
+                            _over_mcp(sessions, board, entry) == answer
                         )
                     lines[key] = line
                     handle.write(json.dumps(line) + "\n")
