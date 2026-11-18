@@ -242,8 +242,12 @@ def test_the_mcp_path_sends_each_sendable_call_through_a_server(
         json.loads(text)
         for text in (tmp_path / "out/progress.jsonl").read_text().splitlines()
     ]
-    assert all(line["same_over_mcp"] for line in lines if not line["accepted"])
-    assert not any(line["same_over_mcp"] for line in lines if line["accepted"])
+    sent = [line for line in lines if line["sendable"]]
+    unsent = [line for line in lines if not line["sendable"]]
+    assert len(sent) == 5 and len(unsent) == 1
+    assert "same_over_mcp" not in unsent[0]
+    assert all(line["same_over_mcp"] for line in sent if not line["accepted"])
+    assert not any(line["same_over_mcp"] for line in sent if line["accepted"])
     assert all("answer" not in line for line in lines)
 
 
