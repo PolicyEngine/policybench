@@ -221,7 +221,15 @@ def build_server(calculator: Calculator):
                 code=types.INVALID_PARAMS, message=f"Unknown tool: {params.name}"
             )
         arguments = {} if params.arguments is None else params.arguments
-        result, _ = await anyio.to_thread.run_sync(calculator.call, arguments)
+        try:
+            result, _ = await anyio.to_thread.run_sync(calculator.call, arguments)
+        except Exception as error:
+            # Said here, in the server's own words: on a handshake-era
+            # connection the SDK would otherwise send a client the
+            # exception's text.
+            raise MCPError(
+                code=types.INTERNAL_ERROR, message="the calculator is unavailable"
+            ) from error
         if result.get("error") == core.POOL_UNAVAILABLE:
             # Infrastructure, not an answer: the pilot stops the household
             # rather than show a model this result, so it is a protocol error.
