@@ -3854,12 +3854,15 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
 ):
     """Gemini 4 Neon's card, written before the model's onboarding, takes
     Gemini 4 Hydrogen's contract, the board's forced answer tool; Google's
-    model page lists function calling as supported, and the onboarding
-    gauntlet's tool probes settle whether the contract stays. The request
-    carries no reasoning parameter, so the model reasons at Google's
-    default, high per Google's thinking guide, as Hydrogen does. It takes
-    the thinking-default class's 300s timeout and the Gemini family's
-    16,384-token starting budget."""
+    model page lists function calling as supported. The onboarding
+    gauntlet's 3-variable tool and JSON probes both ran out of the
+    16,384-token budget, so they settled nothing between the contracts; a
+    two-household smoke on the board's escalating request settles whether
+    the contract stays. The request carries no reasoning parameter, so the
+    model reasons at Google's default, high per Google's thinking guide, as
+    Hydrogen does. It takes the card's 600s timeout, set from the probes'
+    output rate for a request at the 65,536-token ceiling, and the Gemini
+    family's 16,384-token starting budget."""
     from policybench.eval_no_tools import (
         ANSWER_FUNCTION_NAME,
         _answer_contract_for_model,
@@ -3869,7 +3872,7 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
     model_id = "gemini/gemini-4-neon"
     assert _answer_contract_for_model(model_id, env={}) == "tool"
     assert _thinking_configuration(model_id) == {"mode": "provider_default"}
-    assert _request_timeout_seconds(model_id) == 300
+    assert _request_timeout_seconds(model_id) == 600
 
     _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
 
@@ -3881,7 +3884,7 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
         ANSWER_FUNCTION_NAME
     ]
     assert kwargs["max_completion_tokens"] == 16_384
-    assert kwargs["timeout"] == 300
+    assert kwargs["timeout"] == 600
     assert "response_format" not in kwargs
     for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
         assert reasoning_key not in kwargs
