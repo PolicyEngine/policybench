@@ -160,7 +160,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   output of 128,000 tokens, the harness's escalation ceiling.
     # - expected_cost_per_scenario_usd 0.057: the cost `policybench onboard`
     #   suggested from the whole-scenario probe, rounded to three places, at
-    #   $8/$40 per 1M (its report gives no prompt or cache counts). The
+    #   OpenAI's list rates ($8/$40 per 1M, cache writes at $10). The
+    #   gauntlet report gives no prompt or cache counts, so these are
+    #   inferred. The probe sends the manifest's first scenario, which the
+    #   smoke sent as its first household, so the two requests match: 2,236
+    #   prompt tokens. That household read 2,104 of them from the cache, and
+    #   only the gauntlet ran on the model before it. Writing those 2,104 at
+    #   $10 per 1M, with the probe's 870 completion tokens, gives $0.056896;
+    #   list input and output rates alone would round to 0.053. The
     #   smoke's two households cost $0.036 and $0.063: 2,104 of the first's
     #   2,236 prompt tokens were cache reads, at $0.40 per 1M, and 2,578 of
     #   the second's 2,710 were cache writes, at $10.
@@ -177,13 +184,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Forced tool contract passed 3/3 (459 completion tokens) and 16/16 "
             "whole-scenario (870 tokens) on the Responses API, which OpenAI "
             "says tool calling on this model requires, about $0.057 per "
-            "scenario at $8/$40 per 1M. OpenAI lists it as a reasoning model "
-            "whose API rejects reasoning effort none; the model page states no "
-            "default effort, and the harness sends no reasoning parameter. A "
-            "two-household smoke parsed all 36 outputs for $0.10, with no "
-            "budget escalation and reasoning tokens on both requests (212 and "
-            "78). The responses name the model as gpt-6.2-astra, with no dated "
-            "snapshot."
+            "scenario at OpenAI's list rates ($8/$40 per 1M, cache writes at "
+            "$10). OpenAI lists it as a reasoning model whose API rejects "
+            "reasoning effort none; the model page states no default effort, "
+            "and the harness sends no reasoning parameter. A two-household "
+            "smoke parsed all 36 outputs for $0.10, with no budget escalation "
+            "and reasoning tokens on both requests (212 and 78). Both smoke "
+            "responses name the model as gpt-6.2-astra, the requested name, "
+            "with no dated snapshot."
         ),
     ),
     # GPT-6.2 Sol. Like the Astra card above, written 2026-11-17 from
@@ -210,17 +218,23 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # - request_timeout_seconds None: the thinking class's 300s. The probes
     #   took 25s and 32s and the smoke's households 43s and 28s, under the
     #   150s past which the gauntlet suggests a longer timeout. A first
-    #   gauntlet run the same day stopped on its 3-variable probe after 150s
-    #   with a litellm.Timeout and no response; the gauntlet treated it as an
-    #   environment error, not a serving fact, and derived no card. The rerun
-    #   is the one recorded here.
+    #   gauntlet run the same day stopped on its 3-variable probe with a
+    #   litellm.Timeout and no response, after 150s on the gauntlet's clock
+    #   (litellm's error cites the 300s timeout); the gauntlet classed it as
+    #   an environment error, not a serving fact, and derived no card. The
+    #   rerun is the one recorded here.
     # - provider_max_completion_tokens None: the model page lists a maximum
     #   output of 128,000 tokens, the harness's escalation ceiling.
     # - expected_cost_per_scenario_usd 0.019: the cost `policybench onboard`
     #   suggested from the whole-scenario probe, rounded to three places, at
-    #   $2/$10 per 1M (its report gives no prompt or cache counts). The
-    #   smoke's two households cost $0.021 and $0.020, with the same cache
-    #   reads (2,104 tokens) and writes (2,578) as Astra's.
+    #   OpenAI's list rates ($2/$10 per 1M, cache writes at $2.50). The
+    #   prompt and cache counts are inferred as on the Astra card: 2,236
+    #   prompt tokens, 2,104 of them written to the cache, which the smoke's
+    #   first household then read. At $2.50 per 1M, with the probe's 1,339
+    #   completion tokens, that gives $0.018914; list input and output rates
+    #   alone would round to 0.018. The smoke's two households cost $0.021
+    #   and $0.020, with the same cache reads (2,104 tokens) and writes
+    #   (2,578) as Astra's.
     # Both smoke responses name the model as gpt-6.2-sol, the requested name,
     # with no dated snapshot (provider_resolved_model).
     "gpt-6.2-sol": ModelCard(
@@ -233,13 +247,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Forced tool contract passed 3/3 (1,145 completion tokens) and "
             "16/16 whole-scenario (1,339 tokens) on the Responses API, which "
             "OpenAI says tool calling on this model requires, about $0.019 per "
-            "scenario at $2/$10 per 1M. OpenAI lists it as a reasoning model "
-            "whose API rejects reasoning effort none; the model page states no "
-            "default effort, and the harness sends no reasoning parameter. A "
-            "two-household smoke parsed all 36 outputs for $0.04, with no "
-            "budget escalation and reasoning tokens on both requests (1,344 "
-            "and 547). The responses name the model as gpt-6.2-sol, with no "
-            "dated snapshot."
+            "scenario at OpenAI's list rates ($2/$10 per 1M, cache writes at "
+            "$2.50). OpenAI lists it as a reasoning model whose API rejects "
+            "reasoning effort none; the model page states no default effort, "
+            "and the harness sends no reasoning parameter. A two-household "
+            "smoke parsed all 36 outputs for $0.04, with no budget escalation "
+            "and reasoning tokens on both requests (1,344 and 547). Both smoke "
+            "responses name the model as gpt-6.2-sol, the requested name, with "
+            "no dated snapshot."
         ),
     ),
     "gpt-6-luna": ModelCard(

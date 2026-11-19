@@ -174,15 +174,37 @@ def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
 
 
 @pytest.mark.parametrize(
-    ("model_id", "expected_cost"),
-    [("gpt-6.2-astra", 0.057), ("gpt-6.2-sol", 0.019)],
+    ("model_id", "completion_tokens", "probe_cost", "expected_cost"),
+    [
+        ("gpt-6.2-astra", 870, 0.056896, 0.057),
+        ("gpt-6.2-sol", 1_339, 0.018914, 0.019),
+    ],
 )
-def test_gpt_6_2_cards_record_the_gauntlet_cost(model_id, expected_cost):
+def test_gpt_6_2_cards_record_the_gauntlet_cost(
+    model_id, completion_tokens, probe_cost, expected_cost
+):
     """Each card carries the cost ``policybench onboard`` suggested from its
-    whole-scenario probe on 2026-11-19, rounded to three places. The gauntlet
-    report gives completion tokens but no prompt or cache counts, so, unlike
-    the Gemini 4 cards' test above, this pins the value without rebuilding
-    it from token counts."""
+    whole-scenario probe on 2026-11-19, rounded to three places, rebuilt
+    here at the model's price override as in the Gemini 4 cards' test above.
+
+    The gauntlet report gives the probe's completion tokens but no prompt or
+    cache counts, so those are inferred. The probe sends the manifest's first
+    scenario, which the smoke sent as its first household: 2,236 prompt
+    tokens, 2,104 of which that household read from the cache, and only the
+    gauntlet ran on each model before it. So the probe wrote those 2,104
+    tokens to the cache. At list input and output rates alone the probe
+    would round to 0.053 and 0.018, not the suggested costs.
+    """
+    reconstructed = _reconstruct_token_cost(
+        model_name=model_id,
+        model_id=model_id,
+        prompt_tokens=2_236,
+        completion_tokens=completion_tokens,
+        cache_write_prompt_tokens=2_104,
+    )
+    assert reconstructed.is_estimated is False
+    assert reconstructed.usd == pytest.approx(probe_cost)
+    assert round(reconstructed.usd, 3) == expected_cost
     assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
 
 
