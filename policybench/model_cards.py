@@ -982,12 +982,14 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   3-variable JSON probe ended the same way: 16,384 and 16,381,
     #   finish=length, 0 of 3, 129s. The gauntlet sends each probe once at
     #   that budget, with no budget escalation, so it found neither contract
-    #   answering, did not reach its whole-scenario probe and derived no card.
-    #   Gemini 4 Carbon's card took JSON because its JSON probes passed after
-    #   its tool probe ran out of budget; here both ran out, so the card keeps
-    #   the tool contract. The board's request escalates a length finish to
-    #   32,768 and then 65,536 tokens, and a two-household smoke on that
-    #   request settles whether the contract stays.
+    #   answering, reported the model "not scorable" at that budget, did not
+    #   reach its whole-scenario probe and derived no card. Gemini 4 Carbon's
+    #   card took JSON because its JSON probes passed after its tool probe ran
+    #   out of budget; here both ran out, so the card keeps the tool contract.
+    #   The board's request escalates a length finish to 32,768 and then
+    #   65,536 tokens, and a two-household smoke on that request settles
+    #   whether the model answers within that ceiling and whether the contract
+    #   stays.
     # - explanation_chunk_size None: the canonical whole-scenario request
     #   (chunking is closed to new models).
     # - thinking_budget True: the model reasons by default. Google's thinking
@@ -1004,36 +1006,45 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   gauntlet probe, inside 16,384 completion tokens (the other 3 text),
     #   so litellm 1.95.0 counts reasoning inside completion_tokens and the
     #   output rate prices it. The two raw calls, one direct REST
-    #   generateContent request each with no tools, asked what a single filer
-    #   with wages and interest owes in federal income tax, and generateContent
-    #   reported usageMetadata.thoughtsTokenCount on both: 7,575 of 7,930
-    #   output tokens with no thinkingConfig (the default, high), and 1,370 of
-    #   1,720 with thinkingLevel low. These are facts about the model; the
-    #   board sends no thinkingConfig, so low is not a treatment it uses.
+    #   generateContent request each with no tools, asked for a single filer's
+    #   federal income tax before refundable credits, and generateContent
+    #   reported usageMetadata.thoughtsTokenCount on both: 7,575 thought
+    #   tokens and 355 answer tokens (candidatesTokenCount) with no
+    #   thinkingConfig (the default, high), and 1,370 and 350 with
+    #   thinkingLevel low. These are facts about the model; the board sends
+    #   no thinkingConfig, so low is not a treatment it uses.
     # - request_timeout_seconds 600, set from the measured output rate as on
     #   Hydrogen's card. The gauntlet's probes ran at about 129 and 127
     #   completion tokens a second (16,384 tokens in 127s and 129s), and the
-    #   raw call at the default level at about 138 (7,930 output tokens in
-    #   57s). At those rates a request at the 32,768-token first escalation
-    #   takes about 237 to 258s, inside the thinking class's 300s, and a
-    #   request at the 65,536-token ceiling about 475 to 516s, past it. The raw
-    #   call at level low, a short one (1,720 output tokens in 16s), averaged
-    #   about 105 a second, where the call's fixed time weighs more; at that
-    #   rate a request at the ceiling would take about 624s. Google's
-    #   generateContent long-decode guide, read 2026-11-14 for the Carbon and
-    #   Hydrogen cards above and not re-read for this one, says the server
-    #   closes a non-streaming connection after 10 minutes and recommends a
-    #   20-minute client read timeout, and its option table gives 20 minutes
-    #   per request (aistudio.google.com/docs/long-decode?generate-content=true).
+    #   raw call at the default level at about 138 (7,930 thought and answer
+    #   tokens in 57s). At those rates a request at the 32,768-token first
+    #   escalation takes about 237 to 258s, inside the thinking class's 300s,
+    #   and a request at the 65,536-token ceiling about 475 to 516s, past it.
+    #   That is a constant-rate prediction from calls of at most 16,384
+    #   tokens, and the average rate was lower on the longer calls (about 138
+    #   on the raw call's 7,930 tokens, 127 to 129 on the gauntlet's 16,384),
+    #   so a request at the ceiling may run slower; the smoke's requests at
+    #   the ceiling check it. Google's generateContent long-decode guide, read
+    #   2026-11-14 for the Carbon and Hydrogen cards above and not re-read for
+    #   this one, says the server closes a non-streaming connection after 10
+    #   minutes and recommends a 20-minute client read timeout, and its option
+    #   table gives 20 minutes per request
+    #   (aistudio.google.com/docs/long-decode?generate-content=true).
     #   If the server closes at 10 minutes, a client timeout above 600s could
-    #   not help this request, which litellm sends once without streaming. If
-    #   the table's 20 minutes applies instead, 600s still exceeds the about
-    #   475 to 516s that the long calls' rates predict for a request at the
-    #   ceiling. No page read recommends a longer client timeout for this
-    #   model, as Google's Gemini 4 Carbon guide does for Carbon (hence
-    #   Carbon's 900s). The margin is smaller than Hydrogen's: a request at
-    #   the ceiling outlasts 600s at any rate below about 109 completion
-    #   tokens a second.
+    #   not help this request, which litellm sends as one non-streaming
+    #   request, with no long-decode continuation. If the table's 20 minutes
+    #   applies instead, 600s still exceeds the about 475 to 516s that those
+    #   rates predict for a request at the ceiling. This departs from
+    #   Hydrogen's test, under which 600s exceeds what the slowest rates in
+    #   its record predict: the slowest rate here, the raw call at level low
+    #   (1,720 thought and answer tokens in 16s, about 105 a second), predicts
+    #   about 624s at the ceiling. The card sets that call aside: it is short,
+    #   so the call's fixed time weighs more in its average, and it ran at a
+    #   thinking level the board does not send. No page read for Neon gives a
+    #   model-specific client timeout, as Google's Gemini 4 Carbon guide does
+    #   for Carbon (hence Carbon's 900s). The margin is smaller than
+    #   Hydrogen's: a request at the ceiling outlasts 600s at any rate below
+    #   about 109 completion tokens a second.
     # - provider_max_completion_tokens 65_536: the Models API's
     #   outputTokenLimit for the model, whose entry lists generateContent
     #   among its supported methods (models.get on
@@ -1043,7 +1054,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   synchronous" maximum output, and up to 1,048,576 with long decode. The
     #   raw call at the default level asked for maxOutputTokens 65,536 on one
     #   non-streaming generateContent request and returned 200 (it stopped at
-    #   7,930 output tokens), which shows only that the value is accepted.
+    #   7,930 thought and answer tokens), which shows only that the value is
+    #   accepted.
     # - expected_cost_per_scenario_usd is not set: the gauntlet did not reach
     #   its whole-scenario probe and derived no cost. The smoke records what
     #   a scenario costs on the board's request.
@@ -1075,28 +1087,40 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "127s), and the 3-variable JSON probe ended the same way (16,381 "
             "reasoning tokens, 0 of 3, 129s). The gauntlet sends each probe "
             "once at that budget, with no budget escalation, so it found "
-            "neither contract answering and derived no card. Both contracts "
-            "failed the same way, so the row keeps the tool contract. Two raw "
-            "generateContent calls with one plain tax question and no tools "
-            "returned thought tokens (usageMetadata.thoughtsTokenCount): "
-            "7,575 of 7,930 output tokens with no thinkingConfig, and 1,370 "
-            "of 1,720 at thinking level low, which the board does not send. "
+            "neither contract answering, reported the model not scorable at "
+            "that budget and derived no card. Both contracts failed the same "
+            "way, so the row keeps the tool contract. Two raw generateContent "
+            "calls with one plain tax question and no tools returned thought "
+            "tokens (usageMetadata.thoughtsTokenCount): 7,575 thought tokens "
+            "and 355 answer tokens with no thinkingConfig, and 1,370 and 350 "
+            "at thinking level low, which the board does not send. "
             "Both name the model as gemini-4-neon, the requested name, with "
             "no dated snapshot. The Models API gives the model an "
             "outputTokenLimit of 65,536 and lists generateContent, the method "
-            "the harness calls once without streaming, among its supported "
-            "methods; the model page gives the same 65,536 as the default "
-            "synchronous output. The gauntlet's probes and the raw call at "
-            "the default level ran at about 127 to 138 completion tokens a "
-            "second, so a request at that 65,536-token ceiling takes about "
-            "475 to 516s, and the card sets a 600s timeout, as Hydrogen's "
-            "does. Google's generateContent long-decode guide says the server "
-            "closes a non-streaming call after 10 minutes. The same guide "
-            "recommends a 20-minute client read timeout, and its option table "
-            "gives 20 minutes per request. The board's request escalates a "
-            "length finish to 32,768 and then 65,536 tokens; a two-household "
-            "smoke on that request settles whether the contract stays and "
-            "what a scenario costs. Google lists $3/$15 per 1M."
+            "the harness calls with one non-streaming request, among its "
+            "supported methods; the model page gives the same 65,536 as the "
+            "default synchronous output. The gauntlet's probes and the raw "
+            "call at the default level ran at about 127 to 138 completion "
+            "tokens a second, so a request at that 65,536-token ceiling would "
+            "take about 475 to 516s at those rates (a request slower than "
+            "about 109 tokens a second outlasts 600s), and the card sets a "
+            "600s timeout, as Hydrogen's does. That is a constant-rate "
+            "prediction from calls of at most 16,384 tokens, and the rate was "
+            "lower on the longer calls. The raw call at level low, a short "
+            "one, averaged about 105 a second, which predicts about 624s at "
+            "the ceiling; Hydrogen's 600s exceeds what the slowest rates in "
+            "its record predict, but this card sets that call aside, since "
+            "its fixed time weighs more and the board does not send its "
+            "thinking level. Google's generateContent long-decode guide (read "
+            "2026-11-14 for the Carbon and Hydrogen cards, not re-read for "
+            "Neon) says the server closes a non-streaming call after 10 "
+            "minutes. The same guide recommends a 20-minute client read "
+            "timeout, and its option table gives 20 minutes per request. The "
+            "board's request escalates a length finish to 32,768 and then "
+            "65,536 tokens; a two-household smoke on that request settles "
+            "whether the model answers within that ceiling, whether the "
+            "contract stays and what a scenario costs, and its requests at "
+            "the ceiling check the predicted time. Google lists $3/$15 per 1M."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(
