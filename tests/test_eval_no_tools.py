@@ -3490,6 +3490,11 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
         # input and $60 output per 1M.
         ("gpt-6.2-astra", 300_000, 0, 0, 0, 4.8),
         ("gpt-6.2-astra", 300_000, 10_000, 300_000, 0, 0.84),
+        # The onboarding smoke's two requests (2026-11-19): 2,236 prompt
+        # tokens, 2,104 of them cached, and 848 completion tokens; then 2,710
+        # prompt tokens, 2,578 of them cache writes, and 902 completion tokens.
+        ("gpt-6.2-astra", 2_236, 848, 2_104, 0, 0.0358176),
+        ("gpt-6.2-astra", 2_710, 902, 0, 2_578, 0.062916),
         # GPT-6.2 Sol: $2 / $10 per 1M, $0.10 cached input and $2.50 cache
         # writes (30-minute retention) up to 272k input tokens.
         ("gpt-6.2-sol", 200_000, 0, 0, 0, 0.4),
@@ -3499,6 +3504,10 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
         # Above 272k input tokens: $4 input, $0.20 cached input and $15 output.
         ("gpt-6.2-sol", 300_000, 0, 0, 0, 1.2),
         ("gpt-6.2-sol", 300_000, 10_000, 300_000, 0, 0.21),
+        # The onboarding smoke's two requests, with Astra's prompt and cache
+        # counts and 2,013 and 1,377 completion tokens.
+        ("gpt-6.2-sol", 2_236, 2_013, 2_104, 0, 0.0206044),
+        ("gpt-6.2-sol", 2_710, 1_377, 0, 2_578, 0.020479),
     ],
 )
 def test_gpt_6_2_overrides_reconstruct_token_costs(
@@ -3542,10 +3551,11 @@ def test_gpt_6_2_overrides_reconstruct_token_costs(
 def test_gpt_6_2_requests_force_the_answer_tool_and_set_no_reasoning(
     mini_scenario, model_id
 ):
-    """The GPT-6.2 Astra and Sol cards, written before onboarding, take the
-    GPT-6.1 cards' treatment: the board's forced answer tool on the Responses
-    API, which OpenAI says tool calling on these models requires, and the
-    thinking class's 16,384-token starting budget and 300s timeout. The
+    """The GPT-6.2 Astra and Sol cards, onboarded 2026-11-19, keep the GPT-6.1
+    cards' treatment: the board's forced answer tool on the Responses API,
+    which OpenAI says tool calling on these models requires and on which both
+    models' gauntlet tool probes passed, 3/3 and 16/16, and the thinking
+    class's 16,384-token starting budget and 300s timeout. The
     request carries no reasoning parameter, so each model runs at OpenAI's
     default effort, which OpenAI's pages do not state. It also leaves out
     temperature, top_p, logprobs and top_logprobs, which OpenAI's

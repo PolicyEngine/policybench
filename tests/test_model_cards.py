@@ -174,6 +174,19 @@ def test_gemini_4_carbon_and_hydrogen_cards_record_the_gauntlet_cost(
 
 
 @pytest.mark.parametrize(
+    ("model_id", "expected_cost"),
+    [("gpt-6.2-astra", 0.057), ("gpt-6.2-sol", 0.019)],
+)
+def test_gpt_6_2_cards_record_the_gauntlet_cost(model_id, expected_cost):
+    """Each card carries the cost ``policybench onboard`` suggested from its
+    whole-scenario probe on 2026-11-19, rounded to three places. The gauntlet
+    report gives completion tokens but no prompt or cache counts, so, unlike
+    the Gemini 4 cards' test above, this pins the value without rebuilding
+    it from token counts."""
+    assert card_for(model_id).expected_cost_per_scenario_usd == expected_cost
+
+
+@pytest.mark.parametrize(
     ("provider_max", "expected"), [(30_000, 30_000), (200_000, 128_000)]
 )
 def test_provider_max_limits_escalation_ceiling(monkeypatch, provider_max, expected):
