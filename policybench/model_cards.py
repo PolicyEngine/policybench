@@ -7,7 +7,8 @@ and whether reasoning-by-default token appetite needs the thinking-class
 completion budget. None of this is model *configuration* — every model still
 runs unconfigured at its provider-default reasoning effort. Cards only
 encode serving-stack facts discovered during onboarding (see
-``policybench onboard``).
+``policybench onboard``); a card written before its model's onboarding says
+so in its notes.
 
 Cards OVERRIDE the family-prefix heuristics in ``eval_no_tools``; models
 without a card (or with a field left ``None``) keep the heuristic treatment.
@@ -959,6 +960,73 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "non-streaming call after 10 minutes. The same guide recommends "
             "a 20-minute client read timeout, and its option table gives 20 "
             "minutes per request. Google lists $1.50/$7.50 per 1M."
+        ),
+    ),
+    # Gemini 4 Neon. This card is written from Google's documentation, read
+    # 2026-11-19, the day after Google released the model, and from the Gemini
+    # 4 Hydrogen card above, whose default thinking level, high, it shares. It
+    # records no request to the model. Field by field:
+    # - answer_contract "tool": Hydrogen's contract, the board's forced answer
+    #   tool, which litellm sends as mode ANY with allowed_function_names.
+    #   Google's model page lists function calling as supported
+    #   (aistudio.google.com/docs/models/gemini-4-neon), and the API
+    #   reference's FunctionCallingConfig describes mode ANY for every model,
+    #   naming no exception (aistudio.google.com/api-reference/caching). No
+    #   page read says whether a forced call works on this model, and Gemini 4
+    #   Carbon's forced call, accepted by the API, ran out of the 16,384-token
+    #   budget in its gauntlet. The onboarding gauntlet's tool probes settle
+    #   the contract.
+    # - explanation_chunk_size None: the canonical whole-scenario request
+    #   (chunking is closed to new models).
+    # - thinking_budget True: the model reasons by default. Google's thinking
+    #   guide lists its default as "On (high)", with levels low, medium, high
+    #   and xhigh, and lists "minimal" as not supported on Gemini 4 models
+    #   (aistudio.google.com/docs/thinking); no page read says thinking can be
+    #   turned off. So the model is in the thinking-default class and takes
+    #   that class's 300s timeout. The 16,384-token starting budget is not
+    #   the card's: the harness gives every gemini/ id 16,384
+    #   (GEMINI_JSON_MAX_COMPLETION_TOKENS). The harness sends no
+    #   thinkingConfig. Google's pricing page bills thinking tokens as output
+    #   ("Output price (including thinking tokens)",
+    #   aistudio.google.com/docs/pricing). The onboarding probes record
+    #   whether the model reasons on the board's request and how much of the
+    #   budget it uses.
+    # - request_timeout_seconds None: the thinking class's 300s, as on
+    #   Hydrogen's card before its onboarding. Hydrogen's onboarding set 600s
+    #   from its measured output rate for a request at the same 65,536-token
+    #   ceiling; Neon's probe durations settle its own.
+    # - provider_max_completion_tokens 65_536: the Models API's
+    #   outputTokenLimit for the model, whose entry lists generateContent
+    #   among its supported methods (models.get on
+    #   generativelanguage.googleapis.com/v1beta/models/gemini-4-neon, read
+    #   2026-11-19). litellm makes one non-streaming generateContent request.
+    #   Google's model page gives the same 65,536 as the model's "default
+    #   synchronous" maximum output, and up to 1,048,576 with long decode.
+    # - expected_cost_per_scenario_usd is not set: no per-scenario cost has
+    #   been measured.
+    "gemini/gemini-4-neon": ModelCard(
+        litellm_id="gemini/gemini-4-neon",
+        answer_contract="tool",
+        thinking_budget=True,
+        provider_max_completion_tokens=65_536,
+        notes=(
+            "Written 2026-11-19 from Google's documentation, read that day, "
+            "the day after Google released the model; the card records no "
+            "request to the model. The Gemini API changelog lists "
+            "gemini-4-neon as generally available on 2026-11-18, on the paid "
+            "tier; Google's pricing page lists no free tier for it. The card "
+            "takes Gemini 4 Hydrogen's treatment, the board's forced answer "
+            "tool on the whole-scenario request; Google's model page lists "
+            "function calling as supported. The harness sends no "
+            "thinkingConfig, and Google's thinking guide lists the model's "
+            "default as On (high), with levels low, medium, high and xhigh, "
+            "as for Hydrogen. The Models API gives the model an "
+            "outputTokenLimit of 65,536 and lists generateContent, the method "
+            "the harness calls once without streaming, among its supported "
+            "methods; the model page gives the same 65,536 as the default "
+            "synchronous output. Google lists $3/$15 per 1M. The onboarding "
+            "gauntlet settles whether the forced tool works and what the "
+            "model's default reasoning costs per scenario."
         ),
     ),
     "openrouter/z-ai/glm-5.3": ModelCard(

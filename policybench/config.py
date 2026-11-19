@@ -126,6 +126,13 @@ MODELS = {
     # page's one stable version; Google lists no dated snapshot
     # (aistudio.google.com/docs/models/gemini-4-hydrogen, read 2026-11-13).
     "gemini-4-hydrogen": "gemini/gemini-4-hydrogen",
+    # Gemini 4 Neon. The Gemini API changelog lists gemini-4-neon as
+    # generally available on 2026-11-18, on the paid tier
+    # (aistudio.google.com/docs/changelog, read 2026-11-19). It runs on the
+    # first-party Gemini API like the other Gemini rows. The id is the model
+    # page's one stable version; Google lists no dated snapshot
+    # (aistudio.google.com/docs/models/gemini-4-neon, read 2026-11-19).
+    "gemini-4-neon": "gemini/gemini-4-neon",
     # Cloaked OpenRouter preview listed 2026-08-20 (free window); Z.ai later
     # identified it as GLM-5.3-Flash. On the board as a labeled preview row.
     "ox-alpha": "openrouter/stealth/ox-alpha",
@@ -318,6 +325,15 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # $1.50 / $7.50; the override prices a request from the rates above
     # whether or not the map is available.
     "gemini-4-hydrogen": {"input": 1.5, "output": 7.5, "cache_read": 0.075},
+    # gemini-4-neon: $3 / $15 per 1M input/output tokens (output includes
+    # thinking tokens) and $0.15 cached input, the paid tier's standard
+    # rates, with no introductory rate and no dated change
+    # (aistudio.google.com/docs/pricing, read 2026-11-19). The page lists one
+    # rate at every prompt length, implicit caching only, no cache storage
+    # charge, and no free tier for this model. litellm 1.95.0's bundled price
+    # map has no gemini-4 id; the override prices a request from the rates
+    # above whether or not litellm's map has the id.
+    "gemini-4-neon": {"input": 3.0, "output": 15.0, "cache_read": 0.15},
     # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
     "glm-5.3": {"input": 1.40, "output": 4.40},
     # deepseek dated snapshots via OpenRouter (list prices 2026-09-03).

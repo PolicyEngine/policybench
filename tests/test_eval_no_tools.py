@@ -3373,6 +3373,45 @@ def test_gemini_4_hydrogen_override_reconstructs_token_costs(
     assert reconstructed.is_estimated is False
 
 
+def test_gemini_4_neon_runs_first_party_at_googles_list_rate():
+    """Gemini 4 Neon runs on the first-party Gemini API, like the other
+    Gemini rows, at the paid-tier rate on Google's pricing page: $3 / $15 per
+    1M input/output tokens (output includes thinking tokens) and $0.15
+    cached input, at every prompt length, with no introductory rate and no
+    dated change. The page lists no free tier for the model."""
+    assert MODELS["gemini-4-neon"] == "gemini/gemini-4-neon"
+    assert PRICE_OVERRIDES_PER_1M["gemini-4-neon"] == {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_read": 0.15,
+    }
+
+
+@pytest.mark.parametrize(
+    ("prompt_tokens", "completion_tokens", "cached_prompt_tokens", "expected"),
+    [
+        (1_000_000, 0, 0, 3.0),
+        (0, 1_000_000, 0, 15.0),
+        (1_000_000, 1_000_000, 0, 18.0),
+        (1_000_000, 0, 1_000_000, 0.15),
+        (1_000_000, 0, 250_000, 2.2875),
+    ],
+)
+def test_gemini_4_neon_override_reconstructs_token_costs(
+    prompt_tokens, completion_tokens, cached_prompt_tokens, expected
+):
+    reconstructed = _reconstruct_token_cost(
+        model_name="gemini-4-neon",
+        model_id="gemini/gemini-4-neon",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cached_prompt_tokens=cached_prompt_tokens,
+    )
+
+    assert reconstructed.usd == pytest.approx(expected)
+    assert reconstructed.is_estimated is False
+
+
 # Google's listed per-1M rates (input, cached input, output; Carbon's are the
 # rates the page lists through 2026-11-30), written out here and not read from
 # PRICE_OVERRIDES_PER_1M, so the property below checks the override against
@@ -3380,6 +3419,7 @@ def test_gemini_4_hydrogen_override_reconstructs_token_costs(
 GEMINI_4_LISTED_RATES_PER_1M = {
     "gemini-4-carbon": (2.0, 0.10, 10.0),
     "gemini-4-hydrogen": (1.5, 0.075, 7.5),
+    "gemini-4-neon": (3.0, 0.15, 15.0),
 }
 
 
@@ -3389,7 +3429,7 @@ GEMINI_4_LISTED_RATES_PER_1M = {
     completion_tokens=st.integers(min_value=0, max_value=131_072),
     cached_share=st.floats(min_value=0.0, max_value=1.0),
 )
-def test_gemini_4_carbon_and_hydrogen_costs_are_linear_and_bounded_by_the_cache_rate(
+def test_gemini_4_listed_rate_costs_are_linear_and_bounded_by_the_cache_rate(
     model, prompt_tokens, completion_tokens, cached_share
 ):
     """Invariants of each override's reconstruction: the cost is the sum of
@@ -3804,6 +3844,44 @@ def test_gemini_4_hydrogen_request_forces_the_answer_tool_and_sets_no_reasoning(
     ]
     assert kwargs["max_completion_tokens"] == 16_384
     assert kwargs["timeout"] == 600
+    assert "response_format" not in kwargs
+    for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
+        assert reasoning_key not in kwargs
+
+
+def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
+    mini_scenario,
+):
+    """Gemini 4 Neon's card, written before the model's onboarding, takes
+    Gemini 4 Hydrogen's contract, the board's forced answer tool; Google's
+    model page lists function calling as supported, and the onboarding
+    gauntlet's tool probes settle whether the contract stays. The request
+    carries no reasoning parameter, so the model reasons at Google's
+    default, high per Google's thinking guide, as Hydrogen does. It takes
+    the thinking-default class's 300s timeout and the Gemini family's
+    16,384-token starting budget."""
+    from policybench.eval_no_tools import (
+        ANSWER_FUNCTION_NAME,
+        _answer_contract_for_model,
+        _chat_completion_request_kwargs,
+    )
+
+    model_id = "gemini/gemini-4-neon"
+    assert _answer_contract_for_model(model_id, env={}) == "tool"
+    assert _thinking_configuration(model_id) == {"mode": "provider_default"}
+    assert _request_timeout_seconds(model_id) == 300
+
+    _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+
+    assert kwargs["tool_choice"] == {
+        "type": "function",
+        "function": {"name": ANSWER_FUNCTION_NAME},
+    }
+    assert [tool["function"]["name"] for tool in kwargs["tools"]] == [
+        ANSWER_FUNCTION_NAME
+    ]
+    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["timeout"] == 300
     assert "response_format" not in kwargs
     for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
         assert reasoning_key not in kwargs
