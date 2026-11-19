@@ -965,10 +965,10 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # Gemini 4 Neon. This card was written from Google's documentation, read
     # 2026-11-19, the day after Google released the model, and from the Gemini
     # 4 Hydrogen card above, whose default thinking level, high, it shares.
-    # The same day the onboarding gauntlet ran under this card's request
-    # fields, and two raw generateContent calls with no tools asked the model
-    # one plain tax question; the two-household smoke has not run yet. Field
-    # by field:
+    # The same day the onboarding gauntlet ran under this card, then with the
+    # thinking class's 300s timeout, and two raw generateContent calls with no
+    # tools asked the model one plain tax question; the two-household smoke
+    # has not run yet. Field by field:
     # - answer_contract "tool": Hydrogen's contract, the board's forced answer
     #   tool, which litellm sends as mode ANY with allowed_function_names.
     #   Google's model page lists function calling as supported
@@ -1068,11 +1068,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "harness sends no thinkingConfig, and Google's thinking guide "
             "lists the model's default as On (high), with levels low, medium, "
             "high and xhigh, as for Hydrogen. The same day the onboarding "
-            "gauntlet ran under this card's request fields. The Gemini API "
-            "accepted the forced call, but on the 3-variable tool probe the "
-            "model reasoned until the 16,384-token budget ran out (16,381 "
-            "reasoning tokens, finish=length, 0 of 3 outputs parsed, 127s), "
-            "and the 3-variable JSON probe ended the same way (16,381 "
+            "gauntlet ran under this card, then with a 300s timeout. The "
+            "Gemini API accepted the forced call, but on the 3-variable tool "
+            "probe the model reasoned until the 16,384-token budget ran out "
+            "(16,381 reasoning tokens, finish=length, 0 of 3 outputs parsed, "
+            "127s), and the 3-variable JSON probe ended the same way (16,381 "
             "reasoning tokens, 0 of 3, 129s). The gauntlet sends each probe "
             "once at that budget, with no budget escalation, so it found "
             "neither contract answering and derived no card. Both contracts "
