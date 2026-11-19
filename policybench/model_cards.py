@@ -1015,7 +1015,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "request to the model. The Gemini API changelog lists "
             "gemini-4-neon as generally available on 2026-11-18, on the paid "
             "tier; Google's pricing page lists no free tier for it. The card "
-            "takes Gemini 4 Hydrogen's treatment, the board's forced answer "
+            "takes Gemini 4 Hydrogen's contract, the board's forced answer "
             "tool on the whole-scenario request; Google's model page lists "
             "function calling as supported. The harness sends no "
             "thinkingConfig, and Google's thinking guide lists the model's "

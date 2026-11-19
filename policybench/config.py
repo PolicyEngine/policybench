@@ -329,10 +329,10 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # thinking tokens) and $0.15 cached input, the paid tier's standard
     # rates, with no introductory rate and no dated change
     # (aistudio.google.com/docs/pricing, read 2026-11-19). The page lists one
-    # rate at every prompt length, implicit caching only, no cache storage
-    # charge, and no free tier for this model. litellm 1.95.0's bundled price
-    # map has no gemini-4 id; the override prices a request from the rates
-    # above whether or not litellm's map has the id.
+    # rate at every prompt length, implicit caching only, and no free tier
+    # for this model. litellm 1.95.0's bundled price map has no gemini-4 id;
+    # the override prices a request from the rates above whether or not
+    # litellm's map has the id.
     "gemini-4-neon": {"input": 3.0, "output": 15.0, "cache_read": 0.15},
     # glm-5.3: $1.40 / $4.40 per 1M (OpenRouter list, 2026-09-03).
     "glm-5.3": {"input": 1.40, "output": 4.40},
