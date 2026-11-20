@@ -191,8 +191,8 @@ def test_gpt_6_2_cards_record_the_gauntlet_cost(
     prompt or cache counts, so the prompt and cache-write counts here are
     assumed usage. The probe sends the manifest's first scenario, the
     request the smoke sent as its first household (2,236 prompt tokens), and
-    that household read 2,104 tokens from the cache with only the gauntlet
-    run on each model before it. If the probe wrote those 2,104 tokens to
+    that household read 2,104 tokens from the cache, and only the gauntlet
+    had run on each model before it. If the probe wrote those 2,104 tokens to
     the cache, it cost 0.056896 (Astra) and 0.018914 (Sol). The record does
     not fix that count: a three-output probe on the same scenario ran first,
     and other write counts round to the same values (2,200, for one). With

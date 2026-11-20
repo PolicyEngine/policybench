@@ -164,8 +164,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   gauntlet report gives the probe's 870 completion tokens but no prompt
     #   or cache counts. The probe sends the manifest's first scenario, the
     #   request the smoke sent as its first household (2,236 prompt tokens),
-    #   and that household read 2,104 tokens from the cache with only the
-    #   gauntlet run on the model before it. If the probe wrote those 2,104
+    #   and that household read 2,104 tokens from the cache, and only the
+    #   gauntlet had run on the model before it. If the probe wrote those 2,104
     #   tokens to the cache, it cost $0.056896. The record does not fix that
     #   count: a three-output probe on the same scenario ran first, and other
     #   write counts round to the same 0.057 (2,200, for one). With no cache
@@ -233,7 +233,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   Astra card, the gauntlet report gives the probe's 1,339 completion
     #   tokens but no prompt or cache counts, and the smoke's first
     #   household, the same 2,236-token request, read 2,104 tokens from the
-    #   cache with only the gauntlet run on the model before it. If the probe
+    #   cache, and only the gauntlet had run on the model before it. If the probe
     #   wrote those 2,104 tokens to the cache, it cost $0.018914. The record
     #   does not fix that count: a three-output probe on the same scenario
     #   ran first, and other write counts round to the same 0.019 (2,200, for
