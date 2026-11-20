@@ -166,8 +166,10 @@ def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
 # (developers.openai.com/api/docs/models/<id>; read 2026-11-20 for the
 # GPT-5.6, GPT-6 and GPT-6.1 ids and 2026-11-17 for the GPT-6.2 ids).
 # LiteLLM's max_input_tokens is the input limit, not the context window. No
-# PolicyBench decision reads it; litellm 1.95.0 reads it only when
-# litellm.modify_params is on, which PolicyBench never sets.
+# PolicyBench request takes its size from it: PolicyBench calls neither
+# litellm.get_model_info nor litellm.trim_messages, which read it, and
+# litellm 1.95.0's completion path reads it only when litellm.modify_params
+# is on, which PolicyBench never sets.
 GPT_RESPONSES_MAX_INPUT_TOKENS = {
     "gpt-5.6-sol": 922_000,
     "gpt-5.6-terra": 922_000,
@@ -219,11 +221,12 @@ def _gpt_responses_model_entry(model_id: str) -> dict:
 def _register_gpt_responses_models() -> None:
     """Register each Responses-API GPT id LiteLLM's model map lacks.
 
-    LiteLLM's bundled model map predates the GPT-5.6 release. Without a
-    local entry it cannot infer that the unprefixed public API ids belong to
+    LiteLLM's bundled model map can lag a new GPT release (litellm 1.95.0's
+    carries GPT-5.6 Sol, Terra and Luna but no GPT-6 id). Without a local
+    entry it cannot infer that the unprefixed public API ids belong to
     OpenAI, so requests fail before reaching the provider. Keep these entries
-    minimal and grounded in OpenAI's published model/pricing pages; a future
-    LiteLLM map entry takes precedence automatically.
+    minimal and grounded in OpenAI's published model/pricing pages; a LiteLLM
+    map entry takes precedence automatically.
     """
     for model_id in GPT_RESPONSES_MODELS.values():
         if model_id in litellm.model_cost:
