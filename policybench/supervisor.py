@@ -16,9 +16,10 @@ combined into ``<run_dir>/predictions.csv`` at the end; rerunning the same
 command skips completed scenarios. A partially-complete scenario is sent
 again, and each of its requests that already got a response is answered from
 the response cache instead of the provider. A request that errored or timed
-out stored nothing, and is paid for again. So is a ``gemini/`` tool request
-answered before ``eval_no_tools._litellm_call_kwargs`` pinned its cache key:
-LiteLLM stored those answers under a key no rebuilt request looks up.
+out stored nothing, so it goes to the provider again. So does a ``gemini/``
+tool request answered before ``eval_no_tools._litellm_call_kwargs`` pinned
+its cache key: LiteLLM stored those answers under a key no rebuilt request
+looks up.
 
 For a single-country run (every supervised run in practice), PolicyEngine
 provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
@@ -635,7 +636,8 @@ class Supervisor:
             # treatment with the same cache directory rebuilds the same
             # requests, and the response cache answers each one that already
             # got a response. That holds per request, not per scenario (the
-            # module docstring lists the requests that are paid for again).
+            # module docstring lists the requests that go to the provider
+            # again).
             self.projection_warning = (
                 f"projected ${projected:.2f} exceeds budget ${self.budget_usd:.2f}"
             )
