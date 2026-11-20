@@ -161,16 +161,18 @@ MODEL_CARDS: dict[str, ModelCard] = {
     # - expected_cost_per_scenario_usd 0.057: the cost `policybench onboard`
     #   suggested from the whole-scenario probe, rounded to three places, at
     #   OpenAI's list rates ($8/$40 per 1M, cache writes at $10). The
-    #   gauntlet report gives no prompt or cache counts, so these are
-    #   inferred. The probe sends the manifest's first scenario, which the
-    #   smoke sent as its first household, so the two requests match: 2,236
-    #   prompt tokens. That household read 2,104 of them from the cache, and
-    #   only the gauntlet ran on the model before it. Writing those 2,104 at
-    #   $10 per 1M, with the probe's 870 completion tokens, gives $0.056896;
-    #   list input and output rates alone would round to 0.053. The
-    #   smoke's two households cost $0.036 and $0.063: 2,104 of the first's
-    #   2,236 prompt tokens were cache reads, at $0.40 per 1M, and 2,578 of
-    #   the second's 2,710 were cache writes, at $10.
+    #   gauntlet report gives the probe's 870 completion tokens but no prompt
+    #   or cache counts. The probe sends the manifest's first scenario, the
+    #   request the smoke sent as its first household (2,236 prompt tokens),
+    #   and that household read 2,104 tokens from the cache with only the
+    #   gauntlet run on the model before it. If the probe wrote those 2,104
+    #   tokens to the cache, it cost $0.056896. The record does not fix that
+    #   count: a three-output probe on the same scenario ran first, and other
+    #   write counts round to the same 0.057 (2,200, for one). With no cache
+    #   write the probe would round to 0.053. The smoke's two households
+    #   cost $0.036 and $0.063: 2,104 of the first's 2,236 prompt tokens were
+    #   cache reads, at $0.40 per 1M, and 2,578 of the second's 2,710 were
+    #   cache writes, at $10.
     # Both smoke responses name the model as gpt-6.2-astra, the requested
     # name, with no dated snapshot (the Responses API's model field, which the
     # harness records as provider_resolved_model).
@@ -183,9 +185,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Onboarded 2026-11-19; OpenAI released the model on 2026-11-17. "
             "Forced tool contract passed 3/3 (459 completion tokens) and 16/16 "
             "whole-scenario (870 tokens) on the Responses API, which OpenAI "
-            "says tool calling on this model requires, about $0.057 per "
-            "scenario at OpenAI's list rates ($8/$40 per 1M, cache writes at "
-            "$10). OpenAI lists it as a reasoning model whose API rejects "
+            "says tool calling on this model requires; onboarding estimated "
+            "about $0.057 per scenario at OpenAI's list rates. OpenAI lists "
+            "it as a reasoning model whose API rejects "
             "reasoning effort none; the model page states no default effort, "
             "and the harness sends no reasoning parameter. A two-household "
             "smoke parsed all 36 outputs for $0.10, with no budget escalation "
@@ -227,14 +229,17 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   output of 128,000 tokens, the harness's escalation ceiling.
     # - expected_cost_per_scenario_usd 0.019: the cost `policybench onboard`
     #   suggested from the whole-scenario probe, rounded to three places, at
-    #   OpenAI's list rates ($2/$10 per 1M, cache writes at $2.50). The
-    #   prompt and cache counts are inferred as on the Astra card: 2,236
-    #   prompt tokens, 2,104 of them written to the cache, which the smoke's
-    #   first household then read. At $2.50 per 1M, with the probe's 1,339
-    #   completion tokens, that gives $0.018914; list input and output rates
-    #   alone would round to 0.018. The smoke's two households cost $0.021
-    #   and $0.020, with the same cache reads (2,104 tokens) and writes
-    #   (2,578) as Astra's.
+    #   OpenAI's list rates ($2/$10 per 1M, cache writes at $2.50). As on the
+    #   Astra card, the gauntlet report gives the probe's 1,339 completion
+    #   tokens but no prompt or cache counts, and the smoke's first
+    #   household, the same 2,236-token request, read 2,104 tokens from the
+    #   cache with only the gauntlet run on the model before it. If the probe
+    #   wrote those 2,104 tokens to the cache, it cost $0.018914. The record
+    #   does not fix that count: a three-output probe on the same scenario
+    #   ran first, and other write counts round to the same 0.019 (2,200, for
+    #   one). With no cache write the probe would round to 0.018. The smoke's
+    #   two households cost $0.021 and $0.020, with the same cache reads
+    #   (2,104 tokens) and writes (2,578) as Astra's.
     # Both smoke responses name the model as gpt-6.2-sol, the requested name,
     # with no dated snapshot (provider_resolved_model).
     "gpt-6.2-sol": ModelCard(
@@ -246,9 +251,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "Onboarded 2026-11-19; OpenAI released the model on 2026-11-17. "
             "Forced tool contract passed 3/3 (1,145 completion tokens) and "
             "16/16 whole-scenario (1,339 tokens) on the Responses API, which "
-            "OpenAI says tool calling on this model requires, about $0.019 per "
-            "scenario at OpenAI's list rates ($2/$10 per 1M, cache writes at "
-            "$2.50). OpenAI lists it as a reasoning model whose API rejects "
+            "OpenAI says tool calling on this model requires; onboarding "
+            "estimated about $0.019 per scenario at OpenAI's list rates. "
+            "OpenAI lists it as a reasoning model whose API rejects "
             "reasoning effort none; the model page states no default effort, "
             "and the harness sends no reasoning parameter. A two-household "
             "smoke parsed all 36 outputs for $0.04, with no budget escalation "

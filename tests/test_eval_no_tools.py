@@ -3487,9 +3487,10 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
         ("gpt-6.2-astra", 200_000, 0, 200_000, 0, 0.08),
         ("gpt-6.2-astra", 200_000, 0, 0, 200_000, 2.0),
         # Above 272k input tokens, the whole request: $16 input, $0.80 cached
-        # input and $60 output per 1M.
+        # input, $20 cache writes and $60 output per 1M.
         ("gpt-6.2-astra", 300_000, 0, 0, 0, 4.8),
         ("gpt-6.2-astra", 300_000, 10_000, 300_000, 0, 0.84),
+        ("gpt-6.2-astra", 300_000, 0, 0, 300_000, 6.0),
         # The onboarding smoke's two requests (2026-11-19): 2,236 prompt
         # tokens, 2,104 of them cached, and 848 completion tokens; then 2,710
         # prompt tokens, 2,578 of them cache writes, and 902 completion tokens.
@@ -3501,9 +3502,11 @@ def test_gpt_6_1_terra_override_reconstructs_token_costs(
         ("gpt-6.2-sol", 0, 1_000_000, 0, 0, 10.0),
         ("gpt-6.2-sol", 200_000, 0, 200_000, 0, 0.02),
         ("gpt-6.2-sol", 200_000, 0, 0, 200_000, 0.5),
-        # Above 272k input tokens: $4 input, $0.20 cached input and $15 output.
+        # Above 272k input tokens: $4 input, $0.20 cached input, $5 cache
+        # writes and $15 output.
         ("gpt-6.2-sol", 300_000, 0, 0, 0, 1.2),
         ("gpt-6.2-sol", 300_000, 10_000, 300_000, 0, 0.21),
+        ("gpt-6.2-sol", 300_000, 0, 0, 300_000, 1.5),
         # The onboarding smoke's two requests, with Astra's prompt and cache
         # counts and 2,013 and 1,377 completion tokens.
         ("gpt-6.2-sol", 2_236, 2_013, 2_104, 0, 0.0206044),
@@ -3522,8 +3525,8 @@ def test_gpt_6_2_overrides_reconstruct_token_costs(
     rates, cache reads at a twentieth of input, and the long-context rates
     for a request above 272k input tokens (developers.openai.com/api/docs/
     models/gpt-6.2-astra and /gpt-6.2-sol, and /api/docs/pricing, read
-    2026-11-17). OpenAI lists no long-context cache-write rate for either
-    model, so no case here prices one."""
+    2026-11-17). The long-context cache-write cases take the pricing page's
+    "Long context 30m write" rates, $20 and $5 per 1M (read 2026-11-20)."""
     assert PRICE_OVERRIDES_PER_1M["gpt-6.2-astra"] == {
         "input": 8.0,
         "output": 40.0,
@@ -3645,9 +3648,12 @@ def test_responses_models_read_the_cache_at_their_listed_rate(model, read, write
 @pytest.mark.parametrize(
     "model", ["gpt-6.1-terra", "gpt-6.1-sol", "gpt-6.2-astra", "gpt-6.2-sol"]
 )
-def test_litellm_registers_the_twentieth_cache_read_rate(model):
-    """The local litellm entry carries the same cache rates as the
-    reconstruction, doubled above 272k prompt tokens."""
+def test_effective_litellm_map_entry_carries_the_cache_rates(model):
+    """The litellm map entry in effect for the id (the local registration,
+    or litellm's own entry, since the registration skips ids litellm already
+    knows) carries the reconstruction's short-context cache read and write
+    rates (``_gpt_responses_cache_rates``) and twice that read rate above
+    272k prompt tokens."""
     entry = litellm.model_cost[GPT_RESPONSES_MODELS[model]]
     read, write = _gpt_responses_cache_rates(PRICE_OVERRIDES_PER_1M[model])
     assert entry["cache_read_input_token_cost"] == pytest.approx(read)
@@ -3671,7 +3677,10 @@ def test_responses_cost_is_the_sum_of_its_priced_token_classes(
     input, cache reads, cache writes and output, each at its listed rate (all
     input classes doubled and output 1.5x above 272k prompt tokens); it is
     never negative; and caching the whole prompt never costs more than
-    caching none of it, since every listed read rate is below input."""
+    caching none of it, since every listed read rate is below input. For
+    GPT-6.2 Astra and GPT-6.2 Sol the doubled cache-write rate, $20 and $5
+    per 1M, is the listed one (OpenAI's pricing page, "Long context 30m
+    write", read 2026-11-20)."""
     rates = PRICE_OVERRIDES_PER_1M[model]
     cached = int(prompt_tokens * cached_share)
     written = int((prompt_tokens - cached) * write_share)
