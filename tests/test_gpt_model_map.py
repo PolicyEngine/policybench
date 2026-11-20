@@ -1,10 +1,17 @@
 """The local LiteLLM model-map entries of the Responses-API GPT ids.
 
 eval_no_tools registers an entry for each GPT_RESPONSES_MODELS id that
-LiteLLM's map lacks. The tests read the entry builder, not litellm.model_cost:
-an id the remote map already carries keeps the remote entry, so the map shows
-the local entry only for ids the remote map lacks.
+LiteLLM's map lacks when it is imported. An id the remote map already carries
+keeps the remote entry, so in the test process the map shows the local entry
+only for ids the remote map lacks. The tests therefore read the entry builder,
+the registrar over a stubbed map, and a fresh interpreter that removes every id
+from LiteLLM's bundled map before it imports eval_no_tools.
 """
+
+import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -56,3 +63,30 @@ def test_registration_gives_unmapped_ids_the_documented_input_limit(monkeypatch)
     assert set(registered) == set(GPT_RESPONSES_MODELS.values()) - {mapped}
     for entry in registered.values():
         assert entry["max_input_tokens"] == DOCUMENTED_MAX_INPUT
+
+
+def test_import_registers_each_missing_id_with_the_documented_input_limit():
+    """Importing eval_no_tools registers every id LiteLLM's map lacks. A fresh
+    interpreter loads LiteLLM's bundled map, removes all the ids from it and
+    then imports eval_no_tools; each id then carries the documented input
+    limit."""
+    ids = sorted(GPT_RESPONSES_MODELS.values())
+    script = (
+        "import json, sys\n"
+        "import litellm\n"
+        "ids = json.loads(sys.argv[1])\n"
+        "for model_id in ids:\n"
+        "    litellm.model_cost.pop(model_id, None)\n"
+        "import policybench.eval_no_tools\n"
+        "limits = {m: litellm.model_cost[m]['max_input_tokens'] for m in ids}\n"
+        "print(json.dumps(limits))\n"
+    )
+    shown = subprocess.run(
+        [sys.executable, "-c", script, json.dumps(ids)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "LITELLM_LOCAL_MODEL_COST_MAP": "True"},
+    )
+    limits = json.loads(shown.stdout.strip().splitlines()[-1])
+    assert limits == dict.fromkeys(ids, DOCUMENTED_MAX_INPUT)
