@@ -160,48 +160,78 @@ def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
     return read, write
 
 
-# LiteLLM's bundled model map predates the GPT-5.6 release. Without a
-# local entry it cannot infer that the unprefixed public API ids belong to
-# OpenAI, so requests fail before reaching the provider. Keep these entries
-# minimal and grounded in OpenAI's published model/pricing pages; a future
-# LiteLLM map entry takes precedence automatically.
-for _model_id in GPT_RESPONSES_MODELS.values():
-    if _model_id in litellm.model_cost:
-        continue
-    _prices = PRICE_OVERRIDES_PER_1M[_model_id]
-    _input_cost = _prices["input"] / 1_000_000
-    _output_cost = _prices["output"] / 1_000_000
-    _cache_read_cost, _cache_write_cost = _gpt_responses_cache_rates(_prices)
-    litellm.register_model(
-        {
-            _model_id: {
-                "max_tokens": 128000,
-                "max_input_tokens": 1050000,
-                "max_output_tokens": 128000,
-                "input_cost_per_token": _input_cost,
-                "output_cost_per_token": _output_cost,
-                "cache_read_input_token_cost": _cache_read_cost,
-                "cache_creation_input_token_cost": _cache_write_cost,
-                "input_cost_per_token_above_272k_tokens": _input_cost * 2,
-                "cache_read_input_token_cost_above_272k_tokens": _cache_read_cost * 2,
-                "output_cost_per_token_above_272k_tokens": _output_cost * 1.5,
-                "litellm_provider": "openai",
-                "mode": "chat",
-                "supported_endpoints": [
-                    "/v1/chat/completions",
-                    "/v1/batch",
-                    "/v1/responses",
-                ],
-                "supports_function_calling": True,
-                "supports_parallel_function_calling": True,
-                "supports_prompt_caching": True,
-                "supports_reasoning": True,
-                "supports_response_schema": True,
-                "supports_tool_choice": True,
-                "supports_vision": True,
-            }
-        }
-    )
+# Each Responses-API GPT id's maximum input tokens. OpenAI's model page for
+# every id lists a 1,050,000-token context window, "Maximum input tokens:
+# 922,000" and 128,000 maximum output tokens
+# (developers.openai.com/api/docs/models/<id>; read 2026-11-20 for the
+# GPT-5.6, GPT-6 and GPT-6.1 ids and 2026-11-17 for the GPT-6.2 ids).
+# LiteLLM's max_input_tokens is the input limit, not the context window. No
+# PolicyBench decision reads it; litellm 1.95.0 reads it only when
+# litellm.modify_params is on, which PolicyBench never sets.
+GPT_RESPONSES_MAX_INPUT_TOKENS = {
+    "gpt-5.6-sol": 922_000,
+    "gpt-5.6-terra": 922_000,
+    "gpt-5.6-luna": 922_000,
+    "gpt-6-astra": 922_000,
+    "gpt-6-sol": 922_000,
+    "gpt-6-luna": 922_000,
+    "gpt-6.1-sol": 922_000,
+    "gpt-6.1-terra": 922_000,
+    "gpt-6.2-astra": 922_000,
+    "gpt-6.2-sol": 922_000,
+}
+
+
+def _gpt_responses_model_entry(model_id: str) -> dict:
+    """The local LiteLLM model-map entry of a Responses-API GPT id."""
+    prices = PRICE_OVERRIDES_PER_1M[model_id]
+    input_cost = prices["input"] / 1_000_000
+    output_cost = prices["output"] / 1_000_000
+    cache_read_cost, cache_write_cost = _gpt_responses_cache_rates(prices)
+    return {
+        "max_tokens": 128000,
+        "max_input_tokens": GPT_RESPONSES_MAX_INPUT_TOKENS[model_id],
+        "max_output_tokens": 128000,
+        "input_cost_per_token": input_cost,
+        "output_cost_per_token": output_cost,
+        "cache_read_input_token_cost": cache_read_cost,
+        "cache_creation_input_token_cost": cache_write_cost,
+        "input_cost_per_token_above_272k_tokens": input_cost * 2,
+        "cache_read_input_token_cost_above_272k_tokens": cache_read_cost * 2,
+        "output_cost_per_token_above_272k_tokens": output_cost * 1.5,
+        "litellm_provider": "openai",
+        "mode": "chat",
+        "supported_endpoints": [
+            "/v1/chat/completions",
+            "/v1/batch",
+            "/v1/responses",
+        ],
+        "supports_function_calling": True,
+        "supports_parallel_function_calling": True,
+        "supports_prompt_caching": True,
+        "supports_reasoning": True,
+        "supports_response_schema": True,
+        "supports_tool_choice": True,
+        "supports_vision": True,
+    }
+
+
+def _register_gpt_responses_models() -> None:
+    """Register each Responses-API GPT id LiteLLM's model map lacks.
+
+    LiteLLM's bundled model map predates the GPT-5.6 release. Without a
+    local entry it cannot infer that the unprefixed public API ids belong to
+    OpenAI, so requests fail before reaching the provider. Keep these entries
+    minimal and grounded in OpenAI's published model/pricing pages; a future
+    LiteLLM map entry takes precedence automatically.
+    """
+    for model_id in GPT_RESPONSES_MODELS.values():
+        if model_id in litellm.model_cost:
+            continue
+        litellm.register_model({model_id: _gpt_responses_model_entry(model_id)})
+
+
+_register_gpt_responses_models()
 
 
 def _env_int(name: str, default: int, env: dict | None = None) -> int:
