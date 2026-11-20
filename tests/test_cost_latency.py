@@ -12,8 +12,8 @@ Cost invariants, for every input (the property test executes them):
   sums of the rows that recorded both counts, with cached and cache-write
   tokens at the override's cache rates where it has them;
 - a Responses-API GPT model's cost is never filled: its long-context rate
-  turns on one request's prompt length, and a row records a share of its
-  household's usage, not one request's;
+  turns on one request's prompt length, and a row records an equal share of
+  its request group's usage, not one request's prompt length;
 - costPerHousehold is costUsd over the distinct households in the input.
 The parity tests check that a filled cost is what
 eval_no_tools._reconstruct_token_cost records for the same usage. The
@@ -213,9 +213,9 @@ def _usage_row(model, scenario, prompt, completion, cached, cache_write):
 @pytest.mark.parametrize("prompt", [100_000, 300_000])
 def test_gpt_responses_override_fills_no_cost(prompt):
     """GPT-6.1 Sol charges a request above 272k prompt tokens 2x input and
-    cache and 1.5x output on every token. A row holds its household's usage
-    divided among its rows, so whether a request crossed 272k is not on the
-    row, and pricing the rows at the base rates could understate the cost."""
+    cache and 1.5x output on every token. A row holds an equal share of its
+    request group's usage, so the row does not show whether a request crossed
+    272k, and pricing the rows at the base rates could understate the cost."""
     model = "gpt-6.1-sol"
     preds = pd.DataFrame(
         [_usage_row(model, "s1", prompt, 20_000, 50_000, 0)],

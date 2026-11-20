@@ -1468,9 +1468,11 @@ def _override_fallback_cost(
     model with no row to price (Claude Fable 5's frozen board rows record no
     usage) gets no cost, not $0.
 
-    A row's token counts are its share of its household's usage, summed over
-    the household's requests, so no row records one request's usage. An
-    override whose price depends on a request's own prompt length gives no
+    A row's token counts are an equal share of its request group's usage: a
+    synchronous run sums all of a household's requests, and a batch run
+    splits one chunk's request among the chunk's outputs. The rows record
+    neither a request's prompt length nor how many rows share it, so an
+    override whose price depends on one request's prompt length gives no
     cost: the Responses-API GPT models (``GPT_RESPONSES_MODELS``) charge every
     token of a request above 272k prompt tokens at a higher rate. Other
     overrides price usage linearly, so the rows' sums price it exactly:
