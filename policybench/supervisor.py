@@ -16,9 +16,10 @@ combined into ``<run_dir>/predictions.csv`` at the end; rerunning the same
 command skips completed scenarios. A partially-complete scenario is sent
 again. Each of its requests is answered from the response cache when LiteLLM
 stored a matching answer and that entry is still there; every other request
-goes to the provider again. That covers a request that failed before LiteLLM
-stored anything, an entry the disk cache failed to write or has since
-evicted, and a ``gemini/`` tool request answered before
+falls through to the provider path, where it can still fail before anything
+is sent. That covers a request that failed before LiteLLM stored anything, an
+entry the disk cache failed to write or has since evicted, and a ``gemini/``
+tool request answered before
 ``eval_no_tools._litellm_call_kwargs`` pinned its cache key (LiteLLM stored
 those answers under a key no rebuilt request looks up).
 
@@ -634,11 +635,13 @@ class Supervisor:
         if projected is not None and projected > self.budget_usd:
             # Keep dispatching, but surface the projection immediately.
             # Partial coverage is not wasted: a later run of the same
-            # treatment with the same cache directory rebuilds the same
-            # requests, and the response cache answers each one whose stored
-            # answer is still there. That holds per request, not per
-            # scenario, and not for every request (the module docstring
-            # lists the ones that go to the provider again).
+            # treatment with the same cache directory can reuse matching
+            # entries for the requests it rebuilds. That holds per request,
+            # not per scenario. The later run need not rebuild the same
+            # requests: an answer that missed the cache can differ from the
+            # first run's, and so change the repair targets and budget
+            # escalations that follow. A request with no matching entry falls
+            # through to the provider path (the module docstring says more).
             self.projection_warning = (
                 f"projected ${projected:.2f} exceeds budget ${self.budget_usd:.2f}"
             )

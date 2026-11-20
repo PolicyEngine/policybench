@@ -6,41 +6,55 @@ answer the requests it has already paid for, which works only when the key
 LiteLLM looks up for a freshly built request is the key it stored the first
 answer under.
 
-For a ``gemini/`` request that carries a tool it was not. LiteLLM computes the
-key twice from the keyword arguments it is given, once to look an answer up
-before the call and once to store the answer after it, and in between it
-rewrites the tool's schema in place (it drops ``additionalProperties``, and
-``enum`` on non-string outputs). The harness now hands LiteLLM a copy of the
-request and pins the key of the request as built (``_litellm_call_kwargs``).
+For a ``gemini/`` request that carries a tool it was not. On a cache miss with
+no pinned key, LiteLLM computes the key twice from the keyword arguments it is
+given, once to look an answer up before the call and once to store the answer
+after it, and in between it rewrites the board's tool schemas in place (it
+drops ``additionalProperties: false``, and the integer ``enum`` of the 0/1
+outputs). The harness now hands LiteLLM a copy of the request and pins the key
+of the request as built (``_litellm_call_kwargs``).
 
-These are unit tests. Each one runs LiteLLM's own request path (parameter
-mapping, the provider's request transformation, the cache lookup and store)
-and replaces only the wire: ``httpx.Client.send`` answers from this file, and
-a socket connection made during a test fails it. The fixtures start with each
-test, so they do not cover what importing LiteLLM does: unless
-``LITELLM_LOCAL_MODEL_COST_MAP`` is set, it fetches its model cost map once.
+These are unit tests. The replay tests run LiteLLM's own request path
+(parameter mapping, the provider's request transformation, the cache lookup
+and store) and replace only the wire: ``httpx.Client.send`` answers from this
+file. The tests of the wrapper alone use a synthetic request function. A
+socket connection made during any test fails it.
+
+Importing LiteLLM is outside those fixtures: it attempts to fetch its model
+cost map unless ``LITELLM_LOCAL_MODEL_COST_MAP=True``. When this module is the
+first to import LiteLLM (the file run by itself), it sets that for the import.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import itertools
 import json
+import os
 import socket
+import sys
+from concurrent.futures import ThreadPoolExecutor
 
-import httpx
-import litellm
-import pytest
-from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
+LOCAL_MAP = "LITELLM_LOCAL_MODEL_COST_MAP"
+_IMPORTS_LITELLM_FIRST = "litellm" not in sys.modules
+_LOCAL_MAP_BEFORE = os.environ.get(LOCAL_MAP)
+if _IMPORTS_LITELLM_FIRST:
+    os.environ[LOCAL_MAP] = "True"
 
-import policybench.eval_no_tools as eval_no_tools
-from policybench.cache import enable_cache
-from policybench.completion_budget import (
+import httpx  # noqa: E402
+import litellm  # noqa: E402
+import pytest  # noqa: E402
+from hypothesis import HealthCheck, given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+import policybench.eval_no_tools as eval_no_tools  # noqa: E402
+from policybench.cache import enable_cache  # noqa: E402
+from policybench.completion_budget import (  # noqa: E402
     completion_budget_from_kwargs,
     next_completion_budget,
 )
-from policybench.eval_no_tools import (
+from policybench.eval_no_tools import (  # noqa: E402
     ANSWER_FUNCTION_NAME,
     REASONING_EFFORT_OVERRIDE_ENV,
     _answer_contract_for_model,
@@ -53,8 +67,15 @@ from policybench.eval_no_tools import (
     _run_request_with_wall_timeout,
     _uses_responses_api,
 )
-from policybench.model_cards import MODEL_CARDS
-from policybench.scenarios import Person, Scenario
+from policybench.model_cards import MODEL_CARDS  # noqa: E402
+from policybench.scenarios import Person, Scenario  # noqa: E402
+
+# The variable was only for the import above; later tests see it as it was.
+if _IMPORTS_LITELLM_FIRST:
+    if _LOCAL_MAP_BEFORE is None:
+        del os.environ[LOCAL_MAP]
+    else:
+        os.environ[LOCAL_MAP] = _LOCAL_MAP_BEFORE
 
 SCENARIO = Scenario(
     id="mini",
@@ -84,6 +105,32 @@ SENSITIVITY_VARIABLES = (
     "POLICYBENCH_CHUNK_OVERRIDE",
     "POLICYBENCH_CONTRACT_OVERRIDE",
     "POLICYBENCH_TOOL_CHOICE",
+)
+# Settings that would send a request somewhere else or shape it differently:
+# a base URL from the environment, LiteLLM's switches, and the keys and base
+# URL a process can set on the litellm module, which win over the environment.
+ROUTING_VARIABLES = (
+    "ANTHROPIC_API_BASE",
+    "ANTHROPIC_BASE_URL",
+    "DEEPSEEK_API_BASE",
+    "GEMINI_API_BASE",
+    "LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX",
+    "LITELLM_MODIFY_PARAMS",
+    "OPENAI_API_BASE",
+    "OPENAI_BASE_URL",
+    "OPENAI_ORGANIZATION",
+    "OPENROUTER_API_BASE",
+    "XAI_API_BASE",
+)
+LITELLM_ROUTING_GLOBALS = (
+    "anthropic_key",
+    "api_base",
+    "api_key",
+    "headers",
+    "openai_key",
+    "openrouter_key",
+    "organization",
+    "xai_key",
 )
 
 
@@ -303,32 +350,63 @@ def offline(monkeypatch):
     monkeypatch.setattr(socket, "create_connection", refuse)
     for name in PROVIDER_KEY_VARIABLES:
         monkeypatch.setenv(name, "test-value-not-a-key")
-    for name in SENSITIVITY_VARIABLES:
+    for name in (*SENSITIVITY_VARIABLES, *ROUTING_VARIABLES):
         monkeypatch.delenv(name, raising=False)
+    for name in LITELLM_ROUTING_GLOBALS:
+        monkeypatch.setattr(litellm, name, None)
     monkeypatch.setattr(eval_no_tools, "_PROCESS_REASONING_EFFORT_OVERRIDE", [])
     monkeypatch.setattr(eval_no_tools, "MAX_ATTEMPTS", 1)
     monkeypatch.setattr(litellm, "drop_params", False)
-    # Turning the cache on registers LiteLLM callbacks; give them back too.
+    monkeypatch.setattr(litellm, "modify_params", False)
+    # Turning the cache on registers LiteLLM callbacks, and the first call
+    # after that records them in litellm.utils; give all of them back.
     for name in ("input_callback", "success_callback", "_async_success_callback"):
         monkeypatch.setattr(litellm, name, list(getattr(litellm, name)))
+    monkeypatch.setattr(
+        litellm.utils, "callback_list", list(litellm.utils.callback_list or [])
+    )
     monkeypatch.setattr(litellm, "cache", None)
 
 
-@pytest.fixture
-def wire(monkeypatch) -> list[dict]:
-    """The requests LiteLLM put on the wire, each answered from this file."""
-    sent: list[dict] = []
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
-    def send(self, request, **_kwargs):
-        body = json.loads(request.content)
-        sent.append(
+
+class Wire(list):
+    """The requests LiteLLM put on the wire, each answered from this file.
+
+    A header or a query string can carry a key, so an entry keeps their
+    digests, not their values: a failed comparison then prints no value.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._sent_text: list[str] = []
+
+    def record(self, request, body: dict) -> None:
+        headers = dict(request.headers)
+        self._sent_text.append(json.dumps([str(request.url), headers, body]))
+        self.append(
             {
                 "path": request.url.path,
-                "query": request.url.query.decode(),
-                "headers": dict(request.headers),
+                "query": _digest(request.url.query.decode()),
+                "headers": {name: _digest(value) for name, value in headers.items()},
                 "body": body,
             }
         )
+
+    def carries(self, text: str) -> bool:
+        """Whether any URL, header or body sent so far contains ``text``."""
+        return any(text in sent for sent in self._sent_text)
+
+
+@pytest.fixture
+def wire(monkeypatch) -> Wire:
+    sent = Wire()
+
+    def send(self, request, **_kwargs):
+        body = json.loads(request.content)
+        sent.record(request, body)
         return httpx.Response(
             200,
             json=_canned_answer(request.url.path, body, len(sent)),
@@ -458,7 +536,7 @@ def test_the_pinned_key_is_the_key_litellm_looks_up_by_itself(
 
     A plain LiteLLM call stands in for an answer stored before the pin. The
     harness finds it exactly when LiteLLM stored it under the key it looked up,
-    which is every request LiteLLM does not rewrite.
+    which holds for every request LiteLLM does not rewrite between the two.
     """
     request_fn, request = _as_built(monkeypatch, kind, model_id)
 
@@ -485,9 +563,9 @@ def test_the_pin_never_reaches_the_provider(
 
     plain, pinned = wire
     assert pinned == plain
-    on_the_wire = json.dumps(pinned)
+    assert wire.carries(request["model"].rsplit("/", 1)[-1])
     for pin in ("cache_key", key, key.rsplit(":", 1)[-1]):
-        assert pin not in on_the_wire
+        assert not wire.carries(pin)
 
 
 def test_an_effort_override_keeps_its_own_namespace(wire, cache_keys, monkeypatch):
@@ -530,6 +608,23 @@ def test_the_request_function_gets_a_copy_and_one_key_for_every_attempt(cache_ke
     assert request == as_built
     key = litellm.cache.get_cache_key(**copy.deepcopy(as_built))
     assert received == [{**as_built, "cache_key": key}] * 2
+
+
+def test_a_worker_thread_gets_the_copy_and_the_key_too(cache_keys):
+    """``repair-failed-rows`` sends requests from worker threads, which take
+    the wrapper's other return: the wall-clock alarm needs the main thread."""
+    _, request = _chat_completion_request_kwargs(SCENARIO, VARIABLES, GEMINI_TOOL_ID)
+    as_built = copy.deepcopy(request)
+    received: list[dict] = []
+    request_fn = _rewriting_request_fn(received)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        answer = pool.submit(_run_request_with_wall_timeout, request_fn, request)
+        assert answer.result() == "answer"
+
+    assert request == as_built
+    key = litellm.cache.get_cache_key(**copy.deepcopy(as_built))
+    assert received == [{**as_built, "cache_key": key}]
 
 
 def test_without_a_cache_the_request_function_gets_an_equal_copy():
