@@ -1,5 +1,6 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
+import copy
 import functools
 import hashlib
 import json
@@ -1264,19 +1265,47 @@ def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
     )
 
 
+def _litellm_call_kwargs(request_kwargs: dict) -> dict:
+    """Return the keyword arguments to hand LiteLLM for one call.
+
+    LiteLLM computes its cache key twice from the arguments it is given: once
+    to look a stored answer up before the call, and again to store the answer
+    after it. In between it can rewrite those arguments in place. For a
+    ``gemini/`` request it strips ``additionalProperties`` from a tool's
+    schema, and ``enum`` from the schema's non-string fields (LiteLLM 1.95.0),
+    so the answer is stored under a key that no freshly built request looks
+    up, and a re-sent request is paid for again.
+
+    Two things prevent that. LiteLLM gets a deep copy, so the caller's request
+    stays as built and a retry sends the same request. And while the disk
+    cache is on, ``cache_key`` pins the key of the request as built, which
+    LiteLLM then uses for the lookup and for the store. That is the key
+    LiteLLM looks up by itself, so no stored answer that replayed before the
+    pin stops replaying. Answers that ``gemini/`` tool requests stored before
+    the pin sit under the rewritten schema's key and are not found.
+    """
+    call_kwargs = copy.deepcopy(request_kwargs)
+    if litellm.cache is not None and "cache_key" not in call_kwargs:
+        call_kwargs["cache_key"] = litellm.cache.get_cache_key(**call_kwargs)
+    return call_kwargs
+
+
 def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
     """Run one LiteLLM request with a process-local wall-clock timeout.
 
     Some provider clients can outlive the configured request timeout. The CLI
     runs requests on the main thread, so SIGALRM gives the runner a last-resort
     escape hatch while preserving normal behavior in non-main-thread contexts.
+
+    LiteLLM never gets the caller's own request: see ``_litellm_call_kwargs``.
     """
+    call_kwargs = _litellm_call_kwargs(request_kwargs)
     if (
         threading.current_thread() is not threading.main_thread()
         or not hasattr(signal, "SIGALRM")
         or not hasattr(signal, "setitimer")
     ):
-        return request_fn(**request_kwargs)
+        return request_fn(**call_kwargs)
 
     wall_timeout_seconds = _request_wall_timeout_seconds(request_kwargs)
     previous_handler = signal.getsignal(signal.SIGALRM)
@@ -1290,7 +1319,7 @@ def _run_request_with_wall_timeout(request_fn, request_kwargs: dict):
     signal.signal(signal.SIGALRM, _raise_timeout)
     signal.setitimer(signal.ITIMER_REAL, wall_timeout_seconds)
     try:
-        return request_fn(**request_kwargs)
+        return request_fn(**call_kwargs)
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous_handler)
