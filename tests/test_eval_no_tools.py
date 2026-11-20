@@ -3863,19 +3863,23 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
 ):
     """Gemini 4 Neon's card, written before the model's onboarding, takes
     Gemini 4 Hydrogen's contract, the board's forced answer tool; Google's
-    model page lists function calling as supported. The onboarding
-    gauntlet's 3-variable tool and JSON probes both ran out of the
-    16,384-token budget, so they settled nothing between the contracts; a
-    two-household smoke on the board's escalating request settles whether
-    the contract stays. The request carries no reasoning parameter, so the
-    model reasons at Google's default, high per Google's thinking guide, as
-    Hydrogen does. It takes the card's 600s timeout, set from the probes'
-    output rate for a request at the 65,536-token ceiling, and the Gemini
-    family's 16,384-token starting budget."""
+    model page lists function calling as supported, and in the two-household
+    smoke both households answered every output through it. The request
+    carries no reasoning parameter, so the model reasons at Google's default,
+    high per Google's thinking guide, as Hydrogen does. It takes the card's
+    600s timeout, set from the measured output rate for a request at the
+    65,536-token ceiling, and the card's own starting budget, that ceiling:
+    in the smoke, at the Gemini family's 16,384, one household's first two
+    requests ran out of budget and were billed and discarded. The first
+    request, an answers-only repair request and the run fingerprint all
+    start at 65,536, so a length finish has no rung left."""
+    from policybench.completion_budget import next_completion_budget
     from policybench.eval_no_tools import (
         ANSWER_FUNCTION_NAME,
         _answer_contract_for_model,
         _chat_completion_request_kwargs,
+        _completion_budget_ceiling,
+        _initial_completion_budget_tokens,
     )
 
     model_id = "gemini/gemini-4-neon"
@@ -3884,6 +3888,13 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
     assert _request_timeout_seconds(model_id) == 600
 
     _, kwargs = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+    _, repair = _chat_completion_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        model_id,
+        repair=True,
+        include_explanations=False,
+    )
 
     assert kwargs["tool_choice"] == {
         "type": "function",
@@ -3892,7 +3903,10 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
     assert [tool["function"]["name"] for tool in kwargs["tools"]] == [
         ANSWER_FUNCTION_NAME
     ]
-    assert kwargs["max_completion_tokens"] == 16_384
+    assert kwargs["max_completion_tokens"] == 65_536
+    assert repair["max_completion_tokens"] == 65_536
+    assert _initial_completion_budget_tokens(model_id, ["income_tax"]) == 65_536
+    assert next_completion_budget(65_536, _completion_budget_ceiling(model_id)) is None
     assert kwargs["timeout"] == 600
     assert "response_format" not in kwargs
     for reasoning_key in ("reasoning", "reasoning_effort", "thinking"):
@@ -3915,7 +3929,6 @@ GEMINI_FAMILY_STARTING_BUDGET_IDS = (
     "gemini/gemini-4-argon",
     "gemini/gemini-4-carbon",
     "gemini/gemini-4-hydrogen",
-    "gemini/gemini-4-neon",
 )
 CARDLESS_GEMINI_ID = "gemini/gemini-2.5-flash"
 
@@ -3943,7 +3956,9 @@ def test_every_gemini_id_has_a_pinned_starting_budget():
         if MODEL_CARDS.get(model_id) is not None
         and MODEL_CARDS[model_id].completion_token_cap is not None
     }
-    assert capped == set()
+    # Gemini 4 Neon starts at its 65,536-token ceiling (its own test above).
+    assert capped == {"gemini/gemini-4-neon"}
+    assert MODEL_CARDS["gemini/gemini-4-neon"].completion_token_cap == 65_536
     assert gemini_ids - capped == set(GEMINI_FAMILY_STARTING_BUDGET_IDS) - {
         CARDLESS_GEMINI_ID
     }

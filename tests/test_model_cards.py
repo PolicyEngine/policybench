@@ -83,7 +83,7 @@ EXPECTED = {
     "gemini/gemini-4-argon": ("tool", None, 300, 16_384),
     "gemini/gemini-4-carbon": ("json", None, 900, 16_384),
     "gemini/gemini-4-hydrogen": ("tool", None, 600, 16_384),
-    "gemini/gemini-4-neon": ("tool", None, 600, 16_384),
+    "gemini/gemini-4-neon": ("tool", None, 600, 65_536),
 }
 
 
