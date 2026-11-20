@@ -312,10 +312,25 @@ def _utc(seconds: float) -> str:
     return pd.Timestamp(float(seconds), unit="s").strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _float_or_none(value: float | None) -> float | None:
+    return None if value is None else float(value)
+
+
+def _close(mine: float | None, frozen: float | None) -> bool:
+    """Whether a recomputed figure is within 1e-9 of the frozen one; a figure
+    either side lacks (a cost the rows cannot establish) does not match."""
+    if mine is None or frozen is None:
+        return False
+    return math.isclose(mine, frozen, rel_tol=0, abs_tol=1e-9)
+
+
 def run_stats(predictions: pd.DataFrame, model: str) -> dict:
     """Cost, output tokens, median latency, calls and parse failures of one row."""
     rows = predictions[predictions["model"] == model]
-    cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M)[model]
+    # model_cost_latency leaves out a cost it cannot establish (and a latency
+    # no row timed), and the model itself when it has neither; those are null
+    # here, as the dashboard shows them as not recorded.
+    cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M).get(model, {})
     by_household = rows.groupby("scenario_id")
     # live_calls counts the answered provider calls behind a household's rows
     # (repeated on each row); rows written before the column existed leave it
@@ -328,9 +343,9 @@ def run_stats(predictions: pd.DataFrame, model: str) -> dict:
         "outputs": int(len(rows)),
         "outputs_parsed": int(parsed.sum()),
         "parse_failures": int((~parsed).sum()),
-        "cost_usd": float(cost["costUsd"]),
-        "cost_per_household_usd": float(cost["costPerHousehold"]),
-        "median_household_seconds": float(cost["latencySeconds"]),
+        "cost_usd": _float_or_none(cost.get("costUsd")),
+        "cost_per_household_usd": _float_or_none(cost.get("costPerHousehold")),
+        "median_household_seconds": _float_or_none(cost.get("latencySeconds")),
         "output_tokens": int(round(float(rows["completion_tokens"].sum()))),
         "answered_calls": int(live_calls.sum()) if recorded else None,
         "households_with_a_second_answered_call": (
@@ -614,7 +629,7 @@ def main() -> None:
             if name in ("exact", "within1pct", "score", "n_parsed")
         )
         close_match = all(
-            math.isclose(mine, frozen, rel_tol=0, abs_tol=1e-9)
+            _close(mine, frozen)
             for checks in report.values()
             for mine, frozen in checks.values()
         )
