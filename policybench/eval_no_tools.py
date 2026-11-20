@@ -165,11 +165,13 @@ def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
 # 922,000" and 128,000 maximum output tokens
 # (developers.openai.com/api/docs/models/<id>; read 2026-11-20 for the
 # GPT-5.6, GPT-6 and GPT-6.1 ids and 2026-11-17 for the GPT-6.2 ids).
-# LiteLLM's max_input_tokens is the input limit, not the context window. No
-# PolicyBench request takes its size from it: PolicyBench calls neither
-# litellm.get_model_info nor litellm.trim_messages, which read it, and
-# litellm 1.95.0's completion path reads it only when litellm.modify_params
-# is on, which PolicyBench never sets.
+# LiteLLM's max_input_tokens is the input limit, not the context window.
+# Checked against litellm 1.95.0: LiteLLM copies the value into the model
+# info it loads to route or price a call, but no PolicyBench request takes
+# its size from it. Of the LiteLLM code a PolicyBench GPT call runs, only
+# get_modified_max_tokens sizes a request from the value, and it runs only
+# when litellm.modify_params is on, which PolicyBench never sets. PolicyBench
+# calls neither trim_messages nor LiteLLM's Router, which also use it.
 GPT_RESPONSES_MAX_INPUT_TOKENS = {
     "gpt-5.6-sol": 922_000,
     "gpt-5.6-terra": 922_000,
