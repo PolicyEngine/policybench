@@ -162,6 +162,8 @@ export const MODEL_RELEASE_DATES: Record<string, string> = {
   "gpt-6-sol": "2026-09-22",
   "gpt-6.1-sol": "2026-09-29",
   "gpt-6.1-terra": "2026-10-26",
+  "gpt-6.2-astra": "2026-11-17",
+  "gpt-6.2-sol": "2026-11-17",
   "gpt-6-luna": "2026-09-22",
   "gpt-5.6-sol": "2026-07-09",
   "gpt-5.6-terra": "2026-07-09",

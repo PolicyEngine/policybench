@@ -3663,6 +3663,14 @@ MODEL_RELEASE_DATES: dict[str, str] = {
     # API (id gpt-6.1-terra) the same day (x.com/OpenAI/status/
     # 2114780711664398349; 9to5mac.com 2026-10-26).
     "gpt-6.1-terra": "2026-10-26",
+    # developers.openai.com/api/docs/changelog dates the release of GPT-6.2
+    # Astra and GPT-6.2 Sol (API ids gpt-6.2-astra and gpt-6.2-sol) 2026-11-17;
+    # an announcement of that day in OpenAI's Developer Community forum
+    # (community.openai.com/t/gpt-6-2-astra-and-sol-are-now-available/1417531)
+    # opens both in the API and, for Plus, Pro, Enterprise and Edu users, in
+    # ChatGPT Work and Codex. Both read 2026-11-17.
+    "gpt-6.2-astra": "2026-11-17",
+    "gpt-6.2-sol": "2026-11-17",
     "gpt-6-luna": "2026-09-22",
     # piunikaweb.com 2026-04-17 SuperGrok beta (paid public tier)
     "grok-4.3": "2026-04-17",

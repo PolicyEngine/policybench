@@ -149,11 +149,11 @@ def _gpt_responses_cache_rates(prices: dict[str, float]) -> tuple[float, float]:
     """Per-token cache read and write rates of a Responses-API GPT model.
 
     The default is the GPT-5.6 line's structure: cache reads at a tenth of
-    input and cache writes at 1.25x. GPT-6.1 Sol and GPT-6.1 Terra list cache
-    reads at a twentieth (their ``PRICE_OVERRIDES_PER_1M`` entries), so an
-    override's own ``cache_read`` or ``cache_write`` rate replaces the
-    default. The caller doubles both above 272k prompt tokens, as it does
-    input.
+    input and cache writes at 1.25x. GPT-6.1 Sol, GPT-6.1 Terra, GPT-6.2 Astra
+    and GPT-6.2 Sol list cache reads at a twentieth (their
+    ``PRICE_OVERRIDES_PER_1M`` entries), so an override's own ``cache_read``
+    or ``cache_write`` rate replaces the default. The caller doubles both
+    above 272k prompt tokens, as it does input.
     """
     read = prices.get("cache_read", prices["input"] * 0.1) / 1_000_000
     write = prices.get("cache_write", prices["input"] * 1.25) / 1_000_000

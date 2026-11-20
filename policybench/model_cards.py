@@ -130,6 +130,140 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "reasoning tokens on every request."
         ),
     ),
+    # GPT-6.2 Astra. Written 2026-11-17, the day OpenAI released the model,
+    # from OpenAI's documentation read that day, and onboarded 2026-11-19: the
+    # gauntlet and a two-household smoke ran under this card's request fields
+    # (onboarding changed only this comment, the notes and the expected cost).
+    # Field by field:
+    # - answer_contract "tool": the board's forced answer tool on the
+    #   Responses API, which OpenAI's API changelog says tool calling on the
+    #   model requires (developers.openai.com/api/docs/changelog). The
+    #   gauntlet's tool probes passed, 3/3 (459 completion tokens, 13s) and
+    #   16/16 whole-scenario (870 tokens, 17s), each response with status
+    #   completed, and the smoke parsed all 36 outputs (16 and 20).
+    # - explanation_chunk_size None: 16/16 on the canonical whole-scenario
+    #   request (chunking is closed to new models anyway).
+    # - thinking_budget True: OpenAI's reasoning guide lists the model as a
+    #   reasoning model, its model page says the API rejects reasoning effort
+    #   "none" and states no default effort, and reasoning tokens are billed
+    #   as output tokens (developers.openai.com/api/docs/guides/reasoning).
+    #   The harness sends no reasoning parameter. Under the forced tool the
+    #   model reasoned on both smoke requests: 212 of 848 completion tokens
+    #   on the first household and 78 of 902 on the second (the gauntlet
+    #   report records no reasoning count). The gauntlet used 3% and 5% of
+    #   the 16,384-token starting budget and the smoke at most 902 tokens
+    #   (6%), with no budget escalation.
+    # - request_timeout_seconds None: the thinking class's 300s. The probes
+    #   took 13s and 17s and the smoke's households 16s and 15s, far under
+    #   the 150s past which the gauntlet suggests a longer timeout.
+    # - provider_max_completion_tokens None: the model page lists a maximum
+    #   output of 128,000 tokens, the harness's escalation ceiling.
+    # - expected_cost_per_scenario_usd 0.057: the cost `policybench onboard`
+    #   suggested from the whole-scenario probe, rounded to three places, at
+    #   OpenAI's list rates ($8/$40 per 1M, cache writes at $10). The
+    #   gauntlet report gives the probe's 870 completion tokens but no prompt
+    #   or cache counts. The probe sends the manifest's first scenario, the
+    #   request the smoke sent as its first household (2,236 prompt tokens),
+    #   and that household read 2,104 tokens from the cache. With 2,236
+    #   prompt tokens, 2,104 cache writes and zero cache reads, the probe
+    #   would cost $0.056896. The record does not fix those counts: a
+    #   three-output probe on the same scenario ran first, the smoke's read
+    #   does not show which request wrote the cache, and other write counts
+    #   round to the same 0.057 (2,200, for one). With no cache write and no
+    #   cache read the probe would round to 0.053. The smoke's two households
+    #   cost $0.036 and $0.063: 2,104 of the first's 2,236 prompt tokens were
+    #   cache reads, at $0.40 per 1M, and 2,578 of the second's 2,710 were
+    #   cache writes, at $10.
+    # Both smoke responses name the model as gpt-6.2-astra, the requested
+    # name, with no dated snapshot (the Responses API's model field, which the
+    # harness records as provider_resolved_model).
+    "gpt-6.2-astra": ModelCard(
+        litellm_id="gpt-6.2-astra",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.057,
+        notes=(
+            "Onboarded 2026-11-19; OpenAI released the model on 2026-11-17. "
+            "Forced tool contract passed 3/3 (459 completion tokens) and 16/16 "
+            "whole-scenario (870 tokens) on the Responses API, which OpenAI "
+            "says tool calling on this model requires; onboarding estimated "
+            "about $0.057 per scenario at OpenAI's list rates. OpenAI lists "
+            "it as a reasoning model whose API rejects "
+            "reasoning effort none; the model page states no default effort, "
+            "and the harness sends no reasoning parameter. A two-household "
+            "smoke parsed all 36 outputs for $0.10, with no budget escalation "
+            "and reasoning tokens on both requests (212 and 78). Both smoke "
+            "responses name the model as gpt-6.2-astra, the requested name, "
+            "with no dated snapshot."
+        ),
+    ),
+    # GPT-6.2 Sol. Like the Astra card above, written 2026-11-17 from
+    # OpenAI's documentation and onboarded 2026-11-19 under this card's
+    # request fields. Field by field:
+    # - answer_contract "tool": the board's forced answer tool on the
+    #   Responses API, which OpenAI's API changelog says tool calling on the
+    #   model requires (developers.openai.com/api/docs/changelog). The
+    #   gauntlet's tool probes passed, 3/3 (1,145 completion tokens, 25s) and
+    #   16/16 whole-scenario (1,339 tokens, 32s), each response with status
+    #   completed, and the smoke parsed all 36 outputs (16 and 20).
+    # - explanation_chunk_size None: 16/16 on the canonical whole-scenario
+    #   request (chunking is closed to new models anyway).
+    # - thinking_budget True: as on the Astra card, OpenAI lists the model as
+    #   a reasoning model whose API rejects reasoning effort "none", states
+    #   no default effort, and bills reasoning tokens as output tokens
+    #   (developers.openai.com/api/docs/guides/reasoning). The harness sends
+    #   no reasoning parameter. Under the forced tool the model reasoned on
+    #   both smoke requests, more than Astra did: 1,344 of 2,013 completion
+    #   tokens on the first household and 547 of 1,377 on the second (the
+    #   gauntlet report records no reasoning count). The gauntlet used 7% and
+    #   8% of the 16,384-token starting budget and the smoke at most 2,013
+    #   tokens (12%), with no budget escalation.
+    # - request_timeout_seconds None: the thinking class's 300s. The probes
+    #   took 25s and 32s and the smoke's households 43s and 28s, under the
+    #   150s past which the gauntlet suggests a longer timeout. A first
+    #   gauntlet run the same day stopped on its 3-variable probe with a
+    #   litellm.Timeout and no response, after 150s on the gauntlet's clock
+    #   (litellm's error cites the 300s timeout); the gauntlet classed it as
+    #   an environment error, not a serving fact, and derived no card. The
+    #   rerun is the one recorded here.
+    # - provider_max_completion_tokens None: the model page lists a maximum
+    #   output of 128,000 tokens, the harness's escalation ceiling.
+    # - expected_cost_per_scenario_usd 0.019: the cost `policybench onboard`
+    #   suggested from the whole-scenario probe, rounded to three places, at
+    #   OpenAI's list rates ($2/$10 per 1M, cache writes at $2.50). As on the
+    #   Astra card, the gauntlet report gives the probe's 1,339 completion
+    #   tokens but no prompt or cache counts, and the smoke's first
+    #   household, the same 2,236-token request, read 2,104 tokens from the
+    #   cache. With 2,236 prompt tokens, 2,104 cache writes and zero cache
+    #   reads, the probe would cost $0.018914. The record does not fix those
+    #   counts: a three-output probe on the same scenario ran first, the
+    #   smoke's read does not show which request wrote the cache, and other
+    #   write counts round to the same 0.019 (2,200, for one). With no cache
+    #   write and no cache read the probe would round to 0.018. The smoke's
+    #   two households cost $0.021 and $0.020, with the same cache reads
+    #   (2,104 tokens) and writes (2,578) as Astra's.
+    # Both smoke responses name the model as gpt-6.2-sol, the requested name,
+    # with no dated snapshot (provider_resolved_model).
+    "gpt-6.2-sol": ModelCard(
+        litellm_id="gpt-6.2-sol",
+        answer_contract="tool",
+        thinking_budget=True,
+        expected_cost_per_scenario_usd=0.019,
+        notes=(
+            "Onboarded 2026-11-19; OpenAI released the model on 2026-11-17. "
+            "Forced tool contract passed 3/3 (1,145 completion tokens) and "
+            "16/16 whole-scenario (1,339 tokens) on the Responses API, which "
+            "OpenAI says tool calling on this model requires; onboarding "
+            "estimated about $0.019 per scenario at OpenAI's list rates. "
+            "OpenAI lists it as a reasoning model whose API rejects "
+            "reasoning effort none; the model page states no default effort, "
+            "and the harness sends no reasoning parameter. A two-household "
+            "smoke parsed all 36 outputs for $0.04, with no budget escalation "
+            "and reasoning tokens on both requests (1,344 and 547). Both smoke "
+            "responses name the model as gpt-6.2-sol, the requested name, with "
+            "no dated snapshot."
+        ),
+    ),
     "gpt-6-luna": ModelCard(
         litellm_id="gpt-6-luna",
         answer_contract="tool",
