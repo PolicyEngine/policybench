@@ -740,10 +740,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   high (aistudio.google.com/docs/generate-content/thinking, read
     #   2026-11-13), and all 51 raw generateContent responses in the record
     #   carry thought tokens. The 16,384-token starting budget is not the
-    #   card's: the harness gives every gemini/ id 16,384
-    #   (GEMINI_JSON_MAX_COMPLETION_TOKENS). The gauntlet used all of it on the
-    #   forced-tool probe, 61% on the 3-variable JSON probe and 44% on the
-    #   whole-scenario JSON probe (22% of the 32,768-token ceiling).
+    #   card's: it sets no completion_token_cap, so the harness gives it the
+    #   Gemini family's 16,384 (GEMINI_JSON_MAX_COMPLETION_TOKENS). The
+    #   gauntlet used all of it on the forced-tool probe, 61% on the
+    #   3-variable JSON probe and 44% on the whole-scenario JSON probe (22% of
+    #   the 32,768-token ceiling).
     # - request_timeout_seconds 900. Google's Gemini 4 Carbon guide says hard
     #   prompts "can take several minutes" and recommends HTTP client
     #   timeouts of "at least 15 minutes"
@@ -875,10 +876,11 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   2026-11-13), and all 51 raw generateContent responses in the record
     #   carry thought tokens. The harness sends no thinkingConfig, so this
     #   model's default is high where Carbon's and Argon's is medium. The
-    #   16,384-token starting budget is not the card's: the harness gives every
-    #   gemini/ id 16,384 (GEMINI_JSON_MAX_COMPLETION_TOKENS). The gauntlet
-    #   used 67% of it on the 3-variable probe and 73% on the whole-scenario
-    #   probe (18% of the 65,536-token ceiling).
+    #   16,384-token starting budget is not the card's: it sets no
+    #   completion_token_cap, so the harness gives it the Gemini family's
+    #   16,384 (GEMINI_JSON_MAX_COMPLETION_TOKENS). The gauntlet used 67% of
+    #   it on the 3-variable probe and 73% on the whole-scenario probe (18% of
+    #   the 65,536-token ceiling).
     # - request_timeout_seconds 600. At the gauntlet's 228 to 234 completion
     #   tokens a second, a request at the 65,536-token ceiling (the second
     #   budget escalation) takes about 280 to 290s, and at the slowest rates
@@ -1050,7 +1052,7 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   completion tokens a second (16,384 tokens in 127s and 129s), the raw
     #   call at the default level at about 138 (7,930 thought and answer
     #   tokens in 57s), and the smoke's four requests at 128 to 136, the
-    #   32,768-token one at 132, so the record shows no slowdown with length
+    #   32,768-token one at 132, so the smoke shows no slowdown with length
     #   up to 32,768 tokens. Every request now asks for the 65,536-token
     #   ceiling. At 127 to 138 tokens a second one that used all of it would
     #   take about 475 to 516s, past the thinking class's 300s. No request in
