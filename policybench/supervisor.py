@@ -14,12 +14,13 @@ SIGALRM wall timeout (which only functions on a process's main thread).
 Results land as one CSV per scenario under ``<run_dir>/scenarios/`` and are
 combined into ``<run_dir>/predictions.csv`` at the end; rerunning the same
 command skips completed scenarios. A partially-complete scenario is sent
-again, and each of its requests that already got a response is answered from
-the response cache instead of the provider. A request that errored or timed
-out stored nothing, so it goes to the provider again. So does a ``gemini/``
-tool request answered before ``eval_no_tools._litellm_call_kwargs`` pinned
-its cache key: LiteLLM stored those answers under a key no rebuilt request
-looks up.
+again. Each of its requests is answered from the response cache when LiteLLM
+stored a matching answer and that entry is still there; every other request
+goes to the provider again. That covers a request that failed before LiteLLM
+stored anything, an entry the disk cache failed to write or has since
+evicted, and a ``gemini/`` tool request answered before
+``eval_no_tools._litellm_call_kwargs`` pinned its cache key (LiteLLM stored
+those answers under a key no rebuilt request looks up).
 
 For a single-country run (every supervised run in practice), PolicyEngine
 provenance (the ``policyengine_bundles`` block of every scenario sidecar) is
@@ -634,10 +635,10 @@ class Supervisor:
             # Keep dispatching, but surface the projection immediately.
             # Partial coverage is not wasted: a later run of the same
             # treatment with the same cache directory rebuilds the same
-            # requests, and the response cache answers each one that already
-            # got a response. That holds per request, not per scenario (the
-            # module docstring lists the requests that go to the provider
-            # again).
+            # requests, and the response cache answers each one whose stored
+            # answer is still there. That holds per request, not per
+            # scenario, and not for every request (the module docstring
+            # lists the ones that go to the provider again).
             self.projection_warning = (
                 f"projected ${projected:.2f} exceeds budget ${self.budget_usd:.2f}"
             )

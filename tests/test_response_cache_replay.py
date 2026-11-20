@@ -13,10 +13,12 @@ rewrites the tool's schema in place (it drops ``additionalProperties``, and
 ``enum`` on non-string outputs). The harness now hands LiteLLM a copy of the
 request and pins the key of the request as built (``_litellm_call_kwargs``).
 
-These are unit tests and send nothing. They run LiteLLM's own request path
-(parameter mapping, the provider's request transformation, the cache lookup and
-store) and replace only the wire: ``httpx.Client.send`` answers from this file,
-and a socket connection fails the test.
+These are unit tests. Each one runs LiteLLM's own request path (parameter
+mapping, the provider's request transformation, the cache lookup and store)
+and replaces only the wire: ``httpx.Client.send`` answers from this file, and
+a socket connection made during a test fails it. The fixtures start with each
+test, so they do not cover what importing LiteLLM does: unless
+``LITELLM_LOCAL_MODEL_COST_MAP`` is set, it fetches its model cost map once.
 """
 
 from __future__ import annotations
@@ -306,6 +308,9 @@ def offline(monkeypatch):
     monkeypatch.setattr(eval_no_tools, "_PROCESS_REASONING_EFFORT_OVERRIDE", [])
     monkeypatch.setattr(eval_no_tools, "MAX_ATTEMPTS", 1)
     monkeypatch.setattr(litellm, "drop_params", False)
+    # Turning the cache on registers LiteLLM callbacks; give them back too.
+    for name in ("input_callback", "success_callback", "_async_success_callback"):
+        monkeypatch.setattr(litellm, name, list(getattr(litellm, name)))
     monkeypatch.setattr(litellm, "cache", None)
 
 
@@ -316,7 +321,14 @@ def wire(monkeypatch) -> list[dict]:
 
     def send(self, request, **_kwargs):
         body = json.loads(request.content)
-        sent.append({"path": request.url.path, "body": body})
+        sent.append(
+            {
+                "path": request.url.path,
+                "query": request.url.query.decode(),
+                "headers": dict(request.headers),
+                "body": body,
+            }
+        )
         return httpx.Response(
             200,
             json=_canned_answer(request.url.path, body, len(sent)),
@@ -383,6 +395,10 @@ def _cache_hit(result: dict) -> bool:
 def _assert_replays(kind: str, model_id: str, wire: list, keys: CacheKeys) -> None:
     first = REQUESTS[kind](model_id)
     assert len(wire) == 1
+    if _uses_responses_api(model_id):
+        # LiteLLM would hand a Responses call it bridges through completion
+        # the same pinned key as the inner call.
+        assert wire[0]["path"].endswith("/responses")
     assert not _cache_hit(first)
     assert (first["live_calls"], first["cache_hit_calls"]) == (1, 0)
     assert keys.stored == keys.looked_up, "stored under a key no request looks up"
@@ -459,15 +475,19 @@ def test_the_pinned_key_is_the_key_litellm_looks_up_by_itself(
 def test_the_pin_never_reaches_the_provider(
     model_id, kind, wire, tmp_path, monkeypatch
 ):
+    """The path, query, headers and body are the ones LiteLLM sends alone."""
     request_fn, request = _as_built(monkeypatch, kind, model_id)
 
     request_fn(**copy.deepcopy(request))  # no cache: LiteLLM alone
     enable_cache(str(tmp_path / "cache"))
+    key = litellm.cache.get_cache_key(**copy.deepcopy(request))
     _run_request_with_wall_timeout(request_fn, request)
 
     plain, pinned = wire
     assert pinned == plain
-    assert "cache_key" not in json.dumps(pinned)
+    on_the_wire = json.dumps(pinned)
+    for pin in ("cache_key", key, key.rsplit(":", 1)[-1]):
+        assert pin not in on_the_wire
 
 
 def test_an_effort_override_keeps_its_own_namespace(wire, cache_keys, monkeypatch):
@@ -561,7 +581,11 @@ def _objects(children):
     )
 
 
-TOOL_SCHEMAS = _objects(st.recursive(_LEAVES, _objects, max_leaves=6))
+# Each example gets its own copy: the leaves above are shared objects, and a
+# call that rewrote one would change every later example.
+TOOL_SCHEMAS = _objects(st.recursive(_LEAVES, _objects, max_leaves=6)).map(
+    copy.deepcopy
+)
 
 
 @settings(

@@ -1271,18 +1271,33 @@ def _litellm_call_kwargs(request_kwargs: dict) -> dict:
     LiteLLM computes its cache key twice from the arguments it is given: once
     to look a stored answer up before the call, and again to store the answer
     after it. In between it can rewrite those arguments in place. For a
-    ``gemini/`` request it strips ``additionalProperties`` from a tool's
-    schema, and ``enum`` from the schema's non-string fields (LiteLLM 1.95.0),
-    so the answer is stored under a key that no freshly built request looks
-    up, and a re-sent request is paid for again.
+    ``gemini/`` request, LiteLLM 1.95.0 strips ``additionalProperties: false``
+    from a tool's schema, and ``enum`` from the fields that are not strings
+    (the board's 0/1 outputs). The answer is then stored under a key that no
+    freshly built request looks up, and a re-sent request is paid for again.
 
     Two things prevent that. LiteLLM gets a deep copy, so the caller's request
     stays as built and a retry sends the same request. And while the disk
     cache is on, ``cache_key`` pins the key of the request as built, which
-    LiteLLM then uses for the lookup and for the store. That is the key
-    LiteLLM looks up by itself, so no stored answer that replayed before the
-    pin stops replaying. Answers that ``gemini/`` tool requests stored before
-    the pin sit under the rewritten schema's key and are not found.
+    LiteLLM then uses for the lookup and for the store.
+
+    The harness sends one user message through a synchronous, non-streaming
+    ``completion`` call or a native ``responses`` call. For those requests the
+    pinned key is the key LiteLLM looks up by itself, so a freshly built
+    request finds every stored answer it found before the pin. The pin does
+    not reach three things:
+
+    - Answers that ``gemini/`` tool requests stored before the pin. They sit
+      under the rewritten schema's key. A freshly built request never found
+      them. A retry of a request LiteLLM had already rewritten could, and no
+      longer does.
+    - A request LiteLLM normalizes before its own lookup, such as a
+      conversation whose tool-call ids carry a Gemini thought signature. The
+      pin is taken before that, so it is not the key LiteLLM would compute.
+    - A ``responses`` call LiteLLM bridges through ``completion``. Both calls
+      would get the same pinned key.
+
+    No caller sends the last two with the cache on.
     """
     call_kwargs = copy.deepcopy(request_kwargs)
     if litellm.cache is not None and "cache_key" not in call_kwargs:
