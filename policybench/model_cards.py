@@ -164,12 +164,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   gauntlet report gives the probe's 870 completion tokens but no prompt
     #   or cache counts. The probe sends the manifest's first scenario, the
     #   request the smoke sent as its first household (2,236 prompt tokens),
-    #   and that household read 2,104 tokens from the cache, and only the
-    #   gauntlet had run on the model before it. If the probe wrote those 2,104
-    #   tokens to the cache, it cost $0.056896. The record does not fix that
-    #   count: a three-output probe on the same scenario ran first, and other
-    #   write counts round to the same 0.057 (2,200, for one). With no cache
-    #   write the probe would round to 0.053. The smoke's two households
+    #   and that household read 2,104 tokens from the cache. With 2,236
+    #   prompt tokens, 2,104 cache writes and zero cache reads, the probe
+    #   would cost $0.056896. The record does not fix those counts: a
+    #   three-output probe on the same scenario ran first, the smoke's read
+    #   does not show which request wrote the cache, and other write counts
+    #   round to the same 0.057 (2,200, for one). With no cache write and no
+    #   cache read the probe would round to 0.053. The smoke's two households
     #   cost $0.036 and $0.063: 2,104 of the first's 2,236 prompt tokens were
     #   cache reads, at $0.40 per 1M, and 2,578 of the second's 2,710 were
     #   cache writes, at $10.
@@ -233,11 +234,12 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   Astra card, the gauntlet report gives the probe's 1,339 completion
     #   tokens but no prompt or cache counts, and the smoke's first
     #   household, the same 2,236-token request, read 2,104 tokens from the
-    #   cache, and only the gauntlet had run on the model before it. If the probe
-    #   wrote those 2,104 tokens to the cache, it cost $0.018914. The record
-    #   does not fix that count: a three-output probe on the same scenario
-    #   ran first, and other write counts round to the same 0.019 (2,200, for
-    #   one). With no cache write the probe would round to 0.018. The smoke's
+    #   cache. With 2,236 prompt tokens, 2,104 cache writes and zero cache
+    #   reads, the probe would cost $0.018914. The record does not fix those
+    #   counts: a three-output probe on the same scenario ran first, the
+    #   smoke's read does not show which request wrote the cache, and other
+    #   write counts round to the same 0.019 (2,200, for one). With no cache
+    #   write and no cache read the probe would round to 0.018. The smoke's
     #   two households cost $0.021 and $0.020, with the same cache reads
     #   (2,104 tokens) and writes (2,578) as Astra's.
     # Both smoke responses name the model as gpt-6.2-sol, the requested name,
