@@ -306,7 +306,7 @@ PRICE_OVERRIDES_PER_1M: dict[str, dict[str, float]] = {
     # (eval_no_tools._extract_usage_metadata; eval-no-tools enables the
     # cache); and, for a model whose usage records no cost,
     # analysis.model_cost_latency computes one from the current entry's
-    # input and output rates. Once the entry changes, each would put the
+    # input, output and cache-read rates. Once the entry changes, each would put the
     # December rate on a request made in November. The pricing page
     # lists one rate at every prompt length, implicit caching only, and no
     # free tier for this model. litellm 1.95.0's bundled price map has no

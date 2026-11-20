@@ -9,6 +9,7 @@ import pandas as pd
 
 from policybench.config import (
     BINARY_PROGRAMS,
+    GPT_RESPONSES_MODELS,
     PRICE_OVERRIDES_PER_1M,
     SEED,
 )
@@ -1456,6 +1457,74 @@ def household_latency_seconds(predictions: pd.DataFrame) -> pd.Series:
     )
 
 
+def _override_fallback_cost(
+    rows: pd.DataFrame, model: str, rates: dict[str, float]
+) -> float | None:
+    """One model's cost from its price override, or None when it is unknown.
+
+    The rows priced are those that recorded both prompt and completion token
+    counts. A row missing either count adds nothing, as
+    ``eval_no_tools._reconstruct_token_cost`` prices no such request, and a
+    model with no row to price (Claude Fable 5's frozen board rows record no
+    usage) gets no cost, not $0.
+
+    A row's token counts are its share of its household's usage, summed over
+    the household's requests, so no row records one request's usage. An
+    override whose price depends on a request's own prompt length gives no
+    cost: the Responses-API GPT models (``GPT_RESPONSES_MODELS``) charge every
+    token of a request above 272k prompt tokens at a higher rate. Other
+    overrides price usage linearly, so the rows' sums price it exactly:
+    - an override with only input and output rates prices the prompt tokens,
+      cached ones included, at the input rate, as the reconstruction does;
+    - an override with a ``cache_read`` or ``cache_write`` rate prices the
+      rows' cached and cache-write tokens at those rates, bounded per row as
+      the reconstruction bounds them, and a missing rate is the input rate.
+      An empty count on a row is no such tokens, as the reconstruction reads
+      a count the provider did not report. A frame without the column of a
+      rate the override lists records none of that usage, so the model gets
+      no cost.
+    """
+    if model in GPT_RESPONSES_MODELS:
+        return None
+    token_columns = ["prompt_tokens", "completion_tokens"]
+    if not set(token_columns) <= set(rows.columns):
+        return None
+    priced = rows.dropna(subset=token_columns)
+    if priced.empty:
+        return None
+    # The same grouped sum the published fallback costs were computed from,
+    # so an input-and-output override reproduces them to the bit.
+    sums = priced.groupby("model")[token_columns].sum().iloc[0]
+    prompt = float(sums["prompt_tokens"])
+    completion = float(sums["completion_tokens"])
+    if "cache_read" not in rates and "cache_write" not in rates:
+        return prompt * rates["input"] / 1e6 + completion * rates["output"] / 1e6
+    for rate, column in (
+        ("cache_read", "cached_prompt_tokens"),
+        ("cache_write", "cache_write_prompt_tokens"),
+    ):
+        if rate in rates and column not in priced.columns:
+            return None
+
+    def recorded(column: str) -> pd.Series:
+        if column not in priced.columns:
+            return pd.Series(0.0, index=priced.index)
+        return priced[column].astype(float).fillna(0.0).clip(lower=0.0)
+
+    row_prompt = priced["prompt_tokens"].astype(float)
+    cached = np.minimum(recorded("cached_prompt_tokens"), row_prompt)
+    cache_write = np.minimum(recorded("cache_write_prompt_tokens"), row_prompt - cached)
+    cached_total = float(cached.sum())
+    cache_write_total = float(cache_write.sum())
+    uncached = prompt - cached_total - cache_write_total
+    return (
+        uncached * rates["input"]
+        + cached_total * rates.get("cache_read", rates["input"])
+        + cache_write_total * rates.get("cache_write", rates["input"])
+        + completion * rates["output"]
+    ) / 1e6
+
+
 def model_cost_latency(
     predictions: pd.DataFrame,
     price_overrides: dict[str, dict[str, float]] | None = None,
@@ -1467,11 +1536,9 @@ def model_cost_latency(
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When a
     model's reconstructed cost is missing (a provider preview model not yet in
-    litellm's price map), it is filled from ``price_overrides`` by pricing the
-    rows that recorded both prompt and completion token counts. A row missing
-    either count adds nothing, as ``eval_no_tools._reconstruct_token_cost``
-    prices no such row, and a model with no row to price (Claude Fable 5's
-    frozen board rows record no usage) gets no cost, not $0.
+    litellm's price map), :func:`_override_fallback_cost` fills it from
+    ``price_overrides`` where the rows' recorded usage supports the override's
+    pricing, and otherwise the model gets no cost.
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}
@@ -1483,28 +1550,15 @@ def model_cost_latency(
             household_latency_seconds(predictions).groupby("model").median()
         )
     overrides = price_overrides or {}
-    token_columns = ["prompt_tokens", "completion_tokens"]
-    priceable = pd.DataFrame(columns=token_columns)
-    if set(token_columns) <= set(predictions.columns):
-        priceable = (
-            predictions.dropna(subset=token_columns)
-            .groupby("model")[token_columns]
-            .sum()
-        )
     out: dict[str, dict[str, float]] = {}
     for _, row in usage.iterrows():
         model = str(row["model"])
         cost = row.get("total_cost_usd")
-        if (
-            (cost is None or pd.isna(cost))
-            and model in overrides
-            and row["model"] in priceable.index
-        ):
-            price = overrides[model]
-            prompt, completion = priceable.loc[row["model"], token_columns]
-            cost = (
-                float(prompt) * price["input"] / 1e6
-                + float(completion) * price["output"] / 1e6
+        if (cost is None or pd.isna(cost)) and model in overrides:
+            cost = _override_fallback_cost(
+                predictions.loc[predictions["model"] == row["model"]],
+                model,
+                overrides[model],
             )
         entry: dict[str, float] = {}
         if cost is not None and not pd.isna(cost):

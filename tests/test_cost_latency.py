@@ -3,17 +3,24 @@
 Cost invariants, for every input (the property test executes them):
 - costUsd and costPerHousehold are both present or both absent;
 - a model has a cost exactly when one of its rows recorded total_cost_usd, or
-  it has a price override and one of its rows recorded both prompt and
-  completion token counts; a row missing either count is not priced, so no
-  cost rests on a count nobody recorded, and a model with no usage at all
-  gets no cost rather than $0;
+  it has a price override, is not a Responses-API GPT model, and one of its
+  rows recorded both prompt and completion token counts; a row missing either
+  count is not priced, so no cost rests on a count nobody recorded, and a
+  model with no usage at all gets no cost rather than $0;
 - a recorded cost is the sum of the recorded row costs and the override is
   not consulted; a filled cost is the override's prices applied to the token
-  sums of the rows that recorded both counts;
+  sums of the rows that recorded both counts, with cached and cache-write
+  tokens at the override's cache rates where it has them;
+- a Responses-API GPT model's cost is never filled: its long-context rate
+  turns on one request's prompt length, and a row records a share of its
+  household's usage, not one request's;
 - costPerHousehold is costUsd over the distinct households in the input.
-The frozen-snapshot tests check the published figures: every model's usage
-fields but Claude Fable 5's reproduce from the frozen predictions, and Fable
-5's, which those rows do not record, are not computed at all.
+The parity tests check that a filled cost is what
+eval_no_tools._reconstruct_token_cost records for the same usage. The
+frozen-snapshot tests check the published figures: every model's usage
+fields but Claude Fable 5's reproduce from the frozen predictions, including
+the two models whose cost the override fills (Gemini 3.6 Flash and Grok Build
+0.1), and Fable 5's, which those rows do not record, are not computed at all.
 """
 
 import json
@@ -27,7 +34,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from policybench.analysis import model_cost_latency
-from policybench.config import PRICE_OVERRIDES_PER_1M
+from policybench.config import GPT_RESPONSES_MODELS, MODELS, PRICE_OVERRIDES_PER_1M
 from policybench.snapshot_payload import read_run_payload
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -195,7 +202,185 @@ def test_recorded_zero_cost_and_recorded_zero_tokens_stay_zero():
     assert out["zero-tokens"]["costUsd"] == 0.0
 
 
-MODEL_NAMES = ("a", "b", "c")
+def _usage_row(model, scenario, prompt, completion, cached, cache_write):
+    return {
+        **_row(model, scenario, np.nan, 5.0, prompt=prompt, completion=completion),
+        "cached_prompt_tokens": cached,
+        "cache_write_prompt_tokens": cache_write,
+    }
+
+
+@pytest.mark.parametrize("prompt", [100_000, 300_000])
+def test_gpt_responses_override_fills_no_cost(prompt):
+    """GPT-6.1 Sol charges a request above 272k prompt tokens 2x input and
+    cache and 1.5x output on every token. A row holds its household's usage
+    divided among its rows, so whether a request crossed 272k is not on the
+    row, and pricing the rows at the base rates could understate the cost."""
+    model = "gpt-6.1-sol"
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", prompt, 20_000, 50_000, 0)],
+    )
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert "costUsd" not in out[model]
+    assert "costPerHousehold" not in out[model]
+    assert out[model]["latencySeconds"] == pytest.approx(5.0)
+
+
+def test_cache_rates_price_cached_and_cache_write_tokens():
+    """Claude Fable 5.2's override lists $8 input, $0.20 cache reads, $10
+    cache writes and $40 output per 1M tokens. The filled cost prices the
+    rows' cached and cache-write tokens at those rates, not at the input
+    rate."""
+    model = "claude-fable-5.2"
+    rates = PRICE_OVERRIDES_PER_1M[model]
+    assert rates == {
+        "input": 8.0,
+        "output": 40.0,
+        "cache_read": 0.2,
+        "cache_write": 10.0,
+    }
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", 1_000_000, 10_000, 600_000, 100_000)],
+    )
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    # 300k uncached at $8, 600k cached at $0.20, 100k written at $10, and
+    # 10k output at $40 per 1M: $2.40 + $0.12 + $1.00 + $0.40.
+    assert out[model]["costUsd"] == pytest.approx(3.92)
+
+
+def test_cache_read_override_prices_cache_writes_at_input():
+    """Grok 4.7's override lists a cache-read rate and no cache-write rate,
+    so cache-write tokens take the input rate, as the reconstruction prices
+    them, and a frame with no cache-write column still has a cost."""
+    model = "grok-4.7"
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", 1_000_000, 100_000, 400_000, 200_000)],
+    )
+    # $2 on 600k (uncached and written), $0.50 on 400k cached, $6 on 100k.
+    expected = (600_000 * 2.0 + 400_000 * 0.5 + 100_000 * 6.0) / 1e6
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert out[model]["costUsd"] == pytest.approx(expected)
+    no_writes = preds.drop(columns=["cache_write_prompt_tokens"])
+    out = model_cost_latency(no_writes, PRICE_OVERRIDES_PER_1M)
+    assert out[model]["costUsd"] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "model, dropped",
+    [
+        ("claude-fable-5.2", "cached_prompt_tokens"),
+        ("claude-fable-5.2", "cache_write_prompt_tokens"),
+        ("grok-4.7", "cached_prompt_tokens"),
+    ],
+)
+def test_cache_rate_without_its_column_fills_no_cost(model, dropped):
+    """A frame with no column for a usage the override prices apart records
+    none of that usage, so the cache distinction cannot be recovered."""
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", 1_000_000, 10_000, 600_000, 100_000)],
+    ).drop(columns=[dropped])
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert "costUsd" not in out[model]
+
+
+def test_input_output_override_needs_no_cache_columns():
+    """An override with only input and output rates prices every prompt token
+    at the input rate, so the cache columns do not matter."""
+    preds = pd.DataFrame(
+        [_row("m", "s1", np.nan, 5.0, prompt=1_000_000, completion=2_000_000)]
+    )
+    out = model_cost_latency(preds, {"m": {"input": 1.0, "output": 2.0}})
+    assert out["m"]["costUsd"] == pytest.approx(5.0)
+    preds["cached_prompt_tokens"] = 500_000.0
+    out = model_cost_latency(preds, {"m": {"input": 1.0, "output": 2.0}})
+    assert out["m"]["costUsd"] == pytest.approx(5.0)
+
+
+def test_unreported_cache_count_is_no_cached_tokens():
+    """An empty count on a row is no such tokens, as the reconstruction reads
+    a count the provider did not report."""
+    model = "claude-fable-5.2"
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", 1_000_000, 10_000, np.nan, np.nan)],
+    )
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert out[model]["costUsd"] == pytest.approx((8_000_000 + 400_000) / 1e6)
+
+
+def _reconstruction():
+    """eval_no_tools imports litellm, so the parity tests import it lazily."""
+    from policybench.eval_no_tools import _reconstruct_token_cost
+
+    return _reconstruct_token_cost
+
+
+USAGES = [
+    (1_000, 500, None, None),
+    (120_000, 30_000, 70_000, None),
+    (150_000, 8_000, 40_000, 25_000),
+    (300_000, 12_000, 100_000, 50_000),
+    (80_000, 4_000, 90_000, 5_000),  # a cached count above the prompt count
+]
+
+
+@pytest.mark.parametrize("model", sorted(PRICE_OVERRIDES_PER_1M))
+@pytest.mark.parametrize("prompt, completion, cached, cache_write", USAGES)
+def test_filled_cost_matches_request_reconstruction(
+    model, prompt, completion, cached, cache_write
+):
+    """A household answered by one request has its usage on one row here, so
+    the filled cost is what eval_no_tools._reconstruct_token_cost records for
+    that request, for every override; a GPT Responses model's is not filled."""
+    reconstruct = _reconstruction()
+    recorded = reconstruct(
+        model_name=model,
+        model_id=MODELS.get(model, model),
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        cached_prompt_tokens=cached,
+        cache_write_prompt_tokens=cache_write,
+    )
+    assert recorded.usd is not None and recorded.is_estimated is False
+    preds = pd.DataFrame(
+        [
+            _usage_row(
+                model,
+                "s1",
+                prompt,
+                completion,
+                np.nan if cached is None else cached,
+                np.nan if cache_write is None else cache_write,
+            )
+        ]
+    )
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)[model]
+    if model in GPT_RESPONSES_MODELS:
+        assert "costUsd" not in out
+    else:
+        assert out["costUsd"] == pytest.approx(recorded.usd, rel=1e-12)
+
+
+def test_filled_cost_splits_like_the_request():
+    """Rows that share a request's usage equally price to the request's cost:
+    the fill is linear in each token count."""
+    reconstruct = _reconstruction()
+    model = "claude-fable-5.2"
+    request = reconstruct(
+        model_name=model,
+        model_id=MODELS[model],
+        prompt_tokens=210_000,
+        completion_tokens=21_000,
+        cached_prompt_tokens=140_000,
+        cache_write_prompt_tokens=35_000,
+    )
+    preds = pd.DataFrame(
+        [_usage_row(model, "s1", 210_000 / 7, 3_000, 20_000, 5_000) for _ in range(7)]
+    )
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert out[model]["costUsd"] == pytest.approx(request.usd, rel=1e-12)
+
+
+MODEL_NAMES = ("a", "b", "c", "gpt-6.1-sol")
 SCENARIOS = ("s1", "s2", "s3", "s4")
 
 missing = st.just(float("nan"))
@@ -210,18 +395,25 @@ usage_row = st.fixed_dictionaries(
         ),
         "prompt_tokens": st.one_of(missing, st.integers(0, 5_000_000).map(float)),
         "completion_tokens": st.one_of(missing, st.integers(0, 5_000_000).map(float)),
+        "cached_prompt_tokens": st.one_of(
+            missing, st.integers(0, 6_000_000).map(float)
+        ),
+        "cache_write_prompt_tokens": st.one_of(
+            missing, st.integers(0, 6_000_000).map(float)
+        ),
         "elapsed_seconds": st.one_of(missing, st.floats(min_value=0, max_value=600)),
     }
 )
+rate = st.floats(min_value=0, max_value=100, allow_subnormal=False)
 price = st.fixed_dictionaries(
-    {
-        "input": st.floats(min_value=0, max_value=100, allow_subnormal=False),
-        "output": st.floats(min_value=0, max_value=100, allow_subnormal=False),
-    }
+    {"input": rate, "output": rate},
+    optional={"cache_read": rate, "cache_write": rate},
 )
 
 
-def _reference_cost(rows: list[dict], override: dict | None) -> float | None:
+def _reference_cost(
+    model: str, rows: list[dict], override: dict | None
+) -> float | None:
     """The cost the invariants define, from the rows in plain Python."""
     recorded = [
         r["total_cost_usd"] for r in rows if not math.isnan(r["total_cost_usd"])
@@ -233,12 +425,28 @@ def _reference_cost(rows: list[dict], override: dict | None) -> float | None:
         for r in rows
         if not math.isnan(r["prompt_tokens"]) and not math.isnan(r["completion_tokens"])
     ]
-    if override is None or not priced:
+    if override is None or not priced or model in GPT_RESPONSES_MODELS:
         return None
+    prompt = math.fsum(r["prompt_tokens"] for r in priced)
+    completion = math.fsum(r["completion_tokens"] for r in priced)
+    if "cache_read" not in override and "cache_write" not in override:
+        return prompt * override["input"] / 1e6 + completion * override["output"] / 1e6
+
+    def count(value):
+        return 0.0 if math.isnan(value) else value
+
+    cached = [min(count(r["cached_prompt_tokens"]), r["prompt_tokens"]) for r in priced]
+    written = [
+        min(count(r["cache_write_prompt_tokens"]), r["prompt_tokens"] - c)
+        for r, c in zip(priced, cached)
+    ]
+    uncached = prompt - math.fsum(cached) - math.fsum(written)
     return (
-        math.fsum(r["prompt_tokens"] for r in priced) * override["input"] / 1e6
-        + math.fsum(r["completion_tokens"] for r in priced) * override["output"] / 1e6
-    )
+        uncached * override["input"]
+        + math.fsum(cached) * override.get("cache_read", override["input"])
+        + math.fsum(written) * override.get("cache_write", override["input"])
+        + completion * override["output"]
+    ) / 1e6
 
 
 @settings(max_examples=300, deadline=None)
@@ -275,7 +483,7 @@ def test_cost_is_present_exactly_when_recorded_usage_supports_it(
     for model in sorted(set(frame["model"])):
         entry = out.get(model, {})
         expected = _reference_cost(
-            [r for r in rows if r["model"] == model], overrides.get(model)
+            model, [r for r in rows if r["model"] == model], overrides.get(model)
         )
         assert ("costUsd" in entry) == ("costPerHousehold" in entry)
         if expected is None:
@@ -292,12 +500,15 @@ def test_cost_is_present_exactly_when_recorded_usage_supports_it(
 USAGE_FIELDS = ("costUsd", "costPerHousehold", "latencySeconds", "totalTokens")
 
 
-@pytest.fixture(scope="module")
-def frozen():
+def _frozen_run() -> Path:
     manifest = json.loads((SNAPSHOT_DIR / "manifest.json").read_text())
-    run = SNAPSHOT_DIR / "runs" / manifest["source_run_labels"]["us"]
-    predictions = pd.read_csv(
-        run / "predictions.csv.gz",
+    return SNAPSHOT_DIR / "runs" / manifest["source_run_labels"]["us"]
+
+
+@pytest.fixture(scope="module")
+def frozen_predictions():
+    return pd.read_csv(
+        _frozen_run() / "predictions.csv.gz",
         usecols=[
             "model",
             "scenario_id",
@@ -309,11 +520,18 @@ def frozen():
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
+            "cached_prompt_tokens",
+            "cache_write_prompt_tokens",
         ],
         low_memory=False,
     )
+
+
+@pytest.fixture(scope="module")
+def frozen(frozen_predictions):
+    run = _frozen_run()
     published = {row["model"]: row for row in read_run_payload(run)["modelStats"]}
-    return model_cost_latency(predictions, PRICE_OVERRIDES_PER_1M), published
+    return model_cost_latency(frozen_predictions, PRICE_OVERRIDES_PER_1M), published
 
 
 def test_frozen_usage_reproduces_every_published_model_but_fable_5(frozen):
@@ -335,6 +553,35 @@ def test_frozen_fable_5_usage_is_carried_not_computed(frozen):
     assert "claude-fable-5" not in computed
     fable = published["claude-fable-5"]
     assert all(fable[k] > 0 for k in USAGE_FIELDS)
+
+
+# The published board's models whose cost the override fills, and the costs
+# the board publishes for them (paper/snapshot/20260501, 2026-11-20).
+FROZEN_FILLED_COSTS = {
+    "gemini-3.6-flash": 5.4831164999999995,
+    "grok-build-0.1": 4.487201,
+}
+
+
+def test_frozen_filled_costs_are_the_published_ones(frozen, frozen_predictions):
+    """Exactly two published models record no cost on any row and take the
+    override's: their overrides list only input and output rates, so the
+    fill prices every prompt token at the input rate, as it did when the
+    board was published, and the figures do not move by a bit."""
+    computed, published = frozen
+    filled = sorted(
+        model
+        for model, rows in frozen_predictions.groupby("model")
+        if rows["total_cost_usd"].isna().all()
+        and model in PRICE_OVERRIDES_PER_1M
+        and rows[["prompt_tokens", "completion_tokens"]].notna().all(axis=1).any()
+    )
+    assert filled == sorted(FROZEN_FILLED_COSTS)
+    for model, cost in FROZEN_FILLED_COSTS.items():
+        assert set(PRICE_OVERRIDES_PER_1M[model]) == {"input", "output"}
+        assert model not in GPT_RESPONSES_MODELS
+        assert published[model]["costUsd"] == cost
+        assert computed[model]["costUsd"] == cost
 
 
 # ----- invariants of household latency (docs/latency_replay_audit.md) -------
