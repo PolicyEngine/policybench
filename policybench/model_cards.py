@@ -1009,8 +1009,8 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   guide lists its default as "On (high)", with levels low, medium, high
     #   and xhigh, and lists "minimal" as not supported on Gemini 4 models
     #   (aistudio.google.com/docs/thinking); no page read says thinking can be
-    #   turned off. The harness sends no
-    #   thinkingConfig. Google's pricing page bills thinking tokens as output
+    #   turned off. The harness sends no thinkingConfig. Google's pricing
+    #   page bills thinking tokens as output
     #   ("Output price (including thinking tokens)",
     #   aistudio.google.com/docs/pricing). The model reasoned on every call in
     #   the record. The harness recorded 16,381 reasoning tokens on each
@@ -1145,16 +1145,17 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "discarded: 49,152 of the smoke's 88,580 completion tokens, an "
             "estimated $0.75 of the smoke's $1.36 at Google's list rates. So "
             "the card starts at the 65,536-token ceiling (completion_token_cap), "
-            "with no lower rung to bill and discard; a request at the ceiling "
-            "that ends at length with outputs missing records them as "
-            "budget_exhausted_at_ceiling. A smoke at that starting budget is "
-            "to come, and the card sets no expected cost per scenario until "
-            "then. The Models API gives the model an "
+            "with no lower rung to bill and discard; when a request at the "
+            "ceiling ends at length with outputs missing, the harness records "
+            "them as budget_exhausted_at_ceiling. A smoke at that starting "
+            "budget is to come, and the card sets no expected cost per "
+            "scenario until then. The Models API gives the model an "
             "outputTokenLimit of 65,536 and lists generateContent, the method "
             "the harness calls with one non-streaming request, among its "
             "supported methods; the model page gives the same 65,536 as the "
-            "default synchronous output. The record's requests ran at about "
-            "127 to 138 completion tokens a second, the smoke's 32,768-token "
+            "default synchronous output. The gauntlet's probes, the raw call "
+            "at the default level and the smoke's requests ran at about 127 "
+            "to 138 completion tokens a second, the smoke's 32,768-token "
             "request at 132, so a request that used the whole 65,536-token "
             "ceiling would take about 475 to 516s at those rates (a request "
             "slower than about 109 tokens a second outlasts 600s); no request "
