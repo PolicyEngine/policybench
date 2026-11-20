@@ -62,8 +62,11 @@ class ModelCard:
     # True → 16,384-token completion budget on both explanation arms
     # (reasoning bills against the same budget as the answer).
     thinking_budget: bool | None = None
-    # Overrides the thinking-class starting budget for models whose reasoning
-    # tail overflows 16,384. Headroom is free — only generated tokens bill.
+    # The model's starting budget, for models whose reasoning tail overflows
+    # 16,384: it overrides the thinking-class starting budget on a
+    # thinking_budget card and, on a gemini/ card, the Gemini family's
+    # 16,384-token starting budget. Requests are still clamped to the
+    # escalation ceiling. Headroom is free — only generated tokens bill.
     completion_token_cap: int | None = None
     # Hard provider output limit, when it is lower than PolicyBench's 128k
     # escalation ceiling. This is distinct from ``completion_token_cap``,

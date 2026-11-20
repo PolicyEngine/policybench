@@ -3899,6 +3899,239 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
         assert reasoning_key not in kwargs
 
 
+# The gemini/ ids whose starting budget is the Gemini family's 16,384 tokens
+# (GEMINI_JSON_MAX_COMPLETION_TOKENS): every gemini/ roster id and gemini/
+# card that sets no completion_token_cap, and one card-less gemini/ id.
+GEMINI_FAMILY_STARTING_BUDGET_IDS = (
+    "gemini/gemini-2.5-flash",
+    "gemini/gemini-3-flash-preview",
+    "gemini/gemini-3.1-flash-lite-preview",
+    "gemini/gemini-3.1-pro-preview",
+    "gemini/gemini-3.5-flash",
+    "gemini/gemini-3.5-flash-lite",
+    "gemini/gemini-3.6-flash",
+    "gemini/gemini-3.7-flash",
+    "gemini/gemini-3.8-flash",
+    "gemini/gemini-4-argon",
+    "gemini/gemini-4-carbon",
+    "gemini/gemini-4-hydrogen",
+    "gemini/gemini-4-neon",
+)
+CARDLESS_GEMINI_ID = "gemini/gemini-2.5-flash"
+
+
+def _gemini_card_ids() -> list[str]:
+    from policybench.model_cards import MODEL_CARDS
+
+    return sorted(
+        model_id for model_id in MODEL_CARDS if model_id.startswith("gemini/")
+    )
+
+
+def test_every_gemini_id_has_a_pinned_starting_budget():
+    """Every gemini/ roster id and gemini/ card is either pinned at the
+    family's 16,384-token starting budget below or sets its own budget with
+    completion_token_cap, so a new gemini/ row cannot skip both."""
+    from policybench.model_cards import MODEL_CARDS, card_for
+
+    gemini_ids = {
+        model_id for model_id in MODELS.values() if model_id.startswith("gemini/")
+    } | set(_gemini_card_ids())
+    capped = {
+        model_id
+        for model_id in gemini_ids
+        if MODEL_CARDS.get(model_id) is not None
+        and MODEL_CARDS[model_id].completion_token_cap is not None
+    }
+    assert capped == set()
+    assert gemini_ids - capped == set(GEMINI_FAMILY_STARTING_BUDGET_IDS) - {
+        CARDLESS_GEMINI_ID
+    }
+    assert card_for(CARDLESS_GEMINI_ID) is None
+
+
+@pytest.mark.parametrize("model_id", GEMINI_FAMILY_STARTING_BUDGET_IDS)
+def test_gemini_ids_without_a_card_budget_keep_the_family_starting_budget(
+    model_id,
+):
+    """A gemini/ card's completion_token_cap leaves every other gemini/ id
+    where it was: 16,384 tokens for 1, 3, 16 and 20 outputs, with and without
+    explanations (the board's requests and answers-only ones), and in the run
+    fingerprint."""
+    from policybench.eval_no_tools import _initial_completion_budget_tokens
+
+    for variable_count in (1, 3, 16, 20):
+        variables = [f"v{i}" for i in range(variable_count)]
+        for include_explanations in (True, False):
+            assert _completion_controls(
+                model_id,
+                include_explanations=include_explanations,
+                variables=variables,
+            ) == {"max_completion_tokens": 16_384}
+        assert _initial_completion_budget_tokens(model_id, variables) == 16_384
+
+
+@pytest.mark.parametrize(
+    ("cap", "ceiling", "expected"),
+    [
+        # Above the family's 16,384 and below the ceiling: the card's value.
+        (24_576, 65_536, 24_576),
+        # At the ceiling: the first request is the last rung.
+        (65_536, 65_536, 65_536),
+        # Above the ceiling: clamped to it, as for every card.
+        (98_304, 65_536, 65_536),
+    ],
+)
+def test_a_gemini_card_completion_token_cap_is_its_starting_budget(
+    mini_scenario, monkeypatch, cap, ceiling, expected
+):
+    """A gemini/ card's completion_token_cap sets the budget of its first
+    request and of its answers-only repair requests (base and cap both, as a
+    thinking-budget card's does on other providers), clamped to the card's
+    escalation ceiling."""
+    from policybench.eval_no_tools import (
+        _chat_completion_request_kwargs,
+        _initial_completion_budget_tokens,
+    )
+    from policybench.model_cards import MODEL_CARDS, ModelCard
+
+    model_id = "gemini/gemini-capped-test"
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        model_id,
+        ModelCard(
+            litellm_id=model_id,
+            answer_contract="tool",
+            request_timeout_seconds=600,
+            thinking_budget=True,
+            completion_token_cap=cap,
+            provider_max_completion_tokens=ceiling,
+        ),
+    )
+
+    _, first = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+    _, repair = _chat_completion_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        model_id,
+        repair=True,
+        include_explanations=False,
+    )
+    assert first["max_completion_tokens"] == expected
+    assert repair["max_completion_tokens"] == expected
+    for variable_count in (1, 3, 16, 20):
+        variables = [f"v{i}" for i in range(variable_count)]
+        for include_explanations in (True, False):
+            assert _completion_controls(
+                model_id,
+                include_explanations=include_explanations,
+                variables=variables,
+            ) == {"max_completion_tokens": expected}
+        assert _initial_completion_budget_tokens(model_id, variables) == expected
+
+
+@pytest.mark.parametrize("model_id", _gemini_card_ids())
+def test_every_gemini_card_reads_its_completion_token_cap(
+    mini_scenario, monkeypatch, model_id
+):
+    """Fails if the gemini/ branch ignores the card: each gemini/ card, given
+    a 24,576-token completion_token_cap (under every gemini/ ceiling), starts
+    its first and answers-only repair requests at 24,576, not 16,384."""
+    import dataclasses
+
+    from policybench.eval_no_tools import (
+        _chat_completion_request_kwargs,
+        _completion_budget_ceiling,
+    )
+    from policybench.model_cards import MODEL_CARDS
+
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        model_id,
+        dataclasses.replace(MODEL_CARDS[model_id], completion_token_cap=24_576),
+    )
+    assert _completion_budget_ceiling(model_id) >= 24_576
+
+    _, first = _chat_completion_request_kwargs(mini_scenario, ["income_tax"], model_id)
+    _, repair = _chat_completion_request_kwargs(
+        mini_scenario,
+        ["income_tax"],
+        model_id,
+        repair=True,
+        include_explanations=False,
+    )
+    assert first["max_completion_tokens"] == 24_576
+    assert repair["max_completion_tokens"] == 24_576
+
+
+def test_a_gemini_card_completion_token_cap_reaches_the_probe_and_batch_requests(
+    mini_scenario, monkeypatch
+):
+    """The onboarding gauntlet's probes and the Gemini batch body build their
+    budget from the same controls, so they start at the card's value too."""
+    from policybench import onboard
+    from policybench.batch_eval import BatchUnit, GeminiBatchAdapter
+    from policybench.model_cards import MODEL_CARDS, ModelCard
+
+    model_id = "gemini/gemini-capped-test"
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        model_id,
+        ModelCard(
+            litellm_id=model_id,
+            answer_contract="tool",
+            thinking_budget=True,
+            completion_token_cap=65_536,
+            provider_max_completion_tokens=65_536,
+        ),
+    )
+
+    for contract in ("tool", "json"):
+        _, probe, _ = onboard._probe_request(
+            mini_scenario, ["income_tax"], model_id, contract
+        )
+        assert probe["max_completion_tokens"] == 65_536
+    body = GeminiBatchAdapter(client=MagicMock()).build_request_body(
+        mini_scenario, BatchUnit(mini_scenario.id, ["income_tax"], 0), model_id
+    )
+    assert body["config"]["max_output_tokens"] == 65_536
+
+
+@patch("policybench.eval_no_tools.completion")
+def test_a_gemini_card_starting_at_its_ceiling_never_escalates(
+    mock_completion, mini_scenario, monkeypatch
+):
+    """A first request at the ceiling is the only rung: a length finish with
+    the outputs missing is billed once, then those outputs are recorded as
+    budget_exhausted_at_ceiling with no repair request."""
+    from policybench.model_cards import MODEL_CARDS, ModelCard
+
+    model_id = "gemini/gemini-capped-test"
+    monkeypatch.setitem(
+        MODEL_CARDS,
+        model_id,
+        ModelCard(
+            litellm_id=model_id,
+            answer_contract="tool",
+            request_timeout_seconds=600,
+            thinking_budget=True,
+            completion_token_cap=65_536,
+            provider_max_completion_tokens=65_536,
+        ),
+    )
+    mock_completion.return_value = _chat_tool_response(
+        None, finish_reason="length", completion_tokens=65_536
+    )
+
+    result = run_single_no_tools(mini_scenario, "income_tax", model_id)
+
+    assert [
+        call.kwargs["max_completion_tokens"] for call in mock_completion.call_args_list
+    ] == [65_536]
+    assert result["budget_escalation_count"] == 0
+    assert result["failure_sources"] == {"income_tax": "budget_exhausted_at_ceiling"}
+
+
 def test_claude_haiku_5_5_reasons_by_default_but_not_under_the_forced_tool():
     """Haiku 5.5 thinks when the request omits the thinking parameter, so it
     is a thinking-default Claude: provider-default thinking, the thinking
