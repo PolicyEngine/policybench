@@ -18,10 +18,10 @@ which LiteLLM loads when it is first imported, before any fixture; set
 Fixtures count requests per repeat and, where a test asks for them, record
 the cache keys each repeat looks up and stores.
 
-Seven tests send no request: the namespace's spelling, the two directory
-guards, the response counter, the overlap guard, and the two that check the
-namespace comes back (they replace the runner; the property test replaces
-the cache object too).
+Six test functions send no request: the namespace's spelling, the guard
+against unrecorded files (each case), the response counter, the overlap
+guard, and the two that check the namespace comes back (they replace the
+runner; the property test replaces the cache object too).
 """
 
 from __future__ import annotations
