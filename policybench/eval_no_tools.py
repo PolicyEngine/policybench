@@ -1,5 +1,6 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
+import contextlib
 import functools
 import hashlib
 import json
@@ -4301,6 +4302,56 @@ def run_no_tools_single_output_eval(
     return df
 
 
+def _repeat_cache_namespace(base: str | None, run_id: str) -> str:
+    """The disk-cache namespace of one repeat of a repeated run."""
+    return f"{base}:repeat={run_id}" if base else f"repeat={run_id}"
+
+
+@contextlib.contextmanager
+def _own_cache_namespace(run_id: str):
+    """Give one repeat its own LiteLLM disk-cache namespace while it runs.
+
+    Every repeat builds the same requests, and LiteLLM keys its disk cache on
+    the request, so without this the cache the CLI turns on answers repeats
+    2..N with repeat 1's responses and the run reports no run-to-run
+    variation. LiteLLM prefixes every key it computes, for the lookup and for
+    the store, with the cache's ``namespace`` attribute, read on each call
+    (``Cache._add_namespace_to_cache_key`` in LiteLLM 1.95.0). So under its own
+    namespace a repeat never finds another repeat's answers, or those of an
+    ``eval-no-tools`` run, and a rerun of the same repeat on the same cache
+    replays that repeat's own answers.
+
+    A request's own ``cache`` namespace outranks the attribute. The one the
+    harness sets, for an effort override (``_effort_cache_namespace``), is
+    built from the attribute when the request is built, so it keeps the
+    repeat. Without a cache this does nothing.
+    """
+    cache = litellm.cache
+    if cache is None:
+        yield
+        return
+    base = cache.namespace
+    cache.namespace = _repeat_cache_namespace(base, run_id)
+    try:
+        yield
+    finally:
+        cache.namespace = base
+
+
+def _response_sources(frame: pd.DataFrame) -> tuple[int, int]:
+    """Responses a run's rows got from the provider and from the disk cache."""
+    if frame.empty or not {"call_id", "live_calls", "cache_hit_calls"} <= set(
+        frame.columns
+    ):
+        return 0, 0
+    # Every row of one request group carries the group's counts.
+    calls = frame.drop_duplicates("call_id")
+    return tuple(
+        int(pd.to_numeric(calls[column], errors="coerce").fillna(0).sum())
+        for column in ("live_calls", "cache_hit_calls")
+    )
+
+
 def run_repeated_no_tools_eval(
     scenarios: list[Scenario],
     repeats: int,
@@ -4310,7 +4361,12 @@ def run_repeated_no_tools_eval(
     include_explanations: bool = True,
     single_output: bool = False,
 ) -> pd.DataFrame:
-    """Run repeated AI-alone evaluations, saving one artifact per run."""
+    """Run repeated AI-alone evaluations, saving one artifact per run.
+
+    Each repeat asks the models again: it runs under its own disk-cache
+    namespace (``_own_cache_namespace``), so it never replays another
+    repeat's responses, and a rerun on the same cache replays its own.
+    """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -4320,18 +4376,24 @@ def run_repeated_no_tools_eval(
         run_output_path = output_path / f"{run_id}.csv"
         print(f"=== Starting {run_id} ===")
         runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
-        frame = runner(
-            scenarios,
-            models=models,
-            programs=programs,
-            output_path=str(run_output_path),
-            run_id=run_id,
-            include_explanations=include_explanations,
-        )
+        with _own_cache_namespace(run_id):
+            frame = runner(
+                scenarios,
+                models=models,
+                programs=programs,
+                output_path=str(run_output_path),
+                run_id=run_id,
+                include_explanations=include_explanations,
+            )
         if "run_id" not in frame.columns:
             frame = frame.copy()
             frame["run_id"] = run_id
             frame.to_csv(run_output_path, index=False)
+        live, replayed = _response_sources(frame)
+        print(
+            f"{run_id}: {live} responses from the provider, "
+            f"{replayed} replayed from the disk cache"
+        )
         frames.append(frame)
 
     if not frames:

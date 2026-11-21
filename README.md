@@ -153,6 +153,17 @@ policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local
 policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
 ```
 
+Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
+but each repeat looks up and stores its answers under its own cache namespace
+(`repeat=run_000`, `repeat=run_001`, ...), so no repeat gets another repeat's
+answers, or those of an `eval-no-tools` run. Run the command again with the
+same cache directory and no repeat it already ran asks again: into the same
+output directory it resumes from the CSVs, and into a new one each repeat
+replays its own answers from the cache, while a higher `--repeats` asks only
+for the new repeats. After each repeat the command prints how many responses
+came from the provider and how many from the cache. To draw a new set of
+repeats instead, point `POLICYBENCH_CACHE_DIR` at a new directory.
+
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval
 commands reuse that manifest by default instead of regenerating households from
