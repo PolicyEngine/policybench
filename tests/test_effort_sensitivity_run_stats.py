@@ -4,6 +4,10 @@ rows cannot establish.
 model_cost_latency leaves out a cost it cannot establish, and the model when
 it has neither a cost nor a latency; run_stats then reports null for those
 fields, as the dashboard reports a cost as not recorded, rather than failing.
+It reports null the same way for output tokens, call counts and the request
+time window when some row does not record them (rows written before the
+column existed, or calls nobody timed), where it used to raise or report
+zero; with no first request, the lockfile pin is null too.
 The dashboard leaves such a key out of a frozen modelStats row (the committed
 snapshot's gpt-5.5 row has no latencySeconds), so --check-board reads the
 frozen figures without assuming the keys: a figure only one side records fails
@@ -13,6 +17,7 @@ the check, and a figure neither side records passes it.
 import copy
 import dataclasses
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -182,3 +187,105 @@ def test_a_cost_neither_side_records_passes_the_board_check(script, frozen):
     assert differ[FABLE]["cost_usd"][0] is None
     assert differ[FABLE]["cost_usd"][1] is not None
     assert not _passes(script, differ)
+
+
+UNTIMED = {"request_started_at": np.nan, "request_completed_at": np.nan}
+PROVENANCE = [
+    "live_calls",
+    "cache_hit_calls",
+    "request_started_at",
+    "request_completed_at",
+]
+
+
+def test_untimed_rows_report_no_latency_and_no_time_window(run_stats):
+    """Rows that record no elapsed time and no request timestamps: the cost is
+    still reported; the latency and the first and last times are null. This
+    raised ValueError (NaT) from the time window."""
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=np.nan).assign(**UNTIMED)
+    stats = run_stats(rows, "claude-fable-5.2")
+    assert stats["cost_usd"] == pytest.approx(0.02)
+    assert stats["median_household_seconds"] is None
+    assert stats["first_request_utc"] is None
+    assert stats["last_response_utc"] is None
+
+
+def test_rows_without_timestamps_keep_their_latency(run_stats):
+    """Elapsed time recorded, request timestamps not (the frozen board's
+    older rows): the latency is reported and the time window is null."""
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0).assign(**UNTIMED)
+    stats = run_stats(rows, "claude-fable-5.2")
+    assert stats["median_household_seconds"] == pytest.approx(4.0)
+    assert stats["first_request_utc"] is None
+    assert stats["last_response_utc"] is None
+
+
+def test_rows_written_before_the_provenance_columns_report_null_counts(run_stats):
+    """Rows from a run that wrote no call counts or request times: those
+    figures are null, the rest is reported, and the result writes as JSON.
+    This raised KeyError('live_calls')."""
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0).drop(columns=PROVENANCE)
+    stats = run_stats(rows, "claude-fable-5.2")
+    for field in (
+        "answered_calls",
+        "households_with_a_second_answered_call",
+        "cache_hit_calls",
+        "first_request_utc",
+        "last_response_utc",
+    ):
+        assert stats[field] is None, field
+    assert stats["cost_usd"] == pytest.approx(0.02)
+    assert stats["median_household_seconds"] == pytest.approx(4.0)
+    assert stats["households"] == 2
+    assert stats["output_tokens"] == 400
+    assert json.loads(json.dumps(stats)) == stats
+
+
+def test_unrecorded_cache_hits_are_null_not_zero(run_stats):
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0).assign(
+        cache_hit_calls=np.nan
+    )
+    stats = run_stats(rows, "claude-fable-5.2")
+    assert stats["answered_calls"] == 2
+    assert stats["cache_hit_calls"] is None
+
+
+def test_unrecorded_output_tokens_are_null_not_zero(run_stats):
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0)
+    unrecorded = rows.assign(completion_tokens=np.nan)
+    assert run_stats(unrecorded, "claude-fable-5.2")["output_tokens"] is None
+    absent = rows.drop(columns=["completion_tokens"])
+    assert run_stats(absent, "claude-fable-5.2")["output_tokens"] is None
+
+
+def test_partly_timed_rows_report_no_time_window(run_stats):
+    """One household untimed: the earliest recorded start bounds the first
+    request but need not be it, so the window is null, as a call count some
+    row lacks is."""
+    rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0)
+    rows.loc[rows["scenario_id"] == "s2", list(UNTIMED)] = np.nan
+    stats = run_stats(rows, "claude-fable-5.2")
+    assert stats["first_request_utc"] is None
+    assert stats["last_response_utc"] is None
+
+
+def test_lockfile_pin_is_null_without_a_first_request(script):
+    """git log reads --before=None as now; with no first request the pin is
+    not established, so it is null rather than today's lockfile."""
+    assert script.lockfile_litellm(None) == {"lockfile_commit": None, "litellm": None}
+
+
+def test_board_rows_reproduce_the_committed_run_figures(script, frozen):
+    """The published summary's board figures, from the frozen board rows:
+    Opus 5.5's rows predate the call counts (null), Fable 5.2's record them."""
+    _, board = frozen
+    committed = json.loads(
+        (ROOT / "sensitivity" / "data" / "claude-effort-2026-11.json").read_text()
+    )["runs"]
+    boards = {run["model"]: run["board"] for run in committed.values()}
+    assert set(boards) == {FABLE, OPUS}
+    for model, published in boards.items():
+        stats = script.run_stats(board, model)
+        assert stats == {field: published[field] for field in stats}, model
+    assert boards[OPUS]["answered_calls"] is None
+    assert boards[FABLE]["answered_calls"] == 106

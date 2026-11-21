@@ -308,8 +308,18 @@ def paired_difference(
     }
 
 
-def _utc(seconds: float) -> str:
+def _utc(seconds: float | None) -> str | None:
+    if seconds is None or pd.isna(seconds):
+        return None
     return pd.Timestamp(float(seconds), unit="s").strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _every_row(rows: pd.DataFrame, column: str) -> pd.Series | None:
+    """The column when every row records it, else None: rows written before
+    the column existed lack it, and an empty value is not recorded, not zero."""
+    if rows.empty or column not in rows.columns or rows[column].isna().any():
+        return None
+    return rows[column]
 
 
 def _float_or_none(value: float | None) -> float | None:
@@ -334,12 +344,17 @@ def run_stats(predictions: pd.DataFrame, model: str) -> dict:
     # no row timed), and the model itself when it has neither; those are null
     # here, as the dashboard shows them as not recorded.
     cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M).get(model, {})
-    by_household = rows.groupby("scenario_id")
-    # live_calls counts the answered provider calls behind a household's rows
-    # (repeated on each row); rows written before the column existed leave it
-    # empty, and then the count is not recorded rather than zero.
-    recorded = bool(rows["live_calls"].notna().all())
-    live_calls = by_household["live_calls"].first()
+    # live_calls and cache_hit_calls count the answered and replayed provider
+    # calls behind a household's rows (repeated on each row). A figure some
+    # row does not record (rows written before its column existed, or calls
+    # nobody timed) is null here, not zero and not a bound from the rows that
+    # do record it.
+    live = _every_row(rows, "live_calls")
+    live_calls = None if live is None else live.groupby(rows["scenario_id"]).first()
+    hits = _every_row(rows, "cache_hit_calls")
+    completion = _every_row(rows, "completion_tokens")
+    started = _every_row(rows, "request_started_at")
+    completed = _every_row(rows, "request_completed_at")
     parsed = rows["prediction"].notna()
     return {
         "households": int(rows["scenario_id"].nunique()),
@@ -349,16 +364,20 @@ def run_stats(predictions: pd.DataFrame, model: str) -> dict:
         "cost_usd": _float_or_none(cost.get("costUsd")),
         "cost_per_household_usd": _float_or_none(cost.get("costPerHousehold")),
         "median_household_seconds": _float_or_none(cost.get("latencySeconds")),
-        "output_tokens": int(round(float(rows["completion_tokens"].sum()))),
-        "answered_calls": int(live_calls.sum()) if recorded else None,
+        "output_tokens": (
+            None if completion is None else int(round(float(completion.sum())))
+        ),
+        "answered_calls": None if live_calls is None else int(live_calls.sum()),
         "households_with_a_second_answered_call": (
-            int((live_calls > 1).sum()) if recorded else None
+            None if live_calls is None else int((live_calls > 1).sum())
         ),
         "cache_hit_calls": (
-            int(by_household["cache_hit_calls"].first().sum()) if recorded else None
+            None
+            if hits is None
+            else int(hits.groupby(rows["scenario_id"]).first().sum())
         ),
-        "first_request_utc": _utc(rows["request_started_at"].min()),
-        "last_response_utc": _utc(rows["request_completed_at"].max()),
+        "first_request_utc": None if started is None else _utc(started.min()),
+        "last_response_utc": None if completed is None else _utc(completed.max()),
     }
 
 
@@ -579,8 +598,12 @@ def probe_record(path: Path) -> dict:
     }
 
 
-def lockfile_litellm(before_utc: str) -> dict:
-    """The repository lockfile's litellm pin as last changed before a time."""
+def lockfile_litellm(before_utc: str | None) -> dict:
+    """The repository lockfile's litellm pin as last changed before a time;
+    null when the rows record no first request (git would read
+    ``--before=None`` as now and return today's pin)."""
+    if before_utc is None:
+        return {"lockfile_commit": None, "litellm": None}
     commit = subprocess.run(
         ["git", "log", "-1", "--format=%H", f"--before={before_utc}", "--", "uv.lock"],
         cwd=ROOT,
