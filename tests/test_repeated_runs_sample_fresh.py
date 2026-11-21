@@ -19,10 +19,11 @@ which LiteLLM loads when it is first imported, before any fixture; set
 Fixtures count requests per repeat and, where a test asks for them, record
 the cache keys each repeat looks up and stores.
 
-Ten test functions send no request: the namespace's spelling, the check of
-directories the command cannot vouch for (each case), the check's accepted
-rows, the response counter, the overlap guard, the three that check a
-repeat raises when the cache changes under it, and the two that check the
+Twelve test functions send no request: the namespace's spelling, the check
+of directories the command cannot vouch for (each case), the check's
+accepted rows, a ledger json cannot parse, the response counter, the
+overlap guard, a repeat that cannot enter, the three that check a repeat
+raises when the cache changes under it, and the two that check the
 namespace comes back (these five replace the runner; the property test
 replaces the cache object too).
 """
@@ -1122,6 +1123,62 @@ def test_a_file_that_replayed_another_files_chunks_in_another_order_is_refused(
         _refuse_shared_responses(runs)
 
 
+def test_a_file_that_replayed_another_files_repair_round_is_refused(
+    disk_cache, wire, tmp_path
+):
+    """Two files under one namespace ask for the outputs in different orders,
+    so their first requests and first ids differ. Each first answer leaves out
+    ssi, so both send the same repair request, and the second file replays the
+    first file's repair. Only the spend ledgers record that response."""
+
+    def answer(path, body, call):
+        (tool,) = body["tools"]
+        asked = list(tool["input_schema"]["properties"]["outputs"]["properties"])
+        if len(asked) > 1:
+            asked = ["snap"]
+        value = 1000 + call
+        outputs = {
+            variable: {"value": value, "explanation": f"Call {call}. value = {value}"}
+            for variable in asked
+        }
+        return _anthropic_message(
+            call,
+            body,
+            [
+                {
+                    "type": "tool_use",
+                    "id": f"toolu_{call}",
+                    "name": tool["name"],
+                    "input": {"outputs": outputs},
+                }
+            ],
+            "tool_use",
+        )
+
+    wire.answer = answer
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    for run_id, programs in (("run_000", VARIABLES), ("run_001", VARIABLES[::-1])):
+        eval_no_tools.run_no_tools_eval(
+            [SCENARIO],
+            models={_name_of(ANTHROPIC_TOOL): ANTHROPIC_TOOL},
+            programs=programs,
+            output_path=str(runs / f"{run_id}.csv"),
+            run_id=run_id,
+        )
+    first = pd.read_csv(runs / "run_000.csv")
+    second = pd.read_csv(runs / "run_001.csv")
+    _assert_answered(second)
+    # run_000: first request and repair live; run_001: first request live,
+    # repair replayed from run_000.
+    assert len(wire) == 3
+    assert second["cache_hit_calls"].drop_duplicates().tolist() == [1]
+    assert set(first["provider_response_id"]).isdisjoint(second["provider_response_id"])
+
+    with pytest.raises(ValueError, match=r"run_000\.csv and run_001\.csv"):
+        _refuse_shared_responses(runs)
+
+
 def test_one_model_under_two_names_is_one_model_to_the_check(
     disk_cache, wire, tmp_path
 ):
@@ -1186,6 +1243,17 @@ def test_a_response_id_that_reads_as_missing_is_still_an_id(disk_cache, wire, tm
 
     assert len(wire) == 2
     assert ids() == written
+
+
+def test_a_ledger_json_cannot_parse_adds_nothing(tmp_path):
+    """A ledger line json rejects with a plain ValueError (an over-long
+    integer) makes the ledger add nothing, as an unreadable ledger does."""
+    header = "model,scenario_id,variable,prediction,error,provider_response_id\n"
+    (tmp_path / "run_000.csv").write_text(header + "a,h,snap,1.0,,resp-1\n")
+    (tmp_path / "run_000.csv.spend.jsonl").write_text('{"n": ' + "1" * 5000 + "}\n")
+    (tmp_path / "run_001.csv").write_text(header + "a,h,snap,1.0,,resp-2\n")
+
+    _refuse_shared_responses(tmp_path)
 
 
 def test_response_sources_counts_each_request_group_once():
@@ -1255,6 +1323,25 @@ def test_repeats_cannot_overlap_in_one_process(disk_cache):
                 pass
         assert disk_cache.namespace == _repeat_cache_namespace(base, "run_000")
     assert disk_cache.namespace == base
+    with _OwnCacheNamespace("run_001"):
+        assert disk_cache.namespace == _repeat_cache_namespace(base, "run_001")
+    assert disk_cache.namespace == base
+
+
+def test_a_repeat_that_cannot_enter_leaves_the_next_one_free(disk_cache):
+    """The cache lost its namespace attribute before a repeat began: entering
+    fails, and a later repeat, once the namespace is back, can start."""
+    base = disk_cache.namespace
+    del disk_cache.namespace
+    try:
+        with pytest.raises(AttributeError):
+            with _OwnCacheNamespace("run_000"):
+                pass
+        assert not eval_no_tools._REPEAT_NAMESPACE_LOCK.locked()
+    finally:
+        disk_cache.namespace = base
+        if eval_no_tools._REPEAT_NAMESPACE_LOCK.locked():
+            eval_no_tools._REPEAT_NAMESPACE_LOCK.release()
     with _OwnCacheNamespace("run_001"):
         assert disk_cache.namespace == _repeat_cache_namespace(base, "run_001")
     assert disk_cache.namespace == base
@@ -1349,6 +1436,49 @@ def test_a_repeat_whose_cache_lost_its_namespace_restores_it(
     assert disk_cache.namespace == base
     with _OwnCacheNamespace("run_001"):
         pass
+
+
+def test_after_the_cache_changed_error_a_new_directory_runs_clean(
+    disk_cache, wire, monkeypatch, tmp_path
+):
+    """Something turned the cache on again while repeat 2 ran, so it replayed
+    repeat 1 under the base namespace. The error names its file and says to
+    use a new output directory; a rerun into the same one is refused before
+    any request, and one into a new directory asks again."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    # run_000 under the base namespace; the command keeps it on resume.
+    _write_without_namespaces(runs, ["run_000"])
+    real_runner = eval_no_tools.run_no_tools_eval
+
+    def runner(*args, run_id, **kwargs):
+        if run_id == "run_001":
+            enable_cache(str(tmp_path / "cache"))
+        return real_runner(*args, run_id=run_id, **kwargs)
+
+    monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", runner)
+    with pytest.raises(
+        RuntimeError,
+        match=r"Use a new output directory: a rerun into this one would keep "
+        r"run_001\.csv's rows",
+    ):
+        _run(OPUS, runs)
+    assert pd.read_csv(runs / "run_001.csv")["cache_hit_calls"].sum() > 0
+
+    monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", real_runner)
+    enable_cache(str(tmp_path / "cache"))
+    sent = len(wire)
+    with pytest.raises(ValueError, match=r"run_000\.csv and run_001\.csv"):
+        _run(OPUS, runs)
+    assert len(wire) == sent
+
+    frame = _run(OPUS, tmp_path / "again")
+
+    _assert_answered(frame)
+    assert len(wire) > sent
+    first = frame[frame["run_id"] == "run_000"]
+    second = frame[frame["run_id"] == "run_001"]
+    assert set(first["provider_response_id"]).isdisjoint(second["provider_response_id"])
 
 
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):

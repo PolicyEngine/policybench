@@ -4362,12 +4362,14 @@ class _OwnCacheNamespace:
     it runs: any other request sent while a repeat runs uses the repeat's
     namespace, and a replaced cache gives the repeat's later requests
     another namespace. Entering a repeat while another runs raises
-    RuntimeError. A repeat that ends to find ``litellm.cache`` replaced, or
-    its namespace changed or removed, puts the namespace back and raises
-    RuntimeError naming ``output_name``, whose rows may hold answers looked
-    up under another namespace and which a rerun into the same directory
-    would keep (unless the repeat is already raising). The check runs only
-    when the repeat ends. Without a cache the namespace is left alone.
+    RuntimeError, and a repeat that cannot set its namespace releases the
+    lock before it raises. A repeat that ends to find ``litellm.cache``
+    replaced, or its namespace changed or removed, puts the namespace back
+    and raises RuntimeError naming ``output_name``, whose rows may hold
+    answers looked up under another namespace and which a rerun into the
+    same directory would keep, unless the repeat is already raising, when
+    its own error goes on. The check runs only when the repeat ends. Without
+    a cache the namespace is left alone.
     """
 
     def __init__(self, run_id: str, output_name: str | None = None) -> None:
@@ -4383,11 +4385,16 @@ class _OwnCacheNamespace:
                 f"Cannot start repeat {self._run_id}: another repeat is running "
                 "in this process, and the two would share one cache namespace."
             )
-        self._cache = litellm.cache
-        if self._cache is not None:
-            self._base = self._cache.namespace
-            self._namespace = _repeat_cache_namespace(self._base, self._run_id)
-            self._cache.namespace = self._namespace
+        try:
+            self._cache = litellm.cache
+            if self._cache is not None:
+                self._base = self._cache.namespace
+                self._namespace = _repeat_cache_namespace(self._base, self._run_id)
+                self._cache.namespace = self._namespace
+        except BaseException:
+            # Python calls no __exit__ after a failed __enter__.
+            _REPEAT_NAMESPACE_LOCK.release()
+            raise
 
     def __exit__(self, exc_type, *_exc) -> None:
         try:
@@ -4399,17 +4406,17 @@ class _OwnCacheNamespace:
         finally:
             _REPEAT_NAMESPACE_LOCK.release()
         if changed and exc_type is None:
-            delete = (
-                f" Delete {self._output_name} before running the command into "
-                "this directory again: a rerun would keep its rows, which may "
-                "hold answers looked up under another namespace."
+            output = (
+                f" Use a new output directory: a rerun into this one would keep "
+                f"{self._output_name}'s rows, which may hold answers looked up "
+                "under another namespace."
                 if self._output_name
                 else ""
             )
             raise RuntimeError(
                 "The disk cache was replaced, or its namespace changed, while "
                 f"repeat {self._run_id} ran, so its requests may not have used "
-                f"its own namespace.{delete} Run nothing else in this process "
+                f"its own namespace.{output} Run nothing else in this process "
                 "while a repeat runs, and do not call enable_cache() or assign "
                 "litellm.cache."
             )
@@ -4457,13 +4464,16 @@ def _ledger_responses(csv_path: Path) -> tuple[set[tuple[str, str]], dict[str, s
 
     Returns the (model id, response id) pairs of every request the ledger
     records a response for, replays included, and the model id it records
-    for each model name the file's rows use. A ledger that is absent, cannot
-    be read, or lost a record records less; it never adds a pair the file's
-    requests did not get.
+    for each model name the file's rows use. The ledger records the requests
+    made for the file's path, including those of rows a resume replaced or a
+    deleted file held. A ledger that is absent, cannot be read, or lost a
+    record records less.
     """
     try:
         records = read_spend_ledger(spend_ledger_path(csv_path))
-    except (OSError, UnicodeDecodeError):
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        # ValueError covers json's limits (an over-long integer) as well as
+        # JSONDecodeError on a line read_spend_ledger does not skip.
         return set(), {}
     responses: set[tuple[str, str]] = set()
     model_ids: dict[str, str] = {}
@@ -4485,16 +4495,17 @@ def _refuse_shared_responses(output_path: Path) -> None:
 
     A response is a model and a response id (the provider's id, or one
     LiteLLM generated when the provider gave none), and a cache replay
-    returns the stored response with its id. So two files that hold the same
-    model and response id hold one answer twice, whatever wrote them. Each
-    file's responses are:
+    returns the stored response with its id. So two files whose requests got
+    the same model and response id got one answer twice, whatever wrote
+    them. The responses of each CSV file that holds rows are:
 
-    - the ``provider_response_id`` of its answered rows: the first id among
-      the responses a row's request group got (a household, or one of its
+    - the ``provider_response_id`` of its rows: the first id among the
+      responses a row's request group got (a household, or one of its
       outputs with ``single_output``);
-    - every response its spend ledger (``<file>.spend.jsonl``) records, for
-      each request of the file, replays included, written by this code and
-      by the code since ea67093d.
+    - every response its spend ledger (``<file>.spend.jsonl``) records for
+      the requests made for that path, replays included, written by this
+      code and by the code since ea67093d. That includes requests of rows a
+      resume replaced or a deleted file held.
 
     A row's response counts under its model name and under its model id:
     the one the ledger records for the name, else the one ``MODELS`` gives
@@ -4568,10 +4579,10 @@ def _refuse_shared_responses(output_path: Path) -> None:
             for (first, second), response_ids in sorted(shared.items())
         )
         raise ValueError(
-            f"CSV files in {output_path} hold the same provider responses "
-            f"(same model and response id; {pairs}), so each pair holds one "
-            "answer twice and cannot be two independent repeats. Use a new "
-            "output directory."
+            f"CSV files in {output_path} hold the same provider responses, in "
+            f"their rows or their spend ledgers (same model and response id; "
+            f"{pairs}), so each pair got one answer twice and cannot be two "
+            "independent repeats. Use a new output directory."
         )
 
 
