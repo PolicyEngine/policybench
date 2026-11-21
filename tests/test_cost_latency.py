@@ -7,11 +7,12 @@ Cost invariants, for every input (the property test executes them):
 - otherwise a model has a cost exactly when it has a price override that is
   not a Responses-API GPT model and one of its rows recorded both prompt and
   completion token counts, and, for an override with a cache rate, every such
-  row records one provider response (live_calls + cache_hit_calls == 1), a
-  cached count and, if the override lists a cache-write rate, a cache-write
-  count; a row missing either token count is not priced, so no cost rests on
-  a count nobody recorded, and a model with no usage at all gets no cost
-  rather than $0;
+  row records one provider response (live_calls and cache_hit_calls are 1
+  and 0, or 0 and 1), a cached count and, if the override lists a cache-write
+  rate, a cache-write count; a row missing either token count is not priced,
+  so no cost rests on a count nobody recorded, and a model with no usage at
+  all gets no cost rather than $0;
+- a filled cost is never negative for non-negative counts and rates;
 - a filled cost is the override's input and output rates applied to the
   token sums of the rows that recorded both counts, with each row's cached
   and cache-write tokens, bounded by its prompt count, at the override's
@@ -421,12 +422,26 @@ def test_rows_summing_two_responses_fill_no_cost():
 
 
 @pytest.mark.parametrize(
-    "live, cache_hits", [(2, 0), (1, 1), (0, 2), (0, 0), (np.nan, 0), (1, np.nan)]
+    "live, cache_hits",
+    [
+        (2, 0),
+        (1, 1),
+        (0, 2),
+        (0, 0),
+        (np.nan, 0),
+        (1, np.nan),
+        # Counts no runner writes, though they sum to one.
+        (-1, 2),
+        (2, -1),
+        (0.5, 0.5),
+        (1.5, -0.5),
+    ],
 )
 def test_cache_rates_need_rows_recording_one_response(live, cache_hits):
     """A cache-rate fill needs every priced row to record one response, live
-    or replayed; a row recording none, several, or no count gets no cost.
-    (One replayed response is priced: test_one_replayed_response_is_priced.)"""
+    or replayed: counts of (1, 0) or (0, 1). A row recording none, several,
+    no count, or counts that only sum to one gets no cost. (One replayed
+    response is priced: test_one_replayed_response_is_priced.)"""
     model = "claude-fable-5.2"
     preds = pd.DataFrame(
         [
@@ -454,6 +469,37 @@ def test_one_replayed_response_is_priced():
     )
     out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
     assert out[model]["costUsd"] == pytest.approx(3.92)
+
+
+def test_response_counts_read_back_as_floats_are_priced():
+    """A count column with an empty cell elsewhere, or one read back from a
+    CSV beside such a column, holds 1.0 and 0.0: still one response."""
+    model = "claude-fable-5.2"
+    preds = pd.DataFrame(
+        [
+            _usage_row(model, "s1", 1_000_000, 10_000, 600_000, 100_000, 1.0, 0.0),
+            _usage_row(model, "s2", 1_000_000, 10_000, 600_000, 100_000, 0.0, 1.0),
+        ]
+    )
+    assert preds["live_calls"].dtype == float
+    out = model_cost_latency(preds, PRICE_OVERRIDES_PER_1M)
+    assert out[model]["costUsd"] == pytest.approx(2 * 3.92)
+
+
+@pytest.mark.parametrize("shares", range(2, 13))
+@pytest.mark.parametrize("prompt", [1, 7, 10, 1_000_003])
+def test_a_fully_cached_prompt_never_prices_below_zero(shares, prompt):
+    """A fully cached response split among rows whose shares are not exact
+    in floating point, at a zero cache-read rate: every token is cached, so
+    the cost is exactly zero. Subtracting the summed cache counts from the
+    summed prompt count gave -8.9e-22 for seven tokens over six rows."""
+    rates = {"input": 1.0, "output": 1.0, "cache_read": 0.0}
+    share = prompt / shares
+    preds = pd.DataFrame(
+        [_usage_row("m", "s1", share, 0, share, 0) for _ in range(shares)]
+    )
+    out = model_cost_latency(preds, {"m": rates})
+    assert out["m"]["costUsd"] == 0.0
 
 
 def test_response_count_columns_are_the_runner_provenance_counts():
@@ -641,8 +687,9 @@ usage_row = st.fixed_dictionaries(
             missing, st.integers(0, 6_000_000).map(float)
         ),
         "elapsed_seconds": st.one_of(missing, st.floats(min_value=0, max_value=600)),
-        "live_calls": st.one_of(missing, st.sampled_from([0.0, 1.0, 2.0])),
-        "cache_hit_calls": st.one_of(missing, st.sampled_from([0.0, 1.0])),
+        # -1, 2 and 0.5 let a draw pair counts that only sum to one.
+        "live_calls": st.one_of(missing, st.sampled_from([0.0, 1.0, 2.0, -1.0, 0.5])),
+        "cache_hit_calls": st.one_of(missing, st.sampled_from([0.0, 1.0, 2.0, 0.5])),
     }
 )
 rate = st.floats(min_value=0, max_value=100, allow_subnormal=False)
@@ -676,7 +723,8 @@ def _reference_cost(
     if "cache_write" in override:
         counts.append("cache_write_prompt_tokens")
     if any(math.isnan(r[c]) for r in priced for c in counts) or any(
-        r["live_calls"] + r["cache_hit_calls"] != 1 for r in priced
+        (r["live_calls"], r["cache_hit_calls"]) not in {(1.0, 0.0), (0.0, 1.0)}
+        for r in priced
     ):
         return None
 
@@ -691,7 +739,9 @@ def _reference_cost(
     written = [
         min(written_count(r), r["prompt_tokens"] - c) for r, c in zip(priced, cached)
     ]
-    uncached = prompt - math.fsum(cached) - math.fsum(written)
+    uncached = math.fsum(
+        r["prompt_tokens"] - c - w for r, c, w in zip(priced, cached, written)
+    )
     return (
         uncached * override["input"]
         + math.fsum(cached) * override.get("cache_read", override["input"])

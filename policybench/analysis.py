@@ -1498,7 +1498,8 @@ def _override_fallback_cost(
       input rate), bounding each row's counts by its prompt count as the
       reconstruction bounds a response's. The bound of a sum is not the sum
       of the bounds, so it needs rows that each hold one response's usage:
-      every priced row must record one response, a cached count, and, if
+      every priced row must record one response (``live_calls`` and
+      ``cache_hit_calls`` of 1 and 0, or 0 and 1), a cached count, and, if
       the override lists a cache-write rate, a cache-write count (with no
       such rate, cache-write tokens price at the input rate like uncached
       ones, so their count changes nothing). A row's counts are then that
@@ -1543,8 +1544,13 @@ def _override_fallback_cost(
     needed = [*counts, *RESPONSE_COUNT_COLUMNS]
     if not set(needed) <= set(priced.columns) or priced[needed].isna().any().any():
         return None
-    responses = sum(priced[column].astype(float) for column in RESPONSE_COUNT_COLUMNS)
-    if not (responses == 1).all():
+    # One response, live or replayed: the counts are (1, 0) or (0, 1). A sum
+    # of 1 would also pass (-1, 2) or (0.5, 0.5), which no runner writes. The
+    # counts compare as floats, so one read back as 1.0 (a column with an
+    # empty cell elsewhere, a CSV round trip) still passes.
+    live, replayed = (priced[column].astype(float) for column in RESPONSE_COUNT_COLUMNS)
+    one_response = ((live == 1) & (replayed == 0)) | ((live == 0) & (replayed == 1))
+    if not one_response.all():
         return None
 
     def recorded(column: str) -> pd.Series:
@@ -1555,13 +1561,15 @@ def _override_fallback_cost(
     row_prompt = priced["prompt_tokens"].astype(float)
     cached = np.minimum(recorded("cached_prompt_tokens"), row_prompt)
     cache_write = np.minimum(recorded("cache_write_prompt_tokens"), row_prompt - cached)
-    cached_total = float(cached.sum())
-    cache_write_total = float(cache_write.sum())
-    uncached = prompt - cached_total - cache_write_total
+    # Each row's uncached count is non-negative after the bounds. Summing the
+    # rows' counts, rather than subtracting the cache sums from the grouped
+    # prompt sum (the two sums round differently), keeps a fully cached
+    # prompt from pricing below zero.
+    uncached = row_prompt - cached - cache_write
     return (
-        uncached * rates["input"]
-        + cached_total * rates.get("cache_read", rates["input"])
-        + cache_write_total * rates.get("cache_write", rates["input"])
+        float(uncached.sum()) * rates["input"]
+        + float(cached.sum()) * rates.get("cache_read", rates["input"])
+        + float(cache_write.sum()) * rates.get("cache_write", rates["input"])
         + completion * rates["output"]
     ) / 1e6
 
