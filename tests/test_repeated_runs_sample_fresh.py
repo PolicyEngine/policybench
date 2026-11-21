@@ -18,10 +18,11 @@ which LiteLLM loads when it is first imported, before any fixture; set
 Fixtures count requests per repeat and, where a test asks for them, record
 the cache keys each repeat looks up and stores.
 
-Six test functions send no request: the namespace's spelling, the guard
-against unrecorded files (each case), the response counter, the overlap
-guard, and the two that check the namespace comes back (they replace the
-runner; the property test replaces the cache object too).
+Seven test functions send no request: the namespace's spelling, the check
+of directories the command cannot vouch for (each case), the check's
+accepted rows, the response counter, the overlap guard, and the two that
+check the namespace comes back (they replace the runner; the property test
+replaces the cache object too).
 """
 
 from __future__ import annotations
@@ -44,9 +45,9 @@ from policybench.config import MODELS
 from policybench.eval_no_tools import (
     EXPLANATION_FUNCTION_NAME,
     REASONING_EFFORT_OVERRIDE_ENV,
-    REPEATED_RUN_MARKER,
     _answer_contract_for_model,
     _OwnCacheNamespace,
+    _refuse_shared_responses,
     _repeat_cache_namespace,
     _response_sources,
     _uses_responses_api,
@@ -772,7 +773,6 @@ def test_the_cli_command_asks_again_on_repeat_2(monkeypatch, sent_per_repeat, tm
     second = pd.read_csv(tmp_path / "runs" / "run_001.csv")
     assert second["cache_hit_calls"].sum() == 0
     assert second["raw_response"].tolist() != first["raw_response"].tolist()
-    assert (tmp_path / "runs" / REPEATED_RUN_MARKER).exists()
 
 
 def test_a_rerun_into_the_same_directory_resumes_and_says_so(
@@ -795,8 +795,6 @@ def test_a_rerun_into_the_same_directory_resumes_and_says_so(
         f"run_001: provider responses {one_repeat}, cache replays 0; of these, "
         f"kept from run_001.csv: provider responses {one_repeat}, cache replays 0\n"
     ) in out
-    record = json.loads((tmp_path / "runs" / REPEATED_RUN_MARKER).read_text())
-    assert record == {"repeats_with_own_cache_namespace": ["run_000", "run_001"]}
 
 
 @pytest.mark.parametrize("left_by", ["fatal error", "infrastructure error"])
@@ -842,53 +840,98 @@ def test_a_resume_that_keeps_no_row_does_not_say_it_kept_any(
     assert "kept from" not in out
 
 
-def test_a_repeat_file_the_marker_does_not_record_is_refused(
-    disk_cache, wire, sent_per_repeat, tmp_path
-):
-    """The marker does not vouch for a directory, only for the repeats it
-    lists: here a run without per-repeat namespaces, as an earlier version of
-    the command ran, adds a repeat file beside a recorded one."""
-    runs = tmp_path / "runs"
-    _run(OPUS, runs, repeats=1)
-    eval_no_tools.run_no_tools_eval(
-        [SCENARIO],
-        models={_name_of(OPUS): OPUS},
-        programs=VARIABLES,
-        output_path=str(runs / "run_001.csv"),
-        run_id="run_001",
-    )
-    sent = len(wire)
-    record = (runs / REPEATED_RUN_MARKER).read_text()
+def _write_without_namespaces(runs, run_ids) -> None:
+    """Write repeat files as the command did before each repeat had its own
+    namespace: every repeat under the cache's one namespace."""
+    for run_id in run_ids:
+        eval_no_tools.run_no_tools_eval(
+            [SCENARIO],
+            models={_name_of(OPUS): OPUS},
+            programs=VARIABLES,
+            output_path=str(runs / f"{run_id}.csv"),
+            run_id=run_id,
+        )
 
-    with pytest.raises(ValueError, match=r"run_001\.csv.*Use a new output directory"):
+
+def test_a_directory_holding_one_response_twice_is_refused_before_any_request(
+    disk_cache, wire, tmp_path
+):
+    """Two repeat files written under one namespace, as an earlier version of
+    the command wrote them: the second replayed the first."""
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    _write_without_namespaces(runs, ["run_000", "run_001"])
+    first = pd.read_csv(runs / "run_000.csv")
+    second = pd.read_csv(runs / "run_001.csv")
+    assert second["cache_hit_calls"].sum() > 0
+    assert set(second["provider_response_id"]) == set(first["provider_response_id"])
+    sent = len(wire)
+
+    with pytest.raises(
+        ValueError, match=r"run_000\.csv and run_001\.csv.*Use a new output directory"
+    ):
         _run(OPUS, runs, repeats=3)
 
     assert len(wire) == sent
-    assert (runs / REPEATED_RUN_MARKER).read_text() == record
     assert not (runs / "run_002.csv").exists()
 
 
-@pytest.mark.parametrize(
-    "marker",
-    [
-        None,
-        '{"repeats_with_own_cache_namespace": ["run_000"]}',
-        '{"each_repeat_has_its_own_cache_namespace": true}',
-        '{"repeats_with_own_cache_namespace": "run_000"}',
-        "not json",
-    ],
-)
-def test_repeat_files_without_a_record_are_refused_before_any_request(
-    marker, monkeypatch, tmp_path
+def test_a_file_another_writer_adds_during_the_run_is_caught_after_the_repeat(
+    disk_cache, wire, monkeypatch, tmp_path
 ):
-    """A file the marker does not list, here one past the repeats asked for,
-    or a marker that cannot be read: the command sends nothing."""
+    """Between two repeats, a run without per-repeat namespaces writes the
+    next two repeat files, the second replaying the first. The command keeps
+    the next file's rows, as a resume does, and refuses the directory once
+    that repeat ends, before the repeat after it sends anything."""
+    runs = tmp_path / "runs"
+    real_kept = eval_no_tools._rows_kept_on_resume
+    sent_before_other_writer: list[int] = []
+
+    def kept(run_output_path, *args, **kwargs):
+        if run_output_path.name == "run_001.csv" and not sent_before_other_writer:
+            sent_before_other_writer.append(len(wire))
+            _write_without_namespaces(runs, ["run_001", "run_002"])
+        return real_kept(run_output_path, *args, **kwargs)
+
+    monkeypatch.setattr(eval_no_tools, "_rows_kept_on_resume", kept)
+
+    with pytest.raises(
+        ValueError, match=r"run_001\.csv and run_002\.csv.*Use a new output directory"
+    ):
+        _run(OPUS, runs, repeats=3)
+
+    (before,) = sent_before_other_writer
+    assert before > 0
+    # The other writer asked once, for run_001; run_002 replayed it. The
+    # command sent nothing for run_001, whose rows it kept, or for run_002.
+    assert len(wire) == 2 * before
+
+
+@pytest.mark.parametrize(
+    "left",
+    ["no id column", "a blank id", "a file it cannot read", "one response twice"],
+)
+def test_a_directory_the_command_cannot_check_is_refused_before_any_request(
+    left, monkeypatch, tmp_path
+):
     runs = tmp_path / "runs"
     runs.mkdir()
-    (runs / "run_000.csv").write_text("model,scenario_id,variable,prediction\n")
-    (runs / "run_005.csv").write_text("model,scenario_id,variable,prediction\n")
-    if marker is not None:
-        (runs / REPEATED_RUN_MARKER).write_text(marker)
+    header = "model,scenario_id,variable,prediction,provider_response_id\n"
+    if left == "no id column":
+        (runs / "run_000.csv").write_text(
+            "model,scenario_id,variable,prediction\nm,h,snap,1.0\n"
+        )
+    elif left == "a blank id":
+        (runs / "run_000.csv").write_text(
+            header + "m,h,snap,1.0,resp-1\nm,i,snap,2.0,\n"
+        )
+    elif left == "a file it cannot read":
+        (runs / "run_003.csv").mkdir()
+    else:
+        # A file past the repeats asked for, or not named as a repeat, still
+        # counts: analyze --runs-dir reads every CSV in the directory.
+        (runs / "run_000.csv").write_text(header + "m,h,snap,1.0,resp-1\n")
+        (runs / "copy.csv").write_text(header + "m,h,snap,1.0,resp-1\n")
     called = []
     monkeypatch.setattr(
         eval_no_tools, "run_no_tools_eval", lambda *a, **k: called.append(k)
@@ -898,10 +941,26 @@ def test_repeat_files_without_a_record_are_refused_before_any_request(
         _run(OPUS, runs)
 
     assert not called
-    if marker is None:
-        assert not (runs / REPEATED_RUN_MARKER).exists()
-    else:
-        assert (runs / REPEATED_RUN_MARKER).read_text() == marker
+
+
+def test_the_check_accepts_rows_that_share_no_response(tmp_path):
+    """Error rows carry no response id; the same id under two models is two
+    responses; rows of one request group share their id within one file; an
+    empty file and a header-only file hold nothing to check; a file that is
+    not a CSV is not read."""
+    header = "model,scenario_id,variable,prediction,error,provider_response_id\n"
+    (tmp_path / "run_000.csv").write_text(
+        header
+        + "a,h,snap,1.0,,resp-1\n"
+        + "a,h,ssi,2.0,,resp-1\n"
+        + "a,i,snap,,litellm.Timeout: request timed out,\n"
+    )
+    (tmp_path / "run_001.csv").write_text(header + "b,h,snap,1.0,,resp-1\n")
+    (tmp_path / "run_002.csv").write_text("")
+    (tmp_path / "run_003.csv").write_text("run_id\n")
+    (tmp_path / "run_000.csv.spend.jsonl").write_text('{"id": "resp-1"}\n')
+
+    _refuse_shared_responses(tmp_path)
 
 
 def test_response_sources_counts_each_request_group_once():

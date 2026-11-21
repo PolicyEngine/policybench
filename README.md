@@ -172,11 +172,18 @@ at a new directory.
 
 After each repeat the command prints how many provider responses and cache
 replays the repeat's rows record and, when it kept rows from an existing file,
-how many of those the kept rows recorded when they were written. It records
-each repeat in `repeated_run.json` beside the run files before the repeat
-writes anything, and refuses an output directory holding a `run_*.csv` file
-that the record does not list: nothing shows such a file was written under its
-own cache namespace, so its rows may be replays of another repeat's.
+how many of those the kept rows recorded when they were written.
+
+Before its first request and after each repeat, the command checks every CSV
+file in the output directory, whoever wrote it (`analyze --runs-dir` reads
+them all). Each answered row
+records the id of the provider response behind it (`provider_response_id`, the
+first one when its household took several requests), and a cache replay
+returns the stored response with its id, so two files holding the same model
+and response id hold one answer twice. The command then stops with
+an error naming the files. It also stops at a file with answered rows but no
+response id (files written before the column existed), which it cannot check,
+and at a file it cannot read. Use a new output directory then.
 
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval

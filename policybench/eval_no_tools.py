@@ -4391,61 +4391,71 @@ def _response_sources(
     )
 
 
-# Written beside a repeated run's CSVs: the repeats this command started,
-# each under its own cache namespace.
-REPEATED_RUN_MARKER = "repeated_run.json"
-_RECORDED_REPEATS_KEY = "repeats_with_own_cache_namespace"
+# The files the check below reads: every CSV in the output directory, as
+# ``load_repeated_predictions`` (``analyze --runs-dir``) does.
+_RUNS_DIR_FILES = "*.csv"
 
 
-def _recorded_repeats(output_path: Path) -> set[str]:
-    """The repeats ``repeated_run.json`` in ``output_path`` records."""
-    marker = output_path / REPEATED_RUN_MARKER
-    if not marker.exists():
-        return set()
-    try:
-        recorded = json.loads(marker.read_text(encoding="utf-8"))[_RECORDED_REPEATS_KEY]
-        if not isinstance(recorded, list):
-            raise TypeError(f"{_RECORDED_REPEATS_KEY} is not a list")
-        return {str(run_id) for run_id in recorded}
-    except (ValueError, KeyError, TypeError) as error:
-        raise ValueError(
-            f"{marker} cannot be read ({error}). Use a new output directory."
-        ) from error
+def _refuse_shared_responses(output_path: Path) -> None:
+    """Refuse a directory where two CSV files hold the same provider response.
 
-
-def _refuse_unrecorded_repeat_files(output_path: Path, recorded: set[str]) -> None:
-    """Refuse a directory holding repeat files the marker does not record.
-
-    Nothing shows such a file was written with its own cache namespace: an
-    earlier version of this command, under which every repeat shared one
-    namespace, or anything else may have written it, so its rows may be
-    replays of another repeat's. Resuming it, or analysing the directory,
-    would count it as an independent repeat.
+    Every row records the id of the first provider response its request
+    group got (``provider_response_id``), and a cache replay returns the
+    stored response with its id. A household's first request is built from
+    the same inputs in every repeat, so a repeat that could reach another
+    repeat's cache entries would replay that request, and its rows would carry
+    the other repeat's id. Two files holding the same model and response id
+    therefore hold one answer twice, and one of them is not an independent
+    repeat, whatever wrote it. An answered row without an id cannot be
+    checked (files written before the column existed), so a file holding one
+    is refused, as is a file that cannot be read.
     """
-    unrecorded = sorted(
-        path.name for path in output_path.glob("run_*.csv") if path.stem not in recorded
-    )
-    if unrecorded:
-        raise ValueError(
-            f"{output_path} holds repeat files that {REPEATED_RUN_MARKER} does "
-            f"not record as written under their own cache namespace "
-            f"({', '.join(unrecorded)}), so their rows may be replays of "
-            "another repeat's. Use a new output directory."
+    columns = {"model", "prediction", "provider_response_id"}
+    holders: dict[tuple[str, str], str] = {}
+    shared: dict[tuple[str, str], int] = {}
+    for path in sorted(output_path.glob(_RUNS_DIR_FILES)):
+        try:
+            frame = pd.read_csv(path, dtype=str, usecols=lambda name: name in columns)
+        except pd.errors.EmptyDataError:
+            continue
+        except (OSError, UnicodeDecodeError, pd.errors.ParserError) as error:
+            raise ValueError(
+                f"{path} cannot be read ({error}), so this command cannot check "
+                "that its rows are not another repeat's answers. Use a new "
+                "output directory."
+            ) from error
+        if frame.empty:
+            continue
+        ids = frame.get("provider_response_id", pd.Series(pd.NA, index=frame.index))
+        answered = (
+            frame["prediction"].notna()
+            if "prediction" in frame.columns
+            else pd.Series(True, index=frame.index)
         )
-
-
-def _record_repeat(output_path: Path, recorded: set[str], run_id: str) -> None:
-    """Add ``run_id`` to ``recorded`` and to the marker, before it writes."""
-    if run_id in recorded:
-        return
-    recorded.add(run_id)
-    marker = output_path / REPEATED_RUN_MARKER
-    staging = marker.with_name(f"{marker.name}.tmp")
-    staging.write_text(
-        json.dumps({_RECORDED_REPEATS_KEY: sorted(recorded)}) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(staging, marker)
+        unchecked = int((answered & ids.isna()).sum())
+        if unchecked:
+            raise ValueError(
+                f"{path} has {unchecked} answered rows without a provider "
+                "response id, so this command cannot check that they are not "
+                "another repeat's answers. Use a new output directory."
+            )
+        models = frame.get("model", pd.Series("", index=frame.index)).fillna("")
+        for key in set(zip(models[ids.notna()], ids[ids.notna()])):
+            holder = holders.setdefault(key, path.name)
+            if holder != path.name:
+                pair = (holder, path.name)
+                shared[pair] = shared.get(pair, 0) + 1
+    if shared:
+        pairs = "; ".join(
+            f"{first} and {second}: {count}"
+            for (first, second), count in sorted(shared.items())
+        )
+        raise ValueError(
+            f"Repeat files in {output_path} hold the same provider responses "
+            f"(same model and provider_response_id; {pairs}), so one file of "
+            "each pair repeats the other's answers instead of asking again. Use "
+            "a new output directory."
+        )
 
 
 def _rows_kept_on_resume(
@@ -4484,16 +4494,15 @@ def run_repeated_no_tools_eval(
 
     Each repeat runs under its own disk-cache namespace
     (``_OwnCacheNamespace``), so it never looks up another repeat's answers,
-    and a rerun on the same cache looks only under its own. Each repeat is
-    recorded in ``repeated_run.json`` before it writes, and a directory
-    holding a repeat file the record does not list raises ValueError before
-    any request. After each repeat, one line says where its rows' responses
-    came from, and how many of them it kept from an existing file.
+    and a rerun on the same cache looks only under its own. Before the first
+    request and after each repeat, a directory where two repeat files hold the
+    same provider response raises ValueError (``_refuse_shared_responses``).
+    After each repeat, one line says where its rows' responses came from, and
+    how many of them it kept from an existing file.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    recorded = _recorded_repeats(output_path)
-    _refuse_unrecorded_repeat_files(output_path, recorded)
+    _refuse_shared_responses(output_path)
 
     frames = []
     for run_index in range(repeats):
@@ -4503,7 +4512,6 @@ def run_repeated_no_tools_eval(
         kept = _rows_kept_on_resume(
             run_output_path, scenarios, programs, include_explanations, single_output
         )
-        _record_repeat(output_path, recorded, run_id)
         runner = run_no_tools_single_output_eval if single_output else run_no_tools_eval
         with _OwnCacheNamespace(run_id):
             frame = runner(
@@ -4531,6 +4539,8 @@ def run_repeated_no_tools_eval(
                 f"responses {kept_live}, cache replays {kept_replayed}"
             )
         print(sources)
+        # Another writer may have changed the directory while this repeat ran.
+        _refuse_shared_responses(output_path)
         frames.append(frame)
 
     if not frames:
