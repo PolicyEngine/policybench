@@ -2,8 +2,8 @@
 
 Cost invariants, for every input (the property test executes them):
 - costUsd and costPerHousehold are both present or both absent;
-- a recorded cost is the sum of the recorded row costs and the override is
-  not consulted;
+- for finite recorded costs, a recorded cost is the sum of the recorded row
+  costs and the override is not consulted;
 - otherwise, for finite counts and rates, a model has a cost exactly when it
   has a price override that is not a Responses-API GPT model and one of its
   rows recorded both prompt and completion token counts, and, for an
@@ -391,9 +391,10 @@ def test_concatenated_frames_fill_no_cost_from_padded_cache_columns():
 
 
 def _two_response_rows(model, first, second, rows):
-    """One synchronous household answered by two responses: the runner sums
-    their counts (_aggregate_request_results), splits the sums equally among
-    the household's rows and repeats the response count on each."""
+    """One household of a household run (eval_no_tools.run_no_tools_eval)
+    answered by two responses: the runner sums their counts
+    (_aggregate_request_results), splits the sums equally among the
+    household's rows and repeats the response count on each."""
     summed = [a + b for a, b in zip(first, second)]
     return [
         _usage_row(model, "s1", *(count / rows for count in summed), live=2)

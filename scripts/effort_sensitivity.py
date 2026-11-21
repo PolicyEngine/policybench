@@ -403,7 +403,9 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
         mine = run_stats(board, model)
         # A frozen row can lack a figure: the dashboard drops a cost, latency,
         # exact or within-1% rate it cannot establish (the key is absent, not
-        # null). Read each with get, so a missing one fails the comparison.
+        # null). Read each with get: a figure the frozen row lacks fails the
+        # comparison when the recomputation has it, and a cost or latency
+        # that neither side has passes.
         report[model] = {
             "exact": (scores[model]["exact"], row.get("exact")),
             "within1pct": (scores[model]["within1pct"], row.get("within1pct")),

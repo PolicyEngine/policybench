@@ -1473,15 +1473,11 @@ def _override_fallback_cost(
     to price (Claude Fable 5's frozen board rows record no usage) gets no
     cost, not $0.
 
-    A row's counts can sum several provider responses, and can be a share
-    of counts several rows divide. A household run
-    (``eval_no_tools.run_no_tools_eval``) adds up the answered responses of
-    a household's request group and gives each row an equal share; a batch
-    run gives each cell's row an equal share of every request that covered
-    the cell and came back without an error, summed over repair rounds; and
-    a row repair replaces a row's usage with that of the one repair attempt
-    it accepts. ``live_calls`` plus ``cache_hit_calls`` counts the responses
-    a row sums, or more when a response reported no usage.
+    A row's counts can sum several provider responses (a household's
+    re-requests and repair rounds in ``eval_no_tools.run_no_tools_eval``, a
+    batch cell's repair rounds), and can be an equal share of counts that
+    several rows divide. ``live_calls`` plus ``cache_hit_calls`` counts the
+    responses a row sums, or more when a response reported no usage.
 
     - An override with only input and output rates prices the rows' summed
       prompt tokens, cached ones included, at the input rate and their
