@@ -4612,6 +4612,7 @@ def test_run_repeated_no_tools_eval_writes_one_file_per_run(
                     "prediction": 123.0,
                     "raw_response": "123",
                     "error": None,
+                    "provider_response_id": f"resp-{kwargs['run_id']}",
                 }
             ]
         )

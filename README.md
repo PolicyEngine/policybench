@@ -153,6 +153,53 @@ policybench eval-no-tools-repeated -n 100 --seed 42 --repeats 3 -o results/local
 policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/local/analysis
 ```
 
+Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
+but each repeat looks up and stores its answers under its own cache namespace
+(`repeat=run_000`, `repeat=run_001`, ...), so no repeat looks up another
+repeat's answers, or those of an `eval-no-tools` run. The namespace is set on
+the cache of the whole Python process, which the command has to itself; code
+that calls `run_repeated_no_tools_eval` must run no other evaluation in the
+same process meanwhile.
+
+Running the command again reuses what each repeat already has. Into the same
+output directory, a repeat resumes from its CSV before it consults the cache.
+The batch runner keeps each household for which the file has a row for every
+requested output, with no infrastructure error (and an explanation column when
+explanations are on), even if some of those rows hold no parsed answer; it asks
+again for the other households. With `--single-output` it keeps every row
+without an infrastructure error, provided the file has `model`, `scenario_id`,
+`variable` and `prediction` columns, and an explanation column when
+explanations are on; otherwise it keeps none. Into a new output directory with
+the same cache directory, a repeat looks for its answers under its own
+namespace and asks the model for those the cache does not find. A household's
+first-round requests (its first request, or each explanation chunk) are the
+same every time, so the cache finds their answers when LiteLLM computes the
+same key for the rebuilt request's lookup as for the original's store (not so
+for a `gemini/` tool request unless the harness pins its key) and the entry is
+still there (LiteLLM's disk cache drops the oldest entries past 1 GiB). A
+repair or explanation-only request is built from the answers before it, so the
+cache finds its answer only when the rebuilt request comes out the same. To
+draw a new, independent set of repeats, use a new output directory and point
+`POLICYBENCH_CACHE_DIR` at a new directory.
+
+After each repeat the command prints how many provider responses and cache
+replays the repeat's rows record and, when it kept rows from an existing file,
+how many of those the kept rows recorded when they were written.
+
+Before its first request and after each repeat, the command checks every CSV
+file in the output directory, whoever wrote it (`analyze --runs-dir` reads them
+all). Each answered row records a response id (`provider_response_id`: the
+first of its request group, which is a household, or one of its outputs with
+`--single-output`; the provider's id, or one LiteLLM generated when the
+provider gave none), and a cache replay returns the stored response with its
+id, so two files holding the same model and response id hold one answer twice.
+The command then stops with an error naming the files. It also stops at a file
+with answered rows but no response id (written before the column was added, or
+cut short by an interrupted write), which it cannot check, and at a file it
+cannot read. Use a new output directory then. The check sees only each group's
+first id, so a household whose first explanation chunk got no response in one
+file could share later chunks with another file unseen.
+
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval
 commands reuse that manifest by default instead of regenerating households from
