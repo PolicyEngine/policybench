@@ -165,32 +165,34 @@ Running the command again reuses what each repeat already has. Into the same
 output directory, a repeat resumes from its CSV before it consults the cache.
 The batch runner keeps each household for which the file has a row for every
 requested output, with no infrastructure error (and an explanation column when
-explanations are on), even if some of those rows hold no parsed answer; it
-asks again for the other households. With `--single-output` it keeps every row
-without an infrastructure error. Into a new output directory with the same
-cache directory, a repeat looks for its answers under its own namespace and
-asks the model for those the cache does not find. A household's first request
-is the same every time, so the cache finds its answer whenever LiteLLM
-computes the same key for it again. A repair or explanation-only request is
-built from the answers before it, so the cache finds its answer only when the
-rebuilt request comes out the same. To draw a new, independent
-set of repeats, use a new output directory and point `POLICYBENCH_CACHE_DIR`
-at a new directory.
+explanations are on), even if some of those rows hold no parsed answer; it asks
+again for the other households. With `--single-output` it keeps every row
+without an infrastructure error, provided the file has `model`, `scenario_id`,
+`variable` and `prediction` columns, and an explanation column when
+explanations are on; otherwise it keeps none. Into a new output directory with
+the same cache directory, a repeat looks for its answers under its own
+namespace and asks the model for those the cache does not find. A household's
+first request is the same every time, so the cache finds its answer whenever
+LiteLLM computes the same key for it again. A repair or explanation-only
+request is built from the answers before it, so the cache finds its answer only
+when the rebuilt request comes out the same. To draw a new, independent set of
+repeats, use a new output directory and point `POLICYBENCH_CACHE_DIR` at a new
+directory.
 
 After each repeat the command prints how many provider responses and cache
 replays the repeat's rows record and, when it kept rows from an existing file,
 how many of those the kept rows recorded when they were written.
 
 Before its first request and after each repeat, the command checks every CSV
-file in the output directory, whoever wrote it (`analyze --runs-dir` reads
-them all). Each answered row
-records the id of the provider response behind it (`provider_response_id`, the
-first one when its household took several requests), and a cache replay
-returns the stored response with its id, so two files holding the same model
-and response id hold one answer twice. The command then stops with
-an error naming the files. It also stops at a file with answered rows but no
-response id (files written before the column existed), which it cannot check,
-and at a file it cannot read. Use a new output directory then.
+file in the output directory, whoever wrote it (`analyze --runs-dir` reads them
+all). Each answered row records the id of the provider response behind it
+(`provider_response_id`, the first one when its household took several
+requests), and a cache replay returns the stored response with its id, so two
+files holding the same model and response id hold one answer twice. The command
+then stops with an error naming the files. It also stops at a file with
+answered rows but no response id (files written before the column existed),
+which it cannot check, and at a file it cannot read. Use a new output directory
+then.
 
 `policybench reference-outputs` writes PolicyEngine reference outputs, not
 administrative truth. It also writes `results/local/scenarios.csv`, and the eval

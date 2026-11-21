@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 from types import SimpleNamespace
 
@@ -62,6 +63,13 @@ SCENARIO = Scenario(
     state="CA",
     filing_status="single",
     adults=[Person(name="adult1", age=35, employment_income=18_000.0)],
+    year=2026,
+)
+SECOND_SCENARIO = Scenario(
+    id="repeat_household_2",
+    state="CA",
+    filing_status="single",
+    adults=[Person(name="adult1", age=40, employment_income=30_000.0)],
     year=2026,
 )
 VARIABLES = ["snap", "ssi"]
@@ -286,8 +294,11 @@ class _FollowUpAnswers:
     - ``explanation``: values with blank explanations; with no repair round
       left, the harness asks for the explanations alone.
 
-    Each household's answer depends only on the request, not on the order
-    requests arrive in, so a repeat that asks again takes the same path.
+    The path a request takes depends only on the request (its tool and the
+    outputs it asks for, and for ``escalation`` its budget), so a repeat that
+    asks again takes the same path. The values name the call that answered,
+    and the explanation-only answer restates the values the answer before it
+    gave.
     """
 
     def __init__(self, path: str) -> None:
@@ -350,7 +361,11 @@ class _FollowUpAnswers:
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    """No key, no socket, no sensitivity knob, one attempt per request."""
+    """No key, no socket, no sensitivity knob, one attempt per request, and
+    the process environment as it was afterwards (LiteLLM can set variables
+    of its own, such as ``TIKTOKEN_CACHE_DIR`` on its first Anthropic
+    request)."""
+    environment = dict(os.environ)
 
     def refuse(*_args, **_kwargs):
         raise AssertionError("a test tried to open a socket")
@@ -374,6 +389,9 @@ def offline(monkeypatch):
         litellm.utils, "callback_list", list(litellm.utils.callback_list or [])
     )
     monkeypatch.setattr(litellm, "cache", None)
+    yield
+    os.environ.clear()
+    os.environ.update(environment)
 
 
 @pytest.fixture(autouse=True)
@@ -499,7 +517,7 @@ def _raw(frame: pd.DataFrame, run_id: str) -> list[str]:
 
 
 def _assert_answered(frame: pd.DataFrame) -> None:
-    """The stub's answers parsed, so no repair round ran."""
+    """Every row ended with a parsed answer and no error."""
     assert frame["error"].isna().all(), frame["error"].dropna().iloc[0]
     assert frame["prediction"].notna().all()
 
@@ -610,10 +628,21 @@ def test_a_follow_up_request_asks_again_under_its_repeats_namespace(
     assert second["live_calls"].sum() == 2
     assert second["cache_hit_calls"].sum() == 0
     assert set(_raw(frame, "run_001")).isdisjoint(_raw(frame, "run_000"))
+    assert set(keys_per_repeat) == {"run_000", "run_001"}
     for run_id, used in keys_per_repeat.items():
-        assert sum(kind == "lookup" for kind, _ in used) == 2, run_id
+        kinds = [kind for kind, _ in used]
+        assert kinds.count("lookup") == 2 and kinds.count("store") == 2, run_id
         prefix = f"{_repeat_cache_namespace(base, run_id)}:"
         assert all(key.startswith(prefix) for _, key in used), run_id
+    # A rerun on a new cache object, into a new output directory, finds both
+    # requests of each repeat: the first is rebuilt from the same inputs, and
+    # the follow-up from the replayed answer.
+    sent_per_repeat.clear()
+    enable_cache(str(tmp_path / "cache"))
+    again = _run(ANTHROPIC_TOOL, tmp_path / "again")
+    assert sent_per_repeat == {"run_000": 0, "run_001": 0}
+    for run_id in ("run_000", "run_001"):
+        assert _raw(again, run_id) == _raw(frame, run_id)
 
 
 def _a_rebuilt_request_replays(
@@ -713,24 +742,36 @@ def test_no_repeat_ever_returns_another_repeats_responses(
     model_id, disk_cache, wire, tmp_path
 ):
     """Across a run and a rerun on the same cache, an answer only ever comes
-    back under the run id that first got it."""
+    back under the run id that first got it: no stub call, and no provider
+    response id, appears under two run ids (a household whose answer
+    combines several calls is checked call by call)."""
     first = _run(model_id, tmp_path / "first")
     again = _run(model_id, tmp_path / "again", repeats=3)
 
-    answers = {
-        (label, run_id): set(_raw(frame, run_id))
+    held = {
+        (label, run_id): (
+            {
+                number
+                for text in _raw(frame, run_id)
+                for number in re.findall(r"Call (\d+)\.", str(text))
+            },
+            set(frame[frame["run_id"] == run_id]["provider_response_id"].dropna()),
+        )
         for label, frame in (("first", first), ("again", again))
         for run_id in sorted(set(frame["run_id"]))
     }
-    assert len(answers) == 5
-    assert all("value" in text for raw in answers.values() for text in raw)
-    for (label, run_id), raw in answers.items():
-        for (other_label, other_id), other in answers.items():
+    assert len(held) == 5
+    assert all(calls and ids for calls, ids in held.values())
+    for (label, run_id), (calls, ids) in held.items():
+        for (other_label, other_id), (other_calls, other_ids) in held.items():
             if other_id != run_id:
-                shared = raw & other
-                assert not shared, (
-                    f"{label} {run_id} returned {len(shared)} of "
-                    f"{other_label} {other_id}'s responses"
+                assert not calls & other_calls, (
+                    f"{label} {run_id} holds stub calls {sorted(calls & other_calls)} "
+                    f"of {other_label} {other_id}"
+                )
+                assert not ids & other_ids, (
+                    f"{label} {run_id} holds responses {sorted(ids & other_ids)} "
+                    f"of {other_label} {other_id}"
                 )
 
 
@@ -839,6 +880,48 @@ def test_a_resume_that_keeps_no_row_does_not_say_it_kept_any(
     out = capsys.readouterr().out
     assert f"run_000: {counts}\n" in out
     assert "kept from" not in out
+
+
+def test_a_partial_resume_counts_kept_and_new_rows_apart(
+    disk_cache, sent_per_repeat, tmp_path, capsys
+):
+    """One household kept from the file, the other asked again: the line's
+    totals cover both households, and its kept counts the kept one only."""
+    runs = tmp_path / "runs"
+
+    def run() -> pd.DataFrame:
+        return run_repeated_no_tools_eval(
+            [SCENARIO, SECOND_SCENARIO],
+            repeats=1,
+            output_dir=str(runs),
+            models={_name_of(OPUS): OPUS},
+            programs=VARIABLES,
+        )
+
+    run()
+    both = sent_per_repeat["run_000"]
+    one = both // 2
+    assert one > 0 and both == 2 * one
+    rows = pd.read_csv(runs / "run_000.csv")
+    rows["error"] = rows["error"].astype(object)
+    rows.loc[rows["scenario_id"] == SECOND_SCENARIO.id, "error"] = (
+        "litellm.Timeout: request timed out"
+    )
+    rows.to_csv(runs / "run_000.csv", index=False)
+    sent_per_repeat.clear()
+    capsys.readouterr()
+    # A new cache directory, so the second household is asked again rather
+    # than replayed.
+    enable_cache(str(tmp_path / "other-cache"))
+
+    again = run()
+
+    _assert_answered(again)
+    assert sent_per_repeat == {"run_000": one}
+    assert (
+        f"run_000: provider responses {both}, cache replays 0; of these, kept "
+        f"from run_000.csv: provider responses {one}, cache replays 0\n"
+    ) in capsys.readouterr().out
 
 
 def _write_without_namespaces(runs, run_ids) -> None:
