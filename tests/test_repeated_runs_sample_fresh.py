@@ -89,13 +89,6 @@ for _model_id in sorted(card.litellm_id for card in MODEL_CARDS.values()):
 # One card per provider path and answer contract; a new one joins without an
 # edit here.
 REPRESENTATIVES = [ids[0] for _, ids in sorted(GROUPS.items())]
-# LiteLLM rewrites a gemini/ tool request's schema between its cache lookup
-# and its store, so a rebuilt gemini/ tool request never finds its stored
-# answer, repeat or not, until the harness pins the cache key. The tests that
-# need a replay leave that group out; the others cover it.
-REPLAYING = [
-    model_id for model_id in REPRESENTATIVES if _group(model_id) != "gemini / tool"
-]
 
 
 def _answer(call: int) -> dict:
@@ -307,9 +300,8 @@ def sent_per_repeat(monkeypatch, wire) -> dict[str, int]:
             try:
                 return runner(*args, **kwargs)
             finally:
-                counts[kwargs["run_id"]] = (
-                    counts.get(kwargs["run_id"], 0) + len(wire) - before
-                )
+                run_id = kwargs.get("run_id")
+                counts[run_id] = counts.get(run_id, 0) + len(wire) - before
 
         return run
 
@@ -355,20 +347,50 @@ def test_repeat_2_asks_again_when_repeat_1_is_cached(
 
 
 def test_a_single_output_repeat_asks_again(disk_cache, sent_per_repeat, tmp_path):
-    model_id = REPLAYING[0]
-
-    _run(model_id, tmp_path / "runs", single_output=True)
+    _run(OPUS, tmp_path / "runs", single_output=True)
 
     assert sent_per_repeat["run_000"] > 0
     assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
 
 
-@pytest.mark.parametrize("model_id", REPLAYING)
+def _a_rebuilt_request_replays(model_id: str, output_dir, wire: list) -> bool:
+    """Whether a plain run's rebuilt requests find their stored answers.
+
+    Two ``eval-no-tools`` runs of the same household on the cache, outside any
+    repeat. LiteLLM rewrites a ``gemini/`` tool request's schema between its
+    cache lookup and its store, so until the harness pins the cache key that
+    one group's rebuilt request never finds its answer, repeat or not.
+    """
+
+    def plain(name: str) -> int:
+        before = len(wire)
+        eval_no_tools.run_no_tools_eval(
+            [SCENARIO],
+            models={_name_of(model_id): model_id},
+            programs=VARIABLES,
+            output_path=str(output_dir / f"{name}.csv"),
+        )
+        return len(wire) - before
+
+    first, second = plain("plain_1"), plain("plain_2")
+    assert first > 0 and second in (0, first)
+    return second == 0
+
+
+@pytest.mark.parametrize("model_id", REPRESENTATIVES)
 def test_a_rerun_replays_each_repeats_own_responses(
     model_id, disk_cache, sent_per_repeat, wire, tmp_path, capsys
 ):
+    """A rerun's repeats replay exactly when a plain rebuilt request does, and
+    then each replays its own answers. The namespace scopes the cache; it
+    does not decide whether the cache can find an answer."""
+    replays = _a_rebuilt_request_replays(model_id, tmp_path, wire)
+    assert replays or _group(model_id) == "gemini / tool"
     first = _run(model_id, tmp_path / "first")
     one_repeat = sent_per_repeat["run_000"]
+    assert sent_per_repeat["run_001"] == one_repeat > 0, (
+        "a repeat replayed the plain run's answers, or another repeat's"
+    )
     sent_before = len(wire)
     sent_per_repeat.clear()
     capsys.readouterr()
@@ -377,24 +399,30 @@ def test_a_rerun_replays_each_repeats_own_responses(
     # more repeat than before.
     again = _run(model_id, tmp_path / "again", repeats=3)
 
-    assert sent_per_repeat == {"run_000": 0, "run_001": 0, "run_002": one_repeat}
-    assert len(wire) - sent_before == one_repeat
-    for run_id in ("run_000", "run_001"):
-        assert _raw(again, run_id) == _raw(first, run_id)
-        replayed = _calls(again, run_id)
-        assert replayed["live_calls"].sum() == 0
-        assert replayed["cache_hit_calls"].sum() == one_repeat
-    assert _raw(again, "run_001") != _raw(again, "run_000")
+    rerun = 0 if replays else one_repeat
+    assert sent_per_repeat == {
+        "run_000": rerun,
+        "run_001": rerun,
+        "run_002": one_repeat,
+    }
+    assert len(wire) - sent_before == 2 * rerun + one_repeat
     assert _raw(again, "run_002") not in (
         _raw(again, "run_000"),
         _raw(again, "run_001"),
     )
+    assert _raw(again, "run_001") != _raw(again, "run_000")
     out = capsys.readouterr().out
-    assert (
-        f"run_001: 0 responses from the provider, {one_repeat} replayed from "
-        "the disk cache"
-    ) in out
     assert f"run_002: {one_repeat} responses from the provider, 0 replayed" in out
+    if replays:
+        for run_id in ("run_000", "run_001"):
+            assert _raw(again, run_id) == _raw(first, run_id)
+            replayed = _calls(again, run_id)
+            assert replayed["live_calls"].sum() == 0
+            assert replayed["cache_hit_calls"].sum() == one_repeat
+        assert (
+            f"run_001: 0 responses from the provider, {one_repeat} replayed from "
+            "the disk cache"
+        ) in out
 
 
 @pytest.mark.parametrize("model_id", REPRESENTATIVES)
@@ -425,7 +453,7 @@ def test_the_cli_command_asks_again_on_repeat_2(monkeypatch, sent_per_repeat, tm
     """The command as the CLI runs it: the cache on, then two repeats."""
     from policybench.cli import main
 
-    model_id = REPLAYING[0]
+    model_id = OPUS
     assert MODELS[_name_of(model_id)] == model_id
     monkeypatch.setattr("policybench.cache.CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setattr(
@@ -464,7 +492,7 @@ def test_the_cli_command_asks_again_on_repeat_2(monkeypatch, sent_per_repeat, tm
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):
     assert litellm.cache is None
 
-    _run(REPLAYING[0], tmp_path / "runs")
+    _run(OPUS, tmp_path / "runs")
 
     assert sent_per_repeat["run_000"] > 0
     assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
@@ -507,7 +535,7 @@ def test_the_cache_namespace_comes_back_when_a_repeat_fails(
     monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", failing)
 
     with pytest.raises(RuntimeError, match="provider down"):
-        _run(REPLAYING[0], tmp_path / "runs")
+        _run(OPUS, tmp_path / "runs")
 
     assert seen == [_repeat_cache_namespace(base, "run_000")]
     assert litellm.cache.namespace == base
