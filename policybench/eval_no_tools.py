@@ -1268,10 +1268,11 @@ def _request_wall_timeout_seconds(request_kwargs: dict) -> float:
 def _litellm_call_kwargs(request_kwargs: dict) -> dict:
     """Return the keyword arguments to hand LiteLLM for one call.
 
-    With no key pinned, a call whose lookup misses makes LiteLLM compute its
-    cache key twice from the arguments it is given: once to look a stored
-    answer up before the call, and again to store the response after it. In
-    between it can rewrite those arguments in place. For the board's
+    With no key pinned, a call that misses the cache and goes on to store its
+    response makes LiteLLM compute its cache key twice from the arguments it
+    is given: once to look a stored answer up before the call, and again to
+    store the response after it. In between it can rewrite those arguments in
+    place. For the board's
     ``gemini/`` function tools, LiteLLM 1.95.0 removes
     ``additionalProperties: false`` from each object in the schema and the
     integer ``enum: [0, 1]`` of the binary outputs (it keeps an ``enum`` only
@@ -1292,9 +1293,10 @@ def _litellm_call_kwargs(request_kwargs: dict) -> dict:
 
     - Answers that ``gemini/`` tool requests stored before the pin. They sit
       under the rewritten schema's key. A freshly built request never found
-      them. A request that reproduces the rewritten schema could, such as a
-      retry of a request LiteLLM had already rewritten; with the pin that
-      retry no longer does.
+      them. A retry that reused a request object LiteLLM had already
+      rewritten could; the deep copy now leaves that object as built, so the
+      retry pins the as-built key and no longer finds them. A request built
+      with the rewritten schema still pins the rewritten key.
     - A request LiteLLM normalizes before its own lookup, such as a chat
       request to a target other than Gemini whose tool-call ids carry a
       Gemini thought signature, which LiteLLM strips first. The pin is taken

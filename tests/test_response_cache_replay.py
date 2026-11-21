@@ -6,10 +6,11 @@ answer the requests it has already paid for, which works only when the key
 LiteLLM looks up for a freshly built request is the key it stored the first
 answer under.
 
-For a ``gemini/`` request that carries a tool it was not. On a cache miss with
-no pinned key, LiteLLM computes the key twice from the keyword arguments it is
-given, once to look an answer up before the call and once to store the answer
-after it, and in between it rewrites the board's tool schemas in place (it
+For a ``gemini/`` request that carries a tool it was not. When a call with no
+pinned key misses the cache and goes on to store its response, LiteLLM computes
+the key twice from the keyword arguments it is given, once to look an answer up
+before the call and once to store the answer after it, and in between it
+rewrites the board's tool schemas in place (it
 drops ``additionalProperties: false``, and the integer ``enum`` of the 0/1
 outputs). The harness now hands LiteLLM a copy of the request and pins the key
 of the request as built (``_litellm_call_kwargs``).
@@ -36,11 +37,23 @@ import socket
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-LOCAL_MAP = "LITELLM_LOCAL_MODEL_COST_MAP"
-_IMPORTS_LITELLM_FIRST = "litellm" not in sys.modules
-_LOCAL_MAP_BEFORE = os.environ.get(LOCAL_MAP)
-if _IMPORTS_LITELLM_FIRST:
-    os.environ[LOCAL_MAP] = "True"
+if "litellm" not in sys.modules:
+    # Only for this import; later modules see the environment as it was. With
+    # hot reload set, LiteLLM lets a .env file override the first line.
+    _SAVED = {
+        name: os.environ.get(name)
+        for name in ("LITELLM_LOCAL_MODEL_COST_MAP", "LITELLM_DEV_ENV_HOT_RELOAD")
+    }
+    os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    os.environ.pop("LITELLM_DEV_ENV_HOT_RELOAD", None)
+    try:
+        import litellm
+    finally:
+        for _name, _value in _SAVED.items():
+            if _value is None:
+                os.environ.pop(_name, None)
+            else:
+                os.environ[_name] = _value
 
 import httpx  # noqa: E402
 import litellm  # noqa: E402
@@ -69,13 +82,6 @@ from policybench.eval_no_tools import (  # noqa: E402
 )
 from policybench.model_cards import MODEL_CARDS  # noqa: E402
 from policybench.scenarios import Person, Scenario  # noqa: E402
-
-# The variable was only for the import above; later tests see it as it was.
-if _IMPORTS_LITELLM_FIRST:
-    if _LOCAL_MAP_BEFORE is None:
-        del os.environ[LOCAL_MAP]
-    else:
-        os.environ[LOCAL_MAP] = _LOCAL_MAP_BEFORE
 
 SCENARIO = Scenario(
     id="mini",
@@ -121,6 +127,13 @@ ROUTING_VARIABLES = (
     "OPENAI_ORGANIZATION",
     "OPENROUTER_API_BASE",
     "XAI_API_BASE",
+)
+CALLBACK_LISTS = (
+    "input_callback",
+    "success_callback",
+    "failure_callback",
+    "_async_success_callback",
+    "_async_failure_callback",
 )
 LITELLM_ROUTING_GLOBALS = (
     "anthropic_key",
@@ -358,13 +371,12 @@ def offline(monkeypatch):
     monkeypatch.setattr(eval_no_tools, "MAX_ATTEMPTS", 1)
     monkeypatch.setattr(litellm, "drop_params", False)
     monkeypatch.setattr(litellm, "modify_params", False)
-    # Turning the cache on registers LiteLLM callbacks, and the first call
-    # after that records them in litellm.utils; give all of them back.
-    for name in ("input_callback", "success_callback", "_async_success_callback"):
-        monkeypatch.setattr(litellm, name, list(getattr(litellm, name)))
-    monkeypatch.setattr(
-        litellm.utils, "callback_list", list(litellm.utils.callback_list or [])
-    )
+    # Each test starts with no LiteLLM callbacks, whatever an earlier test on
+    # this worker left. Turning the cache on registers some, and the first
+    # call after that records them in litellm.utils; all are put back after.
+    for name in CALLBACK_LISTS:
+        monkeypatch.setattr(litellm, name, [])
+    monkeypatch.setattr(litellm.utils, "callback_list", [])
     monkeypatch.setattr(litellm, "cache", None)
 
 
