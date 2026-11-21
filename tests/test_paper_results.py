@@ -128,6 +128,13 @@ def test_gemini_4_hydrogen_release_date_is_recorded():
     assert MODEL_RELEASE_DATES["gemini-4-hydrogen"] == "2026-11-12"
 
 
+def test_gemini_4_neon_release_date_is_recorded():
+    """The Gemini API changelog lists Gemini 4 Neon as generally available on
+    2026-11-18, on the paid tier, and Google's launch post, dated the same
+    day, says the model is rolling out that day in the Gemini API."""
+    assert MODEL_RELEASE_DATES["gemini-4-neon"] == "2026-11-18"
+
+
 def test_gpt_6_1_terra_release_date_is_its_announcement_day():
     """OpenAI announced GPT-6.1 Terra on 2026-10-26 and opened it in ChatGPT
     (Plus, Pro, Business, Enterprise and Edu), Codex and the API (id

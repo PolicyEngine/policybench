@@ -83,6 +83,7 @@ EXPECTED = {
     "gemini/gemini-4-argon": ("tool", None, 300, 16_384),
     "gemini/gemini-4-carbon": ("json", None, 900, 16_384),
     "gemini/gemini-4-hydrogen": ("tool", None, 600, 16_384),
+    "gemini/gemini-4-neon": ("tool", None, 600, 65_536),
 }
 
 
@@ -257,6 +258,7 @@ def test_provider_max_clamps_initial_completion_budget(monkeypatch):
         ("gemini/gemini-4-argon", 32_768),
         ("gemini/gemini-4-carbon", 32_768),
         ("gemini/gemini-4-hydrogen", 65_536),
+        ("gemini/gemini-4-neon", 65_536),
     ],
 )
 def test_roster_model_provider_maximums_limit_escalation(model_id, expected):
