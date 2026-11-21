@@ -1551,7 +1551,7 @@ def _override_fallback_cost(
     # One response, live or replayed: the counts are (1, 0) or (0, 1). A sum
     # of 1 would also pass (-1, 2) or (0.5, 0.5), which no runner writes. The
     # counts compare as floats, so a 1.0 (a count column with an empty cell
-    # elsewhere is a float column) still passes.
+    # elsewhere can be a float column) still passes.
     live, replayed = (priced[column].astype(float) for column in RESPONSE_COUNT_COLUMNS)
     one_response = ((live == 1) & (replayed == 0)) | ((live == 0) & (replayed == 1))
     if not one_response.all():
@@ -1587,10 +1587,12 @@ def model_cost_latency(
     Cost is the run total in USD (matching :func:`usage_summary_by_model`) plus
     a per-household figure. Latency is the *median* per-household request-time —
     each household's calls summed, then the median across households — which is
-    robust to the occasional rate-limit retry that inflates the mean. When no
-    row of a model records a cost, :func:`_override_fallback_cost` fills it
-    from ``price_overrides`` in the cases that function lists, and otherwise
-    the model gets no cost and no ``costUsd`` key. The fill can be invoked
+    robust to the occasional rate-limit retry that inflates the mean. When a
+    model's summed ``total_cost_usd`` is empty, :func:`_override_fallback_cost`
+    fills it from ``price_overrides`` in the cases that function lists, and
+    otherwise the model gets no cost and no ``costUsd`` key. The sum is empty
+    when no row records a cost, and also when the recorded costs include both
+    +inf and -inf, whose sum is NaN. The fill can be invoked
     for a model whose run had a price for it: a batch cell merged from a
     response that reported only a prompt count and a repair that reported
     only a completion count holds both counts and no cost
