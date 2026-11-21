@@ -731,6 +731,12 @@ def test_a_rerun_replays_each_repeats_own_responses(
     if replays:
         for run_id in ("run_000", "run_001"):
             assert _raw(again, run_id) == _raw(first, run_id)
+            # The directory check relies on a replay keeping the original
+            # response's id.
+            assert (
+                again[again["run_id"] == run_id]["provider_response_id"].tolist()
+                == first[first["run_id"] == run_id]["provider_response_id"].tolist()
+            )
             replayed = _calls(again, run_id)
             assert replayed["live_calls"].sum() == 0
             assert replayed["cache_hit_calls"].sum() == one_repeat
@@ -960,21 +966,29 @@ def test_a_directory_holding_one_response_twice_is_refused_before_any_request(
     assert not (runs / "run_002.csv").exists()
 
 
+@pytest.mark.parametrize("when", ["between repeats", "during the last repeat"])
 def test_a_file_another_writer_adds_during_the_run_is_caught_after_the_repeat(
-    disk_cache, wire, monkeypatch, tmp_path
+    when, disk_cache, wire, monkeypatch, tmp_path
 ):
-    """Between two repeats, a run without per-repeat namespaces writes the
-    next two repeat files, the second replaying the first. The command keeps
-    the next file's rows, as a resume does, and refuses the directory once
-    that repeat ends, before the repeat after it sends anything."""
+    """While the command runs, a run without per-repeat namespaces writes two
+    repeat files, the second replaying the first: between repeats (the
+    command then keeps the next file's rows, as a resume does), or just before
+    the command's last repeat sends its request. The command refuses the
+    directory once that repeat ends, before any later repeat sends
+    anything."""
     runs = tmp_path / "runs"
+    repeats, written, hook = {
+        "between repeats": (3, ["run_001", "run_002"], "run_001.csv"),
+        "during the last repeat": (1, ["run_001", "run_002"], "run_000.csv"),
+    }[when]
     real_kept = eval_no_tools._rows_kept_on_resume
-    sent_before_other_writer: list[int] = []
+    sent: list[tuple[int, int]] = []
 
     def kept(run_output_path, *args, **kwargs):
-        if run_output_path.name == "run_001.csv" and not sent_before_other_writer:
-            sent_before_other_writer.append(len(wire))
-            _write_without_namespaces(runs, ["run_001", "run_002"])
+        if run_output_path.name == hook and not sent:
+            before = len(wire)
+            _write_without_namespaces(runs, written)
+            sent.append((before, len(wire)))
         return real_kept(run_output_path, *args, **kwargs)
 
     monkeypatch.setattr(eval_no_tools, "_rows_kept_on_resume", kept)
@@ -982,13 +996,22 @@ def test_a_file_another_writer_adds_during_the_run_is_caught_after_the_repeat(
     with pytest.raises(
         ValueError, match=r"run_001\.csv and run_002\.csv.*Use a new output directory"
     ):
-        _run(OPUS, runs, repeats=3)
+        _run(OPUS, runs, repeats=repeats)
 
-    (before,) = sent_before_other_writer
-    assert before > 0
-    # The other writer asked once, for run_001; run_002 replayed it. The
-    # command sent nothing for run_001, whose rows it kept, or for run_002.
-    assert len(wire) == 2 * before
+    ((before, after),) = sent
+    # The other writer asked once, for run_001, and run_002 replayed it.
+    other_writer = after - before
+    assert other_writer > 0
+    if when == "between repeats":
+        # run_000 asked as often as the other writer did. The command sent
+        # nothing for run_001, whose rows it kept, or for run_002.
+        assert before == other_writer
+        assert len(wire) == after
+    else:
+        # The command's only repeat asked under its own namespace, as often
+        # as the other writer did.
+        assert before == 0
+        assert len(wire) == 2 * other_writer
 
 
 @pytest.mark.parametrize(
@@ -1042,7 +1065,9 @@ def test_the_check_accepts_rows_that_share_no_response(tmp_path):
     (tmp_path / "run_001.csv").write_text(header + "b,h,snap,1.0,,resp-1\n")
     (tmp_path / "run_002.csv").write_text("")
     (tmp_path / "run_003.csv").write_text("run_id\n")
-    (tmp_path / "run_000.csv.spend.jsonl").write_text('{"id": "resp-1"}\n')
+    # CSV text in a file not named *.csv, sharing run_000's response: read,
+    # it would be refused.
+    (tmp_path / "run_000.csv.bak").write_text(header + "a,h,snap,1.0,,resp-1\n")
 
     _refuse_shared_responses(tmp_path)
 

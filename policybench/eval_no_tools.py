@@ -4326,17 +4326,20 @@ class _OwnCacheNamespace:
     while the repeat runs, so it keeps the repeat.
 
     So a repeat looks up and stores its answers under its own namespace,
-    which no other repeat uses, and a rerun of the same repeat on the same
-    cache looks up under the namespace that repeat stored under. The rerun
+    which no other repeat of its set uses, and a rerun of the same repeat on
+    the same cache looks up under the namespace that repeat stored under. (A
+    second set run on the same cache directory shares the first set's
+    namespaces repeat by repeat; that is what lets a rerun replay.) The rerun
     replays an answer only if LiteLLM computes the same key for the rebuilt
-    request's lookup as it did for the original's store: a request LiteLLM
-    rewrites between its lookup and its store (a ``gemini/`` tool request
-    whose key the harness leaves to LiteLLM) never finds its answer, in a
-    repeat or out of one. A household's first request is rebuilt from the
-    same inputs every time. A follow-up request is built from the answers
-    before it (a repair round from the outputs they left out, an
-    explanation-only request from their values), so a rerun rebuilds the same
-    follow-up only where those answers lead to it again.
+    request's lookup as it did for the original's store: a freshly built
+    request that LiteLLM rewrites between its lookup and its store (a
+    ``gemini/`` tool request whose key the harness leaves to LiteLLM) does
+    not find its answer, in a repeat or out of one. A household's
+    first-round requests (its first request, or each explanation chunk) are
+    rebuilt from the same inputs every time. A follow-up request is built
+    from the answers before it (a repair round from the outputs they left
+    out, an explanation-only request from their values), so a rerun rebuilds
+    the same follow-up only where those answers lead to it again.
 
     The namespace is an attribute of the cache, which is process-wide, so a
     repeat must be the only evaluation in its process (the CLI runs one):
@@ -4424,16 +4427,23 @@ _RUNS_DIR_FILES = "*.csv"
 def _refuse_shared_responses(output_path: Path) -> None:
     """Refuse a directory where two CSV files hold the same provider response.
 
-    Every row records the id of the first provider response its request
-    group got (``provider_response_id``), and a cache replay returns the
-    stored response with its id. A household's first request is built from
-    the same inputs in every repeat, so a repeat that could reach another
-    repeat's cache entries would replay that request, and its rows would carry
-    the other repeat's id. Two files holding the same model and response id
-    therefore hold one answer twice, and one of them is not an independent
-    repeat, whatever wrote it. An answered row without an id cannot be
-    checked (files written before the column existed), so a file holding one
-    is refused, as is a file that cannot be read.
+    Each answered row records ``provider_response_id``: the first id among
+    the responses its request group got (a household, or one of its outputs
+    with ``single_output``), as LiteLLM recorded it (the provider's id, or
+    one LiteLLM generated when the provider gave none). A cache replay
+    returns the stored response with its id. A group's first-round requests
+    are built from the same inputs in every repeat, so a repeat that could
+    reach another repeat's cache entries would replay them, and its rows
+    would carry the other repeat's id. Two files holding the same model and
+    response id therefore hold one answer twice, whatever wrote them. The
+    check sees only that first id: a household whose first explanation chunk
+    got no response in one file can share later chunks with another file
+    unseen.
+
+    A row that holds an answer (or may: the file has no prediction column)
+    but no id cannot be checked, so a file holding one is refused; code from
+    before the column was added (c7bf2db0), or a write cut short, leaves such
+    rows. So is a file that cannot be read.
     """
     columns = {"model", "prediction", "provider_response_id"}
     holders: dict[tuple[str, str], str] = {}
@@ -4459,8 +4469,13 @@ def _refuse_shared_responses(output_path: Path) -> None:
         )
         unchecked = int((answered & ids.isna()).sum())
         if unchecked:
+            hold = (
+                "hold an answer"
+                if "prediction" in frame.columns
+                else "may hold an answer (the file has no prediction column)"
+            )
             raise ValueError(
-                f"{path} has {unchecked} answered rows without a provider "
+                f"{path} has {unchecked} rows that {hold} but no provider "
                 "response id, so this command cannot check that they are not "
                 "another repeat's answers. Use a new output directory."
             )
@@ -4476,9 +4491,9 @@ def _refuse_shared_responses(output_path: Path) -> None:
             for (first, second), count in sorted(shared.items())
         )
         raise ValueError(
-            f"Repeat files in {output_path} hold the same provider responses "
-            f"(same model and provider_response_id; {pairs}), so one file of "
-            "each pair repeats the other's answers instead of asking again. Use "
+            f"CSV files in {output_path} hold the same provider responses "
+            f"(same model and provider_response_id; {pairs}), so each pair "
+            "holds one answer twice and cannot be two independent repeats. Use "
             "a new output directory."
         )
 
@@ -4521,8 +4536,9 @@ def run_repeated_no_tools_eval(
     (``_OwnCacheNamespace``), so, with nothing else running in the process,
     it never looks up another repeat's answers, and a rerun on the same cache
     looks up only under its own namespace. Before the first
-    request and after each repeat, a directory where two repeat files hold the
-    same provider response raises ValueError (``_refuse_shared_responses``).
+    request and after each repeat, a directory where two CSV files hold the
+    same provider response, or a file holds an answer without an id or cannot
+    be read, raises ValueError (``_refuse_shared_responses``).
     After each repeat, one line says where its rows' responses came from, and
     how many of them it kept from an existing file.
     """
