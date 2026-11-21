@@ -945,8 +945,9 @@ def require_published_costs(country_payload: dict) -> dict[str, float]:
     """Each no-tools board model's published ``costUsd``; refuse a board
     that lacks one.
 
-    ``analysis.model_cost_latency`` leaves ``costUsd`` out when no row of a
-    model records a cost and either the model has no price override or
+    ``analysis.model_cost_latency`` leaves ``costUsd`` out when a model's
+    summed cost is empty (no row records one, or recorded costs of +inf and
+    -inf sum to NaN) and either the model has no price override or
     ``analysis._override_fallback_cost`` returns no cost for its rows. The
     report's published total sums every board model's cost, and the paper's
     render asserts that the models with a cost dash are its zero-cost

@@ -1,11 +1,12 @@
 """The freeze needs a published cost for every board model.
 
 analysis.model_cost_latency leaves costUsd out of a model's dashboard row when
-no row of the model records a cost and the fill from its price override
-returns none (for example a cache-rate model whose rows sum several
-responses, or a Responses-API GPT model). The freeze's report sums every
-board model's cost, so freeze_snapshot.require_published_costs names the
-models without one and stops.
+the model's summed cost is empty (no row records one, or recorded costs of
++inf and -inf sum to NaN) and the fill from its price override returns none
+(for example a cache-rate model whose rows sum several responses, or a
+Responses-API GPT model). The freeze's report sums every board model's cost,
+so freeze_snapshot.require_published_costs names the models without one and
+stops.
 """
 
 from __future__ import annotations
