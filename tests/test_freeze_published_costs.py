@@ -53,11 +53,26 @@ def test_a_board_model_without_a_cost_is_named():
     with pytest.raises(SystemExit) as refused:
         freezer.require_published_costs(payload)
     message = str(refused.value)
-    assert (
-        "no costUsd for infinite, nan, negative, no-key, null, text, true:" in message
-    )
+    # A cost the payload lacks and one it carries but cannot publish are
+    # reported separately: the second is not a model no row costed.
+    assert "no costUsd for no-key, null:" in message
+    assert "zero or more, for infinite, nan, negative, text, true:" in message
     assert "tools-arm" not in message
     assert "costed" not in message
+
+
+def test_a_recorded_negative_cost_is_not_reported_as_unrecorded():
+    """Rows that record a cost of -1.0 give a dashboard row a costUsd of
+    -1.0. The freeze refuses it as a cost it cannot publish, without saying
+    that no row records one."""
+    rows = _costless_rows("gemini-3.6-flash", live=1).assign(total_cost_usd=-0.5)
+    entry = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M)["gemini-3.6-flash"]
+    assert entry["costUsd"] == -1.0
+    with pytest.raises(SystemExit) as refused:
+        freezer.require_published_costs(_payload(_stat("gemini-3.6-flash", **entry)))
+    message = str(refused.value)
+    assert "zero or more, for gemini-3.6-flash:" in message
+    assert "no costUsd for" not in message
 
 
 def test_a_zero_cost_is_a_cost_and_the_payload_order_is_kept():

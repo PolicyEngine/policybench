@@ -1592,10 +1592,10 @@ def model_cost_latency(
     row of a model records a cost, :func:`_override_fallback_cost` fills it
     from ``price_overrides`` where the rows' recorded usage supports the
     override's pricing, and otherwise the model gets no cost and no
-    ``costUsd`` key. No row records a cost at least when the run had no price
-    for the model, and when no response behind the rows recorded both a
-    prompt and a completion count (a row can still hold both counts, summed
-    from two such responses).
+    ``costUsd`` key. The fill can be invoked for a model whose run had a
+    price for it: a batch cell merged from two responses that each reported
+    one token count holds both counts and no cost (tests/test_cost_latency.py,
+    ``test_a_batch_cell_merged_from_two_partial_count_responses_invokes_the_fill``).
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}

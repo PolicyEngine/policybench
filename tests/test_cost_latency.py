@@ -528,15 +528,16 @@ def test_input_output_override_ignores_response_counts():
     assert out["m"]["costUsd"] == pytest.approx(10.0)
 
 
-def test_a_batch_cell_merged_from_two_partial_count_responses_reaches_the_fill():
-    """A row has no cost when no response behind it has one, and a response
-    that reports only one of the two token counts has none. A batch cell
-    answered with a prompt count and no completion count, then repaired with
-    a completion count and no prompt count, merges to a row with both counts
-    and no cost, so a model whose every row is like it reaches the fill
-    though the run had a price for it. The input-and-output fill prices the
-    row's sums, which the reconstruction prices for neither response; under
-    a cache-rate override the row sums two responses and gets no cost."""
+def test_a_batch_cell_merged_from_two_partial_count_responses_invokes_the_fill():
+    """batch_eval.rows_from_unit takes a row's cost from the token
+    reconstruction, which gives none without both a prompt and a completion
+    count. A batch cell answered with a prompt count and no completion
+    count, then repaired with a completion count and no prompt count, merges
+    here to a row with both counts and no cost, though the model has a
+    price. On a frame of such rows the fill is invoked: an input-and-output
+    override prices the row's sums, which the reconstruction priced for
+    neither response, and under a cache-rate override the row sums two
+    responses and gets no cost."""
     from policybench import batch_eval
 
     model = "gemini-3.6-flash"
@@ -972,10 +973,13 @@ FROZEN_FILLED_COSTS = {
 
 
 def test_frozen_filled_costs_are_the_published_ones(frozen, frozen_predictions):
-    """Exactly two published models record no cost on any row and take the
-    override's: their overrides list only input and output rates, so the
-    fill prices every prompt token at the input rate, as it did when the
-    board was published, and the figures do not move by a bit."""
+    """Two published models record no cost on any row, have an override and
+    record both token counts, so they get a filled cost: their overrides
+    list only input and output rates, so the fill prices every prompt token
+    at the input rate, as it did when the board was published, and the
+    figures do not move by a bit. (Claude Fable 5 records no cost either;
+    its rows record no token counts, so the fill gives it nothing:
+    test_frozen_fable_5_usage_is_carried_not_computed.)"""
     computed, published = frozen
     filled = sorted(
         model

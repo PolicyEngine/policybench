@@ -965,17 +965,31 @@ def require_published_costs(country_payload: dict) -> dict[str, float]:
             and value >= 0
         )
 
-    missing = sorted(
-        str(row["model"]) for row in rows if not is_cost(row.get("costUsd"))
+    absent = sorted(str(row["model"]) for row in rows if row.get("costUsd") is None)
+    invalid = sorted(
+        str(row["model"])
+        for row in rows
+        if row.get("costUsd") is not None and not is_cost(row["costUsd"])
     )
-    if missing:
-        raise SystemExit(
-            f"The published payload has no costUsd for {', '.join(missing)}: no "
-            "row of those models records a cost, and analysis.model_cost_latency "
-            "could not establish one from the price override. Rerun or replay "
+    problems = []
+    if absent:
+        problems.append(
+            f"no costUsd for {', '.join(absent)}: analysis.model_cost_latency "
+            "leaves a cost out when no row of the model records one and it "
+            "cannot establish one from the price override. Rerun or replay "
             "the model so its rows record their costs, or carry a cost a "
             "release decision supplies (as the release drivers' CARRIED_USAGE "
-            "does), then export again."
+            "does), then export again"
+        )
+    if invalid:
+        problems.append(
+            "a costUsd that is not a finite number, zero or more, for "
+            f"{', '.join(invalid)}: check the costs those models' rows "
+            "record, then export again"
+        )
+    if problems:
+        raise SystemExit(
+            "The published payload has " + ". It also has ".join(problems) + "."
         )
     return {row["model"]: row["costUsd"] for row in rows}
 
