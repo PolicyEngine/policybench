@@ -2,18 +2,17 @@
 rows cannot establish.
 
 model_cost_latency leaves out a cost it cannot establish, and the model when
-it has neither a cost nor a latency; run_stats then reports null for those
-fields, as the dashboard reports a cost as not recorded, rather than failing.
-It reports null the same way for a call count some row does not record (rows
-written before the column existed), and for output tokens and the request
-time window when no row records them, where it used to raise or report zero;
-with no first request, the lockfile pin is null too. A household whose
-request failed records no usage and no request times, and does not null the
-run's figures.
-The dashboard leaves such a key out of a frozen modelStats row (the committed
-snapshot's gpt-5.5 row has no latencySeconds), so --check-board reads the
-frozen figures without assuming the keys: a figure only one side records fails
-the check, and a figure neither side records passes it.
+it has no cost, no latency and no total tokens; run_stats then reports null
+for those fields rather than failing. It reports null the same way for a call
+count some row does not record (rows written before the column existed), and
+for output tokens and the request time window when no row records them; with
+no first request, the lockfile pin is null too. A household none of whose
+requests was answered records no usage and no request times, and does not
+null the run's figures.
+A frozen modelStats row can lack a figure's key (the committed snapshot's
+gpt-5.5 row has no latencySeconds), so --check-board reads the frozen figures
+with get: a figure only one side records fails the check, and a figure
+neither side records passes it.
 """
 
 import copy
@@ -174,11 +173,17 @@ def test_a_figure_only_the_recomputation_has_fails_the_board_check(
 
 @pytest.mark.parametrize(
     ("key", "field"),
-    [("exact", "exact"), ("within1pct", "within1pct"), ("nParsed", "n_parsed")],
+    [
+        ("exact", "exact"),
+        ("within1pct", "within1pct"),
+        ("score", "score"),
+        ("nParsed", "n_parsed"),
+    ],
 )
 def test_a_score_the_frozen_row_lacks_fails_the_board_check(script, frozen, key, field):
-    """The dashboard also leaves out a score it could not compute; the check
-    reports it as missing and fails, for the exact comparison as well."""
+    """A frozen row without exact, within1pct, score or nParsed: the check
+    reports the figure as missing and fails, for the exact comparison as
+    well."""
     inputs, board = frozen
     report = script.check_board(_without(inputs, FABLE, key), board)
     mine, frozen_value = report[FABLE][field]
@@ -218,8 +223,7 @@ PROVENANCE = [
 
 def test_untimed_rows_report_no_latency_and_no_time_window(run_stats):
     """Rows that record no elapsed time and no request timestamps: the cost is
-    still reported; the latency and the first and last times are null. This
-    raised ValueError (NaT) from the time window."""
+    still reported; the latency and the first and last times are null."""
     rows = _rows("claude-fable-5.2", cost=0.01, elapsed=np.nan).assign(**UNTIMED)
     stats = run_stats(rows, "claude-fable-5.2")
     assert stats["cost_usd"] == pytest.approx(0.02)
@@ -240,8 +244,7 @@ def test_rows_without_timestamps_keep_their_latency(run_stats):
 
 def test_rows_written_before_the_provenance_columns_report_null_counts(run_stats):
     """Rows from a run that wrote no call counts or request times: those
-    figures are null, the rest is reported, and the result writes as JSON.
-    This raised KeyError('live_calls')."""
+    figures are null, the rest is reported, and the result writes as JSON."""
     rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0).drop(columns=PROVENANCE)
     stats = run_stats(rows, "claude-fable-5.2")
     for field in (
@@ -277,9 +280,10 @@ def test_unrecorded_output_tokens_are_null_not_zero(run_stats):
 
 
 def test_a_failed_household_keeps_the_runs_tokens_and_time_window(run_stats):
-    """The runner writes a failed household's rows with no prediction, usage
-    or request times and with call counts of zero. The run's output tokens,
-    request window and counts still come from the households that answered."""
+    """Rows as eval_no_tools.run_no_tools_eval writes them for a household
+    whose run raised: no prediction, usage or request times, and call counts
+    of zero. The run's output tokens, request window and counts still come
+    from the household that answered."""
     rows = _rows("claude-fable-5.2", cost=0.01, elapsed=4.0)
     failed = rows["scenario_id"] == "s2"
     unrecorded = [

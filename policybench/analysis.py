@@ -1473,13 +1473,15 @@ def _override_fallback_cost(
     to price (Claude Fable 5's frozen board rows record no usage) gets no
     cost, not $0.
 
-    A row's counts can sum several provider responses. A synchronous run
-    adds up a household's responses (retries, repairs and chunks) and gives
-    each row an equal share; a batch run gives each cell's row a share of
-    the chunk request that answered it, summed over repair rounds; and a row
-    repair replaces a row's usage with the whole usage of its own responses.
-    ``live_calls`` plus ``cache_hit_calls`` counts the responses a row sums,
-    or more when a response reported no usage.
+    A row's counts can sum several provider responses, and can be a share
+    of counts several rows divide. A household run
+    (``eval_no_tools.run_no_tools_eval``) adds up the answered responses of
+    a household's request group and gives each row an equal share; a batch
+    run gives each cell's row an equal share of every request that covered
+    the cell and came back without an error, summed over repair rounds; and
+    a row repair replaces a row's usage with that of the one repair attempt
+    it accepts. ``live_calls`` plus ``cache_hit_calls`` counts the responses
+    a row sums, or more when a response reported no usage.
 
     - An override with only input and output rates prices the rows' summed
       prompt tokens, cached ones included, at the input rate and their
@@ -1514,10 +1516,10 @@ def _override_fallback_cost(
       column another model's rows brought into the frame, and an empty
       response count may be a row written before the column existed.
 
-    The rates are the override's, as the reconstruction applies them: at any
-    prompt length, since the GPT long-context rate is the only length tier
-    the reconstruction models (the Claude Haiku 5.5 entry lists the rates
-    for prompts up to 100,000 tokens).
+    The rates are the override's, as the reconstruction applies an
+    override: at any prompt length, since the GPT long-context rate is the
+    only length tier it applies to an override (the Claude Haiku 5.5 entry
+    lists the rates for prompts up to 100,000 tokens).
     """
     if model in GPT_RESPONSES_MODELS:
         return None
@@ -1540,8 +1542,9 @@ def _override_fallback_cost(
     completion = float(sums["completion_tokens"])
     if "cache_read" not in rates and "cache_write" not in rates:
         return prompt * rates["input"] / 1e6 + completion * rates["output"] / 1e6
-    # The cached count prices at the cache-read rate and bounds the
-    # cache-write count; with no cache-write rate, cache-write tokens price
+    # The cached count prices at the cache-read rate (the input rate when
+    # the override lists none) and bounds the cache-write count; with no
+    # cache-write rate, cache-write tokens price
     # at the input rate like uncached ones, so their count changes nothing.
     counts = ["cached_prompt_tokens"]
     if "cache_write" in rates:
@@ -1551,8 +1554,8 @@ def _override_fallback_cost(
         return None
     # One response, live or replayed: the counts are (1, 0) or (0, 1). A sum
     # of 1 would also pass (-1, 2) or (0.5, 0.5), which no runner writes. The
-    # counts compare as floats, so one read back as 1.0 (a column with an
-    # empty cell elsewhere, a CSV round trip) still passes.
+    # counts compare as floats, so a 1.0 (a count column with an empty cell
+    # elsewhere is a float column) still passes.
     live, replayed = (priced[column].astype(float) for column in RESPONSE_COUNT_COLUMNS)
     one_response = ((live == 1) & (replayed == 0)) | ((live == 0) & (replayed == 1))
     if not one_response.all():
@@ -1590,11 +1593,12 @@ def model_cost_latency(
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When no
     row of a model records a cost, :func:`_override_fallback_cost` fills it
-    from ``price_overrides`` where the rows' recorded usage supports the
-    override's pricing, and otherwise the model gets no cost and no
-    ``costUsd`` key. The fill can be invoked for a model whose run had a
-    price for it: a batch cell merged from two responses that each reported
-    one token count holds both counts and no cost (tests/test_cost_latency.py,
+    from ``price_overrides`` in the cases that function lists, and otherwise
+    the model gets no cost and no ``costUsd`` key. The fill can be invoked
+    for a model whose run had a price for it: a batch cell merged from a
+    response that reported only a prompt count and a repair that reported
+    only a completion count holds both counts and no cost
+    (tests/test_cost_latency.py,
     ``test_a_batch_cell_merged_from_two_partial_count_responses_invokes_the_fill``).
     """
     if predictions.empty or "model" not in predictions.columns:

@@ -256,10 +256,8 @@ def test_the_freeze_refuses_a_release_date_window_before_any_write(
 def test_the_freeze_refuses_a_board_model_without_a_cost_before_any_write(
     freeze_inputs,
 ):
-    """analysis.model_cost_latency leaves costUsd out of a model's row when
-    its rows record no cost and their usage cannot establish one. The freeze
-    names that model and stops before it deletes or rewrites anything; it
-    used to raise KeyError('costUsd') after rewriting the run directory."""
+    """A board model whose dashboard row has no costUsd: the freeze names
+    it and stops before any of main's write steps runs."""
     freezer.PUBLISHED_DASHBOARD_SOURCE.write_text(
         json.dumps(
             {

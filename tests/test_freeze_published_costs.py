@@ -1,12 +1,11 @@
 """The freeze needs a published cost for every board model.
 
 analysis.model_cost_latency leaves costUsd out of a model's dashboard row when
-no row of the model records a cost and the rows' usage cannot establish one
-from its price override: a cache-rate model whose rows sum several responses
-or lack a count, and a Responses-API GPT model. The freeze's report sums
-every board model's cost, so freeze_snapshot.require_published_costs names
-the models without one and stops, where the lookup used to raise
-KeyError('costUsd').
+no row of the model records a cost and the fill from its price override
+returns none (for example a cache-rate model whose rows sum several
+responses, or a Responses-API GPT model). The freeze's report sums every
+board model's cost, so freeze_snapshot.require_published_costs names the
+models without one and stops.
 """
 
 from __future__ import annotations
@@ -62,9 +61,9 @@ def test_a_board_model_without_a_cost_is_named():
 
 
 def test_a_recorded_negative_cost_is_not_reported_as_unrecorded():
-    """Rows that record a cost of -1.0 give a dashboard row a costUsd of
-    -1.0. The freeze refuses it as a cost it cannot publish, without saying
-    that no row records one."""
+    """Two rows that each record a cost of -0.5 give a dashboard row a
+    costUsd of -1.0. The freeze refuses it as a cost it cannot publish,
+    without saying that no row records one."""
     rows = _costless_rows("gemini-3.6-flash", live=1).assign(total_cost_usd=-0.5)
     entry = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M)["gemini-3.6-flash"]
     assert entry["costUsd"] == -1.0

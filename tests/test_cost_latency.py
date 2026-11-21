@@ -4,9 +4,10 @@ Cost invariants, for every input (the property test executes them):
 - costUsd and costPerHousehold are both present or both absent;
 - a recorded cost is the sum of the recorded row costs and the override is
   not consulted;
-- otherwise a model has a cost exactly when it has a price override that is
-  not a Responses-API GPT model and one of its rows recorded both prompt and
-  completion token counts, and, for an override with a cache rate, every such
+- otherwise, for finite counts and rates, a model has a cost exactly when it
+  has a price override that is not a Responses-API GPT model and one of its
+  rows recorded both prompt and completion token counts, and, for an
+  override with a cache rate, every such
   row records one provider response (live_calls and cache_hit_calls are 1
   and 0, or 0 and 1), a cached count and, if the override lists a cache-write
   rate, a cache-write count; a row missing either token count is not priced,
@@ -23,11 +24,12 @@ Cost invariants, for every input (the property test executes them):
   price that case);
 - costPerHousehold is costUsd over the distinct households in the input.
 The reconstruction tests check that a filled cache-rate cost is what
-eval_no_tools._reconstruct_token_cost records for the one response the rows
-share, and that rows summing two responses, or with an unrecorded count, get
-no cost. The frozen-snapshot tests check the published figures: every model's
-usage fields but Claude Fable 5's reproduce from the frozen predictions,
-including the two models whose cost the override fills (Gemini 3.6 Flash and
+eval_no_tools._reconstruct_token_cost returns for the counts of the one
+response the rows share, and that rows summing two responses, or with an
+unrecorded count, get no cost. The frozen-snapshot tests check the published
+figures: every model's usage fields but Claude Fable 5's reproduce from the
+frozen predictions, including the two models whose cost the override fills
+(Gemini 3.6 Flash and
 Grok Build 0.1), and Fable 5's, which those rows do not record, are not
 computed at all.
 """
@@ -476,8 +478,8 @@ def test_one_replayed_response_is_priced():
 
 
 def test_response_counts_read_back_as_floats_are_priced():
-    """A count column with an empty cell elsewhere, or one read back from a
-    CSV beside such a column, holds 1.0 and 0.0: still one response."""
+    """A count column with an empty cell elsewhere is a float column, so
+    its counts are 1.0 and 0.0: still one response."""
     model = "claude-fable-5.2"
     preds = pd.DataFrame(
         [
@@ -697,9 +699,10 @@ def test_filled_cost_matches_request_reconstruction(
     model, prompt, completion, cached, cache_write
 ):
     """A household answered by one response has its usage on one row here, so
-    the filled cost is what eval_no_tools._reconstruct_token_cost records for
-    that response, for every override, where the row records each count the
-    override's cache rates need; a GPT Responses model's is not filled."""
+    the filled cost is what eval_no_tools._reconstruct_token_cost returns
+    for that response's counts, for every override, where the row records
+    each count the override's cache rates need; a GPT Responses model's is
+    not filled."""
     reconstruct = _reconstruction()
     recorded = reconstruct(
         model_name=model,
@@ -899,6 +902,7 @@ def test_cost_is_present_exactly_when_recorded_usage_supports_it(
             assert "costUsd" not in entry
             continue
         assert entry["costUsd"] == pytest.approx(expected, rel=1e-12, abs=1e-12)
+        assert entry["costUsd"] >= 0
         assert entry["costPerHousehold"] == pytest.approx(
             entry["costUsd"] / households, rel=1e-12, abs=1e-12
         )

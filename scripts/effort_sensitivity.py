@@ -337,8 +337,7 @@ def _float_or_none(value: float | None) -> float | None:
 
 def _close(mine: float | None, frozen: float | None) -> bool:
     """Whether a recomputed figure is within 1e-9 of the frozen one. A figure
-    neither side records (the dashboard shows it as not recorded) matches; a
-    figure only one side records does not."""
+    neither side records matches; a figure only one side records does not."""
     if mine is None and frozen is None:
         return True
     if mine is None or frozen is None:
@@ -350,19 +349,20 @@ def run_stats(predictions: pd.DataFrame, model: str) -> dict:
     """Cost, output tokens, median latency, calls and parse failures of one row."""
     rows = predictions[predictions["model"] == model]
     # model_cost_latency leaves out a cost it cannot establish (and a latency
-    # no row timed), and the model itself when it has neither; those are null
-    # here, as the dashboard shows them as not recorded.
+    # no row timed), and the model itself when it has no cost, no latency and
+    # no total tokens; those are null here.
     cost = model_cost_latency(rows, PRICE_OVERRIDES_PER_1M).get(model, {})
-    # live_calls and cache_hit_calls count the answered and replayed provider
-    # calls behind a household's rows (repeated on each row, zero for a
-    # household whose request failed). Rows written before a count's column
-    # existed leave it empty, and then the count is null, not zero.
+    # live_calls and cache_hit_calls count the answered and replayed
+    # responses behind a row. A household run repeats a household's counts
+    # on each of its rows, so this reads each household's first row. A count
+    # some row leaves empty (rows written before its column existed) is
+    # null, not zero.
     live = _every_row(rows, "live_calls")
     live_calls = None if live is None else live.groupby(rows["scenario_id"]).first()
     hits = _every_row(rows, "cache_hit_calls")
-    # A failed household's rows record no usage and no request times, so the
-    # output tokens and the request window come from the rows that record
-    # them, and are null only when none does.
+    # A household none of whose requests was answered records no usage and
+    # no request times, so the output tokens and the request window come
+    # from the rows that record them, and are null only when none does.
     completion = _recorded(rows, "completion_tokens")
     started = _recorded(rows, "request_started_at")
     completed = _recorded(rows, "request_completed_at")
@@ -401,13 +401,13 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
     for model in BOARD_MODELS:
         row = stats[model]
         mine = run_stats(board, model)
-        # The dashboard leaves out a figure it cannot establish (the key is
-        # absent, not null), so read each one it may omit with get; score is
-        # always there.
+        # A frozen row can lack a figure: the dashboard drops a cost, latency,
+        # exact or within-1% rate it cannot establish (the key is absent, not
+        # null). Read each with get, so a missing one fails the comparison.
         report[model] = {
             "exact": (scores[model]["exact"], row.get("exact")),
             "within1pct": (scores[model]["within1pct"], row.get("within1pct")),
-            "score": (scores[model]["score"], row["score"]),
+            "score": (scores[model]["score"], row.get("score")),
             "household_mean_exact": (
                 100 * float(wide[model].mean()),
                 row.get("exact"),

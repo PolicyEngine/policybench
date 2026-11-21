@@ -946,12 +946,12 @@ def require_published_costs(country_payload: dict) -> dict[str, float]:
     that lacks one.
 
     ``analysis.model_cost_latency`` leaves ``costUsd`` out when no row of a
-    model records a cost and the rows' usage cannot establish one from the
-    model's price override. The report's published total sums every board
-    model's cost, and the paper's caption explains a missing cost only as a
-    zero charge, so the freeze stops and names the models rather than
-    publish a board with a cost missing. A cost is a finite number, zero or
-    more.
+    model records a cost and either the model has no price override or
+    ``analysis._override_fallback_cost`` returns no cost for its rows. The
+    report's published total sums every board model's cost, and the paper's
+    render asserts that the models with a cost dash are its zero-cost
+    models, so the freeze stops and names the models rather than publish a
+    board with a cost missing. A cost is a finite number, zero or more.
     """
     rows = [
         row for row in country_payload["modelStats"] if row["condition"] == "no_tools"
@@ -975,17 +975,17 @@ def require_published_costs(country_payload: dict) -> dict[str, float]:
     if absent:
         problems.append(
             f"no costUsd for {', '.join(absent)}: analysis.model_cost_latency "
-            "leaves a cost out when no row of the model records one and it "
-            "cannot establish one from the price override. Rerun or replay "
-            "the model so its rows record their costs, or carry a cost a "
-            "release decision supplies (as the release drivers' CARRIED_USAGE "
-            "does), then export again"
+            "leaves a cost out when no row of the model records one and the "
+            "model has no price override or the override cannot price its "
+            "rows. Rerun or replay the model so its rows record their costs, "
+            "or carry a cost a release decision supplies (as the release "
+            "drivers' CARRIED_USAGE does), then export again"
         )
     if invalid:
         problems.append(
             "a costUsd that is not a finite number, zero or more, for "
-            f"{', '.join(invalid)}: check the costs those models' rows "
-            "record, then export again"
+            f"{', '.join(invalid)}: check the costs and token counts those "
+            "models' rows record, then export again"
         )
     if problems:
         raise SystemExit(
