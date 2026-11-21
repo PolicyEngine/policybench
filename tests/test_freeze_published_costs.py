@@ -44,6 +44,8 @@ def test_a_board_model_without_a_cost_is_named():
         _stat("no-key"),
         _stat("null", costUsd=None),
         _stat("nan", costUsd=math.nan),
+        _stat("infinite", costUsd=math.inf),
+        _stat("negative", costUsd=-1.0),
         _stat("true", costUsd=True),
         _stat("text", costUsd="1.0"),
         _stat("tools-arm", condition="with_tools"),
@@ -51,7 +53,9 @@ def test_a_board_model_without_a_cost_is_named():
     with pytest.raises(SystemExit) as refused:
         freezer.require_published_costs(payload)
     message = str(refused.value)
-    assert "no costUsd for nan, no-key, null, text, true:" in message
+    assert (
+        "no costUsd for infinite, nan, negative, no-key, null, text, true:" in message
+    )
     assert "tools-arm" not in message
     assert "costed" not in message
 

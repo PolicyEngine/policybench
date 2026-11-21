@@ -950,25 +950,32 @@ def require_published_costs(country_payload: dict) -> dict[str, float]:
     model's price override. The report's published total sums every board
     model's cost, and the paper's caption explains a missing cost only as a
     zero charge, so the freeze stops and names the models rather than
-    publish a board with a cost missing.
+    publish a board with a cost missing. A cost is a finite number, zero or
+    more.
     """
     rows = [
         row for row in country_payload["modelStats"] if row["condition"] == "no_tools"
     ]
+
+    def is_cost(value: object) -> bool:
+        return (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0
+        )
+
     missing = sorted(
-        str(row["model"])
-        for row in rows
-        if isinstance(row.get("costUsd"), bool)
-        or not isinstance(row.get("costUsd"), (int, float))
-        or not math.isfinite(row["costUsd"])
+        str(row["model"]) for row in rows if not is_cost(row.get("costUsd"))
     )
     if missing:
         raise SystemExit(
             f"The published payload has no costUsd for {', '.join(missing)}: no "
             "row of those models records a cost, and analysis.model_cost_latency "
-            "could not establish one from the price override. Record the rows' "
-            "costs or carry a released cost (as the release drivers' "
-            "CARRIED_USAGE does), then export again."
+            "could not establish one from the price override. Rerun or replay "
+            "the model so its rows record their costs, or carry a cost a "
+            "release decision supplies (as the release drivers' CARRIED_USAGE "
+            "does), then export again."
         )
     return {row["model"]: row["costUsd"] for row in rows}
 
