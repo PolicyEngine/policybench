@@ -4,7 +4,7 @@
 every repeat builds the same requests. LiteLLM keys the cache on the request,
 so repeats 2..N used to get repeat 1's responses back from the cache and the
 run reported no run-to-run variation. Each repeat now runs under its own
-cache namespace (``_own_cache_namespace``).
+cache namespace (``_OwnCacheNamespace``).
 
 These tests run the harness's repeated path through LiteLLM's real request
 path and the harness's real disk cache (``enable_cache`` in a temporary
@@ -90,9 +90,9 @@ for _model_id in sorted(card.litellm_id for card in MODEL_CARDS.values()):
 # edit here.
 REPRESENTATIVES = [ids[0] for _, ids in sorted(GROUPS.items())]
 # LiteLLM rewrites a gemini/ tool request's schema between its cache lookup
-# and its store, so on main a rebuilt gemini/ tool request never replays from
-# the cache, repeat or not (the cache fix on branch
-# fix/cache-replay-mutated-request). The replay tests leave that group out.
+# and its store, so a rebuilt gemini/ tool request never finds its stored
+# answer, repeat or not, until the harness pins the cache key. The tests that
+# need a replay leave that group out; the others cover it.
 REPLAYING = [
     model_id for model_id in REPRESENTATIVES if _group(model_id) != "gemini / tool"
 ]
@@ -395,6 +395,70 @@ def test_a_rerun_replays_each_repeats_own_responses(
         "the disk cache"
     ) in out
     assert f"run_002: {one_repeat} responses from the provider, 0 replayed" in out
+
+
+@pytest.mark.parametrize("model_id", REPRESENTATIVES)
+def test_no_repeat_ever_returns_another_repeats_responses(
+    model_id, disk_cache, wire, tmp_path
+):
+    """Across a run and a rerun on the same cache, an answer only ever comes
+    back under the run id that first got it."""
+    first = _run(model_id, tmp_path / "first")
+    again = _run(model_id, tmp_path / "again", repeats=3)
+
+    answers = {
+        (label, run_id): _raw(frame, run_id)
+        for label, frame in (("first", first), ("again", again))
+        for run_id in sorted(set(frame["run_id"]))
+    }
+    assert len(answers) == 5
+    assert all("value" in text for raw in answers.values() for text in raw)
+    for (label, run_id), raw in answers.items():
+        for (other_label, other_id), other in answers.items():
+            if other_id != run_id:
+                assert raw != other, (
+                    f"{label} {run_id} returned {other_label} {other_id}'s responses"
+                )
+
+
+def test_the_cli_command_asks_again_on_repeat_2(monkeypatch, sent_per_repeat, tmp_path):
+    """The command as the CLI runs it: the cache on, then two repeats."""
+    from policybench.cli import main
+
+    model_id = REPLAYING[0]
+    assert MODELS[_name_of(model_id)] == model_id
+    monkeypatch.setattr("policybench.cache.CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(
+        "policybench.cli._load_eval_scenarios", lambda _args: [SCENARIO]
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "policybench",
+            "eval-no-tools-repeated",
+            "--num-scenarios",
+            "1",
+            "--repeats",
+            "2",
+            "--model",
+            _name_of(model_id),
+            "--program",
+            "snap",
+            "--program",
+            "ssi",
+            "--output-dir",
+            str(tmp_path / "runs"),
+        ],
+    )
+
+    main()
+
+    assert litellm.cache is not None, "the command no longer turns the cache on"
+    assert (tmp_path / "cache" / "cache.db").exists()
+    assert sent_per_repeat["run_000"] > 0
+    assert sent_per_repeat["run_001"] == sent_per_repeat["run_000"]
+    second = pd.read_csv(tmp_path / "runs" / "run_001.csv")
+    assert second["cache_hit_calls"].sum() == 0
 
 
 def test_without_a_cache_every_repeat_asks(sent_per_repeat, tmp_path):

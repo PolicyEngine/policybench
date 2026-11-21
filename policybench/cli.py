@@ -1122,7 +1122,9 @@ def main():
 
     # Enable disk cache for ordinary eval calls. Contract-failure retry/repair
     # commands bypass cache by default, otherwise they can replay the same bad
-    # provider response indefinitely.
+    # provider response indefinitely. eval-no-tools-repeated gives each repeat
+    # its own cache namespace (run_repeated_no_tools_eval), so a repeat never
+    # gets another repeat's responses.
     if args.command in {
         "eval-no-tools",
         "eval-no-tools-repeated",
