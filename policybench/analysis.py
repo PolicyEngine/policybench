@@ -1488,11 +1488,16 @@ def _override_fallback_cost(
       completion count, or the reverse, which
       ``eval_no_tools._reconstruct_token_cost`` would not price.
     - The Responses-API GPT models (``GPT_RESPONSES_MODELS``) charge every
-      token of a request above 272k prompt tokens at a higher rate. No row
-      records a request's own prompt count or how many rows share it, and a
-      sum over a household's rows bounds a request's prompt only when the
-      frame holds every row the request was split among, unrepaired, which
-      the rows cannot show. These models get no cost.
+      token of a request above 272k prompt tokens at a higher rate. A row
+      holds a share of its responses' usage, and no row records how many
+      rows share a response, so a row at or below 272k does not show which
+      rate its request paid: a sum over a household's rows bounds a
+      request's prompt only when the frame holds every row the request was
+      split among, unrepaired, which the rows cannot show. A row that
+      records one response and a prompt share above 272k does prove the
+      higher rate for that response, and pricing the model that way would
+      need every priced row to prove it. The fill does not attempt it:
+      these models get no cost.
     - An override with a ``cache_read`` or ``cache_write`` rate prices cached
       and cache-write tokens at those rates (a rate it does not list is the
       input rate), bounding each row's counts by its prompt count as the
@@ -1584,10 +1589,13 @@ def model_cost_latency(
     a per-household figure. Latency is the *median* per-household request-time —
     each household's calls summed, then the median across households — which is
     robust to the occasional rate-limit retry that inflates the mean. When no
-    row of a model records a cost (rows from a run that had no price for the
-    model), :func:`_override_fallback_cost` fills it from ``price_overrides``
-    where the rows' recorded usage supports the override's pricing, and
-    otherwise the model gets no cost and no ``costUsd`` key.
+    row of a model records a cost, :func:`_override_fallback_cost` fills it
+    from ``price_overrides`` where the rows' recorded usage supports the
+    override's pricing, and otherwise the model gets no cost and no
+    ``costUsd`` key. No row records a cost at least when the run had no price
+    for the model, and when no response behind the rows recorded both a
+    prompt and a completion count (a row can still hold both counts, summed
+    from two such responses).
     """
     if predictions.empty or "model" not in predictions.columns:
         return {}

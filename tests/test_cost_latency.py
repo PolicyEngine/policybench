@@ -18,7 +18,9 @@ Cost invariants, for every input (the property test executes them):
   and cache-write tokens, bounded by its prompt count, at the override's
   cache rates where it has them;
 - a Responses-API GPT model's cost is never filled: its long-context rate
-  turns on one request's prompt length, which no row records;
+  turns on one request's prompt length, and a row holds a share of it (a
+  one-response row above 272k would prove the higher rate; the fill does not
+  price that case);
 - costPerHousehold is costUsd over the distinct households in the input.
 The reconstruction tests check that a filled cache-rate cost is what
 eval_no_tools._reconstruct_token_cost records for the one response the rows
@@ -226,9 +228,11 @@ def _usage_row(
 @pytest.mark.parametrize("prompt", [100_000, 300_000])
 def test_gpt_responses_override_fills_no_cost(prompt):
     """GPT-6.1 Sol charges a request above 272k prompt tokens 2x input and
-    cache and 1.5x output on every token. A row holds an equal share of its
-    request group's usage, so the row does not show whether a request crossed
-    272k, and pricing the rows at the base rates could understate the cost."""
+    cache and 1.5x output on every token. A row holds a share of its
+    responses' usage: a row at or below 272k does not show whether its
+    request crossed the line, and pricing it at the base rates could
+    understate the cost. A one-response row above 272k does show it; the fill
+    prices neither."""
     model = "gpt-6.1-sol"
     preds = pd.DataFrame(
         [_usage_row(model, "s1", prompt, 20_000, 50_000, 0)],
@@ -522,6 +526,90 @@ def test_input_output_override_ignores_response_counts():
     )
     out = model_cost_latency(preds, {"m": {"input": 1.0, "output": 2.0}})
     assert out["m"]["costUsd"] == pytest.approx(10.0)
+
+
+def test_a_batch_cell_merged_from_two_partial_count_responses_reaches_the_fill():
+    """A row has no cost when no response behind it has one, and a response
+    that reports only one of the two token counts has none. A batch cell
+    answered with a prompt count and no completion count, then repaired with
+    a completion count and no prompt count, merges to a row with both counts
+    and no cost, so a model whose every row is like it reaches the fill
+    though the run had a price for it. The input-and-output fill prices the
+    row's sums, which the reconstruction prices for neither response; under
+    a cache-rate override the row sums two responses and gets no cost."""
+    from policybench import batch_eval
+
+    model = "gemini-3.6-flash"
+    answers = [
+        ({"prompt_tokens": 100_000}, None, False),
+        (
+            {"completion_tokens": 1_000},
+            '{"eitc": {"value": 123, "explanation": "x = 123"}}',
+            True,
+        ),
+    ]
+    rows_by_key, attempts_by_key, disagreements, ledger = {}, {}, [], []
+    for round_index, (usage, content, repair) in enumerate(answers):
+        unit = batch_eval.BatchUnit(
+            scenario_id="s1", variables=["eitc"], chunk_index=0, repair=repair
+        )
+        result = batch_eval.NormalizedResult(
+            custom_id=unit.custom_id, content=content, **usage
+        )
+        predictions, explanations, raw, error = batch_eval.parse_unit_result(
+            unit, result
+        )
+        state = batch_eval.BatchRunState(
+            model=model,
+            round_index=round_index,
+            batch_id=f"b{round_index}",
+            provider="gemini",
+            submitted_at=0.0,
+        )
+        ledger.append(
+            batch_eval._batch_spend_record(
+                state=state,
+                unit=unit,
+                model_name=model,
+                model_id=MODELS[model],
+                result=result,
+                predictions=predictions,
+                explanations=explanations,
+                error=error,
+            )
+        )
+        rows = batch_eval.rows_from_unit(
+            model_name=model,
+            model_id=MODELS[model],
+            unit=unit,
+            predictions=predictions,
+            explanations=explanations,
+            raw_response=raw,
+            error=error,
+            result=result,
+        )
+        assert rows[0]["total_cost_usd"] is None
+        batch_eval.merge_attempt_rows(rows_by_key, attempts_by_key, rows, disagreements)
+    merged = pd.DataFrame(list(rows_by_key.values()))
+    batch_eval._apply_spend_ledger_costs(merged, ledger)
+    (row,) = merged.to_dict("records")
+    assert (row["prompt_tokens"], row["completion_tokens"]) == (100_000, 1_000)
+    assert pd.isna(row["total_cost_usd"])
+    assert (row["live_calls"], row["cache_hit_calls"]) == (2, 0)
+
+    out = model_cost_latency(merged, PRICE_OVERRIDES_PER_1M)
+    rates = PRICE_OVERRIDES_PER_1M[model]
+    assert set(rates) == {"input", "output"}
+    assert out[model]["costUsd"] == pytest.approx(
+        (100_000 * rates["input"] + 1_000 * rates["output"]) / 1e6
+    )
+    cache_rate_model = merged.assign(
+        model="claude-fable-5.2",
+        cached_prompt_tokens=0.0,
+        cache_write_prompt_tokens=0.0,
+    )
+    out = model_cost_latency(cache_rate_model, PRICE_OVERRIDES_PER_1M)
+    assert "costUsd" not in out.get("claude-fable-5.2", {})
 
 
 def test_cache_write_rate_needs_the_cached_count():
