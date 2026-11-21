@@ -156,7 +156,10 @@ policybench analyze --runs-dir results/local/no_tools/runs --output-dir results/
 Each repeat asks the models again. The command keeps the LiteLLM disk cache on,
 but each repeat looks up and stores its answers under its own cache namespace
 (`repeat=run_000`, `repeat=run_001`, ...), so no repeat looks up another
-repeat's answers, or those of an `eval-no-tools` run.
+repeat's answers, or those of an `eval-no-tools` run. The namespace is set on
+the cache of the whole Python process, which the command has to itself; code
+that calls `run_repeated_no_tools_eval` must run no other evaluation in the
+same process meanwhile.
 
 Running the command again reuses what each repeat already has. Into the same
 output directory, a repeat resumes from its CSV before it consults the cache.
@@ -166,7 +169,11 @@ explanations are on), even if some of those rows hold no parsed answer; it
 asks again for the other households. With `--single-output` it keeps every row
 without an infrastructure error. Into a new output directory with the same
 cache directory, a repeat looks for its answers under its own namespace and
-asks the model for those the cache does not find. To draw a new, independent
+asks the model for those the cache does not find. A household's first request
+is the same every time, so the cache finds its answer whenever LiteLLM
+computes the same key for it again. A repair or explanation-only request is
+built from the answers before it, so the cache finds its answer only when the
+rebuilt request comes out the same. To draw a new, independent
 set of repeats, use a new output directory and point `POLICYBENCH_CACHE_DIR`
 at a new directory.
 

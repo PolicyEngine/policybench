@@ -18,10 +18,11 @@ which LiteLLM loads when it is first imported, before any fixture; set
 Fixtures count requests per repeat and, where a test asks for them, record
 the cache keys each repeat looks up and stores.
 
-Seven test functions send no request: the namespace's spelling, the check
+Nine test functions send no request: the namespace's spelling, the check
 of directories the command cannot vouch for (each case), the check's
-accepted rows, the response counter, the overlap guard, and the two that
-check the namespace comes back (they replace the runner; the property test
+accepted rows, the response counter, the overlap guard, the two that check
+a repeat raises when the cache changes under it, and the two that check the
+namespace comes back (these four replace the runner; the property test
 replaces the cache object too).
 """
 
@@ -1032,6 +1033,71 @@ def test_repeats_cannot_overlap_in_one_process(disk_cache):
     assert disk_cache.namespace == base
     with _OwnCacheNamespace("run_001"):
         assert disk_cache.namespace == _repeat_cache_namespace(base, "run_001")
+    assert disk_cache.namespace == base
+
+
+def _one_row(run_id: str) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "run_id": run_id,
+                "model": "a",
+                "scenario_id": SCENARIO.id,
+                "variable": "snap",
+                "live_calls": 0,
+                "cache_hit_calls": 0,
+            }
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "change", ["cache replaced", "namespace changed", "cache turned on"]
+)
+def test_a_repeat_that_finds_the_cache_changed_raises(change, monkeypatch, tmp_path):
+    """Something else in the process replaced the cache, changed its
+    namespace, or turned a cache on while a repeat ran: the repeat raises when
+    it ends, puts back the namespace it changed, and lets a later repeat
+    start."""
+    if change != "cache turned on":
+        enable_cache(str(tmp_path / "cache"))
+    original = litellm.cache
+    base = None if original is None else original.namespace
+
+    def runner(*_args, run_id, **_kwargs):
+        if change == "namespace changed":
+            litellm.cache.namespace = "policybench:elsewhere"
+        else:
+            enable_cache(str(tmp_path / "cache"))
+        return _one_row(run_id)
+
+    monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", runner)
+
+    with pytest.raises(
+        RuntimeError, match="replaced, or its namespace changed, while repeat run_000"
+    ):
+        _run(OPUS, tmp_path / "runs")
+
+    if original is not None:
+        assert original.namespace == base
+    with _OwnCacheNamespace("run_001"):
+        pass
+
+
+def test_a_failing_repeat_keeps_its_own_error_when_the_cache_changed(
+    disk_cache, monkeypatch, tmp_path
+):
+    base = disk_cache.namespace
+
+    def runner(*_args, run_id, **_kwargs):
+        enable_cache(str(tmp_path / "cache"))
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(eval_no_tools, "run_no_tools_eval", runner)
+
+    with pytest.raises(RuntimeError, match="provider down"):
+        _run(OPUS, tmp_path / "runs")
+
     assert disk_cache.namespace == base
 
 

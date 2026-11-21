@@ -4325,20 +4325,34 @@ class _OwnCacheNamespace:
     effort override (``_effort_cache_namespace``), is built from the attribute
     while the repeat runs, so it keeps the repeat.
 
-    So a repeat looks up and stores its answers under keys no other repeat
-    uses, and a rerun of the same repeat on the same cache looks under the
-    keys that repeat stored. Whether the rerun finds an answer there is the
-    cache's business: a request LiteLLM rewrites between its lookup and its
-    store never finds its answer, in a repeat or out of one.
+    So a repeat looks up and stores its answers under its own namespace,
+    which no other repeat uses, and a rerun of the same repeat on the same
+    cache looks up under the namespace that repeat stored under. The rerun
+    replays an answer only if LiteLLM computes the same key for the rebuilt
+    request's lookup as it did for the original's store: a request LiteLLM
+    rewrites between its lookup and its store (a ``gemini/`` tool request
+    whose key the harness leaves to LiteLLM) never finds its answer, in a
+    repeat or out of one. A household's first request is rebuilt from the
+    same inputs every time. A follow-up request is built from the answers
+    before it (a repair round from the outputs they left out, an
+    explanation-only request from their values), so a rerun rebuilds the same
+    follow-up only where those answers lead to it again.
 
-    Repeats cannot overlap in one process: entering one while another runs
-    raises RuntimeError. Without a cache the namespace is left alone.
+    The namespace is an attribute of the cache, which is process-wide, so a
+    repeat must be the only evaluation in its process (the CLI runs one):
+    any other request sent while a repeat runs uses the repeat's namespace.
+    Entering a repeat while another runs raises RuntimeError, and so does a
+    repeat that ends to find ``litellm.cache`` replaced or its namespace
+    changed, since its requests may then have used another namespace (unless
+    the repeat is already raising). Without a cache the namespace is left
+    alone.
     """
 
     def __init__(self, run_id: str) -> None:
         self._run_id = run_id
         self._cache = None
         self._base: str | None = None
+        self._namespace: str | None = None
 
     def __enter__(self) -> None:
         if not _REPEAT_NAMESPACE_LOCK.acquire(blocking=False):
@@ -4349,14 +4363,25 @@ class _OwnCacheNamespace:
         self._cache = litellm.cache
         if self._cache is not None:
             self._base = self._cache.namespace
-            self._cache.namespace = _repeat_cache_namespace(self._base, self._run_id)
+            self._namespace = _repeat_cache_namespace(self._base, self._run_id)
+            self._cache.namespace = self._namespace
 
-    def __exit__(self, *_exc) -> None:
+    def __exit__(self, exc_type, *_exc) -> None:
         try:
+            changed = litellm.cache is not self._cache or (
+                self._cache is not None and self._cache.namespace != self._namespace
+            )
             if self._cache is not None:
                 self._cache.namespace = self._base
         finally:
             _REPEAT_NAMESPACE_LOCK.release()
+        if changed and exc_type is None:
+            raise RuntimeError(
+                f"The disk cache was replaced, or its namespace changed, while "
+                f"repeat {self._run_id} ran, so its requests may not have used "
+                "its own namespace. Run nothing else in this process while a "
+                "repeat runs."
+            )
 
 
 def _response_sources(
@@ -4493,8 +4518,9 @@ def run_repeated_no_tools_eval(
     """Run repeated AI-alone evaluations, saving one artifact per run.
 
     Each repeat runs under its own disk-cache namespace
-    (``_OwnCacheNamespace``), so it never looks up another repeat's answers,
-    and a rerun on the same cache looks only under its own. Before the first
+    (``_OwnCacheNamespace``), so, with nothing else running in the process,
+    it never looks up another repeat's answers, and a rerun on the same cache
+    looks up only under its own namespace. Before the first
     request and after each repeat, a directory where two repeat files hold the
     same provider response raises ValueError (``_refuse_shared_responses``).
     After each repeat, one line says where its rows' responses came from, and
