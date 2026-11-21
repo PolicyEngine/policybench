@@ -1001,9 +1001,9 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   that budget, did not reach its whole-scenario probe and derived no
     #   card. Gemini 4 Carbon's card took JSON because its JSON probes passed
     #   after its tool probe ran out of budget; here both ran out, so the card
-    #   kept the tool contract. The smokes settled it: in each, both households
-    #   answered every output through the forced tool, 16 of 16 and 20 of 20,
-    #   values and explanations, so the contract stays.
+    #   kept the tool contract. The forced tool worked for both households in
+    #   each smoke: each household answered every output through it, 16 of 16
+    #   and 20 of 20, values and explanations, so the contract stays.
     # - explanation_chunk_size None: the canonical whole-scenario request
     #   (chunking is closed to new models).
     # - thinking_budget True: the model reasons by default. Google's thinking
@@ -1039,10 +1039,13 @@ MODEL_CARDS: dict[str, ModelCard] = {
     #   smoke's completion tokens, an estimated $0.75 of its $1.36 at Google's
     #   list rates (the households about $1.12 and $0.23). Starting at the
     #   ceiling removes the two lower rungs. On a length finish the harness
-    #   keeps the values and explanations a response returned. Below the
-    #   ceiling it asks again at the next rung for the outputs still missing;
-    #   at the ceiling no rung is left, so it records each output still missing
-    #   as budget_exhausted_at_ceiling and asks for it no more. The second
+    #   keeps the usable values and explanations a response returned, with
+    #   valid cells from earlier requests. Below the ceiling it asks again at
+    #   the next rung for the outputs still missing. At the ceiling no rung is
+    #   left, so it asks for them no more. An output still missing its value
+    #   gets failure source budget_exhausted_at_ceiling. One that has its value
+    #   but lacks a usable explanation keeps the value, and the harness adds
+    #   "budget_exhausted_at_ceiling (explanation)" to the error. The second
     #   smoke ran the same two households at the 65,536-token start, in one
     #   round. Each household answered every output, values and explanations,
     #   on its first response through the forced tool; no response ended at
@@ -1142,9 +1145,12 @@ MODEL_CARDS: dict[str, ModelCard] = {
             "completion tokens, an estimated $0.75 of its $1.36 at Google's list "
             "rates. So the card starts at the 65,536-token ceiling "
             "(completion_token_cap), and no request runs at a lower budget. On a "
-            "length finish the harness keeps the values and explanations a response "
-            "returned; at the ceiling it records each output still missing as "
-            "budget_exhausted_at_ceiling and asks for it no more. On 2026-11-21 a "
+            "length finish the harness keeps the usable values and explanations a "
+            "response returned, with valid cells from earlier requests. At the ceiling "
+            "it asks no more for the outputs still missing. One missing its value gets "
+            "failure source budget_exhausted_at_ceiling; one that has its value but "
+            "lacks a usable explanation keeps the value, and the harness adds "
+            "budget_exhausted_at_ceiling (explanation) to the error. On 2026-11-21 a "
             "second smoke ran the same two households at the 65,536-token start. Each "
             "answered every output, values and explanations, on its first response "
             "through the forced tool, with no response ending at length and no "

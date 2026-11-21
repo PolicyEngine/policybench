@@ -3867,9 +3867,9 @@ def test_gemini_4_neon_request_forces_the_answer_tool_and_sets_no_reasoning(
     two-household smokes every household answered every output through it.
     The request carries no reasoning parameter, so the model reasons at
     Google's default, high per Google's thinking guide, as Hydrogen does. It
-    takes the card's 600s timeout, set from the measured output rate for a
-    request at the 65,536-token ceiling, and the card's own starting budget,
-    that ceiling: in the first smoke, at the Gemini family's 16,384, one
+    takes the card's 600s timeout, set by extrapolating measured rates to
+    65,536 tokens, and the card's own starting budget, the 65,536-token
+    ceiling: in the first smoke, at the Gemini family's 16,384, one
     household's first two requests ran out of budget with no usable output.
     The first request, an answers-only repair request and
     _initial_completion_budget_tokens, which the supervisor's and the resume
@@ -3972,10 +3972,11 @@ def test_gemini_ids_without_a_card_budget_keep_the_family_starting_budget(
     model_id,
 ):
     """A gemini/ card's completion_token_cap leaves every other gemini/ id
-    where it was: 16,384 tokens for 1, 3, 16 and 20 outputs, with and without
-    explanations (the board's requests and answers-only ones), in the request
-    controls and from _initial_completion_budget_tokens, which the
-    supervisor's and the resume sidecar's fingerprints both call."""
+    where it was: 16,384 tokens for 1, 3, 16 and 20 outputs, in the request
+    controls with and without explanations (the board's requests and
+    answers-only ones), and in the initial-budget helper with explanations.
+    The supervisor's and the resume sidecar's fingerprints both call that
+    helper, _initial_completion_budget_tokens."""
     from policybench.eval_no_tools import _initial_completion_budget_tokens
 
     for variable_count in (1, 3, 16, 20):
