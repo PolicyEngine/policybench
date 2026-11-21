@@ -390,13 +390,17 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
     for model in BOARD_MODELS:
         row = stats[model]
         mine = run_stats(board, model)
-        # The dashboard leaves out a cost or latency it cannot establish (the
-        # key is absent, not null), so read those two with get.
+        # The dashboard leaves out a figure it cannot establish (the key is
+        # absent, not null), so read each one it may omit with get; score is
+        # always there.
         report[model] = {
-            "exact": (scores[model]["exact"], row["exact"]),
-            "within1pct": (scores[model]["within1pct"], row["within1pct"]),
+            "exact": (scores[model]["exact"], row.get("exact")),
+            "within1pct": (scores[model]["within1pct"], row.get("within1pct")),
             "score": (scores[model]["score"], row["score"]),
-            "household_mean_exact": (100 * float(wide[model].mean()), row["exact"]),
+            "household_mean_exact": (
+                100 * float(wide[model].mean()),
+                row.get("exact"),
+            ),
             "cost_usd": (mine["cost_usd"], row.get("costUsd")),
             "median_household_seconds": (
                 mine["median_household_seconds"],
@@ -411,7 +415,7 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
                     .notna()
                     .sum()
                 ),
-                row["nParsed"],
+                row.get("nParsed"),
             ),
         }
     return report

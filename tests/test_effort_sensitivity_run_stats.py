@@ -170,6 +170,22 @@ def test_a_figure_only_the_recomputation_has_fails_the_board_check(
     assert not _passes(script, report)
 
 
+@pytest.mark.parametrize(
+    ("key", "field"),
+    [("exact", "exact"), ("within1pct", "within1pct"), ("nParsed", "n_parsed")],
+)
+def test_a_score_the_frozen_row_lacks_fails_the_board_check(script, frozen, key, field):
+    """The dashboard also leaves out a score it could not compute; the check
+    reports it as missing and fails, for the exact comparison as well."""
+    inputs, board = frozen
+    report = script.check_board(_without(inputs, FABLE, key), board)
+    mine, frozen_value = report[FABLE][field]
+    assert mine is not None
+    assert frozen_value is None
+    assert mine != frozen_value
+    assert not _passes(script, report)
+
+
 def test_a_cost_neither_side_records_passes_the_board_check(script, frozen):
     """Fable 5.2 rows with no recorded cost whose rows each sum two responses
     get no cost from the cache-rate fill; a frozen row without costUsd agrees,
