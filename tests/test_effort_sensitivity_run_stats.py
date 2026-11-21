@@ -1,11 +1,17 @@
-"""scripts/effort_sensitivity.py run_stats on rows whose cost is not recorded.
+"""scripts/effort_sensitivity.py run_stats and --check-board on figures the
+rows cannot establish.
 
 model_cost_latency leaves out a cost it cannot establish, and the model when
 it has neither a cost nor a latency; run_stats then reports null for those
-fields, as the dashboard reports a cost as not recorded, rather than failing,
-and --check-board counts a null figure as a mismatch.
+fields, as the dashboard reports a cost as not recorded, rather than failing.
+The dashboard leaves such a key out of a frozen modelStats row (the committed
+snapshot's gpt-5.5 row has no latencySeconds), so --check-board reads the
+frozen figures without assuming the keys: a figure only one side records fails
+the check, and a figure neither side records passes it.
 """
 
+import copy
+import dataclasses
 import importlib.util
 import sys
 from pathlib import Path
@@ -100,10 +106,79 @@ def test_model_with_no_cost_or_latency_is_all_null(run_stats):
     assert stats["median_household_seconds"] is None
 
 
-def test_board_check_counts_an_unestablished_figure_as_a_mismatch(script):
+def test_board_check_counts_a_figure_one_side_lacks_as_a_mismatch(script):
     """--check-board compares each recomputed figure with the frozen one; a
-    figure run_stats reports as null fails the check instead of raising."""
+    figure only one side records fails the check instead of raising, and a
+    figure neither side records passes."""
     assert script._close(1.0, 1.0 + 1e-12)
     assert not script._close(1.0, 1.0 + 1e-6)
     assert not script._close(None, 31.69)
     assert not script._close(31.69, None)
+    assert script._close(None, None)
+
+
+FABLE = "claude-fable-5.2"
+OPUS = "claude-opus-5.5"
+
+
+@pytest.fixture(scope="module")
+def frozen(script):
+    return script.scoring_inputs(), script.load_board_predictions()
+
+
+def _without(inputs, model, key):
+    payload = copy.deepcopy(inputs.payload)
+    (row,) = [row for row in payload["modelStats"] if row["model"] == model]
+    del row[key]
+    return dataclasses.replace(inputs, payload=payload)
+
+
+def _passes(script, report):
+    return all(
+        script._close(mine, frozen)
+        for checks in report.values()
+        for mine, frozen in checks.values()
+    )
+
+
+def test_committed_snapshot_passes_the_board_check(script, frozen):
+    inputs, board = frozen
+    assert _passes(script, script.check_board(inputs, board))
+
+
+@pytest.mark.parametrize(
+    ("model", "key", "field"),
+    [
+        (FABLE, "costUsd", "cost_usd"),
+        (OPUS, "latencySeconds", "median_household_seconds"),
+    ],
+)
+def test_a_figure_only_the_recomputation_has_fails_the_board_check(
+    script, frozen, model, key, field
+):
+    """A frozen row without the key reports the figure as missing."""
+    inputs, board = frozen
+    report = script.check_board(_without(inputs, model, key), board)
+    mine, frozen_value = report[model][field]
+    assert mine is not None
+    assert frozen_value is None
+    assert not _passes(script, report)
+
+
+def test_a_cost_neither_side_records_passes_the_board_check(script, frozen):
+    """Fable 5.2 rows with no recorded cost whose rows each sum two responses
+    get no cost from the cache-rate fill; a frozen row without costUsd agrees,
+    and a frozen row with one does not."""
+    inputs, board = frozen
+    cleared = board.copy()
+    fable = cleared["model"] == FABLE
+    cleared.loc[fable, "total_cost_usd"] = np.nan
+    cleared.loc[fable, "live_calls"] = 2
+    cleared.loc[fable, "cache_hit_calls"] = 0
+    agree = script.check_board(_without(inputs, FABLE, "costUsd"), cleared)
+    assert agree[FABLE]["cost_usd"] == (None, None)
+    assert _passes(script, agree)
+    differ = script.check_board(inputs, cleared)
+    assert differ[FABLE]["cost_usd"][0] is None
+    assert differ[FABLE]["cost_usd"][1] is not None
+    assert not _passes(script, differ)

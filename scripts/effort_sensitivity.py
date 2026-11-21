@@ -317,8 +317,11 @@ def _float_or_none(value: float | None) -> float | None:
 
 
 def _close(mine: float | None, frozen: float | None) -> bool:
-    """Whether a recomputed figure is within 1e-9 of the frozen one; a figure
-    either side lacks (a cost the rows cannot establish) does not match."""
+    """Whether a recomputed figure is within 1e-9 of the frozen one. A figure
+    neither side records (the dashboard shows it as not recorded) matches; a
+    figure only one side records does not."""
+    if mine is None and frozen is None:
+        return True
     if mine is None or frozen is None:
         return False
     return math.isclose(mine, frozen, rel_tol=0, abs_tol=1e-9)
@@ -368,15 +371,17 @@ def check_board(inputs: ScoringInputs, board: pd.DataFrame) -> dict:
     for model in BOARD_MODELS:
         row = stats[model]
         mine = run_stats(board, model)
+        # The dashboard leaves out a cost or latency it cannot establish (the
+        # key is absent, not null), so read those two with get.
         report[model] = {
             "exact": (scores[model]["exact"], row["exact"]),
             "within1pct": (scores[model]["within1pct"], row["within1pct"]),
             "score": (scores[model]["score"], row["score"]),
             "household_mean_exact": (100 * float(wide[model].mean()), row["exact"]),
-            "cost_usd": (mine["cost_usd"], row["costUsd"]),
+            "cost_usd": (mine["cost_usd"], row.get("costUsd")),
             "median_household_seconds": (
                 mine["median_household_seconds"],
-                row["latencySeconds"],
+                row.get("latencySeconds"),
             ),
             "n_parsed": (
                 int(
